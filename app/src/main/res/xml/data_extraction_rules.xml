@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="accounts/"/>
+        <exclude domain="sharedpref" path="encrypted_prefs.xml"/>
+        <exclude domain="file" path="accounts_manifest.json"/>
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="accounts/"/>
+        <exclude domain="sharedpref" path="encrypted_prefs.xml"/>
+    </device-transfer>
+</data-extraction-rules>

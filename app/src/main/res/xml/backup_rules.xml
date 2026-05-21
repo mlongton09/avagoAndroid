@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <exclude domain="file" path="accounts/" />
+    <exclude domain="sharedpref" path="encrypted_prefs.xml" />
+    <exclude domain="file" path="accounts_manifest.json" />
+    <include domain="sharedpref" path="user_prefs.xml" />
+</full-backup-content>
