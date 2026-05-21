@@ -27,12 +27,16 @@ class IdentityManager @Inject constructor(
     private val _activeAccountId = MutableStateFlow<String?>(null)
     val activeAccountId: StateFlow<String?> = _activeAccountId.asStateFlow()
 
+    private val _activeUserId = MutableStateFlow<String?>(null)
+    val activeUserId: StateFlow<String?> = _activeUserId.asStateFlow()
+
     val isSignedIn: Boolean get() = _activeAccountId.value != null
 
     private val client: AvagoServiceClient get() = serviceClientProvider.get()
 
-    private fun setActiveAccount(accountId: String?) {
+    private fun setActiveAccount(accountId: String?, userId: String? = null) {
         _activeAccountId.value = accountId
+        _activeUserId.value = userId
         // Keep the token store's active pointer in sync so TokenProvider
         // can serve the correct credentials without depending on IdentityManager.
         tokenStore.activeAccountId = accountId
@@ -50,7 +54,7 @@ class IdentityManager @Inject constructor(
         val accounts = AccountManifest.load(appContext)
         if (accounts.isNotEmpty()) {
             val last = accounts.last()
-            setActiveAccount(last.accountId)
+            setActiveAccount(last.accountId, last.userId)
             Timber.d("IdentityManager: restored account ${last.accountId}")
         } else {
             Timber.d("IdentityManager: no accounts on disk, provisioning")
@@ -96,12 +100,13 @@ class IdentityManager @Inject constructor(
             val user = runCatching { client.getMe() }.getOrNull()
             val record = AccountRecord(
                 accountId = accountId,
+                userId = user?.user_id,
                 displayName = user?.display_name,
                 email = user?.email,
                 role = user?.role,
             )
             AccountManifest.addOrUpdate(context, record)
-            setActiveAccount(accountId)
+            setActiveAccount(accountId, user?.user_id)
 
             Timber.d("IdentityManager: signed in as $accountId")
         }
@@ -219,6 +224,8 @@ class IdentityManager @Inject constructor(
     // ---------------------------------------------------------------------------
 
     fun getActiveAccountId(): String? = _activeAccountId.value
+
+    fun getActiveUserId(): String? = _activeUserId.value
 
     fun getAccessToken(accountId: String): String? = tokenStore.getAccessToken(accountId)
 

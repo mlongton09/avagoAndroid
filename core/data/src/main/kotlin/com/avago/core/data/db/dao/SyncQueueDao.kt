@@ -50,5 +50,5 @@ interface SyncQueueDao {
     suspend fun markConflict(queueId: String)
 
     @Query("DELETE FROM sync_queue WHERE queue_id = :id")
-    suspend fun softDelete(id: String, now: Long)
+    suspend fun softDelete(id: String)
 }

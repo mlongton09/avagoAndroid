@@ -23,5 +23,5 @@ interface DeviceDao {
     suspend fun upsertAll(entities: List<DeviceEntity>)
 
     @Query("DELETE FROM devices WHERE device_id = :id")
-    suspend fun softDelete(id: String, now: Long)
+    suspend fun softDelete(id: String)
 }

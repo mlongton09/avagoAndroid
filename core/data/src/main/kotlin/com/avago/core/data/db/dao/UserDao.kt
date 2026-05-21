@@ -23,5 +23,5 @@ interface UserDao {
     suspend fun upsertAll(entities: List<UserEntity>)
 
     @Query("DELETE FROM users WHERE user_id = :id")
-    suspend fun softDelete(id: String, now: Long)
+    suspend fun softDelete(id: String)
 }

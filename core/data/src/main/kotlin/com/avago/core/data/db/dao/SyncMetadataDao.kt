@@ -32,5 +32,5 @@ interface SyncMetadataDao {
     suspend fun resetWatermark(entityType: String)
 
     @Query("DELETE FROM sync_metadata WHERE entity_type = :id")
-    suspend fun softDelete(id: String, now: Long)
+    suspend fun softDelete(id: String)
 }

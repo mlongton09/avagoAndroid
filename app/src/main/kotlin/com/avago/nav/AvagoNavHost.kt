@@ -7,9 +7,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.avago.feature.assets.nav.assetsNavGraph
 import com.avago.feature.auth.SignInScreen
-import com.avago.feature.chat.ChatRootScreen
+import com.avago.feature.chat.nav.chatNavGraph
+import com.avago.feature.chat.nav.ChatRoute
+import com.avago.feature.docs.nav.docsNavGraph
 import com.avago.feature.inventory.nav.inventoryNavGraph
 import com.avago.feature.reports.ReportsScreen
+import com.avago.feature.schedule.nav.scheduleNavGraph
 import com.avago.feature.settings.nav.settingsNavGraph
 import com.avago.feature.workorders.nav.workOrderNavGraph
 
@@ -57,10 +60,14 @@ fun AvagoNavHost(
             ReportsScreen()
         }
 
+        // ── Schedule ──────────────────────────────────────────────────────────
+        scheduleNavGraph(navController = navController)
+
+        // ── Docs ──────────────────────────────────────────────────────────────
+        docsNavGraph(navController = navController)
+
         // ── Chat ──────────────────────────────────────────────────────────────
-        composable("chat") {
-            ChatRootScreen()
-        }
+        chatNavGraph(navController = navController)
 
         // ── Settings ──────────────────────────────────────────────────────────
         settingsNavGraph(navController = navController)

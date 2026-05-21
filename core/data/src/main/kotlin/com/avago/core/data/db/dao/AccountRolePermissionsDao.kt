@@ -23,5 +23,5 @@ interface AccountRolePermissionsDao {
     suspend fun upsertAll(entities: List<AccountRolePermissionsEntity>)
 
     @Query("DELETE FROM account_role_permissions WHERE id = :id")
-    suspend fun softDelete(id: String, now: Long)
+    suspend fun softDelete(id: String)
 }

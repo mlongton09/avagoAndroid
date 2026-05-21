@@ -70,7 +70,7 @@ class WorkOrderListViewModel @Inject constructor(
         _searchQuery,
         _filter,
     ) { all, query, filter ->
-        val myUserId = identityManager.getActiveAccountId()
+        val myUserId = identityManager.getActiveUserId() ?: identityManager.getActiveAccountId()
         val nowMs = System.currentTimeMillis()
         all
             .filter { wo ->
