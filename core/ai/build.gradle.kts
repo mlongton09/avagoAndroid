@@ -28,9 +28,6 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
 
-    implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.ai)
-
     implementation(libs.serialization.json)
 
     implementation(platform(libs.compose.bom))
