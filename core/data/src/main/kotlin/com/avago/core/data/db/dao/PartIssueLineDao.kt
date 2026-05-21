@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface PartIssueLineDao {
 
-    @Query("SELECT * FROM part_issue_lines WHERE issue_id IN (SELECT issue_id FROM part_issues WHERE account_id = :accountId)")
+    @Query("SELECT pil.* FROM part_issue_lines pil INNER JOIN part_issues pi ON pil.issue_id = pi.issue_id WHERE pi.account_id = :accountId")
     fun observeAll(accountId: String): Flow<List<PartIssueLineEntity>>
 
     @Query("SELECT * FROM part_issue_lines WHERE line_id = :id")
@@ -22,6 +22,6 @@ interface PartIssueLineDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(entities: List<PartIssueLineEntity>)
 
-    @Query("DELETE FROM part_issue_lines WHERE line_id = :id")
+    @Query("UPDATE part_issue_lines SET deleted_at = :now, updated_at = :now WHERE line_id = :id")
     suspend fun softDelete(id: String, now: Long)
 }

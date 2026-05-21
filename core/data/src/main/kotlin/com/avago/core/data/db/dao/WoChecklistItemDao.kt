@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface WoChecklistItemDao {
 
-    @Query("SELECT * FROM wo_checklist_items WHERE wo_id IN (SELECT wo_id FROM work_orders WHERE account_id = :accountId)")
+    @Query("SELECT wci.* FROM wo_checklist_items wci INNER JOIN work_orders wo ON wci.wo_id = wo.wo_id WHERE wo.account_id = :accountId")
     fun observeAll(accountId: String): Flow<List<WoChecklistItemEntity>>
 
     @Query("SELECT * FROM wo_checklist_items WHERE item_id = :id")
@@ -22,6 +22,6 @@ interface WoChecklistItemDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(entities: List<WoChecklistItemEntity>)
 
-    @Query("DELETE FROM wo_checklist_items WHERE item_id = :id")
+    @Query("UPDATE wo_checklist_items SET deleted_at = :now, updated_at = :now WHERE item_id = :id")
     suspend fun softDelete(id: String, now: Long)
 }

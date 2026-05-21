@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface CycleCountLineDao {
 
-    @Query("SELECT * FROM cycle_count_lines WHERE cycle_count_id IN (SELECT cycle_count_id FROM cycle_counts WHERE account_id = :accountId)")
+    @Query("SELECT cl.* FROM cycle_count_lines cl INNER JOIN cycle_counts cc ON cl.cycle_count_id = cc.cycle_count_id WHERE cc.account_id = :accountId")
     fun observeAll(accountId: String): Flow<List<CycleCountLineEntity>>
 
     @Query("SELECT * FROM cycle_count_lines WHERE line_id = :id")
@@ -22,6 +22,6 @@ interface CycleCountLineDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(entities: List<CycleCountLineEntity>)
 
-    @Query("DELETE FROM cycle_count_lines WHERE line_id = :id")
+    @Query("UPDATE cycle_count_lines SET deleted_at = :now, updated_at = :now WHERE line_id = :id")
     suspend fun softDelete(id: String, now: Long)
 }

@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.compose.compiler)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
 }
@@ -14,9 +15,14 @@ android {
         targetCompatibility = JavaVersion.VERSION_21
     }
     kotlinOptions { jvmTarget = "21" }
+    buildFeatures { compose = true }
 }
 
 dependencies {
+    implementation(platform(libs.compose.bom))
+    implementation(libs.compose.ui)
+    implementation(libs.activity.compose)
+
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.mlkit.doc.scanner)

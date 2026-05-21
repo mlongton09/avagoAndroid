@@ -4,6 +4,7 @@
 /.idea
 .DS_Store
 /build
+build/
 /captures
 .externalNativeBuild
 .cxx
@@ -12,3 +13,4 @@ local.properties
 !debug.keystore
 google-services.json
 upload-keystore.jks
+.kotlin/

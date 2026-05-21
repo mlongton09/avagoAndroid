@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface WoCommentDao {
 
-    @Query("SELECT * FROM wo_comments WHERE wo_id IN (SELECT wo_id FROM work_orders WHERE account_id = :accountId) AND deleted_at IS NULL")
+    @Query("SELECT wc.* FROM wo_comments wc INNER JOIN work_orders wo ON wc.wo_id = wo.wo_id WHERE wo.account_id = :accountId AND wc.deleted_at IS NULL")
     fun observeAll(accountId: String): Flow<List<WoCommentEntity>>
 
     @Query("SELECT * FROM wo_comments WHERE comment_id = :id")

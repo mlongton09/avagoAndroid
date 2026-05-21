@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface PoLineDao {
 
-    @Query("SELECT * FROM po_lines WHERE po_id IN (SELECT po_id FROM purchase_orders WHERE account_id = :accountId)")
+    @Query("SELECT pl.* FROM po_lines pl INNER JOIN purchase_orders po ON pl.po_id = po.po_id WHERE po.account_id = :accountId")
     fun observeAll(accountId: String): Flow<List<PoLineEntity>>
 
     @Query("SELECT * FROM po_lines WHERE po_line_id = :id")
@@ -22,6 +22,6 @@ interface PoLineDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(entities: List<PoLineEntity>)
 
-    @Query("DELETE FROM po_lines WHERE po_line_id = :id")
+    @Query("UPDATE po_lines SET deleted_at = :now, updated_at = :now WHERE po_line_id = :id")
     suspend fun softDelete(id: String, now: Long)
 }
