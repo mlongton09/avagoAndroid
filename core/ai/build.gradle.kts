@@ -29,7 +29,7 @@ dependencies {
     ksp(libs.hilt.compiler)
 
     implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.vertexai)
+    implementation(libs.firebase.ai)
 
     implementation(libs.serialization.json)
 

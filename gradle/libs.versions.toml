@@ -14,7 +14,7 @@ camerax = "1.5.0"
 ml-kit-barcode = "17.3.0"
 ml-kit-text = "16.0.0"
 ml-kit-doc-scanner = "16.0.0-beta1"
-firebase-bom = "33.4.0"
+firebase-bom = "33.7.0"
 coil = "3.0.0"
 nav = "2.8.0"
 lifecycle = "2.8.0"
@@ -108,7 +108,7 @@ firebase-auth = { module = "com.google.firebase:firebase-auth-ktx" }
 firebase-messaging = { module = "com.google.firebase:firebase-messaging-ktx" }
 firebase-analytics = { module = "com.google.firebase:firebase-analytics-ktx" }
 firebase-crashlytics = { module = "com.google.firebase:firebase-crashlytics-ktx" }
-firebase-vertexai = { module = "com.google.firebase:firebase-vertexai" }
+firebase-ai = { module = "com.google.firebase:firebase-ai" }
 
 # Coil
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }

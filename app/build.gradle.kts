@@ -137,5 +137,6 @@ dependencies {
     testImplementation(libs.junit5)
     testImplementation(libs.mockk)
     testImplementation(libs.coroutines.test)
+    androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test)
 }
