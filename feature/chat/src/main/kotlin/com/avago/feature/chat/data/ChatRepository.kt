@@ -8,6 +8,8 @@ import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
 import com.avago.core.network.model.ChatMessageResponse
 import com.avago.core.network.model.ChatThreadResponse
+import com.avago.core.network.model.CreateThreadRequest
+import com.avago.core.network.model.UserResponse
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import timber.log.Timber
@@ -43,6 +45,30 @@ class ChatRepository @Inject constructor(
             is NetworkResult.Error -> Timber.w("syncThreads failed: ${result.message}")
             is NetworkResult.Unauthorized -> Timber.w("syncThreads: unauthorized")
         }
+    }
+
+    suspend fun createThread(
+        type: String,
+        displayName: String?,
+        memberIds: List<String>,
+    ): String? {
+        val accountId = identity.activeAccountId.value ?: return null
+        return when (val result = client.createThread(
+            accountId,
+            CreateThreadRequest(thread_type = type, display_name = displayName, member_ids = memberIds),
+        )) {
+            is NetworkResult.Success -> {
+                val db = chatDbFactory.get(accountId)
+                db.chatThreadDao().upsert(result.data.toEntity())
+                result.data.thread_id
+            }
+            else -> null
+        }
+    }
+
+    suspend fun getThreadMembers(): List<UserResponse> {
+        val accountId = identity.activeAccountId.value ?: return emptyList()
+        return runCatching { client.getMembers(accountId) }.getOrDefault(emptyList())
     }
 
     // ---------------------------------------------------------------------------

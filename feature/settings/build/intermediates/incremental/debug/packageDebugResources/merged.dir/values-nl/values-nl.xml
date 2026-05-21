@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="add">Toevoegen</string>
+    <string name="app_name">Avago</string>
+    <string name="cancel">Annuleren</string>
+    <string name="delete">Verwijderen</string>
+    <string name="done">Klaar</string>
+    <string name="edit">Bewerken</string>
+    <string name="error_generic">Er is iets misgegaan. Probeer het opnieuw.</string>
+    <string name="filter">Filteren</string>
+    <string name="loading">Laden…</string>
+    <string name="nav_assets">Activa</string>
+    <string name="nav_chat">Chat</string>
+    <string name="nav_inventory">Inventaris</string>
+    <string name="nav_reports">Rapporten</string>
+    <string name="nav_work_orders">Werkorders</string>
+    <string name="no_results">Geen resultaten</string>
+    <string name="pull_to_refresh">Trek om te vernieuwen</string>
+    <string name="retry">Opnieuw proberen</string>
+    <string name="save">Opslaan</string>
+    <string name="search">Zoeken</string>
+    <string name="settings_account">Account</string>
+    <string name="settings_account_id">Account-ID</string>
+    <string name="settings_app">App</string>
+    <string name="settings_appearance">Weergave</string>
+    <string name="settings_delete_account">Account verwijderen</string>
+    <string name="settings_delete_account_body">Uw account en alle bijbehorende gegevens worden permanent verwijderd. Deze actie kan niet ongedaan worden gemaakt.</string>
+    <string name="settings_distance_unit">Afstandseenheid</string>
+    <string name="settings_language">Taal</string>
+    <string name="settings_licenses">Open-sourcelicenties</string>
+    <string name="settings_members">Leden</string>
+    <string name="settings_no_account">Niet aangemeld</string>
+    <string name="settings_notifications">Pushmeldingen</string>
+    <string name="settings_notifications_denied">Tik om in te schakelen in systeeminstellingen</string>
+    <string name="settings_privacy_policy">Privacybeleid</string>
+    <string name="settings_privacy_policy_url">https://avagomate.com/privacy</string>
+    <string name="settings_sign_out">Afmelden</string>
+    <string name="settings_sign_out_confirm_body">U wordt afgemeld van dit account op dit apparaat.</string>
+    <string name="settings_theme">Thema</string>
+    <string name="settings_theme_dark">Donker</string>
+    <string name="settings_theme_light">Licht</string>
+    <string name="settings_theme_system">Systeemstandaard</string>
+    <string name="settings_title">Instellingen</string>
+    <string name="settings_units">Eenheden</string>
+    <string name="settings_version">Versie</string>
+</resources>

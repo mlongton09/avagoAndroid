@@ -1,0 +1,22 @@
+[
+  { "id": "light_vehicle",        "name": "asset_type.light_vehicle",        "icon": "asset_light_vehicle",        "meter_types": ["odometer"] },
+  { "id": "motorcycle",           "name": "asset_type.motorcycle",           "icon": "asset_motorcycle",           "meter_types": ["odometer"] },
+  { "id": "commercial_vehicle",   "name": "asset_type.commercial_vehicle",   "icon": "asset_commercial_vehicle",   "meter_types": ["odometer"] },
+  { "id": "recreational_vehicle", "name": "asset_type.recreational_vehicle", "icon": "asset_recreational_vehicle", "meter_types": ["odometer"] },
+  { "id": "heavy_equipment",      "name": "asset_type.heavy_equipment",      "icon": "asset_heavy_equipment",      "meter_types": ["hours"] },
+  { "id": "trailer",              "name": "asset_type.trailer",              "icon": "asset_light_vehicle",        "meter_types": ["odometer"] },
+  { "id": "residential",          "name": "asset_type.residential",          "icon": "asset_residential",          "meter_types": ["date"] },
+  { "id": "multifamily",          "name": "asset_type.multifamily",          "icon": "asset_multifamily",          "meter_types": ["date"] },
+  { "id": "office",               "name": "asset_type.office",               "icon": "asset_office",               "meter_types": ["date"] },
+  { "id": "industrial",           "name": "asset_type.industrial",           "icon": "asset_industrial",           "meter_types": ["date"] },
+  { "id": "healthcare",           "name": "asset_type.healthcare",           "icon": "asset_healthcare",           "meter_types": ["date"] },
+  { "id": "restaurant",           "name": "asset_type.restaurant",           "icon": "asset_restaurant",           "meter_types": ["date"] },
+  { "id": "lawn_equipment",       "name": "asset_type.lawn_equipment",       "icon": "asset_heavy_equipment",      "meter_types": ["hours"] },
+  { "id": "generator",            "name": "asset_type.generator",            "icon": "asset_heavy_equipment",      "meter_types": ["hours"] },
+  { "id": "personal_watercraft",  "name": "asset_type.personal_watercraft",  "icon": "asset_pleasure_craft",       "meter_types": ["hours"] },
+  { "id": "pleasure_craft",       "name": "asset_type.pleasure_craft",       "icon": "asset_pleasure_craft",       "meter_types": ["hours"] },
+  { "id": "commercial_vessel",    "name": "asset_type.commercial_vessel",    "icon": "asset_commercial_vessel",    "meter_types": ["hours"] },
+  { "id": "atv_utv",              "name": "asset_type.atv_utv",              "icon": "asset_light_vehicle",        "meter_types": ["hours"] },
+  { "id": "snowmobile",           "name": "asset_type.snowmobile",           "icon": "asset_light_vehicle",        "meter_types": ["hours"] },
+  { "id": "golf_cart",            "name": "asset_type.golf_cart",            "icon": "asset_light_vehicle",        "meter_types": ["hours"] }
+]

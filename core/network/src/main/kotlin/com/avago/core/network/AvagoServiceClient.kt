@@ -5,6 +5,7 @@ import com.avago.core.network.model.AuthResponse
 import com.avago.core.network.model.ChatMessageResponse
 import com.avago.core.network.model.ChatMessagesResponse
 import com.avago.core.network.model.ChatThreadResponse
+import com.avago.core.network.model.CreateThreadRequest
 import com.avago.core.network.model.CreateCycleCountRequest
 import com.avago.core.network.model.CreateGrnRequest
 import com.avago.core.network.model.CreatePartIssueRequest
@@ -103,6 +104,16 @@ class AvagoServiceClient @Inject constructor(
 
     suspend fun getMembers(accountId: String): List<UserResponse> =
         safeCall { client.get("$baseUrl/accounts/$accountId/members").body() }
+
+    suspend fun inviteUser(accountId: String, email: String, role: String): NetworkResult<Unit> =
+        safeNetworkCall {
+            val response: HttpResponse = client.post("$baseUrl/accounts/$accountId/invitations") {
+                setBody(mapOf("email" to email, "role" to role))
+            }
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
+        }
 
     // ---------------------------------------------------------------------------
     // Inventory — direct REST (not sync-queue)
@@ -342,6 +353,16 @@ class AvagoServiceClient @Inject constructor(
 
     suspend fun getThreads(accountId: String): NetworkResult<List<ChatThreadResponse>> =
         safeNetworkCall { client.get("$baseUrl/accounts/$accountId/chat/threads").body() }
+
+    suspend fun createThread(
+        accountId: String,
+        request: CreateThreadRequest,
+    ): NetworkResult<ChatThreadResponse> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/chat/threads") {
+                setBody(request)
+            }.body()
+        }
 
     suspend fun getMessages(
         threadId: String,

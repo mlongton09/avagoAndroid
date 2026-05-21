@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface BinDao {
 
-    @Query("SELECT * FROM bins WHERE location_id IN (SELECT location_id FROM locations WHERE account_id = :accountId)")
+    @Query("SELECT b.* FROM bins b INNER JOIN locations l ON b.location_id = l.location_id WHERE l.account_id = :accountId")
     fun observeAll(accountId: String): Flow<List<BinEntity>>
 
     @Query("SELECT * FROM bins WHERE bin_id = :id")

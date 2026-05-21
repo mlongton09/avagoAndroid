@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.OpenInBrowser
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Policy
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
@@ -63,6 +64,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
     onNavigateToMembers: () -> Unit = {},
     onNavigateToLicenses: () -> Unit = {},
+    onNavigateToInvite: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val theme by viewModel.theme.collectAsState()
@@ -196,6 +198,14 @@ fun SettingsScreen(
                 label = stringResource(R.string.settings_members),
                 leadingIcon = { Icon(Icons.Default.Group, contentDescription = null) },
                 onClick = onNavigateToMembers,
+            )
+        }
+        item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
+        item {
+            NavigationRow(
+                label = stringResource(R.string.settings_invite_team_member),
+                leadingIcon = { Icon(Icons.Default.PersonAdd, contentDescription = null) },
+                onClick = onNavigateToInvite,
             )
         }
         item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }

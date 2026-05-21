@@ -1,0 +1,16 @@
+-- Merging decision tree log ---
+manifest
+ADDED from C:\AvagoAndroid\feature\settings\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest3516927087804670787.xml:2:13-83
+INJECTED from C:\AvagoAndroid\feature\settings\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest3516927087804670787.xml:2:13-83
+	package
+		INJECTED from C:\AvagoAndroid\feature\settings\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest3516927087804670787.xml
+	xmlns:android
+		ADDED from C:\AvagoAndroid\feature\settings\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest3516927087804670787.xml:2:23-81
+uses-sdk
+INJECTED from C:\AvagoAndroid\feature\settings\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest3516927087804670787.xml reason: use-sdk injection requested
+INJECTED from C:\AvagoAndroid\feature\settings\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest3516927087804670787.xml
+INJECTED from C:\AvagoAndroid\feature\settings\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest3516927087804670787.xml
+	android:targetSdkVersion
+		INJECTED from C:\AvagoAndroid\feature\settings\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest3516927087804670787.xml
+	android:minSdkVersion
+		INJECTED from C:\AvagoAndroid\feature\settings\build\intermediates\tmp\ProcessLibraryManifest\debug\tempAndroidManifest3516927087804670787.xml

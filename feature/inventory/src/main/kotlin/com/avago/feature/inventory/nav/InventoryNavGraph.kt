@@ -21,6 +21,7 @@ import com.avago.feature.inventory.warehouse.WarehouseIssueScreen
 import com.avago.feature.inventory.warehouse.WarehouseMenuScreen
 import com.avago.feature.inventory.warehouse.WarehouseMoveScreen
 import com.avago.feature.inventory.warehouse.WarehouseReceiveScreen
+import com.avago.feature.inventory.warehouse.WarehouseReorderScreen
 
 // ---------------------------------------------------------------------------
 // Type-safe route descriptors
@@ -34,6 +35,7 @@ sealed class InventoryRoute(val route: String) {
     object WarehouseReceive : InventoryRoute("inventory/warehouse/receive")
     object WarehouseIssue : InventoryRoute("inventory/warehouse/issue")
     object WarehouseMove : InventoryRoute("inventory/warehouse/move")
+    object WarehouseReorder : InventoryRoute("inventory/warehouse/reorder")
     object CycleCountList : InventoryRoute("inventory/cycle-counts")
 
     object PartDetail : InventoryRoute("inventory/parts/{partId}") {
@@ -188,6 +190,7 @@ fun NavGraphBuilder.inventoryNavGraph(navController: NavHostController) {
                 onReceive = { navController.navigate(InventoryRoute.WarehouseReceive.route) },
                 onIssue = { navController.navigate(InventoryRoute.WarehouseIssue.route) },
                 onMove = { navController.navigate(InventoryRoute.WarehouseMove.route) },
+                onReorder = { navController.navigate(InventoryRoute.WarehouseReorder.route) },
             )
         }
         composable(InventoryRoute.WarehouseReceive.route) {
@@ -198,6 +201,12 @@ fun NavGraphBuilder.inventoryNavGraph(navController: NavHostController) {
         }
         composable(InventoryRoute.WarehouseMove.route) {
             WarehouseMoveScreen(onBack = { navController.popBackStack() })
+        }
+        composable(InventoryRoute.WarehouseReorder.route) {
+            WarehouseReorderScreen(
+                onBack = { navController.popBackStack() },
+                onCreatePo = { navController.navigate(InventoryRoute.CreateEditPurchaseOrder.build()) },
+            )
         }
 
         // Cycle counts

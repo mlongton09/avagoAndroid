@@ -4,6 +4,7 @@ import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import androidx.navigation.navigation
+import com.avago.feature.settings.InviteUsersScreen
 import com.avago.feature.settings.LicensesScreen
 import com.avago.feature.settings.MembersListScreen
 import com.avago.feature.settings.SettingsScreen
@@ -16,6 +17,7 @@ object SettingsRoute {
     const val Main   = "settings"
     const val Members = "settings/members"
     const val Licenses = "settings/licenses"
+    const val InviteUsers = "settings/invite"
 }
 
 /**
@@ -35,6 +37,7 @@ fun NavGraphBuilder.settingsNavGraph(navController: NavController) {
             SettingsScreen(
                 onNavigateToMembers  = { navController.navigate(SettingsRoute.Members) },
                 onNavigateToLicenses = { navController.navigate(SettingsRoute.Licenses) },
+                onNavigateToInvite   = { navController.navigate(SettingsRoute.InviteUsers) },
             )
         }
 
@@ -44,6 +47,10 @@ fun NavGraphBuilder.settingsNavGraph(navController: NavController) {
 
         composable(SettingsRoute.Licenses) {
             LicensesScreen()
+        }
+
+        composable(SettingsRoute.InviteUsers) {
+            InviteUsersScreen(onBack = { navController.popBackStack() })
         }
     }
 }

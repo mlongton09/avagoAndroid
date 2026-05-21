@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.data.db.entity.ScheduleEntity
+import com.avago.core.data.db.entity.WorkOrderEntity
 import com.avago.feature.schedule.R
 import com.avago.feature.schedule.util.RruleHelper
 import com.avago.feature.schedule.viewmodel.ScheduleDetailViewModel
@@ -71,6 +72,7 @@ fun ScheduleDetailScreen(
     val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
     val deleted by viewModel.deleted.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
+    val linkedWos by viewModel.linkedWos.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
@@ -152,6 +154,7 @@ fun ScheduleDetailScreen(
             ScheduleDetailContent(
                 schedule = schedule!!,
                 isSaving = isSaving,
+                linkedWos = linkedWos,
                 onAddToCalendar = {
                     viewModel.addToCalendar(context, schedule!!.title)
                 },
@@ -196,6 +199,7 @@ fun ScheduleDetailScreen(
 private fun ScheduleDetailContent(
     schedule: ScheduleEntity,
     isSaving: Boolean,
+    linkedWos: List<WorkOrderEntity>,
     onAddToCalendar: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -292,13 +296,19 @@ private fun ScheduleDetailContent(
             }
         }
 
-        // ── History placeholder ─────────────────────────────────────────────
+        // ── History ────────────────────────────────────────────────────────────
         DetailSection(title = stringResource(R.string.schedule_detail_history_title)) {
-            Text(
-                text = stringResource(R.string.schedule_detail_history_empty),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (linkedWos.isEmpty()) {
+                Text(
+                    text = "No work orders generated yet",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                linkedWos.forEach { wo ->
+                    WoHistoryRow(wo = wo)
+                }
+            }
         }
 
         // ── Actions ────────────────────────────────────────────────────────────
@@ -351,5 +361,44 @@ private fun DetailRow(label: String, value: String) {
             text = value,
             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
         )
+    }
+}
+
+@Composable
+private fun WoHistoryRow(wo: WorkOrderEntity) {
+    val dateFmt = DateTimeFormatter.ofPattern("MMM d, yyyy")
+    val dateStr = Instant.ofEpochMilli(wo.updatedAt).atZone(ZoneId.systemDefault()).format(dateFmt)
+    val statusColor = when (wo.status) {
+        "complete" -> Color(0xFF16A34A)
+        "cancelled" -> Color.Gray
+        "in_progress" -> Color(0xFF2563EB)
+        else -> Color(0xFFF59E0B)
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(wo.title, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                dateStr,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Surface(
+            color = statusColor.copy(alpha = 0.12f),
+            shape = MaterialTheme.shapes.small,
+        ) {
+            Text(
+                text = wo.status.replace("_", " ").replaceFirstChar { it.uppercase() },
+                style = MaterialTheme.typography.labelSmall,
+                color = statusColor,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+            )
+        }
     }
 }

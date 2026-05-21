@@ -13,6 +13,9 @@ interface WorkOrderDao {
     @Query("SELECT * FROM work_orders WHERE account_id = :accountId AND deleted_at IS NULL")
     fun observeAll(accountId: String): Flow<List<WorkOrderEntity>>
 
+    @Query("SELECT * FROM work_orders WHERE schedule_id = :scheduleId AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 20")
+    fun observeBySchedule(scheduleId: String): Flow<List<WorkOrderEntity>>
+
     @Query("SELECT * FROM work_orders WHERE wo_id = :id")
     suspend fun getById(id: String): WorkOrderEntity?
 

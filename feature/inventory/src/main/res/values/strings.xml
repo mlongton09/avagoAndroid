@@ -159,6 +159,8 @@
     <string name="warehouse_issue_desc">Issue parts to a work order or job</string>
     <string name="warehouse_move_card">Move</string>
     <string name="warehouse_move_desc">Move parts between locations or bins</string>
+    <string name="warehouse_reorder_card">Reorder</string>
+    <string name="warehouse_reorder_desc">View parts below reorder point and create purchase orders</string>
     <string name="warehouse_part_label">Part</string>
     <string name="warehouse_part_search">Search parts…</string>
     <string name="warehouse_quantity_label">Quantity</string>

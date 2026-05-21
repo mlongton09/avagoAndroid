@@ -59,3 +59,10 @@ data class EditMessageRequest(
 data class ReactMessageRequest(
     val emoji: String,
 )
+
+@Serializable
+data class CreateThreadRequest(
+    val thread_type: String, // "direct" or "group"
+    val display_name: String? = null,
+    val member_ids: List<String> = emptyList(),
+)

@@ -1,0 +1,8 @@
+C:\AvagoAndroid\core\ai\src\main\kotlin\com\avago\core\ai\AiExtractor.kt
+C:\AvagoAndroid\core\ai\src\main\kotlin\com\avago\core\ai\ScoutViewModel.kt
+C:\AvagoAndroid\core\ai\src\main\kotlin\com\avago\core\ai\ScoutContext.kt
+C:\AvagoAndroid\core\ai\src\main\kotlin\com\avago\core\ai\ui\FormFillNotice.kt
+C:\AvagoAndroid\core\ai\src\main\kotlin\com\avago\core\ai\ui\ScoutPalette.kt
+C:\AvagoAndroid\core\ai\src\main\kotlin\com\avago\core\ai\ui\VoiceInputSheet.kt
+C:\AvagoAndroid\core\ai\src\main\kotlin\com\avago\core\ai\ScoutContextHost.kt
+C:\AvagoAndroid\core\ai\src\main\kotlin\com\avago\core\ai\di\AiModule.kt

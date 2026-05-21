@@ -24,6 +24,7 @@
     <string name="settings_account_id">Account ID</string>
     <string name="settings_no_account">Not signed in</string>
     <string name="settings_members">Members</string>
+    <string name="settings_invite_team_member">Invite Team Member</string>
     <string name="settings_sign_out">Sign out</string>
     <string name="settings_sign_out_confirm_body">You will be signed out of this account on this device.</string>
     <string name="settings_delete_account">Delete account</string>

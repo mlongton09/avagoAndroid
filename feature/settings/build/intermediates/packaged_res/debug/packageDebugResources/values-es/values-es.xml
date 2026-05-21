@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="add">Agregar</string>
+    <string name="app_name">Avago</string>
+    <string name="cancel">Cancelar</string>
+    <string name="delete">Eliminar</string>
+    <string name="done">Listo</string>
+    <string name="edit">Editar</string>
+    <string name="error_generic">Algo salió mal. Inténtalo de nuevo.</string>
+    <string name="filter">Filtrar</string>
+    <string name="loading">Cargando…</string>
+    <string name="nav_assets">Activos</string>
+    <string name="nav_chat">Chat</string>
+    <string name="nav_inventory">Inventario</string>
+    <string name="nav_reports">Informes</string>
+    <string name="nav_work_orders">Órdenes de trabajo</string>
+    <string name="no_results">Sin resultados</string>
+    <string name="pull_to_refresh">Deslizar para actualizar</string>
+    <string name="retry">Reintentar</string>
+    <string name="save">Guardar</string>
+    <string name="search">Buscar</string>
+    <string name="settings_account">Cuenta</string>
+    <string name="settings_account_id">ID de cuenta</string>
+    <string name="settings_app">Aplicación</string>
+    <string name="settings_appearance">Apariencia</string>
+    <string name="settings_delete_account">Eliminar cuenta</string>
+    <string name="settings_delete_account_body">Se eliminarán permanentemente su cuenta y todos los datos asociados. Esta acción no se puede deshacer.</string>
+    <string name="settings_distance_unit">Unidad de distancia</string>
+    <string name="settings_language">Idioma</string>
+    <string name="settings_licenses">Licencias de código abierto</string>
+    <string name="settings_members">Miembros</string>
+    <string name="settings_no_account">No conectado</string>
+    <string name="settings_notifications">Notificaciones push</string>
+    <string name="settings_notifications_denied">Toca para activar en la configuración del sistema</string>
+    <string name="settings_privacy_policy">Política de privacidad</string>
+    <string name="settings_privacy_policy_url">https://avagomate.com/privacy</string>
+    <string name="settings_sign_out">Cerrar sesión</string>
+    <string name="settings_sign_out_confirm_body">Se cerrará la sesión de esta cuenta en este dispositivo.</string>
+    <string name="settings_theme">Tema</string>
+    <string name="settings_theme_dark">Oscuro</string>
+    <string name="settings_theme_light">Claro</string>
+    <string name="settings_theme_system">Sistema</string>
+    <string name="settings_title">Configuración</string>
+    <string name="settings_units">Unidades</string>
+    <string name="settings_version">Versión</string>
+</resources>

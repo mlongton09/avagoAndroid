@@ -5,7 +5,9 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
+import com.avago.core.data.db.dao.WorkOrderDao
 import com.avago.core.data.db.entity.ScheduleEntity
+import com.avago.core.data.db.entity.WorkOrderEntity
 import com.avago.core.sync.SyncEngine
 import com.avago.feature.schedule.repository.ScheduleRepository
 import com.avago.feature.schedule.util.addScheduleToAndroidCalendar
@@ -30,6 +32,7 @@ class ScheduleDetailViewModel @Inject constructor(
     private val repository: ScheduleRepository,
     private val identityManager: IdentityManager,
     private val syncEngine: SyncEngine,
+    private val workOrderDao: WorkOrderDao,
 ) : ViewModel() {
 
     private val scheduleId: String = requireNotNull(savedStateHandle["scheduleId"]) {
@@ -48,6 +51,11 @@ class ScheduleDetailViewModel @Inject constructor(
                 .catch { e -> Timber.e(e, "[ScheduleDetailVM] flow error"); emit(null) }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val linkedWos: StateFlow<List<WorkOrderEntity>> =
+        workOrderDao.observeBySchedule(scheduleId)
+            .catch { e -> Timber.e(e, "[ScheduleDetailVM] linkedWos flow error"); emit(emptyList()) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _isSaving = MutableStateFlow(false)
     val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
