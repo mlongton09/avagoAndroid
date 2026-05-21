@@ -2,8 +2,8 @@ plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.compose.compiler)
-    alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -19,18 +19,31 @@ android {
 }
 
 dependencies {
+    implementation(project(":core:data"))
+    implementation(project(":core:auth"))
+    implementation(project(":core:reports"))
+    implementation(project(":core:csv"))
+    implementation(project(":core:pdf"))
+    implementation(project(":core:design"))
+    implementation(project(":core:ui"))
+
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
+    implementation(libs.hilt.nav.compose)
+
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
+    implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
     implementation(libs.compose.icons)
     implementation(libs.nav.compose)
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.lifecycle.runtime.compose)
-    implementation(libs.hilt.android)
-    implementation(libs.hilt.nav.compose)
-    ksp(libs.hilt.compiler)
+    implementation(libs.activity.compose)
+
+    implementation(libs.vico.compose)
+
     implementation(libs.coroutines.android)
+    implementation(libs.kotlinx.datetime)
     implementation(libs.timber)
-    implementation(project(":core:design"))
-    implementation(project(":core:ui"))
 }

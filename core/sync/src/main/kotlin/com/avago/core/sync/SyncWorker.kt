@@ -12,11 +12,24 @@ import timber.log.Timber
 class SyncWorker @AssistedInject constructor(
     @Assisted context: Context,
     @Assisted params: WorkerParameters,
+    private val syncEngine: SyncEngine,
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
-        Timber.d("SyncWorker running")
-        // Phase 3: wire SyncEngine.sync() here
-        return Result.success()
+        Timber.d("SyncWorker: starting sync")
+        return when (val result = syncEngine.sync()) {
+            is SyncResult.Success -> {
+                Timber.d("SyncWorker: sync completed successfully")
+                Result.success()
+            }
+            is SyncResult.Partial -> {
+                Timber.d("SyncWorker: sync partial — pushed=${result.pushedCount}, pulled=${result.pulledCount}")
+                Result.success()
+            }
+            is SyncResult.Failed -> {
+                Timber.e(result.error, "SyncWorker: sync failed")
+                Result.retry()
+            }
+        }
     }
 }

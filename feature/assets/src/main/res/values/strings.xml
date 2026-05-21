@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Asset List -->
+    <string name="assets_title">Assets</string>
+    <string name="assets_search_placeholder">Search assets…</string>
+    <string name="assets_filter_all">All</string>
+    <string name="assets_filter_by_type">By Type</string>
+    <string name="assets_empty">Add your first asset</string>
+    <string name="assets_add_content_description">Add asset</string>
+    <string name="assets_pull_to_refresh">Pull to refresh</string>
+
+    <!-- Asset Detail -->
+    <string name="asset_detail_title">Asset</string>
+    <string name="asset_detail_total_cost">Total Cost</string>
+    <string name="asset_detail_last_service">Last Service</string>
+    <string name="asset_detail_meter_reading">Meter Reading</string>
+    <string name="asset_detail_log_entries">Log Entries</string>
+    <string name="asset_detail_no_logs">No log entries yet</string>
+    <string name="asset_detail_share_pdf">Share PDF</string>
+    <string name="asset_detail_add_log">Add Log Entry</string>
+    <string name="asset_detail_overflow_menu">More options</string>
+    <string name="asset_detail_back">Back</string>
+    <string name="asset_detail_edit">Edit</string>
+    <string name="asset_detail_filter_all">All</string>
+    <string name="asset_detail_na">N/A</string>
+
+    <!-- Add / Edit Asset -->
+    <string name="asset_add_title">New Asset</string>
+    <string name="asset_edit_title">Edit Asset</string>
+    <string name="asset_field_name">Name</string>
+    <string name="asset_field_name_required">Name is required</string>
+    <string name="asset_field_type">Asset Type</string>
+    <string name="asset_field_type_placeholder">Select type…</string>
+    <string name="asset_field_make">Make</string>
+    <string name="asset_field_model">Model</string>
+    <string name="asset_field_year">Year</string>
+    <string name="asset_field_color">Color</string>
+    <string name="asset_field_license_plate">License Plate</string>
+    <string name="asset_field_vin">VIN / Serial</string>
+    <string name="asset_field_purchase_date">Purchase Date</string>
+    <string name="asset_field_purchase_price">Purchase Price</string>
+    <string name="asset_field_location">Location</string>
+    <string name="asset_field_notes">Notes</string>
+    <string name="asset_save">Save</string>
+    <string name="asset_saving">Saving…</string>
+    <string name="asset_cancel">Cancel</string>
+
+    <!-- Asset Type Picker -->
+    <string name="asset_type_picker_title">Select Asset Type</string>
+
+    <!-- Asset types -->
+    <string name="asset_type_vehicle">Vehicle</string>
+    <string name="asset_type_light_vehicle">Light Vehicle</string>
+    <string name="asset_type_motorcycle">Motorcycle</string>
+    <string name="asset_type_ev">Electric Vehicle</string>
+    <string name="asset_type_truck">Truck</string>
+    <string name="asset_type_commercial_vehicle">Commercial Vehicle</string>
+    <string name="asset_type_recreational_vehicle">Recreational Vehicle</string>
+    <string name="asset_type_trailer">Trailer</string>
+    <string name="asset_type_atv_utv">ATV / UTV</string>
+    <string name="asset_type_snowmobile">Snowmobile</string>
+    <string name="asset_type_golf_cart">Golf Cart</string>
+    <string name="asset_type_equipment">Equipment</string>
+    <string name="asset_type_heavy_equipment">Heavy Equipment</string>
+    <string name="asset_type_generator">Generator</string>
+    <string name="asset_type_lawn_equipment">Lawn Equipment</string>
+    <string name="asset_type_compressor">Compressor</string>
+    <string name="asset_type_forklift">Forklift</string>
+    <string name="asset_type_crane">Crane</string>
+    <string name="asset_type_personal_watercraft">Personal Watercraft</string>
+    <string name="asset_type_pleasure_craft">Pleasure Craft</string>
+    <string name="asset_type_commercial_vessel">Commercial Vessel</string>
+    <string name="asset_type_residential">Residential</string>
+    <string name="asset_type_multifamily">Multifamily</string>
+    <string name="asset_type_office">Office</string>
+    <string name="asset_type_industrial">Industrial</string>
+    <string name="asset_type_healthcare">Healthcare</string>
+
+    <!-- Asset Picker -->
+    <string name="asset_picker_title">Select Asset</string>
+    <string name="asset_picker_search_placeholder">Search assets…</string>
+    <string name="asset_picker_empty">No assets found</string>
+</resources>

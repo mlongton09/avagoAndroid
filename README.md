@@ -39,6 +39,28 @@ Android client for Avago — fleet, equipment, and property maintenance.
 ./gradlew :app:bundleRelease
 ```
 
+## Recommended emulator (Windows)
+
+Use **Android Studio Device Manager** to create a Pixel 8 Pro AVD:
+
+| Setting | Value |
+|---|---|
+| Device | Pixel 8 Pro |
+| System image | API 35 — AArch64 (Google Play) |
+| RAM | 4096 MB |
+| VM heap | 512 MB |
+| Internal storage | 8192 MB |
+| Graphics | Hardware — GLES 3.1 |
+
+On Windows, enable **Hyper-V** or **Windows Hypervisor Platform (WHPX)** for best performance:
+
+```powershell
+# Run as Administrator — enable WHPX
+dism /Online /Enable-Feature /FeatureName:HypervisorPlatform /All /NoRestart
+```
+
+Restart, then launch the AVD from Android Studio. The emulator maps `10.0.2.2` to `localhost` on the host machine for local backend access.
+
 ## Backend
 
 Talks to AvagoSvc at `https://api.avagomate.com` (production) or `http://10.0.2.2:8080` (local dev).

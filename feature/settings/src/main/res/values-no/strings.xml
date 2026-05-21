@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Navigation -->
+    <string name="app_name">Avago</string>
+    <string name="nav_assets">Eiendeler</string>
+    <string name="nav_work_orders">Arbeidsordrer</string>
+    <string name="nav_inventory">Inventar</string>
+    <string name="nav_reports">Rapporter</string>
+    <string name="nav_chat">Chat</string>
+
+    <!-- Settings screen -->
+    <string name="settings_title">Innstillinger</string>
+    <string name="settings_appearance">Utseende</string>
+    <string name="settings_units">Enheter</string>
+    <string name="settings_theme">Tema</string>
+    <string name="settings_theme_system">Systemstandard</string>
+    <string name="settings_theme_light">Lyst</string>
+    <string name="settings_theme_dark">Mørkt</string>
+    <string name="settings_language">Språk</string>
+    <string name="settings_distance_unit">Avstandsenhet</string>
+    <string name="settings_notifications">Push-varsler</string>
+    <string name="settings_notifications_denied">Trykk for å aktivere i systeminnstillinger</string>
+    <string name="settings_account">Konto</string>
+    <string name="settings_account_id">Konto-ID</string>
+    <string name="settings_no_account">Ikke pålogget</string>
+    <string name="settings_members">Medlemmer</string>
+    <string name="settings_sign_out">Logg ut</string>
+    <string name="settings_sign_out_confirm_body">Du vil bli logget ut av denne kontoen på denne enheten.</string>
+    <string name="settings_delete_account">Slett konto</string>
+    <string name="settings_delete_account_body">Kontoen din og alle tilknyttede data vil bli permanent slettet. Denne handlingen kan ikke angres.</string>
+    <string name="settings_app">App</string>
+    <string name="settings_version">Versjon</string>
+    <string name="settings_licenses">Åpen kildekode-lisenser</string>
+    <string name="settings_privacy_policy">Personvernregler</string>
+    <string name="settings_privacy_policy_url">https://avagomate.com/privacy</string>
+
+    <!-- Common actions -->
+    <string name="add">Legg til</string>
+    <string name="edit">Rediger</string>
+    <string name="delete">Slett</string>
+    <string name="cancel">Avbryt</string>
+    <string name="save">Lagre</string>
+    <string name="done">Ferdig</string>
+    <string name="search">Søk</string>
+    <string name="filter">Filtrer</string>
+    <string name="loading">Laster…</string>
+    <string name="error_generic">Noe gikk galt. Prøv igjen.</string>
+    <string name="retry">Prøv igjen</string>
+    <string name="no_results">Ingen resultater</string>
+    <string name="pull_to_refresh">Dra for å oppdatere</string>
+</resources>

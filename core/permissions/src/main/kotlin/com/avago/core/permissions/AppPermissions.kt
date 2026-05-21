@@ -1,4 +1,3 @@
 package com.avago.core.permissions
 
-// Phase 2+: implement AppPermissions
-class AppPermissions
+// Superseded by PermissionsManager (Phase 12). See PermissionsManager.kt.

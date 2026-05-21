@@ -33,4 +33,7 @@ dependencies {
     implementation(libs.timber)
     implementation(project(":core:design"))
     implementation(project(":core:ui"))
+    implementation(project(":core:data"))
+    implementation(project(":core:network"))
+    implementation(project(":core:auth"))
 }

@@ -29,6 +29,15 @@ include(":core:push")
 include(":core:permissions")
 include(":core:seed")
 include(":core:i18n")
+include(":core:docscan")
+include(":core:ocr")
+include(":core:reports")
+include(":core:csv")
+include(":core:pdf")
+include(":core:ai")
+
+// Macrobenchmark module
+include(":macrobenchmark")
 
 // Feature modules
 include(":feature:auth")

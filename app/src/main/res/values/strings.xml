@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Avago</string>
+    <string name="nav_assets">Assets</string>
+    <string name="nav_work_orders">Work Orders</string>
+    <string name="nav_inventory">Inventory</string>
+    <string name="nav_reports">Reports</string>
+    <string name="nav_chat">Chat</string>
 </resources>

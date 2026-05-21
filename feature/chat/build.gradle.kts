@@ -2,8 +2,9 @@ plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.compose.compiler)
-    alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -19,6 +20,17 @@ android {
 }
 
 dependencies {
+    implementation(project(":core:data"))
+    implementation(project(":core:design"))
+    implementation(project(":core:ui"))
+    implementation(project(":core:sync"))
+    implementation(project(":core:network"))
+    implementation(project(":core:auth"))
+
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
+    implementation(libs.hilt.nav.compose)
+
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)
@@ -26,11 +38,11 @@ dependencies {
     implementation(libs.nav.compose)
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.lifecycle.runtime.compose)
-    implementation(libs.hilt.android)
-    implementation(libs.hilt.nav.compose)
-    ksp(libs.hilt.compiler)
+
+    implementation(libs.serialization.json)
+    implementation(libs.kotlinx.datetime)
+    implementation(libs.coil.compose)
+    implementation(libs.ktor.core)
     implementation(libs.coroutines.android)
     implementation(libs.timber)
-    implementation(project(":core:design"))
-    implementation(project(":core:ui"))
 }

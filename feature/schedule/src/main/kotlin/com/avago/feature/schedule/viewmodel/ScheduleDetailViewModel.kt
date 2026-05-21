@@ -1,0 +1,109 @@
+package com.avago.feature.schedule.viewmodel
+
+import android.content.Context
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.avago.core.auth.IdentityManager
+import com.avago.core.data.db.entity.ScheduleEntity
+import com.avago.core.sync.SyncEngine
+import com.avago.feature.schedule.repository.ScheduleRepository
+import com.avago.feature.schedule.util.addScheduleToAndroidCalendar
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import timber.log.Timber
+import javax.inject.Inject
+
+@HiltViewModel
+class ScheduleDetailViewModel @Inject constructor(
+    savedStateHandle: SavedStateHandle,
+    private val repository: ScheduleRepository,
+    private val identityManager: IdentityManager,
+    private val syncEngine: SyncEngine,
+) : ViewModel() {
+
+    private val scheduleId: String = requireNotNull(savedStateHandle["scheduleId"]) {
+        "ScheduleDetailViewModel requires scheduleId in SavedStateHandle"
+    }
+
+    private val _accountId: StateFlow<String?> = identityManager.activeAccountId
+        .stateIn(viewModelScope, SharingStarted.Eagerly, identityManager.getActiveAccountId())
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val schedule: StateFlow<ScheduleEntity?> = _accountId
+        .flatMapLatest { accountId ->
+            if (accountId == null) flowOf(null)
+            else repository.observeAll(accountId)
+                .map { list -> list.firstOrNull { it.scheduleId == scheduleId } }
+                .catch { e -> Timber.e(e, "[ScheduleDetailVM] flow error"); emit(null) }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    private val _isSaving = MutableStateFlow(false)
+    val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
+
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+
+    private val _deleted = MutableStateFlow(false)
+    val deleted: StateFlow<Boolean> = _deleted.asStateFlow()
+
+    // -------------------------------------------------------------------------
+    // Delete
+    // -------------------------------------------------------------------------
+
+    fun delete() {
+        val accountId = _accountId.value ?: return
+        viewModelScope.launch {
+            _isSaving.value = true
+            try {
+                repository.softDelete(accountId, scheduleId)
+                _deleted.value = true
+            } catch (e: Exception) {
+                Timber.e(e, "[ScheduleDetailVM] delete failed")
+                _error.value = e.message
+            } finally {
+                _isSaving.value = false
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Calendar integration
+    // -------------------------------------------------------------------------
+
+    /**
+     * Launches the Android Calendar "Add Event" UI for this schedule.
+     * [assetName] is provided by the caller (who may have it from the asset DAO).
+     */
+    fun addToCalendar(context: Context, assetName: String) {
+        val s = schedule.value ?: return
+        addScheduleToAndroidCalendar(context, s, assetName)
+    }
+
+    // -------------------------------------------------------------------------
+    // Refresh
+    // -------------------------------------------------------------------------
+
+    fun refresh() {
+        viewModelScope.launch {
+            try { syncEngine.sync() } catch (e: Exception) {
+                Timber.e(e, "[ScheduleDetailVM] sync failed")
+            }
+        }
+    }
+
+    fun clearError() {
+        _error.value = null
+    }
+}

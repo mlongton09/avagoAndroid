@@ -1,0 +1,197 @@
+package com.avago.feature.inventory.parts
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.avago.feature.inventory.R
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddEditPartScreen(
+    partId: String?,
+    onSaved: () -> Unit,
+    onBack: () -> Unit,
+    viewModel: AddEditPartViewModel = hiltViewModel(),
+) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+
+    LaunchedEffect(state.isSaved) {
+        if (state.isSaved) onSaved()
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        stringResource(
+                            if (partId == null) R.string.add_part_title else R.string.edit_part_title,
+                        ),
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            // Name (required)
+            OutlinedTextField(
+                value = state.name,
+                onValueChange = viewModel::setName,
+                label = { Text(stringResource(R.string.part_name_label)) },
+                modifier = Modifier.fillMaxWidth(),
+                isError = state.nameError != null,
+                supportingText = state.nameError?.let { { Text(it) } },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+            )
+
+            OutlinedTextField(
+                value = state.sku,
+                onValueChange = viewModel::setSku,
+                label = { Text(stringResource(R.string.part_sku_label)) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+
+            OutlinedTextField(
+                value = state.category,
+                onValueChange = viewModel::setCategory,
+                label = { Text(stringResource(R.string.part_category)) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+
+            OutlinedTextField(
+                value = state.description,
+                onValueChange = viewModel::setDescription,
+                label = { Text(stringResource(R.string.part_description_label)) },
+                modifier = Modifier.fillMaxWidth(),
+                maxLines = 3,
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedTextField(
+                    value = state.unitCost,
+                    onValueChange = viewModel::setUnitCost,
+                    label = { Text(stringResource(R.string.part_unit_cost_label)) },
+                    modifier = Modifier.weight(2f),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                )
+                OutlinedTextField(
+                    value = state.currency,
+                    onValueChange = viewModel::setCurrency,
+                    label = { Text(stringResource(R.string.part_currency_label)) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedTextField(
+                    value = state.minQty,
+                    onValueChange = viewModel::setMinQty,
+                    label = { Text(stringResource(R.string.part_min_qty_label)) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                )
+                OutlinedTextField(
+                    value = state.maxQty,
+                    onValueChange = viewModel::setMaxQty,
+                    label = { Text(stringResource(R.string.part_max_qty_label)) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                )
+            }
+
+            OutlinedTextField(
+                value = state.safetyStock,
+                onValueChange = viewModel::setSafetyStock,
+                label = { Text(stringResource(R.string.part_safety_stock_label)) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            )
+
+            // Barcode field with scan stub
+            OutlinedTextField(
+                value = state.barcode,
+                onValueChange = viewModel::setBarcode,
+                label = { Text(stringResource(R.string.part_barcode_label)) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                trailingIcon = {
+                    IconButton(onClick = { /* Phase 10: ML Kit scanner */ }) {
+                        Icon(
+                            Icons.Default.QrCodeScanner,
+                            contentDescription = stringResource(R.string.part_scan_barcode),
+                        )
+                    }
+                },
+            )
+
+            state.error?.let {
+                Text(text = it)
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = viewModel::save,
+                enabled = !state.isSaving,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    if (state.isSaving) stringResource(R.string.common_loading)
+                    else stringResource(R.string.part_save),
+                )
+            }
+        }
+    }
+}

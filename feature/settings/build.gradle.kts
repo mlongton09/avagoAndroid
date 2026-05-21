@@ -15,7 +15,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_21
     }
     kotlinOptions { jvmTarget = "21" }
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
 }
 
 dependencies {
@@ -31,6 +34,10 @@ dependencies {
     ksp(libs.hilt.compiler)
     implementation(libs.coroutines.android)
     implementation(libs.timber)
+    implementation(project(":core:auth"))
+    implementation(project(":core:data"))
     implementation(project(":core:design"))
+    implementation(project(":core:push"))
     implementation(project(":core:ui"))
+    implementation(libs.datastore.preferences)
 }

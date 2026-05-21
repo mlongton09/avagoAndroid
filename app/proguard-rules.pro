@@ -30,3 +30,26 @@
 
 # Timber
 -dontwarn org.jetbrains.annotations.**
+
+# Navigation Compose
+-keep class androidx.navigation.** { *; }
+
+# Vico charts
+-keep class com.patrykandpatrick.vico.** { *; }
+
+# Coil
+-keep class coil.** { *; }
+-dontwarn coil.**
+
+# ML Kit
+-keep class com.google.mlkit.** { *; }
+-dontwarn com.google.mlkit.**
+
+# WorkManager
+-keep class androidx.work.** { *; }
+-dontwarn androidx.work.**
+
+# Coroutines
+-keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
+-keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
+-keepclassmembernames class kotlinx.** { volatile <fields>; }

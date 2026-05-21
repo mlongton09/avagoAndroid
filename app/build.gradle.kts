@@ -117,6 +117,7 @@ dependencies {
     implementation(project(":core:data"))
     implementation(project(":core:seed"))
     implementation(project(":core:i18n"))
+    implementation(project(":core:ai"))
     implementation(project(":feature:auth"))
     implementation(project(":feature:assets"))
     implementation(project(":feature:log"))
@@ -127,6 +128,8 @@ dependencies {
     implementation(project(":feature:reports"))
     implementation(project(":feature:chat"))
     implementation(project(":feature:settings"))
+
+    implementation(libs.androidx.profileinstaller)
 
     debugImplementation(libs.compose.ui.tooling)
     debugImplementation(libs.compose.ui.test.manifest)

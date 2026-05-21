@@ -1,0 +1,27 @@
+package com.avago.core.data.db.dao
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import com.avago.core.data.db.entity.GrnLineEntity
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface GrnLineDao {
+
+    @Query("SELECT * FROM grn_lines WHERE grn_id IN (SELECT grn_id FROM grns WHERE account_id = :accountId)")
+    fun observeAll(accountId: String): Flow<List<GrnLineEntity>>
+
+    @Query("SELECT * FROM grn_lines WHERE grn_line_id = :id")
+    suspend fun getById(id: String): GrnLineEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entity: GrnLineEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(entities: List<GrnLineEntity>)
+
+    @Query("DELETE FROM grn_lines WHERE grn_line_id = :id")
+    suspend fun softDelete(id: String, now: Long)
+}

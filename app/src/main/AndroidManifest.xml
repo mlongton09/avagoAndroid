@@ -44,6 +44,11 @@
             </intent-filter>
         </service>
 
+        <!-- Quick-reply receiver for inline chat replies from notifications -->
+        <receiver
+            android:name=".push.QuickReplyReceiver"
+            android:exported="false" />
+
         <!-- Sync foreground service -->
         <service
             android:name=".sync.SyncForegroundService"

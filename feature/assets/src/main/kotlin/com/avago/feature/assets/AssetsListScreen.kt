@@ -1,32 +1,24 @@
 package com.avago.feature.assets
 
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+/**
+ * Public entry point kept for backwards compatibility with AvagoNavHost.
+ * The full feature is now wired via [com.avago.feature.assets.nav.assetsNavGraph].
+ *
+ * Delegates directly to the internal screen implementation.
+ */
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import com.avago.core.ui.EmptyState
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.rememberNavController
+import com.avago.feature.assets.nav.AssetsRoute
+import com.avago.feature.assets.nav.assetsNavGraph
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AssetsListScreen() {
-    Scaffold(
-        topBar = { TopAppBar(title = { Text("Assets") }) },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { /* Phase 5: open AddAssetScreen */ }) {
-                Icon(Icons.Default.Add, contentDescription = "Add asset")
-            }
-        },
-    ) { padding ->
-        EmptyState(
-            message = "Add your first asset",
-            modifier = Modifier.padding(padding),
-        )
+    val navController = rememberNavController()
+    NavHost(
+        navController = navController,
+        startDestination = AssetsRoute.GRAPH,
+    ) {
+        assetsNavGraph(navController = navController)
     }
 }
