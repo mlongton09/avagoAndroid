@@ -30,7 +30,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.avago.feature.assets.R
 import com.avago.feature.assets.model.AssetColorPalette
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -43,7 +45,7 @@ fun ColorPickerScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Choose Color") },
+                title = { Text(stringResource(R.string.color_picker_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
@@ -59,7 +61,7 @@ fun ColorPickerScreen(
                 .padding(16.dp),
         ) {
             Text(
-                text = "Select a color tag for this asset",
+                text = stringResource(R.string.color_picker_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 16.dp),

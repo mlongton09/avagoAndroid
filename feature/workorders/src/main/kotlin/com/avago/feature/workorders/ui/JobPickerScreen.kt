@@ -15,9 +15,11 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.avago.core.ui.EmptyState
+import com.avago.feature.workorders.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,10 +34,10 @@ fun JobPickerScreen(
             TopAppBar(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.job_picker_back))
                     }
                 },
-                title = { Text("Select Job") },
+                title = { Text(stringResource(R.string.job_picker_title)) },
             )
         },
     ) { innerPadding ->
@@ -46,7 +48,7 @@ fun JobPickerScreen(
                 .padding(32.dp),
             contentAlignment = Alignment.Center,
         ) {
-            EmptyState(message = "Job templates coming soon")
+            EmptyState(message = stringResource(R.string.job_picker_coming_soon))
         }
     }
 }

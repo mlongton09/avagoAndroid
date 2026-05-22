@@ -96,4 +96,34 @@
     <string name="gallery_no_photos">No photos available</string>
     <string name="gallery_page_counter">%1$d / %2$d</string>
     <string name="gallery_photo_content_description">Photo %1$d of %2$d</string>
+
+    <!-- Color Picker -->
+    <string name="color_picker_title">Choose Color</string>
+    <string name="color_picker_subtitle">Select a color tag for this asset</string>
+
+    <!-- Wheel Config -->
+    <string name="wheel_config_title">Wheel Configuration</string>
+    <string name="wheel_config_position_label">Wheel Position</string>
+    <string name="wheel_config_tire_size_label">Tire Size</string>
+    <string name="wheel_config_tire_size_placeholder">e.g. 265/70R17</string>
+    <string name="wheel_config_rim_size_label">Rim Size</string>
+    <string name="wheel_config_rim_size_placeholder">e.g. 17\"</string>
+    <string name="wheel_config_brand_label">Brand</string>
+    <string name="wheel_config_notes_label">Notes</string>
+    <string name="wheel_config_save">Save</string>
+
+    <!-- Wheel Data Input -->
+    <string name="wheel_data_title">Wheel Data</string>
+    <string name="wheel_data_tread_depth_label">Tread Depth (mm)</string>
+    <string name="wheel_data_tire_pressure_label">Tire Pressure (PSI)</string>
+    <string name="wheel_data_last_inspection_label">Last Inspection Date</string>
+    <string name="wheel_data_next_inspection_label">Next Inspection Due</string>
+    <string name="wheel_data_condition_label">Condition</string>
+    <string name="wheel_data_save">Save</string>
+    <string name="wheel_data_dialog_ok">OK</string>
+    <string name="wheel_data_dialog_cancel">Cancel</string>
+
+    <!-- Doc Type Picker -->
+    <string name="doc_type_picker_title">Document Type</string>
+    <string name="doc_type_picker_back">Back</string>
 </resources>

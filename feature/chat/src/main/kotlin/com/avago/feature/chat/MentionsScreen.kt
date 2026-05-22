@@ -23,11 +23,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.data.db.entity.ChatMessageEntity
+import com.avago.feature.chat.R
 import com.avago.feature.chat.ui.toMessageTimestamp
 import com.avago.feature.chat.viewmodel.MentionsViewModel
 
@@ -45,10 +47,10 @@ fun MentionsScreen(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text("Mentions") },
+                title = { Text(stringResource(R.string.mentions_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.mentions_back))
                     }
                 },
             )
@@ -62,7 +64,7 @@ fun MentionsScreen(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "No mentions yet",
+                    text = stringResource(R.string.mentions_empty),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

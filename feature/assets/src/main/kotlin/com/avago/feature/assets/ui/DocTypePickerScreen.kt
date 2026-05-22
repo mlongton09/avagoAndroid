@@ -16,7 +16,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import com.avago.feature.assets.R
 
 private val DOC_TYPES = listOf(
     "Invoice",
@@ -37,10 +39,10 @@ fun DocTypePickerScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Document Type") },
+                title = { Text(stringResource(R.string.doc_type_picker_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.doc_type_picker_back))
                     }
                 },
             )

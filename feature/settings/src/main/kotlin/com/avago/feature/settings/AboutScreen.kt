@@ -25,8 +25,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import com.avago.feature.settings.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,10 +44,10 @@ fun AboutScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("About") },
+                title = { Text(stringResource(R.string.about_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.about_back))
                     }
                 },
             )
@@ -74,12 +76,12 @@ fun AboutScreen(
             item { SectionDivider() }
 
             item {
-                SectionLabel("Legal")
+                SectionLabel(stringResource(R.string.about_section_legal))
             }
 
             item {
                 ListItem(
-                    headlineContent = { Text("Privacy Policy") },
+                    headlineContent = { Text(stringResource(R.string.about_privacy_policy)) },
                     leadingContent = {
                         Icon(Icons.Default.OpenInBrowser, contentDescription = null)
                     },
@@ -102,7 +104,7 @@ fun AboutScreen(
 
             item {
                 ListItem(
-                    headlineContent = { Text("Terms of Service") },
+                    headlineContent = { Text(stringResource(R.string.about_terms_of_service)) },
                     leadingContent = {
                         Icon(Icons.Default.OpenInBrowser, contentDescription = null)
                     },
@@ -124,12 +126,12 @@ fun AboutScreen(
             item { SectionDivider() }
 
             item {
-                SectionLabel("Acknowledgements")
+                SectionLabel(stringResource(R.string.about_section_acknowledgements))
             }
 
             item {
                 ListItem(
-                    headlineContent = { Text("Open Source Licenses") },
+                    headlineContent = { Text(stringResource(R.string.about_open_source_licenses)) },
                     leadingContent = {
                         Icon(Icons.Default.Policy, contentDescription = null)
                     },

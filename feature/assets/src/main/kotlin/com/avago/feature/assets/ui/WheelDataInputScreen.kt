@@ -34,8 +34,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.avago.feature.assets.R
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -73,10 +75,10 @@ fun WheelDataInputScreen(
                 TextButton(onClick = {
                     lastInspectionMs = state.selectedDateMillis
                     showLastInspectionPicker = false
-                }) { Text("OK") }
+                }) { Text(stringResource(R.string.wheel_data_dialog_ok)) }
             },
             dismissButton = {
-                TextButton(onClick = { showLastInspectionPicker = false }) { Text("Cancel") }
+                TextButton(onClick = { showLastInspectionPicker = false }) { Text(stringResource(R.string.wheel_data_dialog_cancel)) }
             },
         ) {
             DatePicker(state = state)
@@ -91,10 +93,10 @@ fun WheelDataInputScreen(
                 TextButton(onClick = {
                     nextInspectionMs = state.selectedDateMillis
                     showNextInspectionPicker = false
-                }) { Text("OK") }
+                }) { Text(stringResource(R.string.wheel_data_dialog_ok)) }
             },
             dismissButton = {
-                TextButton(onClick = { showNextInspectionPicker = false }) { Text("Cancel") }
+                TextButton(onClick = { showNextInspectionPicker = false }) { Text(stringResource(R.string.wheel_data_dialog_cancel)) }
             },
         ) {
             DatePicker(state = state)
@@ -104,7 +106,7 @@ fun WheelDataInputScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Wheel Data") },
+                title = { Text(stringResource(R.string.wheel_data_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
@@ -124,7 +126,7 @@ fun WheelDataInputScreen(
             OutlinedTextField(
                 value = treadDepth,
                 onValueChange = { treadDepth = it },
-                label = { Text("Tread Depth (mm)") },
+                label = { Text(stringResource(R.string.wheel_data_tread_depth_label)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.fillMaxWidth(),
@@ -133,7 +135,7 @@ fun WheelDataInputScreen(
             OutlinedTextField(
                 value = tirePressure,
                 onValueChange = { tirePressure = it },
-                label = { Text("Tire Pressure (PSI)") },
+                label = { Text(stringResource(R.string.wheel_data_tire_pressure_label)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.fillMaxWidth(),
@@ -143,7 +145,7 @@ fun WheelDataInputScreen(
                 value = lastInspectionMs?.let { dateFormatter.format(Date(it)) } ?: "",
                 onValueChange = {},
                 readOnly = true,
-                label = { Text("Last Inspection Date") },
+                label = { Text(stringResource(R.string.wheel_data_last_inspection_label)) },
                 trailingIcon = {
                     IconButton(onClick = { showLastInspectionPicker = true }) {
                         Icon(Icons.Default.CalendarToday, contentDescription = null)
@@ -156,7 +158,7 @@ fun WheelDataInputScreen(
                 value = nextInspectionMs?.let { dateFormatter.format(Date(it)) } ?: "",
                 onValueChange = {},
                 readOnly = true,
-                label = { Text("Next Inspection Due") },
+                label = { Text(stringResource(R.string.wheel_data_next_inspection_label)) },
                 trailingIcon = {
                     IconButton(onClick = { showNextInspectionPicker = true }) {
                         Icon(Icons.Default.CalendarToday, contentDescription = null)
@@ -166,7 +168,7 @@ fun WheelDataInputScreen(
             )
 
             Text(
-                text = "Condition",
+                text = stringResource(R.string.wheel_data_condition_label),
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.padding(top = 4.dp),
             )
@@ -187,7 +189,7 @@ fun WheelDataInputScreen(
                     .fillMaxWidth()
                     .padding(vertical = 8.dp),
             ) {
-                Text("Save")
+                Text(stringResource(R.string.wheel_data_save))
             }
         }
     }

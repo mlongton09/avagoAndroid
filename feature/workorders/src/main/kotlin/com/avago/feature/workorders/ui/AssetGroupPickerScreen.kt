@@ -19,10 +19,12 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.avago.feature.workorders.R
 import com.avago.feature.workorders.viewmodel.AssetGroupPickerViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -38,7 +40,7 @@ fun AssetGroupPickerScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Asset Group") },
+                title = { Text(stringResource(R.string.asset_group_picker_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
@@ -56,7 +58,7 @@ fun AssetGroupPickerScreen(
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { viewModel.onSearchQueryChanged(it) },
-                    label = { Text("Search") },
+                    label = { Text(stringResource(R.string.asset_group_picker_search)) },
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -66,7 +68,7 @@ fun AssetGroupPickerScreen(
             if (groups.isEmpty()) {
                 item {
                     Text(
-                        text = "No asset groups found",
+                        text = stringResource(R.string.asset_group_picker_empty),
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 24.dp),
                     )
                 }

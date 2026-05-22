@@ -26,9 +26,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.avago.feature.auth.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,7 +49,7 @@ fun AccountSwitcherScreen(
     ) {
         Column(modifier = Modifier.padding(bottom = 24.dp)) {
             Text(
-                text = "Accounts",
+                text = stringResource(R.string.account_switcher_title),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
             )
@@ -83,7 +85,7 @@ fun AccountSwitcherScreen(
                             Spacer(Modifier.width(12.dp))
                             Icon(
                                 imageVector = Icons.Default.Check,
-                                contentDescription = "Active account",
+                                contentDescription = stringResource(R.string.account_switcher_active_account),
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(20.dp),
                             )
@@ -105,7 +107,7 @@ fun AccountSwitcherScreen(
                     modifier = Modifier.size(18.dp),
                 )
                 Spacer(Modifier.width(8.dp))
-                Text("Add Account")
+                Text(stringResource(R.string.account_switcher_add_account))
             }
         }
     }

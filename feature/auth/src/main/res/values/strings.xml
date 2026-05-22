@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Email Sign In -->
+    <string name="email_sign_in_title">Sign In</string>
+    <string name="email_sign_in_back">Back</string>
+    <string name="email_sign_in_welcome">Welcome back</string>
+    <string name="email_sign_in_email_label">Email</string>
+    <string name="email_sign_in_password_label">Password</string>
+    <string name="email_sign_in_hide_password">Hide password</string>
+    <string name="email_sign_in_show_password">Show password</string>
+    <string name="email_sign_in_button">Sign In</string>
+
+    <!-- Account Switcher -->
+    <string name="account_switcher_title">Accounts</string>
+    <string name="account_switcher_active_account">Active account</string>
+    <string name="account_switcher_add_account">Add Account</string>
+</resources>

@@ -26,7 +26,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.avago.feature.assets.R
 
 private val WHEEL_POSITIONS = listOf(
     "Front Left",
@@ -52,7 +54,7 @@ fun WheelConfigScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Wheel Configuration") },
+                title = { Text(stringResource(R.string.wheel_config_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
@@ -77,7 +79,7 @@ fun WheelConfigScreen(
                     value = position,
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("Wheel Position") },
+                    label = { Text(stringResource(R.string.wheel_config_position_label)) },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = positionExpanded) },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -102,8 +104,8 @@ fun WheelConfigScreen(
             OutlinedTextField(
                 value = tireSize,
                 onValueChange = { tireSize = it },
-                label = { Text("Tire Size") },
-                placeholder = { Text("e.g. 265/70R17") },
+                label = { Text(stringResource(R.string.wheel_config_tire_size_label)) },
+                placeholder = { Text(stringResource(R.string.wheel_config_tire_size_placeholder)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -111,8 +113,8 @@ fun WheelConfigScreen(
             OutlinedTextField(
                 value = rimSize,
                 onValueChange = { rimSize = it },
-                label = { Text("Rim Size") },
-                placeholder = { Text("e.g. 17\"") },
+                label = { Text(stringResource(R.string.wheel_config_rim_size_label)) },
+                placeholder = { Text(stringResource(R.string.wheel_config_rim_size_placeholder)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -120,7 +122,7 @@ fun WheelConfigScreen(
             OutlinedTextField(
                 value = brand,
                 onValueChange = { brand = it },
-                label = { Text("Brand") },
+                label = { Text(stringResource(R.string.wheel_config_brand_label)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -128,7 +130,7 @@ fun WheelConfigScreen(
             OutlinedTextField(
                 value = notes,
                 onValueChange = { notes = it },
-                label = { Text("Notes") },
+                label = { Text(stringResource(R.string.wheel_config_notes_label)) },
                 minLines = 3,
                 maxLines = 6,
                 modifier = Modifier.fillMaxWidth(),
@@ -140,7 +142,7 @@ fun WheelConfigScreen(
                     .fillMaxWidth()
                     .padding(vertical = 8.dp),
             ) {
-                Text("Save")
+                Text(stringResource(R.string.wheel_config_save))
             }
         }
     }

@@ -160,4 +160,42 @@
     <string name="available_jobs_self_assign">Claim Job</string>
     <string name="available_jobs_claiming">Claiming…</string>
 
+    <!-- Cost Lines Editor -->
+    <string name="cost_lines_title">Cost Lines</string>
+    <string name="cost_lines_add_content_description">Add cost line</string>
+    <string name="cost_lines_empty">No cost lines. Tap + to add one.</string>
+    <string name="cost_lines_delete">Delete</string>
+    <string name="cost_lines_dialog_add_title">Add Cost Line</string>
+    <string name="cost_lines_dialog_edit_title">Edit Cost Line</string>
+    <string name="cost_lines_field_description">Description</string>
+    <string name="cost_lines_field_type">Type</string>
+    <string name="cost_lines_field_qty">Qty</string>
+    <string name="cost_lines_field_unit_cost">Unit Cost</string>
+    <string name="cost_lines_field_gl_account">GL Account</string>
+    <string name="cost_lines_gl_account_placeholder">Select account</string>
+    <string name="cost_lines_pick_gl_account">Pick</string>
+    <string name="cost_lines_save">Save</string>
+    <string name="cost_lines_cancel">Cancel</string>
+    <string name="cost_lines_back">Back</string>
+
+    <!-- GL Account Picker -->
+    <string name="gl_account_title">GL Account</string>
+    <string name="gl_account_search_hint">Search accounts</string>
+    <string name="gl_account_back">Back</string>
+
+    <!-- Reschedule Sheet -->
+    <string name="reschedule_title">Reschedule</string>
+    <string name="reschedule_confirm">Reschedule</string>
+    <string name="reschedule_cancel">Cancel</string>
+
+    <!-- Asset Group Picker -->
+    <string name="asset_group_picker_title">Asset Group</string>
+    <string name="asset_group_picker_search">Search</string>
+    <string name="asset_group_picker_empty">No asset groups found</string>
+
+    <!-- Job Picker -->
+    <string name="job_picker_title">Select Job</string>
+    <string name="job_picker_back">Back</string>
+    <string name="job_picker_coming_soon">Job templates coming soon</string>
+
 </resources>

@@ -35,6 +35,15 @@
     <string name="settings_privacy_policy">Privacy policy</string>
     <string name="settings_privacy_policy_url">https://avagomate.com/privacy</string>
 
+    <!-- About screen -->
+    <string name="about_title">About</string>
+    <string name="about_back">Back</string>
+    <string name="about_section_legal">Legal</string>
+    <string name="about_section_acknowledgements">Acknowledgements</string>
+    <string name="about_privacy_policy">Privacy Policy</string>
+    <string name="about_terms_of_service">Terms of Service</string>
+    <string name="about_open_source_licenses">Open Source Licenses</string>
+
     <!-- Common actions -->
     <string name="add">Add</string>
     <string name="edit">Edit</string>

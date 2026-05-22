@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mentions screen -->
+    <string name="mentions_title">Mentions</string>
+    <string name="mentions_back">Back</string>
+    <string name="mentions_empty">No mentions yet</string>
+</resources>

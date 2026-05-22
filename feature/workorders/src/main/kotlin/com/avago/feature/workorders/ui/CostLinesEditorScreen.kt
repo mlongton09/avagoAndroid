@@ -44,11 +44,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.avago.feature.workorders.R
 import com.avago.core.data.db.entity.LogCostLineEntity
 import com.avago.feature.workorders.viewmodel.CostLinesEditorViewModel
 
@@ -112,10 +114,10 @@ fun CostLinesEditorScreen(
             TopAppBar(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cost_lines_back))
                     }
                 },
-                title = { Text("Cost Lines") },
+                title = { Text(stringResource(R.string.cost_lines_title)) },
                 actions = {
                     Text(
                         text = formatCostAmount(total),
@@ -127,7 +129,7 @@ fun CostLinesEditorScreen(
         },
         floatingActionButton = {
             FloatingActionButton(onClick = { showAddDialog = true }) {
-                Icon(Icons.Default.Add, contentDescription = "Add cost line")
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.cost_lines_add_content_description))
             }
         },
     ) { innerPadding ->
@@ -139,7 +141,7 @@ fun CostLinesEditorScreen(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "No cost lines. Tap + to add one.",
+                    text = stringResource(R.string.cost_lines_empty),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -178,7 +180,7 @@ fun CostLinesEditorScreen(
                                 contentAlignment = Alignment.CenterEnd,
                             ) {
                                 Text(
-                                    text = "Delete",
+                                    text = stringResource(R.string.cost_lines_delete),
                                     color = MaterialTheme.colorScheme.error,
                                     style = MaterialTheme.typography.labelMedium,
                                 )
@@ -274,13 +276,13 @@ private fun CostLineDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (initial == null) "Add Cost Line" else "Edit Cost Line") },
+        title = { Text(stringResource(if (initial == null) R.string.cost_lines_dialog_add_title else R.string.cost_lines_dialog_edit_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
-                    label = { Text("Description") },
+                    label = { Text(stringResource(R.string.cost_lines_field_description)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                 )
@@ -292,7 +294,7 @@ private fun CostLineDialog(
                         value = kind,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Type") },
+                        label = { Text(stringResource(R.string.cost_lines_field_type)) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(kindMenuExpanded) },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -317,7 +319,7 @@ private fun CostLineDialog(
                     OutlinedTextField(
                         value = quantityText,
                         onValueChange = { quantityText = it },
-                        label = { Text("Qty") },
+                        label = { Text(stringResource(R.string.cost_lines_field_qty)) },
                         modifier = Modifier.weight(1f),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
@@ -325,7 +327,7 @@ private fun CostLineDialog(
                     OutlinedTextField(
                         value = unitCostText,
                         onValueChange = { unitCostText = it },
-                        label = { Text("Unit Cost") },
+                        label = { Text(stringResource(R.string.cost_lines_field_unit_cost)) },
                         modifier = Modifier.weight(1f),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
@@ -335,12 +337,12 @@ private fun CostLineDialog(
                     value = glCode,
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("GL Account") },
-                    placeholder = { Text("Select account") },
+                    label = { Text(stringResource(R.string.cost_lines_field_gl_account)) },
+                    placeholder = { Text(stringResource(R.string.cost_lines_gl_account_placeholder)) },
                     modifier = Modifier.fillMaxWidth(),
                     trailingIcon = {
                         TextButton(onClick = onPickGlAccount) {
-                            Text("Pick")
+                            Text(stringResource(R.string.cost_lines_pick_gl_account))
                         }
                     },
                 )
@@ -354,11 +356,11 @@ private fun CostLineDialog(
                     onConfirm(description, kind, qty, cost, glCode)
                 },
             ) {
-                Text("Save")
+                Text(stringResource(R.string.cost_lines_save))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cost_lines_cancel)) }
         },
     )
 }

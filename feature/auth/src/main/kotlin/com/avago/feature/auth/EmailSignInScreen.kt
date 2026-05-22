@@ -36,7 +36,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
+import com.avago.feature.auth.R
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -72,12 +74,12 @@ fun EmailSignInScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Sign In") },
+                title = { Text(stringResource(R.string.email_sign_in_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = stringResource(R.string.email_sign_in_back),
                         )
                     }
                 },
@@ -93,12 +95,12 @@ fun EmailSignInScreen(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("Welcome back", style = MaterialTheme.typography.headlineMedium)
+            Text(stringResource(R.string.email_sign_in_welcome), style = MaterialTheme.typography.headlineMedium)
             Spacer(Modifier.height(32.dp))
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
-                label = { Text("Email") },
+                label = { Text(stringResource(R.string.email_sign_in_email_label)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Email,
@@ -114,7 +116,7 @@ fun EmailSignInScreen(
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
-                label = { Text("Password") },
+                label = { Text(stringResource(R.string.email_sign_in_password_label)) },
                 singleLine = true,
                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(
@@ -131,7 +133,7 @@ fun EmailSignInScreen(
                     IconButton(onClick = { passwordVisible = !passwordVisible }) {
                         Icon(
                             imageVector = if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                            contentDescription = if (passwordVisible) "Hide password" else "Show password",
+                            contentDescription = stringResource(if (passwordVisible) R.string.email_sign_in_hide_password else R.string.email_sign_in_show_password),
                         )
                     }
                 },
@@ -151,7 +153,7 @@ fun EmailSignInScreen(
                         color = MaterialTheme.colorScheme.onPrimary,
                     )
                 } else {
-                    Text("Sign In")
+                    Text(stringResource(R.string.email_sign_in_button))
                 }
             }
         }

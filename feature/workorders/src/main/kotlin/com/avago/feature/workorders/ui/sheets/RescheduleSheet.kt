@@ -20,8 +20,10 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.avago.feature.workorders.R
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
@@ -56,7 +58,7 @@ fun RescheduleSheet(
                 .padding(bottom = 24.dp),
         ) {
             Text(
-                text = "Reschedule",
+                text = stringResource(R.string.reschedule_title),
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                 modifier = Modifier.padding(bottom = 4.dp),
             )
@@ -88,7 +90,7 @@ fun RescheduleSheet(
                     },
                     modifier = Modifier.weight(1f),
                 ) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.reschedule_cancel))
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Button(
@@ -106,7 +108,7 @@ fun RescheduleSheet(
                     enabled = datePickerState.selectedDateMillis != null,
                     modifier = Modifier.weight(1f),
                 ) {
-                    Text("Reschedule")
+                    Text(stringResource(R.string.reschedule_confirm))
                 }
             }
         }

@@ -23,7 +23,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.avago.feature.workorders.R
 
 private val glAccounts = listOf(
     "5000 - Cost of Goods Sold",
@@ -57,10 +59,10 @@ fun GLAccountPickerScreen(
             TopAppBar(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.gl_account_back))
                     }
                 },
-                title = { Text("GL Account") },
+                title = { Text(stringResource(R.string.gl_account_title)) },
             )
         },
     ) { innerPadding ->
@@ -76,7 +78,7 @@ fun GLAccountPickerScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
-                    placeholder = { Text("Search accounts") },
+                    placeholder = { Text(stringResource(R.string.gl_account_search_hint)) },
                     singleLine = true,
                 )
             }
