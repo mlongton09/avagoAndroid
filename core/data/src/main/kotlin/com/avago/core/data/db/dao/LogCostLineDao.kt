@@ -13,6 +13,9 @@ interface LogCostLineDao {
     @Query("SELECT * FROM log_cost_lines WHERE account_id = :accountId AND deleted_at IS NULL")
     fun observeAll(accountId: String): Flow<List<LogCostLineEntity>>
 
+    @Query("SELECT * FROM log_cost_lines WHERE account_id = :accountId AND wo_id = :woId AND deleted_at IS NULL ORDER BY display_order ASC")
+    fun observeForWo(accountId: String, woId: String): Flow<List<LogCostLineEntity>>
+
     @Query("SELECT * FROM log_cost_lines WHERE line_id = :id")
     suspend fun getById(id: String): LogCostLineEntity?
 

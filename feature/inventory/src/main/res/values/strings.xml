@@ -213,6 +213,24 @@
     <string name="cycle_count_submit">Create</string>
     <string name="cycle_count_submitting">Creating…</string>
 
+    <!-- Label Scanner -->
+    <string name="label_scanner_title">Scan Part Barcode</string>
+    <string name="label_scanner_hint">Align the barcode within the frame</string>
+    <string name="label_scanner_permission_rationale">Camera access is required to scan barcodes</string>
+    <string name="label_scanner_grant_permission">Grant Camera Permission</string>
+    <string name="label_scanner_not_found">Part not found</string>
+
+    <!-- Inventory picker -->
+    <string name="inventory_picker_title">Select Part</string>
+    <string name="inventory_picker_search_hint">Search parts…</string>
+    <string name="inventory_picker_sku_prefix">SKU: %1$s</string>
+    <string name="inventory_picker_qty_on_hand">On hand: %.2f</string>
+
+    <!-- Category picker -->
+    <string name="inventory_category_picker_title">Part Category</string>
+    <string name="inventory_category_picker_search_hint">Search categories…</string>
+    <string name="inventory_category_picker_none">None selected</string>
+
     <!-- Common -->
     <string name="common_back">Back</string>
     <string name="common_save">Save</string>

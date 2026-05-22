@@ -80,6 +80,8 @@ fun WorkOrderDetailScreen(
     onBack: () -> Unit,
     onEdit: (woId: String) -> Unit,
     onTechClick: (techId: String) -> Unit = {},
+    onAddPart: () -> Unit = {},
+    onManageCostLines: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: WorkOrderDetailViewModel = hiltViewModel(),
 ) {
@@ -402,15 +404,48 @@ fun WorkOrderDetailScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // ── Costs ──
-            if (currentWo.laborCost != null || currentWo.partsCost != null || currentWo.totalCost != null) {
-                DetailSection(title = stringResource(R.string.wo_detail_section_costs)) {
-                    currentWo.laborCost?.let { LabeledRow(stringResource(R.string.wo_detail_labor_cost), formatCurrency(it, currentWo.currency)) }
-                    currentWo.partsCost?.let { LabeledRow(stringResource(R.string.wo_detail_parts_cost), formatCurrency(it, currentWo.currency)) }
-                    currentWo.totalCost?.let { LabeledRow(stringResource(R.string.wo_detail_total_cost), formatCurrency(it, currentWo.currency)) }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
+            // ── Parts used ──
+            DetailSection(
+                title = "Parts",
+                action = {
+                    IconButton(
+                        onClick = onAddPart,
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Add Part")
+                    }
+                },
+            ) {
+                Text(
+                    text = "Tap + to issue parts from inventory",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // ── Costs ──
+            DetailSection(
+                title = stringResource(R.string.wo_detail_section_costs),
+                action = {
+                    TextButton(onClick = onManageCostLines) {
+                        Text("Manage")
+                    }
+                },
+            ) {
+                currentWo.laborCost?.let { LabeledRow(stringResource(R.string.wo_detail_labor_cost), formatCurrency(it, currentWo.currency)) }
+                currentWo.partsCost?.let { LabeledRow(stringResource(R.string.wo_detail_parts_cost), formatCurrency(it, currentWo.currency)) }
+                currentWo.totalCost?.let { LabeledRow(stringResource(R.string.wo_detail_total_cost), formatCurrency(it, currentWo.currency)) }
+                if (currentWo.laborCost == null && currentWo.partsCost == null && currentWo.totalCost == null) {
+                    Text(
+                        text = "No cost data. Tap Manage to add cost lines.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
 
             // ── Dispatcher notes ──
             DetailSection(title = stringResource(R.string.wo_detail_section_dispatcher)) {

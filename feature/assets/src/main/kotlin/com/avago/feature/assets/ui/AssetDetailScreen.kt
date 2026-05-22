@@ -36,6 +36,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -80,6 +81,9 @@ fun AssetDetailScreen(
     onLogEntryClick: (entryId: String) -> Unit,
     onOpenPhotoGallery: (initialIndex: Int) -> Unit = {},
     onOpenWorkOrders: () -> Unit = {},
+    onOpenNotes: (initialText: String) -> Unit = {},
+    onOpenWheelConfig: () -> Unit = {},
+    onOpenWheelDataInput: () -> Unit = {},
     viewModel: AssetDetailViewModel = hiltViewModel(),
 ) {
     val asset by viewModel.asset.collectAsStateWithLifecycle()
@@ -191,6 +195,33 @@ fun AssetDetailScreen(
                     onClick = onOpenWorkOrders,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 )
+            }
+
+            // Notes card
+            item(key = "notes_card") {
+                val notesText = asset!!.attributes
+                    ?.let { attrs ->
+                        Regex("\"notes\"\\s*:\\s*\"([^\"]*)\"").find(attrs)?.groupValues?.getOrNull(1)
+                    } ?: ""
+                NotesCard(
+                    notesPreview = notesText,
+                    onClick = { onOpenNotes(notesText) },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+
+            // Wheel Data card — show for vehicle-type assets
+            if (asset!!.assetType?.contains("vehicle", ignoreCase = true) == true ||
+                asset!!.assetType?.contains("truck", ignoreCase = true) == true ||
+                asset!!.assetType?.contains("trailer", ignoreCase = true) == true
+            ) {
+                item(key = "wheel_data_card") {
+                    WheelDataCard(
+                        onConfigClick = onOpenWheelConfig,
+                        onDataClick = onOpenWheelDataInput,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                }
             }
 
             // Photos strip
@@ -533,6 +564,85 @@ private fun WorkOrdersCard(
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+    }
+}
+
+@Composable
+private fun NotesCard(
+    notesPreview: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Notes",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                )
+                if (notesPreview.isNotBlank()) {
+                    Text(
+                        text = notesPreview,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                    )
+                }
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun WheelDataCard(
+    onConfigClick: () -> Unit,
+    onDataClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Wheel / Tire",
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedButton(
+                    onClick = onConfigClick,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Configuration")
+                }
+                OutlinedButton(
+                    onClick = onDataClick,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Data Input")
+                }
+            }
         }
     }
 }

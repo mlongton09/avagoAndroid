@@ -56,6 +56,7 @@ fun WorkOrderCreateScreen(
     onBack: () -> Unit,
     onSaved: () -> Unit,
     onPickAsset: () -> Unit,
+    onPickAssetGroup: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: WorkOrderCreateViewModel = hiltViewModel(),
 ) {
@@ -208,6 +209,14 @@ fun WorkOrderCreateScreen(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(assetName ?: stringResource(R.string.wo_field_asset_placeholder))
+            }
+
+            // Asset Group picker
+            OutlinedButton(
+                onClick = onPickAssetGroup,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Select Asset Group")
             }
 
             // Priority

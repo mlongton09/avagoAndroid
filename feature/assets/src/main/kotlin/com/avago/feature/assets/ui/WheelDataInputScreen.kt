@@ -1,0 +1,194 @@
+package com.avago.feature.assets.ui
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material3.Button
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+private val CONDITIONS = listOf("Good", "Fair", "Poor", "Replace")
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun WheelDataInputScreen(
+    onSave: (
+        treadDepthMm: String,
+        tirePressurePsi: String,
+        lastInspectionMs: Long?,
+        nextInspectionMs: Long?,
+        condition: String,
+    ) -> Unit,
+    onBack: () -> Unit,
+) {
+    var treadDepth by remember { mutableStateOf("") }
+    var tirePressure by remember { mutableStateOf("") }
+    var lastInspectionMs by remember { mutableStateOf<Long?>(null) }
+    var nextInspectionMs by remember { mutableStateOf<Long?>(null) }
+    var condition by remember { mutableStateOf(CONDITIONS[0]) }
+
+    var showLastInspectionPicker by remember { mutableStateOf(false) }
+    var showNextInspectionPicker by remember { mutableStateOf(false) }
+
+    val dateFormatter = remember { SimpleDateFormat("MMM d, yyyy", Locale.getDefault()) }
+
+    if (showLastInspectionPicker) {
+        val state = rememberDatePickerState(initialSelectedDateMillis = lastInspectionMs)
+        DatePickerDialog(
+            onDismissRequest = { showLastInspectionPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    lastInspectionMs = state.selectedDateMillis
+                    showLastInspectionPicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLastInspectionPicker = false }) { Text("Cancel") }
+            },
+        ) {
+            DatePicker(state = state)
+        }
+    }
+
+    if (showNextInspectionPicker) {
+        val state = rememberDatePickerState(initialSelectedDateMillis = nextInspectionMs)
+        DatePickerDialog(
+            onDismissRequest = { showNextInspectionPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    nextInspectionMs = state.selectedDateMillis
+                    showNextInspectionPicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNextInspectionPicker = false }) { Text("Cancel") }
+            },
+        ) {
+            DatePicker(state = state)
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Wheel Data") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            OutlinedTextField(
+                value = treadDepth,
+                onValueChange = { treadDepth = it },
+                label = { Text("Tread Depth (mm)") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            OutlinedTextField(
+                value = tirePressure,
+                onValueChange = { tirePressure = it },
+                label = { Text("Tire Pressure (PSI)") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            OutlinedTextField(
+                value = if (lastInspectionMs != null) dateFormatter.format(Date(lastInspectionMs!!)) else "",
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Last Inspection Date") },
+                trailingIcon = {
+                    IconButton(onClick = { showLastInspectionPicker = true }) {
+                        Icon(Icons.Default.CalendarToday, contentDescription = null)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            OutlinedTextField(
+                value = if (nextInspectionMs != null) dateFormatter.format(Date(nextInspectionMs!!)) else "",
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Next Inspection Due") },
+                trailingIcon = {
+                    IconButton(onClick = { showNextInspectionPicker = true }) {
+                        Icon(Icons.Default.CalendarToday, contentDescription = null)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            Text(
+                text = "Condition",
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                CONDITIONS.forEachIndexed { index, label ->
+                    SegmentedButton(
+                        selected = condition == label,
+                        onClick = { condition = label },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = CONDITIONS.size),
+                        label = { Text(label) },
+                    )
+                }
+            }
+
+            Button(
+                onClick = { onSave(treadDepth, tirePressure, lastInspectionMs, nextInspectionMs, condition) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+            ) {
+                Text("Save")
+            }
+        }
+    }
+}

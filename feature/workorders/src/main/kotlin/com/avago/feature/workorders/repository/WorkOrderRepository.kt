@@ -1,6 +1,7 @@
 package com.avago.feature.workorders.repository
 
 import com.avago.core.data.DatabaseFactory
+import com.avago.core.data.db.entity.LogCostLineEntity
 import com.avago.core.data.db.entity.SyncQueueEntity
 import com.avago.core.data.db.entity.TechProfileEntity
 import com.avago.core.data.db.entity.WoAssignmentEntity
@@ -137,6 +138,38 @@ class WorkOrderRepository @Inject constructor(
             entityId = entity.commentId,
             serverVersion = entity.serverVersion,
             operation = "update",
+        )
+    }
+
+    // ---------------------------------------------------------------------------
+    // Cost Lines
+    // ---------------------------------------------------------------------------
+
+    suspend fun observeCostLinesForWo(accountId: String, woId: String): Flow<List<LogCostLineEntity>> =
+        dbFactory.get(accountId).logCostLineDao().observeForWo(accountId, woId)
+
+    suspend fun upsertCostLine(accountId: String, entity: LogCostLineEntity) {
+        val db = dbFactory.get(accountId)
+        db.logCostLineDao().upsert(entity)
+        enqueueSyncPush(
+            accountId = accountId,
+            entityType = "log_cost_line",
+            entityId = entity.lineId,
+            serverVersion = entity.serverVersion,
+            operation = "update",
+        )
+    }
+
+    suspend fun deleteCostLine(accountId: String, lineId: String) {
+        val db = dbFactory.get(accountId)
+        val now = System.currentTimeMillis()
+        db.logCostLineDao().softDelete(lineId, now)
+        enqueueSyncPush(
+            accountId = accountId,
+            entityType = "log_cost_line",
+            entityId = lineId,
+            serverVersion = 0L,
+            operation = "delete",
         )
     }
 

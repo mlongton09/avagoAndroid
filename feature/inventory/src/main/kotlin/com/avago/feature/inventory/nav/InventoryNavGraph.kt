@@ -9,11 +9,14 @@ import androidx.navigation.navigation
 import com.avago.feature.inventory.cyclecounts.CycleCountDetailScreen
 import com.avago.feature.inventory.cyclecounts.CycleCountListScreen
 import com.avago.feature.inventory.parts.AddEditPartScreen
+import com.avago.feature.inventory.parts.InventoryCategoryPickerScreen
 import com.avago.feature.inventory.parts.InventoryListScreen
+import com.avago.feature.inventory.parts.InventoryPickerScreen
 import com.avago.feature.inventory.parts.PartDetailScreen
 import com.avago.feature.inventory.purchaseorders.PurchaseOrderDetailScreen
 import com.avago.feature.inventory.purchaseorders.PurchaseOrderListScreen
 import com.avago.feature.inventory.purchaseorders.PurchaseOrderCreateScreen
+import com.avago.feature.inventory.ui.LabelScannerScreen
 import com.avago.feature.inventory.vendors.AddEditVendorScreen
 import com.avago.feature.inventory.vendors.VendorDetailScreen
 import com.avago.feature.inventory.vendors.VendorListScreen
@@ -71,6 +74,16 @@ sealed class InventoryRoute(val route: String) {
     object CycleCountDetail : InventoryRoute("inventory/cycle-counts/{countId}") {
         fun build(countId: String) = "inventory/cycle-counts/$countId"
     }
+
+    object LabelScanner : InventoryRoute("inventory/label-scanner")
+
+    object InventoryPicker : InventoryRoute("inventory/picker")
+
+    object CategoryPicker : InventoryRoute("inventory/category-picker?current={current}") {
+        fun build(current: String? = null) =
+            if (current != null) "inventory/category-picker?current=$current"
+            else "inventory/category-picker"
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -109,10 +122,15 @@ fun NavGraphBuilder.inventoryNavGraph(navController: NavHostController) {
             }),
         ) { back ->
             val partId = back.arguments?.getString("partId")
+            val pendingCategory = back.savedStateHandle.get<String>("selected_category")
             AddEditPartScreen(
                 partId = partId,
                 onSaved = { navController.popBackStack() },
                 onBack = { navController.popBackStack() },
+                onPickCategory = { current ->
+                    navController.navigate(InventoryRoute.CategoryPicker.build(current))
+                },
+                pendingCategory = pendingCategory,
             )
         }
 
@@ -222,6 +240,49 @@ fun NavGraphBuilder.inventoryNavGraph(navController: NavHostController) {
             val countId = back.arguments?.getString("countId") ?: return@composable
             CycleCountDetailScreen(
                 countId = countId,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        // Label scanner
+        composable(InventoryRoute.LabelScanner.route) {
+            LabelScannerScreen(
+                onPartFound = { partId ->
+                    navController.popBackStack()
+                    navController.navigate(InventoryRoute.PartDetail.build(partId))
+                },
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        // Inventory picker
+        composable(InventoryRoute.InventoryPicker.route) { back ->
+            InventoryPickerScreen(
+                onPartSelected = { partId, partName ->
+                    back.savedStateHandle["selected_part_id"] = partId
+                    back.savedStateHandle["selected_part_name"] = partName
+                    navController.popBackStack()
+                },
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        // Category picker
+        composable(
+            route = InventoryRoute.CategoryPicker.route,
+            arguments = listOf(navArgument("current") {
+                type = NavType.StringType
+                nullable = true
+                defaultValue = null
+            }),
+        ) { back ->
+            val current = back.arguments?.getString("current")
+            InventoryCategoryPickerScreen(
+                currentCategory = current,
+                onCategorySelected = { category ->
+                    back.savedStateHandle["selected_category"] = category
+                    navController.popBackStack()
+                },
                 onBack = { navController.popBackStack() },
             )
         }

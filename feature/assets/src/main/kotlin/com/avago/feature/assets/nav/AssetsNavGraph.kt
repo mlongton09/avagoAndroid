@@ -7,6 +7,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
 import androidx.navigation.navArgument
+import com.avago.core.ui.NotesFullScreenScreen
 import com.avago.feature.assets.ui.AddEditAssetScreen
 import com.avago.feature.assets.ui.AssetBarcodeScannerScreen
 import com.avago.feature.assets.ui.AssetDetailScreen
@@ -17,7 +18,11 @@ import com.avago.feature.assets.ui.AssetPickerScreen
 import com.avago.feature.assets.ui.AssetTypePickerScreen
 import com.avago.feature.assets.ui.AssetWorkOrdersScreen
 import com.avago.feature.assets.ui.CategoryPickerScreen
+import com.avago.feature.assets.ui.ColorPickerScreen
+import com.avago.feature.assets.ui.DocScanPipelineScreen
 import com.avago.feature.assets.ui.DocTypePickerScreen
+import com.avago.feature.assets.ui.WheelConfigScreen
+import com.avago.feature.assets.ui.WheelDataInputScreen
 
 /**
  * Type-safe route constants for the assets feature.
@@ -32,9 +37,14 @@ object AssetsRoute {
     const val DOC_TYPE_PICKER = "assets/doc_type_picker"
     const val PICKER = "assets/picker"
     const val BARCODE_SCANNER = "assets/barcode_scanner"
+    const val DOC_SCANNER = "assets/doc_scanner?entityId={entityId}&entityType={entityType}"
     const val PHOTO_GALLERY = "assets/gallery/{assetId}?initialIndex={initialIndex}"
     const val WORK_ORDERS = "assets/work_orders/{assetId}"
     const val PDF_VIEWER = "assets/pdf_viewer?pdfUrl={pdfUrl}&title={title}"
+    const val NOTES_FULL_SCREEN = "assets/notes?entityId={entityId}&entityType={entityType}&initialText={initialText}"
+    const val COLOR_PICKER = "assets/color_picker?currentColor={currentColor}"
+    const val WHEEL_CONFIG = "assets/wheel_config/{assetId}"
+    const val WHEEL_DATA_INPUT = "assets/wheel_data_input/{assetId}"
 
     fun detail(assetId: String) = "assets/detail/$assetId"
     fun workOrders(assetId: String) = "assets/work_orders/$assetId"
@@ -44,6 +54,14 @@ object AssetsRoute {
         "assets/gallery/$assetId?initialIndex=$initialIndex"
     fun pdfViewer(pdfUrl: String, title: String = "Document") =
         "assets/pdf_viewer?pdfUrl=${Uri.encode(pdfUrl)}&title=${Uri.encode(title)}"
+    fun docScanner(entityId: String, entityType: String) =
+        "assets/doc_scanner?entityId=${Uri.encode(entityId)}&entityType=${Uri.encode(entityType)}"
+    fun notesFullScreen(entityId: String, entityType: String, initialText: String) =
+        "assets/notes?entityId=${Uri.encode(entityId)}&entityType=${Uri.encode(entityType)}&initialText=${Uri.encode(initialText)}"
+    fun colorPicker(currentColor: String?) =
+        "assets/color_picker?currentColor=${Uri.encode(currentColor ?: "")}"
+    fun wheelConfig(assetId: String) = "assets/wheel_config/$assetId"
+    fun wheelDataInput(assetId: String) = "assets/wheel_data_input/$assetId"
 }
 
 /**
@@ -95,6 +113,15 @@ fun NavGraphBuilder.assetsNavGraph(
                 },
                 onOpenWorkOrders = {
                     navController.navigate(AssetsRoute.workOrders(assetId))
+                },
+                onOpenNotes = { initialText ->
+                    navController.navigate(AssetsRoute.notesFullScreen(assetId, "asset", initialText))
+                },
+                onOpenWheelConfig = {
+                    navController.navigate(AssetsRoute.wheelConfig(assetId))
+                },
+                onOpenWheelDataInput = {
+                    navController.navigate(AssetsRoute.wheelDataInput(assetId))
                 },
             )
         }
@@ -228,6 +255,90 @@ fun NavGraphBuilder.assetsNavGraph(
             AssetPdfViewerScreen(
                 pdfUrl = pdfUrl,
                 title = title,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            route = AssetsRoute.DOC_SCANNER,
+            arguments = listOf(
+                navArgument("entityId") {
+                    type = NavType.StringType
+                    defaultValue = ""
+                },
+                navArgument("entityType") {
+                    type = NavType.StringType
+                    defaultValue = ""
+                },
+            ),
+        ) { backStackEntry ->
+            val entityId = backStackEntry.arguments?.getString("entityId") ?: ""
+            val entityType = backStackEntry.arguments?.getString("entityType") ?: ""
+            DocScanPipelineScreen(
+                entityId = entityId,
+                entityType = entityType,
+                onBack = { navController.popBackStack() },
+                onDocSaved = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            route = AssetsRoute.NOTES_FULL_SCREEN,
+            arguments = listOf(
+                navArgument("entityId") { type = NavType.StringType; defaultValue = "" },
+                navArgument("entityType") { type = NavType.StringType; defaultValue = "" },
+                navArgument("initialText") { type = NavType.StringType; defaultValue = "" },
+            ),
+        ) { backStackEntry ->
+            val initialText = backStackEntry.arguments?.getString("initialText") ?: ""
+            NotesFullScreenScreen(
+                initialText = initialText,
+                onBack = { navController.popBackStack() },
+                onSave = { text ->
+                    navController.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.set("saved_notes", text)
+                    navController.popBackStack()
+                },
+            )
+        }
+
+        composable(
+            route = AssetsRoute.COLOR_PICKER,
+            arguments = listOf(
+                navArgument("currentColor") { type = NavType.StringType; defaultValue = "" },
+            ),
+        ) { backStackEntry ->
+            val currentColor = backStackEntry.arguments?.getString("currentColor")
+                ?.takeIf { it.isNotBlank() }
+            ColorPickerScreen(
+                currentColor = currentColor,
+                onColorSelected = { hex ->
+                    navController.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.set("selected_color", hex)
+                    navController.popBackStack()
+                },
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            route = AssetsRoute.WHEEL_CONFIG,
+            arguments = listOf(navArgument("assetId") { type = NavType.StringType }),
+        ) {
+            WheelConfigScreen(
+                onSave = { _, _, _, _, _ -> navController.popBackStack() },
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            route = AssetsRoute.WHEEL_DATA_INPUT,
+            arguments = listOf(navArgument("assetId") { type = NavType.StringType }),
+        ) {
+            WheelDataInputScreen(
+                onSave = { _, _, _, _, _ -> navController.popBackStack() },
                 onBack = { navController.popBackStack() },
             )
         }

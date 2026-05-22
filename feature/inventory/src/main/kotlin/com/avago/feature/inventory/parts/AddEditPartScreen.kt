@@ -1,5 +1,6 @@
 package com.avago.feature.inventory.parts
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,11 +13,14 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -24,6 +28,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -39,12 +44,18 @@ fun AddEditPartScreen(
     partId: String?,
     onSaved: () -> Unit,
     onBack: () -> Unit,
+    onPickCategory: (currentCategory: String?) -> Unit = {},
+    pendingCategory: String? = null,
     viewModel: AddEditPartViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     LaunchedEffect(state.isSaved) {
         if (state.isSaved) onSaved()
+    }
+
+    LaunchedEffect(pendingCategory) {
+        if (pendingCategory != null) viewModel.setCategory(pendingCategory)
     }
 
     Scaffold(
@@ -92,13 +103,36 @@ fun AddEditPartScreen(
                 singleLine = true,
             )
 
-            OutlinedTextField(
-                value = state.category,
-                onValueChange = viewModel::setCategory,
-                label = { Text(stringResource(R.string.part_category)) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-            )
+            OutlinedCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onPickCategory(state.category.takeIf { it.isNotBlank() }) },
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column {
+                        Text(
+                            text = stringResource(R.string.part_category),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = state.category.ifBlank { stringResource(R.string.inventory_category_picker_none) },
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
 
             OutlinedTextField(
                 value = state.description,
