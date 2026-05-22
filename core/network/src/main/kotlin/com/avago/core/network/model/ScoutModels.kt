@@ -29,3 +29,12 @@ data class ScoutQueryResponse(
     val envelope_id: String,
     val message: String? = null,
 )
+
+/** Wire model for GET /accounts/{accountId}/ai/skills */
+@Serializable
+data class AiSkillResponse(
+    val skill_id: String,
+    val name: String,
+    val description: String? = null,
+    val input_schema: String? = null,
+)
