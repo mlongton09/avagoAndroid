@@ -9,6 +9,7 @@ import androidx.navigation.navArgument
 import com.avago.feature.workorders.WorkOrderListScreen
 import com.avago.feature.workorders.ui.AvailableJobsScreen
 import com.avago.feature.workorders.ui.DispatchBoardScreen
+import com.avago.feature.workorders.ui.JobPickerScreen
 import com.avago.feature.workorders.ui.TechProfileScreen
 import com.avago.feature.workorders.ui.WorkOrderCalendarScreen
 import com.avago.feature.workorders.ui.WorkOrderCreateScreen
@@ -26,6 +27,7 @@ object WorkOrderRoute {
     const val CALENDAR = "workorders/calendar"
     const val AVAILABLE_JOBS = "workorders/available_jobs"
     const val TECH_PROFILE = "workorders/tech/{techId}"
+    const val JOB_PICKER = "workorders/job_picker"
 
     fun detail(woId: String) = "workorders/detail/$woId"
     fun createEdit(woId: String? = null) =
@@ -145,6 +147,14 @@ fun NavGraphBuilder.workOrderNavGraph(
                 onWoClick = { woId ->
                     navController.navigate(WorkOrderRoute.detail(woId))
                 },
+            )
+        }
+
+        // ── Job Picker ────────────────────────────────────────────────────────────
+        composable(WorkOrderRoute.JOB_PICKER) {
+            JobPickerScreen(
+                onBack = { navController.popBackStack() },
+                onJobSelected = { _ -> navController.popBackStack() },
             )
         }
     }

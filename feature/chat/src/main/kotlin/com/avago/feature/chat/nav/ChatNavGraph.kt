@@ -7,6 +7,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.avago.feature.chat.ChatListScreen
 import com.avago.feature.chat.ChatSettingsScreen
+import com.avago.feature.chat.MentionsScreen
 import com.avago.feature.chat.NewThreadScreen
 import com.avago.feature.chat.SubthreadScreen
 import com.avago.feature.chat.ThreadMediaGalleryScreen
@@ -19,6 +20,7 @@ sealed class ChatRoute(val route: String) {
         fun createRoute(threadId: String) = "chat/thread/$threadId"
     }
     object NewThread : ChatRoute("chat/new-thread")
+    object Mentions : ChatRoute("chat/mentions")
     object ThreadMembers : ChatRoute("chat/thread/{threadId}/members") {
         fun createRoute(threadId: String) = "chat/thread/$threadId/members"
     }
@@ -41,6 +43,16 @@ fun NavGraphBuilder.chatNavGraph(navController: NavHostController) {
                 navController.navigate(ChatRoute.Thread.createRoute(threadId))
             },
             onNewThread = { navController.navigate(ChatRoute.NewThread.route) },
+            onMentions = { navController.navigate(ChatRoute.Mentions.route) },
+        )
+    }
+
+    composable(route = ChatRoute.Mentions.route) {
+        MentionsScreen(
+            onBack = { navController.popBackStack() },
+            onOpenThread = { threadId ->
+                navController.navigate(ChatRoute.Thread.createRoute(threadId))
+            },
         )
     }
 

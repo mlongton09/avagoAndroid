@@ -67,6 +67,7 @@ fun SettingsScreen(
     onNavigateToLicenses: () -> Unit = {},
     onNavigateToInvite: () -> Unit = {},
     onNavigateToDeveloper: () -> Unit = {},
+    onNavigateToAbout: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val theme by viewModel.theme.collectAsState()
@@ -291,6 +292,14 @@ fun SettingsScreen(
                         Intent(Intent.ACTION_VIEW, Uri.parse(privacyUrl)),
                     )
                 },
+            )
+        }
+        item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
+        item {
+            NavigationRow(
+                label = "About",
+                leadingIcon = { Icon(Icons.Default.OpenInBrowser, contentDescription = null) },
+                onClick = onNavigateToAbout,
             )
         }
         // ── Developer ─────────────────────────────────────────────────────────

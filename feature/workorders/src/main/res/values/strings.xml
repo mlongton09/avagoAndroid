@@ -109,6 +109,7 @@
     <string name="wo_field_estimated_hours">Estimated Hours</string>
     <string name="wo_field_assignees">Assigned Technicians</string>
     <string name="wo_field_add_assignee">Add technician</string>
+    <string name="wo_field_repeats">Repeats</string>
     <string name="wo_field_checklist">Checklist</string>
     <string name="wo_field_add_checklist_item">Add checklist item</string>
     <string name="wo_field_checklist_item_placeholder">Step description…</string>

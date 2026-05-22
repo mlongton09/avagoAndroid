@@ -67,4 +67,11 @@ interface ChatMessageDao {
 
     @Query("UPDATE chat_messages SET is_pinned = :pinned WHERE message_id = :messageId")
     suspend fun updatePinned(messageId: String, pinned: Boolean)
+
+    @Query(
+        "SELECT * FROM chat_messages " +
+            "WHERE body_md LIKE '%@' || :username || '%' AND deleted_at IS NULL " +
+            "ORDER BY created_at DESC"
+    )
+    fun observeMentions(username: String): Flow<List<ChatMessageEntity>>
 }

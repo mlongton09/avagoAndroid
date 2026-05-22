@@ -19,7 +19,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PictureAsPdf
@@ -77,6 +79,7 @@ fun AssetDetailScreen(
     onAddLogEntry: () -> Unit,
     onLogEntryClick: (entryId: String) -> Unit,
     onOpenPhotoGallery: (initialIndex: Int) -> Unit = {},
+    onOpenWorkOrders: () -> Unit = {},
     viewModel: AssetDetailViewModel = hiltViewModel(),
 ) {
     val asset by viewModel.asset.collectAsStateWithLifecycle()
@@ -179,6 +182,14 @@ fun AssetDetailScreen(
                     latestMeterReading = latestMeterReading,
                     showMeter = asset!!.meterType != null,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+
+            // Work Orders card
+            item(key = "work_orders_card") {
+                WorkOrdersCard(
+                    onClick = onOpenWorkOrders,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 )
             }
 
@@ -481,6 +492,47 @@ private fun AssetPhotoStrip(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun WorkOrdersCard(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Build,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = "Work Orders",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

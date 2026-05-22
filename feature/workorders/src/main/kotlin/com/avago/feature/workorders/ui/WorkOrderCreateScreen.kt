@@ -45,6 +45,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.feature.workorders.R
 import com.avago.feature.workorders.model.WoPriority
+import com.avago.feature.workorders.ui.sheets.RepeatsSheet
 import com.avago.feature.workorders.ui.sheets.TechPickerSheet
 import com.avago.feature.workorders.viewmodel.WorkOrderCreateViewModel
 
@@ -79,6 +80,22 @@ fun WorkOrderCreateScreen(
     var showPriorityMenu by remember { mutableStateOf(false) }
     var showTemplateMenu by remember { mutableStateOf(false) }
     var showTechPicker by remember { mutableStateOf(false) }
+    var showRepeatsSheet by remember { mutableStateOf(false) }
+    var repeatsRrule by remember { mutableStateOf<String?>(null) }
+
+    if (showRepeatsSheet) {
+        RepeatsSheet(
+            currentRrule = repeatsRrule,
+            currentEndType = null,
+            currentEndCount = null,
+            currentEndDateMs = null,
+            onDismiss = { showRepeatsSheet = false },
+            onSave = { rrule ->
+                repeatsRrule = rrule
+                showRepeatsSheet = false
+            },
+        )
+    }
 
     if (showTechPicker) {
         TechPickerSheet(
@@ -254,6 +271,18 @@ fun WorkOrderCreateScreen(
             ) {
                 Icon(Icons.Default.Add, contentDescription = null)
                 Text(stringResource(R.string.wo_field_add_assignee))
+            }
+
+            // Repeats
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(stringResource(R.string.wo_field_repeats), style = MaterialTheme.typography.labelLarge)
+                TextButton(onClick = { showRepeatsSheet = true }) {
+                    Text(if (repeatsRrule != null) "Configured" else "None")
+                }
             }
 
             // Checklist

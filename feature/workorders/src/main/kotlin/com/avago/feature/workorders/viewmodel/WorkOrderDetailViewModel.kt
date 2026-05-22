@@ -195,6 +195,28 @@ class WorkOrderDetailViewModel @Inject constructor(
     // Recurrence
     // ---------------------------------------------------------------------------
 
+    fun reschedule(newDate: java.time.LocalDate) {
+        val accountId = _accountId.value ?: return
+        val wo = workOrder.value ?: return
+        viewModelScope.launch {
+            _isSaving.value = true
+            try {
+                val newDueMs = newDate.atStartOfDay(java.time.ZoneId.systemDefault())
+                    .toInstant()
+                    .toEpochMilli()
+                repository.upsert(accountId, wo.copy(
+                    dueDate = newDueMs,
+                    updatedAt = System.currentTimeMillis(),
+                ))
+            } catch (e: Exception) {
+                Timber.e(e, "[WoDetailVM] reschedule failed")
+                _error.value = e.message
+            } finally {
+                _isSaving.value = false
+            }
+        }
+    }
+
     fun saveRecurrence(rrule: String) {
         val accountId = _accountId.value ?: return
         val wo = workOrder.value ?: return

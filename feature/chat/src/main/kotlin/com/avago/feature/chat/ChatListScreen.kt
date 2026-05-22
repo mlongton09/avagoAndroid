@@ -17,7 +17,9 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.Badge
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
@@ -50,6 +52,7 @@ import com.avago.feature.chat.viewmodel.ThreadFilter
 fun ChatListScreen(
     onThreadClick: (threadId: String) -> Unit,
     onNewThread: () -> Unit,
+    onMentions: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: ChatListViewModel = hiltViewModel(),
 ) {
@@ -65,7 +68,14 @@ fun ChatListScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(title = { Text("Chat") })
+            TopAppBar(
+                title = { Text("Chat") },
+                actions = {
+                    IconButton(onClick = onMentions) {
+                        Icon(Icons.Default.Notifications, contentDescription = "Mentions")
+                    }
+                },
+            )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = onNewThread) {

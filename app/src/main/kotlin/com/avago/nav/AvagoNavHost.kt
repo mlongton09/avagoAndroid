@@ -6,7 +6,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.avago.feature.assets.nav.assetsNavGraph
-import com.avago.feature.auth.SignInScreen
+import com.avago.feature.auth.nav.AuthRoute
+import com.avago.feature.auth.nav.authNavGraph
 import com.avago.feature.chat.nav.chatNavGraph
 import com.avago.feature.chat.nav.ChatRoute
 import com.avago.feature.docs.nav.docsNavGraph
@@ -32,19 +33,18 @@ fun AvagoNavHost(
 ) {
     NavHost(
         navController = navController,
-        startDestination = "sign_in",
+        startDestination = AuthRoute.GRAPH,
     ) {
 
         // ── Auth ──────────────────────────────────────────────────────────────
-        composable("sign_in") {
-            SignInScreen(
-                onSignedIn = {
-                    navController.navigate("assets_graph") {
-                        popUpTo("sign_in") { inclusive = true }
-                    }
-                },
-            )
-        }
+        authNavGraph(
+            navController = navController,
+            onSignedIn = {
+                navController.navigate("assets_graph") {
+                    popUpTo(AuthRoute.GRAPH) { inclusive = true }
+                }
+            },
+        )
 
         // ── Assets ────────────────────────────────────────────────────────────
         assetsNavGraph(navController = navController)

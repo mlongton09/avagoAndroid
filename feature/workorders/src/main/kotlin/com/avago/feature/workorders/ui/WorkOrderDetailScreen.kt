@@ -62,6 +62,7 @@ import com.avago.feature.workorders.model.statusColor
 import com.avago.feature.workorders.ui.components.AssigneeAvatar
 import com.avago.feature.workorders.ui.components.WoStatusChip
 import com.avago.feature.workorders.ui.components.WoTimerView
+import com.avago.feature.workorders.ui.sheets.RescheduleSheet
 import com.avago.feature.workorders.ui.sheets.RepeatsSheet
 import com.avago.feature.workorders.ui.sheets.TechPickerSheet
 import com.avago.feature.workorders.viewmodel.WorkOrderDetailViewModel
@@ -94,6 +95,7 @@ fun WorkOrderDetailScreen(
     var showTransitionMenu by remember { mutableStateOf(false) }
     var showTechPicker by remember { mutableStateOf(false) }
     var showRepeatsSheet by remember { mutableStateOf(false) }
+    var showRescheduleSheet by remember { mutableStateOf(false) }
     var commentText by rememberSaveable { mutableStateOf("") }
     var dispatcherNotesDraft by rememberSaveable { mutableStateOf("") }
 
@@ -137,6 +139,20 @@ fun WorkOrderDetailScreen(
                 showTechPicker = false
             },
             woId = woId,
+        )
+    }
+
+    if (showRescheduleSheet) {
+        val currentDueDate = wo?.dueDate?.let { ms ->
+            java.time.Instant.ofEpochMilli(ms).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+        }
+        RescheduleSheet(
+            currentDueDate = currentDueDate,
+            onDismiss = { showRescheduleSheet = false },
+            onConfirm = { newDate ->
+                viewModel.reschedule(newDate)
+                showRescheduleSheet = false
+            },
         )
     }
 
@@ -185,6 +201,13 @@ fun WorkOrderDetailScreen(
                                 onClick = {
                                     showOverflowMenu = false
                                     onEdit(woId)
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Reschedule") },
+                                onClick = {
+                                    showOverflowMenu = false
+                                    showRescheduleSheet = true
                                 },
                             )
                             DropdownMenuItem(

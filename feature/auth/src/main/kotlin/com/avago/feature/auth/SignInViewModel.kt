@@ -82,14 +82,23 @@ class SignInViewModel @Inject constructor(
             _state.value = SignInState.Error("Email and password are required")
             return
         }
+        signInWithEmail(email, password)
+    }
+
+    fun signInWithEmail(email: String, password: String) {
+        val trimmedEmail = email.trim()
+        if (trimmedEmail.isBlank() || password.isBlank()) {
+            _state.value = SignInState.Error("Email and password are required")
+            return
+        }
         viewModelScope.launch {
             _state.value = SignInState.Loading
             try {
                 val authResult = FirebaseAuth.getInstance()
-                    .signInWithEmailAndPassword(email, password).await()
+                    .signInWithEmailAndPassword(trimmedEmail, password).await()
                 val idToken = authResult.user?.getIdToken(false)?.await()?.token
                     ?: throw Exception("Could not get Firebase ID token")
-                identityManager.signInWithFirebase(context, idToken)
+                identityManager.signInWithFirebase(appContext, idToken)
                 _state.value = SignInState.Success
             } catch (e: Exception) {
                 Timber.e(e, "Email sign-in error")

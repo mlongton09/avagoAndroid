@@ -1,5 +1,6 @@
 package com.avago.feature.assets.nav
 
+import android.net.Uri
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -10,9 +11,13 @@ import com.avago.feature.assets.ui.AddEditAssetScreen
 import com.avago.feature.assets.ui.AssetBarcodeScannerScreen
 import com.avago.feature.assets.ui.AssetDetailScreen
 import com.avago.feature.assets.ui.AssetListScreen
+import com.avago.feature.assets.ui.AssetPdfViewerScreen
 import com.avago.feature.assets.ui.AssetPhotoGalleryScreen
 import com.avago.feature.assets.ui.AssetPickerScreen
 import com.avago.feature.assets.ui.AssetTypePickerScreen
+import com.avago.feature.assets.ui.AssetWorkOrdersScreen
+import com.avago.feature.assets.ui.CategoryPickerScreen
+import com.avago.feature.assets.ui.DocTypePickerScreen
 
 /**
  * Type-safe route constants for the assets feature.
@@ -23,15 +28,22 @@ object AssetsRoute {
     const val DETAIL = "assets/detail/{assetId}"
     const val ADD_EDIT = "assets/add_edit?assetId={assetId}"
     const val TYPE_PICKER = "assets/type_picker"
+    const val CATEGORY_PICKER = "assets/category_picker"
+    const val DOC_TYPE_PICKER = "assets/doc_type_picker"
     const val PICKER = "assets/picker"
     const val BARCODE_SCANNER = "assets/barcode_scanner"
     const val PHOTO_GALLERY = "assets/gallery/{assetId}?initialIndex={initialIndex}"
+    const val WORK_ORDERS = "assets/work_orders/{assetId}"
+    const val PDF_VIEWER = "assets/pdf_viewer?pdfUrl={pdfUrl}&title={title}"
 
     fun detail(assetId: String) = "assets/detail/$assetId"
+    fun workOrders(assetId: String) = "assets/work_orders/$assetId"
     fun addEdit(assetId: String? = null) =
         if (assetId != null) "assets/add_edit?assetId=$assetId" else "assets/add_edit?assetId="
     fun photoGallery(assetId: String, initialIndex: Int = 0) =
         "assets/gallery/$assetId?initialIndex=$initialIndex"
+    fun pdfViewer(pdfUrl: String, title: String = "Document") =
+        "assets/pdf_viewer?pdfUrl=${Uri.encode(pdfUrl)}&title=${Uri.encode(title)}"
 }
 
 /**
@@ -47,6 +59,7 @@ fun NavGraphBuilder.assetsNavGraph(
     onNavigateToAddLogEntry: (assetId: String) -> Unit = {},
     onNavigateToLogDetail: (entryId: String) -> Unit = {},
     onAssetPicked: (assetId: String) -> Unit = {},
+    onNavigateToWorkOrder: (woId: String) -> Unit = {},
 ) {
     navigation(
         startDestination = AssetsRoute.LIST,
@@ -79,6 +92,9 @@ fun NavGraphBuilder.assetsNavGraph(
                 onLogEntryClick = { entryId -> onNavigateToLogDetail(entryId) },
                 onOpenPhotoGallery = { index ->
                     navController.navigate(AssetsRoute.photoGallery(assetId, index))
+                },
+                onOpenWorkOrders = {
+                    navController.navigate(AssetsRoute.workOrders(assetId))
                 },
             )
         }
@@ -151,6 +167,67 @@ fun NavGraphBuilder.assetsNavGraph(
             val initialIndex = backStackEntry.arguments?.getInt("initialIndex") ?: 0
             AssetPhotoGalleryScreen(
                 initialIndex = initialIndex,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            route = AssetsRoute.WORK_ORDERS,
+            arguments = listOf(navArgument("assetId") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val assetId = requireNotNull(backStackEntry.arguments?.getString("assetId"))
+            AssetWorkOrdersScreen(
+                assetId = assetId,
+                onBack = { navController.popBackStack() },
+                onOpenWorkOrder = { woId -> onNavigateToWorkOrder(woId) },
+            )
+        }
+
+        composable(AssetsRoute.CATEGORY_PICKER) {
+            CategoryPickerScreen(
+                selectedCategory = navController.previousBackStackEntry
+                    ?.savedStateHandle
+                    ?.get<String>("selected_category"),
+                onCategorySelected = { name ->
+                    navController.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.set("selected_category", name)
+                    navController.popBackStack()
+                },
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(AssetsRoute.DOC_TYPE_PICKER) {
+            DocTypePickerScreen(
+                onDocTypeSelected = { type ->
+                    navController.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.set("selected_doc_type", type)
+                    navController.popBackStack()
+                },
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            route = AssetsRoute.PDF_VIEWER,
+            arguments = listOf(
+                navArgument("pdfUrl") {
+                    type = NavType.StringType
+                    defaultValue = ""
+                },
+                navArgument("title") {
+                    type = NavType.StringType
+                    defaultValue = "Document"
+                },
+            ),
+        ) { backStackEntry ->
+            val pdfUrl = backStackEntry.arguments?.getString("pdfUrl") ?: ""
+            val title = backStackEntry.arguments?.getString("title") ?: "Document"
+            AssetPdfViewerScreen(
+                pdfUrl = pdfUrl,
+                title = title,
                 onBack = { navController.popBackStack() },
             )
         }

@@ -30,4 +30,7 @@ interface WorkOrderDao {
 
     @Query("SELECT * FROM work_orders WHERE assigned_to = :techId AND deleted_at IS NULL ORDER BY due_date ASC")
     fun observeByAssignee(techId: String): Flow<List<WorkOrderEntity>>
+
+    @Query("SELECT * FROM work_orders WHERE asset_id = :assetId AND deleted_at IS NULL ORDER BY created_at DESC")
+    fun observeByAsset(assetId: String): Flow<List<WorkOrderEntity>>
 }

@@ -213,6 +213,11 @@ class ChatRepository @Inject constructor(
         }
     }
 
+    suspend fun observeMentions(username: String): Flow<List<ChatMessageEntity>> {
+        val accountId = identity.activeAccountId.value ?: return emptyFlow()
+        return chatDbFactory.get(accountId).chatMessageDao().observeMentions(username)
+    }
+
     /** Upsert a message received via SSE (real-time). */
     suspend fun handleRealtimeMessage(msg: ChatMessageResponse) {
         val accountId = identity.activeAccountId.value ?: return
