@@ -31,4 +31,5 @@ dependencies {
     implementation(libs.firebase.messaging)
 
     api(project(":core:network"))
+    implementation(project(":core:data"))
 }

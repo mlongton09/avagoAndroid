@@ -444,16 +444,11 @@ class IdentityManager @Inject constructor(
                 ?: return false
             val firebaseToken = suspendCancellableCoroutine<String?> { cont ->
                 firebaseUser.getIdToken(true)
-                    .addOnSuccessListener { cont.resume(it.token) }
-                    .addOnFailureListener { cont.resume(null) }
+                    .addOnSuccessListener { cont.resumeWith(Result.success(it.token)) }
+                    .addOnFailureListener { cont.resumeWith(Result.success(null)) }
             } ?: return false
-            val result = client.switchAccount(accountId)
-            if (result is NetworkResult.Success) {
-                tokenStore.storeTokens(accountId, result.data.access_token, result.data.refresh_token)
-                true
-            } else {
-                false
-            }
+            signInWithFirebase(appContext, firebaseToken)
+            _activeAccountId.value == accountId
         } catch (e: Exception) {
             Timber.w(e, "reAuthenticateNamedAccount failed for $accountId")
             false
