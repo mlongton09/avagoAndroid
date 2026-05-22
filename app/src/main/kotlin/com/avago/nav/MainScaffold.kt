@@ -335,7 +335,7 @@ fun AccountDrawerContent(
                         )
                     }
                 } else if (account.role != null) {
-                    val role = account.role
+                    val role = account.role ?: ""
                     {
                         Text(
                             text = role.uppercase(),
