@@ -40,17 +40,21 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
-import com.avago.core.data.db.dao.UserDao
-import com.avago.core.data.db.dao.WorkOrderDao
+import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.UserEntity
 import com.avago.core.data.db.entity.WorkOrderEntity
 import com.avago.feature.workorders.model.WoStatus
+import com.avago.feature.workorders.repository.WorkOrderRepository
 import com.avago.feature.workorders.ui.components.WoCard
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -61,8 +65,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class TechProfileViewModel @Inject constructor(
-    private val userDao: UserDao,
-    private val workOrderDao: WorkOrderDao,
+    private val dbFactory: DatabaseFactory,
+    private val repository: WorkOrderRepository,
     private val identityManager: IdentityManager,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -72,8 +76,15 @@ class TechProfileViewModel @Inject constructor(
     private val _tech = MutableStateFlow<UserEntity?>(null)
     val tech: StateFlow<UserEntity?> = _tech.asStateFlow()
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     val assignedWos: StateFlow<List<WorkOrderEntity>> =
-        workOrderDao.observeByAssignee(techId)
+        identityManager.activeAccountId
+            .flatMapLatest { accountId ->
+                if (accountId == null) flowOf(emptyList())
+                else repository.observeAll(accountId).map { wos ->
+                    wos.filter { it.assignedTo == techId }
+                }
+            }
             .stateIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(5_000),
@@ -82,7 +93,8 @@ class TechProfileViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            _tech.value = userDao.getById(techId)
+            val accountId = identityManager.getActiveAccountId() ?: return@launch
+            _tech.value = dbFactory.get(accountId).userDao().getById(techId)
         }
     }
 }
