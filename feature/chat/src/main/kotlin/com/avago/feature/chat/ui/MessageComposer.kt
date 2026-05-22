@@ -1,5 +1,8 @@
 package com.avago.feature.chat.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +18,8 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.TextFormat
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,7 +46,10 @@ import com.avago.core.data.db.entity.ChatMessageEntity
  *  - BasicTextField with placeholder
  *  - Send button (enabled when text is non-blank)
  *  - Edit mode: shows an "Editing" banner and cancel button
- *  - @ mention detection: calls [onMentionQuery] with the query after @
+ *  - @ mention detection with @all/@here support
+ *  - Image picker button (left of text field)
+ *  - Formatting toolbar toggle (bold, italic, code)
+ *  - Detected URL banner shown above the composer
  *  - imePadding() so the bar stays above the software keyboard
  */
 @Composable
@@ -51,9 +59,18 @@ fun MessageComposer(
     onSend: (String) -> Unit,
     onCancelEdit: () -> Unit,
     modifier: Modifier = Modifier,
+    onImageSelected: ((String) -> Unit)? = null,
 ) {
     var fieldValue by remember { mutableStateOf(TextFieldValue("")) }
     var mentionQuery by remember { mutableStateOf<String?>(null) }
+    var showFormatting by remember { mutableStateOf(false) }
+    var detectedUrl by remember { mutableStateOf<String?>(null) }
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia(),
+    ) { uri ->
+        uri?.let { onImageSelected?.invoke(it.toString()) }
+    }
 
     // When editingMessage changes, populate the field with the existing body.
     val editingId = editingMessage?.messageId
@@ -78,6 +95,41 @@ fun MessageComposer(
     }
 
     Column(modifier = modifier.imePadding()) {
+        // Formatting toolbar (conditional)
+        if (showFormatting) {
+            FormattingToolbar(
+                fieldValue = fieldValue,
+                onValueChange = { newVal -> fieldValue = newVal },
+            )
+        }
+
+        // Detected URL banner (conditional)
+        detectedUrl?.let { url ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "🔗 ${url.take(40)}${if (url.length > 40) "…" else ""}",
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(
+                    onClick = { detectedUrl = null },
+                    modifier = Modifier.size(20.dp),
+                ) {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = "Dismiss",
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
+        }
+
         // Mention autocomplete popup — shown above the composer
         mentionQuery?.let { query ->
             MentionAutocomplete(
@@ -92,6 +144,23 @@ fun MessageComposer(
                         val before = text.substring(0, atIdx)
                         val after = text.substring(cursor)
                         val insert = "@${user.displayName ?: user.userId} "
+                        val newText = before + insert + after
+                        fieldValue = TextFieldValue(
+                            text = newText,
+                            selection = androidx.compose.ui.text.TextRange(before.length + insert.length),
+                        )
+                    }
+                    mentionQuery = null
+                },
+                onSelectSpecial = { special ->
+                    // Insert "@all " or "@here " replacing the @query
+                    val text = fieldValue.text
+                    val cursor = fieldValue.selection.end
+                    val atIdx = text.lastIndexOf('@', cursor - 1)
+                    if (atIdx >= 0) {
+                        val before = text.substring(0, atIdx)
+                        val after = text.substring(cursor)
+                        val insert = "$special "
                         val newText = before + insert + after
                         fieldValue = TextFieldValue(
                             text = newText,
@@ -144,6 +213,35 @@ fun MessageComposer(
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // Image picker button
+            IconButton(
+                onClick = {
+                    imagePickerLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                },
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Image,
+                    contentDescription = "Attach image",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            // Formatting toggle button
+            IconButton(
+                onClick = { showFormatting = !showFormatting },
+            ) {
+                Icon(
+                    imageVector = Icons.Default.TextFormat,
+                    contentDescription = "Toggle formatting",
+                    tint = if (showFormatting)
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
             // Text field
             Box(
                 modifier = Modifier
@@ -165,6 +263,9 @@ fun MessageComposer(
                     onValueChange = { newVal ->
                         fieldValue = newVal
                         mentionQuery = detectMentionQuery(newVal.text, newVal.selection.end)
+                        val urlRegex = Regex("https?://[^\\s]+")
+                        val foundUrl = urlRegex.find(newVal.text)?.value
+                        detectedUrl = if (foundUrl != newVal.text.trim()) foundUrl else null
                     },
                     textStyle = MaterialTheme.typography.bodyMedium.copy(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -186,6 +287,7 @@ fun MessageComposer(
                         onSend(text)
                         fieldValue = TextFieldValue("")
                         mentionQuery = null
+                        detectedUrl = null
                     }
                 },
                 enabled = fieldValue.text.isNotBlank(),
