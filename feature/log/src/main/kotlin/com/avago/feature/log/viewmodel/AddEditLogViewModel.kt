@@ -28,6 +28,17 @@ import javax.inject.Inject
 /** "total" | "itemized" */
 enum class CostMode { TOTAL, ITEMIZED }
 
+/**
+ * Defines a single category-specific item attribute field shown in the "Item Details" section.
+ */
+data class ItemAttributeDef(
+    val key: String,
+    val label: String,
+    val fieldType: String, // "text", "number", "enum"
+    val options: List<String> = emptyList(),
+    val unit: String? = null,
+)
+
 data class AddEditLogFormState(
     // IDs
     val entryId: String = UUID.randomUUID().toString(),
@@ -47,6 +58,8 @@ data class AddEditLogFormState(
 
     // Meter
     val meterReading: String = "",
+    /** Derived from the selected asset's meterType field. */
+    val meterType: String? = null,
 
     // Cost
     val costMode: CostMode = CostMode.TOTAL,
@@ -66,6 +79,10 @@ data class AddEditLogFormState(
     // Populated by loadInspectionFields(); empty until the asset type is known.
     val inspectionFields: List<InspectionFieldDef> = emptyList(),
 
+    // Category-specific item attributes
+    val itemAttributes: Map<String, String> = emptyMap(),
+    val itemAttributeDefs: List<ItemAttributeDef> = emptyList(),
+
     // Save state
     val isSaving: Boolean = false,
     val saveError: String? = null,
@@ -76,6 +93,13 @@ data class AddEditLogFormState(
     val itemizedTotal: Double get() = pendingCostLines.sumOf { it.quantity * it.unitCost + (it.taxAmount ?: 0.0) }
     val costLineCount: Int get() = pendingCostLines.size
     val isEdit: Boolean get() = savedEntryId == null && isLoadingExisting // simple heuristic
+
+    /** Human-readable meter label based on asset meterType. */
+    val meterLabel: String get() = when (meterType?.lowercase()) {
+        "odometer", "miles", "mi" -> "Odometer (mi)"
+        "hours", "hour", "hr" -> "Hours"
+        else -> "Meter"
+    }
 }
 
 @HiltViewModel
@@ -135,6 +159,10 @@ class AddEditLogViewModel @Inject constructor(
                     }
                     .first()
 
+                // Load meterType from asset
+                val asset = entity.assetId.let { db.assetDao().getById(it) }
+                val meterType = asset?.meterType
+
                 _form.update { state ->
                     state.copy(
                         entryId = entity.entryId,
@@ -147,6 +175,7 @@ class AddEditLogViewModel @Inject constructor(
                         performedByUserId = entity.performedByUserId,
                         performedByName = entity.performedBy,
                         meterReading = entity.odometerValue?.toString() ?: "",
+                        meterType = meterType,
                         costMode = if (entity.costMode == "itemized") CostMode.ITEMIZED else CostMode.TOTAL,
                         totalCost = entity.cost?.toString() ?: "",
                         pendingCostLines = drafts,
@@ -198,6 +227,63 @@ class AddEditLogViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Loads category-specific item attribute definitions from ConfigEntity.
+     * Looks for key "item_attributes_{categoryKey}" under scope "system".
+     * If no config is found, clears itemAttributeDefs so the section is hidden.
+     */
+    private fun loadItemAttributeDefs(category: String?) {
+        if (category.isNullOrBlank()) {
+            _form.update { it.copy(itemAttributeDefs = emptyList()) }
+            return
+        }
+        val accountId = identity.getActiveAccountId() ?: return
+        viewModelScope.launch {
+            try {
+                val db = dbFactory.get(accountId)
+                val categoryKey = category.lowercase().replace(" ", "_")
+                val config = db.configDao().getByKey("system", "item_attributes_$categoryKey")
+                val defs = parseItemAttributeDefs(config?.value)
+                _form.update { it.copy(itemAttributeDefs = defs) }
+            } catch (e: Exception) {
+                Timber.e(e, "[AddEditLogViewModel] loadItemAttributeDefs failed for category=$category")
+                _form.update { it.copy(itemAttributeDefs = emptyList()) }
+            }
+        }
+    }
+
+    /**
+     * Pre-fills the meter reading from the most recent log entry for this asset,
+     * but only when the current meter field is blank.
+     */
+    private fun prefillMeterFromPriorEntry(assetId: String) {
+        val accountId = identity.getActiveAccountId() ?: return
+        viewModelScope.launch {
+            try {
+                val db = dbFactory.get(accountId)
+                // Only pre-fill when the field is currently blank
+                if (_form.value.meterReading.isNotBlank()) return@launch
+
+                val latestEntry = db.logDao()
+                    .observeAll(accountId)
+                    .map { logs ->
+                        logs.filter { it.assetId == assetId && it.odometerValue != null }
+                            .maxByOrNull { it.entryDate }
+                    }
+                    .first()
+
+                if (latestEntry?.odometerValue != null) {
+                    // Only set if still blank (avoid clobbering if user typed quickly)
+                    if (_form.value.meterReading.isBlank()) {
+                        _form.update { it.copy(meterReading = latestEntry.odometerValue.toString()) }
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "[AddEditLogViewModel] prefillMeterFromPriorEntry failed for assetId=$assetId")
+            }
+        }
+    }
+
     // ---------------------------------------------------------------------------
     // Field setters
     // ---------------------------------------------------------------------------
@@ -207,10 +293,26 @@ class AddEditLogViewModel @Inject constructor(
         // Reload categories and inspection fields for this asset's type
         loadCategories()
         loadInspectionFields()
+        // Load asset details for meterType
+        val accountId = identity.getActiveAccountId() ?: return
+        viewModelScope.launch {
+            try {
+                val asset = dbFactory.get(accountId).assetDao().getById(assetId)
+                _form.update { it.copy(meterType = asset?.meterType) }
+            } catch (e: Exception) {
+                Timber.e(e, "[AddEditLogViewModel] onAssetSelected: failed to load asset meterType")
+            }
+        }
+        prefillMeterFromPriorEntry(assetId)
     }
 
     fun onTitleChanged(value: String) = _form.update { it.copy(title = value) }
-    fun onCategoryChanged(value: String?) = _form.update { it.copy(category = value) }
+
+    fun onCategoryChanged(value: String?) {
+        _form.update { it.copy(category = value) }
+        loadItemAttributeDefs(value)
+    }
+
     fun onLogTypeChanged(value: String) = _form.update { it.copy(logType = value) }
     fun onEntryDateChanged(value: Long) = _form.update { it.copy(entryDate = value) }
     fun onNotesChanged(value: String) = _form.update { it.copy(notes = value) }
@@ -220,6 +322,12 @@ class AddEditLogViewModel @Inject constructor(
 
     fun onPerformedBySelected(userId: String?, name: String?) {
         _form.update { it.copy(performedByUserId = userId, performedByName = name) }
+    }
+
+    fun onItemAttributeChanged(key: String, value: String) {
+        _form.update { state ->
+            state.copy(itemAttributes = state.itemAttributes + (key to value))
+        }
     }
 
     /**
@@ -533,5 +641,58 @@ class AddEditLogViewModel @Inject constructor(
         // Expects a JSON array of strings: ["Oil Change","Inspection",...]
         val pattern = Regex("\"([^\"]+)\"")
         return pattern.findAll(json).map { it.groupValues[1] }.toList()
+    }
+
+    /**
+     * Parses a JSON array of ItemAttributeDef objects from a config value string.
+     * Expected format:
+     * [{"key":"color","label":"Color","fieldType":"text"},
+     *  {"key":"size","label":"Size","fieldType":"enum","options":["S","M","L"],"unit":"in"}]
+     */
+    private fun parseItemAttributeDefs(json: String?): List<ItemAttributeDef> {
+        if (json.isNullOrBlank()) return emptyList()
+        return try {
+            // Reuse the lenient JSON parsing approach via InspectionFieldDef parser infrastructure.
+            // We do manual regex-free parsing via the same kotlinx.serialization path used in
+            // parseInspectionFields, but adapted here inline for ItemAttributeDef.
+            val defs = mutableListOf<ItemAttributeDef>()
+            // Strip outer array brackets and split on object boundaries
+            val inner = json.trim().removePrefix("[").removeSuffix("]")
+            // Use a simple brace-depth scanner to split individual objects
+            val objects = mutableListOf<String>()
+            var depth = 0
+            var start = -1
+            for (i in inner.indices) {
+                when (inner[i]) {
+                    '{' -> {
+                        if (depth == 0) start = i
+                        depth++
+                    }
+                    '}' -> {
+                        depth--
+                        if (depth == 0 && start >= 0) {
+                            objects += inner.substring(start, i + 1)
+                            start = -1
+                        }
+                    }
+                }
+            }
+            val keyPattern = Regex("\"([^\"]+)\"\\s*:\\s*\"([^\"]*)\"")
+            val arrayPattern = Regex("\"options\"\\s*:\\s*\\[([^\\]]*)]")
+            for (obj in objects) {
+                val fields = keyPattern.findAll(obj).associate { it.groupValues[1] to it.groupValues[2] }
+                val key = fields["key"] ?: continue
+                val label = fields["label"] ?: key
+                val fieldType = fields["fieldType"] ?: fields["field_type"] ?: "text"
+                val unit = fields["unit"]?.ifBlank { null }
+                val optionsJson = arrayPattern.find(obj)?.groupValues?.get(1) ?: ""
+                val options = Regex("\"([^\"]+)\"").findAll(optionsJson).map { it.groupValues[1] }.toList()
+                defs += ItemAttributeDef(key = key, label = label, fieldType = fieldType, options = options, unit = unit)
+            }
+            defs
+        } catch (e: Exception) {
+            Timber.e(e, "[AddEditLogViewModel] parseItemAttributeDefs failed")
+            emptyList()
+        }
     }
 }
