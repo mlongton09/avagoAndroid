@@ -48,4 +48,8 @@ data class PhotoEntity(
 
     @ColumnInfo(name = "server_version", defaultValue = "0")
     val serverVersion: Long,
+
+    /** Absolute path to a locally-captured image file. Null once evicted by PhotoCacheSweeper. */
+    @ColumnInfo(name = "local_path", defaultValue = "NULL")
+    val localPath: String? = null,
 )

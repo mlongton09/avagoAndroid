@@ -65,6 +65,8 @@ class SyncEngine @Inject constructor(
     private val conflictCoordinator: Provider<SyncConflictCoordinator>,
     private val toast: AvagoToast,
     @ApplicationScope private val scope: CoroutineScope,
+    // Provider<> avoids potential circular dependency from PhotoUploader's own dependencies
+    private val photoUploader: Provider<PhotoUploader>,
 ) {
     private val mutex = Mutex()
 
@@ -277,6 +279,13 @@ class SyncEngine @Inject constructor(
                 Timber.e(e, "[SyncEngine] Pull $entityType failed")
                 // Continue with other entity types — partial sync is better than none
             }
+        }
+
+        // Kick off photo uploads now that we have the latest server state
+        try {
+            photoUploader.get().sweep(accountId)
+        } catch (e: Exception) {
+            Timber.e(e, "[SyncEngine] PhotoUploader sweep failed")
         }
 
         _state.value = SyncState.Idle

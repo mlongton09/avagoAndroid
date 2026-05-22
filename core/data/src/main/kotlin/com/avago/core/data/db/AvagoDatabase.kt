@@ -116,7 +116,7 @@ import com.avago.core.data.db.entity.WorkOrderEntity
         AccountRolePermissionsEntity::class,
         LabelTemplateEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)

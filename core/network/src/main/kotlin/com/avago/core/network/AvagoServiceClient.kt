@@ -2,6 +2,7 @@ package com.avago.core.network
 
 import com.avago.core.network.model.AccountResponse
 import com.avago.core.network.model.AuthResponse
+import com.avago.core.network.model.PhotoUploadUrlResponse
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -43,7 +44,9 @@ import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
+import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.ByteArrayContent
 import io.ktor.http.isSuccess
 import timber.log.Timber
 import javax.inject.Inject
@@ -489,6 +492,58 @@ class AvagoServiceClient @Inject constructor(
                 throw NetworkException(response.status.value, response.status.description)
             }
         }
+
+    // ---------------------------------------------------------------------------
+    // Photos — presigned upload
+    // ---------------------------------------------------------------------------
+
+    /**
+     * POST /accounts/:accountId/photos/:photoId/upload-url
+     *
+     * Requests a presigned S3 upload URL for a locally-captured photo.
+     */
+    suspend fun getPhotoUploadUrl(
+        accountId: String,
+        photoId: String,
+        entityId: String,
+        entityType: String,
+    ): NetworkResult<PhotoUploadUrlResponse> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/photos/$photoId/upload-url") {
+                setBody(
+                    mapOf(
+                        "entity_id" to entityId,
+                        "entity_type" to entityType,
+                    )
+                )
+            }.body()
+        }
+
+    /**
+     * PUT [uploadUrl]
+     *
+     * Uploads raw image bytes to a presigned URL obtained from [getPhotoUploadUrl].
+     * Uses an unauthenticated client because presigned S3 URLs are self-authenticating —
+     * including an Authorization header would cause S3 to reject the request.
+     */
+    suspend fun uploadPhotoBinary(uploadUrl: String, bytes: ByteArray): NetworkResult<Unit> {
+        val uploadClient = AvagoHttpClient.createUnauthenticatedClient()
+        return try {
+            val response: HttpResponse = uploadClient.put(uploadUrl) {
+                setBody(ByteArrayContent(bytes, ContentType.Image.JPEG))
+            }
+            if (response.status.isSuccess()) {
+                NetworkResult.Success(Unit)
+            } else {
+                NetworkResult.Error(response.status.value, response.status.description)
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "uploadPhotoBinary failed")
+            NetworkResult.Error(-1, e.message ?: "Unknown error")
+        } finally {
+            uploadClient.close()
+        }
+    }
 
     // ---------------------------------------------------------------------------
     // Internal helpers

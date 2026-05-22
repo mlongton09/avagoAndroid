@@ -3,6 +3,9 @@ package com.avago
 import android.app.Application
 import android.os.Trace
 import androidx.hilt.work.HiltWorkerFactory
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.Configuration
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -15,12 +18,14 @@ import com.avago.core.auth.IdentityManager
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.seed.ConfigSeeder
 import com.avago.core.sync.ConnectivityMonitor
+import com.avago.core.sync.PhotoCacheSweeper
 import com.avago.core.sync.SyncEngine
 import com.avago.core.sync.SyncWorker
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.launch
@@ -37,6 +42,7 @@ class AvagoApplication : Application(), Configuration.Provider {
     @Inject lateinit var configSeeder: ConfigSeeder
     @Inject lateinit var connectivityMonitor: ConnectivityMonitor
     @Inject lateinit var syncEngine: SyncEngine
+    @Inject lateinit var photoCacheSweeper: PhotoCacheSweeper
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -69,6 +75,7 @@ class AvagoApplication : Application(), Configuration.Provider {
         observeConnectivityForSync()
         observeSignOutForWatermarkReset()
         observePermissionsStaleness()
+        observeAppForeground()
 
         Trace.endSection() // AvagoApplication.initCoroutines
         Trace.endSection() // AvagoApplication.onCreate
@@ -136,6 +143,41 @@ class AvagoApplication : Application(), Configuration.Provider {
                     )
             }
         }
+    }
+
+    private fun observeAppForeground() {
+        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) {
+                Timber.d("AvagoApplication: app foregrounded — triggering foreground sync")
+                val request = OneTimeWorkRequestBuilder<SyncWorker>()
+                    .setConstraints(
+                        Constraints.Builder()
+                            .setRequiredNetworkType(NetworkType.CONNECTED)
+                            .build()
+                    )
+                    .build()
+                WorkManager.getInstance(this@AvagoApplication).enqueueUniqueWork(
+                    "avago_foreground_sync",
+                    ExistingWorkPolicy.KEEP,
+                    request,
+                )
+
+                // Deferred cache sweep — give the app 30 s to settle before evicting local photos
+                appScope.launch {
+                    delay(30_000)
+                    val accountId = identityManager.getActiveAccountId() ?: return@launch
+                    try {
+                        photoCacheSweeper.runIfNeeded(accountId)
+                    } catch (e: Exception) {
+                        Timber.e(e, "AvagoApplication: PhotoCacheSweeper failed")
+                    }
+                }
+            }
+
+            override fun onStop(owner: LifecycleOwner) {
+                Timber.d("AvagoApplication: app backgrounded")
+            }
+        })
     }
 
     private fun triggerImmediateSync() {
