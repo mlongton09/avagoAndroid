@@ -478,7 +478,7 @@ class AvagoServiceClient @Inject constructor(
      */
     private suspend inline fun <reified T> safeNetworkCall(crossinline block: suspend () -> T): NetworkResult<T> =
         try {
-            NetworkResult.Success(block())
+            NetworkResult.Success(withRetry("AvagoServiceClient") { block() })
         } catch (e: UnauthorizedException) {
             NetworkResult.Unauthorized
         } catch (e: io.ktor.client.plugins.ResponseException) {
@@ -500,7 +500,7 @@ class AvagoServiceClient @Inject constructor(
 
     private suspend inline fun <reified T> safeCall(crossinline block: suspend () -> T): T {
         return try {
-            block()
+            withRetry("AvagoServiceClient") { block() }
         } catch (e: NetworkException) {
             throw e
         } catch (e: io.ktor.client.plugins.ResponseException) {

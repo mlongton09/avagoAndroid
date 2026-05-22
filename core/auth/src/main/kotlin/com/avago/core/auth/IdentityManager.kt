@@ -8,6 +8,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 import javax.inject.Inject
@@ -23,6 +25,8 @@ class IdentityManager @Inject constructor(
     // SecureTokenStore does NOT depend on IdentityManager, so no cycle at injection time.
     private val serviceClientProvider: Provider<AvagoServiceClient>,
 ) {
+
+    private val refreshMutex = Mutex()
 
     private val _activeAccountId = MutableStateFlow<String?>(null)
     val activeAccountId: StateFlow<String?> = _activeAccountId.asStateFlow()
@@ -123,21 +127,26 @@ class IdentityManager @Inject constructor(
         val access = tokenStore.getAccessToken(accountId)
         if (!access.isNullOrBlank()) return@withContext true
 
-        val refresh = tokenStore.getRefreshToken(accountId)
-        if (refresh.isNullOrBlank()) {
-            Timber.w("IdentityManager: no refresh token for $accountId")
-            return@withContext false
-        }
+        refreshMutex.withLock {
+            val accessAfterLock = tokenStore.getAccessToken(accountId)
+            if (!accessAfterLock.isNullOrBlank()) return@withLock true
 
-        return@withContext try {
-            val deviceId = tokenStore.getOrCreateDeviceId()
-            val response = client.refreshTokens(refresh, deviceId)
-            tokenStore.storeTokens(accountId, response.access_token, response.refresh_token)
-            Timber.d("IdentityManager: refreshed tokens for $accountId")
-            true
-        } catch (e: Exception) {
-            Timber.e(e, "IdentityManager: token refresh failed for $accountId")
-            false
+            val refresh = tokenStore.getRefreshToken(accountId)
+            if (refresh.isNullOrBlank()) {
+                Timber.w("IdentityManager: no refresh token for $accountId")
+                return@withLock false
+            }
+
+            try {
+                val deviceId = tokenStore.getOrCreateDeviceId()
+                val response = client.refreshTokens(refresh, deviceId)
+                tokenStore.storeTokens(accountId, response.access_token, response.refresh_token)
+                Timber.d("IdentityManager: refreshed tokens for $accountId")
+                true
+            } catch (e: Exception) {
+                Timber.e(e, "IdentityManager: token refresh failed for $accountId")
+                false
+            }
         }
     }
 
