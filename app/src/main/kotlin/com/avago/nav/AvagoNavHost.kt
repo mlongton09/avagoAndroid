@@ -1,10 +1,18 @@
 package com.avago.nav
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.avago.core.sync.ui.SyncConflictSheet
+import com.avago.core.sync.ui.SyncConflictViewModel
 import com.avago.feature.assets.nav.assetsNavGraph
 import com.avago.feature.auth.nav.AuthRoute
 import com.avago.feature.auth.nav.authNavGraph
@@ -30,46 +38,62 @@ import com.avago.feature.workorders.nav.workOrderNavGraph
 @Composable
 fun AvagoNavHost(
     navController: NavHostController = rememberNavController(),
+    conflictViewModel: SyncConflictViewModel = hiltViewModel(),
 ) {
-    NavHost(
-        navController = navController,
-        startDestination = AuthRoute.GRAPH,
-    ) {
+    val conflicts by conflictViewModel.conflicts.collectAsStateWithLifecycle()
 
-        // ── Auth ──────────────────────────────────────────────────────────────
-        authNavGraph(
+    Box(modifier = Modifier.fillMaxSize()) {
+        NavHost(
             navController = navController,
-            onSignedIn = {
-                navController.navigate("assets_graph") {
-                    popUpTo(AuthRoute.GRAPH) { inclusive = true }
-                }
-            },
-        )
+            startDestination = AuthRoute.GRAPH,
+        ) {
 
-        // ── Assets ────────────────────────────────────────────────────────────
-        assetsNavGraph(navController = navController)
+            // ── Auth ──────────────────────────────────────────────────────────────
+            authNavGraph(
+                navController = navController,
+                onSignedIn = {
+                    navController.navigate("assets_graph") {
+                        popUpTo(AuthRoute.GRAPH) { inclusive = true }
+                    }
+                },
+            )
 
-        // ── Work Orders ───────────────────────────────────────────────────────
-        workOrderNavGraph(navController = navController)
+            // ── Assets ────────────────────────────────────────────────────────────
+            assetsNavGraph(navController = navController)
 
-        // ── Inventory ─────────────────────────────────────────────────────────
-        inventoryNavGraph(navController = navController)
+            // ── Work Orders ───────────────────────────────────────────────────────
+            workOrderNavGraph(navController = navController)
 
-        // ── Reports ───────────────────────────────────────────────────────────
-        composable("reports") {
-            ReportsScreen()
+            // ── Inventory ─────────────────────────────────────────────────────────
+            inventoryNavGraph(navController = navController)
+
+            // ── Reports ───────────────────────────────────────────────────────────
+            composable("reports") {
+                ReportsScreen()
+            }
+
+            // ── Schedule ──────────────────────────────────────────────────────────
+            scheduleNavGraph(navController = navController)
+
+            // ── Docs ──────────────────────────────────────────────────────────────
+            docsNavGraph(navController = navController)
+
+            // ── Chat ──────────────────────────────────────────────────────────────
+            chatNavGraph(navController = navController)
+
+            // ── Settings ──────────────────────────────────────────────────────────
+            settingsNavGraph(navController = navController)
         }
 
-        // ── Schedule ──────────────────────────────────────────────────────────
-        scheduleNavGraph(navController = navController)
-
-        // ── Docs ──────────────────────────────────────────────────────────────
-        docsNavGraph(navController = navController)
-
-        // ── Chat ──────────────────────────────────────────────────────────────
-        chatNavGraph(navController = navController)
-
-        // ── Settings ──────────────────────────────────────────────────────────
-        settingsNavGraph(navController = navController)
+        // ── Sync conflict resolution overlay ─────────────────────────────────────
+        // Shows a bottom sheet for the first pending conflict; user resolves one at a time.
+        conflicts.firstOrNull()?.let { conflict ->
+            SyncConflictSheet(
+                conflict = conflict,
+                onKeepLocal = { conflictViewModel.keepLocal(conflict) },
+                onUseServer = { conflictViewModel.acceptServer(conflict) },
+                onDismiss = { conflictViewModel.dismiss(conflict) },
+            )
+        }
     }
 }

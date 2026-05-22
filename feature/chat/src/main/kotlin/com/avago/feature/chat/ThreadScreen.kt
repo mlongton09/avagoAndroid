@@ -67,6 +67,7 @@ fun ThreadScreen(
     onMedia: () -> Unit,
     onSettings: () -> Unit,
     onOpenSubthread: (messageId: String) -> Unit = {},
+    onOpenWorkOrder: (woId: String) -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: ThreadViewModel = hiltViewModel(),
 ) {
@@ -171,7 +172,12 @@ fun ThreadScreen(
             Column(modifier = Modifier.fillMaxSize()) {
                 // Subject summary card (WO / asset threads)
                 uiState.thread?.subjectSummary?.let { summaryJson ->
-                    SubjectSummaryCard(subjectSummaryJson = summaryJson)
+                    SubjectSummaryCard(
+                        subjectSummaryJson = summaryJson,
+                        onOpenEntity = { id, type ->
+                            if (type == "work_order" || type == "wo") onOpenWorkOrder(id)
+                        },
+                    )
                 }
 
                 // Pinned message banner

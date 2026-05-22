@@ -1,5 +1,6 @@
 package com.avago.feature.chat.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -32,6 +33,7 @@ private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 fun SubjectSummaryCard(
     subjectSummaryJson: String,
     modifier: Modifier = Modifier,
+    onOpenEntity: ((entityId: String, entityType: String) -> Unit)? = null,
 ) {
     val summary: JsonObject = try {
         json.parseToJsonElement(subjectSummaryJson).jsonObject
@@ -42,15 +44,23 @@ fun SubjectSummaryCard(
     val entityType = summary["entity_type"]?.jsonPrimitive?.content
         ?: summary["type"]?.jsonPrimitive?.content
         ?: "entity"
+    val entityId = summary["entity_id"]?.jsonPrimitive?.content
+        ?: summary["wo_id"]?.jsonPrimitive?.content
+        ?: summary["asset_id"]?.jsonPrimitive?.content
     val name = summary["name"]?.jsonPrimitive?.content
         ?: summary["title"]?.jsonPrimitive?.content
         ?: return
     val status = summary["status"]?.jsonPrimitive?.content
 
+    val clickModifier = if (onOpenEntity != null && entityId != null) {
+        Modifier.clickable { onOpenEntity(entityId, entityType) }
+    } else Modifier
+
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp),
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .then(clickModifier),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.secondaryContainer,
         ),

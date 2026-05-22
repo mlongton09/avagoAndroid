@@ -70,6 +70,9 @@ fun NavGraphBuilder.chatNavGraph(navController: NavHostController) {
             onOpenSubthread = { messageId ->
                 navController.navigate(ChatRoute.Subthread.createRoute(threadId, messageId))
             },
+            onOpenWorkOrder = { woId ->
+                navController.navigate("workorders/detail/$woId")
+            },
         )
     }
 
