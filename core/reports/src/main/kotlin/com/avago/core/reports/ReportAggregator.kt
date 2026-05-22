@@ -531,7 +531,7 @@ class ReportAggregator @Inject constructor(
             val db = dbFactory.get(accountId)
             val txns = db.inventoryTransactionDao().observeAll(accountId).first().filter {
                 it.createdAt in range.start.toEpochMilliseconds()..range.end.toEpochMilliseconds() &&
-                    it.unitCost != null && it.unitCost > 0.0
+                    it.unitCost != null && it.unitCost!! > 0.0
             }
             val tz = TimeZone.currentSystemDefault()
 
