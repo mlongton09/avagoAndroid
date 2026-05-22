@@ -28,6 +28,8 @@ import com.avago.feature.assets.ui.ColorPickerScreen
 import com.avago.feature.assets.ui.DocScanPipelineScreen
 import com.avago.feature.assets.ui.DocTypePickerScreen
 import com.avago.feature.assets.ui.AssetRentalsScreen
+import com.avago.feature.assets.ui.CategoryReportScreen
+import com.avago.feature.assets.ui.CostReportScreen
 import com.avago.feature.assets.ui.WheelConfigBuilderScreen
 import com.avago.feature.assets.ui.WheelConfigScreen
 import com.avago.feature.assets.ui.WheelDataInputScreen
@@ -56,6 +58,8 @@ object AssetsRoute {
     const val WHEEL_DATA_INPUT = "assets/wheel_data_input/{assetId}"
     const val RENTALS = "assets/rentals/{assetId}"
     const val ONBOARDING = "assets/onboarding"
+    const val COST_REPORT = "assets/cost_report"
+    const val CATEGORY_REPORT = "assets/category_report/{assetId}"
 
     fun detail(assetId: String) = "assets/detail/$assetId"
     fun workOrders(assetId: String) = "assets/work_orders/$assetId"
@@ -75,6 +79,7 @@ object AssetsRoute {
     fun wheelConfig(assetId: String) = "assets/wheel_config/$assetId"
     fun wheelConfigBuilder(assetId: String) = "assets/wheel_config_builder/$assetId"
     fun wheelDataInput(assetId: String) = "assets/wheel_data_input/$assetId"
+    fun categoryReport(assetId: String) = "assets/category_report/$assetId"
 }
 
 /**
@@ -397,6 +402,23 @@ fun NavGraphBuilder.assetsNavGraph(
         ) { backStackEntry ->
             val assetId = requireNotNull(backStackEntry.arguments?.getString("assetId"))
             AssetRentalsScreen(
+                assetId = assetId,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(route = AssetsRoute.COST_REPORT) {
+            CostReportScreen(
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            route = AssetsRoute.CATEGORY_REPORT,
+            arguments = listOf(navArgument("assetId") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val assetId = requireNotNull(backStackEntry.arguments?.getString("assetId"))
+            CategoryReportScreen(
                 assetId = assetId,
                 onBack = { navController.popBackStack() },
             )
