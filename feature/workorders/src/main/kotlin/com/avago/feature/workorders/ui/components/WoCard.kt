@@ -87,14 +87,14 @@ fun WoCard(
             ) {
                 DueDateBadge(dueDateMs = wo.dueDate, status = WoStatus.fromKey(wo.status))
                 if (!wo.priority.isNullOrBlank()) {
-                    PriorityBadge(priority = wo.priority)
+                    PriorityBadge(priority = wo.priority!!)
                 }
             }
 
             // Assignee initials
             if (!wo.assignedTo.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(6.dp))
-                AssigneeAvatar(initials = wo.assignedTo.take(2).uppercase())
+                AssigneeAvatar(initials = wo.assignedTo!!.take(2).uppercase())
             }
         }
     }

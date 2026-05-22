@@ -236,7 +236,7 @@ private fun CostLineCard(
             if (!line.glCode.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = line.glCode,
+                    text = line.glCode!!,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

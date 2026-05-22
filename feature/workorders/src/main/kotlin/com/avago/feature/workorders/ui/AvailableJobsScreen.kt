@@ -101,7 +101,7 @@ fun AvailableJobsScreen(
                                 if (!wo.description.isNullOrBlank()) {
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = wo.description,
+                                        text = wo.description!!,
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 2,

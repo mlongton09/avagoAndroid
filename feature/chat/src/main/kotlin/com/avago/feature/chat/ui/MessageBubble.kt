@@ -104,7 +104,7 @@ fun MessageBubble(
 
             // Reaction chips
             if (!message.reactions.isNullOrBlank()) {
-                ReactionRow(reactionsJson = message.reactions)
+                ReactionRow(reactionsJson = message.reactions!!)
             }
         }
     }

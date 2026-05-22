@@ -152,7 +152,7 @@ private fun TechRow(
             )
             if (!tech.skills.isNullOrBlank()) {
                 Text(
-                    text = tech.skills,
+                    text = tech.skills!!,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,

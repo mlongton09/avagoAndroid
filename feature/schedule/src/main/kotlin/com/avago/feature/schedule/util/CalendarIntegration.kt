@@ -30,7 +30,7 @@ fun addScheduleToAndroidCalendar(
         putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, dueMs)
         putExtra(CalendarContract.EXTRA_EVENT_ALL_DAY, true)
         if (!schedule.rrule.isNullOrBlank()) {
-            putExtra(CalendarContract.Events.RRULE, schedule.rrule)
+            putExtra(CalendarContract.Events.RRULE, schedule.rrule!!)
         }
     }
 

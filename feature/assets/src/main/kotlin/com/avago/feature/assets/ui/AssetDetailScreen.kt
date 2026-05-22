@@ -472,7 +472,7 @@ private fun LogEntryRow(
             )
             if (!entry.category.isNullOrBlank()) {
                 Text(
-                    text = entry.category.replace("_", " ").replaceFirstChar { it.uppercase() },
+                    text = entry.category!!.replace("_", " ").replaceFirstChar { it.uppercase() },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
                 )

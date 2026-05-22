@@ -195,7 +195,7 @@ fun TechProfileScreen(
                         if (!currentTech.email.isNullOrBlank()) {
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = currentTech.email,
+                                text = currentTech.email!!,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -209,7 +209,7 @@ fun TechProfileScreen(
                                 color = MaterialTheme.colorScheme.primaryContainer,
                             ) {
                                 Text(
-                                    text = currentTech.role.replaceFirstChar { it.uppercase() },
+                                    text = currentTech.role!!.replaceFirstChar { it.uppercase() },
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
