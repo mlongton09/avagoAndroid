@@ -389,7 +389,7 @@ private fun AssetStatsRow(
             if (showMeter) {
                 StatCell(
                     label = stringResource(R.string.asset_detail_meter_reading),
-                    value = if (latestMeterReading != null) "%.0f".format(latestMeterReading!!)
+                    value = if (latestMeterReading != null) "%.0f".format(latestMeterReading)
                     else stringResource(R.string.asset_detail_na),
                 )
             }

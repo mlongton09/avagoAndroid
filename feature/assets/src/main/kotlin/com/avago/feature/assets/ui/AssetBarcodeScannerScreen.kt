@@ -224,6 +224,8 @@ private fun CameraPreview(
     AndroidView(
         factory = { ctx ->
             val previewView = PreviewView(ctx)
+            val barcodeScanner = BarcodeScanning.getClient()
+            previewView.tag = barcodeScanner
             val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
             cameraProviderFuture.addListener({
                 val cameraProvider = cameraProviderFuture.get()
@@ -231,8 +233,6 @@ private fun CameraPreview(
                 val preview = Preview.Builder().build().also {
                     it.surfaceProvider = previewView.surfaceProvider
                 }
-
-                val barcodeScanner = BarcodeScanning.getClient()
 
                 val imageAnalysis = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
@@ -260,6 +260,9 @@ private fun CameraPreview(
                 }
             }, ContextCompat.getMainExecutor(ctx))
             previewView
+        },
+        onRelease = { previewView ->
+            (previewView.tag as? com.google.mlkit.vision.barcode.BarcodeScanner)?.close()
         },
         modifier = Modifier.fillMaxSize(),
     )

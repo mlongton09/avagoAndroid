@@ -162,6 +162,11 @@ fun CostLinesEditorScreen(
                             } else false
                         },
                     )
+                    LaunchedEffect(line.lineId) {
+                        if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart) {
+                            dismissState.reset()
+                        }
+                    }
                     SwipeToDismissBox(
                         state = dismissState,
                         enableDismissFromStartToEnd = false,

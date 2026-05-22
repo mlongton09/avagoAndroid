@@ -13,6 +13,10 @@ android {
         minSdk = 26
         val baseUrl = project.findProperty("avago.base.url") as? String ?: "https://api.avagomate.com"
         buildConfigField("String", "BASE_URL", "\"$baseUrl\"")
+        val versionName = project.findProperty("avago.version.name") as? String ?: "1.0.0"
+        val versionCode = (project.findProperty("avago.version.code") as? String)?.toInt() ?: 1
+        buildConfigField("String", "VERSION_NAME", "\"$versionName\"")
+        buildConfigField("int", "VERSION_CODE", "$versionCode")
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21

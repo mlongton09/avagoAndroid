@@ -45,6 +45,10 @@ fun AssetPdfViewerScreen(
                     loadUrl("https://docs.google.com/gview?embedded=true&url=$pdfUrl")
                 }
             },
+            onRelease = { webView ->
+                webView.stopLoading()
+                webView.destroy()
+            },
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),

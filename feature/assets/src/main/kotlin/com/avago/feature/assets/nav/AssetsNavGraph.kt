@@ -1,6 +1,7 @@
 package com.avago.feature.assets.nav
 
 import android.net.Uri
+import java.net.URLDecoder
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -250,8 +251,8 @@ fun NavGraphBuilder.assetsNavGraph(
                 },
             ),
         ) { backStackEntry ->
-            val pdfUrl = backStackEntry.arguments?.getString("pdfUrl") ?: ""
-            val title = backStackEntry.arguments?.getString("title") ?: "Document"
+            val pdfUrl = URLDecoder.decode(backStackEntry.arguments?.getString("pdfUrl") ?: "", "UTF-8")
+            val title = URLDecoder.decode(backStackEntry.arguments?.getString("title") ?: "Document", "UTF-8")
             AssetPdfViewerScreen(
                 pdfUrl = pdfUrl,
                 title = title,
@@ -290,7 +291,7 @@ fun NavGraphBuilder.assetsNavGraph(
                 navArgument("initialText") { type = NavType.StringType; defaultValue = "" },
             ),
         ) { backStackEntry ->
-            val initialText = backStackEntry.arguments?.getString("initialText") ?: ""
+            val initialText = URLDecoder.decode(backStackEntry.arguments?.getString("initialText") ?: "", "UTF-8")
             NotesFullScreenScreen(
                 initialText = initialText,
                 onBack = { navController.popBackStack() },

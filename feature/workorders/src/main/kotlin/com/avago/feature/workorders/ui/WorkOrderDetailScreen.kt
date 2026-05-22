@@ -101,10 +101,16 @@ fun WorkOrderDetailScreen(
     var commentText by rememberSaveable { mutableStateOf("") }
     var dispatcherNotesDraft by rememberSaveable { mutableStateOf("") }
 
-    // Initialise dispatcher notes draft when WO loads
-    LaunchedEffect(wo?.dispatcherNotes) {
-        if (dispatcherNotesDraft.isEmpty()) {
-            dispatcherNotesDraft = wo?.dispatcherNotes ?: ""
+    // Initialise the dispatcher notes draft the first time the WO loads.
+    // Using a Boolean flag ensures we do this exactly once even if the WO
+    // entity is updated (and dispatcherNotes changes) by a background sync
+    // later — otherwise the effect would re-fire and clobber an in-progress
+    // edit whenever the draft happened to be blank.
+    var dispatcherNotesInitialized by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(wo?.woId) {
+        if (!dispatcherNotesInitialized && wo != null) {
+            dispatcherNotesDraft = wo.dispatcherNotes ?: ""
+            dispatcherNotesInitialized = true
         }
     }
 

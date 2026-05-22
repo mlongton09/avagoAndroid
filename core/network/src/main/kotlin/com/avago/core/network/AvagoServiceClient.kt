@@ -498,7 +498,7 @@ class AvagoServiceClient @Inject constructor(
     // Internal helpers (throwing variants used by non-chat callers)
     // ---------------------------------------------------------------------------
 
-    private suspend inline fun <reified T> safeCall(block: () -> T): T {
+    private suspend inline fun <reified T> safeCall(crossinline block: suspend () -> T): T {
         return try {
             block()
         } catch (e: NetworkException) {

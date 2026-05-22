@@ -34,7 +34,10 @@ class ConnectivityMonitor @Inject constructor(
                 .build()
             manager.registerNetworkCallback(request, callback)
             // Emit current state immediately
-            val current = manager.activeNetwork != null
+            val current = manager.activeNetwork?.let { network ->
+                manager.getNetworkCapabilities(network)
+                    ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+            } ?: false
             trySend(current)
             awaitClose { manager.unregisterNetworkCallback(callback) }
         }.distinctUntilChanged()
