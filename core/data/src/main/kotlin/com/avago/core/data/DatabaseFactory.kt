@@ -8,11 +8,10 @@ import com.avago.core.data.db.AvagoDatabase
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
-import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class DatabaseFactory @Inject constructor(
+class DatabaseFactory(
     private val context: Context,
 ) {
     private val mutex = Mutex()
