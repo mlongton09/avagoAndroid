@@ -95,6 +95,14 @@ class SecureTokenStore @Inject constructor(
             .apply()
     }
 
+    fun clearAllTokens() {
+        val editor = prefs.edit()
+        prefs.all.keys
+            .filter { it.startsWith("av_access_token_") || it.startsWith("av_refresh_token_") }
+            .forEach { editor.remove(it) }
+        editor.apply()
+    }
+
     // ---------------------------------------------------------------------------
     // Device ID — single UUID shared across all accounts on this device
     // ---------------------------------------------------------------------------

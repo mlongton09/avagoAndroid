@@ -1,8 +1,7 @@
 package com.avago.core.permissions.di
 
 import com.avago.core.auth.IdentityManager
-import com.avago.core.data.db.dao.AccountRolePermissionsDao
-import com.avago.core.data.db.dao.RolePermissionDefaultsDao
+import com.avago.core.data.DatabaseFactory
 import com.avago.core.permissions.PermissionsManager
 import com.avago.core.sync.ApplicationScope
 import dagger.Module
@@ -19,13 +18,11 @@ object PermissionsModule {
     @Provides
     @Singleton
     fun providePermissionsManager(
-        accountRolePermissionsDao: AccountRolePermissionsDao,
-        rolePermissionDefaultsDao: RolePermissionDefaultsDao,
+        dbFactory: DatabaseFactory,
         identity: IdentityManager,
         @ApplicationScope scope: CoroutineScope,
     ): PermissionsManager = PermissionsManager(
-        accountRolePermissionsDao = accountRolePermissionsDao,
-        rolePermissionDefaultsDao = rolePermissionDefaultsDao,
+        dbFactory = dbFactory,
         identity = identity,
         scope = scope,
     )

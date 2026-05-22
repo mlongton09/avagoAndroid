@@ -45,8 +45,33 @@ class AccountManifest @Inject constructor(
         lock.write { addOrUpdate(appContext, account) }
     }
 
+    suspend fun addIfMissing(account: AccountRecord) = withContext(Dispatchers.IO) {
+        lock.write {
+            val current = load(appContext)
+            if (current.none { it.accountId == account.accountId }) {
+                save(appContext, current + account)
+            }
+        }
+    }
+
     suspend fun remove(accountId: String) = withContext(Dispatchers.IO) {
         lock.write { remove(appContext, accountId) }
+    }
+
+    suspend fun clearAll() = withContext(Dispatchers.IO) {
+        lock.write { save(appContext, emptyList()) }
+    }
+
+    fun deduplicateAnonymousAccounts(activeAccountId: String) {
+        lock.write {
+            val current = load(appContext)
+            val nonAnon = current.filter { !it.isAnonymous }
+            val activeAnon = current.filter { it.isAnonymous && it.accountId == activeAccountId }
+            val deduplicated = nonAnon + activeAnon
+            if (deduplicated.size < current.size) {
+                save(appContext, deduplicated)
+            }
+        }
     }
 
     // ---------------------------------------------------------------------------

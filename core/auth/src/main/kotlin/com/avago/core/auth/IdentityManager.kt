@@ -1,6 +1,7 @@
 package com.avago.core.auth
 
 import android.content.Context
+import com.avago.core.data.DatabaseFactory
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
 import com.avago.core.network.RefreshFailedHandler
@@ -28,6 +29,8 @@ import javax.inject.Singleton
 class IdentityManager @Inject constructor(
     @ApplicationContext private val appContext: Context,
     val tokenStore: SecureTokenStore,
+    private val accountManifest: AccountManifest,
+    private val databaseFactory: DatabaseFactory,
     // Use Provider<> to break the Hilt dependency cycle:
     // IdentityManager → AvagoServiceClient → HttpClient → TokenProvider (SecureTokenStore)
     // SecureTokenStore does NOT depend on IdentityManager, so no cycle at injection time.
@@ -47,6 +50,9 @@ class IdentityManager @Inject constructor(
     val activeUserId: StateFlow<String?> = _activeUserId.asStateFlow()
 
     val isSignedIn: Boolean get() = _activeAccountId.value != null
+
+    private val _devRoleOverride = MutableStateFlow<String?>(null)
+    val devRoleOverride: StateFlow<String?> = _devRoleOverride
 
     private val client: AvagoServiceClient get() = serviceClientProvider.get()
 
@@ -71,7 +77,15 @@ class IdentityManager @Inject constructor(
         if (accounts.isNotEmpty()) {
             val last = accounts.last()
             setActiveAccount(last.accountId, last.userId)
+            accountManifest.deduplicateAnonymousAccounts(last.accountId)
             Timber.d("IdentityManager: restored account ${last.accountId}")
+            val userId = last.userId
+            if (userId != null) {
+                @Suppress("OPT_IN_USAGE")
+                GlobalScope.launch(Dispatchers.IO) {
+                    validateRoleFromMembersList(last.accountId, userId)
+                }
+            }
         } else {
             Timber.d("IdentityManager: no accounts on disk, provisioning")
             provisionConnected(appContext)
@@ -91,7 +105,7 @@ class IdentityManager @Inject constructor(
 
         tokenStore.storeTokens(accountId, response.access_token, response.refresh_token)
 
-        val record = AccountRecord(accountId = accountId)
+        val record = AccountRecord(accountId = accountId, isAnonymous = true)
         AccountManifest.addOrUpdate(context, record)
         setActiveAccount(accountId)
 
@@ -134,6 +148,14 @@ class IdentityManager @Inject constructor(
 
             Timber.d("IdentityManager: signed in as $accountId")
             registerPushTokenAsync()
+            fetchMyAccountsAsync()
+            val capturedUserId = user?.user_id
+            if (capturedUserId != null) {
+                @Suppress("OPT_IN_USAGE")
+                GlobalScope.launch(Dispatchers.IO) {
+                    validateRoleFromMembersList(accountId, capturedUserId)
+                }
+            }
         }
 
     // ---------------------------------------------------------------------------
@@ -161,7 +183,10 @@ class IdentityManager @Inject constructor(
         val reAuthed = reAuthenticateSilently()
         if (!reAuthed) {
             val accountId = getActiveAccountId()
-            if (accountId != null) {
+            if (accountId != null && !accountId.startsWith("anon_")) {
+                val namedReauthed = reAuthenticateNamedAccount(accountId)
+                if (!namedReauthed) signOut(accountId)
+            } else if (accountId != null) {
                 signOut(accountId)
             }
         }
@@ -264,6 +289,74 @@ class IdentityManager @Inject constructor(
      */
     suspend fun signOut(accountId: String) = signOut(appContext, accountId)
 
+    /** Sign out of all accounts, clearing all cached tokens. */
+    suspend fun signOutAll() = withContext(Dispatchers.IO) {
+        val accounts = AccountManifest.load(appContext)
+        accounts.forEach { _signOutEvents.emit(it.accountId) }
+        tokenStore.clearAllTokens()
+        AccountManifest.save(appContext, emptyList())
+        setActiveAccount(null)
+        Timber.d("IdentityManager: signed out of all accounts")
+    }
+
+    // ---------------------------------------------------------------------------
+    // Multi-account prefetch
+    // ---------------------------------------------------------------------------
+
+    private fun fetchMyAccountsAsync() {
+        @Suppress("OPT_IN_USAGE")
+        GlobalScope.launch(Dispatchers.IO) {
+            try {
+                val result = client.getMyAccounts()
+                if (result is NetworkResult.Success) {
+                    result.data.forEach { acct ->
+                        accountManifest.addIfMissing(
+                            AccountRecord(
+                                accountId = acct.account_id,
+                                displayName = acct.name,
+                            )
+                        )
+                    }
+                    Timber.d("IdentityManager: prefetched ${result.data.size} account(s)")
+                }
+            } catch (e: Exception) {
+                Timber.w(e, "IdentityManager: fetchMyAccounts failed")
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Role validation
+    // ---------------------------------------------------------------------------
+
+    private suspend fun validateRoleFromMembersList(accountId: String, userId: String) {
+        try {
+            val result = client.getAccountMembers(accountId)
+            if (result is NetworkResult.Success) {
+                val myMember = result.data.find { it.user_id == userId }
+                if (myMember?.role != null) {
+                    updateAccountRole(accountId, myMember.role)
+                }
+            }
+        } catch (e: Exception) {
+            Timber.w(e, "Role validation from members list failed — using profile role")
+        }
+    }
+
+    private fun updateAccountRole(accountId: String, role: String) {
+        val accounts = AccountManifest.load(appContext).toMutableList()
+        val idx = accounts.indexOfFirst { it.accountId == accountId }
+        if (idx < 0) return
+        val existing = accounts[idx]
+        val updatedMemberships = existing.memberships.toMutableList()
+        val mIdx = updatedMemberships.indexOfFirst { it.accountId == accountId }
+        val newMembership = AccountMembership(accountId = accountId, role = role, isRoot = role == "owner")
+        if (mIdx >= 0) updatedMemberships[mIdx] = newMembership else updatedMemberships.add(newMembership)
+        accounts[idx] = existing.copy(role = role, memberships = updatedMemberships)
+        AccountManifest.save(appContext, accounts)
+        Timber.d("IdentityManager: updated role for $accountId to $role")
+    }
+
     // ---------------------------------------------------------------------------
     // Push token
     // ---------------------------------------------------------------------------
@@ -300,6 +393,70 @@ class IdentityManager @Inject constructor(
             Timber.d("IdentityManager: push token registered for $accountId")
         } catch (e: Exception) {
             Timber.e(e, "IdentityManager: failed to register push token")
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Developer role override
+    // ---------------------------------------------------------------------------
+
+    fun setDevRoleOverride(role: String?) {
+        if (role != null && !hasRootOnCurrentAccount()) return
+        _devRoleOverride.value = role
+    }
+
+    fun getEffectiveRole(): String? {
+        return _devRoleOverride.value ?: run {
+            val accountId = _activeAccountId.value ?: return null
+            AccountManifest.load(appContext).find { it.accountId == accountId }?.role
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Wipe all for testing
+    // ---------------------------------------------------------------------------
+
+    suspend fun wipeAllForTesting() {
+        Timber.w("WIPE ALL FOR TESTING — clearing all data")
+        val accountIds = AccountManifest.load(appContext).map { it.accountId }
+        tokenStore.clearAllTokens()
+        accountManifest.clearAll()
+        for (accountId in accountIds) {
+            try {
+                databaseFactory.deleteDatabase(accountId)
+            } catch (e: Exception) {
+                Timber.w(e, "Failed to delete DB for $accountId")
+            }
+        }
+        _activeAccountId.value = null
+        _activeUserId.value = null
+        tokenStore.activeAccountId = null
+        Timber.w("Wipe complete")
+    }
+
+    // ---------------------------------------------------------------------------
+    // Named account re-authentication
+    // ---------------------------------------------------------------------------
+
+    suspend fun reAuthenticateNamedAccount(accountId: String): Boolean {
+        return try {
+            val firebaseUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+                ?: return false
+            val firebaseToken = suspendCancellableCoroutine<String?> { cont ->
+                firebaseUser.getIdToken(true)
+                    .addOnSuccessListener { cont.resume(it.token) }
+                    .addOnFailureListener { cont.resume(null) }
+            } ?: return false
+            val result = client.switchAccount(accountId)
+            if (result is NetworkResult.Success) {
+                tokenStore.storeTokens(accountId, result.data.access_token, result.data.refresh_token)
+                true
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            Timber.w(e, "reAuthenticateNamedAccount failed for $accountId")
+            false
         }
     }
 

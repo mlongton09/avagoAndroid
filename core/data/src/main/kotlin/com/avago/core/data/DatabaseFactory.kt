@@ -46,6 +46,15 @@ class DatabaseFactory @Inject constructor(
         instances.clear()
     }
 
+    fun deleteDatabase(accountId: String) {
+        instances.remove(accountId)?.close()
+        val dbDir = java.io.File(context.filesDir, "accounts/$accountId")
+        val dbFile = java.io.File(dbDir, "avago.db")
+        dbFile.delete()
+        java.io.File(dbDir, "avago.db-shm").delete()
+        java.io.File(dbDir, "avago.db-wal").delete()
+    }
+
     private object WalCallback : RoomDatabase.Callback() {
         override fun onOpen(db: SupportSQLiteDatabase) {
             super.onOpen(db)

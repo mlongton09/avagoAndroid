@@ -78,11 +78,24 @@ class AvagoServiceClient @Inject constructor(
             setBody(RefreshRequest(refresh_token = refreshToken, device_id = deviceId))
         }.body() }
 
+    suspend fun switchAccount(targetAccountId: String): NetworkResult<AuthResponse> =
+        safeNetworkCall {
+            client.post("$baseUrl/auth/switch-account") {
+                setBody(mapOf("account_id" to targetAccountId))
+            }.body()
+        }
+
     suspend fun getMe(): UserResponse =
         safeCall { client.get("$baseUrl/users/me").body() }
 
     suspend fun getAccount(): AccountResponse =
         safeCall { client.get("$baseUrl/accounts/me").body() }
+
+    suspend fun getMyAccounts(): NetworkResult<List<AccountResponse>> =
+        safeNetworkCall { client.get("$baseUrl/users/me/accounts").body() }
+
+    suspend fun getAccountMembers(accountId: String): NetworkResult<List<UserResponse>> =
+        safeNetworkCall { client.get("$baseUrl/accounts/$accountId/members").body() }
 
     suspend fun updateDevice(deviceId: String, request: DeviceUpdateRequest) {
         safeCall<Unit> {
