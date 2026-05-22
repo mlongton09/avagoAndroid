@@ -104,6 +104,7 @@ dependencies {
     implementation(libs.credentials.play.services)
     implementation(libs.googleid)
 
+    implementation(libs.splashscreen)
     implementation(libs.timber)
     implementation(libs.coroutines.android)
     implementation(libs.kotlinx.datetime)

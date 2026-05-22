@@ -22,6 +22,7 @@ class ChatDatabaseFactory @Inject constructor(
         openDbs.getOrPut(accountId) {
             val dir = File(ctx.filesDir, "accounts/$accountId").apply { mkdirs() }
             Room.databaseBuilder(ctx, ChatDatabase::class.java, File(dir, "chat.db").path)
+                .fallbackToDestructiveMigration(dropAllTables = true)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) {
                         super.onOpen(db)
