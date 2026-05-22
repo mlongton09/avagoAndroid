@@ -247,7 +247,7 @@ fun LogDetailScreen(
                         DetailSection(title = "Notes") {
                             // Basic markdown: bold, no external dep
                             Text(
-                                text = log.notes,
+                                text = log.notes!!,
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                         }
