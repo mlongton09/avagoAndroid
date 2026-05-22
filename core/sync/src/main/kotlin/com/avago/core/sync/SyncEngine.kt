@@ -30,6 +30,13 @@ import com.avago.core.data.db.entity.VendorEntity
 import com.avago.core.data.db.entity.WoAssignmentEntity
 import com.avago.core.data.db.entity.WoChecklistItemEntity
 import com.avago.core.data.db.entity.WoCommentEntity
+import com.avago.core.data.db.entity.ItemEntity
+import com.avago.core.data.db.entity.GlAccountEntity
+import com.avago.core.data.db.entity.JobEntity
+import com.avago.core.data.db.entity.ServiceEntity
+import com.avago.core.data.db.entity.AssetLocationHistoryEntity
+import com.avago.core.data.db.entity.RoleLabelCacheEntity
+import com.avago.core.data.db.entity.EventEntity
 import com.avago.core.data.db.entity.LabelTemplateEntity
 import com.avago.core.data.db.entity.WoTemplateEntity
 import com.avago.core.data.db.entity.WorkOrderEntity
@@ -92,6 +99,8 @@ class SyncEngine @Inject constructor(
         "user", "location",
         "role_permission_defaults", "account_role_permissions",
         "label_template",
+        "item", "gl_account", "job", "service",
+        "asset_location_history", "role_label_cache", "event",
     )
 
     // ---------------------------------------------------------------------------
@@ -382,6 +391,8 @@ class SyncEngine @Inject constructor(
                             exchangeRateUsed = item.dbl("exchange_rate_used"),
                             configId = item.str("config_id"),
                             configVersion = item.lng("config_version"),
+                            serviceId = item.str("service_id"),
+                            costMisc = item.dbl("cost_misc"),
                             parentId = item.str("parent_id"),
                             createdAt = isoToMs(item.str("created_at")) ?: now,
                             updatedAt = isoToMs(item.str("updated_at")) ?: now,
@@ -513,10 +524,17 @@ class SyncEngine @Inject constructor(
                         WoAssignmentEntity(
                             assignmentId = item.str("assignment_id") ?: return,
                             woId = item.str("wo_id") ?: return,
+                            accountId = item.str("account_id") ?: accountId,
                             technicianId = item.str("tech_id") ?: item.str("technician_id") ?: return,
+                            assignedBy = item.str("assigned_by"),
                             assignedAt = isoToMs(item.str("assigned_at") ?: item.str("created_at")) ?: now,
                             unassignedAt = isoToMs(item.str("unassigned_at")),
+                            scheduledStart = isoToMs(item.str("scheduled_start")),
+                            scheduledEnd = isoToMs(item.str("scheduled_end")),
                             status = item.str("status") ?: "pending",
+                            notes = item.str("notes"),
+                            ekEventIdentifier = item.str("ek_event_identifier"),
+                            isDirty = item.bool("is_dirty") ?: false,
                             serverVersion = item.lng("server_version") ?: 0L,
                             seq = item.lng("seq"),
                         )
@@ -582,12 +600,16 @@ class SyncEngine @Inject constructor(
                             techId = item.str("tech_profile_id") ?: item.str("tech_id") ?: return,
                             accountId = item.str("account_id") ?: accountId,
                             userId = item.str("user_id") ?: return,
+                            displayName = item.str("display_name"),
                             skills = item.str("skills"),
                             certifications = item.str("certifications"),
                             hourlyRate = item.dbl("hourly_rate"),
                             currency = item.str("rate_currency") ?: item.str("currency"),
                             availability = item.str("availability"),
                             speedFactor = item.dbl("speed_factor"),
+                            maxActiveWos = item.lng("max_active_wos")?.toInt(),
+                            isAvailable = item.bool("is_available") ?: true,
+                            homeLocationId = item.str("home_location_id"),
                             currentLocationLat = null,
                             currentLocationLng = null,
                             createdAt = isoToMs(item.str("created_at")) ?: now,
@@ -668,11 +690,22 @@ class SyncEngine @Inject constructor(
                             vendorId = item.str("vendor_id") ?: return,
                             accountId = item.str("account_id") ?: accountId,
                             name = item.str("name") ?: "",
+                            vendorCode = item.str("vendor_code"),
+                            contactName = item.str("contact_name"),
                             email = item.str("email"),
                             phone = item.str("phone"),
+                            fax = item.str("fax"),
+                            website = item.str("website"),
                             address = item.str("address"),
+                            accountNumber = item.str("account_number"),
                             paymentTerms = item.str("payment_terms"),
+                            defaultCurrency = item.str("default_currency"),
                             taxId = item.str("tax_id"),
+                            rating = item.dbl("rating"),
+                            preferred = item.bool("preferred") ?: false,
+                            active = item.bool("active") ?: true,
+                            qboVendorId = item.str("qbo_vendor_id"),
+                            notes = item.str("notes"),
                             createdAt = isoToMs(item.str("created_at")) ?: now,
                             updatedAt = isoToMs(item.str("updated_at")) ?: now,
                             deletedAt = isoToMs(item.str("deleted_at")),
@@ -878,18 +911,23 @@ class SyncEngine @Inject constructor(
                         DocEntity(
                             docId = item.str("doc_id") ?: return,
                             assetId = item.str("asset_id"),
+                            entityId = item.str("entity_id"),
+                            entityType = item.str("entity_type"),
                             accountId = item.str("account_id") ?: accountId,
-                            name = item.str("name") ?: "",
-                            docType = item.str("doc_type") ?: "document",
+                            name = item.str("name") ?: item.str("filename") ?: "",
+                            docType = item.str("doc_type"),
                             mimeType = item.str("mime_type"),
                             storageKey = item.str("storage_key"),
                             downloadUrl = item.str("download_url"),
+                            fileHash = item.str("file_hash"),
+                            fileSize = item.lng("file_size"),
                             ocrRawText = item.str("ocr_raw_text"),
                             ocrExtractedJson = item.str("ocr_extracted_json"),
                             vendor = item.str("vendor"),
                             total = item.dbl("total"),
                             currency = item.str("currency"),
                             purchaseDate = isoToMs(item.str("purchase_date")),
+                            warrantyEndDate = isoToMs(item.str("warranty_end_date")),
                             uploadedBy = item.str("uploaded_by"),
                             uploadedAt = isoToMs(item.str("uploaded_at")),
                             createdAt = isoToMs(item.str("created_at")) ?: now,
@@ -947,13 +985,17 @@ class SyncEngine @Inject constructor(
                             locationId = item.str("location_id") ?: return,
                             accountId = item.str("account_id") ?: accountId,
                             name = item.str("name") ?: "",
-                            address = item.str("address") ?: item.str("address_line1"),
+                            shortCode = item.str("short_code"),
+                            address = item.str("address"),
                             city = item.str("city"),
                             state = item.str("state"),
                             postalCode = item.str("postal_code"),
                             country = item.str("country"),
                             latitude = item.dbl("latitude"),
                             longitude = item.dbl("longitude"),
+                            timezone = item.str("timezone"),
+                            isPrimary = item.bool("is_primary") ?: false,
+                            archived = item.bool("archived") ?: false,
                             createdAt = isoToMs(item.str("created_at")) ?: now,
                             updatedAt = isoToMs(item.str("updated_at")) ?: now,
                             deletedAt = isoToMs(item.str("deleted_at")),
@@ -1001,6 +1043,163 @@ class SyncEngine @Inject constructor(
                             createdAt = isoToMs(item.str("created_at")) ?: now,
                             updatedAt = isoToMs(item.str("updated_at")) ?: now,
                             serverSeq = item.lng("server_seq") ?: item.lng("seq") ?: 0L,
+                        )
+                    )
+                }
+
+                "item" -> {
+                    val now = System.currentTimeMillis()
+                    db.itemDao().upsert(
+                        ItemEntity(
+                            itemId = item.str("item_id") ?: return,
+                            logId = item.str("log_id") ?: return,
+                            accountId = item.str("account_id") ?: accountId,
+                            partId = item.str("part_id"),
+                            description = item.str("description"),
+                            quantity = item.dbl("quantity") ?: 0.0,
+                            unitCost = item.dbl("unit_cost"),
+                            currency = item.str("currency"),
+                            notes = item.str("notes"),
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
+                            deletedAt = isoToMs(item.str("deleted_at")),
+                            serverVersion = item.lng("server_version") ?: 0L,
+                            seq = item.lng("seq"),
+                        )
+                    )
+                }
+
+                "gl_account" -> {
+                    val now = System.currentTimeMillis()
+                    db.glAccountDao().upsert(
+                        GlAccountEntity(
+                            glAccountId = item.str("gl_account_id") ?: return,
+                            accountId = item.str("account_id") ?: accountId,
+                            glCode = item.str("gl_code") ?: return,
+                            name = item.str("name") ?: "",
+                            accountType = item.str("account_type"),
+                            description = item.str("description"),
+                            isActive = item.bool("is_active") ?: true,
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
+                            deletedAt = isoToMs(item.str("deleted_at")),
+                            serverVersion = item.lng("server_version") ?: 0L,
+                            seq = item.lng("seq"),
+                        )
+                    )
+                }
+
+                "job" -> {
+                    val now = System.currentTimeMillis()
+                    db.jobDao().upsert(
+                        JobEntity(
+                            jobId = item.str("job_id") ?: return,
+                            accountId = item.str("account_id") ?: accountId,
+                            assetId = item.str("asset_id"),
+                            title = item.str("title") ?: "",
+                            description = item.str("description"),
+                            status = item.str("status") ?: "open",
+                            jobType = item.str("job_type"),
+                            priority = item.str("priority"),
+                            assignedTo = item.str("assigned_to"),
+                            dueDate = isoToMs(item.str("due_date")),
+                            startedAt = isoToMs(item.str("started_at")),
+                            completedAt = isoToMs(item.str("completed_at")),
+                            notes = item.str("notes"),
+                            attributes = item.str("attributes"),
+                            createdBy = item.str("created_by"),
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
+                            deletedAt = isoToMs(item.str("deleted_at")),
+                            serverVersion = item.lng("server_version") ?: 0L,
+                            seq = item.lng("seq"),
+                        )
+                    )
+                }
+
+                "service" -> {
+                    val now = System.currentTimeMillis()
+                    db.serviceDao().upsert(
+                        ServiceEntity(
+                            serviceId = item.str("service_id") ?: return,
+                            accountId = item.str("account_id") ?: accountId,
+                            assetId = item.str("asset_id") ?: return,
+                            logId = item.str("log_id"),
+                            serviceType = item.str("service_type"),
+                            providerName = item.str("provider_name"),
+                            providerId = item.str("provider_id"),
+                            scheduledAt = isoToMs(item.str("scheduled_at")),
+                            completedAt = isoToMs(item.str("completed_at")),
+                            cost = item.dbl("cost"),
+                            currency = item.str("currency"),
+                            notes = item.str("notes"),
+                            status = item.str("status"),
+                            attributes = item.str("attributes"),
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
+                            deletedAt = isoToMs(item.str("deleted_at")),
+                            serverVersion = item.lng("server_version") ?: 0L,
+                            seq = item.lng("seq"),
+                        )
+                    )
+                }
+
+                "asset_location_history" -> {
+                    val now = System.currentTimeMillis()
+                    db.assetLocationHistoryDao().upsert(
+                        AssetLocationHistoryEntity(
+                            historyId = item.str("history_id") ?: return,
+                            assetId = item.str("asset_id") ?: return,
+                            accountId = item.str("account_id") ?: accountId,
+                            fromLocationId = item.str("from_location_id"),
+                            toLocationId = item.str("to_location_id"),
+                            movedBy = item.str("moved_by"),
+                            movedAt = isoToMs(item.str("moved_at")) ?: now,
+                            reason = item.str("reason"),
+                            notes = item.str("notes"),
+                            serverVersion = item.lng("server_version") ?: 0L,
+                            seq = item.lng("seq"),
+                        )
+                    )
+                }
+
+                "role_label_cache" -> {
+                    val now = System.currentTimeMillis()
+                    db.roleLabelCacheDao().upsert(
+                        RoleLabelCacheEntity(
+                            roleKey = item.str("role_key") ?: return,
+                            label = item.str("label") ?: "",
+                            description = item.str("description"),
+                            color = item.str("color"),
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
+                        )
+                    )
+                }
+
+                "event" -> {
+                    val now = System.currentTimeMillis()
+                    db.eventDao().upsert(
+                        EventEntity(
+                            eventId = item.str("event_id") ?: return,
+                            accountId = item.str("account_id") ?: accountId,
+                            entityId = item.str("entity_id"),
+                            entityType = item.str("entity_type"),
+                            title = item.str("title") ?: "",
+                            description = item.str("description"),
+                            eventType = item.str("event_type"),
+                            startsAt = isoToMs(item.str("starts_at")),
+                            endsAt = isoToMs(item.str("ends_at")),
+                            allDay = item.bool("all_day") ?: false,
+                            locationId = item.str("location_id"),
+                            createdBy = item.str("created_by"),
+                            attendees = item.str("attendees"),
+                            ekEventIdentifier = item.str("ek_event_identifier"),
+                            attributes = item.str("attributes"),
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
+                            deletedAt = isoToMs(item.str("deleted_at")),
+                            serverVersion = item.lng("server_version") ?: 0L,
+                            seq = item.lng("seq"),
                         )
                     )
                 }
