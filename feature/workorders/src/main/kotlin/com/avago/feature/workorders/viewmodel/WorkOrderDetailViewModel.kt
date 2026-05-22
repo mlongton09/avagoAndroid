@@ -9,6 +9,7 @@ import com.avago.core.data.db.entity.WoChecklistItemEntity
 import com.avago.core.data.db.entity.WoCommentEntity
 import com.avago.core.data.db.entity.WorkOrderEntity
 import com.avago.core.network.AvagoServiceClient
+import com.avago.core.network.NetworkResult
 import com.avago.core.sync.SyncEngine
 import com.avago.feature.workorders.model.WoStatus
 import com.avago.feature.workorders.repository.WorkOrderRepository
@@ -27,6 +28,8 @@ import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.util.UUID
 import javax.inject.Inject
+
+data class AuditEntry(val description: String, val createdAt: String)
 
 @HiltViewModel
 class WorkOrderDetailViewModel @Inject constructor(
@@ -86,6 +89,154 @@ class WorkOrderDetailViewModel @Inject constructor(
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
+
+    // ---------------------------------------------------------------------------
+    // Pull-to-refresh
+    // ---------------------------------------------------------------------------
+
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
+    fun refresh() {
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            try { syncEngine.sync() } catch (e: Exception) {
+                Timber.e(e, "[WoDetailVM] sync failed")
+            }
+            _isRefreshing.value = false
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Approval workflow
+    // ---------------------------------------------------------------------------
+
+    fun approveWorkOrder() {
+        val accountId = _accountId.value ?: return
+        val wo = workOrder.value ?: return
+        viewModelScope.launch {
+            try {
+                repository.upsert(accountId, wo.copy(
+                    approvalState = "approved",
+                    updatedAt = System.currentTimeMillis(),
+                ))
+            } catch (e: Exception) {
+                Timber.e(e, "approveWorkOrder failed")
+                _error.value = "Failed to approve"
+            }
+        }
+    }
+
+    fun rejectWorkOrder() {
+        val accountId = _accountId.value ?: return
+        val wo = workOrder.value ?: return
+        viewModelScope.launch {
+            try {
+                repository.upsert(accountId, wo.copy(
+                    approvalState = "rejected",
+                    updatedAt = System.currentTimeMillis(),
+                ))
+            } catch (e: Exception) {
+                Timber.e(e, "rejectWorkOrder failed")
+                _error.value = "Failed to reject"
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Inline title/description editing
+    // ---------------------------------------------------------------------------
+
+    private val _isEditingHeader = MutableStateFlow(false)
+    val isEditingHeader: StateFlow<Boolean> = _isEditingHeader.asStateFlow()
+
+    private val _editTitle = MutableStateFlow("")
+    val editTitle: StateFlow<String> = _editTitle.asStateFlow()
+
+    private val _editDescription = MutableStateFlow("")
+    val editDescription: StateFlow<String> = _editDescription.asStateFlow()
+
+    fun startEditingHeader() {
+        _editTitle.value = workOrder.value?.title ?: ""
+        _editDescription.value = workOrder.value?.description ?: ""
+        _isEditingHeader.value = true
+    }
+
+    fun cancelEditingHeader() { _isEditingHeader.value = false }
+
+    fun saveHeader() {
+        val accountId = _accountId.value ?: return
+        val wo = workOrder.value ?: return
+        viewModelScope.launch {
+            val title = _editTitle.value.trim()
+            if (title.isBlank()) return@launch
+            try {
+                repository.upsert(accountId, wo.copy(
+                    title = title,
+                    description = _editDescription.value.trim().ifBlank { null },
+                    updatedAt = System.currentTimeMillis(),
+                ))
+                _isEditingHeader.value = false
+            } catch (e: Exception) {
+                Timber.e(e, "[WoDetailVM] saveHeader failed")
+                _error.value = "Failed to save"
+            }
+        }
+    }
+
+    fun onEditTitleChanged(v: String) { _editTitle.value = v }
+    fun onEditDescriptionChanged(v: String) { _editDescription.value = v }
+
+    // ---------------------------------------------------------------------------
+    // Audit history
+    // ---------------------------------------------------------------------------
+
+    private val _auditHistory = MutableStateFlow<List<AuditEntry>>(emptyList())
+    val auditHistory: StateFlow<List<AuditEntry>> = _auditHistory.asStateFlow()
+
+    private fun loadAuditHistory() {
+        viewModelScope.launch {
+            val accountId = _accountId.value ?: return@launch
+            try {
+                when (val result = serviceClient.getWorkOrderAudit(accountId, woId)) {
+                    is NetworkResult.Success -> {
+                        _auditHistory.value = result.data.map { event ->
+                            AuditEntry(
+                                description = event.event_type,
+                                createdAt = java.time.Instant.ofEpochMilli(event.occurred_at)
+                                    .atZone(java.time.ZoneId.systemDefault())
+                                    .format(java.time.format.DateTimeFormatter.ofPattern("MMM d, yyyy HH:mm")),
+                            )
+                        }
+                    }
+                    else -> { /* leave empty */ }
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "[WoDetailVM] loadAuditHistory failed")
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Team chat thread
+    // ---------------------------------------------------------------------------
+
+    private val _chatThreadId = MutableStateFlow<String?>(null)
+    val chatThreadId: StateFlow<String?> = _chatThreadId.asStateFlow()
+
+    private fun resolveWorkOrderThread() {
+        viewModelScope.launch {
+            val accountId = _accountId.value ?: return@launch
+            try {
+                when (val result = serviceClient.resolveWoThread(accountId, woId)) {
+                    is NetworkResult.Success -> _chatThreadId.value = result.data.thread_id
+                    else -> { /* leave null */ }
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "[WoDetailVM] resolveWorkOrderThread failed")
+            }
+        }
+    }
 
     // ---------------------------------------------------------------------------
     // Status transition
@@ -246,11 +397,12 @@ class WorkOrderDetailViewModel @Inject constructor(
 
     fun clearError() { _error.value = null }
 
-    fun refresh() {
-        viewModelScope.launch {
-            try { syncEngine.sync() } catch (e: Exception) {
-                Timber.e(e, "[WoDetailVM] sync failed")
-            }
-        }
+    // ---------------------------------------------------------------------------
+    // Init
+    // ---------------------------------------------------------------------------
+
+    init {
+        loadAuditHistory()
+        resolveWorkOrderThread()
     }
 }
