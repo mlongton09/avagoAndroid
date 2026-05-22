@@ -32,6 +32,7 @@ import android.content.Intent
 import android.net.Uri
 import com.avago.core.data.db.entity.ChatMessageEntity
 import com.avago.core.ui.MarkdownText
+import timber.log.Timber
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -157,7 +158,7 @@ private fun BubbleBody(
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
                         context.startActivity(intent)
                     } catch (e: Exception) {
-                        timber.log.Timber.w(e, "MessageBubble: could not open URL %s", url)
+                        Timber.w(e, "MessageBubble: could not open URL %s", url)
                     }
                 },
             )

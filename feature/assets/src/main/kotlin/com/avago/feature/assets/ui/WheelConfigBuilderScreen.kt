@@ -235,7 +235,7 @@ private fun AxleBuilderStep(
     onAxlesChanged: (List<AxleDef>) -> Unit,
     onReview: () -> Unit,
 ) {
-    val totalWheels = axles.sumOf { if (it.tireType == TireType.DUAL) 4 else 2 }
+    val totalWheels: Int = axles.sumOf { if (it.tireType == TireType.DUAL) 4 else 2 }
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         // Cross-section visualization
@@ -402,6 +402,7 @@ private fun WheelPreviewStep(
 
 @Composable
 private fun AxleCrossSectionView(axles: List<AxleDef>, modifier: Modifier = Modifier) {
+    val axleColors = axles.map { axleRoleColor(it.role) }
     Canvas(modifier = modifier.padding(12.dp)) {
         if (axles.isEmpty()) return@Canvas
         val axleSpacing = size.width / (axles.size + 1)
@@ -413,7 +414,7 @@ private fun AxleCrossSectionView(axles: List<AxleDef>, modifier: Modifier = Modi
 
         axles.forEachIndexed { i, axle ->
             val x = axleSpacing * (i + 1)
-            val color = axleRoleColor(axle.role)
+            val color = axleColors[i]
             // axle line
             drawLine(color = Color.Gray, start = Offset(x, centerY - 40f), end = Offset(x, centerY + 40f), strokeWidth = 2f)
             // hub

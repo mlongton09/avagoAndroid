@@ -68,10 +68,10 @@ class ChatNotificationPrefsViewModel @Inject constructor(
 
     fun save(update: ChatPrefsRequest) {
         viewModelScope.launch {
-            when (val r = serviceClient.putChatPrefs(update)) {
+            when (val r = serviceClient.updateChatPrefs(update)) {
                 is NetworkResult.Success -> _prefs.value = r.data
-                is NetworkResult.Error -> Timber.w("putChatPrefs failed: ${r.message}")
-                is NetworkResult.Unauthorized -> Timber.w("putChatPrefs unauthorized")
+                is NetworkResult.Error -> Timber.w("updateChatPrefs failed: ${r.message}")
+                is NetworkResult.Unauthorized -> Timber.w("updateChatPrefs unauthorized")
             }
         }
     }

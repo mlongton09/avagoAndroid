@@ -33,7 +33,9 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
@@ -47,7 +49,7 @@ class BinPickerViewModel @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     val bins: StateFlow<List<BinEntity>> = identityManager.activeAccountId.flatMapLatest { accountId ->
         if (accountId == null) flowOf(emptyList())
-        else dbFactory.get(accountId).binDao().observeAll(accountId)
+        else flow { emitAll(dbFactory.get(accountId).binDao().observeAll(accountId)) }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
