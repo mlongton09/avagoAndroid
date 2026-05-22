@@ -10,7 +10,9 @@ import com.avago.core.data.db.entity.LogEntity
 import com.avago.core.data.db.entity.PhotoEntity
 import com.avago.core.data.db.entity.SyncQueueEntity
 import com.avago.core.sync.SyncEngine
+import com.avago.feature.log.model.InspectionFieldDef
 import com.avago.feature.log.model.LogCostLineDraft
+import com.avago.feature.log.model.parseInspectionFields
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -59,6 +61,10 @@ data class AddEditLogFormState(
 
     // Available categories from config
     val availableCategories: List<String> = emptyList(),
+
+    // Inspection field definitions loaded from ConfigEntity (scope="system", key="inspection_fields")
+    // Populated by loadInspectionFields(); empty until the asset type is known.
+    val inspectionFields: List<InspectionFieldDef> = emptyList(),
 
     // Save state
     val isSaving: Boolean = false,
@@ -169,14 +175,38 @@ class AddEditLogViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Loads inspection field definitions from ConfigEntity.
+     * The config key "inspection_fields" stores a JSON array of [InspectionFieldDef].
+     * Falls back to the asset-type-specific key "inspection_fields_{assetType}" when available.
+     */
+    fun loadInspectionFields(assetType: String? = null) {
+        val accountId = identity.getActiveAccountId() ?: return
+        viewModelScope.launch {
+            try {
+                val db = dbFactory.get(accountId)
+                // Try asset-type-specific config first, then fall back to global key
+                val specificKey = if (!assetType.isNullOrBlank()) "inspection_fields_$assetType" else null
+                val config = specificKey?.let { db.configDao().getByKey("system", it) }
+                    ?: db.configDao().getByKey("system", "inspection_fields")
+                val fields = parseInspectionFields(config?.value)
+                _form.update { it.copy(inspectionFields = fields) }
+            } catch (e: Exception) {
+                Timber.e(e, "[AddEditLogViewModel] loadInspectionFields failed")
+                // Leave inspectionFields as empty list; UI handles the empty-state gracefully
+            }
+        }
+    }
+
     // ---------------------------------------------------------------------------
     // Field setters
     // ---------------------------------------------------------------------------
 
     fun onAssetSelected(assetId: String, assetName: String?) {
         _form.update { it.copy(assetId = assetId, assetName = assetName) }
-        // Reload categories for this asset's type
+        // Reload categories and inspection fields for this asset's type
         loadCategories()
+        loadInspectionFields()
     }
 
     fun onTitleChanged(value: String) = _form.update { it.copy(title = value) }

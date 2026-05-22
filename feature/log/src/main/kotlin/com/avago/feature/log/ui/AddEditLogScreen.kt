@@ -109,10 +109,11 @@ fun AddEditLogScreen(
     modifier: Modifier = Modifier,
     viewModel: AddEditLogViewModel = hiltViewModel(),
 ) {
-    // Load existing entry for edit
+    // Load existing entry for edit; also load inspection fields for the inspection log type
     LaunchedEffect(entryId) {
         if (entryId != null) viewModel.loadForEdit(entryId)
         else viewModel.loadCategories()
+        viewModel.loadInspectionFields()
     }
 
     // Pre-fill asset if navigated from asset screen
@@ -560,18 +561,21 @@ fun AddEditLogScreen(
                         fontWeight = FontWeight.SemiBold,
                     )
                     Spacer(Modifier.height(8.dp))
-                    // Fields come from ConfigEntity in a real account; show a placeholder row
-                    // if none are loaded yet. The InspectionFormRenderer handles the actual fields.
-                    InspectionFormRenderer(
-                        fields = emptyList(), // TODO: wire up config-based inspection fields
-                        answers = form.inspectionAnswers,
-                        onAnswerChanged = { key, value -> viewModel.onInspectionAnswerChanged(key, value) },
-                    )
-                    if (form.inspectionAnswers.isEmpty()) {
+                    // Render config-driven inspection fields loaded from ConfigEntity.
+                    // Fields are loaded via loadInspectionFields() in the ViewModel whenever
+                    // the asset or log type changes. When no fields are configured for this
+                    // asset type the renderer is skipped and an empty-state message is shown.
+                    if (form.inspectionFields.isNotEmpty()) {
+                        InspectionFormRenderer(
+                            fields = form.inspectionFields,
+                            answers = form.inspectionAnswers,
+                            onAnswerChanged = { key, value -> viewModel.onInspectionAnswerChanged(key, value) },
+                        )
+                    } else {
                         Text(
                             text = "No inspection fields configured for this asset type.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                         )
                     }
                 }
