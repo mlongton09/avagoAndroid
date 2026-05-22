@@ -192,6 +192,39 @@ class AddEditLogViewModel @Inject constructor(
         _form.update { it.copy(performedByUserId = userId, performedByName = name) }
     }
 
+    /**
+     * Called when a part barcode is confirmed via [MaintenanceScannerScreen].
+     * Switches to itemized cost mode and adds a part cost line pre-filled with the
+     * scanned part's ID and name.
+     */
+    fun onScannedPartSelected(partId: String) {
+        val accountId = identity.getActiveAccountId() ?: return
+        viewModelScope.launch {
+            try {
+                val part = dbFactory.get(accountId).partDao().getById(partId)
+                val draft = LogCostLineDraft(
+                    kind = "part",
+                    inventoryId = partId,
+                    inventoryName = part?.name,
+                    description = part?.name ?: partId,
+                    quantity = 1.0,
+                    unitCost = part?.cost ?: 0.0,
+                )
+                _form.update { state ->
+                    state.copy(
+                        costMode = CostMode.ITEMIZED,
+                        pendingCostLines = state.pendingCostLines + draft.copy(
+                            displayOrder = state.pendingCostLines.size
+                        ),
+                    )
+                }
+                Timber.d("[AddEditLogViewModel] Added scanned part cost line: $partId")
+            } catch (e: Exception) {
+                Timber.e(e, "[AddEditLogViewModel] onScannedPartSelected failed for partId=$partId")
+            }
+        }
+    }
+
     fun onInspectionAnswerChanged(key: String, value: String) {
         _form.update { state ->
             state.copy(inspectionAnswers = state.inspectionAnswers + (key to value))

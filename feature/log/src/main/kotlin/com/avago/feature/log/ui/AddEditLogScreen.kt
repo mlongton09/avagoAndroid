@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -97,10 +98,14 @@ fun AddEditLogScreen(
     /** Result from PerformedByPickerScreen, delivered via SavedStateHandle → nav parameter. */
     performedByUserId: String? = null,
     performedByName: String? = null,
+    /** Result from MaintenanceScannerScreen — part ID to pre-fill as a cost line part. */
+    scannedPartId: String? = null,
     onBack: () -> Unit,
     onSaved: (entryId: String) -> Unit,
     onOpenAssetPicker: () -> Unit,
     onOpenPerformedByPicker: () -> Unit,
+    /** Opens the MaintenanceScannerScreen to scan an asset tag or part barcode. */
+    onOpenMaintenanceScanner: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: AddEditLogViewModel = hiltViewModel(),
 ) {
@@ -121,6 +126,13 @@ fun AddEditLogScreen(
     LaunchedEffect(performedByUserId, performedByName) {
         if (performedByUserId != null || performedByName != null) {
             viewModel.onPerformedBySelected(performedByUserId, performedByName)
+        }
+    }
+
+    // Apply scanned part from MaintenanceScannerScreen (pre-fills itemized cost line)
+    LaunchedEffect(scannedPartId) {
+        if (scannedPartId != null) {
+            viewModel.onScannedPartSelected(scannedPartId)
         }
     }
 
@@ -231,12 +243,26 @@ fun AddEditLogScreen(
         ) {
             // --------------- Asset row ---------------
             FormSection {
-                FormRow(
-                    label = "Asset",
-                    value = form.assetName ?: form.assetId ?: "Select asset",
-                    onClick = onOpenAssetPicker,
-                    isPlaceholder = form.assetId == null,
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        FormRow(
+                            label = "Asset",
+                            value = form.assetName ?: form.assetId ?: "Select asset",
+                            onClick = onOpenAssetPicker,
+                            isPlaceholder = form.assetId == null,
+                        )
+                    }
+                    IconButton(onClick = onOpenMaintenanceScanner) {
+                        Icon(
+                            imageVector = Icons.Default.QrCodeScanner,
+                            contentDescription = "Scan asset or part barcode",
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
             }
 
             HorizontalDivider()

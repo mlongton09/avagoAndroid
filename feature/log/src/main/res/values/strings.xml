@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="maintenance_scanner_title">Maintenance Scanner</string>
+    <string name="maintenance_scanner_mode_asset">Asset Tag</string>
+    <string name="maintenance_scanner_mode_part">Part Barcode</string>
+    <string name="maintenance_scanner_hint_asset">Scan an asset barcode to identify the equipment</string>
+    <string name="maintenance_scanner_hint_part">Scan a part barcode to log parts used</string>
+    <string name="maintenance_scanner_confirm">Confirm</string>
+    <string name="maintenance_scanner_scan_again">Scan Again</string>
+    <string name="maintenance_scanner_not_found">Not found: %s</string>
+    <string name="maintenance_scanner_asset_found">Asset found</string>
+    <string name="maintenance_scanner_part_found">Part found</string>
+    <string name="maintenance_scanner_permission_rationale">Camera permission is needed to scan barcodes</string>
+    <string name="maintenance_scanner_grant_permission">Grant Permission</string>
+</resources>

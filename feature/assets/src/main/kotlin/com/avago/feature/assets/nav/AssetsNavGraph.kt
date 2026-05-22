@@ -1,7 +1,10 @@
 package com.avago.feature.assets.nav
 
 import android.net.Uri
+import androidx.compose.runtime.getValue
 import java.net.URLDecoder
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -10,6 +13,8 @@ import androidx.navigation.compose.navigation
 import androidx.navigation.navArgument
 import com.avago.core.ui.NotesFullScreenScreen
 import com.avago.feature.assets.ui.AddEditAssetScreen
+import com.avago.feature.assets.ui.OnboardingScreen
+import com.avago.feature.assets.ui.OnboardingViewModel
 import com.avago.feature.assets.ui.AssetBarcodeScannerScreen
 import com.avago.feature.assets.ui.AssetDetailScreen
 import com.avago.feature.assets.ui.AssetListScreen
@@ -22,6 +27,7 @@ import com.avago.feature.assets.ui.CategoryPickerScreen
 import com.avago.feature.assets.ui.ColorPickerScreen
 import com.avago.feature.assets.ui.DocScanPipelineScreen
 import com.avago.feature.assets.ui.DocTypePickerScreen
+import com.avago.feature.assets.ui.AssetRentalsScreen
 import com.avago.feature.assets.ui.WheelConfigScreen
 import com.avago.feature.assets.ui.WheelDataInputScreen
 
@@ -46,9 +52,12 @@ object AssetsRoute {
     const val COLOR_PICKER = "assets/color_picker?currentColor={currentColor}"
     const val WHEEL_CONFIG = "assets/wheel_config/{assetId}"
     const val WHEEL_DATA_INPUT = "assets/wheel_data_input/{assetId}"
+    const val RENTALS = "assets/rentals/{assetId}"
+    const val ONBOARDING = "assets/onboarding"
 
     fun detail(assetId: String) = "assets/detail/$assetId"
     fun workOrders(assetId: String) = "assets/work_orders/$assetId"
+    fun rentals(assetId: String) = "assets/rentals/$assetId"
     fun addEdit(assetId: String? = null) =
         if (assetId != null) "assets/add_edit?assetId=$assetId" else "assets/add_edit?assetId="
     fun photoGallery(assetId: String, initialIndex: Int = 0) =
@@ -84,7 +93,27 @@ fun NavGraphBuilder.assetsNavGraph(
         startDestination = AssetsRoute.LIST,
         route = AssetsRoute.GRAPH,
     ) {
+        composable(AssetsRoute.ONBOARDING) {
+            val onboardingVm: OnboardingViewModel = hiltViewModel()
+            OnboardingScreen(
+                onComplete = {
+                    onboardingVm.completeOnboarding()
+                    navController.navigate(AssetsRoute.LIST) {
+                        popUpTo(AssetsRoute.ONBOARDING) { inclusive = true }
+                    }
+                },
+            )
+        }
+
         composable(AssetsRoute.LIST) {
+            val onboardingVm: OnboardingViewModel = hiltViewModel()
+            val showOnboardingScreen by onboardingVm.showOnboardingScreen.collectAsStateWithLifecycle()
+            if (showOnboardingScreen) {
+                navController.navigate(AssetsRoute.ONBOARDING) {
+                    popUpTo(AssetsRoute.LIST) { inclusive = false }
+                    launchSingleTop = true
+                }
+            }
             AssetListScreen(
                 onAssetClick = { assetId ->
                     navController.navigate(AssetsRoute.detail(assetId))
@@ -123,6 +152,9 @@ fun NavGraphBuilder.assetsNavGraph(
                 },
                 onOpenWheelDataInput = {
                     navController.navigate(AssetsRoute.wheelDataInput(assetId))
+                },
+                onOpenRentals = {
+                    navController.navigate(AssetsRoute.rentals(assetId))
                 },
             )
         }
@@ -340,6 +372,17 @@ fun NavGraphBuilder.assetsNavGraph(
         ) {
             WheelDataInputScreen(
                 onSave = { _, _, _, _, _ -> navController.popBackStack() },
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            route = AssetsRoute.RENTALS,
+            arguments = listOf(navArgument("assetId") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val assetId = requireNotNull(backStackEntry.arguments?.getString("assetId"))
+            AssetRentalsScreen(
+                assetId = assetId,
                 onBack = { navController.popBackStack() },
             )
         }

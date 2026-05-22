@@ -159,4 +159,44 @@
 
     <!-- Date picker dialog -->
     <string name="date_picker_ok">OK</string>
+
+    <!-- Rentals -->
+    <string name="rental_list_title">Rentals</string>
+    <string name="rental_empty">No rentals yet</string>
+    <string name="rental_create_title">New Rental</string>
+    <string name="rental_customer_label">Customer Name</string>
+    <string name="rental_rate_label">Rate</string>
+    <string name="rental_rate_unit_label">Rate Unit</string>
+    <string name="rental_rate_unit_hourly">Hourly</string>
+    <string name="rental_rate_unit_daily">Daily</string>
+    <string name="rental_rate_unit_weekly">Weekly</string>
+    <string name="rental_rate_unit_monthly">Monthly</string>
+    <string name="rental_currency_label">Currency</string>
+    <string name="rental_notes_label">Notes</string>
+    <string name="rental_start_date_label">Start Date</string>
+    <string name="rental_status_active">Active</string>
+    <string name="rental_status_ended">Ended</string>
+    <string name="rental_end_button">End Rental</string>
+    <string name="rental_total_label">Total</string>
+    <string name="rental_create_button">Create Rental</string>
+    <string name="rental_ending">Ending…</string>
+    <string name="rental_creating">Creating…</string>
+    <string name="rental_end_confirm_title">End Rental</string>
+    <string name="rental_end_confirm_body">Mark this rental as ended now?</string>
+    <string name="rental_asset_detail_action">Rentals</string>
+
+    <!-- Onboarding / FRE -->
+    <string name="onboarding_welcome_title">Welcome to Avago</string>
+    <string name="onboarding_welcome_body">Track your assets, schedule maintenance, and manage your team — all in one place. Start by adding your first asset.</string>
+    <string name="onboarding_add_asset">Add Asset</string>
+    <string name="onboarding_dismiss">Dismiss</string>
+    <string name="onboarding_page1_title">Track Everything You Own</string>
+    <string name="onboarding_page1_body">From vehicles to equipment, buildings to vessels — add all your assets and see their full history at a glance.</string>
+    <string name="onboarding_page2_title">Manage Maintenance</string>
+    <string name="onboarding_page2_body">Create work orders, assign technicians, track costs, and never miss a scheduled service.</string>
+    <string name="onboarding_page3_title">Work as a Team</string>
+    <string name="onboarding_page3_body">Invite technicians, assign jobs by skill, chat in context, and get real-time updates.</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_get_started">Get Started</string>
+    <string name="onboarding_skip">Skip</string>
 </resources>

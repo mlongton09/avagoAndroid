@@ -11,6 +11,7 @@ import androidx.navigation.navArgument
 import com.avago.feature.log.ui.AddEditLogScreen
 import com.avago.feature.log.ui.LogDetailScreen
 import com.avago.feature.log.ui.LogListScreen
+import com.avago.feature.log.ui.MaintenanceScannerScreen
 import com.avago.feature.log.ui.PerformedByPickerScreen
 
 /**
@@ -28,6 +29,7 @@ object LogRoute {
     const val DETAIL = "log/detail/{entryId}"
     const val ADD_EDIT = "log/add_edit?entryId={entryId}&assetId={assetId}"
     const val PERFORMED_BY_PICKER = "log/performed_by_picker"
+    const val MAINTENANCE_SCANNER = "log/maintenance-scanner"
 
     fun list(assetId: String? = null) =
         "log/list?assetId=${assetId ?: ""}"
@@ -124,12 +126,22 @@ fun NavGraphBuilder.logNavGraph(
             val pickedUserName: State<String?> =
                 savedStateHandle.getStateFlow<String?>("performed_by_name", null)
                     .collectAsStateWithLifecycle()
+            // Results from MaintenanceScannerScreen
+            val scannedAssetId: State<String?> =
+                savedStateHandle.getStateFlow<String?>("scanned_asset_id", null)
+                    .collectAsStateWithLifecycle()
+            val scannedPartId: State<String?> =
+                savedStateHandle.getStateFlow<String?>("scanned_part_id", null)
+                    .collectAsStateWithLifecycle()
 
             AddEditLogScreen(
                 entryId = entryId,
-                preselectedAssetId = preselectedAssetId ?: pickedAssetId.value,
+                preselectedAssetId = preselectedAssetId
+                    ?: scannedAssetId.value
+                    ?: pickedAssetId.value,
                 performedByUserId = pickedUserId.value,
                 performedByName = pickedUserName.value,
+                scannedPartId = scannedPartId.value,
                 onBack = { navController.popBackStack() },
                 onSaved = { savedId ->
                     // Navigate to detail, removing AddEdit from back-stack
@@ -140,6 +152,9 @@ fun NavGraphBuilder.logNavGraph(
                 onOpenAssetPicker = onOpenAssetPicker,
                 onOpenPerformedByPicker = {
                     navController.navigate(LogRoute.PERFORMED_BY_PICKER)
+                },
+                onOpenMaintenanceScanner = {
+                    navController.navigate(LogRoute.MAINTENANCE_SCANNER)
                 },
             )
         }
@@ -155,6 +170,27 @@ fun NavGraphBuilder.logNavGraph(
                     navController.previousBackStackEntry?.savedStateHandle?.let { handle ->
                         handle["performed_by_user_id"] = userId
                         handle["performed_by_name"] = name
+                    }
+                    navController.popBackStack()
+                },
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        // ------------------------------------------------------------------
+        // Maintenance Scanner
+        // ------------------------------------------------------------------
+        composable(LogRoute.MAINTENANCE_SCANNER) {
+            MaintenanceScannerScreen(
+                onAssetScanned = { assetId ->
+                    navController.previousBackStackEntry?.savedStateHandle?.let { handle ->
+                        handle["scanned_asset_id"] = assetId
+                    }
+                    navController.popBackStack()
+                },
+                onPartScanned = { partId ->
+                    navController.previousBackStackEntry?.savedStateHandle?.let { handle ->
+                        handle["scanned_part_id"] = partId
                     }
                     navController.popBackStack()
                 },

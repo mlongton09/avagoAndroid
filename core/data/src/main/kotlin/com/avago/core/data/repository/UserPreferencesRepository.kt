@@ -48,6 +48,14 @@ class UserPreferencesRepository @Inject constructor(
         prefs[NOTIFICATIONS_ENABLED_KEY] ?: true
     }
 
+    val freDismissedFlow: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[FRE_DISMISSED_KEY] ?: false
+    }
+
+    val freCompletedFlow: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[FRE_COMPLETED_KEY] ?: false
+    }
+
     // ── Mutators ──────────────────────────────────────────────────────────────
 
     suspend fun setTheme(value: String) {
@@ -70,6 +78,14 @@ class UserPreferencesRepository @Inject constructor(
         dataStore.edit { prefs -> prefs[NOTIFICATIONS_ENABLED_KEY] = value }
     }
 
+    suspend fun setFreDismissed() {
+        dataStore.edit { prefs -> prefs[FRE_DISMISSED_KEY] = true }
+    }
+
+    suspend fun setFreCompleted() {
+        dataStore.edit { prefs -> prefs[FRE_COMPLETED_KEY] = true }
+    }
+
     // ── Keys ──────────────────────────────────────────────────────────────────
 
     companion object {
@@ -78,5 +94,7 @@ class UserPreferencesRepository @Inject constructor(
         val LANGUAGE_KEY = stringPreferencesKey("language_override")
         val CURRENCY_KEY = stringPreferencesKey("currency_preference")
         val NOTIFICATIONS_ENABLED_KEY = booleanPreferencesKey("notifications_enabled")
+        val FRE_DISMISSED_KEY = booleanPreferencesKey("fre_dismissed")
+        val FRE_COMPLETED_KEY = booleanPreferencesKey("fre_completed")
     }
 }

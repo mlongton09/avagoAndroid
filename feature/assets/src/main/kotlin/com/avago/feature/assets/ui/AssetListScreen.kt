@@ -1,5 +1,7 @@
 package com.avago.feature.assets.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -51,6 +53,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.data.db.entity.AssetEntity
 import com.avago.core.ui.EmptyState
+import com.avago.core.ui.QuoteBanner
 import com.avago.feature.assets.R
 import com.avago.feature.assets.model.AssetTypes
 import com.avago.feature.assets.viewmodel.AssetListViewModel
@@ -65,12 +68,14 @@ fun AssetListScreen(
     onAddAsset: () -> Unit,
     onScanBarcode: () -> Unit = {},
     viewModel: AssetListViewModel = hiltViewModel(),
+    onboardingViewModel: OnboardingViewModel = hiltViewModel(),
 ) {
     val assets by viewModel.assets.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val filterType by viewModel.filterType.collectAsStateWithLifecycle()
     val syncError by viewModel.syncError.collectAsStateWithLifecycle()
+    val showOnboarding by onboardingViewModel.showBanner.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -156,6 +161,18 @@ fun AssetListScreen(
                     }
                 }
 
+                // FRE banner — shown only on first launch before any assets are added
+                AnimatedVisibility(
+                    visible = showOnboarding,
+                    enter = slideInVertically(initialOffsetY = { -it }),
+                ) {
+                    OnboardingBanner(
+                        onAddAsset = onAddAsset,
+                        onDismiss = { onboardingViewModel.dismiss() },
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
+
                 syncError?.let { msg ->
                     Surface(
                         onClick = { viewModel.refresh() },
@@ -201,6 +218,15 @@ fun AssetListScreen(
                                 asset = asset,
                                 onClick = { onAssetClick(asset.assetId) },
                             )
+                        }
+
+                        // Quote banner footer — only shown when there are assets and banner is dismissed
+                        if (!showOnboarding) {
+                            item(key = "quote_banner") {
+                                QuoteBanner(
+                                    modifier = Modifier.padding(vertical = 8.dp),
+                                )
+                            }
                         }
                     }
                 }

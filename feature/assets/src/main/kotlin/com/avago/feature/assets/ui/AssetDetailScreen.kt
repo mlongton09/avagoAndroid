@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -84,6 +85,7 @@ fun AssetDetailScreen(
     onOpenNotes: (initialText: String) -> Unit = {},
     onOpenWheelConfig: () -> Unit = {},
     onOpenWheelDataInput: () -> Unit = {},
+    onOpenRentals: () -> Unit = {},
     viewModel: AssetDetailViewModel = hiltViewModel(),
 ) {
     val asset by viewModel.asset.collectAsStateWithLifecycle()
@@ -195,6 +197,14 @@ fun AssetDetailScreen(
             item(key = "work_orders_card") {
                 WorkOrdersCard(
                     onClick = onOpenWorkOrders,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+
+            // Rentals card
+            item(key = "rentals_card") {
+                RentalsCard(
+                    onClick = onOpenRentals,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 )
             }
@@ -602,6 +612,47 @@ private fun NotesCard(
                         maxLines = 2,
                     )
                 }
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun RentalsCard(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ReceiptLong,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = stringResource(R.string.rental_asset_detail_action),
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                )
             }
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
