@@ -92,6 +92,9 @@ fun DeveloperScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val versionName = remember(context) {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?" }.getOrDefault("?")
+    }
 
     Scaffold(
         modifier = modifier,

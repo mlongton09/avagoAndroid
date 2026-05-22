@@ -2,7 +2,6 @@ package com.avago.feature.settings
 
 import android.content.Intent
 import android.net.Uri
-import com.avago.feature.settings.BuildConfig
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -35,6 +34,9 @@ fun AboutScreen(
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
+    val versionName = remember(context) {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?" }.getOrDefault("?")
+    }
 
     Scaffold(
         topBar = {
@@ -60,7 +62,7 @@ fun AboutScreen(
                     },
                     supportingContent = {
                         Text(
-                            text = "Version ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                            text = "Version $versionName",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

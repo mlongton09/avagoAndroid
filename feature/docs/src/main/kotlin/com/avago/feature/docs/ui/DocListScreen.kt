@@ -179,7 +179,7 @@ private fun DocCard(
                 )
                 if (doc.vendor != null) {
                     Text(
-                        text = doc.vendor,
+                        text = doc.vendor!!,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,

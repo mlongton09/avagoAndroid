@@ -93,7 +93,7 @@ class WorkOrderCreateViewModel @Inject constructor(
                 estimatedHours.value = wo.estimatedEffortMinutes
                     ?.let { (it / 60.0).toString() } ?: ""
                 assignedTechIds.value = if (!wo.assignedTo.isNullOrBlank())
-                    listOf(wo.assignedTo) else emptyList()
+                    listOf(wo.assignedTo!!) else emptyList()
 
                 // Load checklist items (one-shot snapshot)
                 repository.observeChecklistForWo(accountId, editingWoId)

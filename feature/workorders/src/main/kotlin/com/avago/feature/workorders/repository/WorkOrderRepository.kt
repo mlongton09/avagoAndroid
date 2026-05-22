@@ -108,7 +108,7 @@ class WorkOrderRepository @Inject constructor(
     suspend fun deleteChecklistItem(accountId: String, itemId: String) {
         val db = dbFactory.get(accountId)
         val now = System.currentTimeMillis()
-        db.woChecklistItemDao().softDelete(itemId, now)
+        db.woChecklistItemDao().softDelete(itemId)
         enqueueSyncPush(
             accountId = accountId,
             entityType = "wo_checklist_item",

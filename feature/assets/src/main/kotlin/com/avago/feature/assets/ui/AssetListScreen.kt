@@ -278,16 +278,13 @@ internal fun AssetAvatar(
 
 @Composable
 private fun rememberParsedColor(hex: String?): Color {
+    val fallback = MaterialTheme.colorScheme.primaryContainer
+    if (hex == null || !hex.startsWith("#") || (hex.length != 7 && hex.length != 9)) return fallback
     return try {
-        if (hex != null && hex.startsWith("#") && (hex.length == 7 || hex.length == 9)) {
-            val colorLong = hex.removePrefix("#").toLong(16)
-            if (hex.length == 7) Color(0xFF000000L or colorLong)
-            else Color(colorLong)
-        } else {
-            MaterialTheme.colorScheme.primaryContainer
-        }
+        val colorLong = hex.removePrefix("#").toLong(16)
+        if (hex.length == 7) Color(0xFF000000L or colorLong) else Color(colorLong)
     } catch (e: Exception) {
-        MaterialTheme.colorScheme.primaryContainer
+        fallback
     }
 }
 

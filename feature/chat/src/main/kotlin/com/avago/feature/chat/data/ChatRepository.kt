@@ -12,6 +12,8 @@ import com.avago.core.network.model.CreateThreadRequest
 import com.avago.core.network.model.UserResponse
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.emitAll
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -155,8 +157,10 @@ class ChatRepository @Inject constructor(
 
     fun observeReplies(threadId: String, parentMessageId: String): Flow<List<ChatMessageEntity>> {
         val accountId = identity.activeAccountId.value ?: return emptyFlow()
-        return chatDbFactory.get(accountId).chatMessageDao()
-            .observeByThreadAndParent(threadId, parentMessageId)
+        return flow {
+            emitAll(chatDbFactory.get(accountId).chatMessageDao()
+                .observeByThreadAndParent(threadId, parentMessageId))
+        }
     }
 
     suspend fun syncReplies(threadId: String, parentMessageId: String) {
@@ -188,7 +192,9 @@ class ChatRepository @Inject constructor(
 
     fun observePinnedMessage(threadId: String): Flow<ChatMessageEntity?> {
         val accountId = identity.activeAccountId.value ?: return emptyFlow()
-        return chatDbFactory.get(accountId).chatMessageDao().observePinnedMessage(threadId)
+        return flow {
+            emitAll(chatDbFactory.get(accountId).chatMessageDao().observePinnedMessage(threadId))
+        }
     }
 
     suspend fun pinMessage(threadId: String, messageId: String): Boolean {

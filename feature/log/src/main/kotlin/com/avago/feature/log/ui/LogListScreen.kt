@@ -199,7 +199,7 @@ private fun LogListRow(
             )
             if (log.category != null) {
                 Text(
-                    text = log.category,
+                    text = log.category!!,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

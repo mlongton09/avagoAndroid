@@ -68,7 +68,7 @@ fun MessageBubble(
             // Sender name — shown only for received messages at group start.
             if (!isOwn && isGroupStart && message.senderName != null) {
                 Text(
-                    text = message.senderName,
+                    text = message.senderName!!,
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.primary,
@@ -87,7 +87,7 @@ fun MessageBubble(
             // Timestamp + outbox status row
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(horizontal = 4.dp, top = 2.dp),
+                modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 2.dp),
                 horizontalArrangement = if (isOwn) Arrangement.End else Arrangement.Start,
             ) {
                 Text(

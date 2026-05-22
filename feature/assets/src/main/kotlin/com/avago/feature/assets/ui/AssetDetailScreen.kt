@@ -485,7 +485,7 @@ private fun LogEntryRow(
         }
         if (entry.cost != null && entry.cost!! > 0.0) {
             Text(
-                text = formatCurrency(entry.cost),
+                text = formatCurrency(entry.cost!!),
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.SemiBold,
             )
