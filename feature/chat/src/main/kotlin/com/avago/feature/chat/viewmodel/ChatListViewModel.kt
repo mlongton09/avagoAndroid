@@ -22,6 +22,8 @@ data class ChatListUiState(
     val threads: List<ChatThreadEntity> = emptyList(),
     val filter: ThreadFilter = ThreadFilter.ALL,
     val isRefreshing: Boolean = false,
+    // TODO: compute from per-thread mention counts once ChatThreadEntity gains a mentionCount field.
+    val unreadMentionCount: Int = 0,
 )
 
 @HiltViewModel
@@ -42,6 +44,8 @@ class ChatListViewModel @Inject constructor(
             threads = threads.filter { it.matchesFilter(filter) },
             filter = filter,
             isRefreshing = refreshing,
+            // TODO: replace with sum of per-thread mentionCount once field exists on ChatThreadEntity.
+            unreadMentionCount = 0,
         )
     }.stateIn(
         scope = viewModelScope,
