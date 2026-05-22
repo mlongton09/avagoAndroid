@@ -30,7 +30,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.avago.feature.assets.R
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
@@ -80,7 +82,7 @@ fun DocScanPipelineScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Scan Document") },
+                title = { Text(stringResource(R.string.doc_scan_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
@@ -94,7 +96,7 @@ fun DocScanPipelineScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator()
                     Spacer(Modifier.height(16.dp))
-                    Text("Opening scanner...")
+                    Text(stringResource(R.string.doc_scan_opening))
                 }
             }
             errorMessage?.let {
@@ -102,7 +104,7 @@ fun DocScanPipelineScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.padding(24.dp),
                 ) {
-                    Text("Scanner unavailable", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.doc_scan_unavailable), style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(8.dp))
                     Text(
                         it,
@@ -110,7 +112,7 @@ fun DocScanPipelineScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.height(16.dp))
-                    Button(onClick = onBack) { Text("Go Back") }
+                    Button(onClick = onBack) { Text(stringResource(R.string.doc_scan_go_back)) }
                 }
             }
         }

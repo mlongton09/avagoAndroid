@@ -4,4 +4,96 @@
     <string name="mentions_title">Mentions</string>
     <string name="mentions_back">Back</string>
     <string name="mentions_empty">No mentions yet</string>
+
+    <!-- Chat list screen -->
+    <string name="chat_list_title">Chat</string>
+    <string name="chat_list_empty">No conversations yet</string>
+    <string name="chat_list_new_conversation_fab">New conversation</string>
+    <string name="chat_list_mentions_icon">Mentions</string>
+
+    <!-- Thread filter chips -->
+    <string name="chat_filter_all">All</string>
+    <string name="chat_filter_direct">Direct</string>
+    <string name="chat_filter_work_orders">Work Orders</string>
+    <string name="chat_filter_assets">Assets</string>
+
+    <!-- Thread screen -->
+    <string name="thread_title_fallback">Chat</string>
+    <string name="thread_back">Back</string>
+    <string name="thread_more_options">More</string>
+    <string name="thread_menu_members">Members</string>
+    <string name="thread_menu_media">Media</string>
+    <string name="thread_menu_settings">Settings</string>
+    <string name="thread_loading_earlier">Loading…</string>
+    <string name="thread_new_messages_pill">New messages ↓</string>
+    <string name="thread_unread_divider">New messages</string>
+
+    <!-- Subthread (reply thread) screen -->
+    <string name="subthread_title">Thread</string>
+    <string name="subthread_back">Back</string>
+
+    <!-- Message composer -->
+    <string name="composer_message_placeholder">Message</string>
+    <string name="composer_send">Send</string>
+    <string name="composer_editing_banner">Editing message</string>
+    <string name="composer_cancel_edit">Cancel edit</string>
+
+    <!-- Message action sheet -->
+    <string name="message_action_copy">Copy</string>
+    <string name="message_action_reply_in_thread">Reply in Thread</string>
+    <string name="message_action_pin">Pin</string>
+    <string name="message_action_unpin">Unpin</string>
+    <string name="message_action_edit">Edit</string>
+    <string name="message_action_delete">Delete</string>
+
+    <!-- Message bubble outbox status -->
+    <string name="message_status_sending">Sending</string>
+    <string name="message_status_failed">Failed</string>
+    <string name="message_status_delivered">Delivered</string>
+
+    <!-- Pinned message banner -->
+    <string name="pinned_message_label">Pinned message</string>
+    <string name="pinned_message_unpin">Unpin</string>
+
+    <!-- New thread / new conversation screen -->
+    <string name="new_thread_title">New Conversation</string>
+    <string name="new_thread_back">Back</string>
+    <string name="new_thread_tab_direct">Direct Message</string>
+    <string name="new_thread_tab_group">Group</string>
+    <string name="new_thread_search_members">Search members</string>
+    <string name="new_thread_no_members">No members found</string>
+    <string name="new_thread_group_name_label">Thread Name</string>
+    <string name="new_thread_create_group_fab">Create group</string>
+
+    <!-- Thread members screen -->
+    <string name="thread_members_title">Members</string>
+    <string name="thread_members_back">Back</string>
+    <string name="thread_members_empty">No members</string>
+
+    <!-- Thread media gallery screen -->
+    <string name="thread_media_title">Media</string>
+    <string name="thread_media_back">Back</string>
+    <string name="thread_media_empty">No media shared in this conversation</string>
+
+    <!-- Chat settings screen -->
+    <string name="chat_settings_title">Conversation Settings</string>
+    <string name="chat_settings_back">Back</string>
+    <string name="chat_settings_muted_label">Muted</string>
+    <string name="chat_settings_muted_subtitle">Silence notifications for this conversation</string>
+    <string name="chat_settings_notifications_label">Notifications</string>
+    <string name="chat_settings_notifications_subtitle">Push notifications are managed in system settings</string>
+    <string name="chat_settings_leave_label">Leave Conversation</string>
+    <string name="chat_settings_leave_coming_soon">Leave conversation — coming soon</string>
+
+    <!-- Sync conflict bottom sheet -->
+    <string name="conflict_sheet_title">Sync Conflicts</string>
+    <string name="conflict_sheet_subtitle_format">%1$d item(s) could not be synced because they were changed on the server.</string>
+    <string name="conflict_keep_mine">Keep mine</string>
+    <string name="conflict_use_theirs">Use theirs</string>
+    <string name="conflict_keep_all_mine">Keep all mine</string>
+    <string name="conflict_use_server_all">Use server for all</string>
+
+    <!-- Error states -->
+    <string name="chat_error_send_failed">Failed to send message</string>
+    <string name="chat_error_load_failed">Failed to load messages</string>
 </resources>

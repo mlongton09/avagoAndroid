@@ -7,6 +7,7 @@ import androidx.credentials.exceptions.GetCredentialException
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
+import com.avago.feature.auth.R
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.FirebaseAuth
@@ -62,15 +63,15 @@ class SignInViewModel @Inject constructor(
                 val firebaseCredential = GoogleAuthProvider.getCredential(googleIdToken, null)
                 val authResult = FirebaseAuth.getInstance().signInWithCredential(firebaseCredential).await()
                 val idToken = authResult.user?.getIdToken(false)?.await()?.token
-                    ?: throw Exception("Could not get Firebase ID token")
+                    ?: throw Exception(appContext.getString(R.string.auth_error_token_unavailable))
                 identityManager.signInWithFirebase(context, idToken)
                 _state.value = SignInState.Success
             } catch (e: GetCredentialException) {
                 Timber.w(e, "Google sign-in cancelled or failed")
-                _state.value = SignInState.Error("Google sign-in failed: ${e.message}")
+                _state.value = SignInState.Error(appContext.getString(R.string.auth_error_google_sign_in_failed))
             } catch (e: Exception) {
                 Timber.e(e, "Sign-in error")
-                _state.value = SignInState.Error(e.message ?: "Sign-in failed")
+                _state.value = SignInState.Error(e.message ?: appContext.getString(R.string.auth_error_sign_in_failed))
             }
         }
     }
@@ -79,7 +80,7 @@ class SignInViewModel @Inject constructor(
         val email = _email.value.trim()
         val password = _password.value
         if (email.isBlank() || password.isBlank()) {
-            _state.value = SignInState.Error("Email and password are required")
+            _state.value = SignInState.Error(appContext.getString(R.string.auth_error_email_password_required))
             return
         }
         signInWithEmail(email, password)
@@ -88,7 +89,7 @@ class SignInViewModel @Inject constructor(
     fun signInWithEmail(email: String, password: String) {
         val trimmedEmail = email.trim()
         if (trimmedEmail.isBlank() || password.isBlank()) {
-            _state.value = SignInState.Error("Email and password are required")
+            _state.value = SignInState.Error(appContext.getString(R.string.auth_error_email_password_required))
             return
         }
         viewModelScope.launch {
@@ -97,12 +98,12 @@ class SignInViewModel @Inject constructor(
                 val authResult = FirebaseAuth.getInstance()
                     .signInWithEmailAndPassword(trimmedEmail, password).await()
                 val idToken = authResult.user?.getIdToken(false)?.await()?.token
-                    ?: throw Exception("Could not get Firebase ID token")
+                    ?: throw Exception(appContext.getString(R.string.auth_error_token_unavailable))
                 identityManager.signInWithFirebase(appContext, idToken)
                 _state.value = SignInState.Success
             } catch (e: Exception) {
                 Timber.e(e, "Email sign-in error")
-                _state.value = SignInState.Error(e.message ?: "Sign-in failed")
+                _state.value = SignInState.Error(e.message ?: appContext.getString(R.string.auth_error_sign_in_failed))
             }
         }
     }
@@ -115,7 +116,7 @@ class SignInViewModel @Inject constructor(
                 _state.value = SignInState.Success
             } catch (e: Exception) {
                 Timber.e(e, "Anonymous sign-in error")
-                _state.value = SignInState.Error(e.message ?: "Failed")
+                _state.value = SignInState.Error(e.message ?: appContext.getString(R.string.auth_error_anonymous_failed))
             }
         }
     }

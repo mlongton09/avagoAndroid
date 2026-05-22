@@ -95,14 +95,14 @@ fun WorkOrderCalendarScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = { viewModel.navigateMonth(-1) }) {
-                    Icon(Icons.AutoMirrored.Filled.NavigateBefore, contentDescription = "Previous month")
+                    Icon(Icons.AutoMirrored.Filled.NavigateBefore, contentDescription = stringResource(R.string.wo_calendar_prev_month))
                 }
                 Text(
                     text = displayMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy")),
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                 )
                 IconButton(onClick = { viewModel.navigateMonth(1) }) {
-                    Icon(Icons.AutoMirrored.Filled.NavigateNext, contentDescription = "Next month")
+                    Icon(Icons.AutoMirrored.Filled.NavigateNext, contentDescription = stringResource(R.string.wo_calendar_next_month))
                 }
             }
 

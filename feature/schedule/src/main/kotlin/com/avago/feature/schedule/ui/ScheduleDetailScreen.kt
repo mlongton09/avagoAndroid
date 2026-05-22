@@ -214,10 +214,10 @@ private fun ScheduleDetailContent(
         else -> Color(0xFF16A34A)
     }
     val statusLabel = when {
-        !schedule.isActive -> "Inactive"
-        isOverdue -> "Overdue"
-        isDueSoon -> "Due Soon"
-        else -> "On Track"
+        !schedule.isActive -> stringResource(R.string.schedule_detail_status_inactive)
+        isOverdue -> stringResource(R.string.schedule_detail_status_overdue)
+        isDueSoon -> stringResource(R.string.schedule_detail_status_due_soon)
+        else -> stringResource(R.string.schedule_detail_status_on_track)
     }
 
     val dateFmt = DateTimeFormatter.ofPattern("MMM d, yyyy")
@@ -301,7 +301,7 @@ private fun ScheduleDetailContent(
         DetailSection(title = stringResource(R.string.schedule_detail_history_title)) {
             if (linkedWos.isEmpty()) {
                 Text(
-                    text = "No work orders generated yet",
+                    text = stringResource(R.string.schedule_detail_history_no_wos),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

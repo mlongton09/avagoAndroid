@@ -23,8 +23,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import com.avago.feature.assets.R
 
 private val DEFAULT_CATEGORIES = listOf(
     "Electrical",
@@ -53,10 +55,10 @@ fun CategoryPickerScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Select Category") },
+                title = { Text(stringResource(R.string.category_picker_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.category_picker_back))
                     }
                 },
             )
@@ -71,7 +73,7 @@ fun CategoryPickerScreen(
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
-                    label = { Text("Search") },
+                    label = { Text(stringResource(R.string.category_picker_search)) },
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Sign In Landing -->
+    <string name="sign_in_app_title">Avago</string>
+    <string name="sign_in_subtitle">Flotten-, Geräte- und Immobilienwartung</string>
+    <string name="sign_in_google">Mit Google fortfahren</string>
+    <string name="sign_in_divider_or">ODER</string>
+    <string name="sign_in_email_label">E-Mail</string>
+    <string name="sign_in_password_label">Passwort</string>
+    <string name="sign_in_hide_password">Passwort verbergen</string>
+    <string name="sign_in_show_password">Passwort anzeigen</string>
+    <string name="sign_in_button">Anmelden</string>
+    <string name="sign_in_continue_anonymous">Ohne Konto fortfahren</string>
+
+    <!-- Email Sign In -->
+    <string name="email_sign_in_title">Anmelden</string>
+    <string name="email_sign_in_back">Zurück</string>
+    <string name="email_sign_in_welcome">Willkommen zurück</string>
+    <string name="email_sign_in_email_label">E-Mail</string>
+    <string name="email_sign_in_password_label">Passwort</string>
+    <string name="email_sign_in_hide_password">Passwort verbergen</string>
+    <string name="email_sign_in_show_password">Passwort anzeigen</string>
+    <string name="email_sign_in_button">Anmelden</string>
+
+    <!-- Account Switcher -->
+    <string name="account_switcher_title">Konten</string>
+    <string name="account_switcher_active_account">Aktives Konto</string>
+    <string name="account_switcher_add_account">Konto hinzufügen</string>
+    <string name="account_switcher_empty_state">Noch keine Konten hinzugefügt</string>
+    <string name="account_switcher_switch_action">Konto wechseln</string>
+    <string name="account_switcher_remove_account">Konto entfernen</string>
+    <string name="account_switcher_add_account_description">Mit einem anderen Konto anmelden</string>
+
+    <!-- Auth Errors -->
+    <string name="auth_error_email_password_required">E-Mail und Passwort sind erforderlich</string>
+    <string name="auth_error_sign_in_failed">Anmeldung fehlgeschlagen</string>
+    <string name="auth_error_google_sign_in_failed">Google-Anmeldung fehlgeschlagen</string>
+    <string name="auth_error_token_unavailable">Firebase-ID-Token konnte nicht abgerufen werden</string>
+    <string name="auth_error_anonymous_failed">Fortfahren ohne Konto fehlgeschlagen</string>
+    <string name="auth_error_invalid_email">Ungültige E-Mail-Adresse</string>
+    <string name="auth_error_wrong_password">Falsches Passwort</string>
+    <string name="auth_error_user_not_found">Kein Konto für diese E-Mail-Adresse gefunden</string>
+    <string name="auth_error_network">Netzwerkfehler. Bitte überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.</string>
+    <string name="auth_error_too_many_requests">Zu viele Versuche. Bitte warten Sie einen Moment und versuchen Sie es erneut.</string>
+    <string name="auth_error_account_exists">Ein Konto mit dieser E-Mail-Adresse existiert bereits</string>
+</resources>

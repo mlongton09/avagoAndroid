@@ -231,6 +231,39 @@
     <string name="inventory_category_picker_search_hint">Search categories…</string>
     <string name="inventory_category_picker_none">None selected</string>
 
+    <!-- Inventory part categories (inv_cat_*).
+         Keys mirror inv_cat.* from iOS seed data, dots replaced by underscores. -->
+    <string name="inv_cat_oils_fluids">Oils &amp; Fluids</string>
+    <string name="inv_cat_filters">Filters</string>
+    <string name="inv_cat_brakes">Brakes</string>
+    <string name="inv_cat_tires_wheels">Tires &amp; Wheels</string>
+    <string name="inv_cat_belts_hoses">Belts &amp; Hoses</string>
+    <string name="inv_cat_electrical">Electrical</string>
+    <string name="inv_cat_suspension_steering">Suspension &amp; Steering</string>
+    <string name="inv_cat_exhaust_emissions">Exhaust &amp; Emissions</string>
+    <string name="inv_cat_fuel_system">Fuel System</string>
+    <string name="inv_cat_lighting">Lighting</string>
+    <string name="inv_cat_propulsion">Propulsion</string>
+    <string name="inv_cat_seals_gaskets">Seals &amp; Gaskets</string>
+    <string name="inv_cat_safety_equipment">Safety Equipment</string>
+    <string name="inv_cat_deck_equipment">Deck Equipment</string>
+    <string name="inv_cat_anchoring_docking">Anchoring &amp; Docking</string>
+    <string name="inv_cat_belts_cables">Belts &amp; Cables</string>
+    <string name="inv_cat_blades_cutting">Blades &amp; Cutting Parts</string>
+    <string name="inv_cat_ignition">Ignition</string>
+    <string name="inv_cat_batteries">Batteries</string>
+    <string name="inv_cat_exhaust">Exhaust</string>
+    <string name="inv_cat_plumbing">Plumbing</string>
+    <string name="inv_cat_hvac">HVAC</string>
+    <string name="inv_cat_doors_hardware">Doors &amp; Hardware</string>
+    <string name="inv_cat_safety_security">Safety &amp; Security</string>
+    <string name="inv_cat_paint_finishes">Paint &amp; Finishes</string>
+    <string name="inv_cat_flooring">Flooring</string>
+    <string name="inv_cat_appliance_parts">Appliance Parts</string>
+    <string name="inv_cat_cleaning_supplies">Cleaning Supplies</string>
+    <string name="inv_cat_body_panels">Body Panels</string>
+    <string name="inv_cat_other">Other</string>
+
     <!-- Common -->
     <string name="common_back">Back</string>
     <string name="common_save">Save</string>

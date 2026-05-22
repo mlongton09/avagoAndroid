@@ -216,7 +216,7 @@ fun WorkOrderCreateScreen(
                 onClick = onPickAssetGroup,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Select Asset Group")
+                Text(stringResource(R.string.wo_create_select_asset_group))
             }
 
             // Priority
@@ -269,7 +269,7 @@ fun WorkOrderCreateScreen(
                             viewModel.assignedTechIds.value =
                                 viewModel.assignedTechIds.value - techId
                         }) {
-                            Icon(Icons.Default.Close, contentDescription = "Remove")
+                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.wo_create_remove_assignee))
                         }
                     }
                 }
@@ -290,7 +290,7 @@ fun WorkOrderCreateScreen(
             ) {
                 Text(stringResource(R.string.wo_field_repeats), style = MaterialTheme.typography.labelLarge)
                 TextButton(onClick = { showRepeatsSheet = true }) {
-                    Text(if (repeatsRrule != null) "Configured" else "None")
+                    Text(if (repeatsRrule != null) stringResource(R.string.wo_create_repeats_configured) else stringResource(R.string.wo_create_repeats_none))
                 }
             }
 
@@ -312,7 +312,7 @@ fun WorkOrderCreateScreen(
                         singleLine = true,
                     )
                     IconButton(onClick = { viewModel.removeChecklistItem(draft.id) }) {
-                        Icon(Icons.Default.Close, contentDescription = "Remove step")
+                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.wo_create_remove_checklist_step))
                     }
                 }
             }

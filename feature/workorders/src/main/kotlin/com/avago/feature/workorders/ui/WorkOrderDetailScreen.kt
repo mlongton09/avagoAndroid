@@ -214,7 +214,7 @@ fun WorkOrderDetailScreen(
                                 },
                             )
                             DropdownMenuItem(
-                                text = { Text("Reschedule") },
+                                text = { Text(stringResource(R.string.wo_detail_reschedule)) },
                                 onClick = {
                                     showOverflowMenu = false
                                     showRescheduleSheet = true
@@ -301,19 +301,19 @@ fun WorkOrderDetailScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             // ── Info section ──
-            DetailSection(title = "Details") {
-                LabeledRow("Asset", currentWo.assetId ?: stringResource(R.string.wo_detail_no_asset))
-                LabeledRow("Priority", currentWo.priority?.replaceFirstChar { it.uppercase() } ?: "—")
-                LabeledRow("Due", currentWo.dueDate?.let { formatDate(it) } ?: "No due date")
+            DetailSection(title = stringResource(R.string.wo_detail_section_details)) {
+                LabeledRow(stringResource(R.string.wo_detail_asset_label), currentWo.assetId ?: stringResource(R.string.wo_detail_no_asset))
+                LabeledRow(stringResource(R.string.wo_detail_priority_label), currentWo.priority?.replaceFirstChar { it.uppercase() } ?: "—")
+                LabeledRow(stringResource(R.string.wo_detail_due_label), currentWo.dueDate?.let { formatDate(it) } ?: stringResource(R.string.wo_detail_no_due_date))
                 currentWo.timerStartedAt?.takeIf { currentWo.status == "in_progress" }?.let { startedAt ->
                     Spacer(modifier = Modifier.height(4.dp))
                     WoTimerView(startedAtMs = startedAt)
                 }
                 currentWo.estimatedEffortMinutes?.let { mins ->
-                    LabeledRow("Est. Hours", String.format("%.1f h", mins / 60.0))
+                    LabeledRow(stringResource(R.string.wo_detail_est_hours_label), String.format("%.1f h", mins / 60.0))
                 }
                 if (currentWo.woKind == "recurring_parent") {
-                    LabeledRow("Type", "Recurring")
+                    LabeledRow(stringResource(R.string.wo_detail_type_label), stringResource(R.string.wo_detail_recurring_label))
                 }
             }
 
@@ -362,7 +362,7 @@ fun WorkOrderDetailScreen(
             ) {
                 if (assignments.isEmpty()) {
                     Text(
-                        text = "No technicians assigned",
+                        text = stringResource(R.string.wo_detail_no_technicians),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -414,18 +414,18 @@ fun WorkOrderDetailScreen(
 
             // ── Parts used ──
             DetailSection(
-                title = "Parts",
+                title = stringResource(R.string.wo_detail_section_parts),
                 action = {
                     IconButton(
                         onClick = onAddPart,
                         modifier = Modifier.size(32.dp),
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = "Add Part")
+                        Icon(Icons.Default.Add, contentDescription = stringResource(R.string.wo_detail_add_part))
                     }
                 },
             ) {
                 Text(
-                    text = "Tap + to issue parts from inventory",
+                    text = stringResource(R.string.wo_detail_parts_empty),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -438,7 +438,7 @@ fun WorkOrderDetailScreen(
                 title = stringResource(R.string.wo_detail_section_costs),
                 action = {
                     TextButton(onClick = onManageCostLines) {
-                        Text("Manage")
+                        Text(stringResource(R.string.wo_detail_costs_manage))
                     }
                 },
             ) {
@@ -447,7 +447,7 @@ fun WorkOrderDetailScreen(
                 currentWo.totalCost?.let { LabeledRow(stringResource(R.string.wo_detail_total_cost), formatCurrency(it, currentWo.currency)) }
                 if (currentWo.laborCost == null && currentWo.partsCost == null && currentWo.totalCost == null) {
                     Text(
-                        text = "No cost data. Tap Manage to add cost lines.",
+                        text = stringResource(R.string.wo_detail_costs_empty),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -472,7 +472,7 @@ fun WorkOrderDetailScreen(
                         onClick = { viewModel.saveDispatcherNotes(dispatcherNotesDraft) },
                         modifier = Modifier.align(Alignment.End),
                     ) {
-                        Text("Save Notes")
+                        Text(stringResource(R.string.wo_detail_save_notes))
                     }
                 }
             }

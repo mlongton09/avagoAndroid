@@ -1,0 +1,337 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Maintenance log category display names.
+         Keys mirror log_cat.* from iOS, with dots replaced by underscores.
+         These are used in the log-entry and work-order category pickers. -->
+
+    <!-- General / shared -->
+    <string name="log_cat_service">Wartung</string>
+    <string name="log_cat_repair">Reparatur</string>
+    <string name="log_cat_inspection">Inspektion</string>
+    <string name="log_cat_general_inspection">Allgemeine Inspektion</string>
+    <string name="log_cat_general_maintenance">Allgemeine Wartung</string>
+    <string name="log_cat_general_repair">Allgemeine Reparatur</string>
+    <string name="log_cat_preventive_maintenance">Vorbeugende Wartung</string>
+    <string name="log_cat_corrective_maintenance">Korrektive Wartung</string>
+    <string name="log_cat_emergency_repair">Notfallreparatur</string>
+    <string name="log_cat_safety_check">Sicherheitsüberprüfung</string>
+    <string name="log_cat_compliance_check">Konformitätsprüfung</string>
+    <string name="log_cat_warranty_service">Garantieservice</string>
+    <string name="log_cat_recall_service">Rückrufservice</string>
+    <string name="log_cat_custom_service">Benutzerdefinierter Service</string>
+
+    <!-- Engine / fluids / filters -->
+    <string name="log_cat_oil_change">Ölwechsel</string>
+    <string name="log_cat_fluid_top_up">Flüssigkeit nachfüllen</string>
+    <string name="log_cat_fluid_check">Flüssigkeitsprüfung</string>
+    <string name="log_cat_fluid_service">Flüssigkeitsservice</string>
+    <string name="log_cat_coolant_flush">Kühlmittelspülung</string>
+    <string name="log_cat_coolant_check">Kühlmittelprüfung</string>
+    <string name="log_cat_air_filter">Luftfiltertausch</string>
+    <string name="log_cat_cabin_air_filter">Innenraumluffiltertausch</string>
+    <string name="log_cat_fuel_filter">Kraftstofffiltertausch</string>
+    <string name="log_cat_fuel_system">Kraftstoffsystemservice</string>
+    <string name="log_cat_fuel_water_separator">Kraftstoff-Wasser-Abscheider</string>
+    <string name="log_cat_fuel_treatment">Kraftstoffbehandlung</string>
+    <string name="log_cat_engine_oil_filter">Motoröl &amp; Filter</string>
+    <string name="log_cat_engine_tune_up">Motoreinstellung</string>
+    <string name="log_cat_engine_service">Motorservice</string>
+    <string name="log_cat_equipment_service">Geräteservice</string>
+    <string name="log_cat_spark_plugs">Zündkerzenwechsel</string>
+    <string name="log_cat_timing_belt">Zahnriemenwechsel</string>
+    <string name="log_cat_drive_belt">Antriebsriemenwechsel</string>
+    <string name="log_cat_belt_replacement">Riemenwechsel</string>
+    <string name="log_cat_belt_inspection">Riemeninspektion</string>
+    <string name="log_cat_hose_replacement">Schlauchersatz</string>
+    <string name="log_cat_valve_inspection">Ventilinspektion</string>
+    <string name="log_cat_valve_adjustment">Ventileinstellung</string>
+    <string name="log_cat_injector_service">Einspritzerdüsenservice</string>
+    <string name="log_cat_throttle_body_cleaning">Drosselklappenreinigung</string>
+    <string name="log_cat_egr_valve_cleaning">AGR-Ventilreinigung</string>
+    <string name="log_cat_pcv_valve">Kurbelgehäuseentlüftungsventil-Service</string>
+    <string name="log_cat_mass_airflow_sensor">Luftmassensensor</string>
+    <string name="log_cat_crankshaft_position_sensor">Kurbelwellenpositionssensor</string>
+    <string name="log_cat_camshaft_sensor">Nockenwellensensor</string>
+    <string name="log_cat_oxygen_sensor">Lambdasonde</string>
+    <string name="log_cat_head_gasket">Zylinderkopfdichtung</string>
+    <string name="log_cat_load_test">Lasttest</string>
+    <string name="log_cat_block_heater_check">Motorvorwärmung prüfen</string>
+    <string name="log_cat_exercise_log">Trainingsprotokoll</string>
+
+    <!-- Transmission / drivetrain -->
+    <string name="log_cat_transmission_service">Getriebeservice</string>
+    <string name="log_cat_differential_service">Differentialservice</string>
+    <string name="log_cat_differential_fluid">Differentialflüssigkeit</string>
+    <string name="log_cat_transfer_case_service">Verteilergetriebeservice</string>
+    <string name="log_cat_cv_axle_replacement">Gleichlaufgelenk-Welle wechseln</string>
+    <string name="log_cat_cv_axle_service">Gleichlaufgelenk-Wellen-Service</string>
+    <string name="log_cat_chain_service">Kettenservice</string>
+    <string name="log_cat_chain_drive">Kettenantriebsservice</string>
+    <string name="log_cat_cvt_belt">CVT-Riemeninspektion</string>
+    <string name="log_cat_clutch_adjustment">Kupplungseinstellung</string>
+    <string name="log_cat_clutch_service">Kupplungsservice</string>
+    <string name="log_cat_chaincase_service">Kettengehäuseservice</string>
+    <string name="log_cat_axle_service">Achsservice</string>
+    <string name="log_cat_chassis_lubrication">Fahrgestell-Schmierung</string>
+    <string name="log_cat_chassis_greasing">Fahrgestell-Fetten</string>
+    <string name="log_cat_lubrication">Schmierung</string>
+    <string name="log_cat_greasing">Fetten</string>
+
+    <!-- Brakes -->
+    <string name="log_cat_brake_inspection">Bremsinspektion</string>
+    <string name="log_cat_brake_pad_replacement">Bremsbelagwechsel</string>
+    <string name="log_cat_brake_replacement">Bremswechsel</string>
+    <string name="log_cat_brake_rotor_resurfacing">Bremsscheibennachbearbeitung</string>
+    <string name="log_cat_brake_fluid_flush">Bremsflüssigkeitsspülung</string>
+    <string name="log_cat_air_brake_service">Druckluftbremsservice</string>
+    <string name="log_cat_emergency_brake_adjustment">Feststellbremseinstellung</string>
+    <string name="log_cat_breakaway_battery">Abreißsicherungsbatterie prüfen</string>
+
+    <!-- Tires / wheels -->
+    <string name="log_cat_tire_rotation">Reifenwechsel</string>
+    <string name="log_cat_tire_balance">Reifenauswuchtung</string>
+    <string name="log_cat_tire_replacement">Reifenersatz</string>
+    <string name="log_cat_tire_inspection">Reifeninspektion</string>
+    <string name="log_cat_tire_check">Reifenprüfung</string>
+    <string name="log_cat_alignment">Achsvermessung</string>
+    <string name="log_cat_wheel_alignment">Radvermessung</string>
+    <string name="log_cat_wheel_bearing">Radlagerwechsel</string>
+    <string name="log_cat_wheel_bearing_service">Radlagerservice</string>
+    <string name="log_cat_hub_service">Nabenservice</string>
+
+    <!-- Battery / electrical -->
+    <string name="log_cat_battery_check">Batterieprüfung</string>
+    <string name="log_cat_battery_replace">Batteriewechsel</string>
+    <string name="log_cat_battery_replacement">Batteriewechsel</string>
+    <string name="log_cat_battery_service">Batterieservice</string>
+    <string name="log_cat_battery_equalization">Batterieausgleichsladung</string>
+    <string name="log_cat_battery_capacity_test">Batteriekapazitätstest</string>
+    <string name="log_cat_marine_battery_service">Schiffsbatterieservice</string>
+    <string name="log_cat_charger_check">Ladegerätprüfung</string>
+    <string name="log_cat_electrical_check">Elektrische Inspektion</string>
+    <string name="log_cat_electrical">Elektroservice</string>
+    <string name="log_cat_wiring_lights">Verkabelung &amp; Beleuchtung</string>
+    <string name="log_cat_lighting_check">Beleuchtungsprüfung</string>
+    <string name="log_cat_navigation_lights">Navigationsleuchten</string>
+    <string name="log_cat_electronics">Elektronikservice</string>
+    <string name="log_cat_solenoid_controller">Magnetventil-/Regler-Service</string>
+    <string name="log_cat_transfer_switch">Umschalterservice</string>
+    <string name="log_cat_ats_test">ATS-Test</string>
+    <string name="log_cat_motor_service">Motorservice</string>
+    <string name="log_cat_thermographic_scan">Thermografische Untersuchung</string>
+
+    <!-- Suspension / steering -->
+    <string name="log_cat_suspension_inspection">Fahrwerksinspektion</string>
+    <string name="log_cat_suspension_steering">Fahrwerk &amp; Lenkung</string>
+    <string name="log_cat_shock_strut_replacement">Stoßdämpfer-/Federbeinwechsel</string>
+    <string name="log_cat_suspension_greasing">Fahrwerksfetten</string>
+
+    <!-- Steering / power steering -->
+    <string name="log_cat_power_steering_flush">Servolenkungsspülung</string>
+    <string name="log_cat_steering_service">Lenkungsservice</string>
+
+    <!-- AC / HVAC -->
+    <string name="log_cat_ac_service">Klimaanlagenservice</string>
+    <string name="log_cat_hvac_service">HVAC-Service</string>
+    <string name="log_cat_hvac_filter_change">HVAC-Filterwechsel</string>
+    <string name="log_cat_hvac_coil_cleaning">HVAC-Wärmetauscherreinigung</string>
+    <string name="log_cat_hvac_tune_up">HVAC-Wartung</string>
+    <string name="log_cat_hvac_air_quality">HVAC / Luftqualität</string>
+    <string name="log_cat_cooling_tower">Kühlturmservice</string>
+    <string name="log_cat_cooling_system">Kühlsystemservice</string>
+
+    <!-- Exhaust / emissions -->
+    <string name="log_cat_exhaust_inspection">Abgasinspektion</string>
+    <string name="log_cat_catalytic_converter">Katalysator</string>
+    <string name="log_cat_dpf_cleaning">DPF-Reinigung</string>
+    <string name="log_cat_egr_cleaning">AGR-Reinigung</string>
+    <string name="log_cat_dpf_egr_service">DPF / AGR Service</string>
+
+    <!-- Wipers / glass / body -->
+    <string name="log_cat_wiper_blade_replacement">Scheibenwischerwechsel</string>
+    <string name="log_cat_wiper_blades">Scheibenwischer</string>
+    <string name="log_cat_windshield_replacement">Windschutzscheibenwechsel</string>
+    <string name="log_cat_paint_touch_up">Lackausbesserung</string>
+    <string name="log_cat_body_repair">Karosseriereparatur</string>
+    <string name="log_cat_rust_treatment">Rostbehandlung</string>
+    <string name="log_cat_undercoating">Unterbodenschutz</string>
+    <string name="log_cat_corrosion_check">Korrosionsprüfung</string>
+    <string name="log_cat_exterior_maint">Außenpflege</string>
+
+    <!-- Detailing / cleaning -->
+    <string name="log_cat_interior_detailing">Innenreinigung</string>
+    <string name="log_cat_exterior_wash">Außenwäsche</string>
+    <string name="log_cat_full_detail">Vollreinigung</string>
+
+    <!-- Safety / airbag / seat belt -->
+    <string name="log_cat_abs_service">ABS-Service</string>
+    <string name="log_cat_traction_control_service">Traktionskontrollservice</string>
+    <string name="log_cat_airbag_inspection">Airbag-Inspektion</string>
+    <string name="log_cat_seat_belt_inspection">Sicherheitsgurtinspektion</string>
+    <string name="log_cat_safety_inspection">Sicherheitsinspektion</string>
+    <string name="log_cat_safety_compliance">Sicherheitskonformität</string>
+    <string name="log_cat_structural_check">Strukturprüfung</string>
+
+    <!-- Commercial / heavy truck -->
+    <string name="log_cat_fifth_wheel_service">Sattelkupplungsservice</string>
+    <string name="log_cat_reefer_unit_service">Kühlaggregat-Service</string>
+    <string name="log_cat_refrigeration_service">Kältetechnikservice</string>
+    <string name="log_cat_dot_inspection">DOT-Inspektion</string>
+    <string name="log_cat_pre_trip_inspection">Vorfahrtsinspektion</string>
+    <string name="log_cat_post_trip_inspection">Nachfahrtsinspektion</string>
+    <string name="log_cat_gladhand_inspection">Kupplungskopfinspektion</string>
+    <string name="log_cat_landing_gear_service">Stützwindensystem-Service</string>
+    <string name="log_cat_kingpin_inspection">Königszapfeninspektion</string>
+    <string name="log_cat_slider_service">Schiebeservice</string>
+    <string name="log_cat_track_inspection">Schieneninspektion</string>
+    <string name="log_cat_cutting_edge_service">Schneide-Service</string>
+    <string name="log_cat_bearing_service">Lagerservice</string>
+    <string name="log_cat_hydraulic_fluid">Hydraulikflüssigkeit</string>
+
+    <!-- Marine -->
+    <string name="log_cat_bilge_pump">Lenzpumpenservice</string>
+    <string name="log_cat_bilge_pump_service">Lenzpumpenservice</string>
+    <string name="log_cat_bilge_blower_service">Lenzgebläseservice</string>
+    <string name="log_cat_bilge_drain_check">Lenzöffnungsprüfung</string>
+    <string name="log_cat_antifouling">Antifouling / Unterwasseranstrich</string>
+    <string name="log_cat_antifouling_bottom_paint">Antifouling / Unterwasseranstrich</string>
+    <string name="log_cat_impeller">Laufradwechsel</string>
+    <string name="log_cat_impeller_replacement">Laufradwechsel</string>
+    <string name="log_cat_impeller_check">Laufradprüfung</string>
+    <string name="log_cat_propeller">Propellerinspektion</string>
+    <string name="log_cat_propeller_inspection">Propellerinspektion</string>
+    <string name="log_cat_zincs_anodes">Zinkanoden-Wechsel</string>
+    <string name="log_cat_zincs_anodes_replacement">Zinkanoden-Wechsel</string>
+    <string name="log_cat_winterization">Einwinterung</string>
+    <string name="log_cat_dewinterization">Auswinterung</string>
+    <string name="log_cat_rigging_inspection">Takelungsinspektion</string>
+    <string name="log_cat_hull_survey">Rumpfuntersuchung</string>
+    <string name="log_cat_hull_inspection">Rumpfinspektion</string>
+    <string name="log_cat_uscg_inspection">USCG-Inspektion</string>
+    <string name="log_cat_mooring_service">Vertäuservice</string>
+    <string name="log_cat_through_hull_inspection">Durchrumpf-Inspektion</string>
+    <string name="log_cat_sea_cock_service">Seeventilservice</string>
+    <string name="log_cat_raw_water_flush">Rohwasserspülung</string>
+    <string name="log_cat_engine_flush">Motorspülung</string>
+    <string name="log_cat_flare_kit_update">Signalmittel-Aktualisierung</string>
+    <string name="log_cat_life_jacket_inspection">Rettungswesteninspektion</string>
+    <string name="log_cat_fire_extinguisher_inspection">Feuerlöscherinspektion</string>
+    <string name="log_cat_shaft_packing">Wellendichtung</string>
+    <string name="log_cat_navigation_systems">Navigationssysteme</string>
+    <string name="log_cat_fire_suppression">Brandschutzservice</string>
+    <string name="log_cat_steering_service_marine">Lenkungsservice</string>
+    <string name="log_cat_safety_equipment">Sicherheitsausrüstung prüfen</string>
+    <string name="log_cat_flush_service">Spülservice</string>
+    <string name="log_cat_post_use_flush">Nachbenutzer-Spülung</string>
+    <string name="log_cat_wear_ring">Verschleißring-Wechsel</string>
+    <string name="log_cat_jet_pump_oil">Strahlpumpen-Ölwechsel</string>
+
+    <!-- Recreational vehicle -->
+    <string name="log_cat_plumbing_flush">Wasseranlage spülen</string>
+    <string name="log_cat_slideout_service">Ausziehservice</string>
+    <string name="log_cat_generator_service">Generatorservice</string>
+    <string name="log_cat_roof_seal">Dachabdichtung</string>
+    <string name="log_cat_holding_tank_service">Abwassertankservice</string>
+    <string name="log_cat_water_system_service">Wasseranlagenservice</string>
+    <string name="log_cat_water_heater_service">Warmwasserbereitungsservice</string>
+    <string name="log_cat_lp_gas_service">Flüssiggasservice</string>
+    <string name="log_cat_awning_service">Markisenservice</string>
+    <string name="log_cat_leveling_service">Nivellierungssystemservice</string>
+
+    <!-- Buildings / facilities -->
+    <string name="log_cat_plumbing_check">Sanitärinspektion</string>
+    <string name="log_cat_plumbing_inspection">Sanitärinspektion</string>
+    <string name="log_cat_electrical_inspection">Elektrische Inspektion</string>
+    <string name="log_cat_roof_inspection">Dachinspektion</string>
+    <string name="log_cat_roof_repair">Dachreparatur</string>
+    <string name="log_cat_gutter_cleaning">Dachrinnenreinigung</string>
+    <string name="log_cat_appliance_service">Geräteservice</string>
+    <string name="log_cat_elevator_inspection">Aufzugsinspektion</string>
+    <string name="log_cat_elevator_service">Aufzugsservice</string>
+    <string name="log_cat_boiler_service">Kesselservice</string>
+    <string name="log_cat_fire_sprinkler_inspection">Sprinkleranlageinspektion</string>
+    <string name="log_cat_fire_sprinkler_test">Sprinkleranlagetest</string>
+    <string name="log_cat_parking_lot_inspection">Parkplatzinspektion</string>
+    <string name="log_cat_parking_lot_maint">Parkplatzwartung</string>
+    <string name="log_cat_security_system_inspection">Sicherheitssysteminspektion</string>
+    <string name="log_cat_security_systems">Sicherheitssysteme prüfen</string>
+    <string name="log_cat_it_systems_check">IT-Systeme prüfen</string>
+    <string name="log_cat_it_systems">IT-Systeme</string>
+    <string name="log_cat_pest_control">Schädlingsbekämpfung</string>
+    <string name="log_cat_landscaping">Landschaftspflege</string>
+    <string name="log_cat_window_cleaning">Fensterreinigung</string>
+    <string name="log_cat_pressure_washing">Hochdruckreinigung</string>
+    <string name="log_cat_painting">Malerarbeiten</string>
+    <string name="log_cat_smoke_co_detector">Rauch-/CO-Melder prüfen</string>
+    <string name="log_cat_dryer_vent_cleaning">Wäschetrockner-Entlüftungsreinigung</string>
+    <string name="log_cat_chimney_service">Schornsteinservice</string>
+    <string name="log_cat_sump_pump_service">Tauchpumpenservice</string>
+    <string name="log_cat_garage_door_service">Garagentorservice</string>
+    <string name="log_cat_septic_service">Klärgrubenservice</string>
+    <string name="log_cat_caulk_weatherstrip">Abdichtung / Türdichtung</string>
+    <string name="log_cat_common_area_maint">Gemeinschaftsbereichswartung</string>
+    <string name="log_cat_fire_safety">Brandschutz</string>
+    <string name="log_cat_emergency_lighting">Notbeleuchtungstest</string>
+    <string name="log_cat_backflow_preventer">Rückflussverhinderungsservice</string>
+    <string name="log_cat_emergency_generator">Notstromgeneratortest</string>
+    <string name="log_cat_cooling_tower_service">Kühlturmservice</string>
+    <string name="log_cat_dock_equipment">Dock-Ausrüstungsservice</string>
+    <string name="log_cat_crane_hoist_service">Kran-/Hebezeugservice</string>
+    <string name="log_cat_compressed_air_system">Druckluftsystem</string>
+    <string name="log_cat_racking_inspection">Regalinspektion</string>
+    <string name="log_cat_conveyor_service">Förderbandservice</string>
+
+    <!-- Restaurant -->
+    <string name="log_cat_grease_trap">Fettabscheiderreinigung</string>
+    <string name="log_cat_grease_trap_cleaning">Fettabscheiderreinigung</string>
+    <string name="log_cat_hood_cleaning">Dunstabzugshaubenreinigung</string>
+    <string name="log_cat_hood_filter_cleaning">Dunstabzugshaubenfilterreinigung</string>
+    <string name="log_cat_refrigeration">Kältetechnikservice</string>
+    <string name="log_cat_kitchen_equipment">Küchengeräteservice</string>
+    <string name="log_cat_ice_machine_cleaning">Eismaschinen-Reinigung</string>
+    <string name="log_cat_ice_machine_service">Eismaschinen-Service</string>
+    <string name="log_cat_dishwasher_service">Geschirrspülerservice</string>
+    <string name="log_cat_ansul_system_inspection">Ansul-System-Inspektion</string>
+    <string name="log_cat_ansul_inspection">Ansul-System-Inspektion</string>
+    <string name="log_cat_health_inspection">Gesundheitsinspektion</string>
+
+    <!-- Healthcare -->
+    <string name="log_cat_medical_equipment">Medizingeräteservice</string>
+    <string name="log_cat_medical_equipment_service">Medizingeräteservice</string>
+    <string name="log_cat_sterilization">Sterilisationsservice</string>
+    <string name="log_cat_sterilization_service">Sterilisationsservice</string>
+    <string name="log_cat_medical_gas_service">Medizingasservice</string>
+    <string name="log_cat_compliance_audit">Konformitätsprüfung</string>
+    <string name="log_cat_hvac_air_quality_service">HVAC / Luftqualitätsservice</string>
+    <string name="log_cat_emergency_systems">Notfallsysteme prüfen</string>
+    <string name="log_cat_eyewash_station">Augenspülstation-Service</string>
+    <string name="log_cat_water_management">Wassermanagement</string>
+    <string name="log_cat_fire_door_test">Brandschutzturtest</string>
+
+    <!-- Lawn / outdoor equipment -->
+    <string name="log_cat_blade_service">Klingenservice</string>
+    <string name="log_cat_blades_cutting">Klingen / Schneidteile</string>
+    <string name="log_cat_season_prep">Saisonvorbereitung</string>
+    <string name="log_cat_deck_leveling">Mähdeck-Nivellierung</string>
+    <string name="log_cat_spindle_service">Spindelservice</string>
+    <string name="log_cat_hydrostatic_service">Hydrostatikservice</string>
+    <string name="log_cat_grease_service">Fettservice</string>
+
+    <!-- Powersports / recreation -->
+    <string name="log_cat_fork_oil">Gabelölwechsel</string>
+    <string name="log_cat_ski_service">Ski-Service</string>
+    <string name="log_cat_slide_replacement">Gleitbretter-Wechsel</string>
+    <string name="log_cat_storage_prep">Einlagerungsvorbereitung</string>
+    <string name="log_cat_suspension_greasing_sno">Fahrwerksfetten</string>
+
+    <!-- Trailer -->
+    <string name="log_cat_hitch_coupler">Anhängerkupplung-Service</string>
+    <string name="log_cat_floor_inspection">Bodeninspektion</string>
+
+    <!-- Golf cart specific -->
+    <string name="log_cat_battery_service_gc">Batterieservice</string>
+
+    <!-- Generator -->
+    <string name="log_cat_transfer_switch_gen">Umschalterservice</string>
+    <string name="log_cat_fuel_quality">Kraftstoffqualitätsprüfung</string>
+</resources>

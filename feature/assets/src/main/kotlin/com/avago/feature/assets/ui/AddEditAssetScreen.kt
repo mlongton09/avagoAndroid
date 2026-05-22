@@ -346,7 +346,7 @@ fun AddEditAssetScreen(
                         showDatePicker = false
                     },
                 ) {
-                    Text("OK")
+                    Text(stringResource(R.string.date_picker_ok))
                 }
             },
             dismissButton = {

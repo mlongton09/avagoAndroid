@@ -557,7 +557,7 @@ private fun WorkOrdersCard(
                     tint = MaterialTheme.colorScheme.primary,
                 )
                 Text(
-                    text = "Work Orders",
+                    text = stringResource(R.string.asset_detail_work_orders_card),
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                 )
             }
@@ -591,7 +591,7 @@ private fun NotesCard(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Notes",
+                    text = stringResource(R.string.asset_detail_notes_card),
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                 )
                 if (notesPreview.isNotBlank()) {
@@ -624,7 +624,7 @@ private fun WheelDataCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "Wheel / Tire",
+                text = stringResource(R.string.asset_detail_wheel_tire_card),
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                 modifier = Modifier.padding(bottom = 8.dp),
             )
@@ -636,13 +636,13 @@ private fun WheelDataCard(
                     onClick = onConfigClick,
                     modifier = Modifier.weight(1f),
                 ) {
-                    Text("Configuration")
+                    Text(stringResource(R.string.asset_detail_wheel_configuration))
                 }
                 OutlinedButton(
                     onClick = onDataClick,
                     modifier = Modifier.weight(1f),
                 ) {
-                    Text("Data Input")
+                    Text(stringResource(R.string.asset_detail_wheel_data_input))
                 }
             }
         }

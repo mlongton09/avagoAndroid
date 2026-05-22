@@ -32,8 +32,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.avago.feature.workorders.R
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -119,12 +121,12 @@ fun TechProfileScreen(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text("Technician Profile") },
+                title = { Text(stringResource(R.string.tech_profile_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = stringResource(R.string.tech_profile_back),
                         )
                     }
                 },
@@ -199,7 +201,7 @@ fun TechProfileScreen(
 
                         // Display name
                         Text(
-                            text = currentTech.displayName ?: "Unknown",
+                            text = currentTech.displayName ?: stringResource(R.string.tech_profile_unknown_name),
                             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                         )
 
@@ -239,17 +241,17 @@ fun TechProfileScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     StatCard(
-                        label = "Open WOs",
+                        label = stringResource(R.string.tech_profile_stat_open_wos),
                         value = "$openWos",
                         modifier = Modifier.weight(1f),
                     )
                     StatCard(
-                        label = "In Progress",
+                        label = stringResource(R.string.tech_profile_stat_in_progress),
                         value = "$inProgressWos",
                         modifier = Modifier.weight(1f),
                     )
                     StatCard(
-                        label = "Completed (30d)",
+                        label = stringResource(R.string.tech_profile_stat_completed_30d),
                         value = "$completedWos",
                         modifier = Modifier.weight(1f),
                     )
@@ -259,7 +261,7 @@ fun TechProfileScreen(
             // ── Assigned Work Orders header ──
             item {
                 Text(
-                    text = "Assigned Work Orders",
+                    text = stringResource(R.string.tech_profile_assigned_wos_header),
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                     modifier = Modifier.padding(top = 4.dp),
                 )
@@ -275,7 +277,7 @@ fun TechProfileScreen(
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            text = "No work orders assigned",
+                            text = stringResource(R.string.tech_profile_no_wos),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

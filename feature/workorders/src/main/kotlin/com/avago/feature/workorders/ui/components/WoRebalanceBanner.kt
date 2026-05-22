@@ -18,8 +18,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.avago.feature.workorders.R
 
 /**
  * Banner shown on the Dispatch Board when work orders are unevenly distributed
@@ -41,13 +43,13 @@ fun WoRebalanceBanner(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
             Text(
-                text = "Assignment imbalance detected",
+                text = stringResource(R.string.wo_rebalance_title),
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
                 color = Color(0xFF856404),
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Some technicians have significantly more work than others.",
+                text = stringResource(R.string.wo_rebalance_body),
                 style = MaterialTheme.typography.bodySmall,
                 color = Color(0xFF856404),
             )
@@ -61,7 +63,7 @@ fun WoRebalanceBanner(
                     onClick = onDismiss,
                     colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFF856404)),
                 ) {
-                    Text("Dismiss")
+                    Text(stringResource(R.string.wo_rebalance_dismiss))
                 }
                 Button(
                     onClick = onRebalance,
@@ -70,7 +72,7 @@ fun WoRebalanceBanner(
                         contentColor = Color.White,
                     ),
                 ) {
-                    Text("Rebalance")
+                    Text(stringResource(R.string.wo_rebalance_action))
                 }
             }
         }

@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Reports list screen -->
+    <string name="report_list_title">Berichte</string>
+    <string name="report_list_subtitle">Wählen Sie einen Abschnitt aus, um detaillierte Berichte anzuzeigen.</string>
+
+    <!-- Report section names (used as cards on the list screen) -->
+    <string name="report_section_work_orders">Arbeitsaufträge</string>
+    <string name="report_section_work_orders_subtitle">8 Berichte — offenes Dashboard, vorbeugende Wartungskonformität, MTTR, Rückstandsalter &amp; mehr</string>
+    <string name="report_section_maintenance">Wartung</string>
+    <string name="report_section_maintenance_subtitle">5 Berichte — Wartungshistorie, Häufigkeit, Zählertrend, Inspektionsrate</string>
+    <string name="report_section_financial">Finanzen</string>
+    <string name="report_section_financial_subtitle">10 Berichte — Kostenpositionen, Journal, 1099, Anlagevermögen, Reparatur vs. Ersatz</string>
+    <string name="report_section_system">System</string>
+    <string name="report_section_system_subtitle">Demnächst verfügbar — Kontoübersicht, Lagerbestandszustand, Compliance</string>
+    <string name="report_section_count_format">%1$d Berichte</string>
+
+    <!-- Navigation -->
+    <string name="report_back">Zurück</string>
+
+    <!-- Date range preset chips -->
+    <string name="report_range_this_month">Diesen Monat</string>
+    <string name="report_range_last_month">Letzten Monat</string>
+    <string name="report_range_this_quarter">Dieses Quartal</string>
+    <string name="report_range_last_quarter">Letztes Quartal</string>
+    <string name="report_range_ytd">Laufendes Jahr</string>
+    <string name="report_range_last_12_months">Letzte 12 Monate</string>
+    <string name="report_range_custom">Benutzerdefiniert</string>
+
+    <!-- Export buttons -->
+    <string name="report_export_csv">CSV</string>
+    <string name="report_export_pdf">PDF</string>
+
+    <!-- Work Orders reports screen -->
+    <string name="work_order_reports_title">Arbeitsauftrags-Berichte</string>
+
+    <!-- Work Orders — individual report card titles -->
+    <string name="wo_report_open_dashboard">Offenes Dashboard</string>
+    <string name="wo_report_pm_compliance">VM-Konformität</string>
+    <string name="wo_report_mttr">Mittlere Reparaturzeit (MTTR)</string>
+    <string name="wo_report_completion_rate">Abschlussrate</string>
+    <string name="wo_report_tech_performance">Technikerleistung</string>
+    <string name="wo_report_effort_accuracy">Aufwandsgenauigkeit</string>
+    <string name="wo_report_backlog_age">Rückstandsalter</string>
+    <string name="wo_report_recurring_issues">Wiederkehrende Probleme</string>
+
+    <!-- Work Orders — table headers -->
+    <string name="wo_col_status">Status</string>
+    <string name="wo_col_count">Anzahl</string>
+    <string name="wo_col_total_open">Gesamt offen</string>
+    <string name="wo_col_overdue">Überfällig</string>
+    <string name="wo_col_avg_age_days">Durchschn. Alter (Tage)</string>
+    <string name="wo_col_asset_type">Anlagentyp</string>
+    <string name="wo_col_scheduled">Geplant</string>
+    <string name="wo_col_completed">Abgeschlossen</string>
+    <string name="wo_col_compliance_pct">Konformität %</string>
+    <string name="wo_col_priority">Priorität</string>
+    <string name="wo_col_avg_hours">Durchschn. Stunden</string>
+    <string name="wo_col_period">Zeitraum</string>
+    <string name="wo_col_created">Erstellt</string>
+    <string name="wo_col_rate_pct">Rate %</string>
+    <string name="wo_col_technician">Techniker</string>
+    <string name="wo_col_wos_completed">Abgeschl. Aufträge</string>
+    <string name="wo_col_avg_mttr_hrs">Durchschn. MTTR (Std.)</string>
+    <string name="wo_col_total_cost">Gesamtkosten</string>
+    <string name="wo_col_category">Kategorie</string>
+    <string name="wo_col_est_hours">Gesch. Stunden</string>
+    <string name="wo_col_actual_hours">Tatsächliche Stunden</string>
+    <string name="wo_col_variance_pct">Abweichung %</string>
+    <string name="wo_col_age_bucket">Altersgruppe</string>
+    <string name="wo_col_asset">Anlage</string>
+    <string name="wo_col_repeat_count">Wiederholungen</string>
+    <string name="wo_col_overall_avg_hrs">Gesamtdurchschnitt (Std.)</string>
+    <string name="wo_col_overall_rate">Gesamtrate</string>
+
+    <!-- Work Orders — summary labels -->
+    <string name="wo_label_by_priority">Nach Priorität</string>
+    <string name="wo_label_by_asset_type">Nach Anlagentyp</string>
+
+    <!-- Work Orders — empty states -->
+    <string name="wo_report_no_recurring_issues">Keine wiederkehrenden Probleme in diesem Zeitraum.</string>
+
+    <!-- Maintenance reports screen -->
+    <string name="maintenance_reports_title">Wartungsberichte</string>
+
+    <!-- Maintenance — individual report card titles -->
+    <string name="maint_report_service_history">Wartungshistorie</string>
+    <string name="maint_report_service_frequency">Wartungshäufigkeit</string>
+    <string name="maint_report_meter_trend">Zählertrend</string>
+    <string name="maint_report_inspection_rate">Inspektionsrate</string>
+    <string name="maint_report_service_mix">Wartungsmix</string>
+
+    <!-- Maintenance — table headers -->
+    <string name="maint_col_date">Datum</string>
+    <string name="maint_col_asset">Anlage</string>
+    <string name="maint_col_title">Titel</string>
+    <string name="maint_col_category">Kategorie</string>
+    <string name="maint_col_cost">Kosten</string>
+    <string name="maint_col_type">Typ</string>
+    <string name="maint_col_services">Leistungen</string>
+    <string name="maint_col_avg_days_between">Durchschn. Tage zwischen Wartungen</string>
+    <string name="maint_col_reading">Ablesung</string>
+    <string name="maint_col_count">Anzahl</string>
+    <string name="maint_col_cost_pct">Kosten %</string>
+    <string name="maint_col_total_logs">Einträge gesamt</string>
+    <string name="maint_col_inspection_logs">Inspektionseinträge</string>
+    <string name="maint_col_inspection_rate">Inspektionsrate</string>
+
+    <!-- Maintenance — empty / info states -->
+    <string name="maint_meter_select_asset">Wählen Sie eine Anlage aus, um den Zählertrend anzuzeigen.</string>
+    <string name="maint_meter_no_readings">Keine Zählerablesungen für diese Anlage im ausgewählten Zeitraum.</string>
+    <string name="maint_service_history_truncated_format">100 von %1$d Einträgen angezeigt. Exportieren Sie CSV/PDF für vollständige Daten.</string>
+
+    <!-- Financial reports screen -->
+    <string name="financial_reports_title">Finanzberichte</string>
+
+    <!-- Financial — individual report card titles -->
+    <string name="fin_report_itemized_cost">Aufgeschlüsselte Kosten</string>
+    <string name="fin_report_transaction_journal">Buchungsjournal</string>
+    <string name="fin_report_period_close">Periodenabschlusspaket</string>
+    <string name="fin_report_vendor_summary_1099">1099-Lieferantenzusammenfassung</string>
+    <string name="fin_report_fixed_asset_register">Anlagenverzeichnis</string>
+    <string name="fin_report_cost_by_vendor">Kosten nach Lieferant</string>
+    <string name="fin_report_cost_by_performed_by">Kosten nach Ausführendem</string>
+    <string name="fin_report_parts_spend_trend">Ersatzteilkostentrend</string>
+    <string name="fin_report_inventory_investment">Lagerbestandsinvestition</string>
+    <string name="fin_report_repair_vs_replace">Reparatur vs. Ersatz</string>
+
+    <!-- Financial — table headers -->
+    <string name="fin_col_description">Beschreibung</string>
+    <string name="fin_col_kind">Art</string>
+    <string name="fin_col_qty">Menge</string>
+    <string name="fin_col_unit_cost">Stückkosten</string>
+    <string name="fin_col_tax">Steuer</string>
+    <string name="fin_col_gl_code">Sachkonto</string>
+    <string name="fin_col_date">Datum</string>
+    <string name="fin_col_title">Titel</string>
+    <string name="fin_col_category">Kategorie</string>
+    <string name="fin_col_performed_by">Ausgeführt von</string>
+    <string name="fin_col_cost">Kosten</string>
+    <string name="fin_col_period">Zeitraum</string>
+    <string name="fin_col_log_count">Eintragsanzahl</string>
+    <string name="fin_col_total">Gesamt</string>
+    <string name="fin_col_labor">Arbeit</string>
+    <string name="fin_col_parts">Teile</string>
+    <string name="fin_col_vendor_performed_by">Lieferant / Ausführender</string>
+    <string name="fin_col_total_cost">Gesamtkosten</string>
+    <string name="fin_col_flag_1099">1099-Kennzeichnung</string>
+    <string name="fin_col_asset">Anlage</string>
+    <string name="fin_col_type">Typ</string>
+    <string name="fin_col_purchase_price">Kaufpreis</string>
+    <string name="fin_col_age_yrs">Alter (Jahre)</string>
+    <string name="fin_col_sl_dep">Lineare AfA</string>
+    <string name="fin_col_ddb_dep">Degressive AfA</string>
+    <string name="fin_col_nbv">Buchwert</string>
+    <string name="fin_col_vendor">Lieferant</string>
+    <string name="fin_col_period_cost">Periodenkosten</string>
+    <string name="fin_col_ytd_cost">Jahreskosten</string>
+    <string name="fin_col_total_spend">Gesamtausgaben</string>
+    <string name="fin_col_transactions">Transaktionen</string>
+    <string name="fin_col_part_count">Teilanzahl</string>
+    <string name="fin_col_total_value">Gesamtwert</string>
+    <string name="fin_col_lifetime_cost">Gesamtlebensdauerkosten</string>
+    <string name="fin_col_recommendation">Empfehlung</string>
+
+    <!-- Financial — info text -->
+    <string name="fin_itemized_cost_truncated_format">200 von %1$d angezeigt. Für vollständige Daten exportieren.</string>
+
+    <!-- System reports screen -->
+    <string name="system_reports_title">Systemberichte</string>
+    <string name="system_reports_coming_soon">Demnächst verfügbar</string>
+    <string name="system_reports_coming_soon_detail">Systemberichte — Kontoübersicht, Lagerbestandszustand,\nDokumentenabdeckung, Mitgliederaktivität, Compliance-Snapshot\nwerden in einem zukünftigen Update verfügbar sein.</string>
+</resources>

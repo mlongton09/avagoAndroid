@@ -124,9 +124,24 @@
     <string name="dispatch_board_empty_column">No work orders</string>
     <string name="dispatch_board_drag_hint">Drag a card to change status</string>
 
+    <!-- WO Rebalance Banner -->
+    <string name="wo_rebalance_title">Assignment imbalance detected</string>
+    <string name="wo_rebalance_body">Some technicians have significantly more work than others.</string>
+    <string name="wo_rebalance_dismiss">Dismiss</string>
+    <string name="wo_rebalance_action">Rebalance</string>
+
+    <!-- WO Card labels -->
+    <string name="wo_card_asset_label">Asset: %s</string>
+    <string name="wo_card_no_asset">No asset</string>
+    <string name="wo_card_no_due_date">No due date</string>
+    <string name="wo_card_overdue_format">Overdue · %s</string>
+    <string name="wo_card_due_format">Due %s</string>
+
     <!-- Calendar -->
     <string name="wo_calendar_title">Calendar</string>
     <string name="wo_calendar_no_wos">No work orders on this day</string>
+    <string name="wo_calendar_prev_month">Previous month</string>
+    <string name="wo_calendar_next_month">Next month</string>
 
     <!-- Tech Picker -->
     <string name="tech_picker_title">Select Technician</string>
@@ -197,5 +212,46 @@
     <string name="job_picker_title">Select Job</string>
     <string name="job_picker_back">Back</string>
     <string name="job_picker_coming_soon">Job templates coming soon</string>
+
+    <!-- WO List — retry banner -->
+    <string name="wo_list_retry">Retry</string>
+
+    <!-- WO Detail — hardcoded labels -->
+    <string name="wo_detail_reschedule">Reschedule</string>
+    <string name="wo_detail_section_details">Details</string>
+    <string name="wo_detail_asset_label">Asset</string>
+    <string name="wo_detail_priority_label">Priority</string>
+    <string name="wo_detail_due_label">Due</string>
+    <string name="wo_detail_no_due_date">No due date</string>
+    <string name="wo_detail_est_hours_label">Est. Hours</string>
+    <string name="wo_detail_type_label">Type</string>
+    <string name="wo_detail_recurring_label">Recurring</string>
+    <string name="wo_detail_no_technicians">No technicians assigned</string>
+    <string name="wo_detail_section_parts">Parts</string>
+    <string name="wo_detail_add_part">Add Part</string>
+    <string name="wo_detail_parts_empty">Tap + to issue parts from inventory</string>
+    <string name="wo_detail_costs_manage">Manage</string>
+    <string name="wo_detail_costs_empty">No cost data. Tap Manage to add cost lines.</string>
+    <string name="wo_detail_save_notes">Save Notes</string>
+
+    <!-- WO Create — hardcoded labels -->
+    <string name="wo_create_select_asset_group">Select Asset Group</string>
+    <string name="wo_create_repeats_configured">Configured</string>
+    <string name="wo_create_repeats_none">None</string>
+    <string name="wo_create_remove_assignee">Remove</string>
+    <string name="wo_create_remove_checklist_step">Remove step</string>
+
+    <!-- Tech Profile screen -->
+    <string name="tech_profile_title">Technician Profile</string>
+    <string name="tech_profile_back">Back</string>
+    <string name="tech_profile_unknown_name">Unknown</string>
+    <string name="tech_profile_stat_open_wos">Open WOs</string>
+    <string name="tech_profile_stat_in_progress">In Progress</string>
+    <string name="tech_profile_stat_completed_30d">Completed (30d)</string>
+    <string name="tech_profile_assigned_wos_header">Assigned Work Orders</string>
+    <string name="tech_profile_no_wos">No work orders assigned</string>
+
+    <!-- Dispatch Board — snackbar -->
+    <string name="dispatch_rebalance_coming_soon">Auto-rebalance coming soon</string>
 
 </resources>

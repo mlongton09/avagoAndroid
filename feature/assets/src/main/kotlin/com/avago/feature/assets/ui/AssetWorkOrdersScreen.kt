@@ -35,8 +35,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.res.stringResource
 import com.avago.core.data.db.entity.WorkOrderEntity
 import com.avago.core.ui.EmptyState
+import com.avago.feature.assets.R
 import com.avago.feature.assets.viewmodel.AssetWorkOrdersViewModel
 import java.time.Instant
 import java.time.ZoneId
@@ -59,10 +61,10 @@ fun AssetWorkOrdersScreen(
             TopAppBar(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.asset_detail_back))
                     }
                 },
-                title = { Text("Work Orders") },
+                title = { Text(stringResource(R.string.asset_work_orders_title)) },
             )
         },
     ) { innerPadding ->
@@ -73,7 +75,7 @@ fun AssetWorkOrdersScreen(
                     .padding(innerPadding),
                 contentAlignment = Alignment.Center,
             ) {
-                EmptyState(message = "No work orders for this asset")
+                EmptyState(message = stringResource(R.string.asset_work_orders_empty))
             }
         } else {
             LazyColumn(
@@ -133,7 +135,8 @@ private fun AssetWoRow(
 
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = wo.dueDate?.let { "Due ${formatWoDate(it)}" } ?: "No due date",
+                text = wo.dueDate?.let { stringResource(R.string.asset_wo_due_format, formatWoDate(it)) }
+                    ?: stringResource(R.string.asset_wo_no_due_date),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -144,11 +147,11 @@ private fun AssetWoRow(
 @Composable
 private fun WoStatusLabel(status: String, modifier: Modifier = Modifier) {
     val displayName = when (status) {
-        "open" -> "Open"
-        "in_progress" -> "In Progress"
-        "on_hold" -> "On Hold"
-        "complete" -> "Complete"
-        "cancelled" -> "Cancelled"
+        "open" -> stringResource(R.string.asset_wo_status_open)
+        "in_progress" -> stringResource(R.string.asset_wo_status_in_progress)
+        "on_hold" -> stringResource(R.string.asset_wo_status_on_hold)
+        "complete" -> stringResource(R.string.asset_wo_status_complete)
+        "cancelled" -> stringResource(R.string.asset_wo_status_cancelled)
         else -> status.replace("_", " ").replaceFirstChar { it.uppercase() }
     }
     val color = when (status) {

@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -63,6 +64,7 @@ fun DispatchBoardScreen(
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     Scaffold(
         modifier = modifier,
@@ -81,7 +83,7 @@ fun DispatchBoardScreen(
                     onRebalance = {
                         viewModel.rebalance()
                         scope.launch {
-                            snackbarHostState.showSnackbar("Auto-rebalance coming soon")
+                            snackbarHostState.showSnackbar(context.getString(R.string.dispatch_rebalance_coming_soon))
                         }
                     },
                     onDismiss = viewModel::dismissBanner,

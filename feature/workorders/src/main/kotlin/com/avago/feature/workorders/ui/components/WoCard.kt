@@ -23,10 +23,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.avago.core.data.db.entity.WorkOrderEntity
+import com.avago.feature.workorders.R
 import com.avago.feature.workorders.model.WoStatus
 import com.avago.feature.workorders.model.statusColor
 import java.time.Instant
@@ -69,7 +71,7 @@ fun WoCard(
 
             // Asset name / no-asset label
             Spacer(modifier = Modifier.height(4.dp))
-            val assetLabel = if (wo.assetId != null) "Asset: ${wo.assetId}" else "No asset"
+            val assetLabel = if (wo.assetId != null) stringResource(R.string.wo_card_asset_label, wo.assetId!!) else stringResource(R.string.wo_card_no_asset)
             Text(
                 text = assetLabel,
                 style = MaterialTheme.typography.bodySmall,
@@ -121,7 +123,7 @@ fun WoStatusChip(status: WoStatus, modifier: Modifier = Modifier) {
 fun DueDateBadge(dueDateMs: Long?, status: WoStatus, modifier: Modifier = Modifier) {
     if (dueDateMs == null) {
         Text(
-            text = "No due date",
+            text = stringResource(R.string.wo_card_no_due_date),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = modifier,
@@ -134,7 +136,7 @@ fun DueDateBadge(dueDateMs: Long?, status: WoStatus, modifier: Modifier = Modifi
     val isOverdue = dueDate.isBefore(today) && status != WoStatus.COMPLETE && status != WoStatus.CANCELLED
 
     val formatter = DateTimeFormatter.ofPattern("MMM d")
-    val label = if (isOverdue) "Overdue · ${dueDate.format(formatter)}" else "Due ${dueDate.format(formatter)}"
+    val label = if (isOverdue) stringResource(R.string.wo_card_overdue_format, dueDate.format(formatter)) else stringResource(R.string.wo_card_due_format, dueDate.format(formatter))
     Text(
         text = label,
         style = MaterialTheme.typography.bodySmall,

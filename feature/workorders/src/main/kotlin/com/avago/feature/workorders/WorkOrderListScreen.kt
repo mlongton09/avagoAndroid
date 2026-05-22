@@ -163,7 +163,7 @@ fun WorkOrderListScreen(
                             color = MaterialTheme.colorScheme.onErrorContainer,
                         )
                         Text(
-                            text = "Retry",
+                            text = stringResource(R.string.wo_list_retry),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onErrorContainer,
                         )

@@ -37,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -44,6 +45,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.avago.feature.auth.R
 
 @Composable
 fun SignInScreen(
@@ -87,13 +89,13 @@ fun SignInScreen(
             ) {
                 // Title
                 Text(
-                    text = "Avago",
+                    text = stringResource(R.string.sign_in_app_title),
                     style = MaterialTheme.typography.displaySmall,
                     textAlign = TextAlign.Center,
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Fleet, equipment & property maintenance",
+                    text = stringResource(R.string.sign_in_subtitle),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -121,7 +123,7 @@ fun SignInScreen(
                             color = Color(0xFF4285F4),
                             modifier = Modifier.padding(end = 12.dp),
                         )
-                        Text("Continue with Google")
+                        Text(stringResource(R.string.sign_in_google))
                     }
                 }
 
@@ -134,7 +136,7 @@ fun SignInScreen(
                 ) {
                     HorizontalDivider(modifier = Modifier.weight(1f))
                     Text(
-                        text = "OR",
+                        text = stringResource(R.string.sign_in_divider_or),
                         modifier = Modifier.padding(horizontal = 12.dp),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -148,7 +150,7 @@ fun SignInScreen(
                 OutlinedTextField(
                     value = email,
                     onValueChange = viewModel::setEmail,
-                    label = { Text("Email") },
+                    label = { Text(stringResource(R.string.sign_in_email_label)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                     modifier = Modifier.fillMaxWidth(),
@@ -161,7 +163,7 @@ fun SignInScreen(
                 OutlinedTextField(
                     value = password,
                     onValueChange = viewModel::setPassword,
-                    label = { Text("Password") },
+                    label = { Text(stringResource(R.string.sign_in_password_label)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     visualTransformation = if (passwordVisible) {
@@ -178,9 +180,9 @@ fun SignInScreen(
                                     Icons.Filled.Visibility
                                 },
                                 contentDescription = if (passwordVisible) {
-                                    "Hide password"
+                                    stringResource(R.string.sign_in_hide_password)
                                 } else {
-                                    "Show password"
+                                    stringResource(R.string.sign_in_show_password)
                                 },
                             )
                         }
@@ -204,7 +206,7 @@ fun SignInScreen(
                             color = MaterialTheme.colorScheme.onPrimary,
                         )
                     } else {
-                        Text("Sign In")
+                        Text(stringResource(R.string.sign_in_button))
                     }
                 }
 
@@ -216,7 +218,7 @@ fun SignInScreen(
                     enabled = state !is SignInState.Loading,
                 ) {
                     Text(
-                        text = "Continue without an account",
+                        text = stringResource(R.string.sign_in_continue_anonymous),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

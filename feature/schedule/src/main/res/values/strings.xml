@@ -99,5 +99,13 @@
     <string name="schedule_due_prefix">Due</string>
     <string name="schedule_overdue_prefix">Overdue by</string>
     <string name="schedule_no_asset">No asset</string>
+    <string name="schedule_card_meter_due_format">Due at %1$s %2$s</string>
+
+    <!-- Schedule Detail — inline status labels -->
+    <string name="schedule_detail_status_inactive">Inactive</string>
+    <string name="schedule_detail_status_overdue">Overdue</string>
+    <string name="schedule_detail_status_due_soon">Due Soon</string>
+    <string name="schedule_detail_status_on_track">On Track</string>
+    <string name="schedule_detail_history_no_wos">No work orders generated yet</string>
 
 </resources>

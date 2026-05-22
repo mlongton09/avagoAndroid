@@ -173,7 +173,7 @@ fun AssetListScreen(
                                 color = MaterialTheme.colorScheme.onErrorContainer,
                             )
                             Text(
-                                text = "Retry",
+                                text = stringResource(R.string.asset_detail_retry),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onErrorContainer,
                             )

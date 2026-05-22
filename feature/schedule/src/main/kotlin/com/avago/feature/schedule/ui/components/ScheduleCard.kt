@@ -98,7 +98,7 @@ fun ScheduleCard(
                 if (schedule.scheduleType == "meter") {
                     schedule.meterDue?.let { due ->
                         Text(
-                            text = "Due at ${due.toLong()} ${schedule.meterType ?: ""}".trim(),
+                            text = stringResource(R.string.schedule_card_meter_due_format, due.toLong().toString(), schedule.meterType ?: "").trim(),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

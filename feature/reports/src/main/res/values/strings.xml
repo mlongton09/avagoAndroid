@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Reports list screen -->
+    <string name="report_list_title">Reports</string>
+    <string name="report_list_subtitle">Select a section to view detailed reports.</string>
+
+    <!-- Report section names (used as cards on the list screen) -->
+    <string name="report_section_work_orders">Work Orders</string>
+    <string name="report_section_work_orders_subtitle">8 reports — open dashboard, PM compliance, MTTR, backlog age &amp; more</string>
+    <string name="report_section_maintenance">Maintenance</string>
+    <string name="report_section_maintenance_subtitle">5 reports — service history, frequency, meter trend, inspection rate</string>
+    <string name="report_section_financial">Financial</string>
+    <string name="report_section_financial_subtitle">10 reports — cost lines, journal, 1099, fixed assets, repair-vs-replace</string>
+    <string name="report_section_system">System</string>
+    <string name="report_section_system_subtitle">Coming soon — account overview, inventory health, compliance</string>
+    <string name="report_section_count_format">%1$d reports</string>
+
+    <!-- Navigation -->
+    <string name="report_back">Back</string>
+
+    <!-- Date range preset chips -->
+    <string name="report_range_this_month">This Month</string>
+    <string name="report_range_last_month">Last Month</string>
+    <string name="report_range_this_quarter">This Quarter</string>
+    <string name="report_range_last_quarter">Last Quarter</string>
+    <string name="report_range_ytd">YTD</string>
+    <string name="report_range_last_12_months">Last 12 Months</string>
+    <string name="report_range_custom">Custom</string>
+
+    <!-- Export buttons -->
+    <string name="report_export_csv">CSV</string>
+    <string name="report_export_pdf">PDF</string>
+
+    <!-- Work Orders reports screen -->
+    <string name="work_order_reports_title">Work Orders Reports</string>
+
+    <!-- Work Orders — individual report card titles -->
+    <string name="wo_report_open_dashboard">Open Dashboard</string>
+    <string name="wo_report_pm_compliance">PM Compliance</string>
+    <string name="wo_report_mttr">Mean Time to Resolution (MTTR)</string>
+    <string name="wo_report_completion_rate">Completion Rate</string>
+    <string name="wo_report_tech_performance">Tech Performance</string>
+    <string name="wo_report_effort_accuracy">Effort Accuracy</string>
+    <string name="wo_report_backlog_age">Backlog Age</string>
+    <string name="wo_report_recurring_issues">Recurring Issues</string>
+
+    <!-- Work Orders — table headers -->
+    <string name="wo_col_status">Status</string>
+    <string name="wo_col_count">Count</string>
+    <string name="wo_col_total_open">Total Open</string>
+    <string name="wo_col_overdue">Overdue</string>
+    <string name="wo_col_avg_age_days">Avg Age (days)</string>
+    <string name="wo_col_asset_type">Asset Type</string>
+    <string name="wo_col_scheduled">Scheduled</string>
+    <string name="wo_col_completed">Completed</string>
+    <string name="wo_col_compliance_pct">Compliance %</string>
+    <string name="wo_col_priority">Priority</string>
+    <string name="wo_col_avg_hours">Avg Hours</string>
+    <string name="wo_col_period">Period</string>
+    <string name="wo_col_created">Created</string>
+    <string name="wo_col_rate_pct">Rate %</string>
+    <string name="wo_col_technician">Technician</string>
+    <string name="wo_col_wos_completed">WOs Completed</string>
+    <string name="wo_col_avg_mttr_hrs">Avg MTTR (hrs)</string>
+    <string name="wo_col_total_cost">Total Cost</string>
+    <string name="wo_col_category">Category</string>
+    <string name="wo_col_est_hours">Est. Hours</string>
+    <string name="wo_col_actual_hours">Actual Hours</string>
+    <string name="wo_col_variance_pct">Variance %</string>
+    <string name="wo_col_age_bucket">Age Bucket</string>
+    <string name="wo_col_asset">Asset</string>
+    <string name="wo_col_repeat_count">Repeat Count</string>
+    <string name="wo_col_overall_avg_hrs">Overall Avg (hrs)</string>
+    <string name="wo_col_overall_rate">Overall Rate</string>
+
+    <!-- Work Orders — summary labels -->
+    <string name="wo_label_by_priority">By Priority</string>
+    <string name="wo_label_by_asset_type">By Asset Type</string>
+
+    <!-- Work Orders — empty states -->
+    <string name="wo_report_no_recurring_issues">No recurring issues in this period.</string>
+
+    <!-- Maintenance reports screen -->
+    <string name="maintenance_reports_title">Maintenance Reports</string>
+
+    <!-- Maintenance — individual report card titles -->
+    <string name="maint_report_service_history">Service History</string>
+    <string name="maint_report_service_frequency">Service Frequency</string>
+    <string name="maint_report_meter_trend">Meter Trend</string>
+    <string name="maint_report_inspection_rate">Inspection Rate</string>
+    <string name="maint_report_service_mix">Service Mix</string>
+
+    <!-- Maintenance — table headers -->
+    <string name="maint_col_date">Date</string>
+    <string name="maint_col_asset">Asset</string>
+    <string name="maint_col_title">Title</string>
+    <string name="maint_col_category">Category</string>
+    <string name="maint_col_cost">Cost</string>
+    <string name="maint_col_type">Type</string>
+    <string name="maint_col_services">Services</string>
+    <string name="maint_col_avg_days_between">Avg Days Between</string>
+    <string name="maint_col_reading">Reading</string>
+    <string name="maint_col_count">Count</string>
+    <string name="maint_col_cost_pct">Cost %</string>
+    <string name="maint_col_total_logs">Total Logs</string>
+    <string name="maint_col_inspection_logs">Inspection Logs</string>
+    <string name="maint_col_inspection_rate">Inspection Rate</string>
+
+    <!-- Maintenance — empty / info states -->
+    <string name="maint_meter_select_asset">Select an asset to view meter trend.</string>
+    <string name="maint_meter_no_readings">No meter readings for this asset in the selected period.</string>
+    <string name="maint_service_history_truncated_format">Showing 100 of %1$d entries. Export CSV/PDF for full data.</string>
+
+    <!-- Financial reports screen -->
+    <string name="financial_reports_title">Financial Reports</string>
+
+    <!-- Financial — individual report card titles -->
+    <string name="fin_report_itemized_cost">Itemized Cost</string>
+    <string name="fin_report_transaction_journal">Transaction Journal</string>
+    <string name="fin_report_period_close">Period Close Pack</string>
+    <string name="fin_report_vendor_summary_1099">1099 Vendor Summary</string>
+    <string name="fin_report_fixed_asset_register">Fixed Asset Register</string>
+    <string name="fin_report_cost_by_vendor">Cost by Vendor</string>
+    <string name="fin_report_cost_by_performed_by">Cost by Performed-By</string>
+    <string name="fin_report_parts_spend_trend">Parts Spend Trend</string>
+    <string name="fin_report_inventory_investment">Inventory Investment</string>
+    <string name="fin_report_repair_vs_replace">Repair vs. Replace</string>
+
+    <!-- Financial — table headers -->
+    <string name="fin_col_description">Description</string>
+    <string name="fin_col_kind">Kind</string>
+    <string name="fin_col_qty">Qty</string>
+    <string name="fin_col_unit_cost">Unit Cost</string>
+    <string name="fin_col_tax">Tax</string>
+    <string name="fin_col_gl_code">GL Code</string>
+    <string name="fin_col_date">Date</string>
+    <string name="fin_col_title">Title</string>
+    <string name="fin_col_category">Category</string>
+    <string name="fin_col_performed_by">Performed By</string>
+    <string name="fin_col_cost">Cost</string>
+    <string name="fin_col_period">Period</string>
+    <string name="fin_col_log_count">Log Count</string>
+    <string name="fin_col_total">Total</string>
+    <string name="fin_col_labor">Labor</string>
+    <string name="fin_col_parts">Parts</string>
+    <string name="fin_col_vendor_performed_by">Vendor / Performed By</string>
+    <string name="fin_col_total_cost">Total Cost</string>
+    <string name="fin_col_flag_1099">Flag 1099</string>
+    <string name="fin_col_asset">Asset</string>
+    <string name="fin_col_type">Type</string>
+    <string name="fin_col_purchase_price">Purchase Price</string>
+    <string name="fin_col_age_yrs">Age (yrs)</string>
+    <string name="fin_col_sl_dep">SL Dep.</string>
+    <string name="fin_col_ddb_dep">DDB Dep.</string>
+    <string name="fin_col_nbv">NBV</string>
+    <string name="fin_col_vendor">Vendor</string>
+    <string name="fin_col_period_cost">Period Cost</string>
+    <string name="fin_col_ytd_cost">YTD Cost</string>
+    <string name="fin_col_total_spend">Total Spend</string>
+    <string name="fin_col_transactions">Transactions</string>
+    <string name="fin_col_part_count">Part Count</string>
+    <string name="fin_col_total_value">Total Value</string>
+    <string name="fin_col_lifetime_cost">Lifetime Cost</string>
+    <string name="fin_col_recommendation">Recommendation</string>
+
+    <!-- Financial — info text -->
+    <string name="fin_itemized_cost_truncated_format">Showing 200 of %1$d. Export for full data.</string>
+
+    <!-- System reports screen -->
+    <string name="system_reports_title">System Reports</string>
+    <string name="system_reports_coming_soon">Coming Soon</string>
+    <string name="system_reports_coming_soon_detail">System reports — Account Overview, Inventory Stock Health,\nDocument Coverage, Member Activity, Compliance Snapshot\nwill be available in a future update.</string>
+</resources>

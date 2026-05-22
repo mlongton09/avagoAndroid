@@ -126,4 +126,37 @@
     <!-- Doc Type Picker -->
     <string name="doc_type_picker_title">Document Type</string>
     <string name="doc_type_picker_back">Back</string>
+
+    <!-- Asset Detail — hardcoded card labels -->
+    <string name="asset_detail_work_orders_card">Work Orders</string>
+    <string name="asset_detail_notes_card">Notes</string>
+    <string name="asset_detail_wheel_tire_card">Wheel / Tire</string>
+    <string name="asset_detail_wheel_configuration">Configuration</string>
+    <string name="asset_detail_wheel_data_input">Data Input</string>
+    <string name="asset_detail_retry">Retry</string>
+
+    <!-- Asset Work Orders screen -->
+    <string name="asset_work_orders_title">Work Orders</string>
+    <string name="asset_work_orders_empty">No work orders for this asset</string>
+    <string name="asset_wo_due_format">Due %s</string>
+    <string name="asset_wo_no_due_date">No due date</string>
+    <string name="asset_wo_status_open">Open</string>
+    <string name="asset_wo_status_in_progress">In Progress</string>
+    <string name="asset_wo_status_on_hold">On Hold</string>
+    <string name="asset_wo_status_complete">Complete</string>
+    <string name="asset_wo_status_cancelled">Cancelled</string>
+
+    <!-- Category Picker screen -->
+    <string name="category_picker_title">Select Category</string>
+    <string name="category_picker_back">Back</string>
+    <string name="category_picker_search">Search</string>
+
+    <!-- Doc Scan Pipeline screen -->
+    <string name="doc_scan_title">Scan Document</string>
+    <string name="doc_scan_opening">Opening scanner…</string>
+    <string name="doc_scan_unavailable">Scanner unavailable</string>
+    <string name="doc_scan_go_back">Go Back</string>
+
+    <!-- Date picker dialog -->
+    <string name="date_picker_ok">OK</string>
 </resources>
