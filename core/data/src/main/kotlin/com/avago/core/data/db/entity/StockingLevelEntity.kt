@@ -2,9 +2,15 @@ package com.avago.core.data.db.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "stocking_levels")
+@Entity(
+    tableName = "stocking_levels",
+    indices = [
+        Index(value = ["part_id", "location_id"]),
+    ]
+)
 data class StockingLevelEntity(
     @PrimaryKey
     @ColumnInfo(name = "stocking_level_id")

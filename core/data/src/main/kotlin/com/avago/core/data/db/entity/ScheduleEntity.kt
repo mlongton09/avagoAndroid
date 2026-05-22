@@ -2,9 +2,15 @@ package com.avago.core.data.db.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "schedules")
+@Entity(
+    tableName = "schedules",
+    indices = [
+        Index(value = ["account_id", "next_due_at"]),
+    ]
+)
 data class ScheduleEntity(
     @PrimaryKey
     @ColumnInfo(name = "schedule_id")

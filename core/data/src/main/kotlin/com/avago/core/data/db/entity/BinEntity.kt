@@ -2,9 +2,15 @@ package com.avago.core.data.db.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "bins")
+@Entity(
+    tableName = "bins",
+    indices = [
+        Index(value = ["location_id"]),
+    ]
+)
 data class BinEntity(
     @PrimaryKey
     @ColumnInfo(name = "bin_id")

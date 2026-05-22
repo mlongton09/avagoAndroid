@@ -2,9 +2,15 @@ package com.avago.core.data.db.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "sync_queue")
+@Entity(
+    tableName = "sync_queue",
+    indices = [
+        Index(value = ["sync_status", "created_at"]),
+    ]
+)
 data class SyncQueueEntity(
     @PrimaryKey
     @ColumnInfo(name = "queue_id")

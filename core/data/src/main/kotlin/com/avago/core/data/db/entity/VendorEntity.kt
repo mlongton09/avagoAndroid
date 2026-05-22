@@ -2,9 +2,15 @@ package com.avago.core.data.db.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "vendors")
+@Entity(
+    tableName = "vendors",
+    indices = [
+        Index(value = ["account_id", "deleted_at"]),
+    ]
+)
 data class VendorEntity(
     @PrimaryKey
     @ColumnInfo(name = "vendor_id")

@@ -2,9 +2,16 @@ package com.avago.core.data.db.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "tech_labor_rates")
+@Entity(
+    tableName = "tech_labor_rates",
+    indices = [
+        Index(value = ["tech_id"]),
+        Index(value = ["account_id"]),
+    ]
+)
 data class TechLaborRateEntity(
     @PrimaryKey
     @ColumnInfo(name = "rate_id")

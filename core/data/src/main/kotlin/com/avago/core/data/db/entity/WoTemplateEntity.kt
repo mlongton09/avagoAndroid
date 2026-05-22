@@ -2,9 +2,15 @@ package com.avago.core.data.db.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "wo_templates")
+@Entity(
+    tableName = "wo_templates",
+    indices = [
+        Index(value = ["account_id", "deleted_at"]),
+    ]
+)
 data class WoTemplateEntity(
     @PrimaryKey
     @ColumnInfo(name = "template_id")

@@ -2,9 +2,16 @@ package com.avago.core.data.db.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "part_issues")
+@Entity(
+    tableName = "part_issues",
+    indices = [
+        Index(value = ["account_id", "deleted_at"]),
+        Index(value = ["issued_at"]),
+    ]
+)
 data class PartIssueEntity(
     @PrimaryKey
     @ColumnInfo(name = "issue_id")

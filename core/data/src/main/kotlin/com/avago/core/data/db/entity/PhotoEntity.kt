@@ -2,9 +2,15 @@ package com.avago.core.data.db.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "photos")
+@Entity(
+    tableName = "photos",
+    indices = [
+        Index(value = ["entity_id", "entity_type"]),
+    ]
+)
 data class PhotoEntity(
     @PrimaryKey
     @ColumnInfo(name = "photo_id")

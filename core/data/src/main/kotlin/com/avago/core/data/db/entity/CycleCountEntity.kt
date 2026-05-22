@@ -2,9 +2,16 @@ package com.avago.core.data.db.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "cycle_counts")
+@Entity(
+    tableName = "cycle_counts",
+    indices = [
+        Index(value = ["account_id", "status"]),
+        Index(value = ["location_id"]),
+    ]
+)
 data class CycleCountEntity(
     @PrimaryKey
     @ColumnInfo(name = "cycle_count_id")

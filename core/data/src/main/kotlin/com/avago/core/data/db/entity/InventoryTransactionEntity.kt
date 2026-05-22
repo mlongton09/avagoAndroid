@@ -2,9 +2,17 @@ package com.avago.core.data.db.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "inventory_transactions")
+@Entity(
+    tableName = "inventory_transactions",
+    indices = [
+        Index(value = ["inventory_id"]),
+        Index(value = ["part_id"]),
+        Index(value = ["account_id"]),
+    ]
+)
 data class InventoryTransactionEntity(
     @PrimaryKey
     @ColumnInfo(name = "transaction_id")

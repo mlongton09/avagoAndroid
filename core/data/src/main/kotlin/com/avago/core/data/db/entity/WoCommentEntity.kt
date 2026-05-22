@@ -2,9 +2,15 @@ package com.avago.core.data.db.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "wo_comments")
+@Entity(
+    tableName = "wo_comments",
+    indices = [
+        Index(value = ["wo_id", "deleted_at"]),
+    ]
+)
 data class WoCommentEntity(
     @PrimaryKey
     @ColumnInfo(name = "comment_id")

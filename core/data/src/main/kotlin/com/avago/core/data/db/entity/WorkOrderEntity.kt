@@ -2,9 +2,19 @@ package com.avago.core.data.db.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "work_orders")
+@Entity(
+    tableName = "work_orders",
+    indices = [
+        Index(value = ["account_id", "status"]),
+        Index(value = ["account_id", "assigned_to"]),
+        Index(value = ["asset_id"]),
+        Index(value = ["schedule_id"]),
+        Index(value = ["due_date"]),
+    ]
+)
 data class WorkOrderEntity(
     @PrimaryKey
     @ColumnInfo(name = "wo_id")

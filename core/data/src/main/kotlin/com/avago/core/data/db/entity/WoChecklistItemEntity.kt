@@ -2,9 +2,15 @@ package com.avago.core.data.db.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "wo_checklist_items")
+@Entity(
+    tableName = "wo_checklist_items",
+    indices = [
+        Index(value = ["wo_id"]),
+    ]
+)
 data class WoChecklistItemEntity(
     @PrimaryKey
     @ColumnInfo(name = "item_id")

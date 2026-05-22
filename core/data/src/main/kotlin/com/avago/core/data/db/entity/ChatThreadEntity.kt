@@ -2,9 +2,15 @@ package com.avago.core.data.db.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "chat_threads")
+@Entity(
+    tableName = "chat_threads",
+    indices = [
+        Index(value = ["account_id", "deleted_at", "last_message_at"]),
+    ]
+)
 data class ChatThreadEntity(
     @PrimaryKey @ColumnInfo(name = "thread_id") val threadId: String,
     @ColumnInfo(name = "account_id") val accountId: String,

@@ -2,9 +2,17 @@ package com.avago.core.data.db.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "purchase_orders")
+@Entity(
+    tableName = "purchase_orders",
+    indices = [
+        Index(value = ["account_id", "status"]),
+        Index(value = ["vendor_id"]),
+        Index(value = ["deleted_at"]),
+    ]
+)
 data class PurchaseOrderEntity(
     @PrimaryKey
     @ColumnInfo(name = "po_id")
