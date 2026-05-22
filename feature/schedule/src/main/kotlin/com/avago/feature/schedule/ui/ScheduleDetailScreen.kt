@@ -243,7 +243,7 @@ private fun ScheduleDetailContent(
                 )
                 if (!schedule.category.isNullOrBlank()) {
                     Text(
-                        text = schedule.category,
+                        text = schedule.category!!,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

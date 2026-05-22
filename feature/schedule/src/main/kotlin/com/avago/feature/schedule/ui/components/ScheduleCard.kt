@@ -83,7 +83,7 @@ fun ScheduleCard(
                 // Category
                 if (!schedule.category.isNullOrBlank()) {
                     Text(
-                        text = schedule.category,
+                        text = schedule.category!!,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
