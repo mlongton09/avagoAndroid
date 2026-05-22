@@ -2,7 +2,7 @@
 kotlin = "2.1.0"
 compose-bom = "2025.05.00"
 agp = "8.7.0"
-hilt = "2.52"
+hilt = "2.54"
 ksp = "2.1.0-1.0.29"
 coroutines = "1.9.0"
 ktor = "3.0.0"
