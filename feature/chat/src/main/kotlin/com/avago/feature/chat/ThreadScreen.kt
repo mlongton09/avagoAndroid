@@ -51,7 +51,6 @@ import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -189,7 +188,6 @@ fun ThreadScreen(
                                 viewModel.sendMessage(body)
                             }
                         }
-                        viewModel.saveDraft("")
                     },
                     onCancelEdit = viewModel::cancelEditing,
                 )
@@ -227,6 +225,20 @@ fun ThreadScreen(
                 }
 
                 // Message list
+                val messages = uiState.messages
+                val messagesWithSeparators = remember(messages) {
+                    buildList {
+                        var lastDateLabel: String? = null
+                        messages.forEach { msg ->
+                            val label = msg.createdAt.toDateLabel()
+                            if (label != lastDateLabel) {
+                                add("date:$label")
+                                lastDateLabel = label
+                            }
+                            add(msg)
+                        }
+                    }
+                }
                 LazyColumn(
                     state = listState,
                     modifier = Modifier
@@ -248,21 +260,6 @@ fun ThreadScreen(
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                                 )
-                            }
-                        }
-                    }
-
-                    val messages = uiState.messages
-                    val messagesWithSeparators = remember(messages) {
-                        buildList {
-                            var lastDateLabel: String? = null
-                            messages.forEach { msg ->
-                                val label = msg.createdAt.toDateLabel()
-                                if (label != lastDateLabel) {
-                                    add("date:$label")
-                                    lastDateLabel = label
-                                }
-                                add(msg)
                             }
                         }
                     }
@@ -308,20 +305,12 @@ fun ThreadScreen(
                         }
                     }
 
-                    // Typing indicator (with named users when available)
-                    if (uiState.isTypingRemote || uiState.typingUserNames.isNotEmpty()) {
+                    // Typing indicator
+                    if (uiState.isTypingRemote) {
                         item {
-                            val names = uiState.typingUserNames
-                            if (names.isNotEmpty()) {
-                                NamedTypingIndicator(
-                                    names = names,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                                )
-                            } else {
-                                TypingIndicator(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                                )
-                            }
+                            TypingIndicator(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                            )
                         }
                     }
                 }
@@ -458,34 +447,6 @@ private fun QuickReplyBar(
                 )
             }
         }
-    }
-}
-
-/**
- * Typing indicator that shows names of users who are typing.
- * Used when [names] is non-empty; falls back to the anonymous [TypingIndicator] otherwise.
- */
-@Composable
-private fun NamedTypingIndicator(names: List<String>, modifier: Modifier = Modifier) {
-    val label = when (names.size) {
-        1 -> "${names[0]} is typing…"
-        2 -> "${names[0]} and ${names[1]} are typing…"
-        else -> "${names[0]} and ${names.size - 1} others are typing…"
-    }
-    Box(
-        modifier = modifier
-            .background(
-                MaterialTheme.colorScheme.surfaceVariant,
-                MaterialTheme.shapes.large,
-            )
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.Medium,
-        )
     }
 }
 
