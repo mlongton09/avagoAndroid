@@ -27,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Card
@@ -253,6 +254,35 @@ fun LogDetailScreen(
                         }
                     }
 
+                    // --------------- Performed By card ---------------
+                    val performedByName = log.performedBy
+                    val performedByUserId = log.performedByUserId
+                    if (!performedByName.isNullOrBlank() || performedByUserId != null) {
+                        SectionDivider()
+                        DetailSection(title = "Performed By") {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Person,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = when {
+                                        !performedByName.isNullOrBlank() -> performedByName
+                                        performedByUserId != null -> "User $performedByUserId"
+                                        else -> ""
+                                    },
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                            }
+                        }
+                    }
+
                     // --------------- Photos section ---------------
                     if (state.photos.isNotEmpty()) {
                         SectionDivider()
@@ -313,12 +343,68 @@ fun LogDetailScreen(
                         }
                     }
 
-                    // --------------- Parts section ---------------
+                    // --------------- Cost Breakdown card (itemized mode) ---------------
+                    if (log.costMode == "itemized" && state.costLines.isNotEmpty()) {
+                        SectionDivider()
+                        DetailSection(title = "Cost Breakdown") {
+                            state.costLines.forEach { line ->
+                                CostLineDetailRow(line = line, currencyFormat = currencyFormat)
+                                if (line != state.costLines.last()) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(vertical = 4.dp),
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                    )
+                                }
+                            }
+                            if (state.totalCost > 0) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(vertical = 6.dp),
+                                    color = MaterialTheme.colorScheme.outlineVariant,
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                ) {
+                                    Text("Total", fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        text = currencyFormat.format(state.totalCost),
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // --------------- Parts Used card ---------------
                     if (state.partLines.isNotEmpty()) {
                         SectionDivider()
-                        DetailSection(title = "Parts") {
+                        DetailSection(title = "Parts Used") {
                             state.partLines.forEach { line ->
-                                CostLineRow(line = line, currencyFormat = currencyFormat)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(text = "🔩", style = MaterialTheme.typography.bodyMedium)
+                                    Spacer(Modifier.width(8.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = line.description ?: "Part",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                        )
+                                        Text(
+                                            text = "${line.quantity} × ${currencyFormat.format(line.unitCost)}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    Text(
+                                        text = currencyFormat.format(line.quantity * line.unitCost),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium,
+                                    )
+                                }
                             }
                         }
                     }
@@ -427,6 +513,73 @@ private fun CostLineRow(
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
         )
+    }
+}
+
+@Composable
+private fun CostLineDetailRow(
+    line: LogCostLineEntity,
+    currencyFormat: NumberFormat,
+    modifier: Modifier = Modifier,
+) {
+    val lineTotal = line.quantity * line.unitCost + (line.taxAmount ?: 0.0)
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Kind badge
+            val kindLabel = if (line.kind == "part") "PART" else "LABOR"
+            val badgeColor = if (line.kind == "part")
+                MaterialTheme.colorScheme.secondaryContainer
+            else
+                MaterialTheme.colorScheme.tertiaryContainer
+            val badgeTextColor = if (line.kind == "part")
+                MaterialTheme.colorScheme.onSecondaryContainer
+            else
+                MaterialTheme.colorScheme.onTertiaryContainer
+            Box(
+                modifier = Modifier
+                    .background(badgeColor, shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+            ) {
+                Text(
+                    text = kindLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = badgeTextColor,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = line.description ?: if (line.kind == "part") "Part" else "Labor",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = currencyFormat.format(lineTotal),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        Spacer(Modifier.height(2.dp))
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Spacer(Modifier.width(0.dp)) // indent align with text
+            Text(
+                text = "${line.quantity} × ${currencyFormat.format(line.unitCost)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            val tax = line.taxAmount
+            if (tax != null && tax > 0) {
+                Text(
+                    text = "Tax: ${currencyFormat.format(tax)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }
 
