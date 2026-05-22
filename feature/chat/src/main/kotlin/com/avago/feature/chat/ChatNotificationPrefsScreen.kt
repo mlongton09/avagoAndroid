@@ -67,11 +67,25 @@ class ChatNotificationPrefsViewModel @Inject constructor(
     }
 
     fun save(update: ChatPrefsRequest) {
+        val current = _prefs.value
+        _prefs.value = current.copy(
+            notification_sound = update.notification_sound ?: current.notification_sound,
+            show_previews = update.show_previews ?: current.show_previews,
+            badge_count = update.badge_count ?: current.badge_count,
+            mention_push_enabled = update.mention_push_enabled ?: current.mention_push_enabled,
+            broadcast_push_enabled = update.broadcast_push_enabled ?: current.broadcast_push_enabled,
+            wo_push_enabled = update.wo_push_enabled ?: current.wo_push_enabled,
+            team_room_push_enabled = update.team_room_push_enabled ?: current.team_room_push_enabled,
+            reaction_to_you_push_enabled = update.reaction_to_you_push_enabled ?: current.reaction_to_you_push_enabled,
+        )
         viewModelScope.launch {
             when (val r = serviceClient.updateChatPrefs(update)) {
-                is NetworkResult.Success -> _prefs.value = r.data
-                is NetworkResult.Error -> Timber.w("updateChatPrefs failed: ${r.message}")
-                is NetworkResult.Unauthorized -> Timber.w("updateChatPrefs unauthorized")
+                is NetworkResult.Success -> Unit
+                is NetworkResult.Error -> {
+                    Timber.w("updateChatPrefs failed: ${r.message}")
+                    _prefs.value = current
+                }
+                is NetworkResult.Unauthorized -> _prefs.value = current
             }
         }
     }

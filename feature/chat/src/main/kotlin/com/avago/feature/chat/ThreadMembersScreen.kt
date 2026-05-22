@@ -73,7 +73,7 @@ class ThreadMembersViewModel @Inject constructor(
             when (val result = serviceClient.getThreadMembers(threadId)) {
                 is NetworkResult.Success -> _members.value = result.data
                 is NetworkResult.Error -> {
-                    Timber.e(null, "ThreadMembersViewModel: load failed for threadId=$threadId: ${result.message}")
+                    Timber.w("ThreadMembersViewModel: load failed for threadId=$threadId: ${result.message}")
                     _error.value = result.message ?: "Failed to load members"
                 }
                 is NetworkResult.Unauthorized -> _error.value = "Unauthorized"
