@@ -80,6 +80,12 @@ data class LogEntity(
     @ColumnInfo(name = "config_version")
     val configVersion: Long?,
 
+    @ColumnInfo(name = "service_id")
+    val serviceId: String?,
+
+    @ColumnInfo(name = "cost_misc")
+    val costMisc: Double?,
+
     @ColumnInfo(name = "parent_id")
     val parentId: String?,
 

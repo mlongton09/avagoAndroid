@@ -9,6 +9,7 @@ import androidx.room.PrimaryKey
     tableName = "bins",
     indices = [
         Index(value = ["location_id"]),
+        Index(value = ["barcode"]),
     ]
 )
 data class BinEntity(
@@ -22,6 +23,12 @@ data class BinEntity(
     @ColumnInfo(name = "name")
     val name: String,
 
+    @ColumnInfo(name = "code")
+    val code: String?,
+
+    @ColumnInfo(name = "barcode")
+    val barcode: String?,
+
     @ColumnInfo(name = "aisle")
     val aisle: String?,
 
@@ -30,6 +37,9 @@ data class BinEntity(
 
     @ColumnInfo(name = "slot")
     val slot: String?,
+
+    @ColumnInfo(name = "active", defaultValue = "1")
+    val active: Boolean = true,
 
     @ColumnInfo(name = "created_at")
     val createdAt: Long,

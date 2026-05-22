@@ -5,6 +5,7 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.avago.core.data.db.converters.Converters
 import com.avago.core.data.db.dao.AccountRolePermissionsDao
+import com.avago.core.data.db.dao.AssetLocationHistoryDao
 import com.avago.core.data.db.dao.LabelTemplateDao
 import com.avago.core.data.db.dao.AssetDao
 import com.avago.core.data.db.dao.BinDao
@@ -13,10 +14,14 @@ import com.avago.core.data.db.dao.CycleCountDao
 import com.avago.core.data.db.dao.CycleCountLineDao
 import com.avago.core.data.db.dao.DeviceDao
 import com.avago.core.data.db.dao.DocDao
+import com.avago.core.data.db.dao.EventDao
+import com.avago.core.data.db.dao.GlAccountDao
 import com.avago.core.data.db.dao.GrnDao
 import com.avago.core.data.db.dao.GrnLineDao
 import com.avago.core.data.db.dao.InventoryDao
 import com.avago.core.data.db.dao.InventoryTransactionDao
+import com.avago.core.data.db.dao.ItemDao
+import com.avago.core.data.db.dao.JobDao
 import com.avago.core.data.db.dao.LocationDao
 import com.avago.core.data.db.dao.LogCostLineDao
 import com.avago.core.data.db.dao.LogDao
@@ -27,7 +32,9 @@ import com.avago.core.data.db.dao.PhotoDao
 import com.avago.core.data.db.dao.PoLineDao
 import com.avago.core.data.db.dao.PurchaseOrderDao
 import com.avago.core.data.db.dao.RolePermissionDefaultsDao
+import com.avago.core.data.db.dao.RoleLabelCacheDao
 import com.avago.core.data.db.dao.ScheduleDao
+import com.avago.core.data.db.dao.ServiceDao
 import com.avago.core.data.db.dao.StockingLevelDao
 import com.avago.core.data.db.dao.SyncMetadataDao
 import com.avago.core.data.db.dao.SyncQueueDao
@@ -41,6 +48,7 @@ import com.avago.core.data.db.dao.WoCommentDao
 import com.avago.core.data.db.dao.WoTemplateDao
 import com.avago.core.data.db.dao.WorkOrderDao
 import com.avago.core.data.db.entity.AccountRolePermissionsEntity
+import com.avago.core.data.db.entity.AssetLocationHistoryEntity
 import com.avago.core.data.db.entity.LabelTemplateEntity
 import com.avago.core.data.db.entity.AssetEntity
 import com.avago.core.data.db.entity.BinEntity
@@ -49,10 +57,14 @@ import com.avago.core.data.db.entity.CycleCountEntity
 import com.avago.core.data.db.entity.CycleCountLineEntity
 import com.avago.core.data.db.entity.DeviceEntity
 import com.avago.core.data.db.entity.DocEntity
+import com.avago.core.data.db.entity.EventEntity
+import com.avago.core.data.db.entity.GlAccountEntity
 import com.avago.core.data.db.entity.GrnEntity
 import com.avago.core.data.db.entity.GrnLineEntity
 import com.avago.core.data.db.entity.InventoryEntity
 import com.avago.core.data.db.entity.InventoryTransactionEntity
+import com.avago.core.data.db.entity.ItemEntity
+import com.avago.core.data.db.entity.JobEntity
 import com.avago.core.data.db.entity.LocationEntity
 import com.avago.core.data.db.entity.LogCostLineEntity
 import com.avago.core.data.db.entity.LogEntity
@@ -63,7 +75,9 @@ import com.avago.core.data.db.entity.PhotoEntity
 import com.avago.core.data.db.entity.PoLineEntity
 import com.avago.core.data.db.entity.PurchaseOrderEntity
 import com.avago.core.data.db.entity.RolePermissionDefaultsEntity
+import com.avago.core.data.db.entity.RoleLabelCacheEntity
 import com.avago.core.data.db.entity.ScheduleEntity
+import com.avago.core.data.db.entity.ServiceEntity
 import com.avago.core.data.db.entity.StockingLevelEntity
 import com.avago.core.data.db.entity.SyncMetadataEntity
 import com.avago.core.data.db.entity.SyncQueueEntity
@@ -115,8 +129,15 @@ import com.avago.core.data.db.entity.WorkOrderEntity
         RolePermissionDefaultsEntity::class,
         AccountRolePermissionsEntity::class,
         LabelTemplateEntity::class,
+        ItemEntity::class,
+        GlAccountEntity::class,
+        JobEntity::class,
+        ServiceEntity::class,
+        AssetLocationHistoryEntity::class,
+        RoleLabelCacheEntity::class,
+        EventEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -158,4 +179,11 @@ abstract class AvagoDatabase : RoomDatabase() {
     abstract fun rolePermissionDefaultsDao(): RolePermissionDefaultsDao
     abstract fun accountRolePermissionsDao(): AccountRolePermissionsDao
     abstract fun labelTemplateDao(): LabelTemplateDao
+    abstract fun itemDao(): ItemDao
+    abstract fun glAccountDao(): GlAccountDao
+    abstract fun jobDao(): JobDao
+    abstract fun serviceDao(): ServiceDao
+    abstract fun assetLocationHistoryDao(): AssetLocationHistoryDao
+    abstract fun roleLabelCacheDao(): RoleLabelCacheDao
+    abstract fun eventDao(): EventDao
 }

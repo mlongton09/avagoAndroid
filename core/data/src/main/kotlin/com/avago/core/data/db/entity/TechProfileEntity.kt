@@ -23,6 +23,9 @@ data class TechProfileEntity(
     @ColumnInfo(name = "user_id")
     val userId: String,
 
+    @ColumnInfo(name = "display_name")
+    val displayName: String?,
+
     @ColumnInfo(name = "skills")
     val skills: String?,
 
@@ -40,6 +43,15 @@ data class TechProfileEntity(
 
     @ColumnInfo(name = "speed_factor")
     val speedFactor: Double?,
+
+    @ColumnInfo(name = "max_active_wos")
+    val maxActiveWos: Int?,
+
+    @ColumnInfo(name = "is_available", defaultValue = "1")
+    val isAvailable: Boolean = true,
+
+    @ColumnInfo(name = "home_location_id")
+    val homeLocationId: String?,
 
     @ColumnInfo(name = "current_location_lat")
     val currentLocationLat: Double?,

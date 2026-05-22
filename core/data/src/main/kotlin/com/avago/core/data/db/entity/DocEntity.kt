@@ -8,8 +8,9 @@ import androidx.room.PrimaryKey
 @Entity(
     tableName = "docs",
     indices = [
-        Index(value = ["account_id", "deleted_at"]),
+        Index(value = ["account_id"]),
         Index(value = ["asset_id"]),
+        Index(value = ["entity_id", "entity_type"]),
     ]
 )
 data class DocEntity(
@@ -20,6 +21,12 @@ data class DocEntity(
     @ColumnInfo(name = "asset_id")
     val assetId: String?,
 
+    @ColumnInfo(name = "entity_id")
+    val entityId: String?,
+
+    @ColumnInfo(name = "entity_type")
+    val entityType: String?,
+
     @ColumnInfo(name = "account_id")
     val accountId: String,
 
@@ -27,7 +34,7 @@ data class DocEntity(
     val name: String,
 
     @ColumnInfo(name = "doc_type")
-    val docType: String,
+    val docType: String?,
 
     @ColumnInfo(name = "mime_type")
     val mimeType: String?,
@@ -37,6 +44,12 @@ data class DocEntity(
 
     @ColumnInfo(name = "download_url")
     val downloadUrl: String?,
+
+    @ColumnInfo(name = "file_hash")
+    val fileHash: String?,
+
+    @ColumnInfo(name = "file_size")
+    val fileSize: Long?,
 
     @ColumnInfo(name = "ocr_raw_text")
     val ocrRawText: String?,
@@ -55,6 +68,9 @@ data class DocEntity(
 
     @ColumnInfo(name = "purchase_date")
     val purchaseDate: Long?,
+
+    @ColumnInfo(name = "warranty_end_date")
+    val warrantyEndDate: Long?,
 
     @ColumnInfo(name = "uploaded_by")
     val uploadedBy: String?,

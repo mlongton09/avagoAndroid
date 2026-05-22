@@ -8,7 +8,8 @@ import androidx.room.PrimaryKey
 @Entity(
     tableName = "locations",
     indices = [
-        Index(value = ["account_id", "deleted_at"]),
+        Index(value = ["account_id"]),
+        Index(value = ["short_code"]),
     ]
 )
 data class LocationEntity(
@@ -21,6 +22,9 @@ data class LocationEntity(
 
     @ColumnInfo(name = "name")
     val name: String,
+
+    @ColumnInfo(name = "short_code")
+    val shortCode: String?,
 
     @ColumnInfo(name = "address")
     val address: String?,
@@ -42,6 +46,15 @@ data class LocationEntity(
 
     @ColumnInfo(name = "longitude")
     val longitude: Double?,
+
+    @ColumnInfo(name = "timezone")
+    val timezone: String?,
+
+    @ColumnInfo(name = "is_primary", defaultValue = "0")
+    val isPrimary: Boolean = false,
+
+    @ColumnInfo(name = "archived", defaultValue = "0")
+    val archived: Boolean = false,
 
     @ColumnInfo(name = "created_at")
     val createdAt: Long,
