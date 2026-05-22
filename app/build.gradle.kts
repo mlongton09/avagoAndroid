@@ -149,4 +149,5 @@ hilt {
 
 ksp {
     arg("dagger.hilt.android.internal.disableAndroidSuperclassValidation", "true")
+    arg("dagger.hilt.disableCrossCompilationRootValidation", "true")
 }
