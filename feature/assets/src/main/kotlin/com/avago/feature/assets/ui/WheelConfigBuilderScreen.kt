@@ -235,7 +235,7 @@ private fun AxleBuilderStep(
     onAxlesChanged: (List<AxleDef>) -> Unit,
     onReview: () -> Unit,
 ) {
-    val totalWheels: Int = axles.sumOf { if (it.tireType == TireType.DUAL) 4 else 2 }
+    val totalWheels = axles.map { if (it.tireType == TireType.DUAL) 4 else 2 }.sum()
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         // Cross-section visualization
