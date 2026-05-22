@@ -34,6 +34,7 @@ data class ScoutEntity(
  * [fields]       is a map of form-field key → pre-filled value.
  * [envelopeId]   lets the server correlate follow-up calls.
  * [message]      is an optional human-readable reply to show the user.
+ * [actionCard]   when present, the user must confirm before the skill executes.
  */
 @Serializable
 data class ScoutResponse(
@@ -41,4 +42,5 @@ data class ScoutResponse(
     val fields: Map<String, String?> = emptyMap(),
     val envelopeId: String,
     val message: String? = null,
+    val actionCard: ActionCard? = null,
 )

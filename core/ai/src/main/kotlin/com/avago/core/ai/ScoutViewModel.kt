@@ -2,6 +2,7 @@ package com.avago.core.ai
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.avago.core.network.model.AiSkillResponse
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,6 +38,19 @@ class ScoutViewModel @Inject constructor(
 
     private val _state = MutableStateFlow<ScoutState>(ScoutState.Idle)
     val state: StateFlow<ScoutState> = _state
+
+    private val _skills = MutableStateFlow<List<AiSkillResponse>>(emptyList())
+    val skills: StateFlow<List<AiSkillResponse>> = _skills
+
+    init {
+        loadSkills()
+    }
+
+    private fun loadSkills() {
+        viewModelScope.launch {
+            extractor.getSkills().onSuccess { _skills.value = it }
+        }
+    }
 
     /**
      * Dispatch a Scout query.  No-op while a request is already in

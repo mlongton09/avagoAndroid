@@ -119,6 +119,11 @@ data class ChatPrefsResponse(
     val notification_sound: Boolean = true,
     val show_previews: Boolean = true,
     val badge_count: Boolean = true,
+    val mention_push_enabled: Boolean = true,
+    val broadcast_push_enabled: Boolean = true,
+    val wo_push_enabled: Boolean = true,
+    val team_room_push_enabled: Boolean = true,
+    val reaction_to_you_push_enabled: Boolean = true,
 )
 
 @Serializable
@@ -126,6 +131,11 @@ data class ChatPrefsRequest(
     val notification_sound: Boolean? = null,
     val show_previews: Boolean? = null,
     val badge_count: Boolean? = null,
+    val mention_push_enabled: Boolean? = null,
+    val broadcast_push_enabled: Boolean? = null,
+    val wo_push_enabled: Boolean? = null,
+    val team_room_push_enabled: Boolean? = null,
+    val reaction_to_you_push_enabled: Boolean? = null,
 )
 
 @Serializable

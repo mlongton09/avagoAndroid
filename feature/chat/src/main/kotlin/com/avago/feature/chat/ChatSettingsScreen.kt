@@ -32,6 +32,7 @@ import kotlinx.coroutines.launch
 fun ChatSettingsScreen(
     threadId: String,
     onBack: () -> Unit,
+    onNotificationPrefs: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var muted by remember { mutableStateOf(false) }
@@ -72,8 +73,9 @@ fun ChatSettingsScreen(
 
             item {
                 ListItem(
-                    headlineContent = { Text("Notifications") },
-                    supportingContent = { Text("Push notifications are managed in system settings") },
+                    headlineContent = { Text("Notification Preferences") },
+                    supportingContent = { Text("Customize push notification types") },
+                    modifier = Modifier.clickable { onNotificationPrefs() },
                 )
             }
 

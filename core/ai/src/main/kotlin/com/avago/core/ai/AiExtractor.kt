@@ -4,6 +4,7 @@ import android.content.Context
 import com.avago.core.auth.SecureTokenStore
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
+import com.avago.core.network.model.AiSkillResponse
 import com.avago.core.network.model.ScoutEntityDto
 import dagger.hilt.android.qualifiers.ApplicationContext
 import timber.log.Timber
@@ -88,10 +89,37 @@ class AiExtractor @Inject constructor(
                     fields = r.data.fields,
                     envelopeId = r.data.envelope_id,
                     message = r.data.message,
+                    actionCard = r.data.action_card?.let { ac ->
+                        ActionCard(
+                            title = ac.title,
+                            summary = ac.summary,
+                            skillName = ac.skill_name,
+                            dangerous = ac.dangerous,
+                            expiresAt = ac.expires_at,
+                        )
+                    },
                 )
             )
             is NetworkResult.Error -> {
                 Timber.w("scoutQuery HTTP ${r.code}: ${r.message}")
+                Result.failure(Exception(r.message))
+            }
+            is NetworkResult.Unauthorized -> Result.failure(Exception("Unauthorized"))
+        }
+    }
+
+    /**
+     * Fetch the list of available AI skills for the active account.
+     *
+     * Routes to GET /accounts/:id/ai/skills.
+     */
+    suspend fun getSkills(): Result<List<AiSkillResponse>> {
+        val accountId = tokenStore.activeAccountId
+            ?: return Result.failure(IllegalStateException("No active account"))
+        return when (val r = serviceClient.getAiSkills(accountId)) {
+            is NetworkResult.Success -> Result.success(r.data)
+            is NetworkResult.Error -> {
+                Timber.w("getAiSkills HTTP ${r.code}: ${r.message}")
                 Result.failure(Exception(r.message))
             }
             is NetworkResult.Unauthorized -> Result.failure(Exception("Unauthorized"))

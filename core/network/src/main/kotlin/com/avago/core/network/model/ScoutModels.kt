@@ -23,11 +23,21 @@ data class ScoutEntityDto(
 )
 
 @Serializable
+data class AiActionCard(
+    val title: String,
+    val summary: String? = null,
+    val skill_name: String,
+    val dangerous: Boolean = false,
+    val expires_at: Long? = null,
+)
+
+@Serializable
 data class ScoutQueryResponse(
     val target_screen: String? = null,
     val fields: Map<String, String?> = emptyMap(),
     val envelope_id: String,
     val message: String? = null,
+    val action_card: AiActionCard? = null,
 )
 
 /** Wire model for GET /accounts/{accountId}/ai/skills */

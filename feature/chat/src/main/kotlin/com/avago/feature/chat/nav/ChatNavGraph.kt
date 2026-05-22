@@ -6,6 +6,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.avago.feature.chat.ChatListScreen
+import com.avago.feature.chat.ChatNotificationPrefsScreen
 import com.avago.feature.chat.ChatSettingsScreen
 import com.avago.feature.chat.MentionsScreen
 import com.avago.feature.chat.NewThreadScreen
@@ -27,6 +28,7 @@ sealed class ChatRoute(val route: String) {
     object ChatSettings : ChatRoute("chat/thread/{threadId}/settings") {
         fun createRoute(threadId: String) = "chat/thread/$threadId/settings"
     }
+    object ChatNotificationPrefs : ChatRoute("chat/notification-prefs")
     object MediaGallery : ChatRoute("chat/thread/{threadId}/media") {
         fun createRoute(threadId: String) = "chat/thread/$threadId/media"
     }
@@ -100,7 +102,15 @@ fun NavGraphBuilder.chatNavGraph(navController: NavHostController) {
         arguments = listOf(navArgument("threadId") { type = NavType.StringType }),
     ) { back ->
         val threadId = back.arguments?.getString("threadId") ?: return@composable
-        ChatSettingsScreen(threadId = threadId, onBack = { navController.popBackStack() })
+        ChatSettingsScreen(
+            threadId = threadId,
+            onBack = { navController.popBackStack() },
+            onNotificationPrefs = { navController.navigate(ChatRoute.ChatNotificationPrefs.route) },
+        )
+    }
+
+    composable(ChatRoute.ChatNotificationPrefs.route) {
+        ChatNotificationPrefsScreen(onBack = { navController.popBackStack() })
     }
 
     composable(
