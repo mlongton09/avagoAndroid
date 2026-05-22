@@ -26,29 +26,30 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
-import com.avago.core.data.db.dao.LocationDao
+import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.LocationEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
 @HiltViewModel
 class LocationPickerViewModel @Inject constructor(
-    private val locationDao: LocationDao,
+    private val dbFactory: DatabaseFactory,
     private val identity: IdentityManager,
 ) : ViewModel() {
 
-    val locations: StateFlow<List<LocationEntity>> = MutableStateFlow(
-        identity.getActiveAccountId() ?: ""
-    ).flatMapLatest { accountId ->
-        if (accountId.isBlank()) flowOf(emptyList())
-        else locationDao.observeAll(accountId)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val locations: StateFlow<List<LocationEntity>> = identity.activeAccountId
+        .flatMapLatest { accountId ->
+            if (accountId == null) flowOf(emptyList())
+            else flow { emitAll(dbFactory.get(accountId).locationDao().observeAll(accountId)) }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
