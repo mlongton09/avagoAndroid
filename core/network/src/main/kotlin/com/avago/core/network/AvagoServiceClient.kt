@@ -685,6 +685,25 @@ class AvagoServiceClient @Inject constructor(
         }
 
     /**
+     * POST /accounts/:accountId/ai/extract-doc — extract structured JSON from OCR text.
+     *
+     * @param accountId Active account.
+     * @param text      Raw OCR output.
+     * @param docType   Hint for the model (e.g. "receipt", "invoice", "warranty").
+     * @return          JSON string of extracted fields on success.
+     */
+    suspend fun extractDoc(
+        accountId: String,
+        text: String,
+        docType: String,
+    ): NetworkResult<String> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/ai/extract-doc") {
+                setBody(mapOf("text" to text, "doc_type" to docType))
+            }.body()
+        }
+
+    /**
      * POST /accounts/:accountId/ai/scout
      *
      * Sends a natural-language query together with a screen-context
