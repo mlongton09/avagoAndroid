@@ -48,4 +48,23 @@ interface ChatMessageDao {
             "WHERE outbox_status = 'failed' AND deleted_at IS NULL"
     )
     fun observeFailedOutbox(): Flow<List<ChatMessageEntity>>
+
+    /** Observe all replies to a specific parent message, ordered oldest-first. */
+    @Query(
+        "SELECT * FROM chat_messages " +
+            "WHERE thread_id = :threadId AND parent_message_id = :parentMessageId AND deleted_at IS NULL " +
+            "ORDER BY created_at ASC"
+    )
+    fun observeByThreadAndParent(threadId: String, parentMessageId: String): Flow<List<ChatMessageEntity>>
+
+    /** Observe the single pinned message for a thread (if any). */
+    @Query(
+        "SELECT * FROM chat_messages " +
+            "WHERE thread_id = :threadId AND is_pinned = 1 AND deleted_at IS NULL " +
+            "LIMIT 1"
+    )
+    fun observePinnedMessage(threadId: String): Flow<ChatMessageEntity?>
+
+    @Query("UPDATE chat_messages SET is_pinned = :pinned WHERE message_id = :messageId")
+    suspend fun updatePinned(messageId: String, pinned: Boolean)
 }

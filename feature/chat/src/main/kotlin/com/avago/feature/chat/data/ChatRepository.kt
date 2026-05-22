@@ -149,6 +149,70 @@ class ChatRepository @Inject constructor(
         }
     }
 
+    // ---------------------------------------------------------------------------
+    // Subthread replies
+    // ---------------------------------------------------------------------------
+
+    fun observeReplies(threadId: String, parentMessageId: String): Flow<List<ChatMessageEntity>> {
+        val accountId = identity.activeAccountId.value ?: return emptyFlow()
+        return chatDbFactory.get(accountId).chatMessageDao()
+            .observeByThreadAndParent(threadId, parentMessageId)
+    }
+
+    suspend fun syncReplies(threadId: String, parentMessageId: String) {
+        val accountId = identity.activeAccountId.value ?: return
+        when (val result = client.getReplies(threadId, parentMessageId)) {
+            is NetworkResult.Success -> {
+                val db = chatDbFactory.get(accountId)
+                db.chatMessageDao().upsertAll(result.data.messages.map { it.toEntity(accountId) })
+            }
+            is NetworkResult.Error -> Timber.w("syncReplies failed: ${result.message}")
+            is NetworkResult.Unauthorized -> Timber.w("syncReplies: unauthorized")
+        }
+    }
+
+    suspend fun sendReply(threadId: String, parentMessageId: String, body: String): Boolean {
+        val accountId = identity.activeAccountId.value ?: return false
+        return when (val result = client.sendReply(threadId, parentMessageId, body)) {
+            is NetworkResult.Success -> {
+                chatDbFactory.get(accountId).chatMessageDao().upsert(result.data.toEntity(accountId))
+                true
+            }
+            else -> false
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Pin / unpin
+    // ---------------------------------------------------------------------------
+
+    fun observePinnedMessage(threadId: String): Flow<ChatMessageEntity?> {
+        val accountId = identity.activeAccountId.value ?: return emptyFlow()
+        return chatDbFactory.get(accountId).chatMessageDao().observePinnedMessage(threadId)
+    }
+
+    suspend fun pinMessage(threadId: String, messageId: String): Boolean {
+        val accountId = identity.activeAccountId.value ?: return false
+        return when (client.pinMessage(threadId, messageId)) {
+            is NetworkResult.Success -> {
+                chatDbFactory.get(accountId).chatMessageDao().updatePinned(messageId, true)
+                true
+            }
+            else -> false
+        }
+    }
+
+    suspend fun unpinMessage(threadId: String, messageId: String): Boolean {
+        val accountId = identity.activeAccountId.value ?: return false
+        return when (client.unpinMessage(threadId, messageId)) {
+            is NetworkResult.Success -> {
+                chatDbFactory.get(accountId).chatMessageDao().updatePinned(messageId, false)
+                true
+            }
+            else -> false
+        }
+    }
+
     /** Upsert a message received via SSE (real-time). */
     suspend fun handleRealtimeMessage(msg: ChatMessageResponse) {
         val accountId = identity.activeAccountId.value ?: return
@@ -217,6 +281,8 @@ class ChatRepository @Inject constructor(
             deletedAt = null,
             createdAt = runCatching { java.time.Instant.parse(created_at).toEpochMilli() }.getOrDefault(now),
             updatedAt = runCatching { java.time.Instant.parse(updated_at).toEpochMilli() }.getOrDefault(now),
+            parentMessageId = parent_message_id,
+            isPinned = is_pinned,
         )
     }
 }

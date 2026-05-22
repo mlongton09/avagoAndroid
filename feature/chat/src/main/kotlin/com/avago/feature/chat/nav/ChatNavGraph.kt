@@ -8,6 +8,7 @@ import androidx.navigation.navArgument
 import com.avago.feature.chat.ChatListScreen
 import com.avago.feature.chat.ChatSettingsScreen
 import com.avago.feature.chat.NewThreadScreen
+import com.avago.feature.chat.SubthreadScreen
 import com.avago.feature.chat.ThreadMediaGalleryScreen
 import com.avago.feature.chat.ThreadMembersScreen
 import com.avago.feature.chat.ThreadScreen
@@ -26,6 +27,10 @@ sealed class ChatRoute(val route: String) {
     }
     object MediaGallery : ChatRoute("chat/thread/{threadId}/media") {
         fun createRoute(threadId: String) = "chat/thread/$threadId/media"
+    }
+    object Subthread : ChatRoute("chat/thread/{threadId}/reply/{messageId}") {
+        fun createRoute(threadId: String, messageId: String) =
+            "chat/thread/$threadId/reply/$messageId"
     }
 }
 
@@ -50,6 +55,9 @@ fun NavGraphBuilder.chatNavGraph(navController: NavHostController) {
             onMembers = { navController.navigate(ChatRoute.ThreadMembers.createRoute(threadId)) },
             onMedia = { navController.navigate(ChatRoute.MediaGallery.createRoute(threadId)) },
             onSettings = { navController.navigate(ChatRoute.ChatSettings.createRoute(threadId)) },
+            onOpenSubthread = { messageId ->
+                navController.navigate(ChatRoute.Subthread.createRoute(threadId, messageId))
+            },
         )
     }
 
@@ -87,6 +95,22 @@ fun NavGraphBuilder.chatNavGraph(navController: NavHostController) {
         val threadId = requireNotNull(back.arguments?.getString("threadId"))
         ThreadMediaGalleryScreen(
             threadId = threadId,
+            onBack = { navController.popBackStack() },
+        )
+    }
+
+    composable(
+        route = ChatRoute.Subthread.route,
+        arguments = listOf(
+            navArgument("threadId") { type = NavType.StringType },
+            navArgument("messageId") { type = NavType.StringType },
+        ),
+    ) { back ->
+        val threadId = requireNotNull(back.arguments?.getString("threadId"))
+        val messageId = requireNotNull(back.arguments?.getString("messageId"))
+        SubthreadScreen(
+            threadId = threadId,
+            messageId = messageId,
             onBack = { navController.popBackStack() },
         )
     }

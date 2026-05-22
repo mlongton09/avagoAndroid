@@ -13,6 +13,9 @@ interface PhotoDao {
     @Query("SELECT * FROM photos WHERE account_id = :accountId AND deleted_at IS NULL")
     fun observeAll(accountId: String): Flow<List<PhotoEntity>>
 
+    @Query("SELECT * FROM photos WHERE entity_id = :entityId AND entity_type = :entityType AND deleted_at IS NULL ORDER BY sort_order ASC")
+    fun observeByEntity(entityId: String, entityType: String): Flow<List<PhotoEntity>>
+
     @Query("SELECT * FROM photos WHERE photo_id = :id")
     suspend fun getById(id: String): PhotoEntity?
 

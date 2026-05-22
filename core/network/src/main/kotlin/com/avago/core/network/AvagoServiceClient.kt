@@ -423,6 +423,51 @@ class AvagoServiceClient @Inject constructor(
         }
 
     // ---------------------------------------------------------------------------
+    // Subthread replies
+    // ---------------------------------------------------------------------------
+
+    suspend fun getReplies(
+        threadId: String,
+        messageId: String,
+    ): NetworkResult<ChatMessagesResponse> =
+        safeNetworkCall {
+            client.get("$baseUrl/chat/threads/$threadId/messages/$messageId/replies").body()
+        }
+
+    suspend fun sendReply(
+        threadId: String,
+        messageId: String,
+        body: String,
+    ): NetworkResult<ChatMessageResponse> =
+        safeNetworkCall {
+            client.post("$baseUrl/chat/threads/$threadId/messages/$messageId/replies") {
+                setBody(SendMessageRequest(body = body))
+            }.body()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Pin / unpin
+    // ---------------------------------------------------------------------------
+
+    suspend fun pinMessage(threadId: String, messageId: String): NetworkResult<Unit> =
+        safeNetworkCall {
+            val response: HttpResponse =
+                client.post("$baseUrl/chat/threads/$threadId/messages/$messageId/pin")
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
+        }
+
+    suspend fun unpinMessage(threadId: String, messageId: String): NetworkResult<Unit> =
+        safeNetworkCall {
+            val response: HttpResponse =
+                client.delete("$baseUrl/chat/threads/$threadId/messages/$messageId/pin")
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
+        }
+
+    // ---------------------------------------------------------------------------
     // Internal helpers
     // ---------------------------------------------------------------------------
 

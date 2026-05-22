@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -42,14 +43,24 @@ class DispatchBoardViewModel @Inject constructor(
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
+    private val _bannerDismissed = MutableStateFlow(false)
+
     @OptIn(ExperimentalCoroutinesApi::class)
-    val columns: StateFlow<Map<WoStatus, List<WorkOrderEntity>>> =
+    private val allWos: StateFlow<List<WorkOrderEntity>> =
         identityManager.activeAccountId
             .flatMapLatest { accountId ->
                 if (accountId == null) flowOf(emptyList())
                 else repository.observeAll(accountId)
                     .catch { e -> Timber.e(e, "[DispatchBoardVM] flow error"); emit(emptyList()) }
             }
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5_000),
+                initialValue = emptyList(),
+            )
+
+    val columns: StateFlow<Map<WoStatus, List<WorkOrderEntity>>> =
+        allWos
             .map { wos ->
                 // Only active WOs on the board — exclude cancelled
                 val active = wos.filter { it.status != WoStatus.CANCELLED.key }
@@ -63,6 +74,43 @@ class DispatchBoardViewModel @Inject constructor(
                 started = SharingStarted.WhileSubscribed(5_000),
                 initialValue = DISPATCH_COLUMNS.associateWith { emptyList() },
             )
+
+    /**
+     * True when work is unevenly distributed: the technician with the most assigned
+     * open WOs has more than 2x the average load, and the banner has not been dismissed.
+     */
+    val showRebalanceBanner: StateFlow<Boolean> =
+        combine(allWos, _bannerDismissed) { wos, dismissed ->
+            if (dismissed) return@combine false
+            val activeWos = wos.filter {
+                it.status != WoStatus.CANCELLED.key &&
+                    it.status != WoStatus.COMPLETE.key &&
+                    !it.assignedTo.isNullOrBlank()
+            }
+            if (activeWos.size < 2) return@combine false
+            val countsByTech = activeWos.groupBy { it.assignedTo }.mapValues { it.value.size }
+            if (countsByTech.size < 2) return@combine false
+            val maxCount = countsByTech.values.max()
+            val avgCount = countsByTech.values.average()
+            maxCount > avgCount * 2.0
+        }
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5_000),
+                initialValue = false,
+            )
+
+    fun dismissBanner() {
+        _bannerDismissed.value = true
+    }
+
+    /**
+     * Stub: auto-rebalance is coming in a future release.
+     * Currently just dismisses the banner; a snackbar is shown from the UI.
+     */
+    fun rebalance() {
+        _bannerDismissed.value = true
+    }
 
     /**
      * Called when a card is dragged to a new column.

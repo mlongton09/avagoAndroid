@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Group
@@ -65,6 +66,7 @@ fun SettingsScreen(
     onNavigateToMembers: () -> Unit = {},
     onNavigateToLicenses: () -> Unit = {},
     onNavigateToInvite: () -> Unit = {},
+    onNavigateToDeveloper: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val theme by viewModel.theme.collectAsState()
@@ -291,6 +293,19 @@ fun SettingsScreen(
                 },
             )
         }
+        // ── Developer ─────────────────────────────────────────────────────────
+        item { SectionDivider() }
+        item {
+            SectionHeader(text = "Developer")
+        }
+        item {
+            NavigationRow(
+                label = "Developer Options",
+                leadingIcon = { Icon(Icons.Default.BugReport, contentDescription = null) },
+                onClick = onNavigateToDeveloper,
+            )
+        }
+
         item {
             Spacer(modifier = Modifier.height(24.dp))
         }

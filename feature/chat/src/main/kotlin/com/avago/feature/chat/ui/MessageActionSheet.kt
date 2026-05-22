@@ -28,7 +28,7 @@ private val QUICK_REACTIONS = listOf("👍", "❤️", "😂", "🎉", "🔥", "
 
 /**
  * Bottom sheet shown on long-press of a message bubble.
- * Offers: quick reaction row, Edit (own only), Delete (own only), Copy body.
+ * Offers: quick reaction row, Reply in thread, Pin/Unpin, Edit (own only), Delete (own only), Copy body.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,6 +39,9 @@ fun MessageActionSheet(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onReact: (String) -> Unit,
+    onReplyInThread: () -> Unit = {},
+    onPin: () -> Unit = {},
+    onUnpin: () -> Unit = {},
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val clipboardManager = LocalClipboardManager.current
@@ -69,6 +72,49 @@ fun MessageActionSheet(
                     ) {
                         Text(text = emoji, fontSize = androidx.compose.ui.unit.TextUnit(22f, androidx.compose.ui.unit.TextUnitType.Sp))
                     }
+                }
+            }
+
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Reply in thread
+            TextButton(
+                onClick = {
+                    onReplyInThread()
+                    onDismiss()
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp),
+            ) {
+                Text("Reply in thread")
+            }
+
+            // Pin / Unpin
+            if (message.isPinned) {
+                TextButton(
+                    onClick = {
+                        onUnpin()
+                        onDismiss()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp),
+                ) {
+                    Text("Unpin message")
+                }
+            } else {
+                TextButton(
+                    onClick = {
+                        onPin()
+                        onDismiss()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp),
+                ) {
+                    Text("Pin message")
                 }
             }
 

@@ -20,6 +20,8 @@ data class ChatMessageResponse(
     val server_version: Long = 0,
     val created_at: String,
     val updated_at: String,
+    val parent_message_id: String? = null,
+    val is_pinned: Boolean = false,
 )
 
 @Serializable

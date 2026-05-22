@@ -48,6 +48,7 @@ import com.avago.core.data.db.entity.ChatMessageEntity
 import com.avago.feature.chat.ui.MessageActionSheet
 import com.avago.feature.chat.ui.MessageBubble
 import com.avago.feature.chat.ui.MessageComposer
+import com.avago.feature.chat.ui.PinnedMessageBanner
 import com.avago.feature.chat.ui.SubjectSummaryCard
 import com.avago.feature.chat.ui.TypingIndicator
 import com.avago.feature.chat.ui.displayTitle
@@ -63,6 +64,7 @@ fun ThreadScreen(
     onMembers: () -> Unit,
     onMedia: () -> Unit,
     onSettings: () -> Unit,
+    onOpenSubthread: (messageId: String) -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: ThreadViewModel = hiltViewModel(),
 ) {
@@ -160,6 +162,20 @@ fun ThreadScreen(
                 // Subject summary card (WO / asset threads)
                 uiState.thread?.subjectSummary?.let { summaryJson ->
                     SubjectSummaryCard(subjectSummaryJson = summaryJson)
+                }
+
+                // Pinned message banner
+                uiState.pinnedMessage?.let { pinned ->
+                    PinnedMessageBanner(
+                        message = pinned,
+                        onTap = {
+                            val idx = uiState.messages.indexOfFirst { it.messageId == pinned.messageId }
+                            if (idx >= 0) {
+                                coroutineScope.launch { listState.animateScrollToItem(idx) }
+                            }
+                        },
+                        onDismiss = { viewModel.unpinMessage(pinned.messageId) },
+                    )
                 }
 
                 // Message list
@@ -262,6 +278,9 @@ fun ThreadScreen(
             onEdit = { viewModel.startEditing(msg) },
             onDelete = { viewModel.deleteMessage(msg.messageId) },
             onReact = { emoji -> viewModel.reactToMessage(msg.messageId, emoji) },
+            onReplyInThread = { onOpenSubthread(msg.messageId) },
+            onPin = { viewModel.pinMessage(msg.messageId) },
+            onUnpin = { viewModel.unpinMessage(msg.messageId) },
         )
     }
 }

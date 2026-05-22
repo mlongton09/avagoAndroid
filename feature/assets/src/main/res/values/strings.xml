@@ -80,4 +80,20 @@
     <string name="asset_picker_title">Select Asset</string>
     <string name="asset_picker_search_placeholder">Search assets…</string>
     <string name="asset_picker_empty">No assets found</string>
+
+    <!-- Asset Detail — Photos -->
+    <string name="asset_detail_photos">Photos</string>
+
+    <!-- Barcode Scanner -->
+    <string name="barcode_scanner_title">Scan Asset Barcode</string>
+    <string name="barcode_scanner_action_description">Scan barcode</string>
+    <string name="barcode_scanner_hint">Align the barcode or QR code within the frame</string>
+    <string name="barcode_scanner_permission_rationale">Camera access is required to scan barcodes</string>
+    <string name="barcode_scanner_grant_permission">Grant Camera Permission</string>
+    <string name="barcode_scanner_not_found">No asset found for this barcode</string>
+
+    <!-- Photo Gallery -->
+    <string name="gallery_no_photos">No photos available</string>
+    <string name="gallery_page_counter">%1$d / %2$d</string>
+    <string name="gallery_photo_content_description">Photo %1$d of %2$d</string>
 </resources>

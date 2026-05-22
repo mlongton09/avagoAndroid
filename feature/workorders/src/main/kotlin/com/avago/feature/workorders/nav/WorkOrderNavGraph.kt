@@ -9,6 +9,7 @@ import androidx.navigation.navArgument
 import com.avago.feature.workorders.WorkOrderListScreen
 import com.avago.feature.workorders.ui.AvailableJobsScreen
 import com.avago.feature.workorders.ui.DispatchBoardScreen
+import com.avago.feature.workorders.ui.TechProfileScreen
 import com.avago.feature.workorders.ui.WorkOrderCalendarScreen
 import com.avago.feature.workorders.ui.WorkOrderCreateScreen
 import com.avago.feature.workorders.ui.WorkOrderDetailScreen
@@ -24,11 +25,13 @@ object WorkOrderRoute {
     const val DISPATCH_BOARD = "workorders/dispatch_board"
     const val CALENDAR = "workorders/calendar"
     const val AVAILABLE_JOBS = "workorders/available_jobs"
+    const val TECH_PROFILE = "workorders/tech/{techId}"
 
     fun detail(woId: String) = "workorders/detail/$woId"
     fun createEdit(woId: String? = null) =
         if (woId != null) "workorders/create_edit?woId=$woId"
         else "workorders/create_edit?woId="
+    fun techProfile(techId: String) = "workorders/tech/$techId"
 }
 
 /**
@@ -69,6 +72,7 @@ fun NavGraphBuilder.workOrderNavGraph(
                 woId = woId,
                 onBack = { navController.popBackStack() },
                 onEdit = { id -> navController.navigate(WorkOrderRoute.createEdit(id)) },
+                onTechClick = { techId -> navController.navigate(WorkOrderRoute.techProfile(techId)) },
             )
         }
 
@@ -122,6 +126,21 @@ fun NavGraphBuilder.workOrderNavGraph(
         // ── Available Jobs ────────────────────────────────────────────────────
         composable(WorkOrderRoute.AVAILABLE_JOBS) {
             AvailableJobsScreen(
+                onBack = { navController.popBackStack() },
+                onWoClick = { woId ->
+                    navController.navigate(WorkOrderRoute.detail(woId))
+                },
+            )
+        }
+
+        // ── Tech Profile ──────────────────────────────────────────────────────
+        composable(
+            route = WorkOrderRoute.TECH_PROFILE,
+            arguments = listOf(navArgument("techId") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val techId = requireNotNull(backStackEntry.arguments?.getString("techId"))
+            TechProfileScreen(
+                techId = techId,
                 onBack = { navController.popBackStack() },
                 onWoClick = { woId ->
                     navController.navigate(WorkOrderRoute.detail(woId))

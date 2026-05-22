@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -61,6 +62,7 @@ import java.util.Locale
 fun AssetListScreen(
     onAssetClick: (assetId: String) -> Unit,
     onAddAsset: () -> Unit,
+    onScanBarcode: () -> Unit = {},
     viewModel: AssetListViewModel = hiltViewModel(),
 ) {
     val assets by viewModel.assets.collectAsStateWithLifecycle()
@@ -70,7 +72,17 @@ fun AssetListScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text(stringResource(R.string.assets_title)) })
+            TopAppBar(
+                title = { Text(stringResource(R.string.assets_title)) },
+                actions = {
+                    IconButton(onClick = onScanBarcode) {
+                        Icon(
+                            imageVector = Icons.Default.QrCodeScanner,
+                            contentDescription = stringResource(R.string.barcode_scanner_action_description),
+                        )
+                    }
+                },
+            )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = onAddAsset) {

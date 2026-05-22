@@ -4,8 +4,10 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
+import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.AssetEntity
 import com.avago.core.data.db.entity.LogEntity
+import com.avago.core.data.db.entity.PhotoEntity
 import com.avago.core.data.repository.AssetRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -35,6 +37,7 @@ data class LogsByYear(
 class AssetDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: AssetRepository,
+    private val dbFactory: DatabaseFactory,
     private val identityManager: IdentityManager,
 ) : ViewModel() {
 
@@ -183,6 +186,36 @@ class AssetDetailViewModel @Inject constructor(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = null,
+        )
+
+    /**
+     * Photos attached to this asset, ordered by sort_order ascending.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val photos: StateFlow<List<PhotoEntity>> = accountId
+        .flatMapLatest { acctId ->
+            if (acctId == null) flowOf(emptyList())
+            else {
+                try {
+                    dbFactory.get(acctId).photoDao().observeByEntity(assetId, "asset")
+                        .catch { e ->
+                            Timber.e(e, "[AssetDetailViewModel] Error loading photos for $assetId")
+                            emit(emptyList())
+                        }
+                } catch (e: Exception) {
+                    Timber.e(e, "[AssetDetailViewModel] Could not get photoDao for $acctId")
+                    flowOf(emptyList())
+                }
+            }
+        }
+        .catch { e ->
+            Timber.e(e, "[AssetDetailViewModel] Photos flow error")
+            emit(emptyList())
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList(),
         )
 
     fun onCategoryFilterChanged(category: String?) {

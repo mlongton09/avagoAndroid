@@ -1,5 +1,6 @@
 package com.avago.feature.assets.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,7 +14,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -43,13 +46,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil3.compose.AsyncImage
 import com.avago.core.data.db.entity.AssetEntity
 import com.avago.core.data.db.entity.LogEntity
+import com.avago.core.data.db.entity.PhotoEntity
 import com.avago.core.ui.EmptyState
 import com.avago.feature.assets.R
 import com.avago.feature.assets.model.AssetTypes
@@ -68,6 +76,7 @@ fun AssetDetailScreen(
     onEdit: () -> Unit,
     onAddLogEntry: () -> Unit,
     onLogEntryClick: (entryId: String) -> Unit,
+    onOpenPhotoGallery: (initialIndex: Int) -> Unit = {},
     viewModel: AssetDetailViewModel = hiltViewModel(),
 ) {
     val asset by viewModel.asset.collectAsStateWithLifecycle()
@@ -77,6 +86,7 @@ fun AssetDetailScreen(
     val latestMeterReading by viewModel.latestMeterReading.collectAsStateWithLifecycle()
     val availableCategories by viewModel.availableCategories.collectAsStateWithLifecycle()
     val categoryFilter by viewModel.categoryFilter.collectAsStateWithLifecycle()
+    val photos by viewModel.photos.collectAsStateWithLifecycle()
 
     var showOverflowMenu by remember { mutableStateOf(false) }
 
@@ -170,6 +180,25 @@ fun AssetDetailScreen(
                     showMeter = asset!!.meterType != null,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
+            }
+
+            // Photos strip
+            if (photos.isNotEmpty()) {
+                item(key = "photos_section_title") {
+                    Text(
+                        text = stringResource(R.string.asset_detail_photos),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
+                item(key = "photos_strip") {
+                    AssetPhotoStrip(
+                        photos = photos,
+                        onPhotoClick = { index -> onOpenPhotoGallery(index) },
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    )
+                }
             }
 
             // Category filter pills
@@ -418,6 +447,40 @@ private fun LogEntryRow(
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.SemiBold,
             )
+        }
+    }
+}
+
+@Composable
+private fun AssetPhotoStrip(
+    photos: List<PhotoEntity>,
+    onPhotoClick: (index: Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier,
+    ) {
+        itemsIndexed(photos) { index, photo ->
+            val url = photo.downloadUrl
+            Box(
+                modifier = Modifier
+                    .size(100.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable { onPhotoClick(index) },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (url != null) {
+                    AsyncImage(
+                        model = url,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
         }
     }
 }

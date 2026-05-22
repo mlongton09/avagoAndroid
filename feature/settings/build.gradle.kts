@@ -9,7 +9,11 @@ plugins {
 android {
     namespace = "com.avago.feature.settings"
     compileSdk = 35
-    defaultConfig { minSdk = 26 }
+    defaultConfig {
+        minSdk = 26
+        val baseUrl = project.findProperty("avago.base.url") as? String ?: "https://api.avagomate.com"
+        buildConfigField("String", "BASE_URL", "\"$baseUrl\"")
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
@@ -36,6 +40,7 @@ dependencies {
     implementation(libs.timber)
     implementation(project(":core:auth"))
     implementation(project(":core:data"))
+    implementation(project(":core:sync"))
     implementation(project(":core:design"))
     implementation(project(":core:push"))
     implementation(project(":core:ui"))

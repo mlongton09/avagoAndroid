@@ -29,6 +29,8 @@ data class ThreadUiState(
     val isTypingRemote: Boolean = false,
     /** If non-null, the composer is in edit mode for this message. */
     val editingMessage: ChatMessageEntity? = null,
+    /** The currently pinned message for this thread, if any. */
+    val pinnedMessage: ChatMessageEntity? = null,
 )
 
 @HiltViewModel
@@ -48,14 +50,19 @@ class ThreadViewModel @Inject constructor(
     private val _hasMore = MutableStateFlow(true)
     private val _isTypingRemote = MutableStateFlow(false)
     private val _editingMessage = MutableStateFlow<ChatMessageEntity?>(null)
+    private val _pinnedMessage = MutableStateFlow<ChatMessageEntity?>(null)
 
+    // combine supports vararg flows; the array overload handles 7 sources safely.
     val uiState: StateFlow<ThreadUiState> = combine(
-        _thread,
-        _messages,
-        _isLoadingMore,
-        _hasMore,
-        _editingMessage,
-        _isTypingRemote,
+        listOf(
+            _thread,
+            _messages,
+            _isLoadingMore,
+            _hasMore,
+            _editingMessage,
+            _isTypingRemote,
+            _pinnedMessage,
+        )
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         ThreadUiState(
@@ -66,6 +73,7 @@ class ThreadViewModel @Inject constructor(
             hasMore = values[3] as Boolean,
             editingMessage = values[4] as? ChatMessageEntity,
             isTypingRemote = values[5] as Boolean,
+            pinnedMessage = values[6] as? ChatMessageEntity,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -75,6 +83,7 @@ class ThreadViewModel @Inject constructor(
 
     init {
         observeMessages()
+        observePinnedMessage()
         viewModelScope.launch { repository.syncMessages(threadId) }
         connectRealtime()
         val accountId = identity.activeAccountId.value
@@ -86,6 +95,14 @@ class ThreadViewModel @Inject constructor(
             repository.observeMessages(threadId)
                 .catch { e -> Timber.e(e, "observeMessages error") }
                 .collect { _messages.value = it }
+        }
+    }
+
+    private fun observePinnedMessage() {
+        viewModelScope.launch {
+            repository.observePinnedMessage(threadId)
+                .catch { e -> Timber.e(e, "observePinnedMessage error") }
+                .collect { _pinnedMessage.value = it }
         }
     }
 
@@ -137,6 +154,18 @@ class ThreadViewModel @Inject constructor(
     fun reactToMessage(messageId: String, emoji: String) {
         viewModelScope.launch {
             repository.reactToMessage(threadId, messageId, emoji)
+        }
+    }
+
+    fun pinMessage(messageId: String) {
+        viewModelScope.launch {
+            repository.pinMessage(threadId, messageId)
+        }
+    }
+
+    fun unpinMessage(messageId: String) {
+        viewModelScope.launch {
+            repository.unpinMessage(threadId, messageId)
         }
     }
 

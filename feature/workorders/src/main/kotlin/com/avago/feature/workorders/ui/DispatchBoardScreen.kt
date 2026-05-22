@@ -20,6 +20,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -27,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,8 +45,10 @@ import com.avago.feature.workorders.R
 import com.avago.feature.workorders.model.WoStatus
 import com.avago.feature.workorders.model.statusColor
 import com.avago.feature.workorders.ui.components.WoCard
+import com.avago.feature.workorders.ui.components.WoRebalanceBanner
 import com.avago.feature.workorders.viewmodel.DISPATCH_COLUMNS
 import com.avago.feature.workorders.viewmodel.DispatchBoardViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,33 +59,55 @@ fun DispatchBoardScreen(
 ) {
     val columns by viewModel.columns.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+    val showRebalanceBanner by viewModel.showRebalanceBanner.collectAsStateWithLifecycle()
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         modifier = modifier,
         topBar = {
             TopAppBar(title = { Text(stringResource(R.string.dispatch_board_title)) })
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
-        PullToRefreshBox(
-            isRefreshing = isRefreshing,
-            onRefresh = viewModel::refresh,
+        Column(
             modifier = Modifier
                 .padding(innerPadding)
                 .fillMaxSize(),
         ) {
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            if (showRebalanceBanner) {
+                WoRebalanceBanner(
+                    onRebalance = {
+                        viewModel.rebalance()
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Auto-rebalance coming soon")
+                        }
+                    },
+                    onDismiss = viewModel::dismissBanner,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                )
+            }
+
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = viewModel::refresh,
                 modifier = Modifier.fillMaxSize(),
             ) {
-                items(DISPATCH_COLUMNS) { status ->
-                    val wos = columns[status] ?: emptyList()
-                    DispatchColumn(
-                        status = status,
-                        workOrders = wos,
-                        onWoClick = onWoClick,
-                        onDrop = { wo -> viewModel.moveToStatus(wo, status) },
-                    )
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    items(DISPATCH_COLUMNS) { status ->
+                        val wos = columns[status] ?: emptyList()
+                        DispatchColumn(
+                            status = status,
+                            workOrders = wos,
+                            onWoClick = onWoClick,
+                            onDrop = { wo -> viewModel.moveToStatus(wo, status) },
+                        )
+                    }
                 }
             }
         }

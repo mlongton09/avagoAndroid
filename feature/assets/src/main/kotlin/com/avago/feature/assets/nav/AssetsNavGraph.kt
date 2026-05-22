@@ -7,8 +7,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
 import androidx.navigation.navArgument
 import com.avago.feature.assets.ui.AddEditAssetScreen
+import com.avago.feature.assets.ui.AssetBarcodeScannerScreen
 import com.avago.feature.assets.ui.AssetDetailScreen
 import com.avago.feature.assets.ui.AssetListScreen
+import com.avago.feature.assets.ui.AssetPhotoGalleryScreen
 import com.avago.feature.assets.ui.AssetPickerScreen
 import com.avago.feature.assets.ui.AssetTypePickerScreen
 
@@ -22,10 +24,14 @@ object AssetsRoute {
     const val ADD_EDIT = "assets/add_edit?assetId={assetId}"
     const val TYPE_PICKER = "assets/type_picker"
     const val PICKER = "assets/picker"
+    const val BARCODE_SCANNER = "assets/barcode_scanner"
+    const val PHOTO_GALLERY = "assets/gallery/{assetId}?initialIndex={initialIndex}"
 
     fun detail(assetId: String) = "assets/detail/$assetId"
     fun addEdit(assetId: String? = null) =
         if (assetId != null) "assets/add_edit?assetId=$assetId" else "assets/add_edit?assetId="
+    fun photoGallery(assetId: String, initialIndex: Int = 0) =
+        "assets/gallery/$assetId?initialIndex=$initialIndex"
 }
 
 /**
@@ -54,6 +60,9 @@ fun NavGraphBuilder.assetsNavGraph(
                 onAddAsset = {
                     navController.navigate(AssetsRoute.addEdit())
                 },
+                onScanBarcode = {
+                    navController.navigate(AssetsRoute.BARCODE_SCANNER)
+                },
             )
         }
 
@@ -68,6 +77,9 @@ fun NavGraphBuilder.assetsNavGraph(
                 onEdit = { navController.navigate(AssetsRoute.addEdit(assetId)) },
                 onAddLogEntry = { onNavigateToAddLogEntry(assetId) },
                 onLogEntryClick = { entryId -> onNavigateToLogDetail(entryId) },
+                onOpenPhotoGallery = { index ->
+                    navController.navigate(AssetsRoute.photoGallery(assetId, index))
+                },
             )
         }
 
@@ -111,6 +123,34 @@ fun NavGraphBuilder.assetsNavGraph(
                     onAssetPicked(assetId)
                     navController.popBackStack()
                 },
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(AssetsRoute.BARCODE_SCANNER) {
+            AssetBarcodeScannerScreen(
+                onAssetFound = { assetId ->
+                    // Pop the scanner and navigate to the matched asset detail
+                    navController.popBackStack()
+                    navController.navigate(AssetsRoute.detail(assetId))
+                },
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            route = AssetsRoute.PHOTO_GALLERY,
+            arguments = listOf(
+                navArgument("assetId") { type = NavType.StringType },
+                navArgument("initialIndex") {
+                    type = NavType.IntType
+                    defaultValue = 0
+                },
+            ),
+        ) { backStackEntry ->
+            val initialIndex = backStackEntry.arguments?.getInt("initialIndex") ?: 0
+            AssetPhotoGalleryScreen(
+                initialIndex = initialIndex,
                 onBack = { navController.popBackStack() },
             )
         }

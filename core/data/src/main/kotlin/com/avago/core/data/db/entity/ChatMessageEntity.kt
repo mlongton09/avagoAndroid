@@ -25,4 +25,8 @@ data class ChatMessageEntity(
     @ColumnInfo(name = "deleted_at") val deletedAt: Long? = null,
     @ColumnInfo(name = "created_at") val createdAt: Long,
     @ColumnInfo(name = "updated_at") val updatedAt: Long,
+    /** Non-null when this message is a reply to another message in a subthread. */
+    @ColumnInfo(name = "parent_message_id") val parentMessageId: String? = null,
+    /** True when this message has been pinned to the top of its thread. */
+    @ColumnInfo(name = "is_pinned") val isPinned: Boolean = false,
 )

@@ -11,6 +11,23 @@
     <string name="wo_filter_fab_description">Filter work orders</string>
     <string name="wo_create_fab_description">Create work order</string>
     <string name="wo_empty">No work orders found</string>
+
+    <!-- Horizon filter chips -->
+    <string name="wo_horizon_all_time">All Time</string>
+    <string name="wo_horizon_this_week">This Week</string>
+    <string name="wo_horizon_this_month">This Month</string>
+
+    <!-- Bucket headers -->
+    <string name="wo_bucket_overdue">Overdue</string>
+    <string name="wo_bucket_due_today">Due Today</string>
+    <string name="wo_bucket_this_week">This Week</string>
+    <string name="wo_bucket_this_month">This Month</string>
+    <string name="wo_bucket_later">Later</string>
+    <string name="wo_bucket_no_due_date">No Due Date</string>
+    <string name="wo_bucket_completed">Completed</string>
+
+    <!-- Timer -->
+    <string name="wo_timer_running">Timer running</string>
     <string name="wo_due_date">Due %s</string>
     <string name="wo_overdue">Overdue</string>
     <string name="wo_no_due_date">No due date</string>

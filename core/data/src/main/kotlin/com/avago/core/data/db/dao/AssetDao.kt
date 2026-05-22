@@ -16,6 +16,9 @@ interface AssetDao {
     @Query("SELECT * FROM assets WHERE asset_id = :id")
     suspend fun getById(id: String): AssetEntity?
 
+    @Query("SELECT * FROM assets WHERE asset_id = :barcode LIMIT 1")
+    suspend fun getByBarcode(barcode: String): AssetEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: AssetEntity)
 

@@ -1,5 +1,6 @@
 package com.avago.feature.workorders.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -60,6 +61,7 @@ import com.avago.feature.workorders.model.summariseRrule
 import com.avago.feature.workorders.model.statusColor
 import com.avago.feature.workorders.ui.components.AssigneeAvatar
 import com.avago.feature.workorders.ui.components.WoStatusChip
+import com.avago.feature.workorders.ui.components.WoTimerView
 import com.avago.feature.workorders.ui.sheets.RepeatsSheet
 import com.avago.feature.workorders.ui.sheets.TechPickerSheet
 import com.avago.feature.workorders.viewmodel.WorkOrderDetailViewModel
@@ -76,6 +78,7 @@ fun WorkOrderDetailScreen(
     woId: String,
     onBack: () -> Unit,
     onEdit: (woId: String) -> Unit,
+    onTechClick: (techId: String) -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: WorkOrderDetailViewModel = hiltViewModel(),
 ) {
@@ -269,6 +272,10 @@ fun WorkOrderDetailScreen(
                 LabeledRow("Asset", currentWo.assetId ?: stringResource(R.string.wo_detail_no_asset))
                 LabeledRow("Priority", currentWo.priority?.replaceFirstChar { it.uppercase() } ?: "—")
                 LabeledRow("Due", currentWo.dueDate?.let { formatDate(it) } ?: "No due date")
+                if (currentWo.status == "in_progress" && currentWo.timerStartedAt != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    WoTimerView(startedAtMs = currentWo.timerStartedAt!!)
+                }
                 currentWo.estimatedEffortMinutes?.let { mins ->
                     LabeledRow("Est. Hours", String.format("%.1f h", mins / 60.0))
                 }
@@ -327,9 +334,14 @@ fun WorkOrderDetailScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         assignments.forEach { assignment ->
-                            AssigneeAvatar(initials = assignment.technicianId.take(2).uppercase())
+                            AssigneeAvatar(
+                                initials = assignment.technicianId.take(2).uppercase(),
+                                modifier = Modifier.clickable {
+                                    onTechClick(assignment.technicianId)
+                                },
+                            )
                         }
                     }
                 }

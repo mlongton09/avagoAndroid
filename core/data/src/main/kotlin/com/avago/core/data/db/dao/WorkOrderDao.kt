@@ -27,4 +27,7 @@ interface WorkOrderDao {
 
     @Query("UPDATE work_orders SET deleted_at = :now, updated_at = :now WHERE wo_id = :id")
     suspend fun softDelete(id: String, now: Long)
+
+    @Query("SELECT * FROM work_orders WHERE assigned_to = :techId AND deleted_at IS NULL ORDER BY due_date ASC")
+    fun observeByAssignee(techId: String): Flow<List<WorkOrderEntity>>
 }
