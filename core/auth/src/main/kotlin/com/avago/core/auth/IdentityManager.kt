@@ -134,8 +134,8 @@ class IdentityManager @Inject constructor(
                 ?: return false
             val token = suspendCancellableCoroutine<String?> { cont ->
                 firebaseUser.getIdToken(true)
-                    .addOnSuccessListener { result -> cont.resume(result.token) }
-                    .addOnFailureListener { cont.resume(null) }
+                    .addOnSuccessListener { result -> cont.resume(result.token, onCancellation = null) }
+                    .addOnFailureListener { cont.resume(null, onCancellation = null) }
             } ?: return false
             signInWithFirebase(appContext, token)
             true
