@@ -32,12 +32,12 @@ class AddEditScheduleViewModel @Inject constructor(
 ) : ViewModel() {
 
     /** Non-null when editing an existing schedule. */
-    private val scheduleId: String? = savedStateHandle["scheduleId"]
-        ?.takeIf { (it as String).isNotBlank() }
+    private val scheduleId: String? = savedStateHandle.get<String>("scheduleId")
+        ?.takeIf { it.isNotBlank() }
 
     /** Pre-selected asset when navigating from an asset screen. */
-    private val initialAssetId: String? = savedStateHandle["assetId"]
-        ?.takeIf { (it as String).isNotBlank() }
+    private val initialAssetId: String? = savedStateHandle.get<String>("assetId")
+        ?.takeIf { it.isNotBlank() }
 
     // -------------------------------------------------------------------------
     // Form state
