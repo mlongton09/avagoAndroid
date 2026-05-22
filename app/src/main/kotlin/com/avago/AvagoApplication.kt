@@ -20,6 +20,7 @@ import com.avago.core.data.ExchangeRateService
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.seed.ConfigSeeder
 import com.avago.core.sync.ConnectivityMonitor
+import com.avago.core.sync.DeltaPushApplier
 import com.avago.core.sync.PhotoCacheSweeper
 import com.avago.core.sync.SyncEngine
 import com.avago.core.sync.SyncGate
@@ -53,6 +54,7 @@ class AvagoApplication : Application(), Configuration.Provider {
     @Inject lateinit var techLocationService: TechLocationService
     @Inject lateinit var outboxRetryCoordinator: OutboxRetryCoordinator
     @Inject lateinit var photoCacheSweeper: PhotoCacheSweeper
+    @Inject lateinit var deltaApplier: DeltaPushApplier
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -87,6 +89,18 @@ class AvagoApplication : Application(), Configuration.Provider {
                 exchangeRateService.refreshIfNeeded()
             } catch (e: Exception) {
                 Timber.e(e, "AvagoApplication: exchange rate refresh failed")
+            }
+        }
+
+        appScope.launch {
+            while (true) {
+                delay(5 * 60 * 1000L)
+                val accountId = identityManager.getActiveAccountId() ?: continue
+                try {
+                    deltaApplier.flushMetrics(accountId)
+                } catch (e: Exception) {
+                    Timber.e(e, "AvagoApplication: periodic metrics flush failed")
+                }
             }
         }
 
@@ -200,6 +214,14 @@ class AvagoApplication : Application(), Configuration.Provider {
                 Timber.d("AvagoApplication: app backgrounded")
                 techLocationService.stopMonitoring()
                 outboxRetryCoordinator.stopPeriodicFlush()
+                appScope.launch {
+                    val accountId = identityManager.getActiveAccountId() ?: return@launch
+                    try {
+                        deltaApplier.flushMetrics(accountId)
+                    } catch (e: Exception) {
+                        Timber.e(e, "AvagoApplication: onStop metrics flush failed")
+                    }
+                }
             }
         })
     }

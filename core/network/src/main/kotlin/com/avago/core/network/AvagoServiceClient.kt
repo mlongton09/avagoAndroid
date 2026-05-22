@@ -1,8 +1,12 @@
 package com.avago.core.network
 
 import com.avago.core.network.model.AccountResponse
+import com.avago.core.network.model.AiSkillResponse
 import com.avago.core.network.model.AuthResponse
+import com.avago.core.network.model.CreateRentalRequest
+import com.avago.core.network.model.DocOcrResponse
 import com.avago.core.network.model.PhotoUploadUrlResponse
+import com.avago.core.network.model.RentalResponse
 import com.avago.core.network.model.UserPreferencesResponse
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -49,6 +53,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.ByteArrayContent
 import io.ktor.http.isSuccess
+import kotlinx.serialization.json.JsonObject
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Named
@@ -346,27 +351,60 @@ class AvagoServiceClient @Inject constructor(
         }
 
     // ---------------------------------------------------------------------------
-    // AI / Extraction
+    // AI / Scout
     // ---------------------------------------------------------------------------
 
     /**
-     * POST /accounts/:accountId/ai/extract
+     * POST /ai/warmup — pre-warm the AI inference pipeline.
      *
-     * Sends raw OCR text and a document-type hint to the server-side AI extraction
-     * pipeline.  Returns a JSON string of structured fields on success.
-     *
-     * @param accountId The active account.
-     * @param text      Raw OCR text obtained from the document pages.
-     * @param docType   Hint for the extraction model (e.g. "receipt", "warranty").
+     * Call on app launch (after sign-in) to reduce latency on the first Scout query.
      */
-    suspend fun extractDoc(
-        accountId: String,
-        text: String,
-        docType: String,
+    suspend fun aiWarmup(): NetworkResult<Unit> =
+        safeNetworkCall {
+            val response: HttpResponse = client.post("$baseUrl/ai/warmup")
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
+        }
+
+    /**
+     * GET /accounts/{accountId}/ai/skills — list the Scout skills available for an account.
+     */
+    suspend fun getAiSkills(accountId: String): NetworkResult<List<AiSkillResponse>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/ai/skills").body()
+        }
+
+    /**
+     * POST /ai/extract — Scout AI form-fill from voice/text input.
+     *
+     * Sends a transcript and screen context to the AI pipeline; returns structured
+     * entity field values to pre-populate a form.
+     *
+     * @param transcript      Free-text or transcribed voice input.
+     * @param screenContext   Serialized snapshot of the currently visible screen/form.
+     * @param skillHint       Optional skill ID to bias extraction toward a specific skill.
+     * @param threadId        Optional chat thread ID for conversational context.
+     * @param idempotencyKey  Optional client-generated key for deduplication.
+     */
+    suspend fun aiExtract(
+        transcript: String,
+        screenContext: String,
+        skillHint: String? = null,
+        threadId: String? = null,
+        idempotencyKey: String? = null,
     ): NetworkResult<String> =
         safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/ai/extract") {
-                setBody(mapOf("text" to text, "doc_type" to docType))
+            client.post("$baseUrl/ai/extract") {
+                setBody(
+                    buildMap<String, String?> {
+                        put("transcript", transcript)
+                        put("screen_context", screenContext)
+                        skillHint?.let { put("skill_hint", it) }
+                        threadId?.let { put("thread_id", it) }
+                        idempotencyKey?.let { put("idempotency_key", it) }
+                    }.filterValues { it != null }
+                )
             }.body()
         }
 
@@ -378,8 +416,8 @@ class AvagoServiceClient @Inject constructor(
      * [ScoutQueryResponse] that tells the client which screen to open
      * and which form fields to pre-fill.
      *
-     * @param accountId    The active account.
-     * @param query        Free-text or transcribed voice input.
+     * @param accountId      The active account.
+     * @param query          Free-text or transcribed voice input.
      * @param recentEntities MRU list of entities the user recently viewed.
      * @param currentScreen  Nav route of the currently visible screen.
      */
@@ -399,6 +437,111 @@ class AvagoServiceClient @Inject constructor(
                     )
                 )
             }.body()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Doc OCR
+    // ---------------------------------------------------------------------------
+
+    /**
+     * POST /accounts/{accountId}/docs/ocr-extract — extract structured fields from OCR text.
+     *
+     * Distinct from the Scout AI `/ai/extract` endpoint. This pipeline is optimised
+     * for document parsing (receipts, warranties, invoices) and returns typed fields
+     * such as vendor, total, and line items.
+     *
+     * @param accountId    The active account.
+     * @param ocrRawText   Raw OCR text extracted from the scanned document pages.
+     * @param documentType Document category hint (e.g. "receipt", "warranty", "invoice").
+     * @param assetId      Optional asset to associate the extracted document with.
+     * @param locale       BCP-47 locale of the source document (default "en").
+     */
+    suspend fun extractDocOcr(
+        accountId: String,
+        ocrRawText: String,
+        documentType: String,
+        assetId: String? = null,
+        locale: String = "en",
+    ): NetworkResult<DocOcrResponse> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/docs/ocr-extract") {
+                setBody(
+                    buildMap<String, String?> {
+                        put("ocr_raw_text", ocrRawText)
+                        put("document_type", documentType)
+                        assetId?.let { put("asset_id", it) }
+                        put("locale", locale)
+                    }.filterValues { it != null }
+                )
+            }.body()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Client Metrics
+    // ---------------------------------------------------------------------------
+
+    /**
+     * POST /metrics/client — flush client-side telemetry counters to the server.
+     *
+     * @param metrics A [JsonObject] whose keys are metric names and whose values
+     *                are Long counts (serialized as JSON numbers).
+     */
+    suspend fun postClientMetrics(metrics: JsonObject): NetworkResult<Unit> =
+        safeNetworkCall {
+            val response: HttpResponse = client.post("$baseUrl/metrics/client") {
+                setBody(metrics)
+            }
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
+        }
+
+    // ---------------------------------------------------------------------------
+    // Rentals
+    // ---------------------------------------------------------------------------
+
+    /**
+     * POST /accounts/{accountId}/rentals — create a new rental for an asset.
+     */
+    suspend fun createRental(
+        accountId: String,
+        request: CreateRentalRequest,
+    ): NetworkResult<RentalResponse> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/rentals") {
+                setBody(request)
+            }.body()
+        }
+
+    /**
+     * GET /accounts/{accountId}/assets/{assetId}/rentals — list rentals for an asset.
+     */
+    suspend fun getRentalsForAsset(
+        accountId: String,
+        assetId: String,
+    ): NetworkResult<List<RentalResponse>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/assets/$assetId/rentals").body()
+        }
+
+    /**
+     * POST /accounts/{accountId}/rentals/{rentalId}/end — end an active rental.
+     *
+     * @param endAt ISO-8601 timestamp of when the rental ended.
+     */
+    suspend fun endRental(
+        accountId: String,
+        rentalId: String,
+        endAt: String,
+    ): NetworkResult<Unit> =
+        safeNetworkCall {
+            val response: HttpResponse =
+                client.post("$baseUrl/accounts/$accountId/rentals/$rentalId/end") {
+                    setBody(mapOf("end_at" to endAt))
+                }
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
         }
 
     // ---------------------------------------------------------------------------
