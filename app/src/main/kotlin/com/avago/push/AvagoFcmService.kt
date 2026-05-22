@@ -29,7 +29,6 @@ import javax.inject.Inject
 class AvagoFcmService : FirebaseMessagingService() {
 
     @Inject lateinit var identity: IdentityManager
-    @Inject lateinit var workManager: WorkManager
 
     // Service-scoped coroutine scope; cancelled in onDestroy.
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -72,7 +71,7 @@ class AvagoFcmService : FirebaseMessagingService() {
         val request = OneTimeWorkRequestBuilder<SyncWorker>()
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .build()
-        workManager.enqueueUniqueWork("sync-nudge", ExistingWorkPolicy.KEEP, request)
+        WorkManager.getInstance(this).enqueueUniqueWork("sync-nudge", ExistingWorkPolicy.KEEP, request)
         Timber.d("FCM: enqueued sync-nudge work")
     }
 
