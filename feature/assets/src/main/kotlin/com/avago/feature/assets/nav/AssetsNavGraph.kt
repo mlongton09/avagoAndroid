@@ -28,6 +28,7 @@ import com.avago.feature.assets.ui.ColorPickerScreen
 import com.avago.feature.assets.ui.DocScanPipelineScreen
 import com.avago.feature.assets.ui.DocTypePickerScreen
 import com.avago.feature.assets.ui.AssetRentalsScreen
+import com.avago.feature.assets.ui.WheelConfigBuilderScreen
 import com.avago.feature.assets.ui.WheelConfigScreen
 import com.avago.feature.assets.ui.WheelDataInputScreen
 
@@ -51,6 +52,7 @@ object AssetsRoute {
     const val NOTES_FULL_SCREEN = "assets/notes?entityId={entityId}&entityType={entityType}&initialText={initialText}"
     const val COLOR_PICKER = "assets/color_picker?currentColor={currentColor}"
     const val WHEEL_CONFIG = "assets/wheel_config/{assetId}"
+    const val WHEEL_CONFIG_BUILDER = "assets/wheel_config_builder/{assetId}"
     const val WHEEL_DATA_INPUT = "assets/wheel_data_input/{assetId}"
     const val RENTALS = "assets/rentals/{assetId}"
     const val ONBOARDING = "assets/onboarding"
@@ -71,6 +73,7 @@ object AssetsRoute {
     fun colorPicker(currentColor: String?) =
         "assets/color_picker?currentColor=${Uri.encode(currentColor ?: "")}"
     fun wheelConfig(assetId: String) = "assets/wheel_config/$assetId"
+    fun wheelConfigBuilder(assetId: String) = "assets/wheel_config_builder/$assetId"
     fun wheelDataInput(assetId: String) = "assets/wheel_data_input/$assetId"
 }
 
@@ -148,7 +151,7 @@ fun NavGraphBuilder.assetsNavGraph(
                     navController.navigate(AssetsRoute.notesFullScreen(assetId, "asset", initialText))
                 },
                 onOpenWheelConfig = {
-                    navController.navigate(AssetsRoute.wheelConfig(assetId))
+                    navController.navigate(AssetsRoute.wheelConfigBuilder(assetId))
                 },
                 onOpenWheelDataInput = {
                     navController.navigate(AssetsRoute.wheelDataInput(assetId))
@@ -362,6 +365,18 @@ fun NavGraphBuilder.assetsNavGraph(
         ) {
             WheelConfigScreen(
                 onSave = { _, _, _, _, _ -> navController.popBackStack() },
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            route = AssetsRoute.WHEEL_CONFIG_BUILDER,
+            arguments = listOf(navArgument("assetId") { type = NavType.StringType }),
+        ) { back ->
+            val assetId = requireNotNull(back.arguments?.getString("assetId"))
+            WheelConfigBuilderScreen(
+                assetId = assetId,
+                onSave = { navController.popBackStack() },
                 onBack = { navController.popBackStack() },
             )
         }

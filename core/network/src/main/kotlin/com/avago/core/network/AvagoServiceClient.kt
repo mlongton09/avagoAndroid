@@ -327,6 +327,22 @@ class AvagoServiceClient @Inject constructor(
         }
     }
 
+    suspend fun receivePurchaseOrder(
+        accountId: String,
+        poId: String,
+        lines: List<Map<String, Any>>,
+    ) {
+        safeCall<Unit> {
+            val response: HttpResponse =
+                client.post("$baseUrl/accounts/$accountId/purchase-orders/$poId/receive") {
+                    setBody(mapOf("lines" to lines))
+                }
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
+        }
+    }
+
     // ---------------------------------------------------------------------------
     // GRN
     // ---------------------------------------------------------------------------

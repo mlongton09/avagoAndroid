@@ -1,12 +1,20 @@
 package com.avago.core.ui
 
+import android.app.Activity
+import android.content.Intent
+import android.speech.RecognizerIntent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,12 +24,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -47,8 +56,15 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
+private val SUGGESTION_CHIPS = listOf(
+    "What's the maintenance history for this asset?",
+    "Create a work order for this equipment",
+    "What parts do I need for this repair?",
+    "Show me overdue work orders",
+)
+
 data class ScoutMessage(
-    val role: String, // "user" | "assistant"
+    val role: String, // "user" | "assistant" | "error"
     val content: String,
 )
 
@@ -84,7 +100,7 @@ fun ScoutFAB(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ScoutSheet(
     onQuery: suspend (String) -> String,
@@ -97,6 +113,37 @@ fun ScoutSheet(
     var messages by remember { mutableStateOf(listOf<ScoutMessage>()) }
     var fieldValue by remember { mutableStateOf(TextFieldValue("")) }
     var isLoading by remember { mutableStateOf(false) }
+
+    // Voice recognition launcher
+    val speechLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val results = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            val transcript = results?.firstOrNull()?.trim() ?: return@rememberLauncherForActivityResult
+            fieldValue = TextFieldValue(transcript)
+        }
+    }
+
+    val sendMessage: (String) -> Unit = remember {
+        { query: String ->
+            if (query.isNotBlank() && !isLoading) {
+                fieldValue = TextFieldValue("")
+                messages = messages + ScoutMessage("user", query)
+                isLoading = true
+                coroutineScope.launch {
+                    try {
+                        val reply = onQuery(query)
+                        messages = messages + ScoutMessage("assistant", reply)
+                    } catch (e: Exception) {
+                        messages = messages + ScoutMessage("error", "Sorry, I couldn't process that request.")
+                    } finally {
+                        isLoading = false
+                    }
+                }
+            }
+        }
+    }
 
     // Scroll to bottom when messages change
     LaunchedEffect(messages.size) {
@@ -136,7 +183,7 @@ fun ScoutSheet(
                 }
             }
 
-            // Message list
+            // Message list or empty state with suggestion chips
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -147,12 +194,25 @@ fun ScoutSheet(
             ) {
                 if (messages.isEmpty()) {
                     item {
-                        Text(
-                            text = "Ask me anything about your assets, maintenance history, or work orders.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                            modifier = Modifier.padding(vertical = 24.dp),
-                        )
+                        Column(modifier = Modifier.padding(vertical = 16.dp)) {
+                            Text(
+                                text = "Ask me anything about your assets, maintenance history, or work orders.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                SUGGESTION_CHIPS.forEach { suggestion ->
+                                    AssistChip(
+                                        onClick = { sendMessage(suggestion) },
+                                        label = { Text(suggestion, style = MaterialTheme.typography.labelSmall) },
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
                 items(messages) { msg ->
@@ -178,13 +238,33 @@ fun ScoutSheet(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Input row
+            // Input row with voice button
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                // Mic button
+                IconButton(
+                    onClick = {
+                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                            putExtra(RecognizerIntent.EXTRA_PROMPT, "Ask Scout…")
+                        }
+                        speechLauncher.launch(intent)
+                    },
+                    enabled = !isLoading,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Mic,
+                        contentDescription = "Voice input",
+                        tint = if (!isLoading) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                    )
+                }
+
+                // Text field
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -211,24 +291,10 @@ fun ScoutSheet(
                     )
                 }
                 Spacer(modifier = Modifier.size(8.dp))
+
+                // Send button
                 IconButton(
-                    onClick = {
-                        val query = fieldValue.text.trim()
-                        if (query.isEmpty() || isLoading) return@IconButton
-                        fieldValue = TextFieldValue("")
-                        messages = messages + ScoutMessage("user", query)
-                        isLoading = true
-                        coroutineScope.launch {
-                            try {
-                                val reply = onQuery(query)
-                                messages = messages + ScoutMessage("assistant", reply)
-                            } catch (e: Exception) {
-                                messages = messages + ScoutMessage("assistant", "Sorry, I couldn't process that request.")
-                            } finally {
-                                isLoading = false
-                            }
-                        }
-                    },
+                    onClick = { sendMessage(fieldValue.text.trim()) },
                     enabled = fieldValue.text.isNotBlank() && !isLoading,
                 ) {
                     Icon(
@@ -248,19 +314,28 @@ fun ScoutSheet(
 @Composable
 private fun ScoutMessageBubble(msg: ScoutMessage) {
     val isUser = msg.role == "user"
+    val isError = msg.role == "error"
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
     ) {
         Surface(
             shape = MaterialTheme.shapes.large,
-            color = if (isUser) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+            color = when {
+                isUser -> MaterialTheme.colorScheme.primary
+                isError -> MaterialTheme.colorScheme.errorContainer
+                else -> MaterialTheme.colorScheme.surfaceVariant
+            },
             modifier = Modifier.padding(vertical = 2.dp),
         ) {
             Text(
                 text = msg.content,
                 style = MaterialTheme.typography.bodyMedium,
-                color = if (isUser) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                color = when {
+                    isUser -> MaterialTheme.colorScheme.onPrimary
+                    isError -> MaterialTheme.colorScheme.onErrorContainer
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                },
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             )
         }
