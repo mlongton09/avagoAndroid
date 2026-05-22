@@ -213,6 +213,14 @@
     <string name="cycle_count_submit">Create</string>
     <string name="cycle_count_submitting">Creating…</string>
 
+    <!-- Cycle count floor scan -->
+    <string name="cycle_count_floor_title">Floor Count</string>
+    <string name="cycle_count_floor_scan_hint">Point camera at barcode</string>
+    <string name="cycle_count_floor_last_scanned">Last scanned:</string>
+    <string name="cycle_count_floor_done">Done</string>
+    <string name="cycle_count_floor_not_found">Barcode not found: %s</string>
+    <string name="cycle_count_floor_fab">Floor scan</string>
+
     <!-- Label Scanner -->
     <string name="label_scanner_title">Scan Part Barcode</string>
     <string name="label_scanner_hint">Align the barcode within the frame</string>

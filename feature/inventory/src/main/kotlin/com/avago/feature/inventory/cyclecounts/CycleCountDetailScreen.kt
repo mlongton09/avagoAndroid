@@ -13,10 +13,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -42,6 +44,7 @@ import com.avago.feature.inventory.R
 fun CycleCountDetailScreen(
     countId: String,
     onBack: () -> Unit,
+    onFloorScan: () -> Unit = {},
     viewModel: CycleCountDetailViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -58,6 +61,20 @@ fun CycleCountDetailScreen(
                     }
                 },
             )
+        },
+        floatingActionButton = {
+            if (state.count?.status == "in_progress") {
+                ExtendedFloatingActionButton(
+                    onClick = onFloorScan,
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.QrCodeScanner,
+                            contentDescription = null,
+                        )
+                    },
+                    text = { Text(stringResource(R.string.cycle_count_floor_fab)) },
+                )
+            }
         },
     ) { padding ->
         val count = state.count

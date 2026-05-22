@@ -20,6 +20,9 @@ interface ConfigDao {
     @Query("SELECT * FROM configs WHERE scope = :scope AND key = :key LIMIT 1")
     suspend fun getByKey(scope: String, key: String): ConfigEntity?
 
+    @Query("SELECT * FROM configs WHERE scope = :scope AND key = :key LIMIT 1")
+    fun observeByKey(scope: String, key: String): Flow<ConfigEntity?>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: ConfigEntity)
 

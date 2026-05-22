@@ -35,11 +35,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -73,7 +69,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
-import com.avago.feature.log.model.parseInspectionFields
+import com.avago.core.ui.CategoryItem
+import com.avago.core.ui.GlobalCategoryPickerScreen
 import com.avago.feature.log.viewmodel.AddEditLogViewModel
 import com.avago.feature.log.viewmodel.CostMode
 import kotlinx.coroutines.launch
@@ -149,6 +146,9 @@ fun AddEditLogScreen(
     val costSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showCostSheet by remember { mutableStateOf(false) }
 
+    // Category picker state
+    var showCategoryPicker by remember { mutableStateOf(false) }
+
     // Date picker state
     var showDatePicker by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = form.entryDate)
@@ -170,6 +170,18 @@ fun AddEditLogScreen(
         ) {
             DatePicker(state = datePickerState)
         }
+    }
+
+    // Global category picker bottom sheet
+    if (showCategoryPicker) {
+        GlobalCategoryPickerScreen(
+            categories = buildLogCategoryItems(form.availableCategories),
+            onSelect = { item ->
+                // "__none__" is the sentinel for "no category"
+                viewModel.onCategoryChanged(if (item.key == "__none__") null else item.displayName)
+            },
+            onDismiss = { showCategoryPicker = false },
+        )
     }
 
     if (showCostSheet) {
@@ -269,38 +281,12 @@ fun AddEditLogScreen(
 
             // --------------- Category picker ---------------
             FormSection {
-                var catExpanded by remember { mutableStateOf(false) }
-                ExposedDropdownMenuBox(
-                    expanded = catExpanded,
-                    onExpandedChange = { catExpanded = !catExpanded },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    OutlinedTextField(
-                        value = form.category ?: "",
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Category") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor(MenuAnchorType.PrimaryNotEditable),
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = catExpanded) },
-                    )
-                    ExposedDropdownMenu(
-                        expanded = catExpanded,
-                        onDismissRequest = { catExpanded = false },
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("None") },
-                            onClick = { viewModel.onCategoryChanged(null); catExpanded = false },
-                        )
-                        form.availableCategories.forEach { cat ->
-                            DropdownMenuItem(
-                                text = { Text(cat) },
-                                onClick = { viewModel.onCategoryChanged(cat); catExpanded = false },
-                            )
-                        }
-                    }
-                }
+                FormRow(
+                    label = "Category",
+                    value = form.category ?: "Select category",
+                    onClick = { showCategoryPicker = true },
+                    isPlaceholder = form.category == null,
+                )
             }
 
             HorizontalDivider()
@@ -645,4 +631,21 @@ private fun FormRow(
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+}
+
+// ---------------------------------------------------------------------------
+// Category helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Maps the list of category strings (loaded from config) to [CategoryItem]s
+ * for use in [GlobalCategoryPickerScreen].  A "None" sentinel is prepended so
+ * the user can clear the selection.
+ */
+private fun buildLogCategoryItems(availableCategories: List<String>): List<CategoryItem> {
+    val none = CategoryItem(key = "__none__", displayName = "None")
+    val rest = availableCategories.map { cat ->
+        CategoryItem(key = cat, displayName = cat)
+    }
+    return listOf(none) + rest
 }

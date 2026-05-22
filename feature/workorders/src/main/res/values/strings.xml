@@ -123,6 +123,7 @@
     <string name="dispatch_board_title">Dispatch Board</string>
     <string name="dispatch_board_empty_column">No work orders</string>
     <string name="dispatch_board_drag_hint">Drag a card to change status</string>
+    <string name="dispatch_board_disabled">Dispatch Board is not available for your account</string>
 
     <!-- WO Rebalance Banner -->
     <string name="wo_rebalance_title">Assignment imbalance detected</string>

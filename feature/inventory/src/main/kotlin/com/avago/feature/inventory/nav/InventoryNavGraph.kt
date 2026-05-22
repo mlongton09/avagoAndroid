@@ -7,6 +7,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import androidx.navigation.navigation
 import com.avago.feature.inventory.cyclecounts.CycleCountDetailScreen
+import com.avago.feature.inventory.cyclecounts.CycleCountFloorScreen
 import com.avago.feature.inventory.cyclecounts.CycleCountListScreen
 import com.avago.feature.inventory.parts.AddEditPartScreen
 import com.avago.feature.inventory.parts.InventoryCategoryPickerScreen
@@ -73,6 +74,10 @@ sealed class InventoryRoute(val route: String) {
 
     object CycleCountDetail : InventoryRoute("inventory/cycle-counts/{countId}") {
         fun build(countId: String) = "inventory/cycle-counts/$countId"
+    }
+
+    object CycleCountFloor : InventoryRoute("inventory/cycle-counts/{cycleCountId}/floor") {
+        fun build(cycleCountId: String) = "inventory/cycle-counts/$cycleCountId/floor"
     }
 
     object LabelScanner : InventoryRoute("inventory/label-scanner")
@@ -240,6 +245,17 @@ fun NavGraphBuilder.inventoryNavGraph(navController: NavHostController) {
             val countId = back.arguments?.getString("countId") ?: return@composable
             CycleCountDetailScreen(
                 countId = countId,
+                onBack = { navController.popBackStack() },
+                onFloorScan = { navController.navigate(InventoryRoute.CycleCountFloor.build(countId)) },
+            )
+        }
+        composable(
+            route = InventoryRoute.CycleCountFloor.route,
+            arguments = listOf(navArgument("cycleCountId") { type = NavType.StringType }),
+        ) { back ->
+            val cycleCountId = back.arguments?.getString("cycleCountId") ?: return@composable
+            CycleCountFloorScreen(
+                cycleCountId = cycleCountId,
                 onBack = { navController.popBackStack() },
             )
         }

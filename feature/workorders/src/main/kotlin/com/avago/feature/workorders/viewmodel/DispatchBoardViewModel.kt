@@ -3,6 +3,7 @@ package com.avago.feature.workorders.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
+import com.avago.core.data.FeatureFlags
 import com.avago.core.data.db.entity.WorkOrderEntity
 import com.avago.core.sync.SyncEngine
 import com.avago.feature.workorders.model.WoStatus
@@ -38,7 +39,17 @@ class DispatchBoardViewModel @Inject constructor(
     private val repository: WorkOrderRepository,
     private val identityManager: IdentityManager,
     private val syncEngine: SyncEngine,
+    private val featureFlags: FeatureFlags,
 ) : ViewModel() {
+
+    /** Reflects [FeatureFlags.dispatchEnabled]; observed reactively via the config DB. */
+    val dispatchEnabled: StateFlow<Boolean> =
+        featureFlags.observeFlag("feature.dispatch_enabled", default = true)
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5_000),
+                initialValue = featureFlags.dispatchEnabled,
+            )
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()

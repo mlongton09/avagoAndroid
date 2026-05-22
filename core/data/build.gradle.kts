@@ -26,4 +26,6 @@ dependencies {
     api(libs.room.ktx)
     ksp(libs.room.compiler)
     implementation(libs.datastore.preferences)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.crashlytics)
 }

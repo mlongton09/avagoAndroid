@@ -23,11 +23,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Intent
+import android.net.Uri
 import com.avago.core.data.db.entity.ChatMessageEntity
+import com.avago.core.ui.MarkdownText
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -130,6 +134,7 @@ private fun BubbleBody(
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
+    val context = LocalContext.current
     Column(
         modifier = Modifier
             .clip(MaterialTheme.shapes.large)
@@ -139,18 +144,22 @@ private fun BubbleBody(
                 Modifier // Long-press handled via combinedClickable in production
             ),
     ) {
-        // Body text — strip basic markdown to plain text for display.
-        val bodyText = message.bodyMd
-            .replace(Regex("\\*{1,2}([^*]+)\\*{1,2}"), "$1")
-            .replace(Regex("`([^`]+)`"), "$1")
-            .replace(Regex("^#{1,6} ", RegexOption.MULTILINE), "")
-            .trim()
+        // Body text — render as Markdown so bold, italic, code, links etc. display correctly.
+        val bodyText = message.bodyMd.trim()
 
         if (bodyText.isNotBlank()) {
-            Text(
+            MarkdownText(
                 text = bodyText,
                 style = MaterialTheme.typography.bodyMedium,
                 color = textColor,
+                onUrlClick = { url ->
+                    try {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        timber.log.Timber.w(e, "MessageBubble: could not open URL %s", url)
+                    }
+                },
             )
         }
 

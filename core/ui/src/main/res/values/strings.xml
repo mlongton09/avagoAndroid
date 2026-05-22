@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Global category picker -->
+    <string name="global_category_picker_title">Select Category</string>
+    <string name="global_category_picker_search">Search categories</string>
+    <string name="global_category_picker_empty">No categories found</string>
+</resources>

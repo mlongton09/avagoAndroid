@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.data.db.entity.WorkOrderEntity
+import com.avago.core.ui.EmptyState
 import com.avago.feature.workorders.R
 import com.avago.feature.workorders.model.WoStatus
 import com.avago.feature.workorders.model.statusColor
@@ -58,6 +59,7 @@ fun DispatchBoardScreen(
     modifier: Modifier = Modifier,
     viewModel: DispatchBoardViewModel = hiltViewModel(),
 ) {
+    val dispatchEnabled by viewModel.dispatchEnabled.collectAsStateWithLifecycle()
     val columns by viewModel.columns.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val showRebalanceBanner by viewModel.showRebalanceBanner.collectAsStateWithLifecycle()
@@ -73,6 +75,14 @@ fun DispatchBoardScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
+        if (!dispatchEnabled) {
+            EmptyState(
+                message = stringResource(R.string.dispatch_board_disabled),
+                modifier = Modifier.padding(innerPadding),
+            )
+            return@Scaffold
+        }
+
         Column(
             modifier = Modifier
                 .padding(innerPadding)
