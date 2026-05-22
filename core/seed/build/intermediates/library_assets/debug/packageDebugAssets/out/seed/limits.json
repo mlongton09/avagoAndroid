@@ -1,9 +1,0 @@
-{
-  "max_assets": 10,
-  "max_log_entries": 500,
-  "max_work_orders": 25,
-  "max_inventory_parts": 200,
-  "max_docs": 20,
-  "max_photos_per_entry": 4,
-  "max_team_members": 1
-}

@@ -1,1 +1,0 @@
-C:\AvagoAndroid\core\docscan\src\main\kotlin\com\avago\core\docscan\DocScanLauncher.kt
