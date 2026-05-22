@@ -260,10 +260,10 @@ private fun AssetDetailHeader(
                 fontWeight = FontWeight.Bold,
             )
             if (asset.assetType != null) {
-                val labelResId = AssetTypes.labelResIdFor(asset.assetType)
+                val labelResId = AssetTypes.labelResIdFor(asset.assetType!!)
                 Text(
                     text = if (labelResId != null) stringResource(labelResId)
-                    else asset.assetType.replace("_", " ").replaceFirstChar { it.uppercase() },
+                    else asset.assetType!!.replace("_", " ").replaceFirstChar { it.uppercase() },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary,
                 )
@@ -318,7 +318,7 @@ private fun AssetStatsRow(
             if (showMeter) {
                 StatCell(
                     label = stringResource(R.string.asset_detail_meter_reading),
-                    value = if (latestMeterReading != null) "%.0f".format(latestMeterReading)
+                    value = if (latestMeterReading != null) "%.0f".format(latestMeterReading!!)
                     else stringResource(R.string.asset_detail_na),
                 )
             }
@@ -412,7 +412,7 @@ private fun LogEntryRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        if (entry.cost != null && entry.cost > 0.0) {
+        if (entry.cost != null && entry.cost!! > 0.0) {
             Text(
                 text = formatCurrency(entry.cost),
                 style = MaterialTheme.typography.bodySmall,

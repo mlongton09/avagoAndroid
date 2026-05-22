@@ -218,10 +218,10 @@ private fun AssetCard(
                     )
                 }
                 if (asset.assetType != null) {
-                    val labelResId = AssetTypes.labelResIdFor(asset.assetType)
+                    val labelResId = AssetTypes.labelResIdFor(asset.assetType!!)
                     Text(
                         text = if (labelResId != null) stringResource(labelResId)
-                        else asset.assetType.replace("_", " ").replaceFirstChar { it.uppercase() },
+                        else asset.assetType!!.replace("_", " ").replaceFirstChar { it.uppercase() },
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                     )

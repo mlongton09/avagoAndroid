@@ -253,7 +253,7 @@ fun AddEditAssetScreen(
                         Text(
                             text = if (form.purchaseDate != null) {
                                 SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
-                                    .format(Date(form.purchaseDate))
+                                    .format(Date(form.purchaseDate!!))
                             } else {
                                 stringResource(R.string.asset_field_purchase_date)
                             },
