@@ -29,5 +29,5 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
 
-    implementation(project(":core:network"))
+    api(project(":core:network"))
 }
