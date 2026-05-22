@@ -13,6 +13,7 @@ import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
 import com.avago.MainActivity
 import com.avago.core.auth.IdentityManager
+import com.avago.core.sync.DeltaPushApplier
 import com.avago.core.sync.SyncWorker
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
@@ -29,6 +30,7 @@ import javax.inject.Inject
 class AvagoFcmService : FirebaseMessagingService() {
 
     @Inject lateinit var identity: IdentityManager
+    @Inject lateinit var deltaApplier: DeltaPushApplier
 
     // Service-scoped coroutine scope; cancelled in onDestroy.
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -57,7 +59,7 @@ class AvagoFcmService : FirebaseMessagingService() {
         val type = msg.data["type"]
         Timber.d("FCM: received type=$type")
         when (type) {
-            "sync_nudge" -> enqueueSyncWork()
+            "sync_nudge" -> handleSyncNudge(msg)
             "chat_message" -> handleChatPush(msg)
             else -> enqueueSyncWork() // unknown payload: nudge sync as a safe default
         }
@@ -66,6 +68,27 @@ class AvagoFcmService : FirebaseMessagingService() {
     // -------------------------------------------------------------------------
     // Sync nudge
     // -------------------------------------------------------------------------
+
+    private fun handleSyncNudge(msg: RemoteMessage) {
+        val entityType = msg.data["entity_type"]
+        val serverSeqRaw = msg.data["server_seq"]
+        val accountId = identity.getActiveAccountId()
+
+        if (entityType != null && serverSeqRaw != null && accountId != null) {
+            val seq = serverSeqRaw.toLongOrNull()
+            if (seq != null) {
+                serviceScope.launch {
+                    val outcome = deltaApplier.handle(entityType, seq, accountId)
+                    Timber.d("FCM: delta outcome=$outcome entityType=$entityType seq=$seq accountId=$accountId")
+                }
+                return
+            }
+        }
+
+        // Fall back to full sync if any field is missing or unparseable
+        Timber.d("FCM: sync_nudge missing entity_type/server_seq — falling back to full sync")
+        enqueueSyncWork()
+    }
 
     internal fun enqueueSyncWork() {
         val request = OneTimeWorkRequestBuilder<SyncWorker>()

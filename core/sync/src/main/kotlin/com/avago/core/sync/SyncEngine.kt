@@ -65,6 +65,8 @@ class SyncEngine @Inject constructor(
     private val conflictCoordinator: Provider<SyncConflictCoordinator>,
     private val toast: AvagoToast,
     @ApplicationScope private val scope: CoroutineScope,
+    // Provider<> breaks potential circular dependency since DeltaPushApplier uses DatabaseFactory
+    private val deltaApplier: Provider<DeltaPushApplier>,
 ) {
     private val mutex = Mutex()
 
@@ -278,6 +280,9 @@ class SyncEngine @Inject constructor(
                 // Continue with other entity types — partial sync is better than none
             }
         }
+
+        // Notify the delta applier that the first full sync has completed for this account
+        deltaApplier.get().markFirstSyncComplete(accountId)
 
         _state.value = SyncState.Idle
         return SyncResult.Success

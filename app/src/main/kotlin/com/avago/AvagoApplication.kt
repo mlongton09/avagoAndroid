@@ -3,6 +3,9 @@ package com.avago
 import android.app.Application
 import android.os.Trace
 import androidx.hilt.work.HiltWorkerFactory
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.Configuration
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -69,6 +72,7 @@ class AvagoApplication : Application(), Configuration.Provider {
         observeConnectivityForSync()
         observeSignOutForWatermarkReset()
         observePermissionsStaleness()
+        observeAppForeground()
 
         Trace.endSection() // AvagoApplication.initCoroutines
         Trace.endSection() // AvagoApplication.onCreate
@@ -136,6 +140,30 @@ class AvagoApplication : Application(), Configuration.Provider {
                     )
             }
         }
+    }
+
+    private fun observeAppForeground() {
+        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) {
+                Timber.d("AvagoApplication: app foregrounded — triggering foreground sync")
+                val request = OneTimeWorkRequestBuilder<SyncWorker>()
+                    .setConstraints(
+                        Constraints.Builder()
+                            .setRequiredNetworkType(NetworkType.CONNECTED)
+                            .build()
+                    )
+                    .build()
+                WorkManager.getInstance(this@AvagoApplication).enqueueUniqueWork(
+                    "avago_foreground_sync",
+                    ExistingWorkPolicy.KEEP,
+                    request,
+                )
+            }
+
+            override fun onStop(owner: LifecycleOwner) {
+                Timber.d("AvagoApplication: app backgrounded")
+            }
+        })
     }
 
     private fun triggerImmediateSync() {
