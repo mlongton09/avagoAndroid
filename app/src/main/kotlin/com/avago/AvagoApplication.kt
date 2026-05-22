@@ -19,6 +19,7 @@ import com.avago.core.data.ExchangeRateService
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.seed.ConfigSeeder
 import com.avago.core.sync.ConnectivityMonitor
+import com.avago.core.sync.PhotoCacheSweeper
 import com.avago.core.sync.SyncEngine
 import com.avago.core.sync.SyncWorker
 import com.avago.core.sync.TechLocationService
@@ -27,6 +28,7 @@ import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.launch
@@ -46,6 +48,7 @@ class AvagoApplication : Application(), Configuration.Provider {
     @Inject lateinit var exchangeRateService: ExchangeRateService
     @Inject lateinit var techLocationService: TechLocationService
     @Inject lateinit var outboxRetryCoordinator: OutboxRetryCoordinator
+    @Inject lateinit var photoCacheSweeper: PhotoCacheSweeper
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -174,6 +177,17 @@ class AvagoApplication : Application(), Configuration.Provider {
                 )
                 techLocationService.startMonitoring()
                 outboxRetryCoordinator.startPeriodicFlush()
+
+                // Deferred cache sweep — give the app 30 s to settle before evicting local photos
+                appScope.launch {
+                    delay(30_000)
+                    val accountId = identityManager.getActiveAccountId() ?: return@launch
+                    try {
+                        photoCacheSweeper.runIfNeeded(accountId)
+                    } catch (e: Exception) {
+                        Timber.e(e, "AvagoApplication: PhotoCacheSweeper failed")
+                    }
+                }
             }
 
             override fun onStop(owner: LifecycleOwner) {

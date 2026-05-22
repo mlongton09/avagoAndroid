@@ -69,6 +69,8 @@ class SyncEngine @Inject constructor(
     private val deltaApplier: Provider<DeltaPushApplier>,
     // Provider<> avoids circular dependency; PreferencesSync depends on AvagoServiceClient
     private val preferencesSync: Provider<PreferencesSync>,
+    // Provider<> avoids potential circular dependency from PhotoUploader's own dependencies
+    private val photoUploader: Provider<PhotoUploader>,
 ) {
     private val mutex = Mutex()
 
@@ -291,6 +293,13 @@ class SyncEngine @Inject constructor(
             preferencesSync.get().refreshFromServer(accountId)
         } catch (e: Exception) {
             Timber.w(e, "[SyncEngine] PreferencesSync.refreshFromServer failed — ignoring")
+        }
+
+        // Kick off photo uploads now that we have the latest server state
+        try {
+            photoUploader.get().sweep(accountId)
+        } catch (e: Exception) {
+            Timber.e(e, "[SyncEngine] PhotoUploader sweep failed")
         }
 
         _state.value = SyncState.Idle
