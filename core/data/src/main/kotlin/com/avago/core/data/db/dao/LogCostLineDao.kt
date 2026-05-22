@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.avago.core.data.db.entity.LogCostLineEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -22,6 +23,7 @@ interface LogCostLineDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: LogCostLineEntity)
 
+    @Transaction
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(entities: List<LogCostLineEntity>)
 

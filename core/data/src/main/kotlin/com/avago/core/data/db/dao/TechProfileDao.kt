@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.avago.core.data.db.entity.TechProfileEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -19,6 +20,7 @@ interface TechProfileDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: TechProfileEntity)
 
+    @Transaction
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(entities: List<TechProfileEntity>)
 

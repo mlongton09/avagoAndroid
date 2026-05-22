@@ -5,8 +5,11 @@ import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.model.DeviceUpdateRequest
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -30,6 +33,10 @@ class IdentityManager @Inject constructor(
 
     private val _activeAccountId = MutableStateFlow<String?>(null)
     val activeAccountId: StateFlow<String?> = _activeAccountId.asStateFlow()
+
+    /** Emits the account ID of an account that was just signed out. Observed by the app layer to reset sync watermarks. */
+    private val _signOutEvents = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val signOutEvents: SharedFlow<String> = _signOutEvents.asSharedFlow()
 
     private val _activeUserId = MutableStateFlow<String?>(null)
     val activeUserId: StateFlow<String?> = _activeUserId.asStateFlow()
@@ -190,6 +197,7 @@ class IdentityManager @Inject constructor(
 
     /** Sign out of [accountId], removing its tokens and manifest entry. */
     suspend fun signOut(context: Context, accountId: String) = withContext(Dispatchers.IO) {
+        _signOutEvents.emit(accountId)
         tokenStore.clearTokens(accountId)
         AccountManifest.remove(context, accountId)
         if (_activeAccountId.value == accountId) {

@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.avago.core.data.db.entity.RolePermissionDefaultsEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -19,6 +20,7 @@ interface RolePermissionDefaultsDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: RolePermissionDefaultsEntity)
 
+    @Transaction
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(entities: List<RolePermissionDefaultsEntity>)
 

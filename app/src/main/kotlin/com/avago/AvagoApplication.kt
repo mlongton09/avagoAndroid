@@ -4,14 +4,27 @@ import android.app.Application
 import android.os.Trace
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
+import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import com.avago.core.auth.IdentityManager
 import com.avago.core.seed.ConfigSeeder
+import com.avago.core.sync.ConnectivityMonitor
+import com.avago.core.sync.SyncEngine
+import com.avago.core.sync.SyncWorker
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 @HiltAndroidApp
@@ -20,6 +33,8 @@ class AvagoApplication : Application(), Configuration.Provider {
     @Inject lateinit var workerFactory: HiltWorkerFactory
     @Inject lateinit var identityManager: IdentityManager
     @Inject lateinit var configSeeder: ConfigSeeder
+    @Inject lateinit var connectivityMonitor: ConnectivityMonitor
+    @Inject lateinit var syncEngine: SyncEngine
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -47,8 +62,71 @@ class AvagoApplication : Application(), Configuration.Provider {
                 Timber.e(e, "AvagoApplication: failed to initialize identity or seed config")
             }
         }
+
+        schedulePeriodicSync()
+        observeConnectivityForSync()
+        observeSignOutForWatermarkReset()
+
         Trace.endSection() // AvagoApplication.initCoroutines
         Trace.endSection() // AvagoApplication.onCreate
+    }
+
+    private fun schedulePeriodicSync() {
+        val request = PeriodicWorkRequestBuilder<SyncWorker>(15, TimeUnit.MINUTES)
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build()
+            )
+            .build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "avago_sync",
+            ExistingPeriodicWorkPolicy.KEEP,
+            request,
+        )
+        Timber.d("AvagoApplication: periodic sync scheduled")
+    }
+
+    private fun observeConnectivityForSync() {
+        appScope.launch {
+            // Emit pairs of (previous, current) to detect false → true transitions.
+            connectivityMonitor.networkStatus
+                .scan(Pair(true, true)) { acc, current -> Pair(acc.second, current) }
+                .distinctUntilChanged()
+                .collect { (previous, current) ->
+                    if (!previous && current) {
+                        Timber.d("AvagoApplication: connectivity restored — triggering immediate sync")
+                        syncEngine.handleConnectivityLost() // resets any stale in-flight items
+                        triggerImmediateSync()
+                    } else if (!current) {
+                        syncEngine.handleConnectivityLost()
+                    }
+                }
+        }
+    }
+
+    private fun observeSignOutForWatermarkReset() {
+        appScope.launch {
+            identityManager.signOutEvents.collect { accountId ->
+                runCatching { syncEngine.resetAllWatermarks(accountId) }
+                    .onFailure { Timber.e(it, "AvagoApplication: failed to reset watermarks for $accountId") }
+            }
+        }
+    }
+
+    private fun triggerImmediateSync() {
+        val request = OneTimeWorkRequestBuilder<SyncWorker>()
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build()
+            )
+            .build()
+        WorkManager.getInstance(this).enqueueUniqueWork(
+            "avago_sync_immediate",
+            ExistingWorkPolicy.REPLACE,
+            request,
+        )
     }
 
     override val workManagerConfiguration: Configuration

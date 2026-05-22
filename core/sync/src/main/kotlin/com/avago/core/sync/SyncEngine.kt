@@ -1,5 +1,6 @@
 package com.avago.core.sync
 
+import androidx.room.withTransaction
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.AssetEntity
@@ -29,6 +30,7 @@ import com.avago.core.data.db.entity.VendorEntity
 import com.avago.core.data.db.entity.WoAssignmentEntity
 import com.avago.core.data.db.entity.WoChecklistItemEntity
 import com.avago.core.data.db.entity.WoCommentEntity
+import com.avago.core.data.db.entity.LabelTemplateEntity
 import com.avago.core.data.db.entity.WoTemplateEntity
 import com.avago.core.data.db.entity.WorkOrderEntity
 import com.avago.core.network.AvagoServiceClient
@@ -80,6 +82,7 @@ class SyncEngine @Inject constructor(
         "doc", "photo",
         "user", "location",
         "role_permission_defaults", "account_role_permissions",
+        "label_template",
     )
 
     // ---------------------------------------------------------------------------
@@ -127,6 +130,15 @@ class SyncEngine @Inject constructor(
         val db = dbFactory.get(accountId)
         db.syncQueueDao().resetInFlightToPending()
         Timber.d("[SyncEngine] handleStaleInFlight: reset stale in-flight items")
+    }
+
+    /** Reset all sync watermarks for [accountId] so the next sync performs a full re-pull. */
+    suspend fun resetAllWatermarks(accountId: String) {
+        val db = dbFactory.get(accountId)
+        pullEntityTypes.forEach { entityType ->
+            db.syncMetadataDao().resetWatermark(entityType)
+        }
+        Timber.d("[SyncEngine] resetAllWatermarks: cleared watermarks for $accountId")
     }
 
     /** Expose active account ID for SyncConflictCoordinator to use. */
@@ -248,12 +260,13 @@ class SyncEngine @Inject constructor(
                     val response = client.syncPull(accountId, entityType, lastSeq)
                     Timber.d("[SyncEngine] Pull $entityType: ${response.items.size} item(s), hasMore=${response.has_more}, maxSeq=${response.max_seq}")
 
-                    for (item in response.items) {
-                        upsertPulledItem(accountId, entityType, item)
-                        pulledCount++
+                    db.withTransaction {
+                        for (item in response.items) {
+                            upsertPulledItem(accountId, entityType, item)
+                            pulledCount++
+                        }
+                        db.syncMetadataDao().updateWatermark(entityType, response.max_seq)
                     }
-
-                    db.syncMetadataDao().updateWatermark(entityType, response.max_seq)
                     lastSeq = response.max_seq
                     hasMore = response.has_more && response.items.isNotEmpty()
                 }
@@ -940,6 +953,25 @@ class SyncEngine @Inject constructor(
                             permissions = item.str("permissions") ?: "{}",
                             updatedAt = isoToMs(item.str("updated_at")) ?: now,
                             serverVersion = item.lng("server_version") ?: 0L,
+                        )
+                    )
+                }
+
+                "label_template" -> {
+                    val now = System.currentTimeMillis()
+                    db.labelTemplateDao().upsert(
+                        LabelTemplateEntity(
+                            id = item.str("id") ?: return,
+                            accountId = item.str("account_id") ?: accountId,
+                            name = item.str("name") ?: "",
+                            templateType = item.str("template_type"),
+                            content = item.str("content"),
+                            widthMm = item.dbl("width_mm"),
+                            heightMm = item.dbl("height_mm"),
+                            deletedAt = isoToMs(item.str("deleted_at")),
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
+                            serverSeq = item.lng("server_seq") ?: item.lng("seq") ?: 0L,
                         )
                     )
                 }

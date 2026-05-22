@@ -1,10 +1,12 @@
 package com.avago.core.data.db
 
+import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.avago.core.data.db.converters.Converters
 import com.avago.core.data.db.dao.AccountRolePermissionsDao
+import com.avago.core.data.db.dao.LabelTemplateDao
 import com.avago.core.data.db.dao.AssetDao
 import com.avago.core.data.db.dao.BinDao
 import com.avago.core.data.db.dao.ConfigDao
@@ -40,6 +42,7 @@ import com.avago.core.data.db.dao.WoCommentDao
 import com.avago.core.data.db.dao.WoTemplateDao
 import com.avago.core.data.db.dao.WorkOrderDao
 import com.avago.core.data.db.entity.AccountRolePermissionsEntity
+import com.avago.core.data.db.entity.LabelTemplateEntity
 import com.avago.core.data.db.entity.AssetEntity
 import com.avago.core.data.db.entity.BinEntity
 import com.avago.core.data.db.entity.ConfigEntity
@@ -112,9 +115,13 @@ import com.avago.core.data.db.entity.WorkOrderEntity
         DeviceEntity::class,
         RolePermissionDefaultsEntity::class,
         AccountRolePermissionsEntity::class,
+        LabelTemplateEntity::class,
     ],
-    version = 1,
-    exportSchema = false,
+    version = 2,
+    exportSchema = true,
+    autoMigrations = [
+        AutoMigration(from = 1, to = 2),
+    ],
 )
 @TypeConverters(Converters::class)
 abstract class AvagoDatabase : RoomDatabase() {
@@ -154,4 +161,5 @@ abstract class AvagoDatabase : RoomDatabase() {
     abstract fun deviceDao(): DeviceDao
     abstract fun rolePermissionDefaultsDao(): RolePermissionDefaultsDao
     abstract fun accountRolePermissionsDao(): AccountRolePermissionsDao
+    abstract fun labelTemplateDao(): LabelTemplateDao
 }
