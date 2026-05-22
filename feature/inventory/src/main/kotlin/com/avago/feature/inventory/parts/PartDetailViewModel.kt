@@ -51,29 +51,38 @@ class PartDetailViewModel @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<PartDetailUiState> = identityManager.activeAccountId.flatMapLatest { accountId ->
         if (accountId == null) flowOf(PartDetailUiState(isLoading = false))
-        else combine(
-            partDao.observeAll(accountId),
-            inventoryDao.observeAll(accountId),
-            stockingLevelDao.observeAll(accountId),
-            inventoryTransactionDao.observeAll(accountId),
-            _showReceive,
-            _showUse,
-        ) { parts, inventories, levels, transactions, showReceive, showUse ->
-            val part = parts.find { it.partId == partId }
-            val inv = inventories.find { it.partId == partId }
-            val sl = levels.find { it.partId == partId }
-            val txns = transactions
-                .filter { it.partId == partId }
-                .sortedByDescending { it.createdAt }
-            PartDetailUiState(
-                part = part,
-                inventory = inv,
-                stockingLevel = sl,
-                transactions = txns,
-                isLoading = false,
-                showReceiveSheet = showReceive,
-                showUseSheet = showUse,
-            )
+        else {
+            @Suppress("UNCHECKED_CAST")
+            combine(
+                partDao.observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
+                inventoryDao.observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
+                stockingLevelDao.observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
+                inventoryTransactionDao.observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
+                _showReceive as kotlinx.coroutines.flow.Flow<Any?>,
+                _showUse as kotlinx.coroutines.flow.Flow<Any?>,
+            ) { v ->
+                val parts = v[0] as List<PartEntity>
+                val inventories = v[1] as List<InventoryEntity>
+                val levels = v[2] as List<StockingLevelEntity>
+                val transactions = v[3] as List<InventoryTransactionEntity>
+                val showReceive = v[4] as Boolean
+                val showUse = v[5] as Boolean
+                val part = parts.find { it.partId == partId }
+                val inv = inventories.find { it.partId == partId }
+                val sl = levels.find { it.partId == partId }
+                val txns = transactions
+                    .filter { it.partId == partId }
+                    .sortedByDescending { it.createdAt }
+                PartDetailUiState(
+                    part = part,
+                    inventory = inv,
+                    stockingLevel = sl,
+                    transactions = txns,
+                    isLoading = false,
+                    showReceiveSheet = showReceive,
+                    showUseSheet = showUse,
+                )
+            }
         }
     }.stateIn(
         scope = viewModelScope,

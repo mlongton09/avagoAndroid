@@ -118,35 +118,46 @@ class CycleCountDetailViewModel @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<CycleCountDetailUiState> = identityManager.activeAccountId.flatMapLatest { accountId ->
         if (accountId == null) flowOf(CycleCountDetailUiState(isLoading = false))
-        else combine(
-            cycleCountDao.observeAll(accountId),
-            cycleCountLineDao.observeAll(accountId),
-            locationDao.observeAll(accountId),
-            partDao.observeAll(accountId),
-            _isActioning,
-            _actionError,
-            _localQtyEdits,
-        ) { counts, lines, locations, parts, actioning, actionErr, edits ->
-            val count = counts.find { it.cycleCountId == countId }
-            val location = locations.find { it.locationId == count?.locationId }
-            val partMap = parts.associateBy { it.partId }
-            val countLines = lines
-                .filter { it.cycleCountId == countId }
-                .map { line ->
-                    CycleCountLineWithPart(
-                        line = line,
-                        part = partMap[line.partId],
-                        countedQtyInput = edits[line.lineId] ?: line.countedQty?.toString() ?: "",
-                    )
-                }
-            CycleCountDetailUiState(
-                count = count,
-                location = location,
-                lines = countLines,
-                isLoading = false,
-                isActioning = actioning,
-                actionError = actionErr,
-            )
+        else {
+            @Suppress("UNCHECKED_CAST")
+            combine(
+                cycleCountDao.observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
+                cycleCountLineDao.observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
+                locationDao.observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
+                partDao.observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
+                _isActioning as kotlinx.coroutines.flow.Flow<Any?>,
+                _actionError as kotlinx.coroutines.flow.Flow<Any?>,
+                _localQtyEdits as kotlinx.coroutines.flow.Flow<Any?>,
+            ) { v ->
+                val counts = v[0] as List<CycleCountEntity>
+                val lines = v[1] as List<CycleCountLineEntity>
+                val locations = v[2] as List<LocationEntity>
+                val parts = v[3] as List<PartEntity>
+                val actioning = v[4] as Boolean
+                val actionErr = v[5] as String?
+                @Suppress("UNCHECKED_CAST")
+                val edits = v[6] as Map<String, String>
+                val count = counts.find { it.cycleCountId == countId }
+                val location = locations.find { it.locationId == count?.locationId }
+                val partMap = parts.associateBy { it.partId }
+                val countLines = lines
+                    .filter { it.cycleCountId == countId }
+                    .map { line ->
+                        CycleCountLineWithPart(
+                            line = line,
+                            part = partMap[line.partId],
+                            countedQtyInput = edits[line.lineId] ?: line.countedQty?.toString() ?: "",
+                        )
+                    }
+                CycleCountDetailUiState(
+                    count = count,
+                    location = location,
+                    lines = countLines,
+                    isLoading = false,
+                    isActioning = actioning,
+                    actionError = actionErr,
+                )
+            }
         }
     }.stateIn(
         scope = viewModelScope,

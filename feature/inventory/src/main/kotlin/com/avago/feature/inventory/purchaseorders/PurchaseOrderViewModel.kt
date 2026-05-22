@@ -60,26 +60,35 @@ class PurchaseOrderViewModel @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<PoDetailUiState> = identityManager.activeAccountId.flatMapLatest { accountId ->
         if (accountId == null) flowOf(PoDetailUiState(isLoading = false))
-        else combine(
-            poDao.observeAll(accountId),
-            poLineDao.observeAll(accountId),
-            vendorDao.observeAll(accountId),
-            _showGrnSheet,
-            _isActioning,
-            _actionError,
-        ) { pos, lines, vendors, showGrn, actioning, actionErr ->
-            val po = pos.find { it.poId == poId }
-            val vendor = vendors.find { it.vendorId == po?.vendorId }
-            val poLines = lines.filter { it.poId == poId }.sortedBy { it.displayOrder }
-            PoDetailUiState(
-                po = po,
-                vendor = vendor,
-                lines = poLines,
-                isLoading = false,
-                showGrnSheet = showGrn,
-                isActioning = actioning,
-                actionError = actionErr,
-            )
+        else {
+            @Suppress("UNCHECKED_CAST")
+            combine(
+                poDao.observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
+                poLineDao.observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
+                vendorDao.observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
+                _showGrnSheet as kotlinx.coroutines.flow.Flow<Any?>,
+                _isActioning as kotlinx.coroutines.flow.Flow<Any?>,
+                _actionError as kotlinx.coroutines.flow.Flow<Any?>,
+            ) { v ->
+                val pos = v[0] as List<PurchaseOrderEntity>
+                val lines = v[1] as List<PoLineEntity>
+                val vendors = v[2] as List<VendorEntity>
+                val showGrn = v[3] as Boolean
+                val actioning = v[4] as Boolean
+                val actionErr = v[5] as String?
+                val po = pos.find { it.poId == poId }
+                val vendor = vendors.find { it.vendorId == po?.vendorId }
+                val poLines = lines.filter { it.poId == poId }.sortedBy { it.displayOrder }
+                PoDetailUiState(
+                    po = po,
+                    vendor = vendor,
+                    lines = poLines,
+                    isLoading = false,
+                    showGrnSheet = showGrn,
+                    isActioning = actioning,
+                    actionError = actionErr,
+                )
+            }
         }
     }.stateIn(
         scope = viewModelScope,
