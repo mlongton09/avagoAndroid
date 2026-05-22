@@ -2,6 +2,7 @@ package com.avago.feature.inventory.parts
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -31,12 +32,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.ui.EmptyState
 import com.avago.feature.inventory.R
+
+private val ColorInStock = Color(0xFF4CAF50)
+private val ColorLowStock = Color(0xFFFF9800)
+private val ColorOutOfStock = Color(0xFFF44336)
+private val ColorTotal = Color(0xFF9E9E9E)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,6 +76,39 @@ fun InventoryListScreen(
                 singleLine = true,
             )
 
+            // Summary statistics bar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                StatTile(
+                    label = "Total",
+                    count = state.totalCount,
+                    color = ColorTotal,
+                    modifier = Modifier.weight(1f),
+                )
+                StatTile(
+                    label = "In Stock",
+                    count = state.inStockCount,
+                    color = ColorInStock,
+                    modifier = Modifier.weight(1f),
+                )
+                StatTile(
+                    label = "Low",
+                    count = state.lowStockCount,
+                    color = ColorLowStock,
+                    modifier = Modifier.weight(1f),
+                )
+                StatTile(
+                    label = "Out",
+                    count = state.outOfStockCount,
+                    color = ColorOutOfStock,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+
             // Category filter chips
             if (state.categories.isNotEmpty()) {
                 LazyRow(
@@ -92,20 +133,102 @@ fun InventoryListScreen(
                 Spacer(Modifier.height(4.dp))
             }
 
-            if (state.filteredItems.isEmpty() && !state.isLoading) {
+            // Stock status filter chips
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                item {
+                    FilterChip(
+                        selected = state.stockFilter == "all",
+                        onClick = { viewModel.setStockFilter("all") },
+                        label = { Text("All") },
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = state.stockFilter == "in_stock",
+                        onClick = { viewModel.setStockFilter("in_stock") },
+                        label = { Text("In Stock") },
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = state.stockFilter == "low_stock",
+                        onClick = { viewModel.setStockFilter("low_stock") },
+                        label = { Text("Low Stock") },
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = state.stockFilter == "out_of_stock",
+                        onClick = { viewModel.setStockFilter("out_of_stock") },
+                        label = { Text("Out of Stock") },
+                    )
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+
+            if (state.displayList.isEmpty() && !state.isLoading) {
                 EmptyState(message = stringResource(R.string.inventory_empty))
             } else {
                 LazyColumn(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    items(state.filteredItems, key = { it.part.partId }) { item ->
-                        PartCard(
-                            item = item,
-                            onClick = { onPartClick(item.part.partId) },
-                        )
+                    items(state.displayList) { entry ->
+                        when (entry) {
+                            is InventoryListEntry.Header -> {
+                                Text(
+                                    text = entry.title,
+                                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
+                                )
+                            }
+                            is InventoryListEntry.PartRow -> {
+                                PartCard(
+                                    item = entry.item,
+                                    onClick = { onPartClick(entry.item.part.partId) },
+                                )
+                            }
+                        }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatTile(
+    label: String,
+    count: Int,
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = color),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp, horizontal = 4.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = count.toString(),
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    color = Color.White,
+                )
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White,
+                )
             }
         }
     }
