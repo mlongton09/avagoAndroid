@@ -7,6 +7,8 @@ import com.avago.core.auth.IdentityManager
 import com.avago.core.data.db.entity.WoChecklistItemEntity
 import com.avago.core.data.db.entity.WoTemplateEntity
 import com.avago.core.data.db.entity.WorkOrderEntity
+import com.avago.core.network.AvagoServiceClient
+import com.avago.core.network.NetworkResult
 import com.avago.feature.workorders.model.WoPriority
 import com.avago.feature.workorders.repository.WorkOrderRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -21,6 +23,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.util.TimeZone
 import java.util.UUID
 import javax.inject.Inject
 
@@ -29,11 +32,19 @@ data class ChecklistDraft(
     val title: String = "",
 )
 
+data class EffortHint(
+    val typicalMinutes: Int,
+    val fastMinutes: Int,
+    val slowMinutes: Int,
+    val sampleCount: Int,
+)
+
 @HiltViewModel
 class WorkOrderCreateViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: WorkOrderRepository,
     private val identityManager: IdentityManager,
+    private val serviceClient: AvagoServiceClient,
 ) : ViewModel() {
 
     /** null = create mode; non-null = edit mode */
@@ -53,6 +64,17 @@ class WorkOrderCreateViewModel @Inject constructor(
     val assignedTechIds = MutableStateFlow<List<String>>(emptyList())
     val checklistDrafts = MutableStateFlow<List<ChecklistDraft>>(emptyList())
     val selectedTemplateId = MutableStateFlow<String?>(null)
+
+    // Job picker
+    val jobId = MutableStateFlow<String?>(null)
+    val jobTitle = MutableStateFlow<String?>(null)
+
+    // Timezone (defaults to device timezone)
+    val timezone = MutableStateFlow<String>(TimeZone.getDefault().id)
+
+    // Effort hint (populated from server when category is known)
+    private val _effortHint = MutableStateFlow<EffortHint?>(null)
+    val effortHint: StateFlow<EffortHint?> = _effortHint.asStateFlow()
 
     private val _isSaving = MutableStateFlow(false)
     val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
@@ -94,6 +116,9 @@ class WorkOrderCreateViewModel @Inject constructor(
                     ?.let { (it / 60.0).toString() } ?: ""
                 assignedTechIds.value = if (!wo.assignedTo.isNullOrBlank())
                     listOf(wo.assignedTo ?: error("unreachable")) else emptyList()
+                jobId.value = wo.jobId
+                // jobTitle is not stored on entity — leave null; UI will show jobId as fallback
+                wo.timezone?.let { timezone.value = it }
 
                 // Load checklist items (one-shot snapshot)
                 repository.observeChecklistForWo(accountId, editingWoId)
@@ -148,6 +173,53 @@ class WorkOrderCreateViewModel @Inject constructor(
 
     fun removeChecklistItem(id: String) {
         checklistDrafts.value = checklistDrafts.value.filter { it.id != id }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Job picker
+    // ---------------------------------------------------------------------------
+
+    fun onJobSelected(jobId: String, jobTitle: String) {
+        this.jobId.value = jobId
+        this.jobTitle.value = jobTitle
+    }
+
+    fun clearJob() {
+        jobId.value = null
+        jobTitle.value = null
+    }
+
+    // ---------------------------------------------------------------------------
+    // Timezone
+    // ---------------------------------------------------------------------------
+
+    fun onTimezoneChanged(tz: String) {
+        timezone.value = tz
+    }
+
+    // ---------------------------------------------------------------------------
+    // Effort hint
+    // ---------------------------------------------------------------------------
+
+    fun fetchEffortHint(categoryKey: String) {
+        viewModelScope.launch {
+            try {
+                val accountId = identityManager.getActiveAccountId() ?: return@launch
+                val result = serviceClient.getEffortStats(accountId, categoryKey)
+                if (result is NetworkResult.Success) {
+                    val stats = result.data
+                    _effortHint.value = EffortHint(
+                        typicalMinutes = (stats.p50_hours * 60).toInt(),
+                        fastMinutes = (stats.p10_hours * 60).toInt(),
+                        slowMinutes = (stats.p90_hours * 60).toInt(),
+                        sampleCount = stats.sample_size,
+                    )
+                }
+            } catch (e: Exception) {
+                // Effort hint is not critical — silently ignore failures
+                Timber.d(e, "[WoCreateVM] fetchEffortHint failed, ignoring")
+            }
+        }
     }
 
     // ---------------------------------------------------------------------------
@@ -207,7 +279,7 @@ class WorkOrderCreateViewModel @Inject constructor(
                     attributes = existing?.attributes,
                     createdBy = existing?.createdBy ?: accountId,
                     approvalState = existing?.approvalState,
-                    jobId = existing?.jobId,
+                    jobId = jobId.value ?: existing?.jobId,
                     woKind = existing?.woKind,
                     rrule = existing?.rrule,
                     endType = existing?.endType,
@@ -220,7 +292,7 @@ class WorkOrderCreateViewModel @Inject constructor(
                     occurrenceDate = existing?.occurrenceDate,
                     scheduleId = existing?.scheduleId,
                     lastCompletedAt = existing?.lastCompletedAt,
-                    timezone = existing?.timezone,
+                    timezone = timezone.value.takeIf { dueDateMs.value != null } ?: existing?.timezone,
                     createdAt = existing?.createdAt ?: now,
                     updatedAt = now,
                     deletedAt = null,

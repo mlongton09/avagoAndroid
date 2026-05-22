@@ -85,6 +85,9 @@ fun NavGraphBuilder.workOrderNavGraph(
                 onTechClick = { techId -> navController.navigate(WorkOrderRoute.techProfile(techId)) },
                 onAddPart = { onNavigateToInventoryPicker(WorkOrderRoute.detail(woId)) },
                 onManageCostLines = { navController.navigate(WorkOrderRoute.costLinesEditor(woId)) },
+                // TODO (log-capture parity): once WorkOrderDetailScreen gains onLogWork param,
+                // wire it here:
+                //   onLogWork = { navController.navigate("log/add_edit?entryId=&assetId=") },
             )
         }
 
@@ -106,6 +109,10 @@ fun NavGraphBuilder.workOrderNavGraph(
             val selectedAssetId = backStackEntry.savedStateHandle
                 .get<String>("selected_asset_id")
 
+            // Observe job selection returned from JobPickerScreen
+            val selectedJobId = backStackEntry.savedStateHandle
+                .get<String>("selected_job_id")
+
             WorkOrderCreateScreen(
                 woId = woId,
                 onBack = { navController.popBackStack() },
@@ -116,6 +123,10 @@ fun NavGraphBuilder.workOrderNavGraph(
                 onPickAssetGroup = {
                     navController.navigate(WorkOrderRoute.ASSET_GROUP_PICKER)
                 },
+                onPickJob = {
+                    navController.navigate(WorkOrderRoute.JOB_PICKER)
+                },
+                selectedJobId = selectedJobId,
             )
         }
 
@@ -167,7 +178,12 @@ fun NavGraphBuilder.workOrderNavGraph(
         composable(WorkOrderRoute.JOB_PICKER) {
             JobPickerScreen(
                 onBack = { navController.popBackStack() },
-                onJobSelected = { _ -> navController.popBackStack() },
+                onJobSelected = { jobId ->
+                    navController.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.set("selected_job_id", jobId)
+                    navController.popBackStack()
+                },
             )
         }
 
