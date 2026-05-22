@@ -21,34 +21,33 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
-import com.avago.core.data.db.dao.BinDao
+import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.BinEntity
+import com.avago.feature.inventory.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
-import com.avago.feature.inventory.R
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import javax.inject.Inject
 
 @HiltViewModel
 class BinPickerViewModel @Inject constructor(
-    private val binDao: BinDao,
+    private val dbFactory: DatabaseFactory,
     private val identityManager: IdentityManager,
 ) : ViewModel() {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val bins: StateFlow<List<BinEntity>> = identityManager.activeAccountId.flatMapLatest { accountId ->
         if (accountId == null) flowOf(emptyList())
-        else binDao.observeAll(accountId)
+        else dbFactory.get(accountId).binDao().observeAll(accountId)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),

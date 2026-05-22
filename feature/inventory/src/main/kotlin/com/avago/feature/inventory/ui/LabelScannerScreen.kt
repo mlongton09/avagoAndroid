@@ -57,7 +57,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
-import com.avago.core.data.db.dao.PartDao
 import com.avago.core.data.db.entity.PartEntity
 import com.avago.feature.inventory.R
 import com.google.mlkit.vision.barcode.BarcodeScanning

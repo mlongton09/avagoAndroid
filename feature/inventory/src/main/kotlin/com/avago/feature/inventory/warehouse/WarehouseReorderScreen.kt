@@ -37,9 +37,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
-import com.avago.core.data.db.dao.InventoryDao
-import com.avago.core.data.db.dao.PartDao
-import com.avago.core.data.db.dao.StockingLevelDao
+import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.PartEntity
 import com.avago.core.data.db.entity.StockingLevelEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -70,9 +68,7 @@ data class ReorderItem(
 
 @HiltViewModel
 class WarehouseReorderViewModel @Inject constructor(
-    private val partDao: PartDao,
-    private val inventoryDao: InventoryDao,
-    private val stockingLevelDao: StockingLevelDao,
+    private val dbFactory: DatabaseFactory,
     private val identityManager: IdentityManager,
 ) : ViewModel() {
 
@@ -83,10 +79,11 @@ class WarehouseReorderViewModel @Inject constructor(
     val reorderItems: StateFlow<List<ReorderItem>> = identityManager.activeAccountId
         .flatMapLatest { accountId ->
             if (accountId == null) return@flatMapLatest flowOf(emptyList())
+            val db = dbFactory.get(accountId)
             combine(
-                partDao.observeAll(accountId),
-                inventoryDao.observeAll(accountId),
-                stockingLevelDao.observeAll(accountId),
+                db.partDao().observeAll(accountId),
+                db.inventoryDao().observeAll(accountId),
+                db.stockingLevelDao().observeAll(accountId),
             ) { parts, inventoryRows, stockingLevels ->
                 _isLoading.value = false
 
