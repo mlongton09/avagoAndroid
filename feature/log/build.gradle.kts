@@ -34,6 +34,7 @@ dependencies {
     implementation(libs.timber)
     implementation(libs.serialization.json)
     implementation(libs.coil.compose)
+    implementation(libs.coil.ktor)
     implementation(project(":core:design"))
     implementation(project(":core:ui"))
     implementation(project(":core:data"))
