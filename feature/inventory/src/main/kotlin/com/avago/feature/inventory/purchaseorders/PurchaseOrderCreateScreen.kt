@@ -1,5 +1,6 @@
 package com.avago.feature.inventory.purchaseorders
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,23 +14,37 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -39,6 +54,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.feature.inventory.R
 import com.avago.feature.inventory.vendors.VendorPickerSheet
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,6 +64,8 @@ fun PurchaseOrderCreateScreen(
     poId: String?,
     onSaved: () -> Unit,
     onBack: () -> Unit,
+    onPickLocation: () -> Unit = {},
+    onPickPart: ((lineIndex: Int) -> Unit)? = null,
     viewModel: PurchaseOrderCreateViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -63,6 +83,29 @@ fun PurchaseOrderCreateScreen(
             onDismiss = viewModel::dismissVendorPicker,
         )
     }
+
+    // Date picker dialog
+    var showDatePicker by remember { mutableStateOf(false) }
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = state.expectedDeliveryMs ?: System.currentTimeMillis(),
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { viewModel.onDeliveryDateChanged(it) }
+                    showDatePicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+            },
+        ) { DatePicker(state = datePickerState) }
+    }
+
+    // Currency dropdown state
+    var currencyExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -100,13 +143,38 @@ fun PurchaseOrderCreateScreen(
                 )
             }
 
+            // Expected delivery — date picker
             OutlinedTextField(
-                value = state.expectedDelivery,
-                onValueChange = viewModel::setExpectedDelivery,
+                value = if (state.expectedDeliveryMs != null)
+                    SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date(state.expectedDeliveryMs!!))
+                else "",
+                onValueChange = {},
+                readOnly = true,
                 label = { Text(stringResource(R.string.po_expected_delivery_label)) },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("YYYY-MM-DD") },
-                singleLine = true,
+                trailingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showDatePicker = true },
+            )
+
+            // Ship-to location picker
+            ListItem(
+                headlineContent = {
+                    Text(
+                        state.shipToLocationName ?: stringResource(R.string.po_select_location),
+                        style = if (state.shipToLocationName != null)
+                            MaterialTheme.typography.bodyLarge
+                        else
+                            MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                    )
+                },
+                overlineContent = { Text(stringResource(R.string.po_ship_to_location)) },
+                leadingContent = {
+                    Icon(Icons.Default.LocationOn, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onPickLocation() },
             )
 
             OutlinedTextField(
@@ -116,6 +184,59 @@ fun PurchaseOrderCreateScreen(
                 modifier = Modifier.fillMaxWidth(),
                 maxLines = 3,
             )
+
+            // Costs section
+            Text(stringResource(R.string.po_costs_section), style = MaterialTheme.typography.titleSmall)
+
+            // Currency dropdown
+            ExposedDropdownMenuBox(
+                expanded = currencyExpanded,
+                onExpandedChange = { currencyExpanded = it },
+            ) {
+                OutlinedTextField(
+                    value = state.currency,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text(stringResource(R.string.po_currency_label)) },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = currencyExpanded) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(),
+                )
+                ExposedDropdownMenu(
+                    expanded = currencyExpanded,
+                    onDismissRequest = { currencyExpanded = false },
+                ) {
+                    CURRENCIES.forEach { code ->
+                        DropdownMenuItem(
+                            text = { Text(code) },
+                            onClick = {
+                                viewModel.onCurrencyChanged(code)
+                                currencyExpanded = false
+                            },
+                        )
+                    }
+                }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = state.shippingCost,
+                    onValueChange = viewModel::onShippingCostChanged,
+                    label = { Text(stringResource(R.string.po_shipping_cost_label)) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                )
+                OutlinedTextField(
+                    value = state.discountAmount,
+                    onValueChange = viewModel::onDiscountAmountChanged,
+                    label = { Text(stringResource(R.string.po_discount_label)) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                )
+            }
 
             // Cost approval
             Text(stringResource(R.string.po_cost_approval_label), style = MaterialTheme.typography.labelMedium)
@@ -136,21 +257,41 @@ fun PurchaseOrderCreateScreen(
 
             // Line items
             Text(stringResource(R.string.po_line_items), style = MaterialTheme.typography.titleSmall)
-            state.lines.forEach { line ->
+            state.lines.forEachIndexed { lineIndex, line ->
                 Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(1.dp)) {
                     Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            OutlinedTextField(
-                                value = line.description,
-                                onValueChange = { viewModel.updateLine(line.copy(description = it)) },
-                                label = { Text(stringResource(R.string.po_line_part)) },
+                            Text(
+                                text = stringResource(R.string.po_line_item_number, lineIndex + 1),
+                                style = MaterialTheme.typography.labelMedium,
                                 modifier = Modifier.weight(1f),
-                                singleLine = true,
                             )
                             IconButton(onClick = { viewModel.removeLine(line.id) }) {
                                 Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.po_line_remove))
                             }
                         }
+
+                        // Part picker field
+                        OutlinedTextField(
+                            value = line.partName ?: "",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text(stringResource(R.string.po_line_part_optional)) },
+                            placeholder = { Text(stringResource(R.string.po_line_part_placeholder)) },
+                            trailingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onPickPart?.invoke(lineIndex) },
+                        )
+
+                        OutlinedTextField(
+                            value = line.description,
+                            onValueChange = { viewModel.updateLine(line.copy(description = it)) },
+                            label = { Text(stringResource(R.string.po_line_part)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedTextField(
                                 value = line.quantity,

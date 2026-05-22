@@ -134,6 +134,15 @@
     <string name="po_cost_approval_required">Required</string>
     <string name="po_save">Save</string>
     <string name="po_submitting">Saving…</string>
+    <string name="po_select_location">Select location…</string>
+    <string name="po_ship_to_location">Ship-to Location</string>
+    <string name="po_costs_section">Costs</string>
+    <string name="po_currency_label">Currency</string>
+    <string name="po_shipping_cost_label">Shipping Cost</string>
+    <string name="po_discount_label">Discount</string>
+    <string name="po_line_part_optional">Part (optional)</string>
+    <string name="po_line_part_placeholder">Select from inventory…</string>
+    <string name="po_line_item_number">Item %d</string>
 
     <!-- GRN -->
     <string name="grn_sheet_title">Goods Receipt</string>
