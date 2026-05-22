@@ -2,6 +2,7 @@ package com.avago.core.auth
 
 import android.content.Context
 import com.avago.core.network.AvagoServiceClient
+import com.avago.core.network.RefreshFailedHandler
 import com.avago.core.network.model.DeviceUpdateRequest
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -11,6 +12,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -27,7 +29,7 @@ class IdentityManager @Inject constructor(
     // IdentityManager → AvagoServiceClient → HttpClient → TokenProvider (SecureTokenStore)
     // SecureTokenStore does NOT depend on IdentityManager, so no cycle at injection time.
     private val serviceClientProvider: Provider<AvagoServiceClient>,
-) {
+) : RefreshFailedHandler {
 
     private val refreshMutex = Mutex()
 
@@ -121,6 +123,37 @@ class IdentityManager @Inject constructor(
 
             Timber.d("IdentityManager: signed in as $accountId")
         }
+
+    // ---------------------------------------------------------------------------
+    // Silent re-authentication
+    // ---------------------------------------------------------------------------
+
+    suspend fun reAuthenticateSilently(): Boolean {
+        return try {
+            val firebaseUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+                ?: return false
+            val token = suspendCancellableCoroutine<String?> { cont ->
+                firebaseUser.getIdToken(true)
+                    .addOnSuccessListener { result -> cont.resume(result.token) }
+                    .addOnFailureListener { cont.resume(null) }
+            } ?: return false
+            signInWithFirebase(appContext, token)
+            true
+        } catch (e: Exception) {
+            Timber.w(e, "Silent re-auth failed")
+            false
+        }
+    }
+
+    override suspend fun onRefreshFailed() {
+        val reAuthed = reAuthenticateSilently()
+        if (!reAuthed) {
+            val accountId = getActiveAccountId()
+            if (accountId != null) {
+                signOut(accountId)
+            }
+        }
+    }
 
     // ---------------------------------------------------------------------------
     // Token refresh

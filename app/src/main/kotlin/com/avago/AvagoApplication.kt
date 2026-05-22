@@ -12,6 +12,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.avago.core.auth.IdentityManager
+import com.avago.core.network.AvagoServiceClient
 import com.avago.core.seed.ConfigSeeder
 import com.avago.core.sync.ConnectivityMonitor
 import com.avago.core.sync.SyncEngine
@@ -32,6 +33,7 @@ class AvagoApplication : Application(), Configuration.Provider {
 
     @Inject lateinit var workerFactory: HiltWorkerFactory
     @Inject lateinit var identityManager: IdentityManager
+    @Inject lateinit var serviceClient: AvagoServiceClient
     @Inject lateinit var configSeeder: ConfigSeeder
     @Inject lateinit var connectivityMonitor: ConnectivityMonitor
     @Inject lateinit var syncEngine: SyncEngine
@@ -66,6 +68,7 @@ class AvagoApplication : Application(), Configuration.Provider {
         schedulePeriodicSync()
         observeConnectivityForSync()
         observeSignOutForWatermarkReset()
+        observePermissionsStaleness()
 
         Trace.endSection() // AvagoApplication.initCoroutines
         Trace.endSection() // AvagoApplication.onCreate
@@ -110,6 +113,27 @@ class AvagoApplication : Application(), Configuration.Provider {
             identityManager.signOutEvents.collect { accountId ->
                 runCatching { syncEngine.resetAllWatermarks(accountId) }
                     .onFailure { Timber.e(it, "AvagoApplication: failed to reset watermarks for $accountId") }
+            }
+        }
+    }
+
+    private fun observePermissionsStaleness() {
+        appScope.launch {
+            serviceClient.permissionsStaleEvents.collect { accountId ->
+                Timber.w("AvagoApplication: permissions stale for $accountId — triggering sync")
+                val request = OneTimeWorkRequestBuilder<SyncWorker>()
+                    .setConstraints(
+                        Constraints.Builder()
+                            .setRequiredNetworkType(NetworkType.CONNECTED)
+                            .build()
+                    )
+                    .build()
+                WorkManager.getInstance(this@AvagoApplication)
+                    .enqueueUniqueWork(
+                        "sync_permissions_$accountId",
+                        ExistingWorkPolicy.REPLACE,
+                        request,
+                    )
             }
         }
     }

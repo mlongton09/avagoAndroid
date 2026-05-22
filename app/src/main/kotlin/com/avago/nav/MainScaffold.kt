@@ -60,6 +60,9 @@ import com.avago.core.ai.ui.VoiceInputSheet
 import com.avago.core.push.SyncStatusBanner
 import com.avago.core.sync.SyncConflict
 import com.avago.core.sync.SyncState
+import com.avago.core.ui.AvagoToast
+import com.avago.core.ui.AvagoToastHost
+import com.avago.core.ui.OfflineBanner
 import com.avago.feature.settings.AccountSwitcherViewModel
 import com.avago.feature.settings.nav.SettingsRoute
 import kotlinx.coroutines.launch
@@ -100,6 +103,8 @@ private val bottomNavItems = listOf(
 fun MainScaffold(
     syncState: SyncState,
     conflicts: List<SyncConflict>,
+    isOffline: Boolean = false,
+    toast: AvagoToast,
     onAddAccount: () -> Unit = {},
     navController: NavHostController = rememberNavController(),
     scoutViewModel: ScoutViewModel = hiltViewModel(),
@@ -111,6 +116,7 @@ fun MainScaffold(
     var scoutPaletteVisible by remember { mutableStateOf(false) }
     var voiceSheetVisible by remember { mutableStateOf(false) }
 
+    AvagoToastHost(toastManager = toast) {
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
@@ -179,18 +185,21 @@ fun MainScaffold(
                 }
             },
         ) { innerPadding ->
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
             ) {
-                AvagoNavHost(navController = navController)
+                OfflineBanner(isOffline = isOffline)
+                Box(modifier = Modifier.weight(1f)) {
+                    AvagoNavHost(navController = navController)
 
-                // Floating sync banner — sits above content, top-center.
-                SyncStatusBanner(
-                    syncState = syncState,
-                    modifier = Modifier.align(Alignment.TopCenter),
-                )
+                    // Floating sync banner — sits above content, top-center.
+                    SyncStatusBanner(
+                        syncState = syncState,
+                        modifier = Modifier.align(Alignment.TopCenter),
+                    )
+                }
             }
         }
     }
@@ -223,6 +232,7 @@ fun MainScaffold(
             scoutPaletteVisible = true   // show the palette so the result is visible
         },
     )
+    } // AvagoToastHost
 }
 
 // ---------------------------------------------------------------------------

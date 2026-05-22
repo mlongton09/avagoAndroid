@@ -32,6 +32,10 @@ interface TokenStorage {
     suspend fun clearTokens()
 }
 
+interface RefreshFailedHandler {
+    suspend fun onRefreshFailed()
+}
+
 object AvagoHttpClient {
 
     private val jsonConfig = Json {
@@ -50,6 +54,7 @@ object AvagoHttpClient {
         tokenStorage: TokenStorage,
         deviceId: String,
         isDebug: Boolean = false,
+        refreshFailedHandler: RefreshFailedHandler? = null,
     ): HttpClient = HttpClient(OkHttp) {
         install(ContentNegotiation) {
             json(jsonConfig)
@@ -103,6 +108,7 @@ object AvagoHttpClient {
                     } catch (e: Exception) {
                         Timber.e(e, "Token refresh failed")
                         tokenStorage.clearTokens()
+                        refreshFailedHandler?.onRefreshFailed()
                         null
                     } finally {
                         unauthClient.close()

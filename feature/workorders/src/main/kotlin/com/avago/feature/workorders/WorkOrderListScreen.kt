@@ -60,6 +60,7 @@ fun WorkOrderListScreen(
     val filter by viewModel.filter.collectAsStateWithLifecycle()
     val horizon by viewModel.horizon.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+    val syncError by viewModel.syncError.collectAsStateWithLifecycle()
 
     val scopeTabs = listOf(
         WoListFilter.ALL to stringResource(R.string.wo_tab_all),
@@ -144,6 +145,31 @@ fun WorkOrderListScreen(
                 },
                 singleLine = true,
             )
+
+            syncError?.let { msg ->
+                Surface(
+                    onClick = viewModel::refresh,
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = msg,
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                        Text(
+                            text = "Retry",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                    }
+                }
+            }
 
             // Bucketed list with pull-to-refresh
             PullToRefreshBox(

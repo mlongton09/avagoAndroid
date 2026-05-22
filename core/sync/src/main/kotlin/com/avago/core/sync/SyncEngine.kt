@@ -37,6 +37,7 @@ import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkException
 import com.avago.core.network.model.SyncOperation
 import com.avago.core.network.model.SyncPushRequest
+import com.avago.core.ui.AvagoToast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.datetime.Instant
@@ -62,6 +63,7 @@ class SyncEngine @Inject constructor(
     private val payloadBuilder: SyncPayloadBuilder,
     // Use Provider<> to break circular dependency with SyncConflictCoordinator
     private val conflictCoordinator: Provider<SyncConflictCoordinator>,
+    private val toast: AvagoToast,
     @ApplicationScope private val scope: CoroutineScope,
 ) {
     private val mutex = Mutex()
@@ -231,6 +233,7 @@ class SyncEngine @Inject constructor(
                     db.syncQueueDao().resetInFlightToPending()
                     Timber.e(e, "[SyncEngine] Push failed")
                     _state.value = SyncState.Error(e.message ?: "Unknown error")
+                    toast.error("Sync failed. Changes will retry when reconnected.")
                     return SyncResult.Failed(e)
                 }
             }

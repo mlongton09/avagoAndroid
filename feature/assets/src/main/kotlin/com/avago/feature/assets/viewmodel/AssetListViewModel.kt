@@ -34,6 +34,9 @@ class AssetListViewModel @Inject constructor(
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
+    private val _syncError = MutableStateFlow<String?>(null)
+    val syncError: StateFlow<String?> = _syncError.asStateFlow()
+
     private val _filterType = MutableStateFlow<String?>(null)
     val filterType: StateFlow<String?> = _filterType.asStateFlow()
 
@@ -104,10 +107,12 @@ class AssetListViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _isRefreshing.value = true
+            _syncError.value = null
             try {
                 syncEngine.sync()
             } catch (e: Exception) {
                 Timber.e(e, "[AssetListViewModel] Sync failed")
+                _syncError.value = "Couldn't sync. Tap to retry."
             } finally {
                 _isRefreshing.value = false
             }

@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
@@ -13,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.avago.app.MainViewModel
 import com.avago.core.data.repository.UserPreferencesRepository
 import com.avago.core.design.theme.AvagoTheme
 import com.avago.core.sync.SyncConflictCoordinator
@@ -29,6 +31,8 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var syncEngine: SyncEngine
     @Inject lateinit var conflictCoordinator: SyncConflictCoordinator
     @Inject lateinit var userPreferencesRepository: UserPreferencesRepository
+
+    private val mainViewModel: MainViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -57,10 +61,13 @@ class MainActivity : ComponentActivity() {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val syncState by syncEngine.state.collectAsState()
                     val conflicts by conflictCoordinator.conflicts.collectAsState()
+                    val isOffline by mainViewModel.isOffline.collectAsState()
 
                     MainScaffold(
                         syncState = syncState,
                         conflicts = conflicts,
+                        isOffline = isOffline,
+                        toast = mainViewModel.toast,
                     )
                 }
             }

@@ -2,6 +2,9 @@ package com.avago.core.network
 
 import com.avago.core.network.model.AccountResponse
 import com.avago.core.network.model.AuthResponse
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import com.avago.core.network.model.ChatMessageResponse
 import com.avago.core.network.model.ChatMessagesResponse
 import com.avago.core.network.model.ChatThreadResponse
@@ -52,6 +55,13 @@ class AvagoServiceClient @Inject constructor(
     private val client: HttpClient,
     @Named("baseUrl") private val baseUrl: String,
 ) {
+
+    private val _permissionsStaleEvents = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val permissionsStaleEvents: SharedFlow<String> = _permissionsStaleEvents.asSharedFlow()
+
+    fun notifyPermissionsStale(accountId: String) {
+        _permissionsStaleEvents.tryEmit(accountId)
+    }
 
     suspend fun provision(deviceId: String): AuthResponse =
         safeCall { client.post("$baseUrl/auth/provision") {

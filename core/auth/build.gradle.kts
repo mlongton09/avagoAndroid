@@ -26,5 +26,8 @@ dependencies {
     implementation(libs.security.crypto)
     implementation(libs.serialization.json)
 
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+
     implementation(project(":core:network"))
 }

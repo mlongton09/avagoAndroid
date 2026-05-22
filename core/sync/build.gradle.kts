@@ -35,6 +35,7 @@ dependencies {
     implementation(project(":core:data"))
     implementation(project(":core:network"))
     implementation(project(":core:auth"))
+    implementation(project(":core:ui"))
 
     implementation(libs.serialization.json)
     implementation(libs.kotlinx.datetime)
