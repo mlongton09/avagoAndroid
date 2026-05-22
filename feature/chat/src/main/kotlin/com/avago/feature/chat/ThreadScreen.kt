@@ -28,6 +28,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -74,6 +76,14 @@ fun ThreadScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Surface one-shot errors via Snackbar.
+    LaunchedEffect(uiState.errorMessage) {
+        val msg = uiState.errorMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(msg)
+        viewModel.clearError()
+    }
 
     // Which message has the action sheet open.
     var actionSheetMessage by remember { mutableStateOf<ChatMessageEntity?>(null) }
@@ -106,6 +116,7 @@ fun ThreadScreen(
 
     Scaffold(
         modifier = modifier,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {

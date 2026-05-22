@@ -194,19 +194,31 @@ class ThreadViewModel @Inject constructor(
 
     fun reactToMessage(messageId: String, emoji: String) {
         viewModelScope.launch {
-            repository.reactToMessage(threadId, messageId, emoji)
+            val ok = repository.reactToMessage(threadId, messageId, emoji)
+            if (!ok) {
+                Timber.w("reactToMessage failed: threadId=$threadId messageId=$messageId emoji=$emoji")
+                _errorMessage.value = "Failed to add reaction"
+            }
         }
     }
 
     fun pinMessage(messageId: String) {
         viewModelScope.launch {
-            repository.pinMessage(threadId, messageId)
+            val ok = repository.pinMessage(threadId, messageId)
+            if (!ok) {
+                Timber.w("pinMessage failed: threadId=$threadId messageId=$messageId")
+                _errorMessage.value = "Failed to pin message"
+            }
         }
     }
 
     fun unpinMessage(messageId: String) {
         viewModelScope.launch {
-            repository.unpinMessage(threadId, messageId)
+            val ok = repository.unpinMessage(threadId, messageId)
+            if (!ok) {
+                Timber.w("unpinMessage failed: threadId=$threadId messageId=$messageId")
+                _errorMessage.value = "Failed to unpin message"
+            }
         }
     }
 

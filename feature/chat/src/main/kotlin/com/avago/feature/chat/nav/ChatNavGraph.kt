@@ -100,7 +100,7 @@ fun NavGraphBuilder.chatNavGraph(navController: NavHostController) {
         arguments = listOf(navArgument("threadId") { type = NavType.StringType }),
     ) { back ->
         val threadId = back.arguments?.getString("threadId") ?: return@composable
-        ChatSettingsScreen(onBack = { navController.popBackStack() })
+        ChatSettingsScreen(threadId = threadId, onBack = { navController.popBackStack() })
     }
 
     composable(
