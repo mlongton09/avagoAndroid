@@ -21,8 +21,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.Article
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.ReceiptLong
@@ -60,6 +63,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.avago.core.data.db.entity.AssetEntity
+import com.avago.core.data.db.entity.DocEntity
 import com.avago.core.data.db.entity.LogEntity
 import com.avago.core.data.db.entity.PhotoEntity
 import com.avago.core.ui.EmptyState
@@ -86,6 +90,7 @@ fun AssetDetailScreen(
     onOpenWheelConfig: () -> Unit = {},
     onOpenWheelDataInput: () -> Unit = {},
     onOpenRentals: () -> Unit = {},
+    onOpenAsset: (assetId: String) -> Unit = {},
     viewModel: AssetDetailViewModel = hiltViewModel(),
 ) {
     val asset by viewModel.asset.collectAsStateWithLifecycle()
@@ -96,6 +101,7 @@ fun AssetDetailScreen(
     val availableCategories by viewModel.availableCategories.collectAsStateWithLifecycle()
     val categoryFilter by viewModel.categoryFilter.collectAsStateWithLifecycle()
     val photos by viewModel.photos.collectAsStateWithLifecycle()
+    val documents by viewModel.documents.collectAsStateWithLifecycle()
 
     var showOverflowMenu by remember { mutableStateOf(false) }
 
@@ -188,7 +194,7 @@ fun AssetDetailScreen(
                     totalCost = totalCost,
                     lastServiceDate = lastServiceDate,
                     latestMeterReading = latestMeterReading,
-                    showMeter = safeAsset.meterType != null,
+                    meterType = safeAsset.meterType,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             }
@@ -205,6 +211,50 @@ fun AssetDetailScreen(
             item(key = "rentals_card") {
                 RentalsCard(
                     onClick = onOpenRentals,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+
+            // Hierarchy card
+            if (safeAsset.parentAssetId != null || safeAsset.childCount > 0) {
+                item(key = "hierarchy_card") {
+                    HierarchyCard(
+                        asset = safeAsset,
+                        onOpenAsset = onOpenAsset,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                }
+            }
+
+            // Location card
+            item(key = "location_card") {
+                LocationCard(
+                    asset = safeAsset,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+
+            // Custom attributes (Details) card
+            item(key = "details_card") {
+                DetailsCard(
+                    asset = safeAsset,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+
+            // QR Code card
+            item(key = "qr_code_card") {
+                QrCodeCard(
+                    assetId = safeAsset.assetId,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+
+            // Documents card
+            item(key = "documents_card") {
+                DocumentsCard(
+                    documents = documents,
+                    onAddDocument = {},
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 )
             }
@@ -363,6 +413,15 @@ private fun AssetDetailHeader(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            // Fleet number badge
+            val fleetNumber = parseAttributes(asset.attributes)["fleet_number"]
+            if (!fleetNumber.isNullOrBlank()) {
+                Text(
+                    text = "Fleet #$fleetNumber",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                )
+            }
         }
     }
     HorizontalDivider()
@@ -373,7 +432,7 @@ private fun AssetStatsRow(
     totalCost: Double,
     lastServiceDate: Long?,
     latestMeterReading: Double?,
-    showMeter: Boolean,
+    meterType: String?,
     modifier: Modifier = Modifier,
 ) {
     Card(
@@ -398,11 +457,10 @@ private fun AssetStatsRow(
                 value = if (lastServiceDate != null) formatDate(lastServiceDate)
                 else stringResource(R.string.asset_detail_na),
             )
-            if (showMeter) {
+            if (meterType != null) {
                 StatCell(
                     label = stringResource(R.string.asset_detail_meter_reading),
-                    value = if (latestMeterReading != null) "%.0f".format(latestMeterReading)
-                    else stringResource(R.string.asset_detail_na),
+                    value = formatMeterReading(latestMeterReading, meterType),
                 )
             }
         }
@@ -697,6 +755,314 @@ private fun WheelDataCard(
                 }
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// New cards: Hierarchy, Location, Details (custom attributes), Documents
+// ---------------------------------------------------------------------------
+
+/** Known attribute keys that are displayed via dedicated UI fields elsewhere. */
+private val KNOWN_ATTRIBUTE_KEYS = setOf(
+    "name", "make", "model", "year", "color", "license_plate", "vin",
+    "purchase_date", "purchase_price", "notes",
+    "street_address", "city", "state", "zip_code", "country",
+    "fleet_number",
+)
+
+/**
+ * Parses a JSON-like attributes string (simple key-value pairs) into a map.
+ * Only handles flat string values (no nested objects/arrays).
+ */
+private fun parseAttributes(json: String?): Map<String, String> {
+    if (json.isNullOrBlank()) return emptyMap()
+    val result = mutableMapOf<String, String>()
+    val pattern = Regex(""""(\w+)"\s*:\s*"([^"]*)"""")
+    pattern.findAll(json).forEach { match ->
+        result[match.groupValues[1]] = match.groupValues[2]
+    }
+    return result
+}
+
+@Composable
+private fun HierarchyCard(
+    asset: AssetEntity,
+    onOpenAsset: (assetId: String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 8.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AccountTree,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = "Hierarchy",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+
+            asset.parentAssetId?.let { parentId ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenAsset(parentId) }
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = "Parent: $parentId",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                        contentDescription = "Open parent asset",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (asset.childCount > 0) {
+                    HorizontalDivider()
+                }
+            }
+
+            if (asset.childCount > 0) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenAsset(asset.assetId) }
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = "${asset.childCount} child asset${if (asset.childCount != 1L) "s" else ""}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                        contentDescription = "Open child assets",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LocationCard(
+    asset: AssetEntity,
+    modifier: Modifier = Modifier,
+) {
+    // Prefer dedicated entity columns; fall back to attributes map for street_address
+    val street = asset.addressLine1
+        ?: parseAttributes(asset.attributes)["street_address"]
+        ?: return
+
+    val line2 = asset.addressLine2
+    val city = asset.city ?: parseAttributes(asset.attributes)["city"]
+    val state = asset.state ?: parseAttributes(asset.attributes)["state"]
+    val zip = asset.postalCode ?: parseAttributes(asset.attributes)["zip_code"]
+    val country = asset.country ?: parseAttributes(asset.attributes)["country"]
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 8.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.LocationOn,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = "Location",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            Text(
+                text = street,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            if (!line2.isNullOrBlank()) {
+                Text(
+                    text = line2,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            val cityStateZip = listOfNotNull(city, state, zip).joinToString(", ")
+            if (cityStateZip.isNotBlank()) {
+                Text(
+                    text = cityStateZip,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            if (!country.isNullOrBlank()) {
+                Text(
+                    text = country,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailsCard(
+    asset: AssetEntity,
+    modifier: Modifier = Modifier,
+) {
+    val customAttrs = parseAttributes(asset.attributes)
+        .filterKeys { it !in KNOWN_ATTRIBUTE_KEYS }
+    if (customAttrs.isEmpty()) return
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Details",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+            customAttrs.entries.forEachIndexed { index, (key, value) ->
+                if (index > 0) HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = key.replace("_", " ").replaceFirstChar { it.uppercase() },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        text = value,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DocumentsCard(
+    documents: List<DocEntity>,
+    onAddDocument: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 8.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Article,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = "Documents",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+
+            if (documents.isEmpty()) {
+                Text(
+                    text = "No documents yet",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 8.dp),
+                )
+            } else {
+                documents.forEach { doc ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = doc.name,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            doc.docType?.takeIf { it.isNotBlank() }?.let { type ->
+                                Text(
+                                    text = type.replace("_", " ").replaceFirstChar { it.uppercase() },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                    HorizontalDivider()
+                }
+            }
+
+            androidx.compose.material3.TextButton(
+                onClick = onAddDocument,
+                modifier = Modifier.align(Alignment.End),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                )
+                Text("Add Document")
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Formatting helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Formats a meter reading with the appropriate unit suffix based on [meterType].
+ * Returns "—" when [value] is null.
+ */
+fun formatMeterReading(value: Double?, meterType: String?): String {
+    if (value == null) return "—"
+    val formatted = NumberFormat.getNumberInstance().format(value)
+    return when (meterType) {
+        "odometer" -> "$formatted mi"
+        "hours" -> "$formatted hrs"
+        else -> formatted
     }
 }
 
