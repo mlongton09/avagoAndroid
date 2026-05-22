@@ -1,6 +1,7 @@
 package com.avago.core.data.repository
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -39,6 +40,14 @@ class UserPreferencesRepository @Inject constructor(
         prefs[LANGUAGE_KEY] ?: ""
     }
 
+    val currencyFlow: Flow<String> = dataStore.data.map { prefs ->
+        prefs[CURRENCY_KEY] ?: "USD"
+    }
+
+    val notificationsEnabledFlow: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[NOTIFICATIONS_ENABLED_KEY] ?: true
+    }
+
     // ── Mutators ──────────────────────────────────────────────────────────────
 
     suspend fun setTheme(value: String) {
@@ -53,11 +62,21 @@ class UserPreferencesRepository @Inject constructor(
         dataStore.edit { prefs -> prefs[LANGUAGE_KEY] = value }
     }
 
+    suspend fun setCurrency(value: String) {
+        dataStore.edit { prefs -> prefs[CURRENCY_KEY] = value }
+    }
+
+    suspend fun setNotificationsEnabled(value: Boolean) {
+        dataStore.edit { prefs -> prefs[NOTIFICATIONS_ENABLED_KEY] = value }
+    }
+
     // ── Keys ──────────────────────────────────────────────────────────────────
 
     companion object {
         val THEME_KEY = stringPreferencesKey("theme_preference")
         val DISTANCE_UNIT_KEY = stringPreferencesKey("distance_unit")
         val LANGUAGE_KEY = stringPreferencesKey("language_override")
+        val CURRENCY_KEY = stringPreferencesKey("currency_preference")
+        val NOTIFICATIONS_ENABLED_KEY = booleanPreferencesKey("notifications_enabled")
     }
 }

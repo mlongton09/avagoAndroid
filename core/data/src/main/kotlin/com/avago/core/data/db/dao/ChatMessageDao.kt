@@ -51,6 +51,13 @@ interface ChatMessageDao {
     )
     fun observeFailedOutbox(): Flow<List<ChatMessageEntity>>
 
+    /** One-shot query used by the periodic flush timer. */
+    @Query(
+        "SELECT * FROM chat_messages " +
+            "WHERE outbox_status = 'failed' AND deleted_at IS NULL"
+    )
+    suspend fun failedOutboxList(): List<ChatMessageEntity>
+
     /** Observe all replies to a specific parent message, ordered oldest-first. */
     @Query(
         "SELECT * FROM chat_messages " +

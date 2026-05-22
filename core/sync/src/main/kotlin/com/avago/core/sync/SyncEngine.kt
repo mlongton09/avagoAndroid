@@ -67,6 +67,8 @@ class SyncEngine @Inject constructor(
     @ApplicationScope private val scope: CoroutineScope,
     // Provider<> breaks potential circular dependency since DeltaPushApplier uses DatabaseFactory
     private val deltaApplier: Provider<DeltaPushApplier>,
+    // Provider<> avoids circular dependency; PreferencesSync depends on AvagoServiceClient
+    private val preferencesSync: Provider<PreferencesSync>,
 ) {
     private val mutex = Mutex()
 
@@ -283,6 +285,13 @@ class SyncEngine @Inject constructor(
 
         // Notify the delta applier that the first full sync has completed for this account
         deltaApplier.get().markFirstSyncComplete(accountId)
+
+        // Pull cross-device user preferences (non-fatal if this fails)
+        try {
+            preferencesSync.get().refreshFromServer(accountId)
+        } catch (e: Exception) {
+            Timber.w(e, "[SyncEngine] PreferencesSync.refreshFromServer failed — ignoring")
+        }
 
         _state.value = SyncState.Idle
         return SyncResult.Success

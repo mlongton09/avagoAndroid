@@ -2,6 +2,7 @@ package com.avago.core.network
 
 import com.avago.core.network.model.AccountResponse
 import com.avago.core.network.model.AuthResponse
+import com.avago.core.network.model.UserPreferencesResponse
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -313,6 +314,33 @@ class AvagoServiceClient @Inject constructor(
             }
         }
     }
+
+    // ---------------------------------------------------------------------------
+    // User Preferences
+    // ---------------------------------------------------------------------------
+
+    suspend fun getUserPreferences(accountId: String): NetworkResult<UserPreferencesResponse> =
+        safeNetworkCall { client.get("$baseUrl/accounts/$accountId/preferences").body() }
+
+    // ---------------------------------------------------------------------------
+    // Tech Location
+    // ---------------------------------------------------------------------------
+
+    suspend fun updateTechLocation(
+        accountId: String,
+        userId: String,
+        lat: Double,
+        lon: Double,
+    ): NetworkResult<Unit> =
+        safeNetworkCall {
+            val response: HttpResponse =
+                client.post("$baseUrl/accounts/$accountId/users/$userId/location") {
+                    setBody(mapOf("lat" to lat, "lon" to lon))
+                }
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
+        }
 
     // ---------------------------------------------------------------------------
     // AI / Extraction

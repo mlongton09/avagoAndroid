@@ -7,11 +7,15 @@ import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
 import com.avago.core.sync.ApplicationScope
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,6 +33,54 @@ class OutboxRetryCoordinator @Inject constructor(
     private val identity: IdentityManager,
     @ApplicationScope private val scope: CoroutineScope,
 ) {
+    private val periodicFlushScope = CoroutineScope(SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
+    private var periodicFlushJob: Job? = null
+    private val isFlushRunning = AtomicBoolean(false)
+
+    /**
+     * Starts a 30-second periodic flush of the outbox while the app is in the foreground.
+     * Calling this multiple times is safe — a second call while already running is a no-op.
+     */
+    fun startPeriodicFlush() {
+        if (!isFlushRunning.compareAndSet(false, true)) return
+        periodicFlushJob = periodicFlushScope.launch {
+            Timber.d("OutboxRetryCoordinator: starting periodic flush (30 s interval)")
+            while (isActive) {
+                delay(30_000L)
+                val accountId = identity.getActiveAccountId() ?: continue
+                try {
+                    flush(accountId)
+                } catch (e: Exception) {
+                    Timber.w(e, "OutboxRetryCoordinator: periodic flush error for $accountId")
+                }
+            }
+        }
+    }
+
+    /**
+     * Stops the periodic flush (call when the app goes to the background).
+     */
+    fun stopPeriodicFlush() {
+        periodicFlushJob?.cancel()
+        periodicFlushJob = null
+        isFlushRunning.set(false)
+        Timber.d("OutboxRetryCoordinator: stopped periodic flush")
+    }
+
+    /**
+     * Triggers an immediate retry pass for all failed outbox messages for [accountId].
+     */
+    suspend fun flush(accountId: String) {
+        val failedMessages = chatDbFactory.get(accountId)
+            .chatMessageDao()
+            .failedOutboxList()
+        if (failedMessages.isEmpty()) return
+        Timber.d("OutboxRetryCoordinator: flush found ${failedMessages.size} failed message(s) for $accountId")
+        failedMessages.forEach { msg ->
+            scope.launch { retryMessage(accountId, msg) }
+        }
+    }
+
     /**
      * Begins watching failed outbox messages for [accountId] and retrying them
      * with exponential back-off per individual message.

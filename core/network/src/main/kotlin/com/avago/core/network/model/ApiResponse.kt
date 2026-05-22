@@ -7,3 +7,12 @@ data class ApiResponse<T>(
     val data: T? = null,
     val error: String? = null,
 )
+
+@Serializable
+data class UserPreferencesResponse(
+    val theme: String? = null,
+    val language: String? = null,
+    val distance_unit: String? = null,
+    val currency: String? = null,
+    val notifications_enabled: Boolean? = null,
+)

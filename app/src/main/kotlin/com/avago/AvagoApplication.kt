@@ -15,11 +15,14 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.avago.core.auth.IdentityManager
+import com.avago.core.data.ExchangeRateService
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.seed.ConfigSeeder
 import com.avago.core.sync.ConnectivityMonitor
 import com.avago.core.sync.SyncEngine
 import com.avago.core.sync.SyncWorker
+import com.avago.core.sync.TechLocationService
+import com.avago.feature.chat.realtime.OutboxRetryCoordinator
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +43,9 @@ class AvagoApplication : Application(), Configuration.Provider {
     @Inject lateinit var configSeeder: ConfigSeeder
     @Inject lateinit var connectivityMonitor: ConnectivityMonitor
     @Inject lateinit var syncEngine: SyncEngine
+    @Inject lateinit var exchangeRateService: ExchangeRateService
+    @Inject lateinit var techLocationService: TechLocationService
+    @Inject lateinit var outboxRetryCoordinator: OutboxRetryCoordinator
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -65,6 +71,14 @@ class AvagoApplication : Application(), Configuration.Provider {
                 }
             } catch (e: Exception) {
                 Timber.e(e, "AvagoApplication: failed to initialize identity or seed config")
+            }
+        }
+
+        appScope.launch {
+            try {
+                exchangeRateService.refreshIfNeeded()
+            } catch (e: Exception) {
+                Timber.e(e, "AvagoApplication: exchange rate refresh failed")
             }
         }
 
@@ -158,10 +172,14 @@ class AvagoApplication : Application(), Configuration.Provider {
                     ExistingWorkPolicy.KEEP,
                     request,
                 )
+                techLocationService.startMonitoring()
+                outboxRetryCoordinator.startPeriodicFlush()
             }
 
             override fun onStop(owner: LifecycleOwner) {
                 Timber.d("AvagoApplication: app backgrounded")
+                techLocationService.stopMonitoring()
+                outboxRetryCoordinator.stopPeriodicFlush()
             }
         })
     }
