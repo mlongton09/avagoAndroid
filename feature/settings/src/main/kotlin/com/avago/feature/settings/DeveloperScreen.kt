@@ -125,7 +125,7 @@ fun DeveloperScreen(
             item {
                 InfoRow(
                     label = "Version",
-                    value = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                    value = versionName,
                 )
             }
             item { HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp)) }

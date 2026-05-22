@@ -109,7 +109,7 @@ fun WorkOrderDetailScreen(
     var dispatcherNotesInitialized by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(wo?.woId) {
         if (!dispatcherNotesInitialized && wo != null) {
-            dispatcherNotesDraft = wo.dispatcherNotes ?: ""
+            dispatcherNotesDraft = wo!!.dispatcherNotes ?: ""
             dispatcherNotesInitialized = true
         }
     }

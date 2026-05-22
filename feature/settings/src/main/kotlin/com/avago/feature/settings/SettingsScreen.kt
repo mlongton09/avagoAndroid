@@ -53,7 +53,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.avago.core.push.NotificationPermissionHelper
-import com.avago.feature.settings.BuildConfig
 import com.avago.feature.settings.R
 
 // ---------------------------------------------------------------------------
@@ -70,6 +69,9 @@ fun SettingsScreen(
     onNavigateToAbout: () -> Unit = {},
 ) {
     val context = LocalContext.current
+    val versionName = remember(context) {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?" }.getOrDefault("?")
+    }
     val theme by viewModel.theme.collectAsState()
     val distanceUnit by viewModel.distanceUnit.collectAsState()
     val activeAccountId by viewModel.activeAccountId.collectAsState()
@@ -266,7 +268,7 @@ fun SettingsScreen(
                 headlineContent = { Text(stringResource(R.string.settings_version)) },
                 trailingContent = {
                     Text(
-                        text = BuildConfig.VERSION_NAME,
+                        text = versionName,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
