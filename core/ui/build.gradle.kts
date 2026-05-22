@@ -30,4 +30,7 @@ dependencies {
     ksp(libs.hilt.compiler)
     implementation(libs.coroutines.android)
     implementation(libs.timber)
+
+    implementation(project(":core:data"))
+    implementation(project(":core:auth"))
 }
