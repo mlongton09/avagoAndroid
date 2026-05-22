@@ -13,7 +13,7 @@ import com.avago.core.data.db.entity.ChatThreadEntity
         ChatMessageEntity::class,
     ],
     version = 1,
-    exportSchema = true,
+    exportSchema = false,
 )
 abstract class ChatDatabase : RoomDatabase() {
     abstract fun chatThreadDao(): ChatThreadDao
