@@ -335,9 +335,10 @@ fun AccountDrawerContent(
                         )
                     }
                 } else if (account.role != null) {
+                    val role = account.role
                     {
                         Text(
-                            text = account.role.uppercase(),
+                            text = role.uppercase(),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
