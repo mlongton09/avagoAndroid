@@ -4,10 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
-import com.avago.core.data.db.dao.InventoryDao
-import com.avago.core.data.db.dao.InventoryTransactionDao
-import com.avago.core.data.db.dao.PartDao
-import com.avago.core.data.db.dao.StockingLevelDao
+import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.InventoryEntity
 import com.avago.core.data.db.entity.InventoryTransactionEntity
 import com.avago.core.data.db.entity.PartEntity
@@ -36,10 +33,7 @@ data class PartDetailUiState(
 @HiltViewModel
 class PartDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val partDao: PartDao,
-    private val inventoryDao: InventoryDao,
-    private val stockingLevelDao: StockingLevelDao,
-    private val inventoryTransactionDao: InventoryTransactionDao,
+    private val dbFactory: DatabaseFactory,
     private val identityManager: IdentityManager,
 ) : ViewModel() {
 
@@ -52,12 +46,13 @@ class PartDetailViewModel @Inject constructor(
     val uiState: StateFlow<PartDetailUiState> = identityManager.activeAccountId.flatMapLatest { accountId ->
         if (accountId == null) flowOf(PartDetailUiState(isLoading = false))
         else {
+            val db = dbFactory.get(accountId)
             @Suppress("UNCHECKED_CAST")
             combine(
-                partDao.observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
-                inventoryDao.observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
-                stockingLevelDao.observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
-                inventoryTransactionDao.observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
+                db.partDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
+                db.inventoryDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
+                db.stockingLevelDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
+                db.inventoryTransactionDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
                 _showReceive as kotlinx.coroutines.flow.Flow<Any?>,
                 _showUse as kotlinx.coroutines.flow.Flow<Any?>,
             ) { v ->

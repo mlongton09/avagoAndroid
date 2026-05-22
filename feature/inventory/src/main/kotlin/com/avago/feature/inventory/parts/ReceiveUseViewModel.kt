@@ -3,7 +3,6 @@ package com.avago.feature.inventory.parts
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
-import com.avago.core.data.db.dao.InventoryDao
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.model.InventoryReceiveRequest
 import com.avago.core.network.model.InventoryUseRequest
@@ -27,7 +26,6 @@ data class ReceiveUseUiState(
 
 @HiltViewModel
 class ReceiveUseViewModel @Inject constructor(
-    private val inventoryDao: InventoryDao,
     private val serviceClient: AvagoServiceClient,
     private val identityManager: IdentityManager,
 ) : ViewModel() {

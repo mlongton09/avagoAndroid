@@ -4,8 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
-import com.avago.core.data.db.dao.PartDao
-import com.avago.core.data.db.dao.SyncQueueDao
+import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.PartEntity
 import com.avago.core.data.db.entity.SyncQueueEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -40,8 +39,7 @@ data class AddEditPartUiState(
 @HiltViewModel
 class AddEditPartViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val partDao: PartDao,
-    private val syncQueueDao: SyncQueueDao,
+    private val dbFactory: DatabaseFactory,
     private val identityManager: IdentityManager,
 ) : ViewModel() {
 
@@ -57,7 +55,11 @@ class AddEditPartViewModel @Inject constructor(
     private fun loadPart(id: String) {
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true)
-            val part = partDao.getById(id)
+            val accountId = identityManager.getActiveAccountId() ?: run {
+                _state.value = _state.value.copy(isLoading = false)
+                return@launch
+            }
+            val part = dbFactory.get(accountId).partDao().getById(id)
             if (part != null) {
                 _state.value = _state.value.copy(
                     name = part.name,
@@ -122,12 +124,11 @@ class AddEditPartViewModel @Inject constructor(
                     serverVersion = 0L,
                     seq = null,
                 )
-                partDao.upsert(part)
-
-                val queueId = UUID.randomUUID().toString()
-                syncQueueDao.enqueueOrReplace(
+                val db = dbFactory.get(accountId)
+                db.partDao().upsert(part)
+                db.syncQueueDao().enqueueOrReplace(
                     SyncQueueEntity(
-                        queueId = queueId,
+                        queueId = UUID.randomUUID().toString(),
                         entityType = "part",
                         entityId = id,
                         operation = if (partId == null) "create" else "update",

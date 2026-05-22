@@ -4,8 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
-import com.avago.core.data.db.dao.SyncQueueDao
-import com.avago.core.data.db.dao.VendorDao
+import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.SyncQueueEntity
 import com.avago.core.data.db.entity.VendorEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -36,7 +35,7 @@ data class VendorListUiState(
 
 @HiltViewModel
 class VendorListViewModel @Inject constructor(
-    private val vendorDao: VendorDao,
+    private val dbFactory: DatabaseFactory,
     private val identityManager: IdentityManager,
 ) : ViewModel() {
 
@@ -45,7 +44,7 @@ class VendorListViewModel @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<VendorListUiState> = identityManager.activeAccountId.flatMapLatest { accountId ->
         if (accountId == null) flowOf(VendorListUiState(isLoading = false))
-        else combine(vendorDao.observeAll(accountId), searchQuery) { vendors, query ->
+        else combine(dbFactory.get(accountId).vendorDao().observeAll(accountId), searchQuery) { vendors, query ->
             val filtered = if (query.isBlank()) vendors
             else vendors.filter { it.name.contains(query, ignoreCase = true) }
             VendorListUiState(vendors = vendors, filtered = filtered, searchQuery = query, isLoading = false)
@@ -71,7 +70,7 @@ data class VendorDetailUiState(
 @HiltViewModel
 class VendorDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val vendorDao: VendorDao,
+    private val dbFactory: DatabaseFactory,
     private val identityManager: IdentityManager,
 ) : ViewModel() {
 
@@ -80,7 +79,7 @@ class VendorDetailViewModel @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<VendorDetailUiState> = identityManager.activeAccountId.flatMapLatest { accountId ->
         if (accountId == null) flowOf(VendorDetailUiState(isLoading = false))
-        else vendorDao.observeAll(accountId).flatMapLatest { vendors ->
+        else dbFactory.get(accountId).vendorDao().observeAll(accountId).flatMapLatest { vendors ->
             flowOf(VendorDetailUiState(vendor = vendors.find { it.vendorId == vendorId }, isLoading = false))
         }
     }.stateIn(
@@ -111,8 +110,7 @@ data class AddEditVendorUiState(
 @HiltViewModel
 class AddEditVendorViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val vendorDao: VendorDao,
-    private val syncQueueDao: SyncQueueDao,
+    private val dbFactory: DatabaseFactory,
     private val identityManager: IdentityManager,
 ) : ViewModel() {
 
@@ -128,7 +126,11 @@ class AddEditVendorViewModel @Inject constructor(
     private fun loadVendor(id: String) {
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true)
-            val v = vendorDao.getById(id)
+            val accountId = identityManager.getActiveAccountId() ?: run {
+                _state.value = _state.value.copy(isLoading = false)
+                return@launch
+            }
+            val v = dbFactory.get(accountId).vendorDao().getById(id)
             if (v != null) {
                 _state.value = _state.value.copy(
                     name = v.name,
@@ -179,8 +181,9 @@ class AddEditVendorViewModel @Inject constructor(
                     serverVersion = 0L,
                     seq = null,
                 )
-                vendorDao.upsert(entity)
-                syncQueueDao.enqueueOrReplace(
+                val db = dbFactory.get(accountId)
+                db.vendorDao().upsert(entity)
+                db.syncQueueDao().enqueueOrReplace(
                     SyncQueueEntity(
                         queueId = UUID.randomUUID().toString(),
                         entityType = "vendor",

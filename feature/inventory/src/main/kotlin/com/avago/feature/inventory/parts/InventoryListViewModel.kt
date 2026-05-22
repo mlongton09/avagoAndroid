@@ -3,9 +3,7 @@ package com.avago.feature.inventory.parts
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
-import com.avago.core.data.db.dao.InventoryDao
-import com.avago.core.data.db.dao.PartDao
-import com.avago.core.data.db.dao.StockingLevelDao
+import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.InventoryEntity
 import com.avago.core.data.db.entity.PartEntity
 import com.avago.core.data.db.entity.StockingLevelEntity
@@ -38,9 +36,7 @@ data class InventoryListUiState(
 
 @HiltViewModel
 class InventoryListViewModel @Inject constructor(
-    private val partDao: PartDao,
-    private val inventoryDao: InventoryDao,
-    private val stockingLevelDao: StockingLevelDao,
+    private val dbFactory: DatabaseFactory,
     private val identityManager: IdentityManager,
 ) : ViewModel() {
 
@@ -49,12 +45,15 @@ class InventoryListViewModel @Inject constructor(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val accountFlow = identityManager.activeAccountId.flatMapLatest { accountId ->
-        if (accountId == null) flowOf(Triple(emptyList(), emptyList(), emptyList()))
-        else combine(
-            partDao.observeAll(accountId),
-            inventoryDao.observeAll(accountId),
-            stockingLevelDao.observeAll(accountId),
-        ) { parts, inventories, stockingLevels -> Triple(parts, inventories, stockingLevels) }
+        if (accountId == null) flowOf(Triple(emptyList<PartEntity>(), emptyList<InventoryEntity>(), emptyList<StockingLevelEntity>()))
+        else {
+            val db = dbFactory.get(accountId)
+            combine(
+                db.partDao().observeAll(accountId),
+                db.inventoryDao().observeAll(accountId),
+                db.stockingLevelDao().observeAll(accountId),
+            ) { parts, inventories, stockingLevels -> Triple(parts, inventories, stockingLevels) }
+        }
     }
 
     val uiState: StateFlow<InventoryListUiState> = combine(

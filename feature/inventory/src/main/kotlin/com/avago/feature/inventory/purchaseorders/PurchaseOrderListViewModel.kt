@@ -3,8 +3,7 @@ package com.avago.feature.inventory.purchaseorders
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
-import com.avago.core.data.db.dao.PurchaseOrderDao
-import com.avago.core.data.db.dao.VendorDao
+import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.PurchaseOrderEntity
 import com.avago.core.data.db.entity.VendorEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -43,8 +42,7 @@ val PO_STATUSES = listOf(
 
 @HiltViewModel
 class PurchaseOrderListViewModel @Inject constructor(
-    private val poDao: PurchaseOrderDao,
-    private val vendorDao: VendorDao,
+    private val dbFactory: DatabaseFactory,
     private val identityManager: IdentityManager,
 ) : ViewModel() {
 
@@ -53,20 +51,23 @@ class PurchaseOrderListViewModel @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<PurchaseOrderListUiState> = identityManager.activeAccountId.flatMapLatest { accountId ->
         if (accountId == null) flowOf(PurchaseOrderListUiState(isLoading = false))
-        else combine(
-            poDao.observeAll(accountId),
-            vendorDao.observeAll(accountId),
-            selectedStatus,
-        ) { pos, vendors, status ->
-            val vendorMap = vendors.associateBy { it.vendorId }
-            val items = pos.map { po -> PoListItem(po, vendorMap[po.vendorId]) }
-            val filtered = if (status == null) items else items.filter { it.po.status == status }
-            PurchaseOrderListUiState(
-                items = items,
-                filtered = filtered,
-                selectedStatus = status,
-                isLoading = false,
-            )
+        else {
+            val db = dbFactory.get(accountId)
+            combine(
+                db.purchaseOrderDao().observeAll(accountId),
+                db.vendorDao().observeAll(accountId),
+                selectedStatus,
+            ) { pos, vendors, status ->
+                val vendorMap = vendors.associateBy { it.vendorId }
+                val items = pos.map { po -> PoListItem(po, vendorMap[po.vendorId]) }
+                val filtered = if (status == null) items else items.filter { it.po.status == status }
+                PurchaseOrderListUiState(
+                    items = items,
+                    filtered = filtered,
+                    selectedStatus = status,
+                    isLoading = false,
+                )
+            }
         }
     }.stateIn(
         scope = viewModelScope,

@@ -3,7 +3,7 @@ package com.avago.feature.docs.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
-import com.avago.core.data.db.dao.DocDao
+import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.DocEntity
 import com.avago.core.sync.SyncEngine
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -23,12 +23,11 @@ import javax.inject.Inject
 
 @HiltViewModel
 class DocListViewModel @Inject constructor(
-    private val docDao: DocDao,
+    private val dbFactory: DatabaseFactory,
     private val identity: IdentityManager,
     private val syncEngine: SyncEngine,
 ) : ViewModel() {
 
-    /** Currently selected doc-type filter key, or null for "All". */
     private val _filter = MutableStateFlow<String?>(null)
     val filter: StateFlow<String?> = _filter.asStateFlow()
 
@@ -38,7 +37,7 @@ class DocListViewModel @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     private val _allDocs: StateFlow<List<DocEntity>> = identity.activeAccountId
         .filterNotNull()
-        .flatMapLatest { accountId -> docDao.observeAll(accountId) }
+        .flatMapLatest { accountId -> dbFactory.get(accountId).docDao().observeAll(accountId) }
         .catch { e ->
             Timber.e(e, "[DocListViewModel] Doc flow error")
             emit(emptyList())

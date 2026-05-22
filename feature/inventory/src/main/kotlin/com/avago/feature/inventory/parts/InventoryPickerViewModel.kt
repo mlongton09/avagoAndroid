@@ -3,8 +3,7 @@ package com.avago.feature.inventory.parts
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
-import com.avago.core.data.db.dao.InventoryDao
-import com.avago.core.data.db.dao.PartDao
+import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.InventoryEntity
 import com.avago.core.data.db.entity.PartEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -25,8 +24,7 @@ data class PickerPartItem(
 
 @HiltViewModel
 class InventoryPickerViewModel @Inject constructor(
-    private val partDao: PartDao,
-    private val inventoryDao: InventoryDao,
+    private val dbFactory: DatabaseFactory,
     private val identityManager: IdentityManager,
 ) : ViewModel() {
 
@@ -35,10 +33,13 @@ class InventoryPickerViewModel @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     private val accountFlow = identityManager.activeAccountId.flatMapLatest { accountId ->
         if (accountId == null) flowOf(Pair(emptyList<PartEntity>(), emptyList<InventoryEntity>()))
-        else combine(
-            partDao.observeAll(accountId),
-            inventoryDao.observeAll(accountId),
-        ) { parts, inventories -> Pair(parts, inventories) }
+        else {
+            val db = dbFactory.get(accountId)
+            combine(
+                db.partDao().observeAll(accountId),
+                db.inventoryDao().observeAll(accountId),
+            ) { parts, inventories -> Pair(parts, inventories) }
+        }
     }
 
     val filtered: StateFlow<List<PickerPartItem>> = combine(accountFlow, query) { (parts, inventories), q ->

@@ -4,10 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
-import com.avago.core.data.db.dao.CycleCountDao
-import com.avago.core.data.db.dao.CycleCountLineDao
-import com.avago.core.data.db.dao.LocationDao
-import com.avago.core.data.db.dao.PartDao
+import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.CycleCountEntity
 import com.avago.core.data.db.entity.CycleCountLineEntity
 import com.avago.core.data.db.entity.LocationEntity
@@ -44,7 +41,7 @@ val CYCLE_COUNT_STATUSES = listOf("in_progress", "locked", "reconciled")
 
 @HiltViewModel
 class CycleCountListViewModel @Inject constructor(
-    private val cycleCountDao: CycleCountDao,
+    private val dbFactory: DatabaseFactory,
     private val identityManager: IdentityManager,
 ) : ViewModel() {
 
@@ -55,7 +52,7 @@ class CycleCountListViewModel @Inject constructor(
     val uiState: StateFlow<CycleCountListUiState> = identityManager.activeAccountId.flatMapLatest { accountId ->
         if (accountId == null) flowOf(CycleCountListUiState(isLoading = false))
         else combine(
-            cycleCountDao.observeAll(accountId),
+            dbFactory.get(accountId).cycleCountDao().observeAll(accountId),
             _selectedStatus,
             _showCreate,
         ) { counts, status, showCreate ->
@@ -101,10 +98,7 @@ data class CycleCountLineWithPart(
 @HiltViewModel
 class CycleCountDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val cycleCountDao: CycleCountDao,
-    private val cycleCountLineDao: CycleCountLineDao,
-    private val locationDao: LocationDao,
-    private val partDao: PartDao,
+    private val dbFactory: DatabaseFactory,
     private val serviceClient: AvagoServiceClient,
     private val identityManager: IdentityManager,
 ) : ViewModel() {
@@ -112,19 +106,19 @@ class CycleCountDetailViewModel @Inject constructor(
     private val countId: String = checkNotNull(savedStateHandle["countId"])
     private val _isActioning = MutableStateFlow(false)
     private val _actionError = MutableStateFlow<String?>(null)
-    // Local qty edits: lineId -> value
     private val _localQtyEdits = MutableStateFlow<Map<String, String>>(emptyMap())
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<CycleCountDetailUiState> = identityManager.activeAccountId.flatMapLatest { accountId ->
         if (accountId == null) flowOf(CycleCountDetailUiState(isLoading = false))
         else {
+            val db = dbFactory.get(accountId)
             @Suppress("UNCHECKED_CAST")
             combine(
-                cycleCountDao.observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
-                cycleCountLineDao.observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
-                locationDao.observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
-                partDao.observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
+                db.cycleCountDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
+                db.cycleCountLineDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
+                db.locationDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
+                db.partDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
                 _isActioning as kotlinx.coroutines.flow.Flow<Any?>,
                 _actionError as kotlinx.coroutines.flow.Flow<Any?>,
                 _localQtyEdits as kotlinx.coroutines.flow.Flow<Any?>,

@@ -6,8 +6,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
-import com.avago.core.data.db.dao.DocDao
-import com.avago.core.data.db.dao.SyncQueueDao
+import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.DocEntity
 import com.avago.core.data.db.entity.SyncQueueEntity
 import com.avago.core.ocr.AvagoTextRecognizer
@@ -24,8 +23,7 @@ import javax.inject.Inject
 @HiltViewModel
 class DocDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val docDao: DocDao,
-    private val syncQueueDao: SyncQueueDao,
+    private val dbFactory: DatabaseFactory,
     private val identity: IdentityManager,
     private val textRecognizer: AvagoTextRecognizer,
     @ApplicationContext private val context: Context,
@@ -50,22 +48,20 @@ class DocDetailViewModel @Inject constructor(
 
     private fun load() {
         viewModelScope.launch {
-            _doc.value = docDao.getById(docId)
+            val accountId = identity.getActiveAccountId() ?: return@launch
+            _doc.value = dbFactory.get(accountId).docDao().getById(docId)
         }
     }
 
-    /**
-     * Soft-deletes the document and enqueues a sync-queue item.
-     * Calls [onDeleted] on the calling thread once the DB write completes.
-     */
     fun delete(onDeleted: () -> Unit) {
         viewModelScope.launch {
+            val accountId = identity.getActiveAccountId() ?: return@launch
+            val db = dbFactory.get(accountId)
             val now = System.currentTimeMillis()
-            docDao.softDelete(docId, now)
-            val queueId = UUID.randomUUID().toString()
-            syncQueueDao.enqueueOrReplace(
+            db.docDao().softDelete(docId, now)
+            db.syncQueueDao().enqueueOrReplace(
                 SyncQueueEntity(
-                    queueId = queueId,
+                    queueId = UUID.randomUUID().toString(),
                     entityType = "doc",
                     entityId = docId,
                     operation = "delete",
@@ -82,11 +78,6 @@ class DocDetailViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Re-runs OCR on the supplied page URIs and persists the updated text.
-     * Only meaningful when the caller can provide the page image URIs — e.g. if
-     * they are still in the scan-result content:// authority.
-     */
     fun reScanOcr(pageUris: List<Uri>) {
         if (pageUris.isEmpty()) {
             _errorMessage.value = "No pages available for re-scan"
@@ -103,13 +94,13 @@ class DocDetailViewModel @Inject constructor(
                 val current = _doc.value ?: return@launch
                 val now = System.currentTimeMillis()
                 val updated = current.copy(ocrRawText = rawText, updatedAt = now)
-                docDao.upsert(updated)
+                val accountId = identity.getActiveAccountId() ?: return@launch
+                val db = dbFactory.get(accountId)
+                db.docDao().upsert(updated)
                 _doc.value = updated
-
-                val queueId = UUID.randomUUID().toString()
-                syncQueueDao.enqueueOrReplace(
+                db.syncQueueDao().enqueueOrReplace(
                     SyncQueueEntity(
-                        queueId = queueId,
+                        queueId = UUID.randomUUID().toString(),
                         entityType = "doc",
                         entityId = docId,
                         operation = "update",
