@@ -7,3 +7,14 @@ data class PhotoUploadUrlResponse(
     val upload_url: String,
     val storage_key: String,
 )
+
+@Serializable
+data class PhotoResponse(
+    val photo_id: String,
+    val entity_id: String,
+    val entity_type: String,
+    val storage_key: String? = null,
+    val download_url: String? = null,
+    val sort_order: Int = 0,
+    val created_at: Long = 0,
+)

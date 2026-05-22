@@ -68,3 +68,70 @@ data class CreateThreadRequest(
     val display_name: String? = null,
     val member_ids: List<String> = emptyList(),
 )
+
+@Serializable
+data class ChatMemberResponse(
+    val user_id: String,
+    val display_name: String? = null,
+    val role: String? = null,
+    val joined_at: Long = 0,
+)
+
+@Serializable
+data class ChatPageResponse(
+    val items: List<ChatMessageResponse> = emptyList(),
+    val cursor: String? = null,
+    val has_more: Boolean = false,
+)
+
+@Serializable
+data class LinkPreviewResponse(
+    val url: String,
+    val title: String? = null,
+    val description: String? = null,
+    val image_url: String? = null,
+    val site_name: String? = null,
+)
+
+@Serializable
+data class ChatMediaPresignResponse(
+    val upload_url: String,
+    val media_url: String,
+    val expires_at: Long,
+)
+
+@Serializable
+data class ChatSyncResponse(
+    val ops: List<ChatSyncOp> = emptyList(),
+    val cursor: String? = null,
+    val has_more: Boolean = false,
+)
+
+@Serializable
+data class ChatSyncOp(
+    val op: String,  // "upsert", "delete"
+    val entity_type: String,
+    val payload: String? = null,  // JSON string
+)
+
+@Serializable
+data class ChatPrefsResponse(
+    val notification_sound: Boolean = true,
+    val show_previews: Boolean = true,
+    val badge_count: Boolean = true,
+)
+
+@Serializable
+data class ChatPrefsRequest(
+    val notification_sound: Boolean? = null,
+    val show_previews: Boolean? = null,
+    val badge_count: Boolean? = null,
+)
+
+@Serializable
+data class ChatRosterEntry(
+    val user_id: String,
+    val display_name: String? = null,
+    val is_online: Boolean = false,
+    val last_seen_at: Long? = null,
+)

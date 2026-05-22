@@ -50,3 +50,22 @@ data class DeviceUpdateRequest(
     val app_version: String? = null,
     val os_version: String? = null,
 )
+
+@Serializable
+data class BulkInvitation(
+    val email: String,
+    val display_name: String? = null,
+    val role: String,
+)
+
+@Serializable
+data class RolePermissionResponse(
+    val role: String,
+    val permissions: List<String>,
+)
+
+@Serializable
+data class DispatchConfigResponse(
+    val enabled: Boolean,
+    val columns: List<String> = emptyList(),
+)
