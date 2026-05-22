@@ -9,6 +9,7 @@ import com.avago.core.seed.model.DocTypeSeed
 import com.avago.core.seed.model.InspectionTypeSeed
 import com.avago.core.seed.model.InventoryCategorySeed
 import com.avago.core.seed.model.LogCategoryGroupSeed
+import com.avago.core.sync.SyncGate
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -22,6 +23,7 @@ class ConfigSeeder @Inject constructor(
     @ApplicationContext private val context: Context,
     private val dbFactory: DatabaseFactory,
     private val appLimits: AppLimits,
+    private val syncGate: SyncGate,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -31,6 +33,13 @@ class ConfigSeeder @Inject constructor(
      * before inserting anything.
      */
     suspend fun seedIfNeeded(accountId: String) {
+        // If the sync gate is already open, server data has been received — skip seeding
+        // to avoid overwriting fresh server config with stale bundled defaults.
+        if (syncGate.isOpenNow) {
+            Timber.d("ConfigSeeder: sync gate is open (not first launch), skipping seed")
+            return
+        }
+
         val db = dbFactory.get(accountId)
         val existing = db.configDao().getByKey("system", "asset_types")
         if (existing != null) {

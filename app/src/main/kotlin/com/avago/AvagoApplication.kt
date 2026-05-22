@@ -15,12 +15,14 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.avago.core.auth.IdentityManager
+import com.avago.core.data.CrashDiagnostics
 import com.avago.core.data.ExchangeRateService
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.seed.ConfigSeeder
 import com.avago.core.sync.ConnectivityMonitor
 import com.avago.core.sync.PhotoCacheSweeper
 import com.avago.core.sync.SyncEngine
+import com.avago.core.sync.SyncGate
 import com.avago.core.sync.SyncWorker
 import com.avago.core.sync.TechLocationService
 import com.avago.feature.chat.realtime.OutboxRetryCoordinator
@@ -41,10 +43,12 @@ class AvagoApplication : Application(), Configuration.Provider {
 
     @Inject lateinit var workerFactory: HiltWorkerFactory
     @Inject lateinit var identityManager: IdentityManager
+    @Inject lateinit var crashDiagnostics: CrashDiagnostics
     @Inject lateinit var serviceClient: AvagoServiceClient
     @Inject lateinit var configSeeder: ConfigSeeder
     @Inject lateinit var connectivityMonitor: ConnectivityMonitor
     @Inject lateinit var syncEngine: SyncEngine
+    @Inject lateinit var syncGate: SyncGate
     @Inject lateinit var exchangeRateService: ExchangeRateService
     @Inject lateinit var techLocationService: TechLocationService
     @Inject lateinit var outboxRetryCoordinator: OutboxRetryCoordinator
@@ -64,6 +68,7 @@ class AvagoApplication : Application(), Configuration.Provider {
                 Trace.beginSection("IdentityManager.initOnLaunch")
                 identityManager.initOnLaunch()
                 Trace.endSection()
+                crashDiagnostics.setUserContext()
                 val accountId = identityManager.getActiveAccountId()
                 if (accountId != null) {
                     Trace.beginSection("ConfigSeeder.seedIfNeeded")
@@ -134,6 +139,7 @@ class AvagoApplication : Application(), Configuration.Provider {
             identityManager.signOutEvents.collect { accountId ->
                 runCatching { syncEngine.resetAllWatermarks(accountId) }
                     .onFailure { Timber.e(it, "AvagoApplication: failed to reset watermarks for $accountId") }
+                syncGate.reset()
             }
         }
     }

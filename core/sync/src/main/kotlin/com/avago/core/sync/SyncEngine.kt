@@ -71,6 +71,7 @@ class SyncEngine @Inject constructor(
     private val preferencesSync: Provider<PreferencesSync>,
     // Provider<> avoids potential circular dependency from PhotoUploader's own dependencies
     private val photoUploader: Provider<PhotoUploader>,
+    private val syncGate: SyncGate,
 ) {
     private val mutex = Mutex()
 
@@ -287,6 +288,8 @@ class SyncEngine @Inject constructor(
 
         // Notify the delta applier that the first full sync has completed for this account
         deltaApplier.get().markFirstSyncComplete(accountId)
+        // Open the sync gate so repository write paths can proceed
+        syncGate.open()
 
         // Pull cross-device user preferences (non-fatal if this fails)
         try {

@@ -19,6 +19,7 @@ android {
 
 dependencies {
     implementation(project(":core:data"))
+    implementation(project(":core:sync"))
     implementation(libs.serialization.json)
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)

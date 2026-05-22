@@ -1,6 +1,7 @@
 package com.avago.core.auth
 
 import android.content.Context
+import com.avago.core.data.CrashDiagnostics
 import com.avago.core.data.DatabaseFactory
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
@@ -35,6 +36,10 @@ class IdentityManager @Inject constructor(
     // IdentityManager → AvagoServiceClient → HttpClient → TokenProvider (SecureTokenStore)
     // SecureTokenStore does NOT depend on IdentityManager, so no cycle at injection time.
     private val serviceClientProvider: Provider<AvagoServiceClient>,
+    // Provider<> avoids potential circular dependency from AccountMigrationService's own dependencies
+    private val migrationService: Provider<AccountMigrationService>,
+    // Provider<> breaks the cycle: CrashDiagnostics → StateFlow<String?> → IdentityManager
+    private val crashDiagnosticsProvider: Provider<CrashDiagnostics>,
 ) : RefreshFailedHandler {
 
     private val refreshMutex = Mutex()
@@ -73,10 +78,15 @@ class IdentityManager @Inject constructor(
      * added one as the active account. If there are none, provisions anonymously.
      */
     suspend fun initOnLaunch() = withContext(Dispatchers.IO) {
+        // Clean up orphaned accounts before restoring the active account
+        runCatching { migrationService.get().pruneOrphanedAccounts() }
+            .onFailure { Timber.w(it, "IdentityManager: pruneOrphanedAccounts failed") }
+
         val accounts = AccountManifest.load(appContext)
         if (accounts.isNotEmpty()) {
             val last = accounts.last()
             setActiveAccount(last.accountId, last.userId)
+            crashDiagnosticsProvider.get().setUserContext()
             accountManifest.deduplicateAnonymousAccounts(last.accountId)
             Timber.d("IdentityManager: restored account ${last.accountId}")
             val userId = last.userId
@@ -145,8 +155,11 @@ class IdentityManager @Inject constructor(
             )
             AccountManifest.addOrUpdate(context, record)
             setActiveAccount(accountId, user?.user_id)
+            crashDiagnosticsProvider.get().setUserContext()
 
             Timber.d("IdentityManager: signed in as $accountId")
+            runCatching { migrationService.get().migrateAnonymousToAuthenticated(accountId) }
+                .onFailure { Timber.w(it, "IdentityManager: migrateAnonymousToAuthenticated failed") }
             registerPushTokenAsync()
             fetchMyAccountsAsync()
             val capturedUserId = user?.user_id

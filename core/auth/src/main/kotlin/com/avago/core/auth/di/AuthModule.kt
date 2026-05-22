@@ -12,6 +12,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Named
 import javax.inject.Singleton
 
@@ -44,5 +45,27 @@ abstract class AuthModule {
         @Singleton
         fun provideDeviceId(tokenStore: SecureTokenStore): String =
             tokenStore.getOrCreateDeviceId()
+
+        /**
+         * Exposes [IdentityManager.activeAccountId] as a plain [StateFlow<String?>] so
+         * modules in core:data (which cannot depend on core:auth) can receive the active
+         * account ID without a circular dependency.
+         */
+        @Provides
+        @Singleton
+        fun provideActiveAccountIdFlow(
+            identityManager: IdentityManager,
+        ): StateFlow<String?> = identityManager.activeAccountId
+
+        /**
+         * Exposes [IdentityManager.activeUserId] as a plain [StateFlow<String?>] so
+         * modules in core:data can observe the current user ID without depending on core:auth.
+         */
+        @Provides
+        @Singleton
+        @Named("activeUserId")
+        fun provideActiveUserIdFlow(
+            identityManager: IdentityManager,
+        ): StateFlow<String?> = identityManager.activeUserId
     }
 }
