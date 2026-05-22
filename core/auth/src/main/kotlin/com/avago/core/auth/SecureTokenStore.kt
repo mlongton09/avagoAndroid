@@ -7,7 +7,6 @@ import androidx.security.crypto.MasterKey
 import com.avago.core.network.TokenProvider
 import com.avago.core.network.TokenStorage
 import java.util.UUID
-import javax.inject.Inject
 import javax.inject.Singleton
 
 private const val PREFS_FILE = "avago_secure_prefs"
@@ -15,7 +14,7 @@ private const val KEY_DEVICE_ID = "av_device_id"
 private const val KEY_PUSH_TOKEN = "av_push_token"
 
 @Singleton
-class SecureTokenStore @Inject constructor(
+class SecureTokenStore(
     context: Context,
 ) : TokenProvider, TokenStorage {
 
