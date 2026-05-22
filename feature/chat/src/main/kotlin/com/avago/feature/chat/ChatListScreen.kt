@@ -122,6 +122,12 @@ fun ChatListScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(bottom = 80.dp),
                     ) {
+                        item(key = "mentions_shortcut") {
+                            MentionsShortcutRow(
+                                unreadMentionCount = uiState.unreadMentionCount,
+                                onClick = onMentions,
+                            )
+                        }
                         items(uiState.threads, key = { it.threadId }) { thread ->
                             ThreadRow(
                                 thread = thread,
@@ -130,6 +136,45 @@ fun ChatListScreen(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MentionsShortcutRow(
+    unreadMentionCount: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Bell icon as emoji
+        Text(
+            text = "🔔", // 🔔
+            fontSize = 24.sp,
+            modifier = Modifier.size(36.dp),
+        )
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Text(
+            text = "Mentions",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f),
+        )
+
+        if (unreadMentionCount > 0) {
+            Badge {
+                Text(
+                    text = if (unreadMentionCount > 99) "99+" else unreadMentionCount.toString(),
+                )
             }
         }
     }

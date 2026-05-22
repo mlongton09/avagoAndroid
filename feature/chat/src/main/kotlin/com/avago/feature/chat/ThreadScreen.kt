@@ -5,8 +5,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,6 +20,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -30,6 +35,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -45,6 +51,7 @@ import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -102,7 +109,8 @@ fun ThreadScreen(
 
     LaunchedEffect(uiState.messages.size) {
         if (isAtBottom && uiState.messages.isNotEmpty()) {
-            listState.animateScrollToItem(uiState.messages.size - 1)
+            val total = listState.layoutInfo.totalItemsCount
+            if (total > 0) listState.animateScrollToItem(total - 1)
         }
     }
 
@@ -156,23 +164,36 @@ fun ThreadScreen(
             )
         },
         bottomBar = {
-            MessageComposer(
-                editingMessage = uiState.editingMessage,
-                members = uiState.roster,
-                onSend = { body ->
-                    if (uiState.editingMessage != null) {
-                        viewModel.submitEdit(body)
-                    } else {
+            Column {
+                QuickReplyBar(
+                    onQuickReply = { reply ->
                         val threadType = uiState.thread?.threadType ?: ""
                         if (threadType == "broadcast" || threadType == "team") {
-                            pendingBroadcastBody = body
+                            pendingBroadcastBody = reply
                         } else {
-                            viewModel.sendMessage(body)
+                            viewModel.sendMessage(reply)
                         }
-                    }
-                },
-                onCancelEdit = viewModel::cancelEditing,
-            )
+                    },
+                )
+                MessageComposer(
+                    editingMessage = uiState.editingMessage,
+                    members = uiState.roster,
+                    onSend = { body ->
+                        if (uiState.editingMessage != null) {
+                            viewModel.submitEdit(body)
+                        } else {
+                            val threadType = uiState.thread?.threadType ?: ""
+                            if (threadType == "broadcast" || threadType == "team") {
+                                pendingBroadcastBody = body
+                            } else {
+                                viewModel.sendMessage(body)
+                            }
+                        }
+                        viewModel.saveDraft("")
+                    },
+                    onCancelEdit = viewModel::cancelEditing,
+                )
+            }
         },
     ) { innerPadding ->
         Box(
@@ -232,39 +253,75 @@ fun ThreadScreen(
                     }
 
                     val messages = uiState.messages
-                    items(messages, key = { it.messageId }) { message ->
-                        val index = messages.indexOf(message)
-                        val prev = messages.getOrNull(index - 1)
-                        val isGroupStart = prev == null || prev.senderId != message.senderId
-
-                        // Unread divider
-                        val unreadCount = uiState.thread?.unreadCount ?: 0
-                        val unreadBoundaryIndex = if (unreadCount > 0 && unreadCount < messages.size) {
-                            messages.size - unreadCount
-                        } else -1
-
-                        if (index == unreadBoundaryIndex) {
-                            UnreadDivider()
+                    val messagesWithSeparators = remember(messages) {
+                        buildList {
+                            var lastDateLabel: String? = null
+                            messages.forEach { msg ->
+                                val label = msg.createdAt.toDateLabel()
+                                if (label != lastDateLabel) {
+                                    add("date:$label")
+                                    lastDateLabel = label
+                                }
+                                add(msg)
+                            }
                         }
-
-                        MessageBubble(
-                            message = message,
-                            myUserId = uiState.myUserId,
-                            isGroupStart = isGroupStart,
-                            modifier = Modifier.padding(
-                                horizontal = 8.dp,
-                                vertical = if (isGroupStart) 4.dp else 1.dp,
-                            ),
-                            onLongPress = { actionSheetMessage = it },
-                        )
                     }
 
-                    // Typing indicator
-                    if (uiState.isTypingRemote) {
+                    items(messagesWithSeparators, key = { item ->
+                        when (item) {
+                            is String -> item
+                            is ChatMessageEntity -> item.messageId
+                            else -> item.hashCode()
+                        }
+                    }) { item ->
+                        when (item) {
+                            is String -> {
+                                val label = (item as String).removePrefix("date:")
+                                DateSeparatorItem(label = label)
+                            }
+                            is ChatMessageEntity -> {
+                                val msgIndex = messages.indexOf(item)
+                                val prevMsg = messages.getOrNull(msgIndex - 1)
+                                val isGroupStart = prevMsg == null || prevMsg.senderId != item.senderId
+
+                                // Unread divider
+                                val unreadCount = uiState.thread?.unreadCount ?: 0
+                                val unreadBoundaryIndex = if (unreadCount > 0 && unreadCount < messages.size) {
+                                    messages.size - unreadCount
+                                } else -1
+
+                                if (msgIndex == unreadBoundaryIndex) {
+                                    UnreadDivider()
+                                }
+
+                                MessageBubble(
+                                    message = item,
+                                    myUserId = uiState.myUserId,
+                                    isGroupStart = isGroupStart,
+                                    modifier = Modifier.padding(
+                                        horizontal = 8.dp,
+                                        vertical = if (isGroupStart) 4.dp else 1.dp,
+                                    ),
+                                    onLongPress = { actionSheetMessage = it },
+                                )
+                            }
+                        }
+                    }
+
+                    // Typing indicator (with named users when available)
+                    if (uiState.isTypingRemote || uiState.typingUserNames.isNotEmpty()) {
                         item {
-                            TypingIndicator(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                            )
+                            val names = uiState.typingUserNames
+                            if (names.isNotEmpty()) {
+                                NamedTypingIndicator(
+                                    names = names,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                                )
+                            } else {
+                                TypingIndicator(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                                )
+                            }
                         }
                     }
                 }
@@ -282,10 +339,10 @@ fun ThreadScreen(
             ) {
                 Button(
                     onClick = {
-                        val lastIndex = uiState.messages.size - 1
-                        if (lastIndex >= 0) {
+                        val total = listState.layoutInfo.totalItemsCount
+                        if (total > 0) {
                             coroutineScope.launch {
-                                listState.animateScrollToItem(lastIndex)
+                                listState.animateScrollToItem(total - 1)
                             }
                         }
                     },
@@ -330,6 +387,104 @@ fun ThreadScreen(
                     Text("Cancel")
                 }
             },
+        )
+    }
+}
+
+/**
+ * Converts an epoch-millis timestamp to a human-readable date label:
+ * "Today", "Yesterday", or "MMM d" (e.g. "Jan 5").
+ */
+private fun Long.toDateLabel(): String {
+    val cal = java.util.Calendar.getInstance().apply { timeInMillis = this@toDateLabel }
+    val today = java.util.Calendar.getInstance()
+    return when {
+        cal.get(java.util.Calendar.DAY_OF_YEAR) == today.get(java.util.Calendar.DAY_OF_YEAR) &&
+            cal.get(java.util.Calendar.YEAR) == today.get(java.util.Calendar.YEAR) -> "Today"
+        cal.get(java.util.Calendar.DAY_OF_YEAR) == today.get(java.util.Calendar.DAY_OF_YEAR) - 1 &&
+            cal.get(java.util.Calendar.YEAR) == today.get(java.util.Calendar.YEAR) -> "Yesterday"
+        else -> java.text.SimpleDateFormat("MMM d", java.util.Locale.getDefault()).format(cal.time)
+    }
+}
+
+@Composable
+private fun DateSeparatorItem(label: String, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Surface(
+            shape = MaterialTheme.shapes.small,
+            color = MaterialTheme.colorScheme.surfaceVariant,
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            )
+        }
+    }
+}
+
+/** Quick-reply suggestions bar shown above the composer. */
+private val quickReplies = listOf("👍 OK", "On my way", "Done", "Thanks")
+
+@Composable
+private fun QuickReplyBar(
+    onQuickReply: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        quickReplies.forEach { reply ->
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier
+                    .wrapContentWidth()
+                    .clickable { onQuickReply(reply) },
+            ) {
+                Text(
+                    text = reply,
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Typing indicator that shows names of users who are typing.
+ * Used when [names] is non-empty; falls back to the anonymous [TypingIndicator] otherwise.
+ */
+@Composable
+private fun NamedTypingIndicator(names: List<String>, modifier: Modifier = Modifier) {
+    val label = when (names.size) {
+        1 -> "${names[0]} is typing…"
+        2 -> "${names[0]} and ${names[1]} are typing…"
+        else -> "${names[0]} and ${names.size - 1} others are typing…"
+    }
+    Box(
+        modifier = modifier
+            .background(
+                MaterialTheme.colorScheme.surfaceVariant,
+                MaterialTheme.shapes.large,
+            )
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.Medium,
         )
     }
 }

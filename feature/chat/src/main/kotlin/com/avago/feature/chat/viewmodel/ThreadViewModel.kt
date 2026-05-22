@@ -36,6 +36,10 @@ data class ThreadUiState(
     val errorMessage: String? = null,
     /** Account roster for @mention autocomplete. */
     val roster: List<ChatAccountRosterEntity> = emptyList(),
+    /** Names of remote users currently typing in this thread. */
+    val typingUserNames: List<String> = emptyList(),
+    /** Saved draft text for this thread. */
+    val draft: String = "",
 )
 
 @HiltViewModel
@@ -58,8 +62,10 @@ class ThreadViewModel @Inject constructor(
     private val _pinnedMessage = MutableStateFlow<ChatMessageEntity?>(null)
     private val _errorMessage = MutableStateFlow<String?>(null)
     private val _roster = MutableStateFlow<List<ChatAccountRosterEntity>>(emptyList())
+    private val _typingUserNames = MutableStateFlow<List<String>>(emptyList())
+    private val _draft = MutableStateFlow("")
 
-    // combine supports vararg flows; the array overload handles 9 sources safely.
+    // combine supports vararg flows; the array overload handles 11 sources safely.
     val uiState: StateFlow<ThreadUiState> = combine(
         listOf(
             _thread,
@@ -71,6 +77,8 @@ class ThreadViewModel @Inject constructor(
             _pinnedMessage,
             _errorMessage,
             _roster,
+            _typingUserNames,
+            _draft,
         )
     ) { values ->
         @Suppress("UNCHECKED_CAST")
@@ -85,6 +93,8 @@ class ThreadViewModel @Inject constructor(
             pinnedMessage = values[6] as? ChatMessageEntity,
             errorMessage = values[7] as? String,
             roster = values[8] as List<ChatAccountRosterEntity>,
+            typingUserNames = values[9] as List<String>,
+            draft = values[10] as String,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -240,6 +250,10 @@ class ThreadViewModel @Inject constructor(
                 _isLoadingMore.value = false
             }
         }
+    }
+
+    fun saveDraft(text: String) {
+        _draft.value = text
     }
 
     override fun onCleared() {
