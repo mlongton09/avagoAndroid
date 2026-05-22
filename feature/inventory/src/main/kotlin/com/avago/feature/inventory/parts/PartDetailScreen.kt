@@ -8,8 +8,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
@@ -17,7 +17,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -27,17 +26,16 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.avago.core.data.db.entity.InventoryTransactionEntity
 import com.avago.core.ui.EmptyState
 import com.avago.feature.inventory.R
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -107,6 +105,22 @@ fun PartDetailScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         part.sku?.let { LabelValue(stringResource(R.string.part_sku), it) }
+                        // Part number (sku shown as "Part #")
+                        if (!part.sku.isNullOrBlank()) {
+                            Text(
+                                text = "Part #: ${part.sku}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        // Manufacturer from attributes JSON
+                        if (!state.manufacturer.isNullOrBlank()) {
+                            Text(
+                                text = "Mfr: ${state.manufacturer}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                         part.category?.let { LabelValue(stringResource(R.string.part_category), it) }
                         part.description?.let { LabelValue("Description", it) }
                     }
@@ -114,7 +128,7 @@ fun PartDetailScreen(
             }
 
             item {
-                // Stock stats card
+                // Stock stats card with inline quick-adjust buttons
                 val inv = state.inventory
                 val sl = state.stockingLevel
                 Card(
@@ -135,12 +149,28 @@ fun PartDetailScreen(
                         sl?.maxQty?.let { LabelValue(stringResource(R.string.part_max_qty), "%.2f".format(it)) }
                         sl?.reorderQty?.let { LabelValue(stringResource(R.string.part_reorder_point), "%.2f".format(it)) }
                         sl?.safetyStock?.let { LabelValue("Safety Stock", "%.2f".format(it)) }
+                        // Quick-adjust inline buttons
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(top = 8.dp),
+                        ) {
+                            OutlinedButton(
+                                onClick = { viewModel.showReceiveSheet() },
+                                modifier = Modifier.weight(1f),
+                                enabled = inv != null,
+                            ) { Text("+ Receive") }
+                            OutlinedButton(
+                                onClick = { viewModel.showUseSheet() },
+                                modifier = Modifier.weight(1f),
+                                enabled = inv != null,
+                            ) { Text("− Use") }
+                        }
                     }
                 }
             }
 
             item {
-                // Action buttons
+                // Primary action buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -163,26 +193,13 @@ fun PartDetailScreen(
             }
 
             item {
-                Text(
-                    text = stringResource(R.string.part_transaction_ledger),
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
+                // Transaction History Card
+                TransactionHistoryCard(transactions = state.partTransactions)
             }
 
-            if (state.transactions.isEmpty()) {
-                item {
-                    Text(
-                        text = stringResource(R.string.part_no_transactions),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            } else {
-                items(state.transactions, key = { it.transactionId }) { txn ->
-                    TransactionRow(txn)
-                    HorizontalDivider()
-                }
+            item {
+                // Vendor Sources Card
+                VendorSourcesCard(sources = state.vendorSources)
             }
         }
     }
@@ -202,25 +219,30 @@ private fun LabelValue(label: String, value: String) {
 }
 
 @Composable
-private fun TransactionRow(txn: InventoryTransactionEntity) {
-    val fmt = SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
-    val date = fmt.format(Date(txn.createdAt))
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Column {
-            Text(txn.transactionType, style = MaterialTheme.typography.bodyMedium)
-            Text(date, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun VendorSourcesCard(sources: List<VendorSource>) {
+    if (sources.isEmpty()) return
+    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 0.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Vendor Sources", style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(8.dp))
+            sources.forEach { src ->
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(src.vendorName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                            if (src.isPreferred) {
+                                Spacer(Modifier.width(4.dp))
+                                Text("⭐", fontSize = 12.sp)
+                            }
+                        }
+                        src.sku?.let { Text("SKU: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)) }
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        src.unitCost?.let { Text("${'$'}${String.format("%.2f", it)}", style = MaterialTheme.typography.bodyMedium) }
+                        src.leadDays?.let { Text("$it day lead", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)) }
+                    }
+                }
+            }
         }
-        val sign = if (txn.quantity >= 0) "+" else ""
-        Text(
-            text = "$sign%.2f".format(txn.quantity),
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (txn.quantity >= 0) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.error,
-        )
     }
 }

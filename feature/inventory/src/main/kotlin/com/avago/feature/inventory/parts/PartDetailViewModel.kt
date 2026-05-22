@@ -9,6 +9,7 @@ import com.avago.core.data.db.entity.InventoryEntity
 import com.avago.core.data.db.entity.InventoryTransactionEntity
 import com.avago.core.data.db.entity.PartEntity
 import com.avago.core.data.db.entity.StockingLevelEntity
+import com.avago.core.data.db.entity.VendorEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,11 +21,23 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
+data class VendorSource(
+    val vendorId: String,
+    val vendorName: String,
+    val sku: String? = null,
+    val unitCost: Double? = null,
+    val leadDays: Int? = null,
+    val isPreferred: Boolean = false,
+)
+
 data class PartDetailUiState(
     val part: PartEntity? = null,
+    val manufacturer: String? = null,
     val inventory: InventoryEntity? = null,
     val stockingLevel: StockingLevelEntity? = null,
     val transactions: List<InventoryTransactionEntity> = emptyList(),
+    val partTransactions: List<PartTransaction> = emptyList(),
+    val vendorSources: List<VendorSource> = emptyList(),
     val isLoading: Boolean = true,
     val showReceiveSheet: Boolean = false,
     val showUseSheet: Boolean = false,
@@ -53,6 +66,7 @@ class PartDetailViewModel @Inject constructor(
                 db.inventoryDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
                 db.stockingLevelDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
                 db.inventoryTransactionDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
+                db.vendorDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
                 _showReceive as kotlinx.coroutines.flow.Flow<Any?>,
                 _showUse as kotlinx.coroutines.flow.Flow<Any?>,
             ) { v ->
@@ -60,19 +74,64 @@ class PartDetailViewModel @Inject constructor(
                 val inventories = v[1] as List<InventoryEntity>
                 val levels = v[2] as List<StockingLevelEntity>
                 val transactions = v[3] as List<InventoryTransactionEntity>
-                val showReceive = v[4] as Boolean
-                val showUse = v[5] as Boolean
+                val vendors = v[4] as List<VendorEntity>
+                val showReceive = v[5] as Boolean
+                val showUse = v[6] as Boolean
+
                 val part = parts.find { it.partId == partId }
                 val inv = inventories.find { it.partId == partId }
                 val sl = levels.find { it.partId == partId }
                 val txns = transactions
                     .filter { it.partId == partId }
                     .sortedByDescending { it.createdAt }
+
+                // Parse manufacturer from attributes JSON (key "manufacturer")
+                val manufacturer = part?.attributes?.let { attrs ->
+                    try {
+                        val json = org.json.JSONObject(attrs)
+                        json.optString("manufacturer").takeIf { it.isNotBlank() }
+                    } catch (_: Exception) { null }
+                }
+
+                // Map raw entities to PartTransaction for the card
+                val partTransactions = txns.map { txn ->
+                    PartTransaction(
+                        transactionId = txn.transactionId,
+                        type = txn.transactionType,
+                        quantity = txn.quantity,
+                        referenceId = txn.referenceId,
+                        notes = txn.notes,
+                        createdAt = formatTransactionDate(txn.createdAt),
+                    )
+                }
+
+                // Build vendor sources from the part's defaultVendorId
+                // (No VendorPartSource table exists; derive from the part's default vendor and PO history)
+                val vendorSources = buildList {
+                    part?.defaultVendorId?.let { vid ->
+                        vendors.find { it.vendorId == vid }?.let { vendor ->
+                            add(
+                                VendorSource(
+                                    vendorId = vendor.vendorId,
+                                    vendorName = vendor.name,
+                                    sku = part.sku,
+                                    unitCost = part.cost,
+                                    leadDays = null,
+                                    isPreferred = true,
+                                )
+                            )
+                        }
+                    }
+                }
+
                 PartDetailUiState(
                     part = part,
+                    manufacturer = manufacturer,
                     inventory = inv,
                     stockingLevel = sl,
                     transactions = txns,
+                    partTransactions = partTransactions,
+                    vendorSources = vendorSources,
                     isLoading = false,
                     showReceiveSheet = showReceive,
                     showUseSheet = showUse,
@@ -87,6 +146,13 @@ class PartDetailViewModel @Inject constructor(
 
     fun openReceive() { _showReceive.value = true }
     fun openUse() { _showUse.value = true }
+
+    /** Alias for openReceive — triggers the receive bottom sheet. */
+    fun showReceiveSheet() = openReceive()
+
+    /** Alias for openUse — triggers the use/issue bottom sheet. */
+    fun showUseSheet() = openUse()
+
     fun dismissSheet() {
         _showReceive.value = false
         _showUse.value = false
