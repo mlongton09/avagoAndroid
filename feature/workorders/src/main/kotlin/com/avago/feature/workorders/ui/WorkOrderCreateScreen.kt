@@ -21,8 +21,11 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -48,6 +51,7 @@ import com.avago.feature.workorders.model.WoPriority
 import com.avago.feature.workorders.ui.sheets.RepeatsSheet
 import com.avago.feature.workorders.ui.sheets.TechPickerSheet
 import com.avago.feature.workorders.viewmodel.WorkOrderCreateViewModel
+import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,6 +61,9 @@ fun WorkOrderCreateScreen(
     onSaved: () -> Unit,
     onPickAsset: () -> Unit,
     onPickAssetGroup: () -> Unit = {},
+    onPickJob: () -> Unit = {},
+    /** Job ID returned from JobPickerScreen via nav back-stack SavedStateHandle. */
+    selectedJobId: String? = null,
     modifier: Modifier = Modifier,
     viewModel: WorkOrderCreateViewModel = hiltViewModel(),
 ) {
@@ -73,6 +80,17 @@ fun WorkOrderCreateScreen(
     val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
     val titleError by viewModel.titleError.collectAsStateWithLifecycle()
     val savedSuccessfully by viewModel.savedSuccessfully.collectAsStateWithLifecycle()
+    val jobId by viewModel.jobId.collectAsStateWithLifecycle()
+    val jobTitle by viewModel.jobTitle.collectAsStateWithLifecycle()
+    val timezone by viewModel.timezone.collectAsStateWithLifecycle()
+    val effortHint by viewModel.effortHint.collectAsStateWithLifecycle()
+
+    // Apply job selection returned from JobPickerScreen via nav back-stack
+    LaunchedEffect(selectedJobId) {
+        if (selectedJobId != null) {
+            viewModel.onJobSelected(selectedJobId, selectedJobId)
+        }
+    }
 
     LaunchedEffect(savedSuccessfully) {
         if (savedSuccessfully) onSaved()
@@ -219,6 +237,20 @@ fun WorkOrderCreateScreen(
                 Text(stringResource(R.string.wo_create_select_asset_group))
             }
 
+            // Job / Project picker
+            ListItem(
+                headlineContent = { Text(jobTitle ?: jobId ?: "No Job Assigned") },
+                supportingContent = { Text("Job / Project") },
+                trailingContent = {
+                    if (jobId != null) {
+                        IconButton(onClick = viewModel::clearJob) {
+                            Icon(Icons.Default.Close, contentDescription = "Remove job")
+                        }
+                    }
+                },
+                modifier = Modifier.clickable { onPickJob() },
+            )
+
             // Priority
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -251,6 +283,16 @@ fun WorkOrderCreateScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
             )
+
+            // Effort hint (populated from server when category is known)
+            effortHint?.let { hint ->
+                Text(
+                    text = "Typical: ${hint.typicalMinutes} min  ·  fast: ${hint.fastMinutes}  ·  slow: ${hint.slowMinutes}  ·  ${hint.sampleCount} jobs",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+                    modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
+                )
+            }
 
             // Assigned techs
             Text(
@@ -291,6 +333,45 @@ fun WorkOrderCreateScreen(
                 Text(stringResource(R.string.wo_field_repeats), style = MaterialTheme.typography.labelLarge)
                 TextButton(onClick = { showRepeatsSheet = true }) {
                     Text(if (repeatsRrule != null) stringResource(R.string.wo_create_repeats_configured) else stringResource(R.string.wo_create_repeats_none))
+                }
+            }
+
+            // Timezone selector — only shown when a due date is set
+            if (dueDateMs != null) {
+                val availableZones = listOf(
+                    "America/New_York", "America/Chicago", "America/Denver",
+                    "America/Los_Angeles", "America/Anchorage", "Pacific/Honolulu",
+                    "UTC", "Europe/London", "Europe/Paris", "Asia/Tokyo",
+                )
+                var tzMenuExpanded by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(
+                    expanded = tzMenuExpanded,
+                    onExpandedChange = { tzMenuExpanded = it },
+                ) {
+                    OutlinedTextField(
+                        value = timezone.ifEmpty { TimeZone.getDefault().id },
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Timezone") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = tzMenuExpanded) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(),
+                    )
+                    ExposedDropdownMenu(
+                        expanded = tzMenuExpanded,
+                        onDismissRequest = { tzMenuExpanded = false },
+                    ) {
+                        availableZones.forEach { tz ->
+                            DropdownMenuItem(
+                                text = { Text(tz) },
+                                onClick = {
+                                    viewModel.onTimezoneChanged(tz)
+                                    tzMenuExpanded = false
+                                },
+                            )
+                        }
+                    }
                 }
             }
 
