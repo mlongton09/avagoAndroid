@@ -12,12 +12,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Assignment
+import androidx.compose.material.icons.automirrored.filled.Assignment
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonAdd
@@ -79,10 +79,10 @@ data class BottomNavItem(
 
 private val bottomNavItems = listOf(
     BottomNavItem("Assets",      Icons.Default.Inventory2,  "assets_graph"),
-    BottomNavItem("Work Orders", Icons.Default.Assignment,  "workorders_graph"),
+    BottomNavItem("Work Orders", Icons.AutoMirrored.Filled.Assignment,  "workorders_graph"),
     BottomNavItem("Inventory",   Icons.Default.Widgets,     "inventory_graph"),
     BottomNavItem("Reports",     Icons.Default.BarChart,    "reports"),
-    BottomNavItem("Chat",        Icons.Default.Chat,        "chat"),
+    BottomNavItem("Chat",        Icons.AutoMirrored.Filled.Chat,        "chat"),
 )
 
 // ---------------------------------------------------------------------------
@@ -393,7 +393,7 @@ fun AccountDrawerContent(
             selected = false,
             icon = {
                 Icon(
-                    Icons.Default.Logout,
+                    Icons.AutoMirrored.Filled.Logout,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.error,
                 )
