@@ -313,8 +313,9 @@ class ChatRepository @Inject constructor(
     // Account roster (for @mention autocomplete)
     // ---------------------------------------------------------------------------
 
-    fun observeRoster(accountId: String) =
-        chatDbFactory.get(accountId).chatAccountRosterDao().observeAll(accountId)
+    fun observeRoster(accountId: String): Flow<List<ChatAccountRosterEntity>> = flow {
+        emitAll(chatDbFactory.get(accountId).chatAccountRosterDao().observeAll(accountId))
+    }
 
     suspend fun syncRoster() {
         val accountId = identity.activeAccountId.value ?: return
@@ -336,7 +337,9 @@ class ChatRepository @Inject constructor(
 
     fun observeThreadMembers(threadId: String): Flow<List<ChatThreadMemberEntity>> {
         val accountId = identity.activeAccountId.value ?: return emptyFlow()
-        return chatDbFactory.get(accountId).chatThreadMemberDao().observeByThread(threadId)
+        return flow {
+            emitAll(chatDbFactory.get(accountId).chatThreadMemberDao().observeByThread(threadId))
+        }
     }
 
     suspend fun syncThreadMembers(threadId: String) {
@@ -370,12 +373,16 @@ class ChatRepository @Inject constructor(
 
     fun observeUnreadMentionCount(): Flow<Int> {
         val accountId = identity.activeAccountId.value ?: return emptyFlow()
-        return chatDbFactory.get(accountId).chatMentionDao().observeUnreadCount(accountId)
+        return flow {
+            emitAll(chatDbFactory.get(accountId).chatMentionDao().observeUnreadCount(accountId))
+        }
     }
 
     fun observeUnreadMentions(): Flow<List<ChatMentionEntity>> {
         val accountId = identity.activeAccountId.value ?: return emptyFlow()
-        return chatDbFactory.get(accountId).chatMentionDao().observeUnread(accountId)
+        return flow {
+            emitAll(chatDbFactory.get(accountId).chatMentionDao().observeUnread(accountId))
+        }
     }
 
     suspend fun markMentionRead(mentionId: String) {
