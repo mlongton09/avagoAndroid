@@ -10,10 +10,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -24,9 +27,18 @@ import androidx.compose.ui.unit.dp
 /**
  * 3-dot animated typing indicator, shown when a remote user is typing.
  * Matches the iOS TypingIndicatorView bounce animation.
+ *
+ * @param typingUserNames Optional list of names currently typing.
+ *   - Empty      → dots only (anonymous / unknown typers)
+ *   - 1 name     → "{Name} is typing…" + dots
+ *   - 2 names    → "{A} and {B} are typing…" + dots
+ *   - 3+ names   → "{count} people are typing…" + dots
  */
 @Composable
-fun TypingIndicator(modifier: Modifier = Modifier) {
+fun TypingIndicator(
+    typingUserNames: List<String> = emptyList(),
+    modifier: Modifier = Modifier,
+) {
     val transition = rememberInfiniteTransition(label = "typing")
     val phase1 by transition.animateFloat(
         initialValue = 0f, targetValue = 1f,
@@ -53,6 +65,13 @@ fun TypingIndicator(modifier: Modifier = Modifier) {
         label = "dot3",
     )
 
+    val labelText: String? = when (typingUserNames.size) {
+        0 -> null
+        1 -> "${typingUserNames[0]} is typing…"
+        2 -> "${typingUserNames[0]} and ${typingUserNames[1]} are typing…"
+        else -> "${typingUserNames.size} people are typing…"
+    }
+
     Row(
         modifier = modifier
             .background(
@@ -63,6 +82,7 @@ fun TypingIndicator(modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // Animated dots
         listOf(phase1, phase2, phase3).forEach { phase ->
             Box(
                 modifier = Modifier
@@ -72,6 +92,16 @@ fun TypingIndicator(modifier: Modifier = Modifier) {
                         MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f + 0.5f * phase),
                         CircleShape,
                     ),
+            )
+        }
+
+        // Named typing label, shown to the right of the dots
+        if (labelText != null) {
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = labelText,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             )
         }
     }

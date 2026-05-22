@@ -1,6 +1,9 @@
 package com.avago.feature.chat.ui
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +17,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -23,13 +28,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import android.content.Intent
-import android.net.Uri
 import com.avago.core.data.db.entity.ChatMessageEntity
 import com.avago.core.ui.MarkdownText
 import kotlinx.serialization.json.Json
@@ -104,7 +108,7 @@ fun MessageBubble(
                 )
                 if (isOwn) {
                     Spacer(modifier = Modifier.size(4.dp))
-                    OutboxStatusIcon(status = message.outboxStatus)
+                    OutboxStatusIcon(message = message)
                 }
             }
 
@@ -140,9 +144,9 @@ private fun BubbleBody(
             .clip(MaterialTheme.shapes.large)
             .background(bubbleColor)
             .padding(horizontal = 14.dp, vertical = 9.dp)
-            .then(
-                Modifier // Long-press handled via combinedClickable in production
-            ),
+            .pointerInput(Unit) {
+                detectTapGestures(onLongPress = { onLongPress(message) })
+            },
     ) {
         // Body text — render as Markdown so bold, italic, code, links etc. display correctly.
         val bodyText = message.bodyMd.trim()
@@ -185,9 +189,27 @@ private fun BubbleBody(
     }
 }
 
+/**
+ * Three-state (actually five-state) read receipt icon for own messages:
+ *   "sending"   → single clock (in flight)
+ *   "failed"    → error icon
+ *   null        → single gray check (sent; delivered/read unknown)
+ *
+ * When ChatMessageEntity gains `readAt`/`deliveredAt` fields, wire them here:
+ *   readAt != null               → double filled check, primary blue tint  (DoneAll)
+ *   deliveredAt != null, no read → double outlined check, gray tint        (DoneAll gray)
+ *   both null                    → single check (current null branch below)
+ *
+ * The overload below accepts the full entity so it is ready for those fields.
+ */
 @Composable
-private fun OutboxStatusIcon(status: String?) {
-    when (status) {
+private fun OutboxStatusIcon(message: ChatMessageEntity) {
+    // TODO: when readAt / deliveredAt columns are added to ChatMessageEntity, replace
+    //       the null branch below with:
+    //         message.readAt != null      → DoneAll, primary tint
+    //         message.deliveredAt != null → DoneAll, onSurface 0.4f tint
+    //         else                        → Check, onSurface 0.4f tint (Sent)
+    when (message.outboxStatus) {
         "sending" -> Icon(
             imageVector = Icons.Default.AccessTime,
             contentDescription = "Sending",
@@ -201,8 +223,9 @@ private fun OutboxStatusIcon(status: String?) {
             tint = MaterialTheme.colorScheme.error,
         )
         null -> Icon(
+            // Single check = Sent (delivered/read state unknown until fields exist)
             imageVector = Icons.Default.Check,
-            contentDescription = "Delivered",
+            contentDescription = "Sent",
             modifier = Modifier.size(12.dp),
             tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
         )
