@@ -156,7 +156,7 @@ class ChatRepository @Inject constructor(
     suspend fun deleteMessage(threadId: String, messageId: String): Result<Unit> {
         val accountId = identity.activeAccountId.value
             ?: return Result.failure(Exception("No active account"))
-        return when (client.deleteMessage(threadId, messageId)) {
+        return when (val outcome = client.deleteMessage(threadId, messageId)) {
             is NetworkResult.Success -> {
                 val db = chatDbFactory.get(accountId)
                 val now = System.currentTimeMillis()
@@ -166,8 +166,8 @@ class ChatRepository @Inject constructor(
                 Result.success(Unit)
             }
             is NetworkResult.Error -> {
-                Timber.w("deleteMessage failed: ${result.message}")
-                Result.failure(Exception(result.message))
+                Timber.w("deleteMessage failed: ${outcome.message}")
+                Result.failure(Exception(outcome.message))
             }
             is NetworkResult.Unauthorized -> {
                 Timber.w("deleteMessage: unauthorized")
