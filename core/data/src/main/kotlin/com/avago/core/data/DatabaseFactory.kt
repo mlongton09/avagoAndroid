@@ -32,6 +32,7 @@ class DatabaseFactory @Inject constructor(
             AvagoDatabase::class.java,
             dbFile.absolutePath,
         )
+            .fallbackToDestructiveMigration(dropAllTables = true)
             .addCallback(WalCallback)
             .build()
     }
