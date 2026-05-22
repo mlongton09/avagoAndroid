@@ -334,8 +334,9 @@ class IdentityManager @Inject constructor(
             val result = client.getAccountMembers(accountId)
             if (result is NetworkResult.Success) {
                 val myMember = result.data.find { it.user_id == userId }
-                if (myMember?.role != null) {
-                    updateAccountRole(accountId, myMember.role)
+                val memberRole = myMember?.role
+                if (memberRole != null) {
+                    updateAccountRole(accountId, memberRole)
                 }
             }
         } catch (e: Exception) {
