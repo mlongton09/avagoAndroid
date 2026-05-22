@@ -2,21 +2,23 @@ package com.avago.feature.log.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,15 +33,29 @@ import androidx.compose.ui.unit.dp
 import com.avago.feature.log.model.InspectionFieldDef
 
 /**
+ * Color map for well-known inspection option values.
+ * Used to render colored chips on "select" and "pass_fail" fields.
+ */
+val INSPECTION_OPTION_COLORS = mapOf(
+    "normal"       to Color(0xFF4CAF50), // green
+    "monitor"      to Color(0xFFFF9800), // orange
+    "needs_repair" to Color(0xFFF44336), // red
+    "na"           to Color(0xFF9E9E9E), // gray
+    "pass"         to Color(0xFF4CAF50), // green
+    "fail"         to Color(0xFFF44336), // red
+)
+
+/**
  * Renders a list of inspection form fields based on their [InspectionFieldDef] type.
  * All state changes are reported via [onAnswerChanged].
  *
  * Supported field types:
- * - "checkbox"  → Checkbox row
- * - "select"    → Exposed dropdown
- * - "text"      → OutlinedTextField (multiline)
- * - "number"    → OutlinedTextField (numeric keyboard)
- * - "pass_fail" → Two-button row (Pass / Fail)
+ * - "checkbox"    → Checkbox row
+ * - "select"      → Color-coded FilterChip row
+ * - "text"        → OutlinedTextField (multiline)
+ * - "number"      → OutlinedTextField (numeric keyboard); shows unit suffix when available
+ * - "measurement" → Same as "number" but unit is required; always shows unit suffix
+ * - "pass_fail"   → Color-coded Pass / Fail chip row
  */
 @Composable
 fun InspectionFormRenderer(
@@ -58,25 +74,28 @@ fun InspectionFormRenderer(
                     onCheckedChange = { checked -> onAnswerChanged(field.key, if (checked) "true" else "false") },
                 )
 
-                "select" -> SelectField(
+                "select" -> ColorChipSelectField(
                     label = field.label,
                     options = field.options,
                     selected = current,
                     onSelected = { onAnswerChanged(field.key, it) },
                 )
 
-                "number" -> OutlinedTextField(
+                "number" -> NumberField(
+                    label = field.label,
                     value = current,
+                    unit = null,
                     onValueChange = { onAnswerChanged(field.key, it) },
-                    label = { Text(field.label) },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal,
-                    ),
-                    singleLine = true,
                 )
 
-                "pass_fail" -> PassFailField(
+                "measurement" -> NumberField(
+                    label = field.label,
+                    value = current,
+                    unit = field.options.firstOrNull(), // convention: unit stored as first option
+                    onValueChange = { onAnswerChanged(field.key, it) },
+                )
+
+                "pass_fail" -> PassFailChipField(
                     label = field.label,
                     value = current,
                     onValueChanged = { onAnswerChanged(field.key, it) },
@@ -118,51 +137,75 @@ private fun CheckboxField(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SelectField(
+private fun NumberField(
+    label: String,
+    value: String,
+    unit: String?,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        modifier = modifier.fillMaxWidth(),
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+            keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal,
+        ),
+        singleLine = true,
+        suffix = if (unit != null) ({ Text(unit) }) else null,
+    )
+}
+
+/**
+ * Renders select-type inspection options as color-coded [FilterChip]s.
+ * The selected chip shows the option's semantic color as its container;
+ * unselected chips use the surface color.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ColorChipSelectField(
     label: String,
     options: List<String>,
     selected: String,
     onSelected: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var expanded by remember { mutableStateOf(false) }
-
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = !expanded },
-        modifier = modifier.fillMaxWidth(),
-    ) {
-        OutlinedTextField(
-            value = selected,
-            onValueChange = {},
-            readOnly = true,
-            label = { Text(label) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
+        Spacer(Modifier.height(6.dp))
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             options.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(option) },
-                    onClick = {
-                        onSelected(option)
-                        expanded = false
-                    },
+                val isSelected = option == selected
+                val optionColor = INSPECTION_OPTION_COLORS[option.lowercase()]
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { onSelected(option) },
+                    label = { Text(option) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = optionColor ?: MaterialTheme.colorScheme.primary,
+                        selectedLabelColor = Color.White,
+                        containerColor = MaterialTheme.colorScheme.surface,
+                    ),
                 )
             }
         }
     }
 }
 
+/**
+ * Renders pass/fail as color-coded [FilterChip]s — green for pass, red for fail.
+ */
 @Composable
-private fun PassFailField(
+private fun PassFailChipField(
     label: String,
     value: String,
     onValueChanged: (String) -> Unit,
@@ -176,24 +219,26 @@ private fun PassFailField(
         )
         Spacer(Modifier.height(6.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(
+            FilterChip(
+                selected = value == "pass",
                 onClick = { onValueChanged("pass") },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (value == "pass") Color(0xFF2E7D32) else MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = if (value == "pass") Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                label = { Text("Pass") },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = INSPECTION_OPTION_COLORS["pass"] ?: Color(0xFF4CAF50),
+                    selectedLabelColor = Color.White,
+                    containerColor = MaterialTheme.colorScheme.surface,
                 ),
-            ) {
-                Text("Pass")
-            }
-            Button(
+            )
+            FilterChip(
+                selected = value == "fail",
                 onClick = { onValueChanged("fail") },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (value == "fail") Color(0xFFC62828) else MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = if (value == "fail") Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                label = { Text("Fail") },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = INSPECTION_OPTION_COLORS["fail"] ?: Color(0xFFF44336),
+                    selectedLabelColor = Color.White,
+                    containerColor = MaterialTheme.colorScheme.surface,
                 ),
-            ) {
-                Text("Fail")
-            }
+            )
         }
     }
 }

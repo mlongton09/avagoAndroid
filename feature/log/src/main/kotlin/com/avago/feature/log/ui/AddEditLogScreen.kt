@@ -7,6 +7,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -40,6 +42,8 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -68,6 +72,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -76,8 +81,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import com.avago.core.ui.CategoryItem
 import com.avago.core.ui.GlobalCategoryPickerScreen
+import com.avago.core.ui.MarkdownText
 import com.avago.feature.log.viewmodel.AddEditLogViewModel
 import com.avago.feature.log.viewmodel.CostMode
+import com.avago.feature.log.viewmodel.ItemAttributeDef
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -171,6 +178,9 @@ fun AddEditLogScreen(
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = form.entryDate)
 
     val dateFormatter = remember { SimpleDateFormat("MMMM d, yyyy", Locale.getDefault()) }
+
+    // Notes preview toggle
+    var notesPreviewMode by remember { mutableStateOf(false) }
 
     if (showDatePicker) {
         DatePickerDialog(
@@ -463,7 +473,7 @@ fun AddEditLogScreen(
                 OutlinedTextField(
                     value = form.meterReading,
                     onValueChange = { viewModel.onMeterReadingChanged(it) },
-                    label = { Text("Meter reading (optional)") },
+                    label = { Text("${form.meterLabel} (optional)") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -472,15 +482,48 @@ fun AddEditLogScreen(
 
             HorizontalDivider()
 
-            // --------------- Notes ---------------
+            // --------------- Notes (with markdown preview toggle) ---------------
             FormSection {
-                OutlinedTextField(
-                    value = form.notes,
-                    onValueChange = { viewModel.onNotesChanged(it) },
-                    label = { Text("Notes") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 3,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Notes",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = { notesPreviewMode = !notesPreviewMode }) {
+                        Text(if (notesPreviewMode) "Edit" else "Preview")
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                if (notesPreviewMode) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                    ) {
+                        if (form.notes.isBlank()) {
+                            Text(
+                                text = "No notes",
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        } else {
+                            MarkdownText(
+                                text = form.notes,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    }
+                } else {
+                    OutlinedTextField(
+                        value = form.notes,
+                        onValueChange = { viewModel.onNotesChanged(it) },
+                        label = { Text("Notes") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 3,
+                    )
+                }
             }
 
             HorizontalDivider()
@@ -550,6 +593,25 @@ fun AddEditLogScreen(
                 }
             }
 
+            // --------------- Item Details (category-specific attributes) ---------------
+            if (form.itemAttributeDefs.isNotEmpty()) {
+                HorizontalDivider()
+                FormSection {
+                    Text(
+                        text = "Item Details",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    ItemAttributesRenderer(
+                        defs = form.itemAttributeDefs,
+                        values = form.itemAttributes,
+                        onValueChanged = { key, value -> viewModel.onItemAttributeChanged(key, value) },
+                    )
+                }
+            }
+
             // --------------- Inspection form (shown only when logType == "inspection") ---------------
             if (form.logType == "inspection") {
                 HorizontalDivider()
@@ -602,6 +664,81 @@ fun AddEditLogScreen(
             }
 
             Spacer(Modifier.height(32.dp))
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Item attributes renderer
+// ---------------------------------------------------------------------------
+
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@Composable
+private fun ItemAttributesRenderer(
+    defs: List<ItemAttributeDef>,
+    values: Map<String, String>,
+    onValueChanged: (String, String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        defs.forEach { def ->
+            val current = values[def.key] ?: ""
+            when (def.fieldType) {
+                "text" -> OutlinedTextField(
+                    value = current,
+                    onValueChange = { onValueChanged(def.key, it) },
+                    label = { Text(if (def.unit != null) "${def.label} (${def.unit})" else def.label) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                "number" -> OutlinedTextField(
+                    value = current,
+                    onValueChange = { onValueChanged(def.key, it) },
+                    label = { Text(def.label) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    suffix = if (def.unit != null) ({ Text(def.unit) }) else null,
+                )
+                "enum" -> {
+                    var expanded by remember { mutableStateOf(false) }
+                    ExposedDropdownMenuBox(
+                        expanded = expanded,
+                        onExpandedChange = { expanded = !expanded },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        OutlinedTextField(
+                            value = current,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text(if (def.unit != null) "${def.label} (${def.unit})" else def.label) },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                        )
+                        ExposedDropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false },
+                        ) {
+                            def.options.forEach { option ->
+                                DropdownMenuItem(
+                                    text = { Text(option) },
+                                    onClick = {
+                                        onValueChanged(def.key, option)
+                                        expanded = false
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+                else -> OutlinedTextField(
+                    value = current,
+                    onValueChange = { onValueChanged(def.key, it) },
+                    label = { Text(def.label) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 }
