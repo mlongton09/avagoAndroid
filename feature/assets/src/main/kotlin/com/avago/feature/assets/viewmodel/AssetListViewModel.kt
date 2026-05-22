@@ -40,6 +40,9 @@ class AssetListViewModel @Inject constructor(
     private val _filterType = MutableStateFlow<String?>(null)
     val filterType: StateFlow<String?> = _filterType.asStateFlow()
 
+    private val _statusFilter = MutableStateFlow("all")
+    val statusFilter: StateFlow<String> = _statusFilter.asStateFlow()
+
     /**
      * The full unfiltered asset list, reactive to the active account.
      */
@@ -75,10 +78,18 @@ class AssetListViewModel @Inject constructor(
         _allAssets,
         _searchQuery,
         _filterType,
-    ) { all, query, type ->
+        _statusFilter,
+    ) { all, query, type, status ->
         all
             .filter { asset ->
                 type == null || asset.assetType == type
+            }
+            .filter { asset ->
+                when (status) {
+                    "active" -> asset.deletedAt == null
+                    "inactive" -> asset.deletedAt != null
+                    else -> true // "all"
+                }
             }
             .filter { asset ->
                 if (query.isBlank()) true
@@ -102,6 +113,10 @@ class AssetListViewModel @Inject constructor(
 
     fun onFilterTypeChanged(type: String?) {
         _filterType.value = type
+    }
+
+    fun onStatusFilterChanged(status: String) {
+        _statusFilter.value = status
     }
 
     fun refresh() {

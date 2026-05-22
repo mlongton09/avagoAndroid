@@ -77,6 +77,7 @@ fun AssetListScreen(
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val filterType by viewModel.filterType.collectAsStateWithLifecycle()
+    val statusFilter by viewModel.statusFilter.collectAsStateWithLifecycle()
     val syncError by viewModel.syncError.collectAsStateWithLifecycle()
     val showOnboarding by onboardingViewModel.showBanner.collectAsStateWithLifecycle()
 
@@ -167,6 +168,35 @@ fun AssetListScreen(
                     }
                 }
 
+                // Status filter chips (All / Active / Inactive)
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(bottom = 8.dp),
+                ) {
+                    item {
+                        FilterChip(
+                            selected = statusFilter == "all",
+                            onClick = { viewModel.onStatusFilterChanged("all") },
+                            label = { Text("All") },
+                        )
+                    }
+                    item {
+                        FilterChip(
+                            selected = statusFilter == "active",
+                            onClick = { viewModel.onStatusFilterChanged("active") },
+                            label = { Text("Active") },
+                        )
+                    }
+                    item {
+                        FilterChip(
+                            selected = statusFilter == "inactive",
+                            onClick = { viewModel.onStatusFilterChanged("inactive") },
+                            label = { Text("Inactive") },
+                        )
+                    }
+                }
+
                 // FRE banner — shown only on first launch before any assets are added
                 AnimatedVisibility(
                     visible = showOnboarding,
@@ -211,19 +241,53 @@ fun AssetListScreen(
                         modifier = Modifier.fillMaxSize(),
                     )
                 } else {
+                    // Build combined list: interleave String section headers and AssetEntity items
+                    val sectionedItems: List<Any> = buildList {
+                        var lastHeader: String? = null
+                        assets.sortedBy { it.name.lowercase() }.forEach { asset ->
+                            val header = asset.name.firstOrNull()?.uppercaseChar()?.toString() ?: "#"
+                            if (header != lastHeader) {
+                                add(header)
+                                lastHeader = header
+                            }
+                            add(asset)
+                        }
+                    }
+
                     LazyColumn(
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxSize(),
                     ) {
                         items(
-                            items = assets,
-                            key = { it.assetId },
-                        ) { asset ->
-                            AssetCard(
-                                asset = asset,
-                                onClick = { onAssetClick(asset.assetId) },
-                            )
+                            items = sectionedItems,
+                            key = { item ->
+                                when (item) {
+                                    is String -> "header_$item"
+                                    is AssetEntity -> item.assetId
+                                    else -> item.hashCode()
+                                }
+                            },
+                        ) { item ->
+                            when (item) {
+                                is String -> {
+                                    Text(
+                                        text = item,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 8.dp, bottom = 2.dp),
+                                    )
+                                }
+                                is AssetEntity -> {
+                                    AssetCard(
+                                        asset = item,
+                                        onClick = { onAssetClick(item.assetId) },
+                                    )
+                                }
+                            }
                         }
 
                         // Quote banner footer — only shown when there are assets and banner is dismissed
