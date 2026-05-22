@@ -143,6 +143,10 @@ dependencies {
     androidTestImplementation(libs.compose.ui.test)
 }
 
+hilt {
+    enableAggregatingTask = true
+}
+
 ksp {
     arg("dagger.hilt.android.internal.disableAndroidSuperclassValidation", "true")
 }
