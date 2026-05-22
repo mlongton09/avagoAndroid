@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.AssetEntity
+import com.avago.core.data.db.entity.DocEntity
 import com.avago.core.data.db.entity.LogEntity
 import com.avago.core.data.db.entity.PhotoEntity
 import com.avago.core.data.repository.AssetRepository
@@ -210,6 +211,38 @@ class AssetDetailViewModel @Inject constructor(
         }
         .catch { e ->
             Timber.e(e, "[AssetDetailViewModel] Photos flow error")
+            emit(emptyList())
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList(),
+        )
+
+    /**
+     * Documents attached to this asset, filtered by asset_id.
+     * Uses observeAll and filters client-side since DocDao doesn't expose a per-asset query.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val documents: StateFlow<List<DocEntity>> = accountId
+        .flatMapLatest { acctId ->
+            if (acctId == null) flowOf(emptyList())
+            else {
+                try {
+                    dbFactory.get(acctId).docDao().observeAll(acctId)
+                        .map { docs -> docs.filter { it.assetId == assetId } }
+                        .catch { e ->
+                            Timber.e(e, "[AssetDetailViewModel] Error loading docs for $assetId")
+                            emit(emptyList())
+                        }
+                } catch (e: Exception) {
+                    Timber.e(e, "[AssetDetailViewModel] Could not get docDao for $acctId")
+                    flowOf(emptyList())
+                }
+            }
+        }
+        .catch { e ->
+            Timber.e(e, "[AssetDetailViewModel] Documents flow error")
             emit(emptyList())
         }
         .stateIn(
