@@ -31,12 +31,29 @@ data class AssetFormState(
     val purchasePrice: String = "",
     val location: String = "",
     val notes: String = "",
+    // Address fields
+    val streetAddress: String = "",
+    val city: String = "",
+    val stateProvince: String = "",
+    val postalCode: String = "",
+    val country: String = "",
+    // Fleet number
+    val fleetNumber: String = "",
+    // Custom attributes (keys not in the known set)
+    val customAttributes: Map<String, String> = emptyMap(),
     val isSaving: Boolean = false,
     val saveError: String? = null,
     val savedAssetId: String? = null,
 ) {
     val isNameValid: Boolean get() = name.isNotBlank()
 }
+
+/** Keys that are handled explicitly and should not appear in the custom attributes section. */
+private val KNOWN_ATTRIBUTE_KEYS = setOf(
+    "name", "make", "model", "year", "color", "license_plate", "vin",
+    "purchase_date", "purchase_price", "notes",
+    "street_address", "city", "state", "zip_code", "country", "fleet_number",
+)
 
 @HiltViewModel
 class AddEditAssetViewModel @Inject constructor(
@@ -60,6 +77,7 @@ class AddEditAssetViewModel @Inject constructor(
         viewModelScope.launch {
             val accountId = identityManager.getActiveAccountId() ?: return@launch
             val entity = repository.getAssetById(accountId, assetId) ?: return@launch
+            val customAttrs = extractCustomAttributes(entity.attributes)
             _form.value = AssetFormState(
                 name = entity.name,
                 assetType = entity.assetType,
@@ -73,6 +91,13 @@ class AddEditAssetViewModel @Inject constructor(
                 purchasePrice = extractAttribute(entity.attributes, "purchase_price"),
                 location = entity.addressLine1 ?: "",
                 notes = extractAttribute(entity.attributes, "notes"),
+                streetAddress = entity.addressLine1 ?: extractAttribute(entity.attributes, "street_address"),
+                city = entity.city ?: extractAttribute(entity.attributes, "city"),
+                stateProvince = entity.state ?: extractAttribute(entity.attributes, "state"),
+                postalCode = entity.postalCode ?: extractAttribute(entity.attributes, "zip_code"),
+                country = entity.country ?: extractAttribute(entity.attributes, "country"),
+                fleetNumber = extractAttribute(entity.attributes, "fleet_number"),
+                customAttributes = customAttrs,
             )
         }
     }
@@ -93,6 +118,22 @@ class AddEditAssetViewModel @Inject constructor(
     fun onPurchasePriceChanged(value: String) { _form.value = _form.value.copy(purchasePrice = value) }
     fun onLocationChanged(value: String) { _form.value = _form.value.copy(location = value) }
     fun onNotesChanged(value: String) { _form.value = _form.value.copy(notes = value) }
+    fun onStreetAddressChanged(value: String) { _form.value = _form.value.copy(streetAddress = value) }
+    fun onCityChanged(value: String) { _form.value = _form.value.copy(city = value) }
+    fun onStateProvinceChanged(value: String) { _form.value = _form.value.copy(stateProvince = value) }
+    fun onPostalCodeChanged(value: String) { _form.value = _form.value.copy(postalCode = value) }
+    fun onCountryChanged(value: String) { _form.value = _form.value.copy(country = value) }
+    fun onFleetNumberChanged(value: String) { _form.value = _form.value.copy(fleetNumber = value) }
+
+    fun onCustomAttributeChanged(key: String, value: String) {
+        val updated = _form.value.customAttributes.toMutableMap().also { it[key] = value }
+        _form.value = _form.value.copy(customAttributes = updated)
+    }
+
+    /** Called when a VIN barcode is scanned externally. */
+    fun onVinScanned(scanned: String) {
+        _form.value = _form.value.copy(vinSerial = scanned)
+    }
 
     // ---------------------------------------------------------------------------
     // Save
@@ -125,6 +166,8 @@ class AddEditAssetViewModel @Inject constructor(
                     purchaseDate = current.purchaseDate,
                     purchasePrice = current.purchasePrice.toDoubleOrNull(),
                     notes = current.notes,
+                    fleetNumber = current.fleetNumber,
+                    customAttributes = current.customAttributes,
                 )
 
                 val entity = AssetEntity(
@@ -138,12 +181,12 @@ class AddEditAssetViewModel @Inject constructor(
                     meterType = null,
                     avatarColor = current.avatarColor,
                     avatarInitial = current.name.firstOrNull()?.uppercaseChar()?.toString(),
-                    addressLine1 = current.location.trim().ifBlank { null },
+                    addressLine1 = current.streetAddress.trim().ifBlank { current.location.trim().ifBlank { null } },
                     addressLine2 = null,
-                    city = null,
-                    state = null,
-                    postalCode = null,
-                    country = null,
+                    city = current.city.trim().ifBlank { null },
+                    state = current.stateProvince.trim().ifBlank { null },
+                    postalCode = current.postalCode.trim().ifBlank { null },
+                    country = current.country.trim().ifBlank { null },
                     locationId = null,
                     attributes = attributesJson,
                     isFreSample = false,
@@ -188,6 +231,8 @@ class AddEditAssetViewModel @Inject constructor(
         purchaseDate: Long?,
         purchasePrice: Double?,
         notes: String,
+        fleetNumber: String,
+        customAttributes: Map<String, String>,
     ): String? {
         val parts = mutableListOf<String>()
         if (licensePlate.isNotBlank()) parts += "\"license_plate\":\"${licensePlate.trim()}\""
@@ -195,6 +240,12 @@ class AddEditAssetViewModel @Inject constructor(
         if (purchaseDate != null) parts += "\"purchase_date\":$purchaseDate"
         if (purchasePrice != null) parts += "\"purchase_price\":$purchasePrice"
         if (notes.isNotBlank()) parts += "\"notes\":\"${notes.trim().replace("\"", "\\\"")}\""
+        if (fleetNumber.isNotBlank()) parts += "\"fleet_number\":\"${fleetNumber.trim()}\""
+        for ((key, value) in customAttributes) {
+            if (value.isNotBlank()) {
+                parts += "\"${key.replace("\"", "\\\"")}\":\"${value.trim().replace("\"", "\\\"")}\""
+            }
+        }
         return if (parts.isEmpty()) null else "{${parts.joinToString(",")}}"
     }
 
@@ -208,5 +259,24 @@ class AddEditAssetViewModel @Inject constructor(
         if (attributes.isNullOrBlank()) return null
         val pattern = Regex("\"$key\"\\s*:\\s*(\\d+)")
         return pattern.find(attributes)?.groupValues?.get(1)?.toLongOrNull()
+    }
+
+    /**
+     * Parse all keys from the attributes JSON and return only those that are
+     * not in [KNOWN_ATTRIBUTE_KEYS].
+     */
+    private fun extractCustomAttributes(attributes: String?): Map<String, String> {
+        if (attributes.isNullOrBlank()) return emptyMap()
+        val result = mutableMapOf<String, String>()
+        // Match both string values: "key":"value"
+        val stringPattern = Regex("\"([^\"]+)\"\\s*:\\s*\"([^\"]*)\"")
+        for (match in stringPattern.findAll(attributes)) {
+            val key = match.groupValues[1]
+            val value = match.groupValues[2]
+            if (key !in KNOWN_ATTRIBUTE_KEYS) {
+                result[key] = value
+            }
+        }
+        return result
     }
 }
