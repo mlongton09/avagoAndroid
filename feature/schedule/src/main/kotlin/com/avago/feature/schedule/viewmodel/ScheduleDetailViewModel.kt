@@ -5,7 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
-import com.avago.core.data.db.dao.WorkOrderDao
+import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.ScheduleEntity
 import com.avago.core.data.db.entity.WorkOrderEntity
 import com.avago.core.sync.SyncEngine
@@ -32,7 +32,7 @@ class ScheduleDetailViewModel @Inject constructor(
     private val repository: ScheduleRepository,
     private val identityManager: IdentityManager,
     private val syncEngine: SyncEngine,
-    private val workOrderDao: WorkOrderDao,
+    private val dbFactory: DatabaseFactory,
 ) : ViewModel() {
 
     private val scheduleId: String = requireNotNull(savedStateHandle["scheduleId"]) {
@@ -52,10 +52,14 @@ class ScheduleDetailViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    val linkedWos: StateFlow<List<WorkOrderEntity>> =
-        workOrderDao.observeBySchedule(scheduleId)
-            .catch { e -> Timber.e(e, "[ScheduleDetailVM] linkedWos flow error"); emit(emptyList()) }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val linkedWos: StateFlow<List<WorkOrderEntity>> = _accountId
+        .flatMapLatest { accountId ->
+            if (accountId == null) flowOf(emptyList())
+            else dbFactory.get(accountId).workOrderDao().observeBySchedule(scheduleId)
+                .catch { e -> Timber.e(e, "[ScheduleDetailVM] linkedWos flow error"); emit(emptyList()) }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _isSaving = MutableStateFlow(false)
     val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
@@ -65,10 +69,6 @@ class ScheduleDetailViewModel @Inject constructor(
 
     private val _deleted = MutableStateFlow(false)
     val deleted: StateFlow<Boolean> = _deleted.asStateFlow()
-
-    // -------------------------------------------------------------------------
-    // Delete
-    // -------------------------------------------------------------------------
 
     fun delete() {
         val accountId = _accountId.value ?: return
@@ -86,22 +86,10 @@ class ScheduleDetailViewModel @Inject constructor(
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Calendar integration
-    // -------------------------------------------------------------------------
-
-    /**
-     * Launches the Android Calendar "Add Event" UI for this schedule.
-     * [assetName] is provided by the caller (who may have it from the asset DAO).
-     */
     fun addToCalendar(context: Context, assetName: String) {
         val s = schedule.value ?: return
         addScheduleToAndroidCalendar(context, s, assetName)
     }
-
-    // -------------------------------------------------------------------------
-    // Refresh
-    // -------------------------------------------------------------------------
 
     fun refresh() {
         viewModelScope.launch {

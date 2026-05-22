@@ -3,11 +3,7 @@ package com.avago.feature.inventory.warehouse
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
-import com.avago.core.data.db.dao.BinDao
-import com.avago.core.data.db.dao.LocationDao
-import com.avago.core.data.db.dao.PartDao
-import com.avago.core.data.db.dao.PartIssueDao
-import com.avago.core.data.db.dao.PartIssueLineDao
+import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.BinEntity
 import com.avago.core.data.db.entity.LocationEntity
 import com.avago.core.data.db.entity.PartEntity
@@ -16,18 +12,11 @@ import com.avago.core.network.model.CreatePartIssueRequest
 import com.avago.core.network.model.InventoryReceiveRequest
 import com.avago.core.network.model.PartIssueLineRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
-import java.util.UUID
 import javax.inject.Inject
 
 // ---------------------------------------------------------------------------
@@ -60,7 +49,7 @@ data class WarehouseReceiveUiState(
 
 @HiltViewModel
 class WarehouseReceiveViewModel @Inject constructor(
-    private val partDao: PartDao,
+    private val dbFactory: DatabaseFactory,
     private val serviceClient: AvagoServiceClient,
     private val identityManager: IdentityManager,
 ) : ViewModel() {
@@ -75,7 +64,7 @@ class WarehouseReceiveViewModel @Inject constructor(
     private fun loadParts() {
         val accountId = identityManager.getActiveAccountId() ?: return
         viewModelScope.launch {
-            partDao.observeAll(accountId).collect { parts ->
+            dbFactory.get(accountId).partDao().observeAll(accountId).collect { parts ->
                 _state.value = _state.value.copy(parts = parts)
             }
         }
@@ -100,9 +89,6 @@ class WarehouseReceiveViewModel @Inject constructor(
             _state.value = s.copy(error = "Invalid quantity")
             return
         }
-        // Warehouse receive posts to the inventory endpoint by inventoryId.
-        // Since we're receiving by part here (not knowing the exact inventoryId),
-        // we encode the partId as the inventoryId path segment — the server resolves it.
         val part = s.selectedPart ?: run {
             _state.value = s.copy(error = "Select a part")
             return
@@ -145,9 +131,7 @@ data class WarehouseIssueUiState(
 
 @HiltViewModel
 class WarehouseIssueViewModel @Inject constructor(
-    private val partDao: PartDao,
-    private val partIssueDao: PartIssueDao,
-    private val partIssueLineDao: PartIssueLineDao,
+    private val dbFactory: DatabaseFactory,
     private val serviceClient: AvagoServiceClient,
     private val identityManager: IdentityManager,
 ) : ViewModel() {
@@ -162,7 +146,7 @@ class WarehouseIssueViewModel @Inject constructor(
     private fun loadParts() {
         val accountId = identityManager.getActiveAccountId() ?: return
         viewModelScope.launch {
-            partDao.observeAll(accountId).collect { parts ->
+            dbFactory.get(accountId).partDao().observeAll(accountId).collect { parts ->
                 _state.value = _state.value.copy(parts = parts)
             }
         }
@@ -241,7 +225,7 @@ data class WarehouseMoveUiState(
 
 @HiltViewModel
 class WarehouseMoveViewModel @Inject constructor(
-    private val partDao: PartDao,
+    private val dbFactory: DatabaseFactory,
     private val serviceClient: AvagoServiceClient,
     private val identityManager: IdentityManager,
 ) : ViewModel() {
@@ -256,7 +240,7 @@ class WarehouseMoveViewModel @Inject constructor(
     private fun loadParts() {
         val accountId = identityManager.getActiveAccountId() ?: return
         viewModelScope.launch {
-            partDao.observeAll(accountId).collect { parts ->
+            dbFactory.get(accountId).partDao().observeAll(accountId).collect { parts ->
                 _state.value = _state.value.copy(parts = parts)
             }
         }

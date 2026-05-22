@@ -4,10 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
-import com.avago.core.data.db.dao.PartDao
-import com.avago.core.data.db.dao.PoLineDao
-import com.avago.core.data.db.dao.PurchaseOrderDao
-import com.avago.core.data.db.dao.VendorDao
+import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.PoLineEntity
 import com.avago.core.data.db.entity.PurchaseOrderEntity
 import com.avago.core.data.db.entity.VendorEntity
@@ -45,9 +42,7 @@ data class PoDetailUiState(
 @HiltViewModel
 class PurchaseOrderViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val poDao: PurchaseOrderDao,
-    private val poLineDao: PoLineDao,
-    private val vendorDao: VendorDao,
+    private val dbFactory: DatabaseFactory,
     private val serviceClient: AvagoServiceClient,
     private val identityManager: IdentityManager,
 ) : ViewModel() {
@@ -61,11 +56,12 @@ class PurchaseOrderViewModel @Inject constructor(
     val uiState: StateFlow<PoDetailUiState> = identityManager.activeAccountId.flatMapLatest { accountId ->
         if (accountId == null) flowOf(PoDetailUiState(isLoading = false))
         else {
+            val db = dbFactory.get(accountId)
             @Suppress("UNCHECKED_CAST")
             combine(
-                poDao.observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
-                poLineDao.observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
-                vendorDao.observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
+                db.purchaseOrderDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
+                db.poLineDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
+                db.vendorDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
                 _showGrnSheet as kotlinx.coroutines.flow.Flow<Any?>,
                 _isActioning as kotlinx.coroutines.flow.Flow<Any?>,
                 _actionError as kotlinx.coroutines.flow.Flow<Any?>,
@@ -165,8 +161,7 @@ data class CreatePoUiState(
 @HiltViewModel
 class PurchaseOrderCreateViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val poDao: PurchaseOrderDao,
-    private val poLineDao: PoLineDao,
+    private val dbFactory: DatabaseFactory,
     private val serviceClient: AvagoServiceClient,
     private val identityManager: IdentityManager,
 ) : ViewModel() {
@@ -183,7 +178,11 @@ class PurchaseOrderCreateViewModel @Inject constructor(
     private fun loadPo(id: String) {
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true)
-            val po = poDao.getById(id)
+            val accountId = identityManager.getActiveAccountId() ?: run {
+                _state.value = _state.value.copy(isLoading = false)
+                return@launch
+            }
+            val po = dbFactory.get(accountId).purchaseOrderDao().getById(id)
             if (po != null) {
                 _state.value = _state.value.copy(
                     vendorId = po.vendorId ?: "",

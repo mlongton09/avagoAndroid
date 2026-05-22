@@ -5,8 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
-import com.avago.core.data.db.dao.DocDao
-import com.avago.core.data.db.dao.SyncQueueDao
+import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.DocEntity
 import com.avago.core.data.db.entity.SyncQueueEntity
 import com.avago.core.network.AvagoServiceClient
@@ -24,8 +23,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class DocAddViewModel @Inject constructor(
-    private val docDao: DocDao,
-    private val syncQueueDao: SyncQueueDao,
+    private val dbFactory: DatabaseFactory,
     private val identity: IdentityManager,
     private val textRecognizer: AvagoTextRecognizer,
     private val serviceClient: AvagoServiceClient,
@@ -33,63 +31,30 @@ class DocAddViewModel @Inject constructor(
 ) : ViewModel() {
 
     sealed class UiState {
-        /** Initial state — user sees the "Scan" / "Import" picker. */
         object Idle : UiState()
-
-        /** ML Kit scanner is open (or file picker is active). */
         object Scanning : UiState()
-
-        /** OCR is running on [pageCount] pages. */
         data class OcrProcessing(val pageCount: Int) : UiState()
-
-        /**
-         * OCR completed.  The user sees the form to review/edit extracted data and
-         * enter a name / doc type before saving.
-         */
         data class Form(
             val rawText: String,
             val extractedJson: String?,
             val pageUris: List<Uri>,
         ) : UiState()
-
-        /** Saving to Room + enqueueing sync item. */
         object Saving : UiState()
-
-        /** Save completed — caller should navigate away. */
         object Done : UiState()
-
         data class Error(val message: String) : UiState()
     }
 
     private val _state = MutableStateFlow<UiState>(UiState.Idle)
     val state: StateFlow<UiState> = _state.asStateFlow()
 
-    // -------------------------------------------------------------------------
-    // Scanning intent
-    // -------------------------------------------------------------------------
-
-    /** Called when the user taps "Scan" — UI should launch the scanner immediately. */
     fun onScanRequested() {
         _state.value = UiState.Scanning
     }
 
-    /** Called when the user taps "Import" — UI launches system file picker. */
     fun onImportRequested() {
         _state.value = UiState.Scanning
     }
 
-    // -------------------------------------------------------------------------
-    // OCR pipeline
-    // -------------------------------------------------------------------------
-
-    /**
-     * Processes scanned or imported pages through the OCR pipeline.
-     *
-     * 1. Runs [AvagoTextRecognizer.recognizeAll] on all [pageUris].
-     * 2. Optionally calls the server-side AI extraction endpoint (wired in Phase 18;
-     *    currently skipped with a null result).
-     * 3. Transitions to [UiState.Form] with the raw text and (future) extracted JSON.
-     */
     fun processScannedPages(pageUris: List<Uri>) {
         if (pageUris.isEmpty()) {
             _state.value = UiState.Error("No pages received from scanner")
@@ -104,8 +69,6 @@ class DocAddViewModel @Inject constructor(
                 return@launch
             }
 
-            // Phase 18 wires Gemini / server-side extraction.
-            // For now: attempt the server call but fall back gracefully.
             val accountId = identity.activeAccountId.value
             val extractedJson: String? = if (accountId != null && rawText.isNotBlank()) {
                 when (val result = serviceClient.extractDoc(accountId, rawText, "unknown")) {
@@ -123,19 +86,6 @@ class DocAddViewModel @Inject constructor(
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Save
-    // -------------------------------------------------------------------------
-
-    /**
-     * Persists the document to Room and enqueues a sync-queue insertion.
-     *
-     * @param name           User-provided document name.
-     * @param docType        Selected doc type key (e.g. "receipt", "warranty").
-     * @param rawText        Raw OCR output.
-     * @param extractedJson  Structured JSON from the AI extraction step (may be null).
-     * @param assetId        Optional linked asset ID.
-     */
     fun save(
         name: String,
         docType: String,
@@ -157,7 +107,8 @@ class DocAddViewModel @Inject constructor(
             try {
                 val docId = UUID.randomUUID().toString()
                 val now = System.currentTimeMillis()
-                docDao.upsert(
+                val db = dbFactory.get(accountId)
+                db.docDao().upsert(
                     DocEntity(
                         docId = docId,
                         accountId = accountId,
@@ -182,10 +133,9 @@ class DocAddViewModel @Inject constructor(
                         seq = null,
                     ),
                 )
-                val queueId = UUID.randomUUID().toString()
-                syncQueueDao.enqueueOrReplace(
+                db.syncQueueDao().enqueueOrReplace(
                     SyncQueueEntity(
-                        queueId = queueId,
+                        queueId = UUID.randomUUID().toString(),
                         entityType = "doc",
                         entityId = docId,
                         operation = "insert",
