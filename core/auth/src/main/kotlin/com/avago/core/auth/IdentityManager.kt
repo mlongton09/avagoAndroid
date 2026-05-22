@@ -2,16 +2,19 @@ package com.avago.core.auth
 
 import android.content.Context
 import com.avago.core.network.AvagoServiceClient
+import com.avago.core.network.NetworkResult
 import com.avago.core.network.RefreshFailedHandler
 import com.avago.core.network.model.DeviceUpdateRequest
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -93,6 +96,7 @@ class IdentityManager @Inject constructor(
         setActiveAccount(accountId)
 
         Timber.d("IdentityManager: provisioned as $accountId")
+        registerPushTokenAsync()
     }
 
     // ---------------------------------------------------------------------------
@@ -111,17 +115,25 @@ class IdentityManager @Inject constructor(
 
             // Fetch profile to fill in the manifest record
             val user = runCatching { client.getMe() }.getOrNull()
+            val userRole = user?.role
+            val memberships = if (userRole != null) {
+                listOf(AccountMembership(accountId = accountId, role = userRole, isRoot = userRole == "owner"))
+            } else {
+                emptyList()
+            }
             val record = AccountRecord(
                 accountId = accountId,
                 userId = user?.user_id,
                 displayName = user?.display_name,
                 email = user?.email,
                 role = user?.role,
+                memberships = memberships,
             )
             AccountManifest.addOrUpdate(context, record)
             setActiveAccount(accountId, user?.user_id)
 
             Timber.d("IdentityManager: signed in as $accountId")
+            registerPushTokenAsync()
         }
 
     // ---------------------------------------------------------------------------
@@ -200,6 +212,12 @@ class IdentityManager @Inject constructor(
         require(accounts.any { it.accountId == accountId }) {
             "Account $accountId not in manifest"
         }
+        val freshResult = client.switchAccount(accountId)
+        if (freshResult is NetworkResult.Success) {
+            tokenStore.storeTokens(accountId, freshResult.data.access_token, freshResult.data.refresh_token)
+        } else {
+            Timber.w("IdentityManager: switch-account server call failed, using cached tokens")
+        }
         setActiveAccount(accountId)
         Timber.d("IdentityManager: switched to $accountId")
     }
@@ -250,6 +268,22 @@ class IdentityManager @Inject constructor(
     // Push token
     // ---------------------------------------------------------------------------
 
+    private fun registerPushTokenAsync() {
+        @Suppress("OPT_IN_USAGE")
+        GlobalScope.launch(Dispatchers.IO) {
+            try {
+                val fcmToken = suspendCancellableCoroutine<String?> { cont ->
+                    com.google.firebase.messaging.FirebaseMessaging.getInstance().token
+                        .addOnSuccessListener { cont.resumeWith(Result.success(it)) }
+                        .addOnFailureListener { cont.resumeWith(Result.success(null)) }
+                } ?: return@launch
+                storePushToken(fcmToken)
+            } catch (e: Exception) {
+                Timber.w(e, "IdentityManager: failed to register push token after sign-in")
+            }
+        }
+    }
+
     suspend fun storePushToken(token: String) = withContext(Dispatchers.IO) {
         tokenStore.storePushToken(token)
         val accountId = _activeAccountId.value ?: return@withContext
@@ -280,4 +314,14 @@ class IdentityManager @Inject constructor(
     fun getAccessToken(accountId: String): String? = tokenStore.getAccessToken(accountId)
 
     fun getRefreshToken(accountId: String): String? = tokenStore.getRefreshToken(accountId)
+
+    fun hasRootOnCurrentAccount(): Boolean {
+        val accountId = _activeAccountId.value ?: return false
+        val accounts = AccountManifest.load(appContext)
+        return accounts
+            .find { it.accountId == accountId }
+            ?.memberships
+            ?.find { it.accountId == accountId }
+            ?.isRoot ?: false
+    }
 }
