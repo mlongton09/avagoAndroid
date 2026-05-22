@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -544,7 +545,7 @@ fun WorkOrderDetailScreen(
 private fun DetailSection(
     title: String,
     action: (@Composable () -> Unit)? = null,
-    content: @Composable Column.() -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -569,7 +570,7 @@ private fun DetailSection(
 }
 
 @Composable
-private fun Column.LabeledRow(label: String, value: String) {
+private fun ColumnScope.LabeledRow(label: String, value: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
