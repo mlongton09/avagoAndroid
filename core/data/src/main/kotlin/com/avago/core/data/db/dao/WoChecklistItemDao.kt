@@ -22,6 +22,6 @@ interface WoChecklistItemDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(entities: List<WoChecklistItemEntity>)
 
-    @Query("UPDATE wo_checklist_items SET deleted_at = :now, updated_at = :now WHERE item_id = :id")
-    suspend fun softDelete(id: String, now: Long)
+    @Query("DELETE FROM wo_checklist_items WHERE item_id = :id")
+    suspend fun softDelete(id: String)
 }

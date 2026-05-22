@@ -22,6 +22,6 @@ interface InventoryTransactionDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(entities: List<InventoryTransactionEntity>)
 
-    @Query("UPDATE inventory_transactions SET deleted_at = :now, updated_at = :now WHERE transaction_id = :id")
-    suspend fun softDelete(id: String, now: Long)
+    @Query("DELETE FROM inventory_transactions WHERE transaction_id = :id")
+    suspend fun softDelete(id: String)
 }

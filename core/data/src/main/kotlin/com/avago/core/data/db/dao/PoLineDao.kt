@@ -22,6 +22,6 @@ interface PoLineDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(entities: List<PoLineEntity>)
 
-    @Query("UPDATE po_lines SET deleted_at = :now, updated_at = :now WHERE po_line_id = :id")
-    suspend fun softDelete(id: String, now: Long)
+    @Query("DELETE FROM po_lines WHERE po_line_id = :id")
+    suspend fun softDelete(id: String)
 }

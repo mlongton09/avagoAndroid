@@ -22,6 +22,6 @@ interface CycleCountLineDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(entities: List<CycleCountLineEntity>)
 
-    @Query("UPDATE cycle_count_lines SET deleted_at = :now, updated_at = :now WHERE line_id = :id")
-    suspend fun softDelete(id: String, now: Long)
+    @Query("DELETE FROM cycle_count_lines WHERE line_id = :id")
+    suspend fun softDelete(id: String)
 }

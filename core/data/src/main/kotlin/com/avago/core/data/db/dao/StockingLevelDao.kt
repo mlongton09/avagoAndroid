@@ -22,6 +22,6 @@ interface StockingLevelDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(entities: List<StockingLevelEntity>)
 
-    @Query("UPDATE stocking_levels SET deleted_at = :now, updated_at = :now WHERE stocking_level_id = :id")
-    suspend fun softDelete(id: String, now: Long)
+    @Query("DELETE FROM stocking_levels WHERE stocking_level_id = :id")
+    suspend fun softDelete(id: String)
 }

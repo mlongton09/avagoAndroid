@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.Flow
 interface SyncMetadataDao {
 
     @Query("SELECT * FROM sync_metadata")
-    fun observeAll(accountId: String = ""): Flow<List<SyncMetadataEntity>>
+    fun observeAll(): Flow<List<SyncMetadataEntity>>
 
     @Query("SELECT * FROM sync_metadata WHERE entity_type = :id")
     suspend fun getById(id: String): SyncMetadataEntity?

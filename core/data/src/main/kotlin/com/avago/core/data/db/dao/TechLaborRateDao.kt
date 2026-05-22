@@ -22,6 +22,6 @@ interface TechLaborRateDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(entities: List<TechLaborRateEntity>)
 
-    @Query("UPDATE tech_labor_rates SET deleted_at = :now, updated_at = :now WHERE rate_id = :id")
-    suspend fun softDelete(id: String, now: Long)
+    @Query("DELETE FROM tech_labor_rates WHERE rate_id = :id")
+    suspend fun softDelete(id: String)
 }

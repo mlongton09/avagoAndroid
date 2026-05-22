@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.Flow
 interface RolePermissionDefaultsDao {
 
     @Query("SELECT * FROM role_permission_defaults")
-    fun observeAll(accountId: String = ""): Flow<List<RolePermissionDefaultsEntity>>
+    fun observeAll(): Flow<List<RolePermissionDefaultsEntity>>
 
     @Query("SELECT * FROM role_permission_defaults WHERE role_key = :id")
     suspend fun getById(id: String): RolePermissionDefaultsEntity?

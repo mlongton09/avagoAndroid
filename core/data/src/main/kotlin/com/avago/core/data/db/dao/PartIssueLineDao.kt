@@ -22,6 +22,6 @@ interface PartIssueLineDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(entities: List<PartIssueLineEntity>)
 
-    @Query("UPDATE part_issue_lines SET deleted_at = :now, updated_at = :now WHERE line_id = :id")
-    suspend fun softDelete(id: String, now: Long)
+    @Query("DELETE FROM part_issue_lines WHERE line_id = :id")
+    suspend fun softDelete(id: String)
 }

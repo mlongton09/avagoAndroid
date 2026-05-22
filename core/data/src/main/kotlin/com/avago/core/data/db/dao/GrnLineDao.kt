@@ -22,6 +22,6 @@ interface GrnLineDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(entities: List<GrnLineEntity>)
 
-    @Query("UPDATE grn_lines SET deleted_at = :now, updated_at = :now WHERE grn_line_id = :id")
-    suspend fun softDelete(id: String, now: Long)
+    @Query("DELETE FROM grn_lines WHERE grn_line_id = :id")
+    suspend fun softDelete(id: String)
 }

@@ -22,6 +22,6 @@ interface WoAssignmentDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(entities: List<WoAssignmentEntity>)
 
-    @Query("UPDATE wo_assignments SET deleted_at = :now, updated_at = :now WHERE assignment_id = :id")
-    suspend fun softDelete(id: String, now: Long)
+    @Query("DELETE FROM wo_assignments WHERE assignment_id = :id")
+    suspend fun softDelete(id: String)
 }
