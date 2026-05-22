@@ -13,7 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.avago.core.network.model.UserResponse
+import com.avago.core.data.db.entity.ChatAccountRosterEntity
 
 /**
  * Small autocomplete popup that appears above the composer when the user types @.
@@ -22,13 +22,13 @@ import com.avago.core.network.model.UserResponse
 @Composable
 fun MentionAutocomplete(
     query: String,
-    members: List<UserResponse>,
-    onSelect: (UserResponse) -> Unit,
+    members: List<ChatAccountRosterEntity>,
+    onSelect: (ChatAccountRosterEntity) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val filtered = members.filter { user ->
         query.isBlank() ||
-            (user.display_name?.contains(query, ignoreCase = true) == true) ||
+            (user.displayName?.contains(query, ignoreCase = true) == true) ||
             (user.email?.contains(query, ignoreCase = true) == true)
     }.take(6)
 
@@ -41,9 +41,9 @@ fun MentionAutocomplete(
         color = MaterialTheme.colorScheme.surface,
     ) {
         LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
-            items(filtered, key = { it.user_id }) { user ->
+            items(filtered, key = { it.userId }) { user ->
                 Text(
-                    text = user.display_name ?: user.email ?: user.user_id,
+                    text = user.displayName ?: user.email ?: user.userId,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier

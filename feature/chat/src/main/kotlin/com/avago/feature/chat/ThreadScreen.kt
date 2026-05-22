@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -28,6 +29,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -74,6 +76,9 @@ fun ThreadScreen(
 
     // Which message has the action sheet open.
     var actionSheetMessage by remember { mutableStateOf<ChatMessageEntity?>(null) }
+
+    // Body pending broadcast confirmation (set when threadType is "broadcast" or "team").
+    var pendingBroadcastBody by remember { mutableStateOf<String?>(null) }
 
     // Scroll to bottom when new messages arrive and user is near bottom.
     val isAtBottom by remember {
@@ -141,12 +146,17 @@ fun ThreadScreen(
         bottomBar = {
             MessageComposer(
                 editingMessage = uiState.editingMessage,
-                members = emptyList(), // TODO: load account members for @ autocomplete
+                members = uiState.roster,
                 onSend = { body ->
                     if (uiState.editingMessage != null) {
                         viewModel.submitEdit(body)
                     } else {
-                        viewModel.sendMessage(body)
+                        val threadType = uiState.thread?.threadType ?: ""
+                        if (threadType == "broadcast" || threadType == "team") {
+                            pendingBroadcastBody = body
+                        } else {
+                            viewModel.sendMessage(body)
+                        }
                     }
                 },
                 onCancelEdit = viewModel::cancelEditing,
@@ -281,6 +291,28 @@ fun ThreadScreen(
             onReplyInThread = { onOpenSubthread(msg.messageId) },
             onPin = { viewModel.pinMessage(msg.messageId) },
             onUnpin = { viewModel.unpinMessage(msg.messageId) },
+        )
+    }
+
+    // Broadcast confirm dialog
+    pendingBroadcastBody?.let { body ->
+        AlertDialog(
+            onDismissRequest = { pendingBroadcastBody = null },
+            title = { Text("Send to everyone?") },
+            text = { Text("This message will be sent to all members of this thread.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.sendMessage(body)
+                        pendingBroadcastBody = null
+                    },
+                ) { Text("Send") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingBroadcastBody = null }) {
+                    Text("Cancel")
+                }
+            },
         )
     }
 }

@@ -44,6 +44,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.avago.core.data.db.entity.LogEntity
+import com.avago.core.ui.ScoutFAB
+import com.avago.core.ui.ScoutViewModel
 import com.avago.feature.log.viewmodel.LogListViewModel
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
@@ -59,6 +61,7 @@ fun LogListScreen(
     onAddLog: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: LogListViewModel = hiltViewModel(),
+    scoutViewModel: ScoutViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(assetId) {
         viewModel.setAssetId(assetId)
@@ -81,8 +84,11 @@ fun LogListScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddLog) {
-                Icon(Icons.Default.Add, contentDescription = "Add log entry")
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                ScoutFAB(onQuery = { query -> scoutViewModel.query(query) })
+                FloatingActionButton(onClick = onAddLog) {
+                    Icon(Icons.Default.Add, contentDescription = "Add log entry")
+                }
             }
         },
         modifier = modifier,

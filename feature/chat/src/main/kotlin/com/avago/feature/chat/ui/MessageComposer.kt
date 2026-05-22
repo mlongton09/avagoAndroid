@@ -31,8 +31,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import com.avago.core.data.db.entity.ChatAccountRosterEntity
 import com.avago.core.data.db.entity.ChatMessageEntity
-import com.avago.core.network.model.UserResponse
 
 /**
  * Pinned composer bar at the bottom of ThreadScreen.
@@ -47,7 +47,7 @@ import com.avago.core.network.model.UserResponse
 @Composable
 fun MessageComposer(
     editingMessage: ChatMessageEntity?,
-    members: List<UserResponse>,
+    members: List<ChatAccountRosterEntity>,
     onSend: (String) -> Unit,
     onCancelEdit: () -> Unit,
     modifier: Modifier = Modifier,
@@ -91,7 +91,7 @@ fun MessageComposer(
                     if (atIdx >= 0) {
                         val before = text.substring(0, atIdx)
                         val after = text.substring(cursor)
-                        val insert = "@${user.display_name ?: user.user_id} "
+                        val insert = "@${user.displayName ?: user.userId} "
                         val newText = before + insert + after
                         fieldValue = TextFieldValue(
                             text = newText,

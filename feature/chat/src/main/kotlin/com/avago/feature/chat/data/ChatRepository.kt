@@ -2,11 +2,19 @@ package com.avago.feature.chat.data
 
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.db.ChatDatabaseFactory
+import com.avago.core.data.db.entity.ChatAccountRosterEntity
+import com.avago.core.data.db.entity.ChatMentionEntity
+import com.avago.core.data.db.entity.ChatOutboxEntity
+import com.avago.core.data.db.entity.ChatPresenceEntity
+import com.avago.core.data.db.entity.ChatThreadLastReadEntity
+import com.avago.core.data.db.entity.ChatThreadMemberEntity
 import com.avago.core.data.db.entity.ChatMessageEntity
 import com.avago.core.data.db.entity.ChatThreadEntity
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
+import com.avago.core.network.model.ChatMemberResponse
 import com.avago.core.network.model.ChatMessageResponse
+import com.avago.core.network.model.ChatRosterEntry
 import com.avago.core.network.model.ChatThreadResponse
 import com.avago.core.network.model.CreateThreadRequest
 import com.avago.core.network.model.UserResponse
@@ -15,6 +23,7 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.emitAll
 import timber.log.Timber
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -299,6 +308,190 @@ class ChatRepository @Inject constructor(
             updatedAt = runCatching { java.time.Instant.parse(updated_at).toEpochMilli() }.getOrDefault(now),
         )
     }
+
+    // ---------------------------------------------------------------------------
+    // Account roster (for @mention autocomplete)
+    // ---------------------------------------------------------------------------
+
+    fun observeRoster(accountId: String) =
+        chatDbFactory.get(accountId).chatAccountRosterDao().observeAll(accountId)
+
+    suspend fun syncRoster() {
+        val accountId = identity.activeAccountId.value ?: return
+        when (val result = client.getChatRoster()) {
+            is NetworkResult.Success -> {
+                val db = chatDbFactory.get(accountId)
+                val entities = result.data.map { it.toRosterEntity(accountId) }
+                db.chatAccountRosterDao().upsertAll(entities)
+            }
+            is NetworkResult.Error -> Timber.w("syncRoster failed: ${result.message}")
+            is NetworkResult.Unauthorized -> Timber.w("syncRoster: unauthorized")
+            else -> {}
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Thread members
+    // ---------------------------------------------------------------------------
+
+    fun observeThreadMembers(threadId: String): Flow<List<ChatThreadMemberEntity>> {
+        val accountId = identity.activeAccountId.value ?: return emptyFlow()
+        return chatDbFactory.get(accountId).chatThreadMemberDao().observeByThread(threadId)
+    }
+
+    suspend fun syncThreadMembers(threadId: String) {
+        val accountId = identity.activeAccountId.value ?: return
+        when (val result = client.getThreadMembers(threadId)) {
+            is NetworkResult.Success -> {
+                val db = chatDbFactory.get(accountId)
+                val entities = result.data.map { member ->
+                    ChatThreadMemberEntity(
+                        threadId = threadId,
+                        userId = member.user_id,
+                        accountId = accountId,
+                        displayName = member.display_name,
+                        role = member.role,
+                        joinedAt = null,
+                        leftAt = null,
+                        isMuted = false,
+                    )
+                }
+                db.chatThreadMemberDao().upsertAll(entities)
+            }
+            is NetworkResult.Error -> Timber.w("syncThreadMembers failed: ${result.message}")
+            is NetworkResult.Unauthorized -> Timber.w("syncThreadMembers: unauthorized")
+            else -> {}
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Mentions inbox
+    // ---------------------------------------------------------------------------
+
+    fun observeUnreadMentionCount(): Flow<Int> {
+        val accountId = identity.activeAccountId.value ?: return emptyFlow()
+        return chatDbFactory.get(accountId).chatMentionDao().observeUnreadCount(accountId)
+    }
+
+    fun observeUnreadMentions(): Flow<List<ChatMentionEntity>> {
+        val accountId = identity.activeAccountId.value ?: return emptyFlow()
+        return chatDbFactory.get(accountId).chatMentionDao().observeUnread(accountId)
+    }
+
+    suspend fun markMentionRead(mentionId: String) {
+        val accountId = identity.activeAccountId.value ?: return
+        chatDbFactory.get(accountId).chatMentionDao().markRead(mentionId)
+    }
+
+    suspend fun markAllMentionsReadForThread(threadId: String) {
+        val accountId = identity.activeAccountId.value ?: return
+        chatDbFactory.get(accountId).chatMentionDao().markAllReadForThread(threadId)
+    }
+
+    // ---------------------------------------------------------------------------
+    // Thread last-read tracking
+    // ---------------------------------------------------------------------------
+
+    suspend fun markThreadRead(threadId: String, lastMessageId: String) {
+        val accountId = identity.activeAccountId.value ?: return
+        val userId = identity.getActiveUserId() ?: return
+        val now = System.currentTimeMillis()
+        val db = chatDbFactory.get(accountId)
+        db.chatThreadLastReadDao().upsert(
+            ChatThreadLastReadEntity(
+                threadId = threadId,
+                userId = userId,
+                accountId = accountId,
+                lastReadMessageId = lastMessageId,
+                lastReadAt = now,
+                updatedAt = now,
+            )
+        )
+        // Zero out the local unread count on the thread entity
+        db.chatThreadDao().getById(threadId)?.let { thread ->
+            db.chatThreadDao().upsert(thread.copy(unreadCount = 0, updatedAt = now))
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Outbox — persistent send queue
+    // ---------------------------------------------------------------------------
+
+    suspend fun enqueueOutbox(accountId: String, threadId: String, senderId: String, body: String): String {
+        val localId = UUID.randomUUID().toString()
+        val now = System.currentTimeMillis()
+        chatDbFactory.get(accountId).chatOutboxDao().upsert(
+            ChatOutboxEntity(
+                localId = localId,
+                threadId = threadId,
+                accountId = accountId,
+                senderId = senderId,
+                bodyMd = body,
+                photoLocalPath = null,
+                parentMessageId = null,
+                status = "pending",
+                attempts = 0,
+                lastError = null,
+                createdAt = now,
+                updatedAt = now,
+            )
+        )
+        return localId
+    }
+
+    suspend fun markOutboxSent(localId: String) {
+        val accountId = identity.activeAccountId.value ?: return
+        chatDbFactory.get(accountId).chatOutboxDao().delete(localId)
+    }
+
+    suspend fun markOutboxFailed(localId: String, error: String) {
+        val accountId = identity.activeAccountId.value ?: return
+        chatDbFactory.get(accountId).chatOutboxDao().updateStatus(
+            localId = localId,
+            status = "failed",
+            error = error,
+            updatedAt = System.currentTimeMillis(),
+        )
+    }
+
+    suspend fun getPendingOutbox(): List<ChatOutboxEntity> {
+        val accountId = identity.activeAccountId.value ?: return emptyList()
+        return chatDbFactory.get(accountId).chatOutboxDao().getPendingAndFailed()
+    }
+
+    // ---------------------------------------------------------------------------
+    // Presence
+    // ---------------------------------------------------------------------------
+
+    suspend fun updatePresence(userId: String, status: String) {
+        val accountId = identity.activeAccountId.value ?: return
+        val now = System.currentTimeMillis()
+        chatDbFactory.get(accountId).chatPresenceDao().upsert(
+            ChatPresenceEntity(
+                userId = userId,
+                accountId = accountId,
+                status = status,
+                lastSeenAt = now,
+                updatedAt = now,
+            )
+        )
+    }
+
+    // ---------------------------------------------------------------------------
+    // Mapping helpers (roster)
+    // ---------------------------------------------------------------------------
+
+    private fun ChatRosterEntry.toRosterEntity(accountId: String) = ChatAccountRosterEntity(
+        rosterId = user_id,
+        accountId = accountId,
+        userId = user_id,
+        displayName = display_name,
+        email = null,
+        photoUrl = null,
+        role = null,
+        isActive = true,
+        updatedAt = System.currentTimeMillis(),
+    )
 
     private fun ChatMessageResponse.toEntity(accountId: String): ChatMessageEntity {
         val now = System.currentTimeMillis()

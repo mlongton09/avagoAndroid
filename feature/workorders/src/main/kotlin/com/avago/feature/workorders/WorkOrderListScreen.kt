@@ -42,6 +42,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.ui.EmptyState
+import com.avago.core.ui.ScoutFAB
+import com.avago.core.ui.ScoutViewModel
 import com.avago.feature.workorders.ui.components.WoCard
 import com.avago.feature.workorders.viewmodel.WoHorizon
 import com.avago.feature.workorders.viewmodel.WoListFilter
@@ -54,6 +56,7 @@ fun WorkOrderListScreen(
     onCreateWo: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: WorkOrderListViewModel = hiltViewModel(),
+    scoutViewModel: ScoutViewModel = hiltViewModel(),
 ) {
     val buckets by viewModel.buckets.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
@@ -91,11 +94,14 @@ fun WorkOrderListScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onCreateWo) {
-                Icon(
-                    Icons.Default.Add,
-                    contentDescription = stringResource(R.string.wo_create_fab_description),
-                )
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                ScoutFAB(onQuery = { query -> scoutViewModel.query(query) })
+                FloatingActionButton(onClick = onCreateWo) {
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = stringResource(R.string.wo_create_fab_description),
+                    )
+                }
             }
         },
     ) { innerPadding ->

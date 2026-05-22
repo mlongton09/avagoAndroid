@@ -37,7 +37,7 @@ import androidx.compose.ui.unit.TextUnitType
 import androidx.compose.ui.unit.dp
 import com.avago.core.data.db.entity.ChatMessageEntity
 
-private val QUICK_REACTIONS = listOf("👍", "❤️", "😂", "🎉", "🔥", "👀")
+private val QUICK_REACTIONS = listOf("✅", "👍", "🙏", "🔧", "🤣")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

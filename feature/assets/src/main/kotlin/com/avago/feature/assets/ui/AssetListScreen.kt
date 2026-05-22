@@ -54,6 +54,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.data.db.entity.AssetEntity
 import com.avago.core.ui.EmptyState
 import com.avago.core.ui.QuoteBanner
+import com.avago.core.ui.ScoutFAB
+import com.avago.core.ui.ScoutViewModel
 import com.avago.feature.assets.R
 import com.avago.feature.assets.model.AssetTypes
 import com.avago.feature.assets.viewmodel.AssetListViewModel
@@ -69,6 +71,7 @@ fun AssetListScreen(
     onScanBarcode: () -> Unit = {},
     viewModel: AssetListViewModel = hiltViewModel(),
     onboardingViewModel: OnboardingViewModel = hiltViewModel(),
+    scoutViewModel: ScoutViewModel = hiltViewModel(),
 ) {
     val assets by viewModel.assets.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
@@ -92,11 +95,14 @@ fun AssetListScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddAsset) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = stringResource(R.string.assets_add_content_description),
-                )
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                ScoutFAB(onQuery = { query -> scoutViewModel.query(query) })
+                FloatingActionButton(onClick = onAddAsset) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = stringResource(R.string.assets_add_content_description),
+                    )
+                }
             }
         },
     ) { paddingValues ->

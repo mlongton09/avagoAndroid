@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
+import com.avago.core.data.db.entity.ChatAccountRosterEntity
 import com.avago.core.data.db.entity.ChatMessageEntity
 import com.avago.core.data.db.entity.ChatThreadEntity
 import com.avago.feature.chat.data.ChatRepository
@@ -33,6 +34,8 @@ data class ThreadUiState(
     val pinnedMessage: ChatMessageEntity? = null,
     /** One-shot error message to show in a snackbar; null when no error. */
     val errorMessage: String? = null,
+    /** Account roster for @mention autocomplete. */
+    val roster: List<ChatAccountRosterEntity> = emptyList(),
 )
 
 @HiltViewModel
@@ -54,8 +57,9 @@ class ThreadViewModel @Inject constructor(
     private val _editingMessage = MutableStateFlow<ChatMessageEntity?>(null)
     private val _pinnedMessage = MutableStateFlow<ChatMessageEntity?>(null)
     private val _errorMessage = MutableStateFlow<String?>(null)
+    private val _roster = MutableStateFlow<List<ChatAccountRosterEntity>>(emptyList())
 
-    // combine supports vararg flows; the array overload handles 8 sources safely.
+    // combine supports vararg flows; the array overload handles 9 sources safely.
     val uiState: StateFlow<ThreadUiState> = combine(
         listOf(
             _thread,
@@ -66,6 +70,7 @@ class ThreadViewModel @Inject constructor(
             _isTypingRemote,
             _pinnedMessage,
             _errorMessage,
+            _roster,
         )
     ) { values ->
         @Suppress("UNCHECKED_CAST")
@@ -79,6 +84,7 @@ class ThreadViewModel @Inject constructor(
             isTypingRemote = values[5] as Boolean,
             pinnedMessage = values[6] as? ChatMessageEntity,
             errorMessage = values[7] as? String,
+            roster = values[8] as List<ChatAccountRosterEntity>,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -89,7 +95,16 @@ class ThreadViewModel @Inject constructor(
     init {
         observeMessages()
         observePinnedMessage()
-        viewModelScope.launch { repository.syncMessages(threadId) }
+        observeRoster()
+        viewModelScope.launch {
+            repository.syncMessages(threadId)
+            val lastMessage = _messages.value.lastOrNull()
+            if (lastMessage != null) {
+                repository.markThreadRead(threadId, lastMessage.messageId)
+                repository.markAllMentionsReadForThread(threadId)
+            }
+        }
+        viewModelScope.launch { repository.syncRoster() }
         connectRealtime()
         val accountId = identity.activeAccountId.value
         if (accountId != null) outbox.startRetrying(accountId)
@@ -108,6 +123,15 @@ class ThreadViewModel @Inject constructor(
             repository.observePinnedMessage(threadId)
                 .catch { e -> Timber.e(e, "observePinnedMessage error") }
                 .collect { _pinnedMessage.value = it }
+        }
+    }
+
+    private fun observeRoster() {
+        val accountId = identity.activeAccountId.value ?: return
+        viewModelScope.launch {
+            repository.observeRoster(accountId)
+                .catch { e -> Timber.e(e, "observeRoster error") }
+                .collect { _roster.value = it }
         }
     }
 
