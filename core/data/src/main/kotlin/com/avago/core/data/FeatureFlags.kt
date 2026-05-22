@@ -28,7 +28,7 @@ import javax.inject.Singleton
 @Singleton
 class FeatureFlags @Inject constructor(
     private val databaseFactory: DatabaseFactory,
-    private val activeAccountId: @JvmSuppressWildcards StateFlow<String?>,
+    private val activeAccountId: StateFlow<String?>,
     @ApplicationContext private val context: Context,
 ) {
 

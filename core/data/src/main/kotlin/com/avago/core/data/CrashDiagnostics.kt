@@ -21,8 +21,8 @@ import javax.inject.Singleton
  */
 @Singleton
 class CrashDiagnostics @Inject constructor(
-    private val activeAccountId: @JvmSuppressWildcards StateFlow<String?>,
-    @Named("activeUserId") private val activeUserId: @JvmSuppressWildcards StateFlow<String?>,
+    private val activeAccountId: StateFlow<String?>,
+    @Named("activeUserId") private val activeUserId: StateFlow<String?>,
 ) {
 
     private val crashlytics: FirebaseCrashlytics by lazy {
