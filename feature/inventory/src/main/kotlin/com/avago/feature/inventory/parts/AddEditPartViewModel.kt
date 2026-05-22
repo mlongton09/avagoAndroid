@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
+import com.avago.core.data.db.entity.InventoryEntity
 import com.avago.core.data.db.entity.PartEntity
 import com.avago.core.data.db.entity.SyncQueueEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -12,9 +13,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 import timber.log.Timber
 import java.util.UUID
 import javax.inject.Inject
+
+val UOM_OPTIONS = listOf("each", "box", "case", "pair", "liter", "gallon", "quart", "oz", "lb", "ft", "m", "roll", "set")
+val STATUS_OPTIONS = listOf("active", "discontinued", "on_order", "archived")
 
 data class AddEditPartUiState(
     val name: String = "",
@@ -29,6 +34,10 @@ data class AddEditPartUiState(
     val locationId: String = "",
     val binId: String = "",
     val barcode: String = "",
+    val manufacturer: String = "",
+    val uom: String = "each",
+    val status: String = "active",
+    val initialQty: String = "",
     val nameError: String? = null,
     val isSaving: Boolean = false,
     val isSaved: Boolean = false,
@@ -61,6 +70,8 @@ class AddEditPartViewModel @Inject constructor(
             }
             val part = dbFactory.get(accountId).partDao().getById(id)
             if (part != null) {
+                // Parse manufacturer and status from attributes JSON
+                val attrs = parseAttributes(part.attributes)
                 _state.value = _state.value.copy(
                     name = part.name,
                     sku = part.sku ?: "",
@@ -72,12 +83,35 @@ class AddEditPartViewModel @Inject constructor(
                     maxQty = "",
                     safetyStock = "",
                     barcode = "",
+                    manufacturer = attrs["manufacturer"] ?: "",
+                    uom = part.unitOfMeasure ?: "each",
+                    status = attrs["status"] ?: "active",
                     isLoading = false,
                 )
             } else {
                 _state.value = _state.value.copy(isLoading = false)
             }
         }
+    }
+
+    private fun parseAttributes(attributes: String?): Map<String, String> {
+        if (attributes.isNullOrBlank()) return emptyMap()
+        return try {
+            val json = JSONObject(attributes)
+            buildMap {
+                json.keys().forEach { key -> put(key, json.optString(key)) }
+            }
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
+
+    private fun buildAttributesJson(manufacturer: String, status: String): String? {
+        if (manufacturer.isBlank() && status == "active") return null
+        return JSONObject().apply {
+            if (manufacturer.isNotBlank()) put("manufacturer", manufacturer)
+            put("status", status)
+        }.toString()
     }
 
     fun setName(v: String) { _state.value = _state.value.copy(name = v, nameError = null) }
@@ -92,6 +126,10 @@ class AddEditPartViewModel @Inject constructor(
     fun setLocationId(v: String) { _state.value = _state.value.copy(locationId = v) }
     fun setBinId(v: String) { _state.value = _state.value.copy(binId = v) }
     fun setBarcode(v: String) { _state.value = _state.value.copy(barcode = v) }
+    fun setManufacturer(v: String) { _state.value = _state.value.copy(manufacturer = v) }
+    fun setUom(v: String) { _state.value = _state.value.copy(uom = v) }
+    fun setStatus(v: String) { _state.value = _state.value.copy(status = v) }
+    fun setInitialQty(v: String) { _state.value = _state.value.copy(initialQty = v) }
 
     fun save() {
         val s = _state.value
@@ -115,9 +153,9 @@ class AddEditPartViewModel @Inject constructor(
                     description = s.description.takeIf { it.isNotBlank() },
                     cost = s.unitCost.toDoubleOrNull(),
                     currency = s.currency.takeIf { it.isNotBlank() },
-                    unitOfMeasure = null,
+                    unitOfMeasure = s.uom.takeIf { it.isNotBlank() },
                     defaultVendorId = null,
-                    attributes = null,
+                    attributes = buildAttributesJson(s.manufacturer, s.status),
                     createdAt = now,
                     updatedAt = now,
                     deletedAt = null,
@@ -126,6 +164,46 @@ class AddEditPartViewModel @Inject constructor(
                 )
                 val db = dbFactory.get(accountId)
                 db.partDao().upsert(part)
+
+                // If creating a new part and an initial quantity was provided, create an inventory record
+                if (partId == null && s.initialQty.isNotBlank()) {
+                    val initialQtyValue = s.initialQty.toDoubleOrNull() ?: 0.0
+                    if (initialQtyValue > 0.0) {
+                        val inventoryId = UUID.randomUUID().toString()
+                        db.inventoryDao().upsert(
+                            InventoryEntity(
+                                inventoryId = inventoryId,
+                                accountId = accountId,
+                                partId = id,
+                                locationId = s.locationId.takeIf { it.isNotBlank() },
+                                quantityOnHand = initialQtyValue,
+                                status = "active",
+                                lastTransactionId = null,
+                                createdAt = now,
+                                updatedAt = now,
+                                deletedAt = null,
+                                serverVersion = 0L,
+                                seq = null,
+                            ),
+                        )
+                        db.syncQueueDao().enqueueOrReplace(
+                            SyncQueueEntity(
+                                queueId = UUID.randomUUID().toString(),
+                                entityType = "inventory",
+                                entityId = inventoryId,
+                                operation = "create",
+                                serverVersion = 0L,
+                                payload = null,
+                                syncStatus = "pending",
+                                attempts = 0L,
+                                lastError = null,
+                                createdAt = now,
+                                updatedAt = now,
+                            ),
+                        )
+                    }
+                }
+
                 db.syncQueueDao().enqueueOrReplace(
                     SyncQueueEntity(
                         queueId = UUID.randomUUID().toString(),
