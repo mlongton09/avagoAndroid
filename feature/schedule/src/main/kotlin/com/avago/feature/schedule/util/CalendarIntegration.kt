@@ -29,8 +29,8 @@ fun addScheduleToAndroidCalendar(
         putExtra(CalendarContract.Events.DESCRIPTION, schedule.category ?: "")
         putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, dueMs)
         putExtra(CalendarContract.EXTRA_EVENT_ALL_DAY, true)
-        if (!schedule.rrule.isNullOrBlank()) {
-            putExtra(CalendarContract.Events.RRULE, schedule.rrule!!)
+        schedule.rrule?.takeIf { it.isNotBlank() }?.let { rrule ->
+            putExtra(CalendarContract.Events.RRULE, rrule)
         }
     }
 

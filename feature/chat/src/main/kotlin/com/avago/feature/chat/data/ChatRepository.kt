@@ -35,17 +35,25 @@ class ChatRepository @Inject constructor(
     }
 
     /** Pull threads from server and upsert into local DB. */
-    suspend fun syncThreads() {
-        val accountId = identity.activeAccountId.value ?: return
-        when (val result = client.getThreads(accountId)) {
+    suspend fun syncThreads(): Result<Unit> {
+        val accountId = identity.activeAccountId.value
+            ?: return Result.failure(Exception("No active account"))
+        return when (val result = client.getThreads(accountId)) {
             is NetworkResult.Success -> {
                 val db = chatDbFactory.get(accountId)
                 result.data.forEach { remote ->
                     db.chatThreadDao().upsert(remote.toEntity())
                 }
+                Result.success(Unit)
             }
-            is NetworkResult.Error -> Timber.w("syncThreads failed: ${result.message}")
-            is NetworkResult.Unauthorized -> Timber.w("syncThreads: unauthorized")
+            is NetworkResult.Error -> {
+                Timber.w("syncThreads failed: ${result.message}")
+                Result.failure(Exception(result.message))
+            }
+            is NetworkResult.Unauthorized -> {
+                Timber.w("syncThreads: unauthorized")
+                Result.failure(Exception("Unauthorized"))
+            }
         }
     }
 
@@ -53,8 +61,9 @@ class ChatRepository @Inject constructor(
         type: String,
         displayName: String?,
         memberIds: List<String>,
-    ): String? {
-        val accountId = identity.activeAccountId.value ?: return null
+    ): Result<String> {
+        val accountId = identity.activeAccountId.value
+            ?: return Result.failure(Exception("No active account"))
         return when (val result = client.createThread(
             accountId,
             CreateThreadRequest(thread_type = type, display_name = displayName, member_ids = memberIds),
@@ -62,9 +71,16 @@ class ChatRepository @Inject constructor(
             is NetworkResult.Success -> {
                 val db = chatDbFactory.get(accountId)
                 db.chatThreadDao().upsert(result.data.toEntity())
-                result.data.thread_id
+                Result.success(result.data.thread_id)
             }
-            else -> null
+            is NetworkResult.Error -> {
+                Timber.w("createThread failed: ${result.message}")
+                Result.failure(Exception(result.message))
+            }
+            is NetworkResult.Unauthorized -> {
+                Timber.w("createThread: unauthorized")
+                Result.failure(Exception("Unauthorized"))
+            }
         }
     }
 
@@ -113,8 +129,9 @@ class ChatRepository @Inject constructor(
         }
     }
 
-    suspend fun editMessage(threadId: String, messageId: String, newBody: String): Boolean {
-        val accountId = identity.activeAccountId.value ?: return false
+    suspend fun editMessage(threadId: String, messageId: String, newBody: String): Result<Unit> {
+        val accountId = identity.activeAccountId.value
+            ?: return Result.failure(Exception("No active account"))
         return when (val result = client.editMessage(threadId, messageId, newBody)) {
             is NetworkResult.Success -> {
                 val db = chatDbFactory.get(accountId)
@@ -123,14 +140,22 @@ class ChatRepository @Inject constructor(
                     runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull()
                 } ?: System.currentTimeMillis()
                 db.chatMessageDao().updateEdited(messageId, edited.body_md, editedAt)
-                true
+                Result.success(Unit)
             }
-            else -> false
+            is NetworkResult.Error -> {
+                Timber.w("editMessage failed: ${result.message}")
+                Result.failure(Exception(result.message))
+            }
+            is NetworkResult.Unauthorized -> {
+                Timber.w("editMessage: unauthorized")
+                Result.failure(Exception("Unauthorized"))
+            }
         }
     }
 
-    suspend fun deleteMessage(threadId: String, messageId: String): Boolean {
-        val accountId = identity.activeAccountId.value ?: return false
+    suspend fun deleteMessage(threadId: String, messageId: String): Result<Unit> {
+        val accountId = identity.activeAccountId.value
+            ?: return Result.failure(Exception("No active account"))
         return when (client.deleteMessage(threadId, messageId)) {
             is NetworkResult.Success -> {
                 val db = chatDbFactory.get(accountId)
@@ -138,9 +163,16 @@ class ChatRepository @Inject constructor(
                 db.chatMessageDao().getById(messageId)?.let { entity ->
                     db.chatMessageDao().upsert(entity.copy(deletedAt = now, updatedAt = now))
                 }
-                true
+                Result.success(Unit)
             }
-            else -> false
+            is NetworkResult.Error -> {
+                Timber.w("deleteMessage failed: ${result.message}")
+                Result.failure(Exception(result.message))
+            }
+            is NetworkResult.Unauthorized -> {
+                Timber.w("deleteMessage: unauthorized")
+                Result.failure(Exception("Unauthorized"))
+            }
         }
     }
 

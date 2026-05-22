@@ -177,9 +177,9 @@ private fun DocCard(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
                 )
-                if (doc.vendor != null) {
+                doc.vendor?.let { vendor ->
                     Text(
-                        text = doc.vendor!!,
+                        text = vendor,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,

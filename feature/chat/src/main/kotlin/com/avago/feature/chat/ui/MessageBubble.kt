@@ -66,14 +66,16 @@ fun MessageBubble(
             horizontalAlignment = if (isOwn) Alignment.End else Alignment.Start,
         ) {
             // Sender name — shown only for received messages at group start.
-            if (!isOwn && isGroupStart && message.senderName != null) {
-                Text(
-                    text = message.senderName!!,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(start = 4.dp, bottom = 2.dp),
-                )
+            if (!isOwn && isGroupStart) {
+                message.senderName?.let { name ->
+                    Text(
+                        text = name,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 4.dp, bottom = 2.dp),
+                    )
+                }
             }
 
             // Bubble body
@@ -103,8 +105,8 @@ fun MessageBubble(
             }
 
             // Reaction chips
-            if (!message.reactions.isNullOrBlank()) {
-                ReactionRow(reactionsJson = message.reactions!!)
+            message.reactions?.takeIf { it.isNotBlank() }?.let { reactions ->
+                ReactionRow(reactionsJson = reactions)
             }
         }
     }

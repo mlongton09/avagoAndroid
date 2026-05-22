@@ -197,9 +197,9 @@ private fun LogListRow(
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
             )
-            if (log.category != null) {
+            log.category?.let { category ->
                 Text(
-                    text = log.category!!,
+                    text = category,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

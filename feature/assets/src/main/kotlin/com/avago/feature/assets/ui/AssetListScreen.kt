@@ -229,11 +229,11 @@ private fun AssetCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                if (asset.assetType != null) {
-                    val labelResId = AssetTypes.labelResIdFor(asset.assetType!!)
+                asset.assetType?.let { assetType ->
+                    val labelResId = AssetTypes.labelResIdFor(assetType)
                     Text(
                         text = if (labelResId != null) stringResource(labelResId)
-                        else asset.assetType!!.replace("_", " ").replaceFirstChar { it.uppercase() },
+                        else assetType.replace("_", " ").replaceFirstChar { it.uppercase() },
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                     )

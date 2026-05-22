@@ -150,9 +150,9 @@ private fun TechRow(
                 text = tech.userId,
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
             )
-            if (!tech.skills.isNullOrBlank()) {
+            tech.skills?.takeIf { it.isNotBlank() }?.let { skills ->
                 Text(
-                    text = tech.skills!!,
+                    text = skills,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,

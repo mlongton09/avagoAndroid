@@ -73,8 +73,8 @@ fun DocDetailScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(errorMessage) {
-        if (errorMessage != null) {
-            snackbarHostState.showSnackbar(errorMessage!!)
+        errorMessage?.let { error ->
+            snackbarHostState.showSnackbar(error)
             viewModel.clearError()
         }
     }

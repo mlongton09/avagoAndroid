@@ -110,7 +110,8 @@ fun WorkOrderDetailScreen(
     var dispatcherNotesInitialized by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(wo?.woId) {
         if (!dispatcherNotesInitialized && wo != null) {
-            dispatcherNotesDraft = wo!!.dispatcherNotes ?: ""
+            val safeWo = wo ?: return@LaunchedEffect
+            dispatcherNotesDraft = safeWo.dispatcherNotes ?: ""
             dispatcherNotesInitialized = true
         }
     }
@@ -256,7 +257,7 @@ fun WorkOrderDetailScreen(
             return@Scaffold
         }
 
-        val currentWo = wo!!
+        val currentWo = wo ?: error("unreachable: null guard above already returned")
         val status = WoStatus.fromKey(currentWo.status)
         val transitions = status.availableTransitions()
 
@@ -304,9 +305,9 @@ fun WorkOrderDetailScreen(
                 LabeledRow("Asset", currentWo.assetId ?: stringResource(R.string.wo_detail_no_asset))
                 LabeledRow("Priority", currentWo.priority?.replaceFirstChar { it.uppercase() } ?: "—")
                 LabeledRow("Due", currentWo.dueDate?.let { formatDate(it) } ?: "No due date")
-                if (currentWo.status == "in_progress" && currentWo.timerStartedAt != null) {
+                currentWo.timerStartedAt?.takeIf { currentWo.status == "in_progress" }?.let { startedAt ->
                     Spacer(modifier = Modifier.height(4.dp))
-                    WoTimerView(startedAtMs = currentWo.timerStartedAt!!)
+                    WoTimerView(startedAtMs = startedAt)
                 }
                 currentWo.estimatedEffortMinutes?.let { mins ->
                     LabeledRow("Est. Hours", String.format("%.1f h", mins / 60.0))

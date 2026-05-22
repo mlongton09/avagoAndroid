@@ -126,8 +126,8 @@ fun InviteUsersScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(result) {
-        if (result != null) {
-            snackbarHostState.showSnackbar(result!!)
+        result?.let { msg ->
+            snackbarHostState.showSnackbar(msg)
             viewModel.clearResult()
         }
     }

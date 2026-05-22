@@ -69,13 +69,10 @@ class ChatListViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _isRefreshing.value = true
-            try {
-                repository.syncThreads()
-            } catch (e: Exception) {
+            repository.syncThreads().onFailure { e ->
                 Timber.e(e, "syncThreads failed")
-            } finally {
-                _isRefreshing.value = false
             }
+            _isRefreshing.value = false
         }
     }
 

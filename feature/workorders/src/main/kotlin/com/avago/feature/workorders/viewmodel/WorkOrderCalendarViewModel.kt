@@ -47,7 +47,7 @@ class WorkOrderCalendarViewModel @Inject constructor(
                 val zone = ZoneId.systemDefault()
                 wos.filter { it.dueDate != null && it.status !in listOf("cancelled") }
                     .groupBy { wo ->
-                        Instant.ofEpochMilli(wo.dueDate!!).atZone(zone).toLocalDate()
+                        Instant.ofEpochMilli(wo.dueDate ?: error("unreachable")).atZone(zone).toLocalDate()
                     }
             }
             .stateIn(

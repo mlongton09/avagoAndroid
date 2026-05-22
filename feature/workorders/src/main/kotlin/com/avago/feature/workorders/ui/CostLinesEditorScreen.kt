@@ -238,10 +238,10 @@ private fun CostLineCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            if (!line.glCode.isNullOrBlank()) {
+            line.glCode?.takeIf { it.isNotBlank() }?.let { glCode ->
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = line.glCode!!,
+                    text = glCode,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

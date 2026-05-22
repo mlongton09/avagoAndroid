@@ -86,15 +86,15 @@ fun WoCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 DueDateBadge(dueDateMs = wo.dueDate, status = WoStatus.fromKey(wo.status))
-                if (!wo.priority.isNullOrBlank()) {
-                    PriorityBadge(priority = wo.priority!!)
+                wo.priority?.takeIf { it.isNotBlank() }?.let { priority ->
+                    PriorityBadge(priority = priority)
                 }
             }
 
             // Assignee initials
-            if (!wo.assignedTo.isNullOrBlank()) {
+            wo.assignedTo?.takeIf { it.isNotBlank() }?.let { assignedTo ->
                 Spacer(modifier = Modifier.height(6.dp))
-                AssigneeAvatar(initials = wo.assignedTo!!.take(2).uppercase())
+                AssigneeAvatar(initials = assignedTo.take(2).uppercase())
             }
         }
     }

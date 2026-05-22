@@ -242,12 +242,12 @@ fun LogDetailScreen(
                     }
 
                     // --------------- Notes section ---------------
-                    if (!log.notes.isNullOrBlank()) {
+                    log.notes?.takeIf { it.isNotBlank() }?.let { notes ->
                         SectionDivider()
                         DetailSection(title = "Notes") {
                             // Basic markdown: bold, no external dep
                             Text(
-                                text = log.notes!!,
+                                text = notes,
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                         }

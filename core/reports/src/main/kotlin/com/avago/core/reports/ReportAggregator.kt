@@ -271,7 +271,7 @@ class ReportAggregator @Inject constructor(
             }
 
             data class Key(val assetId: String, val category: String)
-            rangeWos.groupBy { Key(it.assetId!!, it.category ?: "Uncategorized") }
+            rangeWos.groupBy { Key(it.assetId ?: error("unreachable"), it.category ?: "Uncategorized") }
                 .filter { it.value.size >= 2 }
                 .map { (key, list) ->
                     RecurringIssueRow(
@@ -341,7 +341,7 @@ class ReportAggregator @Inject constructor(
                     log.entryDate in range.start.toEpochMilliseconds()..range.end.toEpochMilliseconds()
             }
                 .sortedBy { it.entryDate }
-                .map { MeterReadingPoint(epochMs = it.entryDate, value = it.odometerValue!!) }
+                .map { MeterReadingPoint(epochMs = it.entryDate, value = it.odometerValue ?: error("unreachable")) }
         }
 
     suspend fun inspectionRate(accountId: String, range: ReportRange): InspectionRateData =
@@ -433,7 +433,7 @@ class ReportAggregator @Inject constructor(
                     !it.performedBy.isNullOrBlank()
             }
 
-            logs.groupBy { it.performedBy!! }.map { (vendor, list) ->
+            logs.groupBy { it.performedBy ?: error("unreachable") }.map { (vendor, list) ->
                 val total = list.sumOf { it.cost ?: 0.0 }
                 VendorSummaryRow(
                     vendorName = vendor,
@@ -497,8 +497,8 @@ class ReportAggregator @Inject constructor(
             }
             val ytdLogs = allLogs.filter { it.entryDate >= yearStart }
 
-            val rangeByVendor = rangeLogs.groupBy { it.performedBy!! }
-            val ytdByVendor = ytdLogs.groupBy { it.performedBy!! }
+            val rangeByVendor = rangeLogs.groupBy { it.performedBy ?: error("unreachable") }
+            val ytdByVendor = ytdLogs.groupBy { it.performedBy ?: error("unreachable") }
 
             rangeByVendor.keys.map { vendor ->
                 CostByVendorRow(
@@ -531,7 +531,7 @@ class ReportAggregator @Inject constructor(
             val db = dbFactory.get(accountId)
             val txns = db.inventoryTransactionDao().observeAll(accountId).first().filter {
                 it.createdAt in range.start.toEpochMilliseconds()..range.end.toEpochMilliseconds() &&
-                    it.unitCost != null && it.unitCost!! > 0.0
+                    it.unitCost != null && (it.unitCost ?: error("unreachable")) > 0.0
             }
             val tz = TimeZone.currentSystemDefault()
 

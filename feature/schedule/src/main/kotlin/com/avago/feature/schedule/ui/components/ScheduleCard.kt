@@ -81,9 +81,9 @@ fun ScheduleCard(
                     maxLines = 1,
                 )
                 // Category
-                if (!schedule.category.isNullOrBlank()) {
+                schedule.category?.takeIf { it.isNotBlank() }?.let { category ->
                     Text(
-                        text = schedule.category!!,
+                        text = category,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

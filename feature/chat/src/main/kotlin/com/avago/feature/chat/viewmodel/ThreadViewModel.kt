@@ -31,6 +31,8 @@ data class ThreadUiState(
     val editingMessage: ChatMessageEntity? = null,
     /** The currently pinned message for this thread, if any. */
     val pinnedMessage: ChatMessageEntity? = null,
+    /** One-shot error message to show in a snackbar; null when no error. */
+    val errorMessage: String? = null,
 )
 
 @HiltViewModel
@@ -51,8 +53,9 @@ class ThreadViewModel @Inject constructor(
     private val _isTypingRemote = MutableStateFlow(false)
     private val _editingMessage = MutableStateFlow<ChatMessageEntity?>(null)
     private val _pinnedMessage = MutableStateFlow<ChatMessageEntity?>(null)
+    private val _errorMessage = MutableStateFlow<String?>(null)
 
-    // combine supports vararg flows; the array overload handles 7 sources safely.
+    // combine supports vararg flows; the array overload handles 8 sources safely.
     val uiState: StateFlow<ThreadUiState> = combine(
         listOf(
             _thread,
@@ -62,6 +65,7 @@ class ThreadViewModel @Inject constructor(
             _editingMessage,
             _isTypingRemote,
             _pinnedMessage,
+            _errorMessage,
         )
     ) { values ->
         @Suppress("UNCHECKED_CAST")
@@ -74,6 +78,7 @@ class ThreadViewModel @Inject constructor(
             editingMessage = values[4] as? ChatMessageEntity,
             isTypingRemote = values[5] as Boolean,
             pinnedMessage = values[6] as? ChatMessageEntity,
+            errorMessage = values[7] as? String,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -142,13 +147,25 @@ class ThreadViewModel @Inject constructor(
         _editingMessage.value = null
         viewModelScope.launch {
             repository.editMessage(threadId, msg.messageId, newBody.trim())
+                .onFailure { e ->
+                    Timber.e(e, "submitEdit failed")
+                    _errorMessage.value = e.message ?: "Failed to edit message"
+                }
         }
     }
 
     fun deleteMessage(messageId: String) {
         viewModelScope.launch {
             repository.deleteMessage(threadId, messageId)
+                .onFailure { e ->
+                    Timber.e(e, "deleteMessage failed")
+                    _errorMessage.value = e.message ?: "Failed to delete message"
+                }
         }
+    }
+
+    fun clearError() {
+        _errorMessage.value = null
     }
 
     fun reactToMessage(messageId: String, emoji: String) {

@@ -140,7 +140,7 @@ fun WheelDataInputScreen(
             )
 
             OutlinedTextField(
-                value = if (lastInspectionMs != null) dateFormatter.format(Date(lastInspectionMs!!)) else "",
+                value = lastInspectionMs?.let { dateFormatter.format(Date(it)) } ?: "",
                 onValueChange = {},
                 readOnly = true,
                 label = { Text("Last Inspection Date") },
@@ -153,7 +153,7 @@ fun WheelDataInputScreen(
             )
 
             OutlinedTextField(
-                value = if (nextInspectionMs != null) dateFormatter.format(Date(nextInspectionMs!!)) else "",
+                value = nextInspectionMs?.let { dateFormatter.format(Date(it)) } ?: "",
                 onValueChange = {},
                 readOnly = true,
                 label = { Text("Next Inspection Due") },

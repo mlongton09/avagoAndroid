@@ -101,8 +101,8 @@ fun AddEditAssetScreen(
 
     // Show error in snackbar
     LaunchedEffect(form.saveError) {
-        if (form.saveError != null) {
-            snackbarHostState.showSnackbar(form.saveError!!)
+        form.saveError?.let { error ->
+            snackbarHostState.showSnackbar(error)
         }
     }
 
@@ -252,8 +252,9 @@ fun AddEditAssetScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = if (form.purchaseDate != null) {
+                                val purchaseDate = form.purchaseDate ?: error("unreachable")
                                 SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
-                                    .format(Date(form.purchaseDate!!))
+                                    .format(Date(purchaseDate))
                             } else {
                                 stringResource(R.string.asset_field_purchase_date)
                             },

@@ -49,19 +49,23 @@ fun PartDetailScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-    if (state.showReceiveSheet && state.inventory != null) {
-        ReceiveUseModalSheet(
-            inventoryId = state.inventory!!.inventoryId,
-            mode = ReceiveUseMode.RECEIVE,
-            onDismiss = viewModel::dismissSheet,
-        )
+    if (state.showReceiveSheet) {
+        state.inventory?.let { inventory ->
+            ReceiveUseModalSheet(
+                inventoryId = inventory.inventoryId,
+                mode = ReceiveUseMode.RECEIVE,
+                onDismiss = viewModel::dismissSheet,
+            )
+        }
     }
-    if (state.showUseSheet && state.inventory != null) {
-        ReceiveUseModalSheet(
-            inventoryId = state.inventory!!.inventoryId,
-            mode = ReceiveUseMode.USE,
-            onDismiss = viewModel::dismissSheet,
-        )
+    if (state.showUseSheet) {
+        state.inventory?.let { inventory ->
+            ReceiveUseModalSheet(
+                inventoryId = inventory.inventoryId,
+                mode = ReceiveUseMode.USE,
+                onDismiss = viewModel::dismissSheet,
+            )
+        }
     }
 
     Scaffold(

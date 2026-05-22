@@ -83,8 +83,8 @@ fun AddEditScheduleScreen(
     }
 
     LaunchedEffect(error) {
-        if (error != null) {
-            snackbarHostState.showSnackbar(error!!)
+        error?.let { msg ->
+            snackbarHostState.showSnackbar(msg)
             viewModel.clearError()
         }
     }

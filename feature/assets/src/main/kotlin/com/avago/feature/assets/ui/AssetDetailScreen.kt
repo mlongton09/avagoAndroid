@@ -167,6 +167,8 @@ fun AssetDetailScreen(
             return@Scaffold
         }
 
+        val safeAsset = asset ?: error("unreachable: null guard above already returned")
+
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -175,7 +177,7 @@ fun AssetDetailScreen(
         ) {
             // Sticky header — asset identity
             item(key = "header") {
-                AssetDetailHeader(asset = asset!!)
+                AssetDetailHeader(asset = safeAsset)
             }
 
             // Stats row
@@ -184,7 +186,7 @@ fun AssetDetailScreen(
                     totalCost = totalCost,
                     lastServiceDate = lastServiceDate,
                     latestMeterReading = latestMeterReading,
-                    showMeter = asset!!.meterType != null,
+                    showMeter = safeAsset.meterType != null,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             }
@@ -199,7 +201,7 @@ fun AssetDetailScreen(
 
             // Notes card
             item(key = "notes_card") {
-                val notesText = asset!!.attributes
+                val notesText = safeAsset.attributes
                     ?.let { attrs ->
                         Regex("\"notes\"\\s*:\\s*\"([^\"]*)\"").find(attrs)?.groupValues?.getOrNull(1)
                     } ?: ""
@@ -211,9 +213,9 @@ fun AssetDetailScreen(
             }
 
             // Wheel Data card — show for vehicle-type assets
-            if (asset!!.assetType?.contains("vehicle", ignoreCase = true) == true ||
-                asset!!.assetType?.contains("truck", ignoreCase = true) == true ||
-                asset!!.assetType?.contains("trailer", ignoreCase = true) == true
+            if (safeAsset.assetType?.contains("vehicle", ignoreCase = true) == true ||
+                safeAsset.assetType?.contains("truck", ignoreCase = true) == true ||
+                safeAsset.assetType?.contains("trailer", ignoreCase = true) == true
             ) {
                 item(key = "wheel_data_card") {
                     WheelDataCard(
@@ -330,11 +332,11 @@ private fun AssetDetailHeader(
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
             )
-            if (asset.assetType != null) {
-                val labelResId = AssetTypes.labelResIdFor(asset.assetType!!)
+            asset.assetType?.let { assetType ->
+                val labelResId = AssetTypes.labelResIdFor(assetType)
                 Text(
                     text = if (labelResId != null) stringResource(labelResId)
-                    else asset.assetType!!.replace("_", " ").replaceFirstChar { it.uppercase() },
+                    else assetType.replace("_", " ").replaceFirstChar { it.uppercase() },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary,
                 )
@@ -470,9 +472,9 @@ private fun LogEntryRow(
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
             )
-            if (!entry.category.isNullOrBlank()) {
+            entry.category?.takeIf { it.isNotBlank() }?.let { category ->
                 Text(
-                    text = entry.category!!.replace("_", " ").replaceFirstChar { it.uppercase() },
+                    text = category.replace("_", " ").replaceFirstChar { it.uppercase() },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
                 )
@@ -483,9 +485,9 @@ private fun LogEntryRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        if (entry.cost != null && entry.cost!! > 0.0) {
+        entry.cost?.takeIf { it > 0.0 }?.let { cost ->
             Text(
-                text = formatCurrency(entry.cost!!),
+                text = formatCurrency(cost),
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.SemiBold,
             )

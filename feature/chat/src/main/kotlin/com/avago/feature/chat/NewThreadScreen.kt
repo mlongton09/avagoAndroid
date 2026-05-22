@@ -50,6 +50,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import timber.log.Timber
 import javax.inject.Inject
 
 // ---------------------------------------------------------------------------
@@ -80,23 +81,29 @@ class NewThreadViewModel @Inject constructor(
 
     fun createDirect(memberId: String, memberName: String?) {
         viewModelScope.launch {
-            val threadId = repository.createThread(
+            repository.createThread(
                 type = "direct",
                 displayName = memberName,
                 memberIds = listOf(memberId),
-            )
-            _createdThreadId.value = threadId
+            ).onSuccess { threadId ->
+                _createdThreadId.value = threadId
+            }.onFailure { e ->
+                Timber.e(e, "createDirect failed")
+            }
         }
     }
 
     fun createGroup(name: String, memberIds: List<String>) {
         viewModelScope.launch {
-            val threadId = repository.createThread(
+            repository.createThread(
                 type = "group",
                 displayName = name.trim().ifBlank { null },
                 memberIds = memberIds,
-            )
-            _createdThreadId.value = threadId
+            ).onSuccess { threadId ->
+                _createdThreadId.value = threadId
+            }.onFailure { e ->
+                Timber.e(e, "createGroup failed")
+            }
         }
     }
 }

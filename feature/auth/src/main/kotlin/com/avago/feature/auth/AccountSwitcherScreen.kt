@@ -71,8 +71,9 @@ fun AccountSwitcherScreen(
                                 style = MaterialTheme.typography.bodyLarge,
                             )
                             if (account.email != null && account.displayName != null) {
+                                val email = account.email ?: error("unreachable")
                                 Text(
-                                    text = account.email!!,
+                                    text = email,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )

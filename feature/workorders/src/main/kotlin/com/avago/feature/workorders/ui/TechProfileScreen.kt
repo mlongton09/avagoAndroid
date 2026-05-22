@@ -192,24 +192,24 @@ fun TechProfileScreen(
                         )
 
                         // Email
-                        if (!currentTech.email.isNullOrBlank()) {
+                        currentTech.email?.takeIf { it.isNotBlank() }?.let { email ->
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = currentTech.email!!,
+                                text = email,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
 
                         // Role badge
-                        if (!currentTech.role.isNullOrBlank()) {
+                        currentTech.role?.takeIf { it.isNotBlank() }?.let { role ->
                             Spacer(modifier = Modifier.height(8.dp))
                             Surface(
                                 shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
                                 color = MaterialTheme.colorScheme.primaryContainer,
                             ) {
                                 Text(
-                                    text = currentTech.role!!.replaceFirstChar { it.uppercase() },
+                                    text = role.replaceFirstChar { it.uppercase() },
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),

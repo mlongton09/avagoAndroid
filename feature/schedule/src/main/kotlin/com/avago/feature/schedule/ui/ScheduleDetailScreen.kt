@@ -87,8 +87,8 @@ fun ScheduleDetailScreen(
 
     // Show errors in snackbar
     LaunchedEffect(error) {
-        if (error != null) {
-            snackbarHostState.showSnackbar(error!!)
+        error?.let { msg ->
+            snackbarHostState.showSnackbar(msg)
             viewModel.clearError()
         }
     }
@@ -151,12 +151,13 @@ fun ScheduleDetailScreen(
                 CircularProgressIndicator()
             }
         } else {
+            val safeSchedule = schedule ?: error("unreachable: null branch handled above")
             ScheduleDetailContent(
-                schedule = schedule!!,
+                schedule = safeSchedule,
                 isSaving = isSaving,
                 linkedWos = linkedWos,
                 onAddToCalendar = {
-                    viewModel.addToCalendar(context, schedule!!.title)
+                    viewModel.addToCalendar(context, safeSchedule.title)
                 },
                 modifier = Modifier.padding(innerPadding),
             )
@@ -241,9 +242,9 @@ private fun ScheduleDetailContent(
                     text = schedule.title,
                     style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
                 )
-                if (!schedule.category.isNullOrBlank()) {
+                schedule.category?.takeIf { it.isNotBlank() }?.let { category ->
                     Text(
-                        text = schedule.category!!,
+                        text = category,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

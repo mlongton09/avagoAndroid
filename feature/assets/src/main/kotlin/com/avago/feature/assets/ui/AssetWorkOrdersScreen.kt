@@ -120,10 +120,10 @@ private fun AssetWoRow(
                 WoStatusLabel(status = wo.status)
             }
 
-            if (!wo.description.isNullOrBlank()) {
+            wo.description?.takeIf { it.isNotBlank() }?.let { description ->
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = wo.description!!,
+                    text = description,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
