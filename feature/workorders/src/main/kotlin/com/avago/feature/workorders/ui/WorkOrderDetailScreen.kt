@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -35,11 +36,13 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -66,6 +69,7 @@ import com.avago.feature.workorders.ui.components.WoTimerView
 import com.avago.feature.workorders.ui.sheets.RescheduleSheet
 import com.avago.feature.workorders.ui.sheets.RepeatsSheet
 import com.avago.feature.workorders.ui.sheets.TechPickerSheet
+import com.avago.feature.workorders.viewmodel.AuditEntry
 import com.avago.feature.workorders.viewmodel.WorkOrderDetailViewModel
 import java.text.NumberFormat
 import java.time.Instant
@@ -83,6 +87,7 @@ fun WorkOrderDetailScreen(
     onTechClick: (techId: String) -> Unit = {},
     onAddPart: () -> Unit = {},
     onManageCostLines: () -> Unit = {},
+    onOpenChat: ((threadId: String) -> Unit)? = null,
     modifier: Modifier = Modifier,
     viewModel: WorkOrderDetailViewModel = hiltViewModel(),
 ) {
@@ -92,6 +97,12 @@ fun WorkOrderDetailScreen(
     val comments by viewModel.comments.collectAsStateWithLifecycle()
     val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
+    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+    val auditHistory by viewModel.auditHistory.collectAsStateWithLifecycle()
+    val chatThreadId by viewModel.chatThreadId.collectAsStateWithLifecycle()
+    val isEditingHeader by viewModel.isEditingHeader.collectAsStateWithLifecycle()
+    val editTitle by viewModel.editTitle.collectAsStateWithLifecycle()
+    val editDescription by viewModel.editDescription.collectAsStateWithLifecycle()
 
     var showOverflowMenu by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -194,6 +205,22 @@ fun WorkOrderDetailScreen(
                 },
                 title = { Text(wo?.title ?: stringResource(R.string.wo_detail_title)) },
                 actions = {
+                    // Chat button
+                    IconButton(
+                        onClick = {
+                            chatThreadId?.let { onOpenChat?.invoke(it) }
+                        },
+                        enabled = chatThreadId != null && onOpenChat != null,
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.Chat,
+                            contentDescription = "Open in Chat",
+                            tint = if (chatThreadId != null && onOpenChat != null)
+                                MaterialTheme.colorScheme.onSurface
+                            else
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                        )
+                    }
                     Box {
                         IconButton(onClick = { showOverflowMenu = true }) {
                             Icon(
@@ -261,279 +288,478 @@ fun WorkOrderDetailScreen(
         val status = WoStatus.fromKey(currentWo.status)
         val transitions = status.availableTransitions()
 
-        Column(
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = { viewModel.refresh() },
             modifier = Modifier
-                .padding(innerPadding)
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+                .padding(innerPadding),
         ) {
-            // ── Status header ──
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 16.dp),
             ) {
-                WoStatusChip(status = status)
-                if (transitions.isNotEmpty()) {
-                    Box {
-                        Button(onClick = { showTransitionMenu = true }) {
-                            Text(stringResource(R.string.wo_detail_transition_btn))
-                        }
-                        DropdownMenu(
-                            expanded = showTransitionMenu,
-                            onDismissRequest = { showTransitionMenu = false },
-                        ) {
-                            transitions.forEach { transition ->
-                                DropdownMenuItem(
-                                    text = { Text(transition.label) },
-                                    onClick = {
-                                        showTransitionMenu = false
-                                        viewModel.transitionStatus(transition.targetStatus)
-                                    },
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+                // ── Approval banner ──
+                ApprovalBanner(
+                    approvalState = currentWo.approvalState,
+                    onApprove = { viewModel.approveWorkOrder() },
+                    onReject = { viewModel.rejectWorkOrder() },
+                )
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    Spacer(modifier = Modifier.height(16.dp))
 
-            // ── Info section ──
-            DetailSection(title = stringResource(R.string.wo_detail_section_details)) {
-                LabeledRow(stringResource(R.string.wo_detail_asset_label), currentWo.assetId ?: stringResource(R.string.wo_detail_no_asset))
-                LabeledRow(stringResource(R.string.wo_detail_priority_label), currentWo.priority?.replaceFirstChar { it.uppercase() } ?: "—")
-                LabeledRow(stringResource(R.string.wo_detail_due_label), currentWo.dueDate?.let { formatDate(it) } ?: stringResource(R.string.wo_detail_no_due_date))
-                currentWo.timerStartedAt?.takeIf { currentWo.status == "in_progress" }?.let { startedAt ->
-                    Spacer(modifier = Modifier.height(4.dp))
-                    WoTimerView(startedAtMs = startedAt)
-                }
-                currentWo.estimatedEffortMinutes?.let { mins ->
-                    LabeledRow(stringResource(R.string.wo_detail_est_hours_label), String.format("%.1f h", mins / 60.0))
-                }
-                if (currentWo.woKind == "recurring_parent") {
-                    LabeledRow(stringResource(R.string.wo_detail_type_label), stringResource(R.string.wo_detail_recurring_label))
-                }
-            }
+                    // ── Title / description header card ──
+                    HeaderCard(
+                        title = currentWo.title,
+                        description = currentWo.description,
+                        isEditing = isEditingHeader,
+                        editTitle = editTitle,
+                        editDescription = editDescription,
+                        onEditTitleChanged = { viewModel.onEditTitleChanged(it) },
+                        onEditDescriptionChanged = { viewModel.onEditDescriptionChanged(it) },
+                        onStartEditing = { viewModel.startEditingHeader() },
+                        onSave = { viewModel.saveHeader() },
+                        onCancel = { viewModel.cancelEditingHeader() },
+                    )
 
-            Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-            // ── Recurrence card ──
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            ) {
-                Column(modifier = Modifier.padding(12.dp)) {
+                    // ── Status header ──
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(
-                            stringResource(R.string.wo_detail_section_recurrence),
-                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-                        )
-                        TextButton(onClick = { showRepeatsSheet = true }) {
-                            Text(stringResource(R.string.wo_detail_edit_recurrence))
+                        WoStatusChip(status = status)
+                        if (transitions.isNotEmpty()) {
+                            Box {
+                                Button(onClick = { showTransitionMenu = true }) {
+                                    Text(stringResource(R.string.wo_detail_transition_btn))
+                                }
+                                DropdownMenu(
+                                    expanded = showTransitionMenu,
+                                    onDismissRequest = { showTransitionMenu = false },
+                                ) {
+                                    transitions.forEach { transition ->
+                                        DropdownMenuItem(
+                                            text = { Text(transition.label) },
+                                            onClick = {
+                                                showTransitionMenu = false
+                                                viewModel.transitionStatus(transition.targetStatus)
+                                            },
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
-                    Text(
-                        text = summariseRrule(currentWo.rrule),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
 
-            Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-            // ── Assignments ──
-            DetailSection(
-                title = stringResource(R.string.wo_detail_section_assignments),
-                action = {
-                    IconButton(
-                        onClick = { showTechPicker = true },
-                        modifier = Modifier.size(32.dp),
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = stringResource(R.string.wo_detail_add_assignee))
+                    // ── Info section ──
+                    DetailSection(title = stringResource(R.string.wo_detail_section_details)) {
+                        LabeledRow(stringResource(R.string.wo_detail_asset_label), currentWo.assetId ?: stringResource(R.string.wo_detail_no_asset))
+                        LabeledRow(stringResource(R.string.wo_detail_priority_label), currentWo.priority?.replaceFirstChar { it.uppercase() } ?: "—")
+                        LabeledRow(stringResource(R.string.wo_detail_due_label), currentWo.dueDate?.let { formatDate(it) } ?: stringResource(R.string.wo_detail_no_due_date))
+                        currentWo.timerStartedAt?.takeIf { currentWo.status == "in_progress" }?.let { startedAt ->
+                            Spacer(modifier = Modifier.height(4.dp))
+                            WoTimerView(startedAtMs = startedAt)
+                        }
+                        currentWo.estimatedEffortMinutes?.let { mins ->
+                            LabeledRow(stringResource(R.string.wo_detail_est_hours_label), String.format("%.1f h", mins / 60.0))
+                        }
+                        if (currentWo.woKind == "recurring_parent") {
+                            LabeledRow(stringResource(R.string.wo_detail_type_label), stringResource(R.string.wo_detail_recurring_label))
+                        }
                     }
-                },
-            ) {
-                if (assignments.isEmpty()) {
-                    Text(
-                        text = stringResource(R.string.wo_detail_no_technicians),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        assignments.forEach { assignment ->
-                            AssigneeAvatar(
-                                initials = assignment.technicianId.take(2).uppercase(),
-                                modifier = Modifier.clickable {
-                                    onTechClick(assignment.technicianId)
-                                },
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // ── Recurrence card ──
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    stringResource(R.string.wo_detail_section_recurrence),
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                                )
+                                TextButton(onClick = { showRepeatsSheet = true }) {
+                                    Text(stringResource(R.string.wo_detail_edit_recurrence))
+                                }
+                            }
+                            Text(
+                                text = summariseRrule(currentWo.rrule),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
-                }
-            }
 
-            Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-            // ── Checklist ──
-            DetailSection(title = stringResource(R.string.wo_detail_section_checklist)) {
-                if (checklistItems.isEmpty()) {
-                    Text(
-                        text = stringResource(R.string.wo_detail_checklist_empty),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    checklistItems.forEach { item ->
+                    // ── Assignments ──
+                    DetailSection(
+                        title = stringResource(R.string.wo_detail_section_assignments),
+                        action = {
+                            IconButton(
+                                onClick = { showTechPicker = true },
+                                modifier = Modifier.size(32.dp),
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.wo_detail_add_assignee))
+                            }
+                        },
+                    ) {
+                        if (assignments.isEmpty()) {
+                            Text(
+                                text = stringResource(R.string.wo_detail_no_technicians),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        } else {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                assignments.forEach { assignment ->
+                                    AssigneeAvatar(
+                                        initials = assignment.technicianId.take(2).uppercase(),
+                                        modifier = Modifier.clickable {
+                                            onTechClick(assignment.technicianId)
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // ── Checklist ──
+                    DetailSection(title = stringResource(R.string.wo_detail_section_checklist)) {
+                        if (checklistItems.isEmpty()) {
+                            Text(
+                                text = stringResource(R.string.wo_detail_checklist_empty),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        } else {
+                            checklistItems.forEach { item ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Checkbox(
+                                        checked = item.isCompleted,
+                                        onCheckedChange = { viewModel.toggleChecklistItem(item) },
+                                    )
+                                    Text(
+                                        text = item.title,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // ── Parts used ──
+                    DetailSection(
+                        title = stringResource(R.string.wo_detail_section_parts),
+                        action = {
+                            IconButton(
+                                onClick = onAddPart,
+                                modifier = Modifier.size(32.dp),
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.wo_detail_add_part))
+                            }
+                        },
+                    ) {
+                        Text(
+                            text = stringResource(R.string.wo_detail_parts_empty),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // ── Costs ──
+                    DetailSection(
+                        title = stringResource(R.string.wo_detail_section_costs),
+                        action = {
+                            TextButton(onClick = onManageCostLines) {
+                                Text(stringResource(R.string.wo_detail_costs_manage))
+                            }
+                        },
+                    ) {
+                        currentWo.laborCost?.let { LabeledRow(stringResource(R.string.wo_detail_labor_cost), formatCurrency(it, currentWo.currency)) }
+                        currentWo.partsCost?.let { LabeledRow(stringResource(R.string.wo_detail_parts_cost), formatCurrency(it, currentWo.currency)) }
+                        currentWo.totalCost?.let { LabeledRow(stringResource(R.string.wo_detail_total_cost), formatCurrency(it, currentWo.currency)) }
+                        if (currentWo.laborCost == null && currentWo.partsCost == null && currentWo.totalCost == null) {
+                            Text(
+                                text = stringResource(R.string.wo_detail_costs_empty),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // ── Dispatcher notes ──
+                    DetailSection(title = stringResource(R.string.wo_detail_section_dispatcher)) {
+                        OutlinedTextField(
+                            value = dispatcherNotesDraft,
+                            onValueChange = { dispatcherNotesDraft = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text(stringResource(R.string.wo_detail_dispatcher_placeholder)) },
+                            minLines = 2,
+                            maxLines = 5,
+                            // Auto-save on focus lost would require a FocusRequester — handled on change with a
+                            // debounce in a production build; for now, save on every change.
+                        )
+                        if (dispatcherNotesDraft != (currentWo.dispatcherNotes ?: "")) {
+                            TextButton(
+                                onClick = { viewModel.saveDispatcherNotes(dispatcherNotesDraft) },
+                                modifier = Modifier.align(Alignment.End),
+                            ) {
+                                Text(stringResource(R.string.wo_detail_save_notes))
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // ── Activity (audit history) ──
+                    ActivityCard(auditHistory = auditHistory)
+                    if (auditHistory.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+
+                    // ── Comments ──
+                    DetailSection(title = stringResource(R.string.wo_detail_section_comments)) {
+                        // Composer
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Checkbox(
-                                checked = item.isCompleted,
-                                onCheckedChange = { viewModel.toggleChecklistItem(item) },
-                            )
-                            Text(
-                                text = item.title,
-                                style = MaterialTheme.typography.bodyMedium,
+                            OutlinedTextField(
+                                value = commentText,
+                                onValueChange = { commentText = it },
                                 modifier = Modifier.weight(1f),
+                                placeholder = { Text(stringResource(R.string.wo_detail_comment_placeholder)) },
+                                singleLine = true,
                             )
+                            IconButton(
+                                onClick = {
+                                    viewModel.addComment(commentText)
+                                    commentText = ""
+                                },
+                                enabled = commentText.isNotBlank(),
+                            ) {
+                                Icon(
+                                    Icons.Default.Send,
+                                    contentDescription = stringResource(R.string.wo_detail_comment_send),
+                                )
+                            }
+                        }
+
+                        if (comments.isEmpty()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = stringResource(R.string.wo_detail_comments_empty),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        } else {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            comments.take(20).forEach { comment ->
+                                Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                                    Text(
+                                        text = comment.authorId.take(8),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                    Text(
+                                        text = comment.body,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                    HorizontalDivider(modifier = Modifier.padding(top = 4.dp))
+                                }
+                            }
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(80.dp))
                 }
             }
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.height(12.dp))
+// ---------------------------------------------------------------------------
+// Approval banner
+// ---------------------------------------------------------------------------
 
-            // ── Parts used ──
-            DetailSection(
-                title = stringResource(R.string.wo_detail_section_parts),
-                action = {
-                    IconButton(
-                        onClick = onAddPart,
-                        modifier = Modifier.size(32.dp),
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = stringResource(R.string.wo_detail_add_part))
-                    }
-                },
-            ) {
-                Text(
-                    text = stringResource(R.string.wo_detail_parts_empty),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+@Composable
+private fun ApprovalBanner(
+    approvalState: String?,
+    onApprove: () -> Unit,
+    onReject: () -> Unit,
+) {
+    if (approvalState != "pending" && approvalState != "required") return
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                "Awaiting Cost Approval",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+            )
+            Text(
+                "This work order requires cost approval before it can proceed.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f),
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onReject) { Text("Reject") }
+                Button(onClick = onApprove) { Text("Approve") }
             }
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.height(12.dp))
+// ---------------------------------------------------------------------------
+// Header card (title + description with inline editing)
+// ---------------------------------------------------------------------------
 
-            // ── Costs ──
-            DetailSection(
-                title = stringResource(R.string.wo_detail_section_costs),
-                action = {
-                    TextButton(onClick = onManageCostLines) {
-                        Text(stringResource(R.string.wo_detail_costs_manage))
-                    }
-                },
-            ) {
-                currentWo.laborCost?.let { LabeledRow(stringResource(R.string.wo_detail_labor_cost), formatCurrency(it, currentWo.currency)) }
-                currentWo.partsCost?.let { LabeledRow(stringResource(R.string.wo_detail_parts_cost), formatCurrency(it, currentWo.currency)) }
-                currentWo.totalCost?.let { LabeledRow(stringResource(R.string.wo_detail_total_cost), formatCurrency(it, currentWo.currency)) }
-                if (currentWo.laborCost == null && currentWo.partsCost == null && currentWo.totalCost == null) {
-                    Text(
-                        text = stringResource(R.string.wo_detail_costs_empty),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // ── Dispatcher notes ──
-            DetailSection(title = stringResource(R.string.wo_detail_section_dispatcher)) {
+@Composable
+private fun HeaderCard(
+    title: String,
+    description: String?,
+    isEditing: Boolean,
+    editTitle: String,
+    editDescription: String,
+    onEditTitleChanged: (String) -> Unit,
+    onEditDescriptionChanged: (String) -> Unit,
+    onStartEditing: () -> Unit,
+    onSave: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            if (isEditing) {
                 OutlinedTextField(
-                    value = dispatcherNotesDraft,
-                    onValueChange = { dispatcherNotesDraft = it },
+                    value = editTitle,
+                    onValueChange = onEditTitleChanged,
+                    label = { Text("Title") },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text(stringResource(R.string.wo_detail_dispatcher_placeholder)) },
+                    singleLine = true,
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = editDescription,
+                    onValueChange = onEditDescriptionChanged,
+                    label = { Text("Description") },
+                    modifier = Modifier.fillMaxWidth(),
                     minLines = 2,
                     maxLines = 5,
-                    // Auto-save on focus lost would require a FocusRequester — handled on change with a
-                    // debounce in a production build; for now, save on every change.
                 )
-                if (dispatcherNotesDraft != (currentWo.dispatcherNotes ?: "")) {
-                    TextButton(
-                        onClick = { viewModel.saveDispatcherNotes(dispatcherNotesDraft) },
-                        modifier = Modifier.align(Alignment.End),
-                    ) {
-                        Text(stringResource(R.string.wo_detail_save_notes))
-                    }
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.align(Alignment.End),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    TextButton(onClick = onCancel) { Text("Cancel") }
+                    Button(onClick = onSave) { Text("Save") }
                 }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // ── Comments ──
-            DetailSection(title = stringResource(R.string.wo_detail_section_comments)) {
-                // Composer
+            } else {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    OutlinedTextField(
-                        value = commentText,
-                        onValueChange = { commentText = it },
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                         modifier = Modifier.weight(1f),
-                        placeholder = { Text(stringResource(R.string.wo_detail_comment_placeholder)) },
-                        singleLine = true,
                     )
                     IconButton(
-                        onClick = {
-                            viewModel.addComment(commentText)
-                            commentText = ""
-                        },
-                        enabled = commentText.isNotBlank(),
+                        onClick = onStartEditing,
+                        modifier = Modifier.size(32.dp),
                     ) {
                         Icon(
-                            Icons.Default.Send,
-                            contentDescription = stringResource(R.string.wo_detail_comment_send),
+                            Icons.Default.Edit,
+                            contentDescription = "Edit title and description",
                         )
                     }
                 }
-
-                if (comments.isEmpty()) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                if (!description.isNullOrBlank()) {
+                    Spacer(Modifier.height(4.dp))
                     Text(
-                        text = stringResource(R.string.wo_detail_comments_empty),
+                        text = description,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                } else {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    comments.take(20).forEach { comment ->
-                        Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                            Text(
-                                text = comment.authorId.take(8),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                            Text(
-                                text = comment.body,
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                            HorizontalDivider(modifier = Modifier.padding(top = 4.dp))
-                        }
-                    }
                 }
             }
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.height(80.dp))
+// ---------------------------------------------------------------------------
+// Activity card (audit history)
+// ---------------------------------------------------------------------------
+
+@Composable
+private fun ActivityCard(auditHistory: List<AuditEntry>) {
+    if (auditHistory.isEmpty()) return
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                text = "Activity",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+            )
+            Spacer(Modifier.height(8.dp))
+            auditHistory.forEach { entry ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 2.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = "• ${entry.description}",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        text = entry.createdAt,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                    )
+                }
+            }
         }
     }
 }
