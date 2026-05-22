@@ -27,7 +27,7 @@ class PreferencesSync @Inject constructor(
      */
     suspend fun refreshFromServer(accountId: String) {
         try {
-            when (val result = serviceClientProvider.get().getUserPreferences(accountId)) {
+            when (val result = serviceClientProvider.get().getMyPreferences(accountId)) {
                 is NetworkResult.Success -> {
                     val p = result.data
                     p.theme?.let { prefs.setTheme(it) }
