@@ -84,17 +84,23 @@ fun ScheduleListScreen(
                 .padding(innerPadding)
                 .fillMaxSize(),
         ) {
+            val statusChips = listOf(
+                ScheduleStatusFilter.ALL to stringResource(R.string.schedule_filter_all),
+                ScheduleStatusFilter.DUE_SOON to stringResource(R.string.schedule_filter_due_soon),
+                ScheduleStatusFilter.UPCOMING to stringResource(R.string.schedule_filter_upcoming),
+                ScheduleStatusFilter.OVERDUE to stringResource(R.string.schedule_filter_overdue),
+            )
+            val typeChips = listOf(
+                ScheduleTypeFilter.ALL to stringResource(R.string.schedule_type_all),
+                ScheduleTypeFilter.BY_DATE to stringResource(R.string.schedule_type_by_date),
+                ScheduleTypeFilter.BY_METER to stringResource(R.string.schedule_type_by_meter),
+            )
+
             // ── Status filter chips ───────────────────────────────────────────
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                val statusChips = listOf(
-                    ScheduleStatusFilter.ALL to stringResource(R.string.schedule_filter_all),
-                    ScheduleStatusFilter.DUE_SOON to stringResource(R.string.schedule_filter_due_soon),
-                    ScheduleStatusFilter.UPCOMING to stringResource(R.string.schedule_filter_upcoming),
-                    ScheduleStatusFilter.OVERDUE to stringResource(R.string.schedule_filter_overdue),
-                )
                 items(statusChips) { (filter, label) ->
                     FilterChip(
                         selected = statusFilter == filter,
@@ -109,11 +115,6 @@ fun ScheduleListScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                val typeChips = listOf(
-                    ScheduleTypeFilter.ALL to stringResource(R.string.schedule_type_all),
-                    ScheduleTypeFilter.BY_DATE to stringResource(R.string.schedule_type_by_date),
-                    ScheduleTypeFilter.BY_METER to stringResource(R.string.schedule_type_by_meter),
-                )
                 items(typeChips) { (filter, label) ->
                     FilterChip(
                         selected = typeFilter == filter,
