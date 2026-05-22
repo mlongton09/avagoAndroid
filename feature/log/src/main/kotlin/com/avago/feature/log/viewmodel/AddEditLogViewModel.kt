@@ -352,6 +352,8 @@ class AddEditLogViewModel @Inject constructor(
                     exchangeRateUsed = null,
                     configId = null,
                     configVersion = null,
+                    serviceId = null,
+                    costMisc = null,
                     parentId = null,
                     createdAt = originalCreatedAt ?: now,
                     updatedAt = now,
