@@ -123,7 +123,7 @@ class SignInViewModel @Inject constructor(
 // Extension to convert a Firebase Task to a suspend function with cancellation support.
 private suspend fun <T> com.google.android.gms.tasks.Task<T>.await(): T {
     return kotlinx.coroutines.suspendCancellableCoroutine { cont ->
-        addOnSuccessListener { cont.resume(it, null) }
+        addOnSuccessListener { cont.resume(it) }
         addOnFailureListener { cont.resumeWith(Result.failure(it)) }
     }
 }
