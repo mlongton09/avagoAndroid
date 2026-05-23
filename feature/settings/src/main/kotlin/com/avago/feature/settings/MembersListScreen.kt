@@ -142,7 +142,7 @@ fun MembersListScreen(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     )
                 }
-                items(members, key = { it.userId }) { member ->
+                items(members, key = { it.user_id }) { member ->
                     MemberRow(member = member)
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 }
@@ -153,7 +153,7 @@ fun MembersListScreen(
 
 @Composable
 private fun MemberRow(member: UserResponse, modifier: Modifier = Modifier) {
-    val label = member.displayName ?: member.email ?: member.userId
+    val label = member.display_name ?: member.email ?: member.user_id
     val initials = label.trim().split(" ").let { parts ->
         if (parts.size >= 2) "${parts[0].firstOrNull()?.uppercaseChar() ?: ""}${parts[1].firstOrNull()?.uppercaseChar() ?: ""}"
         else label.take(2).uppercase()
@@ -162,7 +162,7 @@ private fun MemberRow(member: UserResponse, modifier: Modifier = Modifier) {
         Color(0xFF1976D2), Color(0xFF388E3C), Color(0xFFF57C00),
         Color(0xFF7B1FA2), Color(0xFFD32F2F), Color(0xFF00796B),
     )
-    val avatarColor = avatarColors[Math.abs(member.userId.hashCode()) % avatarColors.size]
+    val avatarColor = avatarColors[Math.abs(member.user_id.hashCode()) % avatarColors.size]
 
     Row(
         modifier = modifier
@@ -187,13 +187,13 @@ private fun MemberRow(member: UserResponse, modifier: Modifier = Modifier) {
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = member.displayName ?: member.email ?: member.userId,
+                text = member.display_name ?: member.email ?: member.user_id,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
             )
-            if (member.displayName != null && member.email != null) {
+            if (member.display_name != null && member.email != null) {
                 Text(
-                    text = member.email,
+                    text = member.email!!,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
