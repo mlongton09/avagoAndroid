@@ -208,18 +208,6 @@ fun PurchaseOrderDetailScreen(
     }
 }
 
-private fun poStatusLabel(status: String): String = when (status) {
-    "draft" -> "Draft"
-    "pending_approval" -> "Pending Approval"
-    "approved" -> "Approved"
-    "ordered" -> "Ordered"
-    "partially_received" -> "Partially Received"
-    "received" -> "Received"
-    "cancelled" -> "Cancelled"
-    "closed" -> "Closed"
-    else -> status.replaceFirstChar { it.uppercase() }
-}
-
 @Composable
 private fun PoDetailRow(label: String, value: String) {
     Row(
