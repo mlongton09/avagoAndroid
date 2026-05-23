@@ -143,7 +143,7 @@ fun LogDetailScreen(
             ) { Text("Log entry not found") }
 
             else -> {
-                val log = state.log
+                val log = state.log!!
                 val dateFormatter = remember { SimpleDateFormat("MMMM d, yyyy", Locale.getDefault()) }
                 val currencyFormat = remember { NumberFormat.getCurrencyInstance() }
 
