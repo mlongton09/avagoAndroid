@@ -33,7 +33,6 @@ import com.avago.feature.reports.ui.charts.BarChart
 import com.avago.feature.reports.ui.components.RangePresetChips
 import com.avago.feature.reports.ui.components.ReportTable
 import com.avago.feature.reports.viewmodel.WorkOrderReportsViewModel
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

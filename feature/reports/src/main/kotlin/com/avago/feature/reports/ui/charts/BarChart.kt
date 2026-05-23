@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -26,6 +27,13 @@ fun BarChart(
     if (data.isEmpty()) return
 
     val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
+    val labelPaint = remember(textColor) {
+        android.graphics.Paint().apply {
+            color = textColor
+            textSize = 24f
+            textAlign = android.graphics.Paint.Align.CENTER
+        }
+    }
     val entries = data.entries.toList()
     val maxValue = entries.maxOf { it.value }.coerceAtLeast(1.0)
 
@@ -55,11 +63,7 @@ fun BarChart(
                 entry.key.take(8),
                 x + barWidth / 2,
                 size.height - 4f,
-                android.graphics.Paint().apply {
-                    color = textColor
-                    textSize = 24f
-                    textAlign = android.graphics.Paint.Align.CENTER
-                },
+                labelPaint,
             )
         }
     }

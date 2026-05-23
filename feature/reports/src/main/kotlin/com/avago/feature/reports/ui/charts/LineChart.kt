@@ -34,8 +34,10 @@ fun LineChart(
             .fillMaxWidth()
             .height(180.dp),
     ) {
+        val xRange = maxX - minX
         fun toX(epoch: Long) =
-            ((epoch - minX) / (maxX - minX) * size.width).toFloat()
+            if (xRange == 0.0) size.width / 2f
+            else ((epoch - minX) / xRange * size.width).toFloat()
 
         fun toY(v: Double) =
             (size.height - ((v - minY) / (maxY - minY) * size.height)).toFloat()
