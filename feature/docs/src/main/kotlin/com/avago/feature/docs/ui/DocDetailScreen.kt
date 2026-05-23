@@ -181,7 +181,7 @@ fun DocDetailScreen(
             return@Scaffold
         }
 
-        val entity = doc!!
+        val entity = doc
         Column(
             modifier = Modifier
                 .fillMaxSize()

@@ -246,7 +246,7 @@ fun MaintenanceScannerScreen(
                     when {
                         scanResult != null -> {
                             // Result card
-                            ScanResultCard(result = scanResult!!)
+                            ScanResultCard(result = scanResult)
 
                             // Action buttons
                             Row(
@@ -279,7 +279,7 @@ fun MaintenanceScannerScreen(
 
                         error != null -> {
                             Text(
-                                text = error!!,
+                                text = error,
                                 color = MaterialTheme.colorScheme.error,
                                 style = MaterialTheme.typography.bodyMedium,
                                 textAlign = TextAlign.Center,

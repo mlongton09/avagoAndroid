@@ -19,8 +19,8 @@ class DisplayNameResolver @Inject constructor(
             val db = databaseFactory.get(accountId)
             val user = db.userDao().getById(userId)
             when {
-                !user?.displayName.isNullOrBlank() -> user!!.displayName!!
-                !user?.email.isNullOrBlank() -> user!!.email!!.substringBefore('@')
+                !user?.displayName.isNullOrBlank() -> user?.displayName.orEmpty()
+                !user?.email.isNullOrBlank() -> user?.email.orEmpty().substringBefore('@')
                 userId.length > 8 -> "${userId.take(8)}…"
                 else -> userId
             }

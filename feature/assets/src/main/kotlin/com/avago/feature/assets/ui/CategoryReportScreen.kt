@@ -242,7 +242,7 @@ fun CategoryReportScreen(
                         Text("Category Report")
                         if (state.assetName != null) {
                             Text(
-                                text = state.assetName!!,
+                                text = state.assetName,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )

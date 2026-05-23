@@ -106,7 +106,7 @@ class OutboxRetryCoordinator @Inject constructor(
      */
     suspend fun send(accountId: String, threadId: String, body: String): String {
         val messageId = UUID.randomUUID().toString()
-        val senderId = identity.activeAccountId.value ?: ""
+        val senderId = identity.activeUserId.value ?: ""
         val now = System.currentTimeMillis()
 
         val db = chatDbFactory.get(accountId)

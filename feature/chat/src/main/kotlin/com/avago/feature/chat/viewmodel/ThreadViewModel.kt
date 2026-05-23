@@ -64,6 +64,7 @@ class ThreadViewModel @Inject constructor(
     private val _roster = MutableStateFlow<List<ChatAccountRosterEntity>>(emptyList())
     private val _typingUserNames = MutableStateFlow<List<String>>(emptyList())
     private val _draft = MutableStateFlow("")
+    private val _isSending = MutableStateFlow(false)
 
     // combine supports vararg flows; the array overload handles 11 sources safely.
     val uiState: StateFlow<ThreadUiState> = combine(
@@ -158,12 +159,16 @@ class ThreadViewModel @Inject constructor(
     fun sendMessage(body: String) {
         val trimmed = body.trim()
         if (trimmed.isEmpty()) return
+        if (_isSending.value) return
         val accountId = identity.activeAccountId.value ?: return
         viewModelScope.launch {
+            _isSending.value = true
             try {
                 outbox.send(accountId = accountId, threadId = threadId, body = trimmed)
             } catch (e: Exception) {
                 Timber.e(e, "sendMessage failed")
+            } finally {
+                _isSending.value = false
             }
         }
     }

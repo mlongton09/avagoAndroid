@@ -211,7 +211,7 @@ fun CycleCountFloorScreen(
                         if (lastScannedBarcode != null) {
                             AssistChip(
                                 onClick = {},
-                                label = { Text(lastScannedBarcode!!) },
+                                label = { Text(lastScannedBarcode) },
                             )
                         } else {
                             Text(
