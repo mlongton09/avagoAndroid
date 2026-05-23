@@ -133,7 +133,8 @@ fun TechProfileScreen(
             )
         },
     ) { innerPadding ->
-        if (tech == null) {
+        val currentTech = tech
+        if (currentTech == null) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -144,8 +145,6 @@ fun TechProfileScreen(
             }
             return@Scaffold
         }
-
-        val currentTech = tech
         val openWos = assignedWos.count { it.status == WoStatus.OPEN.key || it.status == WoStatus.ASSIGNED.key }
         val inProgressWos = assignedWos.count { it.status == WoStatus.IN_PROGRESS.key }
         val thirtyDaysAgo = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000)
