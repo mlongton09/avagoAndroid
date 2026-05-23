@@ -36,6 +36,8 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import com.avago.core.data.db.entity.ChatMessageEntity
 import com.avago.core.ui.MarkdownText
 import timber.log.Timber
@@ -196,6 +198,19 @@ private fun BubbleBody(
                 detectTapGestures(onLongPress = { onLongPress(message) })
             },
     ) {
+        // Photo attachment
+        message.photoUrl?.takeIf { it.isNotBlank() }?.let { url ->
+            AsyncImage(
+                model = url,
+                contentDescription = "Image attachment",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(MaterialTheme.shapes.medium),
+                contentScale = ContentScale.FillWidth,
+            )
+            if (message.bodyMd.isNotBlank()) Spacer(modifier = Modifier.height(6.dp))
+        }
+
         // Body text — render as Markdown so bold, italic, code, links etc. display correctly.
         val bodyText = message.bodyMd.trim()
 

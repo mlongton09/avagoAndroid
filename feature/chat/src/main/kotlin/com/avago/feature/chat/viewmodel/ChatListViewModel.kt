@@ -21,6 +21,7 @@ enum class ThreadFilter { ALL, DIRECT, WORK_ORDERS, ASSETS }
 data class ChatListUiState(
     val threads: List<ChatThreadEntity> = emptyList(),
     val filter: ThreadFilter = ThreadFilter.ALL,
+    val searchQuery: String = "",
     val isRefreshing: Boolean = false,
     // TODO: compute from per-thread mention counts once ChatThreadEntity gains a mentionCount field.
     val unreadMentionCount: Int = 0,
@@ -33,16 +34,22 @@ class ChatListViewModel @Inject constructor(
 
     private val _filter = MutableStateFlow(ThreadFilter.ALL)
     private val _isRefreshing = MutableStateFlow(false)
+    private val _searchQuery = MutableStateFlow("")
     private val _allThreads = MutableStateFlow<List<ChatThreadEntity>>(emptyList())
 
     val uiState: StateFlow<ChatListUiState> = combine(
         _allThreads,
         _filter,
+        _searchQuery,
         _isRefreshing,
-    ) { threads, filter, refreshing ->
+    ) { threads, filter, query, refreshing ->
+        val filtered = threads
+            .filter { it.matchesFilter(filter) }
+            .filter { query.isBlank() || it.matchesSearch(query) }
         ChatListUiState(
-            threads = threads.filter { it.matchesFilter(filter) },
+            threads = filtered,
             filter = filter,
+            searchQuery = query,
             isRefreshing = refreshing,
             // TODO: replace with sum of per-thread mentionCount once field exists on ChatThreadEntity.
             unreadMentionCount = 0,
@@ -70,6 +77,10 @@ class ChatListViewModel @Inject constructor(
         _filter.value = filter
     }
 
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+    }
+
     fun refresh() {
         viewModelScope.launch {
             _isRefreshing.value = true
@@ -85,5 +96,13 @@ class ChatListViewModel @Inject constructor(
         ThreadFilter.DIRECT -> threadType == "direct" || threadType == "group"
         ThreadFilter.WORK_ORDERS -> threadType.startsWith("wo")
         ThreadFilter.ASSETS -> threadType.startsWith("asset")
+    }
+
+    private fun ChatThreadEntity.matchesSearch(query: String): Boolean {
+        val q = query.lowercase()
+        return displayName?.lowercase()?.contains(q) == true ||
+            subjectSummary?.lowercase()?.contains(q) == true ||
+            lastMessagePreview?.lowercase()?.contains(q) == true ||
+            threadType.lowercase().contains(q)
     }
 }
