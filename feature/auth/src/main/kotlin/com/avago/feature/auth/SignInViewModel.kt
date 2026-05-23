@@ -126,9 +126,7 @@ class SignInViewModel @Inject constructor(
     fun clearError() { _state.value = SignInState.Idle }
 
     companion object {
-        // Replace with your actual Web Client ID from google-services.json.
-        // This is the client_id of type 3 (WEB) in google-services.json.
-        const val WEB_CLIENT_ID = "YOUR_WEB_CLIENT_ID"
+        const val WEB_CLIENT_ID = "725636610313-5vvadjscbchtu0tscv11kombh5s06t0v.apps.googleusercontent.com"
     }
 }
 
