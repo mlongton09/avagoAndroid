@@ -15,6 +15,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
@@ -62,11 +64,11 @@ class WarehouseReceiveViewModel @Inject constructor(
     }
 
     private fun loadParts() {
-        val accountId = identityManager.getActiveAccountId() ?: return
         viewModelScope.launch {
-            dbFactory.get(accountId).partDao().observeAll(accountId).collect { parts ->
-                _state.value = _state.value.copy(parts = parts)
-            }
+            identityManager.activeAccountId
+                .filterNotNull()
+                .flatMapLatest { accountId -> dbFactory.get(accountId).partDao().observeAll(accountId) }
+                .collect { parts -> _state.value = _state.value.copy(parts = parts) }
         }
     }
 
@@ -144,11 +146,11 @@ class WarehouseIssueViewModel @Inject constructor(
     }
 
     private fun loadParts() {
-        val accountId = identityManager.getActiveAccountId() ?: return
         viewModelScope.launch {
-            dbFactory.get(accountId).partDao().observeAll(accountId).collect { parts ->
-                _state.value = _state.value.copy(parts = parts)
-            }
+            identityManager.activeAccountId
+                .filterNotNull()
+                .flatMapLatest { accountId -> dbFactory.get(accountId).partDao().observeAll(accountId) }
+                .collect { parts -> _state.value = _state.value.copy(parts = parts) }
         }
     }
 
@@ -238,11 +240,11 @@ class WarehouseMoveViewModel @Inject constructor(
     }
 
     private fun loadParts() {
-        val accountId = identityManager.getActiveAccountId() ?: return
         viewModelScope.launch {
-            dbFactory.get(accountId).partDao().observeAll(accountId).collect { parts ->
-                _state.value = _state.value.copy(parts = parts)
-            }
+            identityManager.activeAccountId
+                .filterNotNull()
+                .flatMapLatest { accountId -> dbFactory.get(accountId).partDao().observeAll(accountId) }
+                .collect { parts -> _state.value = _state.value.copy(parts = parts) }
         }
     }
 

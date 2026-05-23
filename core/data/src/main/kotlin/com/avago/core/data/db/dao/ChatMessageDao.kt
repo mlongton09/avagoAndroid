@@ -38,6 +38,9 @@ interface ChatMessageDao {
     @Query("UPDATE chat_messages SET outbox_status = :status WHERE message_id = :messageId")
     suspend fun updateOutboxStatus(messageId: String, status: String?)
 
+    @Query("DELETE FROM chat_messages WHERE message_id = :messageId")
+    suspend fun deleteById(messageId: String)
+
     @Query(
         "UPDATE chat_messages " +
             "SET body_md = :bodyMd, edited_at = :editedAt, updated_at = :editedAt " +

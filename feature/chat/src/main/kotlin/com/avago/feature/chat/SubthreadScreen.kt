@@ -31,6 +31,7 @@ import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.db.entity.ChatMessageEntity
 import com.avago.feature.chat.data.ChatRepository
+import com.avago.feature.chat.realtime.OutboxRetryCoordinator
 import com.avago.feature.chat.ui.MessageBubble
 import com.avago.feature.chat.ui.MessageComposer
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -60,6 +61,7 @@ class SubthreadViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: ChatRepository,
     private val identity: IdentityManager,
+    private val outbox: OutboxRetryCoordinator,
 ) : ViewModel() {
 
     private val threadId: String = requireNotNull(savedStateHandle["threadId"])
@@ -77,7 +79,7 @@ class SubthreadViewModel @Inject constructor(
         SubthreadUiState(
             parentMessage = parent,
             replies = replies,
-            myUserId = identity.activeAccountId.value ?: "",
+            myUserId = identity.activeUserId.value ?: "",
             isSending = sending,
         )
     }.stateIn(
@@ -90,6 +92,8 @@ class SubthreadViewModel @Inject constructor(
         loadParentMessage()
         observeReplies()
         viewModelScope.launch { repository.syncReplies(threadId, messageId) }
+        val accountId = identity.activeAccountId.value
+        if (accountId != null) outbox.startRetrying(accountId)
     }
 
     private fun loadParentMessage() {

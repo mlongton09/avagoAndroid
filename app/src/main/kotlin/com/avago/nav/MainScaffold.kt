@@ -245,7 +245,7 @@ fun BottomNavBar(navController: NavHostController) {
 
         bottomNavItems.forEach { item ->
             NavigationBarItem(
-                selected = currentRoute?.startsWith(item.route) == true,
+                selected = currentRoute == item.route || currentRoute?.startsWith("${item.route}/") == true,
                 onClick = {
                     navController.navigate(item.route) {
                         // Avoid accumulating a large back stack on repeated taps.

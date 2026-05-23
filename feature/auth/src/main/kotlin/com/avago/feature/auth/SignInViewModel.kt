@@ -47,6 +47,7 @@ class SignInViewModel @Inject constructor(
     fun setPassword(v: String) { _password.value = v }
 
     fun signInWithGoogle(context: android.app.Activity) {
+        if (_state.value is SignInState.Loading) return
         viewModelScope.launch {
             _state.value = SignInState.Loading
             try {
@@ -92,6 +93,7 @@ class SignInViewModel @Inject constructor(
             _state.value = SignInState.Error(appContext.getString(R.string.auth_error_email_password_required))
             return
         }
+        if (_state.value is SignInState.Loading) return
         viewModelScope.launch {
             _state.value = SignInState.Loading
             try {

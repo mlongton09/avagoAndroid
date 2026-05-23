@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface WoAssignmentDao {
 
-    @Query("SELECT wa.* FROM wo_assignments wa INNER JOIN work_orders wo ON wa.wo_id = wo.wo_id WHERE wo.account_id = :accountId")
+    @Query("SELECT wa.* FROM wo_assignments wa WHERE wa.account_id = :accountId")
     fun observeAll(accountId: String): Flow<List<WoAssignmentEntity>>
 
     @Query("SELECT * FROM wo_assignments WHERE assignment_id = :id")

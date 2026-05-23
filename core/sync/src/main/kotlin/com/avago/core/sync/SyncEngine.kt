@@ -268,7 +268,7 @@ class SyncEngine @Inject constructor(
 
         for (entityType in pullEntityTypes) {
             try {
-                var lastSeq = db.syncMetadataDao().getWatermark(entityType)
+                var lastSeq = db.syncMetadataDao().getWatermark(entityType) ?: 0L
                 // Ensure the metadata row exists so we can update it
                 if (lastSeq == 0L) {
                     db.syncMetadataDao().upsert(SyncMetadataEntity(entityType, 0L, 0L))

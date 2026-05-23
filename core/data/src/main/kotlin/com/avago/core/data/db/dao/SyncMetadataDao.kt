@@ -25,7 +25,7 @@ interface SyncMetadataDao {
     suspend fun upsertAll(entities: List<SyncMetadataEntity>)
 
     @Query("SELECT last_server_seq FROM sync_metadata WHERE entity_type = :entityType")
-    suspend fun getWatermark(entityType: String): Long
+    suspend fun getWatermark(entityType: String): Long?
 
     @Query("UPDATE sync_metadata SET last_server_seq = :seq, last_sync_at = strftime('%s','now') * 1000 WHERE entity_type = :entityType")
     suspend fun updateWatermark(entityType: String, seq: Long)

@@ -86,7 +86,7 @@ class ThreadViewModel @Inject constructor(
         ThreadUiState(
             thread = values[0] as? ChatThreadEntity,
             messages = values[1] as List<ChatMessageEntity>,
-            myUserId = identity.activeAccountId.value ?: "",
+            myUserId = identity.activeUserId.value ?: "",
             isLoadingMore = values[2] as Boolean,
             hasMore = values[3] as Boolean,
             editingMessage = values[4] as? ChatMessageEntity,
@@ -100,7 +100,7 @@ class ThreadViewModel @Inject constructor(
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = ThreadUiState(myUserId = identity.activeAccountId.value ?: ""),
+        initialValue = ThreadUiState(myUserId = identity.activeUserId.value ?: ""),
     )
 
     init {

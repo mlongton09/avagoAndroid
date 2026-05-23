@@ -161,7 +161,7 @@ class OutboxRetryCoordinator @Inject constructor(
                     )
                 )
                 if (serverMsg.message_id != messageId) {
-                    db.chatMessageDao().updateOutboxStatus(messageId, null)
+                    db.chatMessageDao().deleteById(messageId)
                 }
             }
             else -> {
