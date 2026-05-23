@@ -890,7 +890,7 @@ class AvagoServiceClient @Inject constructor(
         body: String,
     ): NetworkResult<ChatMessageResponse> =
         safeNetworkCall {
-            client.put("$baseUrl/chat/threads/$threadId/messages/$messageId") {
+            client.put("$baseUrl/chat/messages/$messageId") {
                 setBody(EditMessageRequest(body = body))
             }.body()
         }
@@ -898,7 +898,7 @@ class AvagoServiceClient @Inject constructor(
     suspend fun deleteMessage(threadId: String, messageId: String): NetworkResult<Unit> =
         safeNetworkCall {
             val response: HttpResponse =
-                client.delete("$baseUrl/chat/threads/$threadId/messages/$messageId")
+                client.delete("$baseUrl/chat/messages/$messageId")
             if (!response.status.isSuccess()) {
                 throw NetworkException(response.status.value, response.status.description)
             }
@@ -1342,9 +1342,9 @@ class AvagoServiceClient @Inject constructor(
     // ---------------------------------------------------------------------------
 
     /**
-     * POST /accounts/:accountId/photos/:photoId/upload-url
+     * POST /accounts/:accountId/photos
      *
-     * Requests a presigned S3 upload URL for a locally-captured photo.
+     * Reserves a server-side row and returns a presigned S3 upload URL.
      */
     suspend fun getPhotoUploadUrl(
         accountId: String,
@@ -1353,9 +1353,10 @@ class AvagoServiceClient @Inject constructor(
         entityType: String,
     ): NetworkResult<PhotoUploadUrlResponse> =
         safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/photos/$photoId/upload-url") {
+            client.post("$baseUrl/accounts/$accountId/photos") {
                 setBody(
                     mapOf(
+                        "photo_id" to photoId,
                         "entity_id" to entityId,
                         "entity_type" to entityType,
                     )
