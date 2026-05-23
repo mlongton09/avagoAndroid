@@ -16,7 +16,6 @@ import com.avago.core.network.model.ChatMemberResponse
 import com.avago.core.network.model.ChatMessageResponse
 import com.avago.core.network.model.ChatRosterEntry
 import com.avago.core.network.model.ChatThreadResponse
-import com.avago.core.network.model.CreateThreadRequest
 import com.avago.core.network.model.UserResponse
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -47,7 +46,7 @@ class ChatRepository @Inject constructor(
     suspend fun syncThreads(): Result<Unit> {
         val accountId = identity.activeAccountId.value
             ?: return Result.failure(Exception("No active account"))
-        return when (val result = client.getThreads(accountId)) {
+        return when (val result = client.getThreads()) {
             is NetworkResult.Success -> {
                 val db = chatDbFactory.get(accountId)
                 result.data.forEach { remote ->
@@ -73,10 +72,14 @@ class ChatRepository @Inject constructor(
     ): Result<String> {
         val accountId = identity.activeAccountId.value
             ?: return Result.failure(Exception("No active account"))
-        return when (val result = client.createThread(
-            accountId,
-            CreateThreadRequest(thread_type = type, display_name = displayName, member_ids = memberIds),
-        )) {
+        val result = if (type == "direct") {
+            val otherId = memberIds.firstOrNull()
+                ?: return Result.failure(Exception("No member specified for direct thread"))
+            client.createDirectThread(otherId)
+        } else {
+            client.createGroupThread(name = displayName ?: "", memberIds = memberIds)
+        }
+        return when (result) {
             is NetworkResult.Success -> {
                 val db = chatDbFactory.get(accountId)
                 db.chatThreadDao().upsert(result.data.toEntity())

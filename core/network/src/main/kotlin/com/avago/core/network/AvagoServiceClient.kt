@@ -32,7 +32,6 @@ import com.avago.core.network.model.ChatPrefsResponse
 import com.avago.core.network.model.ChatRosterEntry
 import com.avago.core.network.model.ChatSyncResponse
 import com.avago.core.network.model.ChatThreadResponse
-import com.avago.core.network.model.CreateThreadRequest
 import com.avago.core.network.model.LinkPreviewResponse
 import com.avago.core.network.model.CreateCycleCountRequest
 import com.avago.core.network.model.CreateGrnRequest
@@ -634,7 +633,7 @@ class AvagoServiceClient @Inject constructor(
     ): NetworkResult<Unit> =
         safeNetworkCall {
             val response: HttpResponse =
-                client.post("$baseUrl/accounts/$accountId/users/$userId/location") {
+                client.put("$baseUrl/accounts/$accountId/tech-profiles/$userId/location") {
                     setBody(mapOf("lat" to lat, "lon" to lon))
                 }
             if (!response.status.isSuccess()) {
@@ -859,18 +858,8 @@ class AvagoServiceClient @Inject constructor(
     // Chat
     // ---------------------------------------------------------------------------
 
-    suspend fun getThreads(accountId: String): NetworkResult<List<ChatThreadResponse>> =
-        safeNetworkCall { client.get("$baseUrl/accounts/$accountId/chat/threads").body() }
-
-    suspend fun createThread(
-        accountId: String,
-        request: CreateThreadRequest,
-    ): NetworkResult<ChatThreadResponse> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/chat/threads") {
-                setBody(request)
-            }.body()
-        }
+    suspend fun getThreads(): NetworkResult<List<ChatThreadResponse>> =
+        safeNetworkCall { client.get("$baseUrl/chat/me/threads").body() }
 
     suspend fun getMessages(
         threadId: String,
