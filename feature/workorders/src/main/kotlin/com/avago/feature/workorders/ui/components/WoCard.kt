@@ -71,7 +71,7 @@ fun WoCard(
 
             // Asset name / no-asset label
             Spacer(modifier = Modifier.height(4.dp))
-            val assetLabel = if (wo.assetId != null) stringResource(R.string.wo_card_asset_label, wo.assetId) else stringResource(R.string.wo_card_no_asset)
+            val assetLabel = if (wo.assetId != null) stringResource(R.string.wo_card_asset_label, wo.assetId!!) else stringResource(R.string.wo_card_no_asset)
             Text(
                 text = assetLabel,
                 style = MaterialTheme.typography.bodySmall,
