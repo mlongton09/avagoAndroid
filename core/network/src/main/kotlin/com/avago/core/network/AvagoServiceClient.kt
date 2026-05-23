@@ -911,7 +911,7 @@ class AvagoServiceClient @Inject constructor(
     ): NetworkResult<Unit> =
         safeNetworkCall {
             val response: HttpResponse =
-                client.post("$baseUrl/chat/threads/$threadId/messages/$messageId/reactions") {
+                client.post("$baseUrl/chat/messages/$messageId/reactions") {
                     setBody(ReactMessageRequest(emoji = emoji))
                 }
             if (!response.status.isSuccess()) {
@@ -949,7 +949,7 @@ class AvagoServiceClient @Inject constructor(
     suspend fun pinMessage(threadId: String, messageId: String): NetworkResult<Unit> =
         safeNetworkCall {
             val response: HttpResponse =
-                client.post("$baseUrl/chat/threads/$threadId/messages/$messageId/pin")
+                client.post("$baseUrl/chat/messages/$messageId/pin")
             if (!response.status.isSuccess()) {
                 throw NetworkException(response.status.value, response.status.description)
             }
@@ -958,7 +958,7 @@ class AvagoServiceClient @Inject constructor(
     suspend fun unpinMessage(threadId: String, messageId: String): NetworkResult<Unit> =
         safeNetworkCall {
             val response: HttpResponse =
-                client.delete("$baseUrl/chat/threads/$threadId/messages/$messageId/pin")
+                client.delete("$baseUrl/chat/messages/$messageId/pin")
             if (!response.status.isSuccess()) {
                 throw NetworkException(response.status.value, response.status.description)
             }
