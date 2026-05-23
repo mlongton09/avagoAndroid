@@ -29,6 +29,7 @@ import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.LocationEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emitAll
@@ -38,6 +39,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class LocationPickerViewModel @Inject constructor(
     private val dbFactory: DatabaseFactory,
