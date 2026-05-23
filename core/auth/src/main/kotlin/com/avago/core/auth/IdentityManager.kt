@@ -47,6 +47,14 @@ class IdentityManager @Inject constructor(
     private val _activeAccountId = MutableStateFlow<String?>(null)
     val activeAccountId: StateFlow<String?> = _activeAccountId.asStateFlow()
 
+    /**
+     * Flips to `true` once [initOnLaunch] has completed (successfully or not).
+     * The splash screen and nav-host use this to avoid showing the sign-in screen
+     * before the auth state has been determined.
+     */
+    private val _isInitialized = MutableStateFlow(false)
+    val isInitialized: StateFlow<Boolean> = _isInitialized.asStateFlow()
+
     /** Emits the account ID of an account that was just signed out. Observed by the app layer to reset sync watermarks. */
     private val _signOutEvents = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val signOutEvents: SharedFlow<String> = _signOutEvents.asSharedFlow()
@@ -76,29 +84,38 @@ class IdentityManager @Inject constructor(
     /**
      * Reads the manifest on launch. If accounts exist, restores the most-recently-
      * added one as the active account. If there are none, provisions anonymously.
+     *
+     * Sets [isInitialized] to `true` when complete so the splash screen and nav-host
+     * can gate on auth state being ready.
      */
     suspend fun initOnLaunch() = withContext(Dispatchers.IO) {
-        // Clean up orphaned accounts before restoring the active account
-        runCatching { migrationService.get().pruneOrphanedAccounts() }
-            .onFailure { Timber.w(it, "IdentityManager: pruneOrphanedAccounts failed") }
+        try {
+            // Clean up orphaned accounts before restoring the active account
+            runCatching { migrationService.get().pruneOrphanedAccounts() }
+                .onFailure { Timber.w(it, "IdentityManager: pruneOrphanedAccounts failed") }
 
-        val accounts = AccountManifest.load(appContext)
-        if (accounts.isNotEmpty()) {
-            val last = accounts.last()
-            setActiveAccount(last.accountId, last.userId)
-            crashDiagnosticsProvider.get().setUserContext()
-            accountManifest.deduplicateAnonymousAccounts(last.accountId)
-            Timber.d("IdentityManager: restored account ${last.accountId}")
-            val userId = last.userId
-            if (userId != null) {
-                @Suppress("OPT_IN_USAGE")
-                GlobalScope.launch(Dispatchers.IO) {
-                    validateRoleFromMembersList(last.accountId, userId)
+            val accounts = AccountManifest.load(appContext)
+            if (accounts.isNotEmpty()) {
+                val last = accounts.last()
+                setActiveAccount(last.accountId, last.userId)
+                crashDiagnosticsProvider.get().setUserContext()
+                accountManifest.deduplicateAnonymousAccounts(last.accountId)
+                Timber.d("IdentityManager: restored account ${last.accountId}")
+                val userId = last.userId
+                if (userId != null) {
+                    @Suppress("OPT_IN_USAGE")
+                    GlobalScope.launch(Dispatchers.IO) {
+                        validateRoleFromMembersList(last.accountId, userId)
+                    }
                 }
+            } else {
+                Timber.d("IdentityManager: no accounts on disk, provisioning")
+                provisionConnected(appContext)
             }
-        } else {
-            Timber.d("IdentityManager: no accounts on disk, provisioning")
-            provisionConnected(appContext)
+        } finally {
+            // Always mark init as done so the splash and nav-host are unblocked
+            // even if provisioning failed.
+            _isInitialized.value = true
         }
     }
 

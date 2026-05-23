@@ -16,6 +16,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.avago.app.MainViewModel
+import com.avago.core.auth.IdentityManager
 import com.avago.core.data.repository.UserPreferencesRepository
 import com.avago.core.design.theme.AvagoTheme
 import com.avago.core.sync.SyncEngine
@@ -30,11 +31,17 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var syncEngine: SyncEngine
     @Inject lateinit var userPreferencesRepository: UserPreferencesRepository
+    @Inject lateinit var identityManager: IdentityManager
 
     private val mainViewModel: MainViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen()
+        val splashScreen = installSplashScreen()
+        // Hold the splash screen until IdentityManager.initOnLaunch() has
+        // completed. This prevents a visible flash of the sign-in screen when
+        // an existing session is being restored from disk.
+        splashScreen.setKeepOnScreenCondition { !identityManager.isInitialized.value }
+
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 

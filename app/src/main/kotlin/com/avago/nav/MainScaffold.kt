@@ -62,6 +62,7 @@ import com.avago.core.sync.SyncState
 import com.avago.core.ui.AvagoToast
 import com.avago.core.ui.AvagoToastHost
 import com.avago.core.ui.OfflineBanner
+import com.avago.feature.auth.nav.AuthRoute
 import com.avago.feature.settings.AccountSwitcherViewModel
 import com.avago.feature.settings.nav.SettingsRoute
 import kotlinx.coroutines.launch
@@ -114,9 +115,20 @@ fun MainScaffold(
     var scoutPaletteVisible by remember { mutableStateOf(false) }
     var voiceSheetVisible by remember { mutableStateOf(false) }
 
+    // Determine whether the current destination is an auth screen so we can
+    // hide the TopAppBar, BottomNav, and FAB during sign-in.
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = backStackEntry?.destination?.route
+    val isAuthDestination = currentRoute == null ||
+        currentRoute == AuthRoute.SignIn ||
+        currentRoute == AuthRoute.EmailSignIn ||
+        currentRoute == AuthRoute.GRAPH
+
     AvagoToastHost(toastManager = toast) {
     ModalNavigationDrawer(
         drawerState = drawerState,
+        // Disable drawer swipe gesture on auth screens.
+        gesturesEnabled = !isAuthDestination,
         drawerContent = {
             ModalDrawerSheet {
                 AccountDrawerContent(
@@ -127,7 +139,7 @@ fun MainScaffold(
                         scope.launch { drawerState.close() }
                         onAddAccount()
                     },
-                    onSignOut = {
+                    onSignOut = { _ ->
                         scope.launch { drawerState.close() }
                     },
                     navController = navController,
@@ -137,49 +149,51 @@ fun MainScaffold(
     ) {
         Scaffold(
             topBar = {
-                TopAppBar(
-                    title = { Text("Avago") },
-                    navigationIcon = {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Default.Menu, contentDescription = "Open menu")
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                    ),
-                )
+                if (!isAuthDestination) {
+                    TopAppBar(
+                        title = { Text("Avago") },
+                        navigationIcon = {
+                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                Icon(Icons.Default.Menu, contentDescription = "Open menu")
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                        ),
+                    )
+                }
             },
             bottomBar = {
-                BottomNavBar(navController = navController)
+                if (!isAuthDestination) {
+                    BottomNavBar(navController = navController)
+                }
             },
             floatingActionButton = {
-                // Scout FAB:
-                //   • Single tap  → ScoutPaletteSheet
-                //   • Long press  → VoiceInputSheet (voice transcription)
-                //
-                // The FAB is global — it lives at the MainScaffold level so
-                // it is always available regardless of which tab is active,
-                // matching the iOS ScoutFAB that floats above the tab bar.
-                //
-                // pointerInput(detectTapGestures) is used instead of FAB's
-                // built-in onClick so we can intercept the long-press gesture
-                // before the FAB's ripple consumes it.
-                FloatingActionButton(
-                    onClick = {},   // gesture handled by pointerInput below
-                    modifier = Modifier.pointerInput(Unit) {
-                        detectTapGestures(
-                            onTap = { scoutPaletteVisible = true },
-                            onLongPress = { voiceSheetVisible = true },
+                // Scout FAB — hidden on auth screens.
+                if (!isAuthDestination) {
+                    // • Single tap  → ScoutPaletteSheet
+                    // • Long press  → VoiceInputSheet (voice transcription)
+                    //
+                    // pointerInput(detectTapGestures) is used instead of FAB's
+                    // built-in onClick so we can intercept the long-press gesture
+                    // before the FAB's ripple consumes it.
+                    FloatingActionButton(
+                        onClick = {},   // gesture handled by pointerInput below
+                        modifier = Modifier.pointerInput(Unit) {
+                            detectTapGestures(
+                                onTap = { scoutPaletteVisible = true },
+                                onLongPress = { voiceSheetVisible = true },
+                            )
+                        },
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = "Scout AI — tap to open, hold for voice",
+                            modifier = Modifier.size(24.dp),
                         )
-                    },
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = "Scout AI — tap to open, hold for voice",
-                        modifier = Modifier.size(24.dp),
-                    )
+                    }
                 }
             },
         ) { innerPadding ->
@@ -188,15 +202,20 @@ fun MainScaffold(
                     .fillMaxSize()
                     .padding(innerPadding),
             ) {
-                OfflineBanner(isOffline = isOffline)
+                if (!isAuthDestination) {
+                    OfflineBanner(isOffline = isOffline)
+                }
                 Box(modifier = Modifier.weight(1f)) {
                     AvagoNavHost(navController = navController)
 
                     // Floating sync banner — sits above content, top-center.
-                    SyncStatusBanner(
-                        syncState = syncState,
-                        modifier = Modifier.align(Alignment.TopCenter),
-                    )
+                    // Only meaningful when authenticated.
+                    if (!isAuthDestination) {
+                        SyncStatusBanner(
+                            syncState = syncState,
+                            modifier = Modifier.align(Alignment.TopCenter),
+                        )
+                    }
                 }
             }
         }
@@ -206,30 +225,32 @@ fun MainScaffold(
     // Scout sheets (outside the Scaffold so they overlay everything)
     // ---------------------------------------------------------------------------
 
-    ScoutPaletteSheet(
-        visible = scoutPaletteVisible,
-        onDismiss = { scoutPaletteVisible = false },
-        onNavigate = { targetScreen, fields ->
-            // Stash Scout's pre-fill fields in the back-stack entry that owns
-            // the destination so the target form can read them in onResume /
-            // LaunchedEffect without needing a separate shared ViewModel.
-            navController.currentBackStackEntry
-                ?.savedStateHandle
-                ?.set("scout_fields", HashMap(fields))
-            navController.navigate(targetScreen) { launchSingleTop = true }
-        },
-        viewModel = scoutViewModel,
-    )
+    if (!isAuthDestination) {
+        ScoutPaletteSheet(
+            visible = scoutPaletteVisible,
+            onDismiss = { scoutPaletteVisible = false },
+            onNavigate = { targetScreen, fields ->
+                // Stash Scout's pre-fill fields in the back-stack entry that owns
+                // the destination so the target form can read them in onResume /
+                // LaunchedEffect without needing a separate shared ViewModel.
+                navController.currentBackStackEntry
+                    ?.savedStateHandle
+                    ?.set("scout_fields", HashMap(fields))
+                navController.navigate(targetScreen) { launchSingleTop = true }
+            },
+            viewModel = scoutViewModel,
+        )
 
-    VoiceInputSheet(
-        visible = voiceSheetVisible,
-        onDismiss = { voiceSheetVisible = false },
-        onTranscript = { transcript ->
-            // Funnel the voice transcript into Scout as if the user had typed it.
-            scoutViewModel.query(transcript)
-            scoutPaletteVisible = true   // show the palette so the result is visible
-        },
-    )
+        VoiceInputSheet(
+            visible = voiceSheetVisible,
+            onDismiss = { voiceSheetVisible = false },
+            onTranscript = { transcript ->
+                // Funnel the voice transcript into Scout as if the user had typed it.
+                scoutViewModel.query(transcript)
+                scoutPaletteVisible = true   // show the palette so the result is visible
+            },
+        )
+    }
     } // AvagoToastHost
 }
 

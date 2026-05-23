@@ -3,6 +3,7 @@ package com.avago.nav
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -12,6 +13,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
+import com.avago.app.MainViewModel
 import com.avago.core.sync.ui.SyncConflictSheet
 import com.avago.core.sync.ui.SyncConflictViewModel
 import com.avago.feature.assets.nav.assetsNavGraph
@@ -33,15 +35,43 @@ import com.avago.feature.workorders.nav.workOrderNavGraph
  * and owned by [MainScaffold] so the drawer, bottom bar, and all feature screens
  * share the same back-stack.
  *
- * Start destination is "sign_in"; after a successful sign-in the host navigates to
- * "assets_graph" (the first bottom-nav tab) and pops "sign_in" off the back stack.
+ * Bootstrap logic:
+ * - If [IdentityManager] already has an active account when this composable first
+ *   runs (i.e. the user was signed in on a previous session), the nav host
+ *   immediately navigates to "assets_graph" and removes the auth graph from the
+ *   back stack.
+ * - If [IdentityManager.activeAccountId] becomes null while the user is inside the
+ *   main app (sign-out), the nav host navigates back to the auth graph.
  */
 @Composable
 fun AvagoNavHost(
     navController: NavHostController = rememberNavController(),
+    mainViewModel: MainViewModel = hiltViewModel(),
     conflictViewModel: SyncConflictViewModel = hiltViewModel(),
 ) {
     val conflicts by conflictViewModel.conflicts.collectAsStateWithLifecycle()
+    val activeAccountId by mainViewModel.activeAccountId.collectAsStateWithLifecycle()
+
+    // ── Bootstrap: skip sign-in for returning users ───────────────────────────
+    // When the active account is set (restored from disk by initOnLaunch) and the
+    // current destination is still inside the auth graph, navigate to the main app.
+    LaunchedEffect(activeAccountId) {
+        val currentRoute = navController.currentBackStackEntry?.destination?.route
+        val inAuthGraph = currentRoute == null ||
+            currentRoute == AuthRoute.GRAPH ||
+            currentRoute == AuthRoute.SignIn ||
+            currentRoute == AuthRoute.EmailSignIn
+        if (activeAccountId != null && inAuthGraph) {
+            navController.navigate("assets_graph") {
+                popUpTo(AuthRoute.GRAPH) { inclusive = true }
+            }
+        } else if (activeAccountId == null && !inAuthGraph) {
+            // Sign-out: navigate back to auth and clear the entire back stack.
+            navController.navigate(AuthRoute.GRAPH) {
+                popUpTo(0) { inclusive = true }
+            }
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         NavHost(
