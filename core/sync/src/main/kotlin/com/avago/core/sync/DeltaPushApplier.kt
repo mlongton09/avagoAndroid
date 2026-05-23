@@ -74,7 +74,7 @@ class DeltaPushApplier @Inject constructor(
 
         // Gate 2: stale — we already have this data
         val db = dbFactory.get(accountId)
-        val currentWatermark = db.syncMetadataDao().getWatermark(entityType)
+        val currentWatermark = db.syncMetadataDao().getWatermark(entityType) ?: 0L
         if (incomingSeq <= currentWatermark) {
             Timber.d("$TAG IgnoredStale: entityType=$entityType incomingSeq=$incomingSeq currentWatermark=$currentWatermark accountId=$accountId")
             incrementCounter(entityType, "ignored_stale")
