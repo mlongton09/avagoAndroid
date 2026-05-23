@@ -38,6 +38,32 @@ data class VinDecodeResponse(
 )
 
 @Serializable
+data class WorkOrderResponse(
+    val work_order_id: String,
+    val account_id: String,
+    val title: String? = null,
+    val status: String? = null,
+    val priority: String? = null,
+    val asset_id: String? = null,
+    val created_at: Long = 0,
+    val updated_at: Long = 0,
+)
+
+@Serializable
+data class RecurrenceResponse(
+    val rrule: String? = null,
+    val next_occurrence: String? = null,
+    val enabled: Boolean = false,
+)
+
+@Serializable
+data class RescheduleResponse(
+    val scheduled_start: String? = null,
+    val scheduled_end: String? = null,
+    val reason: String? = null,
+)
+
+@Serializable
 data class GeocodeRequest(
     val address_line1: String? = null,
     val city: String? = null,

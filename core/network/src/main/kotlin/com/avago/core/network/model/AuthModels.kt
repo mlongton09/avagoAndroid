@@ -65,6 +65,14 @@ data class RolePermissionResponse(
 )
 
 @Serializable
+data class InvitationStatusResponse(
+    val email: String,
+    val status: String,
+    val invited_at: Long? = null,
+    val accepted_at: Long? = null,
+)
+
+@Serializable
 data class DispatchConfigResponse(
     val enabled: Boolean,
     val columns: List<String> = emptyList(),

@@ -49,6 +49,10 @@ import com.avago.core.network.model.CreateVendorPartRequest
 import com.avago.core.network.model.UpdateVendorPartRequest
 import com.avago.core.network.model.VendorPartResponse
 import com.avago.core.network.model.ReorderSuggestionResponse
+import com.avago.core.network.model.InvitationStatusResponse
+import com.avago.core.network.model.WorkOrderResponse
+import com.avago.core.network.model.RecurrenceResponse
+import com.avago.core.network.model.RescheduleResponse
 import com.avago.core.network.model.ProvisionRequest
 import com.avago.core.network.model.PurchaseOrderResponse
 import com.avago.core.network.model.ReactMessageRequest
@@ -110,6 +114,10 @@ class AvagoServiceClient @Inject constructor(
             setBody(RefreshRequest(refresh_token = refreshToken, device_id = deviceId))
         }.body() }
 
+    /** GET /auth/refresh — check token validity / retrieve a fresh token without a body. */
+    suspend fun checkAuthRefresh(): AuthResponse =
+        safeCall { client.get("$baseUrl/auth/refresh").body() }
+
     suspend fun switchAccount(targetAccountId: String): NetworkResult<AuthResponse> =
         safeNetworkCall {
             client.post("$baseUrl/auth/switch-account") {
@@ -125,6 +133,10 @@ class AvagoServiceClient @Inject constructor(
 
     suspend fun getMyAccounts(): NetworkResult<List<AccountResponse>> =
         safeNetworkCall { client.get("$baseUrl/users/me/accounts").body() }
+
+    /** GET /accounts — list all accounts accessible to the current user. */
+    suspend fun getAllAccounts(): NetworkResult<List<AccountResponse>> =
+        safeNetworkCall { client.get("$baseUrl/accounts").body() }
 
     suspend fun getAccountMembers(accountId: String): NetworkResult<List<UserResponse>> =
         safeNetworkCall { client.get("$baseUrl/accounts/$accountId/members").body() }
@@ -188,6 +200,10 @@ class AvagoServiceClient @Inject constructor(
                 throw NetworkException(response.status.value, response.status.description)
             }
         }
+
+    /** GET /accounts/{accountId}/invitations/batch — check batch invitation statuses. */
+    suspend fun getBatchInvitationStatuses(accountId: String): NetworkResult<List<InvitationStatusResponse>> =
+        safeNetworkCall { client.get("$baseUrl/accounts/$accountId/invitations/batch").body() }
 
     /** POST /accounts/{accountId}/invitations/batch — bulk-invite users by email. */
     suspend fun bulkInviteUsers(
@@ -546,6 +562,18 @@ class AvagoServiceClient @Inject constructor(
     // Work Orders — direct REST calls
     // ---------------------------------------------------------------------------
 
+    /** GET /accounts/:accountId/work-orders/:woId — fetch a single work order by ID. */
+    suspend fun getWorkOrder(accountId: String, woId: String): NetworkResult<WorkOrderResponse> =
+        safeNetworkCall { client.get("$baseUrl/accounts/$accountId/work-orders/$woId").body() }
+
+    /** GET /accounts/:accountId/work-orders/:woId/recurrence — read recurrence rule. */
+    suspend fun getWorkOrderRecurrence(accountId: String, woId: String): NetworkResult<RecurrenceResponse> =
+        safeNetworkCall { client.get("$baseUrl/accounts/$accountId/work-orders/$woId/recurrence").body() }
+
+    /** GET /accounts/:accountId/work-orders/:woId/reschedule — read reschedule config. */
+    suspend fun getWorkOrderReschedule(accountId: String, woId: String): NetworkResult<RescheduleResponse> =
+        safeNetworkCall { client.get("$baseUrl/accounts/$accountId/work-orders/$woId/reschedule").body() }
+
     /**
      * POST /accounts/:accountId/work-orders/:woId/recurrence
      * Sets or updates the RFC 5545 RRULE on a work order.
@@ -728,6 +756,23 @@ class AvagoServiceClient @Inject constructor(
             }.body()
         }
 
+    /** GET /accounts/{accountId}/geocode — reverse-geocode lat/lon to an address. */
+    suspend fun reverseGeocode(
+        accountId: String,
+        lat: Double,
+        lon: Double,
+    ): NetworkResult<GeocodeResponse> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/geocode") {
+                parameter("lat", lat)
+                parameter("lon", lon)
+            }.body()
+        }
+
+    /** GET /accounts/{accountId}/photos — list all photos for an account. */
+    suspend fun getAccountPhotos(accountId: String): NetworkResult<List<PhotoResponse>> =
+        safeNetworkCall { client.get("$baseUrl/accounts/$accountId/photos").body() }
+
     // ---------------------------------------------------------------------------
     // User Preferences
     // ---------------------------------------------------------------------------
@@ -771,6 +816,23 @@ class AvagoServiceClient @Inject constructor(
         safeNetworkCall {
             val response: HttpResponse =
                 client.put("$baseUrl/accounts/$accountId/tech-profiles/$userId/location") {
+                    setBody(mapOf("lat" to lat, "lon" to lon))
+                }
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
+        }
+
+    /** POST /accounts/:accountId/tech-profiles/:userId/location — push tech location (iOS style). */
+    suspend fun postTechLocation(
+        accountId: String,
+        userId: String,
+        lat: Double,
+        lon: Double,
+    ): NetworkResult<Unit> =
+        safeNetworkCall {
+            val response: HttpResponse =
+                client.post("$baseUrl/accounts/$accountId/tech-profiles/$userId/location") {
                     setBody(mapOf("lat" to lat, "lon" to lon))
                 }
             if (!response.status.isSuccess()) {
@@ -948,6 +1010,14 @@ class AvagoServiceClient @Inject constructor(
     // ---------------------------------------------------------------------------
 
     /**
+     * GET /accounts/{accountId}/rentals — list all rentals for an account.
+     */
+    suspend fun getRentals(accountId: String): NetworkResult<List<RentalResponse>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/rentals").body()
+        }
+
+    /**
      * POST /accounts/{accountId}/rentals — create a new rental for an asset.
      */
     suspend fun createRental(
@@ -1028,6 +1098,17 @@ class AvagoServiceClient @Inject constructor(
     ): NetworkResult<ChatMessageResponse> =
         safeNetworkCall {
             client.put("$baseUrl/chat/messages/$messageId") {
+                setBody(EditMessageRequest(body = body))
+            }.body()
+        }
+
+    /** PATCH /chat/messages/:messageId — partial-update a chat message (iOS style). */
+    suspend fun patchMessage(
+        messageId: String,
+        body: String,
+    ): NetworkResult<ChatMessageResponse> =
+        safeNetworkCall {
+            client.patch("$baseUrl/chat/messages/$messageId") {
                 setBody(EditMessageRequest(body = body))
             }.body()
         }
