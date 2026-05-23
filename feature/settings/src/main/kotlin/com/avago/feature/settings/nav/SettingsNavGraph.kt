@@ -51,7 +51,7 @@ fun NavGraphBuilder.settingsNavGraph(navController: NavController) {
         }
 
         composable(SettingsRoute.Members) {
-            MembersListScreen()
+            MembersListScreen(onBack = { navController.popBackStack() })
         }
 
         composable(SettingsRoute.Licenses) {
