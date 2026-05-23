@@ -68,7 +68,7 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
-        <!-- WorkManager initializer -->
+        <!-- WorkManager auto-init disabled so HiltWorkerFactory is used via Configuration.Provider -->
         <provider
             android:name="androidx.startup.InitializationProvider"
             android:authorities="${applicationId}.androidx-startup"
@@ -76,7 +76,8 @@
             tools:node="merge">
             <meta-data
                 android:name="androidx.work.WorkManagerInitializer"
-                android:value="androidx.startup" />
+                android:value="androidx.startup"
+                tools:node="remove" />
         </provider>
 
     </application>
