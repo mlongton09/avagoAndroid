@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.BugReport
@@ -76,6 +77,7 @@ fun SettingsScreen(
     }
     val theme by viewModel.theme.collectAsState()
     val distanceUnit by viewModel.distanceUnit.collectAsState()
+    val currency by viewModel.currency.collectAsState()
     val activeAccountId by viewModel.activeAccountId.collectAsState()
 
     // Notification permission — re-check on every recomposition so state is fresh
@@ -90,10 +92,22 @@ fun SettingsScreen(
 
     // Dialog state
     var showThemeDialog by remember { mutableStateOf(false) }
+    var showCurrencyDialog by remember { mutableStateOf(false) }
     var showSignOutDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     // ── Dialogs ──────────────────────────────────────────────────────────────
+
+    if (showCurrencyDialog) {
+        CurrencyPickerDialog(
+            current = currency,
+            onSelect = { selected ->
+                viewModel.setCurrency(selected)
+                showCurrencyDialog = false
+            },
+            onDismiss = { showCurrencyDialog = false },
+        )
+    }
 
     if (showThemeDialog) {
         ThemePickerDialog(
@@ -167,6 +181,13 @@ fun SettingsScreen(
             DistanceUnitRow(
                 selected = distanceUnit,
                 onSelect = viewModel::setDistanceUnit,
+            )
+        }
+        item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
+        item {
+            CurrencyRow(
+                current = currency,
+                onClick = { showCurrencyDialog = true },
             )
         }
         item { SectionDivider() }
@@ -436,6 +457,74 @@ private fun LanguageRow(context: Context) {
 // ---------------------------------------------------------------------------
 // Units row
 // ---------------------------------------------------------------------------
+
+@Composable
+private fun CurrencyRow(
+    current: String,
+    onClick: () -> Unit,
+) {
+    ListItem(
+        headlineContent = { Text(stringResource(R.string.settings_currency)) },
+        trailingContent = {
+            FilterChip(
+                selected = false,
+                onClick = onClick,
+                label = { Text(current) },
+            )
+        },
+        modifier = Modifier.clickable(role = Role.Button, onClick = onClick),
+    )
+}
+
+@Composable
+private fun CurrencyPickerDialog(
+    current: String,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val commonCurrencies = listOf(
+        "USD" to "US Dollar", "EUR" to "Euro", "GBP" to "British Pound",
+        "CAD" to "Canadian Dollar", "AUD" to "Australian Dollar",
+        "JPY" to "Japanese Yen", "CHF" to "Swiss Franc", "CNY" to "Chinese Yuan",
+        "INR" to "Indian Rupee", "MXN" to "Mexican Peso", "BRL" to "Brazilian Real",
+        "KRW" to "Korean Won", "SGD" to "Singapore Dollar", "NZD" to "New Zealand Dollar",
+        "NOK" to "Norwegian Krone", "SEK" to "Swedish Krona", "DKK" to "Danish Krone",
+        "PLN" to "Polish Zloty", "CZK" to "Czech Koruna", "HUF" to "Hungarian Forint",
+    )
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_currency)) },
+        text = {
+            androidx.compose.foundation.lazy.LazyColumn {
+                items(commonCurrencies) { (code, name) ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(role = Role.RadioButton) { onSelect(code) }
+                            .padding(vertical = 4.dp),
+                    ) {
+                        RadioButton(
+                            selected = current == code,
+                            onClick = { onSelect(code) },
+                        )
+                        Column(modifier = Modifier.padding(start = 8.dp)) {
+                            Text(text = code, style = MaterialTheme.typography.bodyMedium)
+                            Text(text = name, style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        },
+    )
+}
 
 @Composable
 private fun DistanceUnitRow(

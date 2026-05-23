@@ -18,6 +18,7 @@
     <string name="settings_theme_dark">Dark</string>
     <string name="settings_language">Language</string>
     <string name="settings_distance_unit">Distance unit</string>
+    <string name="settings_currency">Currency</string>
     <string name="settings_notifications">Push notifications</string>
     <string name="settings_notifications_denied">Tap to enable in system settings</string>
     <string name="settings_account">Account</string>

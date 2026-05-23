@@ -39,6 +39,12 @@ class SettingsViewModel @Inject constructor(
         initialValue = "mi",
     )
 
+    val currency: StateFlow<String> = prefs.currencyFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = "USD",
+    )
+
     val language: StateFlow<String> = prefs.languageFlow.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -58,6 +64,10 @@ class SettingsViewModel @Inject constructor(
 
     fun setDistanceUnit(value: String) {
         viewModelScope.launch { prefs.setDistanceUnit(value) }
+    }
+
+    fun setCurrency(value: String) {
+        viewModelScope.launch { prefs.setCurrency(value) }
     }
 
     fun setLanguage(value: String) {
