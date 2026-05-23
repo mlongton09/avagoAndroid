@@ -169,7 +169,8 @@ fun DocDetailScreen(
             )
         },
     ) { paddingValues ->
-        if (doc == null) {
+        val entity = doc
+        if (entity == null) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -180,8 +181,6 @@ fun DocDetailScreen(
             }
             return@Scaffold
         }
-
-        val entity = doc
         Column(
             modifier = Modifier
                 .fillMaxSize()
