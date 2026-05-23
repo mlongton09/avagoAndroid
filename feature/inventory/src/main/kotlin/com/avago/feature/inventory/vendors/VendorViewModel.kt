@@ -6,7 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.SyncQueueEntity
+import com.avago.core.data.db.entity.PartEntity
 import com.avago.core.data.db.entity.VendorEntity
+import com.avago.core.data.db.entity.VendorPartEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -62,8 +64,14 @@ class VendorListViewModel @Inject constructor(
 // Detail state
 // ---------------------------------------------------------------------------
 
+data class VendorPartWithPart(
+    val vendorPart: VendorPartEntity,
+    val part: PartEntity?,
+)
+
 data class VendorDetailUiState(
     val vendor: VendorEntity? = null,
+    val vendorParts: List<VendorPartWithPart> = emptyList(),
     val isLoading: Boolean = true,
 )
 
@@ -79,8 +87,28 @@ class VendorDetailViewModel @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<VendorDetailUiState> = identityManager.activeAccountId.flatMapLatest { accountId ->
         if (accountId == null) flowOf(VendorDetailUiState(isLoading = false))
-        else dbFactory.get(accountId).vendorDao().observeAll(accountId).flatMapLatest { vendors ->
-            flowOf(VendorDetailUiState(vendor = vendors.find { it.vendorId == vendorId }, isLoading = false))
+        else {
+            val db = dbFactory.get(accountId)
+            @Suppress("UNCHECKED_CAST")
+            combine(
+                db.vendorDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
+                db.vendorPartDao().observeByVendor(vendorId) as kotlinx.coroutines.flow.Flow<Any?>,
+                db.partDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
+            ) { v ->
+                val vendors = v[0] as List<VendorEntity>
+                val vendorParts = v[1] as List<VendorPartEntity>
+                val parts = v[2] as List<PartEntity>
+                val partMap = parts.associateBy { it.partId }
+                val partsWithPart = vendorParts
+                    .filter { it.deletedAt == null }
+                    .map { vp -> VendorPartWithPart(vp, partMap[vp.partId]) }
+                    .sortedBy { it.part?.name ?: it.vendorPart.vendorSku }
+                VendorDetailUiState(
+                    vendor = vendors.find { it.vendorId == vendorId },
+                    vendorParts = partsWithPart,
+                    isLoading = false,
+                )
+            }
         }
     }.stateIn(
         scope = viewModelScope,

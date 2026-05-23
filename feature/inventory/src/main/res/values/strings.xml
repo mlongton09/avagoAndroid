@@ -81,6 +81,15 @@
     <string name="vendor_save">Save</string>
     <string name="vendor_name_required">Vendor name is required</string>
 
+    <!-- Vendor parts (SKU catalog) -->
+    <string name="vendor_parts_title">Parts Catalog</string>
+    <string name="vendor_parts_empty">No parts linked to this vendor</string>
+    <string name="vendor_part_sku">Vendor SKU</string>
+    <string name="vendor_part_unit_cost">Unit Cost</string>
+    <string name="vendor_part_moq">Min Order Qty</string>
+    <string name="vendor_part_lead_days">Lead Days</string>
+    <string name="vendor_part_preferred">Preferred</string>
+
     <!-- Vendor picker -->
     <string name="vendor_picker_title">Select Vendor</string>
     <string name="vendor_picker_search">Search vendors…</string>
@@ -112,9 +121,12 @@
     <string name="po_discount">Discount</string>
     <string name="po_grand_total">Grand Total</string>
     <string name="po_line_items">Line Items</string>
+    <string name="po_action_submit">Submit for Approval</string>
     <string name="po_action_approve">Approve</string>
+    <string name="po_action_reject">Reject</string>
     <string name="po_action_mark_ordered">Mark Ordered</string>
     <string name="po_action_receive">Receive (GRN)</string>
+    <string name="po_action_close">Close PO</string>
     <string name="po_action_edit">Edit</string>
 
     <!-- PO create / edit -->
@@ -206,10 +218,10 @@
     <string name="cycle_count_expected">Expected</string>
     <string name="cycle_count_counted">Counted</string>
     <string name="cycle_count_variance">Variance</string>
-    <string name="cycle_count_lock">Lock Count</string>
-    <string name="cycle_count_reconcile">Reconcile</string>
-    <string name="cycle_count_locking">Locking…</string>
-    <string name="cycle_count_reconciling">Reconciling…</string>
+    <string name="cycle_count_start">Start Count</string>
+    <string name="cycle_count_complete">Complete Count</string>
+    <string name="cycle_count_post">Post Adjustments</string>
+    <string name="cycle_count_cancel">Cancel Count</string>
     <string name="cycle_count_no_lines">No items in this count</string>
 
     <!-- Cycle count create -->

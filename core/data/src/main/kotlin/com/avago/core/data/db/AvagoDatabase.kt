@@ -42,6 +42,8 @@ import com.avago.core.data.db.dao.TechLaborRateDao
 import com.avago.core.data.db.dao.TechProfileDao
 import com.avago.core.data.db.dao.UserDao
 import com.avago.core.data.db.dao.VendorDao
+import com.avago.core.data.db.dao.VendorPartDao
+import com.avago.core.data.db.dao.ReorderSuggestionDao
 import com.avago.core.data.db.dao.WoAssignmentDao
 import com.avago.core.data.db.dao.WoChecklistItemDao
 import com.avago.core.data.db.dao.WoCommentDao
@@ -85,6 +87,8 @@ import com.avago.core.data.db.entity.TechLaborRateEntity
 import com.avago.core.data.db.entity.TechProfileEntity
 import com.avago.core.data.db.entity.UserEntity
 import com.avago.core.data.db.entity.VendorEntity
+import com.avago.core.data.db.entity.VendorPartEntity
+import com.avago.core.data.db.entity.ReorderSuggestionEntity
 import com.avago.core.data.db.entity.WoAssignmentEntity
 import com.avago.core.data.db.entity.WoChecklistItemEntity
 import com.avago.core.data.db.entity.WoCommentEntity
@@ -114,6 +118,8 @@ import com.avago.core.data.db.entity.WorkOrderEntity
         UserEntity::class,
         LocationEntity::class,
         VendorEntity::class,
+        VendorPartEntity::class,
+        ReorderSuggestionEntity::class,
         BinEntity::class,
         PurchaseOrderEntity::class,
         PoLineEntity::class,
@@ -137,7 +143,7 @@ import com.avago.core.data.db.entity.WorkOrderEntity
         RoleLabelCacheEntity::class,
         EventEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -164,6 +170,8 @@ abstract class AvagoDatabase : RoomDatabase() {
     abstract fun userDao(): UserDao
     abstract fun locationDao(): LocationDao
     abstract fun vendorDao(): VendorDao
+    abstract fun vendorPartDao(): VendorPartDao
+    abstract fun reorderSuggestionDao(): ReorderSuggestionDao
     abstract fun binDao(): BinDao
     abstract fun purchaseOrderDao(): PurchaseOrderDao
     abstract fun poLineDao(): PoLineDao

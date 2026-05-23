@@ -127,6 +127,54 @@ class PurchaseOrderViewModel @Inject constructor(
         }
     }
 
+    fun submit() {
+        val accountId = identityManager.getActiveAccountId() ?: return
+        viewModelScope.launch {
+            _isActioning.value = true
+            _actionError.value = null
+            try {
+                serviceClient.submitPurchaseOrder(accountId, poId)
+            } catch (e: Exception) {
+                Timber.e(e, "PurchaseOrderViewModel: submit failed")
+                _actionError.value = e.message
+            } finally {
+                _isActioning.value = false
+            }
+        }
+    }
+
+    fun reject() {
+        val accountId = identityManager.getActiveAccountId() ?: return
+        viewModelScope.launch {
+            _isActioning.value = true
+            _actionError.value = null
+            try {
+                serviceClient.rejectPurchaseOrder(accountId, poId)
+            } catch (e: Exception) {
+                Timber.e(e, "PurchaseOrderViewModel: reject failed")
+                _actionError.value = e.message
+            } finally {
+                _isActioning.value = false
+            }
+        }
+    }
+
+    fun close() {
+        val accountId = identityManager.getActiveAccountId() ?: return
+        viewModelScope.launch {
+            _isActioning.value = true
+            _actionError.value = null
+            try {
+                serviceClient.closePurchaseOrder(accountId, poId)
+            } catch (e: Exception) {
+                Timber.e(e, "PurchaseOrderViewModel: close failed")
+                _actionError.value = e.message
+            } finally {
+                _isActioning.value = false
+            }
+        }
+    }
+
     fun openGrnSheet() { _showGrnSheet.value = true }
     fun dismissGrnSheet() { _showGrnSheet.value = false }
     fun clearError() { _actionError.value = null }

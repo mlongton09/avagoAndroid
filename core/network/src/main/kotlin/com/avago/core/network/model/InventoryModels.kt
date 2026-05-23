@@ -110,3 +110,48 @@ data class CycleCountResponse(
     val cycle_count_id: String,
     val status: String,
 )
+
+@Serializable
+data class CreateVendorPartRequest(
+    val vendor_id: String,
+    val part_id: String,
+    val vendor_sku: String? = null,
+    val unit_cost: Double? = null,
+    val moq: Double? = null,
+    val pack_size: Double? = null,
+    val lead_days: Int? = null,
+    val is_preferred: Boolean = false,
+    val currency: String? = null,
+    val notes: String? = null,
+)
+
+@Serializable
+data class UpdateVendorPartRequest(
+    val vendor_sku: String? = null,
+    val unit_cost: Double? = null,
+    val moq: Double? = null,
+    val pack_size: Double? = null,
+    val lead_days: Int? = null,
+    val is_preferred: Boolean? = null,
+    val currency: String? = null,
+    val notes: String? = null,
+)
+
+@Serializable
+data class VendorPartResponse(
+    val vendor_part_id: String,
+)
+
+@Serializable
+data class ReorderSuggestionResponse(
+    val suggestion_id: String,
+    val part_id: String,
+    val quantity_on_hand: Double,
+    val reorder_qty: Double? = null,
+    val suggested_qty: Double,
+    val preferred_vendor_id: String? = null,
+    val status: String,
+    val reason: String? = null,
+    val created_at: Long,
+    val updated_at: Long,
+)

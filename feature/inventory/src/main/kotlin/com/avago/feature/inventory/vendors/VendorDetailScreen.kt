@@ -7,12 +7,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -21,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -83,6 +87,87 @@ fun VendorDetailScreen(
                     }
                 }
             }
+
+            item {
+                Text(
+                    text = stringResource(R.string.vendor_parts_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+
+            if (state.vendorParts.isEmpty()) {
+                item {
+                    Text(
+                        text = stringResource(R.string.vendor_parts_empty),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else {
+                items(state.vendorParts, key = { it.vendorPart.vendorPartId }) { entry ->
+                    VendorPartRow(entry = entry)
+                    HorizontalDivider()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VendorPartRow(entry: VendorPartWithPart) {
+    val vp = entry.vendorPart
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = entry.part?.name ?: vp.vendorSku ?: vp.partId,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                if (vp.isPreferred) {
+                    Icon(
+                        Icons.Default.Star,
+                        contentDescription = stringResource(R.string.vendor_part_preferred),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 2.dp),
+                    )
+                }
+            }
+            vp.vendorSku?.let {
+                Text(
+                    text = "${stringResource(R.string.vendor_part_sku)}: $it",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                vp.leadDays?.let {
+                    Text(
+                        text = "${stringResource(R.string.vendor_part_lead_days)}: $it d",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                vp.moq?.let {
+                    Text(
+                        text = "${stringResource(R.string.vendor_part_moq)}: ${it.toLong()}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+        vp.unitCost?.let { cost ->
+            Text(
+                text = "${vp.currency ?: "USD"} ${"%.2f".format(cost)}",
+                style = MaterialTheme.typography.bodyMedium,
+            )
         }
     }
 }

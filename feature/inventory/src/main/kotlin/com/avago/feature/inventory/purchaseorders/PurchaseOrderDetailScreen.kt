@@ -15,6 +15,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -158,13 +159,32 @@ fun PurchaseOrderDetailScreen(
             item {
                 // Action buttons
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    state.actionError?.let { Text(it) }
+                    state.actionError?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
                     when (po.status) {
-                        "draft", "pending_approval" -> Button(
-                            onClick = viewModel::approve,
-                            enabled = !state.isActioning,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) { Text(stringResource(R.string.po_action_approve)) }
+                        "draft" -> {
+                            Button(
+                                onClick = viewModel::submit,
+                                enabled = !state.isActioning,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) { Text(stringResource(R.string.po_action_submit)) }
+                        }
+                        "pending_approval" -> {
+                            Button(
+                                onClick = viewModel::approve,
+                                enabled = !state.isActioning,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) { Text(stringResource(R.string.po_action_approve)) }
+                            OutlinedButton(
+                                onClick = viewModel::reject,
+                                enabled = !state.isActioning,
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error,
+                                ),
+                            ) { Text(stringResource(R.string.po_action_reject)) }
+                        }
                         "approved" -> Button(
                             onClick = viewModel::markOrdered,
                             enabled = !state.isActioning,
@@ -175,12 +195,29 @@ fun PurchaseOrderDetailScreen(
                             enabled = !state.isActioning,
                             modifier = Modifier.fillMaxWidth(),
                         ) { Text(stringResource(R.string.po_action_receive)) }
+                        "received" -> OutlinedButton(
+                            onClick = viewModel::close,
+                            enabled = !state.isActioning,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text(stringResource(R.string.po_action_close)) }
                         else -> {}
                     }
                 }
             }
         }
     }
+}
+
+private fun poStatusLabel(status: String): String = when (status) {
+    "draft" -> "Draft"
+    "pending_approval" -> "Pending Approval"
+    "approved" -> "Approved"
+    "ordered" -> "Ordered"
+    "partially_received" -> "Partially Received"
+    "received" -> "Received"
+    "cancelled" -> "Cancelled"
+    "closed" -> "Closed"
+    else -> status.replaceFirstChar { it.uppercase() }
 }
 
 @Composable

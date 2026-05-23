@@ -45,6 +45,10 @@ import com.avago.core.network.model.InventoryReceiveRequest
 import com.avago.core.network.model.InventoryReceiveResponse
 import com.avago.core.network.model.InventoryUseRequest
 import com.avago.core.network.model.PartIssueResponse
+import com.avago.core.network.model.CreateVendorPartRequest
+import com.avago.core.network.model.UpdateVendorPartRequest
+import com.avago.core.network.model.VendorPartResponse
+import com.avago.core.network.model.ReorderSuggestionResponse
 import com.avago.core.network.model.ProvisionRequest
 import com.avago.core.network.model.PurchaseOrderResponse
 import com.avago.core.network.model.ReactMessageRequest
@@ -385,20 +389,153 @@ class AvagoServiceClient @Inject constructor(
             }.body()
         }
 
-    suspend fun lockCycleCount(accountId: String, countId: String) {
+    suspend fun startCycleCount(accountId: String, countId: String) {
         safeCall<Unit> {
             val response: HttpResponse =
-                client.put("$baseUrl/accounts/$accountId/cycle-counts/$countId/lock")
+                client.post("$baseUrl/accounts/$accountId/cycle-counts/$countId/start")
             if (!response.status.isSuccess()) {
                 throw NetworkException(response.status.value, response.status.description)
             }
         }
     }
 
-    suspend fun reconcileCycleCount(accountId: String, countId: String) {
+    suspend fun completeCycleCount(accountId: String, countId: String) {
         safeCall<Unit> {
             val response: HttpResponse =
-                client.post("$baseUrl/accounts/$accountId/cycle-counts/$countId/reconcile")
+                client.post("$baseUrl/accounts/$accountId/cycle-counts/$countId/complete")
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
+        }
+    }
+
+    suspend fun postCycleCount(accountId: String, countId: String) {
+        safeCall<Unit> {
+            val response: HttpResponse =
+                client.post("$baseUrl/accounts/$accountId/cycle-counts/$countId/post")
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
+        }
+    }
+
+    suspend fun cancelCycleCount(accountId: String, countId: String) {
+        safeCall<Unit> {
+            val response: HttpResponse =
+                client.post("$baseUrl/accounts/$accountId/cycle-counts/$countId/cancel")
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Purchase Order additional workflow actions
+    // ---------------------------------------------------------------------------
+
+    suspend fun submitPurchaseOrder(accountId: String, poId: String) {
+        safeCall<Unit> {
+            val response: HttpResponse =
+                client.post("$baseUrl/accounts/$accountId/purchase-orders/$poId/submit")
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
+        }
+    }
+
+    suspend fun rejectPurchaseOrder(accountId: String, poId: String) {
+        safeCall<Unit> {
+            val response: HttpResponse =
+                client.post("$baseUrl/accounts/$accountId/purchase-orders/$poId/reject")
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
+        }
+    }
+
+    suspend fun closePurchaseOrder(accountId: String, poId: String) {
+        safeCall<Unit> {
+            val response: HttpResponse =
+                client.post("$baseUrl/accounts/$accountId/purchase-orders/$poId/close")
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
+        }
+    }
+
+    suspend fun duplicatePurchaseOrder(accountId: String, poId: String): PurchaseOrderResponse =
+        safeCall {
+            client.post("$baseUrl/accounts/$accountId/purchase-orders/$poId/duplicate").body()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Vendor Parts
+    // ---------------------------------------------------------------------------
+
+    suspend fun createVendorPart(
+        accountId: String,
+        request: CreateVendorPartRequest,
+    ): VendorPartResponse =
+        safeCall {
+            client.post("$baseUrl/accounts/$accountId/vendor-parts") {
+                setBody(request)
+            }.body()
+        }
+
+    suspend fun updateVendorPart(
+        accountId: String,
+        vendorPartId: String,
+        request: UpdateVendorPartRequest,
+    ): VendorPartResponse =
+        safeCall {
+            client.put("$baseUrl/accounts/$accountId/vendor-parts/$vendorPartId") {
+                setBody(request)
+            }.body()
+        }
+
+    suspend fun deleteVendorPart(accountId: String, vendorPartId: String) {
+        safeCall<Unit> {
+            val response: HttpResponse =
+                client.delete("$baseUrl/accounts/$accountId/vendor-parts/$vendorPartId")
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Reorder Suggestions
+    // ---------------------------------------------------------------------------
+
+    suspend fun getReorderSuggestions(accountId: String): List<ReorderSuggestionResponse> =
+        safeCall {
+            client.get("$baseUrl/accounts/$accountId/reorder-suggestions").body()
+        }
+
+    suspend fun regenerateReorderSuggestions(accountId: String) {
+        safeCall<Unit> {
+            val response: HttpResponse =
+                client.post("$baseUrl/accounts/$accountId/reorder-suggestions/regenerate")
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
+        }
+    }
+
+    suspend fun dismissReorderSuggestion(accountId: String, suggestionId: String) {
+        safeCall<Unit> {
+            val response: HttpResponse =
+                client.post("$baseUrl/accounts/$accountId/reorder-suggestions/$suggestionId/dismiss")
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
+        }
+    }
+
+    suspend fun acceptReorderSuggestion(accountId: String, suggestionId: String) {
+        safeCall<Unit> {
+            val response: HttpResponse =
+                client.post("$baseUrl/accounts/$accountId/reorder-suggestions/$suggestionId/accept")
             if (!response.status.isSuccess()) {
                 throw NetworkException(response.status.value, response.status.description)
             }

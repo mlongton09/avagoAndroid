@@ -163,15 +163,15 @@ class CycleCountDetailViewModel @Inject constructor(
         _localQtyEdits.value = _localQtyEdits.value + (lineId to qty)
     }
 
-    fun lock() {
+    fun start() {
         val accountId = identityManager.getActiveAccountId() ?: return
         viewModelScope.launch {
             _isActioning.value = true
             _actionError.value = null
             try {
-                serviceClient.lockCycleCount(accountId, countId)
+                serviceClient.startCycleCount(accountId, countId)
             } catch (e: Exception) {
-                Timber.e(e, "CycleCountDetailViewModel: lock failed")
+                Timber.e(e, "CycleCountDetailViewModel: start failed")
                 _actionError.value = e.message
             } finally {
                 _isActioning.value = false
@@ -179,15 +179,47 @@ class CycleCountDetailViewModel @Inject constructor(
         }
     }
 
-    fun reconcile() {
+    fun complete() {
         val accountId = identityManager.getActiveAccountId() ?: return
         viewModelScope.launch {
             _isActioning.value = true
             _actionError.value = null
             try {
-                serviceClient.reconcileCycleCount(accountId, countId)
+                serviceClient.completeCycleCount(accountId, countId)
             } catch (e: Exception) {
-                Timber.e(e, "CycleCountDetailViewModel: reconcile failed")
+                Timber.e(e, "CycleCountDetailViewModel: complete failed")
+                _actionError.value = e.message
+            } finally {
+                _isActioning.value = false
+            }
+        }
+    }
+
+    fun post() {
+        val accountId = identityManager.getActiveAccountId() ?: return
+        viewModelScope.launch {
+            _isActioning.value = true
+            _actionError.value = null
+            try {
+                serviceClient.postCycleCount(accountId, countId)
+            } catch (e: Exception) {
+                Timber.e(e, "CycleCountDetailViewModel: post failed")
+                _actionError.value = e.message
+            } finally {
+                _isActioning.value = false
+            }
+        }
+    }
+
+    fun cancel() {
+        val accountId = identityManager.getActiveAccountId() ?: return
+        viewModelScope.launch {
+            _isActioning.value = true
+            _actionError.value = null
+            try {
+                serviceClient.cancelCycleCount(accountId, countId)
+            } catch (e: Exception) {
+                Timber.e(e, "CycleCountDetailViewModel: cancel failed")
                 _actionError.value = e.message
             } finally {
                 _isActioning.value = false
