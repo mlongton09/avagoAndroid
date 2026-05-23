@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -141,28 +142,45 @@ fun CycleCountDetailScreen(
                 // Actions
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     state.actionError?.let {
-                        Text(it, color = MaterialTheme.colorScheme.error)
+                        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
                     when (count.status) {
-                        "in_progress" -> Button(
-                            onClick = viewModel::lock,
+                        "draft" -> Button(
+                            onClick = viewModel::start,
                             enabled = !state.isActioning,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Text(
-                                if (state.isActioning) stringResource(R.string.cycle_count_locking)
-                                else stringResource(R.string.cycle_count_lock),
+                                if (state.isActioning) stringResource(R.string.common_loading)
+                                else stringResource(R.string.cycle_count_start),
                             )
                         }
-                        "locked" -> Button(
-                            onClick = viewModel::reconcile,
+                        "in_progress" -> Button(
+                            onClick = viewModel::complete,
                             enabled = !state.isActioning,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Text(
-                                if (state.isActioning) stringResource(R.string.cycle_count_reconciling)
-                                else stringResource(R.string.cycle_count_reconcile),
+                                if (state.isActioning) stringResource(R.string.common_loading)
+                                else stringResource(R.string.cycle_count_complete),
                             )
+                        }
+                        "locked" -> {
+                            Button(
+                                onClick = viewModel::post,
+                                enabled = !state.isActioning,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(
+                                    if (state.isActioning) stringResource(R.string.common_loading)
+                                    else stringResource(R.string.cycle_count_post),
+                                )
+                            }
+                            OutlinedButton(
+                                onClick = viewModel::cancel,
+                                enabled = !state.isActioning,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) { Text(stringResource(R.string.cycle_count_cancel)) }
                         }
                         else -> {}
                     }
