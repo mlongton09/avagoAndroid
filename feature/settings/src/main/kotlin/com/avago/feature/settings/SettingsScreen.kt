@@ -496,7 +496,8 @@ private fun CurrencyPickerDialog(
         title = { Text(stringResource(R.string.settings_currency)) },
         text = {
             androidx.compose.foundation.lazy.LazyColumn {
-                items(commonCurrencies) { (code, name) ->
+                items(commonCurrencies) { currency ->
+                    val (code, name) = currency
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier

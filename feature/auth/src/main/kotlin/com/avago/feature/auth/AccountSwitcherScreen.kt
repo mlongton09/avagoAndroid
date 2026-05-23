@@ -109,7 +109,7 @@ fun AccountSwitcherScreen(
                             )
                             if (account.email != null && account.displayName != null) {
                                 Text(
-                                    text = account.email,
+                                    text = account.email!!,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
