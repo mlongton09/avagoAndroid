@@ -2,6 +2,7 @@ package com.avago.feature.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -9,7 +10,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -18,6 +22,7 @@ import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -30,6 +35,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -40,6 +46,7 @@ import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
+import com.avago.core.network.model.BulkInvitation
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -52,14 +59,20 @@ import javax.inject.Inject
 // ViewModel
 // ---------------------------------------------------------------------------
 
+data class InviteEntry(
+    val email: String = "",
+    val displayName: String = "",
+    val role: String = "technician",
+)
+
 @HiltViewModel
 class InviteUsersViewModel @Inject constructor(
     private val serviceClient: AvagoServiceClient,
     private val identityManager: IdentityManager,
 ) : ViewModel() {
 
-    val email = MutableStateFlow("")
-    val role = MutableStateFlow("technician")
+    private val _entries = MutableStateFlow(listOf(InviteEntry()))
+    val entries: StateFlow<List<InviteEntry>> = _entries.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -67,30 +80,52 @@ class InviteUsersViewModel @Inject constructor(
     private val _result = MutableStateFlow<String?>(null)
     val result: StateFlow<String?> = _result.asStateFlow()
 
-    fun sendInvite() {
+    fun updateEntry(index: Int, entry: InviteEntry) {
+        _entries.value = _entries.value.toMutableList().also { it[index] = entry }
+    }
+
+    fun addEntry() {
+        _entries.value = _entries.value + InviteEntry()
+    }
+
+    fun removeEntry(index: Int) {
+        if (_entries.value.size > 1) {
+            _entries.value = _entries.value.toMutableList().also { it.removeAt(index) }
+        }
+    }
+
+    fun sendInvites() {
         val accountId = identityManager.getActiveAccountId() ?: return
-        val currentEmail = email.value.trim()
-        if (currentEmail.isBlank()) {
-            _result.value = "Please enter an email address"
+        val validEntries = _entries.value.filter { it.email.isNotBlank() }
+        if (validEntries.isEmpty()) {
+            _result.value = "Please enter at least one email address"
             return
         }
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                when (val outcome = serviceClient.inviteUser(accountId, currentEmail, role.value)) {
+                val invitations = validEntries.map { entry ->
+                    BulkInvitation(
+                        email = entry.email.trim(),
+                        display_name = entry.displayName.trim().ifBlank { null },
+                        role = entry.role,
+                    )
+                }
+                when (val outcome = serviceClient.bulkInviteUsers(accountId, invitations)) {
                     is NetworkResult.Success -> {
-                        _result.value = "Invite sent to $currentEmail"
-                        email.value = ""
+                        val count = validEntries.size
+                        _result.value = "Sent $count invite${if (count > 1) "s" else ""}"
+                        _entries.value = listOf(InviteEntry())
                     }
                     is NetworkResult.Error -> {
-                        _result.value = "Failed to send invite: ${outcome.message}"
+                        _result.value = "Failed to send invites: ${outcome.message}"
                     }
                     NetworkResult.Unauthorized -> {
                         _result.value = "Unauthorized — please sign in again"
                     }
                 }
             } catch (e: Exception) {
-                Timber.e(e, "InviteUsersViewModel: sendInvite failed")
+                Timber.e(e, "InviteUsersViewModel: sendInvites failed")
                 _result.value = "Error: ${e.message}"
             } finally {
                 _isLoading.value = false
@@ -109,8 +144,11 @@ class InviteUsersViewModel @Inject constructor(
 
 private val ROLES = listOf(
     "admin" to "Admin",
+    "manager" to "Manager",
+    "dispatcher" to "Dispatcher",
     "technician" to "Technician",
-    "viewer" to "Viewer",
+    "operator" to "Operator",
+    "reader" to "Reader",
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -119,8 +157,7 @@ fun InviteUsersScreen(
     onBack: () -> Unit,
     viewModel: InviteUsersViewModel = hiltViewModel(),
 ) {
-    val email by viewModel.email.collectAsStateWithLifecycle()
-    val role by viewModel.role.collectAsStateWithLifecycle()
+    val entries by viewModel.entries.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val result by viewModel.result.collectAsStateWithLifecycle()
 
@@ -136,7 +173,7 @@ fun InviteUsersScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Invite Team Member") },
+                title = { Text("Invite Team Members") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -154,29 +191,88 @@ fun InviteUsersScreen(
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            OutlinedTextField(
-                value = email,
-                onValueChange = { viewModel.email.value = it },
-                label = { Text("Email address") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-            )
+            entries.forEachIndexed { index, entry ->
+                InviteEntryRow(
+                    entry = entry,
+                    showDelete = entries.size > 1,
+                    onUpdate = { viewModel.updateEntry(index, it) },
+                    onDelete = { viewModel.removeEntry(index) },
+                )
+            }
 
-            RoleDropdown(
-                selected = role,
-                onSelect = { viewModel.role.value = it },
-            )
-
-            Button(
-                onClick = viewModel::sendInvite,
+            OutlinedButton(
+                onClick = viewModel::addEntry,
                 enabled = !isLoading,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(if (isLoading) "Sending…" else "Send Invite")
+                Text("Add another person")
             }
+
+            Button(
+                onClick = viewModel::sendInvites,
+                enabled = !isLoading,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(if (isLoading) "Sending…" else "Send Invite${if (entries.size > 1) "s" else ""}")
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun InviteEntryRow(
+    entry: InviteEntry,
+    showDelete: Boolean,
+    onUpdate: (InviteEntry) -> Unit,
+    onDelete: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedTextField(
+                    value = entry.email,
+                    onValueChange = { onUpdate(entry.copy(email = it)) },
+                    label = { Text("Email address") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                )
+                if (showDelete) {
+                    IconButton(onClick = onDelete) {
+                        Icon(
+                            Icons.Filled.Close,
+                            contentDescription = "Remove",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+
+            OutlinedTextField(
+                value = entry.displayName,
+                onValueChange = { onUpdate(entry.copy(displayName = it)) },
+                label = { Text("Display name (optional)") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+
+            RoleDropdown(
+                selected = entry.role,
+                onSelect = { onUpdate(entry.copy(role = it)) },
+            )
         }
     }
 }

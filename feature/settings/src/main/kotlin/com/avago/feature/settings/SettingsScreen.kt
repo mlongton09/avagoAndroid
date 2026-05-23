@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
@@ -67,6 +68,7 @@ fun SettingsScreen(
     onNavigateToInvite: () -> Unit = {},
     onNavigateToDeveloper: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {},
+    onNavigateToTechProfile: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val versionName = remember(context) {
@@ -195,6 +197,14 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 },
+            )
+        }
+        item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
+        item {
+            NavigationRow(
+                label = stringResource(R.string.settings_my_tech_profile),
+                leadingIcon = { Icon(Icons.Default.AccountCircle, contentDescription = null) },
+                onClick = onNavigateToTechProfile,
             )
         }
         item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }

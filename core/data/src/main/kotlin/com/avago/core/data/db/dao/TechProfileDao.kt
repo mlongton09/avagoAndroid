@@ -17,6 +17,9 @@ interface TechProfileDao {
     @Query("SELECT * FROM tech_profiles WHERE tech_id = :id")
     suspend fun getById(id: String): TechProfileEntity?
 
+    @Query("SELECT * FROM tech_profiles WHERE account_id = :accountId AND user_id = :userId AND deleted_at IS NULL LIMIT 1")
+    suspend fun getByUserId(accountId: String, userId: String): TechProfileEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: TechProfileEntity)
 

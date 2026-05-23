@@ -7,15 +7,19 @@ import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.InventoryEntity
 import com.avago.core.data.db.entity.PartEntity
 import com.avago.core.data.db.entity.StockingLevelEntity
+import com.avago.core.sync.SyncEngine
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import timber.log.Timber
 import javax.inject.Inject
 
 data class PartListItem(
@@ -50,7 +54,11 @@ data class InventoryListUiState(
 class InventoryListViewModel @Inject constructor(
     private val dbFactory: DatabaseFactory,
     private val identityManager: IdentityManager,
+    private val syncEngine: SyncEngine,
 ) : ViewModel() {
+
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
     val searchQuery = MutableStateFlow("")
     val selectedCategory = MutableStateFlow<String?>(null)
@@ -162,4 +170,17 @@ class InventoryListViewModel @Inject constructor(
     fun setSearchQuery(q: String) { searchQuery.value = q }
     fun setCategory(cat: String?) { selectedCategory.value = cat }
     fun setStockFilter(f: String) { stockFilter.value = f }
+
+    fun refresh() {
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            try {
+                syncEngine.sync()
+            } catch (e: Exception) {
+                Timber.e(e, "[InventoryListViewModel] Sync failed")
+            } finally {
+                _isRefreshing.value = false
+            }
+        }
+    }
 }

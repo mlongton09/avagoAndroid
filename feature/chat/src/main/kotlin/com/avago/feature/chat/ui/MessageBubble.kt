@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Check
@@ -69,7 +71,33 @@ fun MessageBubble(
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = if (isOwn) Arrangement.End else Arrangement.Start,
+        verticalAlignment = Alignment.Bottom,
     ) {
+        // Avatar for received messages
+        if (!isOwn) {
+            if (isGroupStart) {
+                val bgColor = avatarColor(message.senderId)
+                Box(
+                    modifier = Modifier
+                        .padding(end = 6.dp)
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(bgColor),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = senderInitials(message.senderName),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                    )
+                }
+            } else {
+                Spacer(modifier = Modifier.width(38.dp))
+            }
+        }
+
         Column(
             modifier = Modifier.widthIn(max = 280.dp),
             horizontalAlignment = if (isOwn) Alignment.End else Alignment.Start,
@@ -118,6 +146,25 @@ fun MessageBubble(
                 ReactionRow(reactionsJson = reactions)
             }
         }
+    }
+}
+
+private fun avatarColor(senderId: String): Color {
+    val colors = listOf(
+        Color(0xFF1976D2), Color(0xFF388E3C), Color(0xFFF57C00),
+        Color(0xFF7B1FA2), Color(0xFFD32F2F), Color(0xFF00796B),
+        Color(0xFF5D4037), Color(0xFF0288D1),
+    )
+    return colors[Math.abs(senderId.hashCode()) % colors.size]
+}
+
+private fun senderInitials(name: String?): String {
+    if (name == null) return "?"
+    val parts = name.trim().split(" ")
+    return if (parts.size >= 2) {
+        "${parts[0].firstOrNull()?.uppercaseChar() ?: ""}${parts[1].firstOrNull()?.uppercaseChar() ?: ""}"
+    } else {
+        name.take(2).uppercase()
     }
 }
 

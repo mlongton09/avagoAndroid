@@ -9,6 +9,7 @@ import com.avago.feature.settings.DeveloperScreen
 import com.avago.feature.settings.InviteUsersScreen
 import com.avago.feature.settings.LicensesScreen
 import com.avago.feature.settings.MembersListScreen
+import com.avago.feature.settings.MyTechProfileScreen
 import com.avago.feature.settings.SettingsScreen
 
 /**
@@ -22,6 +23,7 @@ object SettingsRoute {
     const val InviteUsers = "settings/invite"
     const val Developer = "settings/developer"
     const val About = "settings/about"
+    const val TechProfile = "settings/tech_profile"
 }
 
 /**
@@ -39,11 +41,12 @@ fun NavGraphBuilder.settingsNavGraph(navController: NavController) {
     ) {
         composable(SettingsRoute.Main) {
             SettingsScreen(
-                onNavigateToMembers  = { navController.navigate(SettingsRoute.Members) },
-                onNavigateToLicenses = { navController.navigate(SettingsRoute.Licenses) },
-                onNavigateToInvite   = { navController.navigate(SettingsRoute.InviteUsers) },
-                onNavigateToDeveloper = { navController.navigate(SettingsRoute.Developer) },
-                onNavigateToAbout    = { navController.navigate(SettingsRoute.About) },
+                onNavigateToMembers    = { navController.navigate(SettingsRoute.Members) },
+                onNavigateToLicenses   = { navController.navigate(SettingsRoute.Licenses) },
+                onNavigateToInvite     = { navController.navigate(SettingsRoute.InviteUsers) },
+                onNavigateToDeveloper  = { navController.navigate(SettingsRoute.Developer) },
+                onNavigateToAbout      = { navController.navigate(SettingsRoute.About) },
+                onNavigateToTechProfile = { navController.navigate(SettingsRoute.TechProfile) },
             )
         }
 
@@ -68,6 +71,10 @@ fun NavGraphBuilder.settingsNavGraph(navController: NavController) {
                 onNavigateToLicenses = { navController.navigate(SettingsRoute.Licenses) },
                 onBack = { navController.popBackStack() },
             )
+        }
+
+        composable(SettingsRoute.TechProfile) {
+            MyTechProfileScreen(onBack = { navController.popBackStack() })
         }
     }
 }
