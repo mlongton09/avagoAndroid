@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,7 +18,6 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.avago.app.MainViewModel
 import com.avago.core.data.repository.UserPreferencesRepository
 import com.avago.core.design.theme.AvagoTheme
-import com.avago.core.sync.SyncConflictCoordinator
 import com.avago.core.sync.SyncEngine
 import com.avago.nav.MainScaffold
 import dagger.hilt.android.AndroidEntryPoint
@@ -29,12 +29,12 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
 
     @Inject lateinit var syncEngine: SyncEngine
-    @Inject lateinit var conflictCoordinator: SyncConflictCoordinator
     @Inject lateinit var userPreferencesRepository: UserPreferencesRepository
 
     private val mainViewModel: MainViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
@@ -60,12 +60,10 @@ class MainActivity : ComponentActivity() {
             AvagoTheme(darkTheme = isDark) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val syncState by syncEngine.state.collectAsState()
-                    val conflicts by conflictCoordinator.conflicts.collectAsState()
                     val isOffline by mainViewModel.isOffline.collectAsState()
 
                     MainScaffold(
                         syncState = syncState,
-                        conflicts = conflicts,
                         isOffline = isOffline,
                         toast = mainViewModel.toast,
                     )

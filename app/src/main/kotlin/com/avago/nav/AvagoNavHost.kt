@@ -10,6 +10,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import com.avago.core.sync.ui.SyncConflictSheet
 import com.avago.core.sync.ui.SyncConflictViewModel
@@ -79,7 +80,11 @@ fun AvagoNavHost(
             docsNavGraph(navController = navController)
 
             // ── Chat ──────────────────────────────────────────────────────────────
-            chatNavGraph(navController = navController)
+            // Wrap in a nested nav graph so the bottom nav item "chat" resolves to the
+            // graph entry point rather than a non-existent flat route.
+            navigation(startDestination = ChatRoute.List.route, route = "chat") {
+                chatNavGraph(navController = navController)
+            }
 
             // ── Settings ──────────────────────────────────────────────────────────
             settingsNavGraph(navController = navController)

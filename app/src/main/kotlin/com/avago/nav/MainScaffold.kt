@@ -58,7 +58,6 @@ import com.avago.core.ai.ScoutViewModel
 import com.avago.core.ai.ui.ScoutPaletteSheet
 import com.avago.core.ai.ui.VoiceInputSheet
 import com.avago.core.push.SyncStatusBanner
-import com.avago.core.sync.SyncConflict
 import com.avago.core.sync.SyncState
 import com.avago.core.ui.AvagoToast
 import com.avago.core.ui.AvagoToastHost
@@ -102,7 +101,6 @@ private val bottomNavItems = listOf(
 @Composable
 fun MainScaffold(
     syncState: SyncState,
-    conflicts: List<SyncConflict>,
     isOffline: Boolean = false,
     toast: AvagoToast,
     onAddAccount: () -> Unit = {},
