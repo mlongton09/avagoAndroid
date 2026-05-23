@@ -284,7 +284,7 @@ fun WorkOrderDetailScreen(
             return@Scaffold
         }
 
-        val currentWo = wo ?: error("unreachable: null guard above already returned")
+        val currentWo = wo!!
         val status = WoStatus.fromKey(currentWo.status)
         val transitions = status.availableTransitions()
 

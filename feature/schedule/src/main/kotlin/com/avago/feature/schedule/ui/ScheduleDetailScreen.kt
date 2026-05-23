@@ -151,7 +151,7 @@ fun ScheduleDetailScreen(
                 CircularProgressIndicator()
             }
         } else {
-            val safeSchedule = schedule ?: error("unreachable: null branch handled above")
+            val safeSchedule = schedule!!
             ScheduleDetailContent(
                 schedule = safeSchedule,
                 isSaving = isSaving,
