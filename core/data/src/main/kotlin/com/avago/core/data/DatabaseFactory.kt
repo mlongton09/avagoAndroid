@@ -31,8 +31,9 @@ class DatabaseFactory(
             AvagoDatabase::class.java,
             dbFile.absolutePath,
         )
+            .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
             .fallbackToDestructiveMigration(dropAllTables = true)
-            .addCallback(WalCallback)
+            .addCallback(PragmaCallback)
             .build()
     }
 
@@ -54,10 +55,10 @@ class DatabaseFactory(
         java.io.File(dbDir, "avago.db-wal").delete()
     }
 
-    private object WalCallback : RoomDatabase.Callback() {
+    private object PragmaCallback : RoomDatabase.Callback() {
         override fun onOpen(db: SupportSQLiteDatabase) {
             super.onOpen(db)
-            db.execSQL("PRAGMA journal_mode=WAL")
+            if (db.isReadOnly) return
             db.execSQL("PRAGMA foreign_keys=ON")
             db.execSQL("PRAGMA synchronous=NORMAL")
             db.execSQL("PRAGMA temp_store=MEMORY")
