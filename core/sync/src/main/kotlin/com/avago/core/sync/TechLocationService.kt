@@ -7,6 +7,7 @@ import android.location.LocationManager
 import com.avago.core.auth.IdentityManager
 import com.avago.core.network.AvagoServiceClient
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -87,6 +88,7 @@ class TechLocationService @Inject constructor(
             return
         }
 
+        @OptIn(DelicateCoroutinesApi::class)
         GlobalScope.launch(Dispatchers.IO) {
             try {
                 serviceClientProvider.get().updateTechLocation(accountId, userId, lat, lon)
