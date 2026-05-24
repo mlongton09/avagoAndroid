@@ -28,6 +28,7 @@ import com.avago.core.network.model.AuthResponse
 interface TokenProvider {
     suspend fun accessToken(): String
     suspend fun refreshToken(): String
+    suspend fun deviceId(): String
 }
 
 interface TokenStorage {
@@ -55,7 +56,6 @@ object AvagoHttpClient {
         baseUrl: String,
         tokenProvider: TokenProvider,
         tokenStorage: TokenStorage,
-        deviceId: String,
         isDebug: Boolean = false,
         refreshFailedHandler: RefreshFailedHandler? = null,
     ): HttpClient = HttpClient(OkHttp) {
@@ -96,7 +96,7 @@ object AvagoHttpClient {
                             try {
                                 val response = unauthClient.post("$baseUrl/auth/refresh") {
                                     contentType(ContentType.Application.Json)
-                                    setBody(RefreshRequest(refresh_token = refresh, device_id = deviceId))
+                                    setBody(RefreshRequest(refresh_token = refresh, device_id = tokenProvider.deviceId()))
                                 }.body<AuthResponse>()
                                 tokenStorage.storeTokens(response.access_token, response.refresh_token)
                                 return@loadTokens BearerTokens(
@@ -122,7 +122,7 @@ object AvagoHttpClient {
                     try {
                         val response = unauthClient.post("$baseUrl/auth/refresh") {
                             contentType(ContentType.Application.Json)
-                            setBody(RefreshRequest(refresh_token = currentRefresh, device_id = deviceId))
+                            setBody(RefreshRequest(refresh_token = currentRefresh, device_id = tokenProvider.deviceId()))
                             markAsRefreshTokenRequest()
                         }.body<AuthResponse>()
                         tokenStorage.storeTokens(response.access_token, response.refresh_token)

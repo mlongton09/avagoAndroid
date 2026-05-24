@@ -50,6 +50,9 @@ class SecureTokenStore(
     override suspend fun refreshToken(): String =
         activeAccountId?.let { getRefreshToken(it) } ?: ""
 
+    override suspend fun deviceId(): String =
+        activeAccountId?.let { getDeviceId(it) } ?: getOrCreateDeviceId()
+
     // ---------------------------------------------------------------------------
     // TokenStorage impl
     // ---------------------------------------------------------------------------
@@ -97,10 +100,25 @@ class SecureTokenStore(
     fun clearAllTokens() {
         val editor = prefs.edit()
         prefs.all.keys
-            .filter { it.startsWith("av_access_token_") || it.startsWith("av_refresh_token_") }
+            .filter {
+                it.startsWith("av_access_token_") ||
+                it.startsWith("av_refresh_token_") ||
+                it.startsWith("av_server_device_id_")
+            }
             .forEach { editor.remove(it) }
         editor.apply()
     }
+
+    // ---------------------------------------------------------------------------
+    // Per-account server device ID — returned by the server on provision/sign-in
+    // ---------------------------------------------------------------------------
+
+    fun storeDeviceId(accountId: String, deviceId: String) {
+        prefs.edit().putString(deviceIdKey(accountId), deviceId).apply()
+    }
+
+    fun getDeviceId(accountId: String): String? =
+        prefs.getString(deviceIdKey(accountId), null)
 
     // ---------------------------------------------------------------------------
     // Device ID — single UUID shared across all accounts on this device
@@ -130,4 +148,5 @@ class SecureTokenStore(
 
     private fun accessKey(accountId: String) = "av_access_token_$accountId"
     private fun refreshKey(accountId: String) = "av_refresh_token_$accountId"
+    private fun deviceIdKey(accountId: String) = "av_server_device_id_$accountId"
 }

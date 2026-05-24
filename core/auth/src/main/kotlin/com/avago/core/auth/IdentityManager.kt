@@ -131,6 +131,7 @@ class IdentityManager @Inject constructor(
         }
 
         tokenStore.storeTokens(accountId, response.access_token, response.refresh_token)
+        response.device_id?.let { tokenStore.storeDeviceId(accountId, it) }
 
         val record = AccountRecord(accountId = accountId, isAnonymous = true)
         AccountManifest.addOrUpdate(context, record)
@@ -153,6 +154,7 @@ class IdentityManager @Inject constructor(
             }
 
             tokenStore.storeTokens(accountId, response.access_token, response.refresh_token)
+            response.device_id?.let { tokenStore.storeDeviceId(accountId, it) }
 
             // Fetch profile to fill in the manifest record
             val user = runCatching { client.getMe() }.getOrNull()
@@ -245,7 +247,7 @@ class IdentityManager @Inject constructor(
             }
 
             try {
-                val deviceId = tokenStore.getOrCreateDeviceId()
+                val deviceId = tokenStore.getDeviceId(accountId) ?: tokenStore.getOrCreateDeviceId()
                 val response = client.refreshTokens(refresh, deviceId)
                 tokenStore.storeTokens(accountId, response.access_token, response.refresh_token)
                 Timber.d("IdentityManager: refreshed tokens for $accountId")
@@ -412,7 +414,7 @@ class IdentityManager @Inject constructor(
         tokenStore.storePushToken(token)
         val accountId = _activeAccountId.value ?: return@withContext
         try {
-            val deviceId = tokenStore.getOrCreateDeviceId()
+            val deviceId = tokenStore.getDeviceId(accountId) ?: tokenStore.getOrCreateDeviceId()
             client.updateDevice(
                 deviceId = deviceId,
                 request = DeviceUpdateRequest(

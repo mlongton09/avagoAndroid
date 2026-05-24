@@ -40,12 +40,6 @@ abstract class AuthModule {
             @ApplicationContext context: Context,
         ): SecureTokenStore = SecureTokenStore(context)
 
-        @Provides
-        @Named("deviceId")
-        @Singleton
-        fun provideDeviceId(tokenStore: SecureTokenStore): String =
-            tokenStore.getOrCreateDeviceId()
-
         /**
          * Exposes [IdentityManager.activeAccountId] as a plain [StateFlow<String?>] so
          * modules in core:data (which cannot depend on core:auth) can receive the active

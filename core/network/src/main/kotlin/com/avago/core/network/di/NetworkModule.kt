@@ -10,7 +10,6 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import io.ktor.client.HttpClient
-import javax.inject.Named
 import javax.inject.Singleton
 
 @Module
@@ -29,13 +28,11 @@ object NetworkModule {
         tokenProvider: TokenProvider,
         tokenStorage: TokenStorage,
         @Named("baseUrl") baseUrl: String,
-        @Named("deviceId") deviceId: String,
         refreshFailedHandler: RefreshFailedHandler,
     ): HttpClient = AvagoHttpClient.create(
         baseUrl = baseUrl,
         tokenProvider = tokenProvider,
         tokenStorage = tokenStorage,
-        deviceId = deviceId,
         isDebug = BuildConfig.DEBUG,
         refreshFailedHandler = refreshFailedHandler,
     )

@@ -25,6 +25,7 @@ data class AuthResponse(
     val access_token: String,
     val refresh_token: String,
     val account_id: String? = null,
+    val device_id: String? = null,
 )
 
 @Serializable
