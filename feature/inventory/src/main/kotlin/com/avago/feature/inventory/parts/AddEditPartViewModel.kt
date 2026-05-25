@@ -201,10 +201,10 @@ class AddEditPartViewModel @Inject constructor(
                         )
                         db.syncQueueDao().enqueueWithDedup(
                             SyncQueueEntity(
-                                queueId = UUID.randomUUID().toString(),
+                                queueId = "inventory_$inventoryId",
                                 entityType = "inventory",
                                 entityId = inventoryId,
-                                operation = "create",
+                                operation = "insert",
                                 serverVersion = 0L,
                                 payload = null,
                                 syncStatus = "pending",
@@ -219,10 +219,10 @@ class AddEditPartViewModel @Inject constructor(
 
                 db.syncQueueDao().enqueueWithDedup(
                     SyncQueueEntity(
-                        queueId = UUID.randomUUID().toString(),
+                        queueId = "part_$id",
                         entityType = "part",
                         entityId = id,
-                        operation = if (partId == null) "create" else "update",
+                        operation = if (partId == null) "insert" else "update",
                         serverVersion = 0L,
                         payload = null,
                         syncStatus = "pending",

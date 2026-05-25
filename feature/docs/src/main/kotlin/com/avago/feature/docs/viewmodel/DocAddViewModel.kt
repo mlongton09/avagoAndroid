@@ -140,7 +140,7 @@ class DocAddViewModel @Inject constructor(
                 )
                 db.syncQueueDao().enqueueWithDedup(
                     SyncQueueEntity(
-                        queueId = UUID.randomUUID().toString(),
+                        queueId = "doc_$docId",
                         entityType = "doc",
                         entityId = docId,
                         operation = "insert",

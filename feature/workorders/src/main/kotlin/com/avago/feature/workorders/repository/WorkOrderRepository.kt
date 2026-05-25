@@ -38,7 +38,7 @@ class WorkOrderRepository @Inject constructor(
             entityType = "work_order",
             entityId = entity.woId,
             serverVersion = entity.serverVersion,
-            operation = "update",
+            operation = if (entity.serverVersion == 0L) "insert" else "update",
         )
         Timber.d("[WoRepository] upserted ${entity.woId}")
     }

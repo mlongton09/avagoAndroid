@@ -222,10 +222,10 @@ class AddEditVendorViewModel @Inject constructor(
                 db.vendorDao().upsert(entity)
                 db.syncQueueDao().enqueueWithDedup(
                     SyncQueueEntity(
-                        queueId = UUID.randomUUID().toString(),
+                        queueId = "vendor_$id",
                         entityType = "vendor",
                         entityId = id,
-                        operation = if (vendorId == null) "create" else "update",
+                        operation = if (vendorId == null) "insert" else "update",
                         serverVersion = 0L,
                         payload = null,
                         syncStatus = "pending",

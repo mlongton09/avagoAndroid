@@ -117,11 +117,11 @@ class LogDetailViewModel @Inject constructor(
         try {
             val db = dbFactory.get(accountId)
             val entity = com.avago.core.data.db.entity.SyncQueueEntity(
-                queueId = "log:$entryId:delete",
+                queueId = "log_$entryId",
                 entityType = "log",
                 entityId = entryId,
                 operation = "delete",
-                serverVersion = null,
+                serverVersion = db.logDao().getById(entryId)?.serverVersion,
                 payload = null,
                 syncStatus = "pending",
                 attempts = 0L,

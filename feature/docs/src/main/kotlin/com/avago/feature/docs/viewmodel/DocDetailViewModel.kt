@@ -61,7 +61,7 @@ class DocDetailViewModel @Inject constructor(
             db.docDao().softDelete(docId, now)
             db.syncQueueDao().enqueueWithDedup(
                 SyncQueueEntity(
-                    queueId = UUID.randomUUID().toString(),
+                    queueId = "doc_$docId",
                     entityType = "doc",
                     entityId = docId,
                     operation = "delete",
@@ -100,7 +100,7 @@ class DocDetailViewModel @Inject constructor(
                 _doc.value = updated
                 db.syncQueueDao().enqueueWithDedup(
                     SyncQueueEntity(
-                        queueId = UUID.randomUUID().toString(),
+                        queueId = "doc_$docId",
                         entityType = "doc",
                         entityId = docId,
                         operation = "update",

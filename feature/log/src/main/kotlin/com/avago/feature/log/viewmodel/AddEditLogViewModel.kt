@@ -573,10 +573,10 @@ class AddEditLogViewModel @Inject constructor(
         val db = dbFactory.get(accountId)
         db.syncQueueDao().enqueueWithDedup(
             SyncQueueEntity(
-                queueId = "log:$entryId:upsert",
+                queueId = "log_$entryId",
                 entityType = "log",
                 entityId = entryId,
-                operation = "upsert",
+                operation = if (originalServerVersion == 0L) "insert" else "update",
                 serverVersion = originalServerVersion,
                 payload = null,
                 syncStatus = "pending",
@@ -590,13 +590,14 @@ class AddEditLogViewModel @Inject constructor(
 
     private suspend fun enqueueCostLineSync(accountId: String, lineId: String, now: Long) {
         val db = dbFactory.get(accountId)
+        val existingVersion = db.logCostLineDao().getById(lineId)?.serverVersion ?: 0L
         db.syncQueueDao().enqueueWithDedup(
             SyncQueueEntity(
-                queueId = "log_cost_line:$lineId:upsert",
+                queueId = "log_cost_line_$lineId",
                 entityType = "log_cost_line",
                 entityId = lineId,
-                operation = "upsert",
-                serverVersion = null,
+                operation = if (existingVersion == 0L) "insert" else "update",
+                serverVersion = existingVersion,
                 payload = null,
                 syncStatus = "pending",
                 attempts = 0L,
