@@ -8,13 +8,13 @@ import androidx.room.PrimaryKey
 @Entity(
     tableName = "log",
     indices = [
-        Index(value = ["asset_id", "entry_date"]),
+        Index(value = ["asset_id", "log_date"]),
         Index(value = ["account_id", "deleted_at"]),
     ]
 )
 data class LogEntity(
     @PrimaryKey
-    @ColumnInfo(name = "entry_id")
+    @ColumnInfo(name = "log_id")
     val entryId: String,
 
     @ColumnInfo(name = "asset_id")
@@ -26,10 +26,10 @@ data class LogEntity(
     @ColumnInfo(name = "title")
     val title: String,
 
-    @ColumnInfo(name = "entry_date")
+    @ColumnInfo(name = "log_date")
     val entryDate: Long,
 
-    @ColumnInfo(name = "odometer_value")
+    @ColumnInfo(name = "meter")
     val odometerValue: Double?,
 
     @ColumnInfo(name = "category")

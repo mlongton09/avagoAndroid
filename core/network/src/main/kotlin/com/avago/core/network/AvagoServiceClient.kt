@@ -1,6 +1,8 @@
 package com.avago.core.network
 
 import com.avago.core.network.model.AccountResponse
+import com.avago.core.network.model.AccountsEnvelope
+import com.avago.core.network.model.MembersEnvelope
 import com.avago.core.network.model.AiSkillResponse
 import com.avago.core.network.model.AiSkillsEnvelope
 import com.avago.core.network.model.AuditEventResponse
@@ -138,10 +140,10 @@ class AvagoServiceClient @Inject constructor(
 
     /** GET /accounts — list all accounts accessible to the current user. */
     suspend fun getAllAccounts(): NetworkResult<List<AccountResponse>> =
-        safeNetworkCall { client.get("$baseUrl/accounts").body() }
+        safeNetworkCall { client.get("$baseUrl/accounts").body<AccountsEnvelope>().accounts }
 
     suspend fun getAccountMembers(accountId: String): NetworkResult<List<UserResponse>> =
-        safeNetworkCall { client.get("$baseUrl/accounts/$accountId/members").body() }
+        safeNetworkCall { client.get("$baseUrl/accounts/$accountId/members").body<MembersEnvelope>().members }
 
     // ---------------------------------------------------------------------------
     // Account Management
@@ -273,7 +275,7 @@ class AvagoServiceClient @Inject constructor(
     }
 
     suspend fun getMembers(accountId: String): List<UserResponse> =
-        safeCall { client.get("$baseUrl/accounts/$accountId/members").body() }
+        safeCall { client.get("$baseUrl/accounts/$accountId/members").body<MembersEnvelope>().members }
 
     suspend fun inviteUser(accountId: String, email: String, role: String): NetworkResult<Unit> =
         safeNetworkCall {

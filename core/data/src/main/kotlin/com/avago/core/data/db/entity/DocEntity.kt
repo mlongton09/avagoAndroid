@@ -30,10 +30,10 @@ data class DocEntity(
     @ColumnInfo(name = "account_id")
     val accountId: String,
 
-    @ColumnInfo(name = "name")
+    @ColumnInfo(name = "title")
     val name: String,
 
-    @ColumnInfo(name = "doc_type")
+    @ColumnInfo(name = "document_type")
     val docType: String?,
 
     @ColumnInfo(name = "mime_type")
@@ -60,7 +60,7 @@ data class DocEntity(
     @ColumnInfo(name = "vendor")
     val vendor: String?,
 
-    @ColumnInfo(name = "total")
+    @ColumnInfo(name = "total_amount")
     val total: Double?,
 
     @ColumnInfo(name = "currency")

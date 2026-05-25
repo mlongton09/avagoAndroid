@@ -10,7 +10,6 @@ import androidx.room.PrimaryKey
     indices = [
         Index(value = ["log_id"]),
         Index(value = ["account_id"]),
-        Index(value = ["part_id"]),
     ]
 )
 data class ItemEntity(
@@ -27,13 +26,13 @@ data class ItemEntity(
     @ColumnInfo(name = "part_id")
     val partId: String?,
 
-    @ColumnInfo(name = "description")
+    @ColumnInfo(name = "name")
     val description: String?,
 
     @ColumnInfo(name = "quantity")
     val quantity: Double,
 
-    @ColumnInfo(name = "unit_cost")
+    @ColumnInfo(name = "unit_price")
     val unitCost: Double?,
 
     @ColumnInfo(name = "currency")
@@ -41,6 +40,33 @@ data class ItemEntity(
 
     @ColumnInfo(name = "notes")
     val notes: String?,
+
+    @ColumnInfo(name = "production_date")
+    val productionDate: Long?,
+
+    @ColumnInfo(name = "part_number")
+    val partNumber: String?,
+
+    @ColumnInfo(name = "gtin")
+    val gtin: String?,
+
+    @ColumnInfo(name = "manufacturer_id")
+    val manufacturerId: String?,
+
+    @ColumnInfo(name = "serial_number")
+    val serialNumber: String?,
+
+    @ColumnInfo(name = "revision")
+    val revision: String?,
+
+    @ColumnInfo(name = "model_number")
+    val modelNumber: String?,
+
+    @ColumnInfo(name = "lot_number")
+    val lotNumber: String?,
+
+    @ColumnInfo(name = "country")
+    val country: String?,
 
     @ColumnInfo(name = "created_at")
     val createdAt: Long,

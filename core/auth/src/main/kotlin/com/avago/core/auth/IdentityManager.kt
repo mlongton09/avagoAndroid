@@ -155,12 +155,15 @@ class IdentityManager @Inject constructor(
 
             tokenStore.storeTokens(accountId, response.access_token, response.refresh_token)
             response.device_id?.let { tokenStore.storeDeviceId(accountId, it) }
+            // Switch token provider to the new account before any subsequent API calls
+            // so the Ktor bearer plugin sends the new token, not the old anonymous one.
+            setActiveAccount(accountId)
 
             // Fetch profile to fill in the manifest record
             val user = runCatching { client.getMe() }.getOrNull()
             val userRole = user?.role
             val memberships = if (userRole != null) {
-                listOf(AccountMembership(accountId = accountId, role = userRole, isRoot = userRole == "owner"))
+                listOf(AccountMembership(accountId = accountId, role = userRole, isRoot = userRole == "root"))
             } else {
                 emptyList()
             }
@@ -339,7 +342,7 @@ class IdentityManager @Inject constructor(
         @Suppress("OPT_IN_USAGE")
         GlobalScope.launch(Dispatchers.IO) {
             try {
-                val result = client.getMyAccounts()
+                val result = client.getAllAccounts()
                 if (result is NetworkResult.Success) {
                     result.data.forEach { acct ->
                         accountManifest.addIfMissing(
@@ -383,7 +386,7 @@ class IdentityManager @Inject constructor(
         val existing = accounts[idx]
         val updatedMemberships = existing.memberships.toMutableList()
         val mIdx = updatedMemberships.indexOfFirst { it.accountId == accountId }
-        val newMembership = AccountMembership(accountId = accountId, role = role, isRoot = role == "owner")
+        val newMembership = AccountMembership(accountId = accountId, role = role, isRoot = role == "root")
         if (mIdx >= 0) updatedMemberships[mIdx] = newMembership else updatedMemberships.add(newMembership)
         accounts[idx] = existing.copy(role = role, memberships = updatedMemberships)
         AccountManifest.save(appContext, accounts)
@@ -503,10 +506,10 @@ class IdentityManager @Inject constructor(
     fun hasRootOnCurrentAccount(): Boolean {
         val accountId = _activeAccountId.value ?: return false
         val accounts = AccountManifest.load(appContext)
-        return accounts
+        val account = accounts.find { it.accountId == accountId } ?: return false
+        if (account.role == "root") return true
+        return account.memberships
             .find { it.accountId == accountId }
-            ?.memberships
-            ?.find { it.accountId == accountId }
             ?.isRoot ?: false
     }
 }

@@ -5,11 +5,16 @@ import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.repository.AssetRepository
 import com.avago.core.data.repository.UserPreferencesRepository
+import com.avago.core.network.AvagoServiceClient
+import com.avago.core.network.NetworkResult
+import com.avago.core.sync.SyncEngine
+import com.avago.core.sync.SyncGate
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -23,7 +28,35 @@ class OnboardingViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val identityManager: IdentityManager,
     private val assetRepository: AssetRepository,
+    private val syncGate: SyncGate,
+    private val client: AvagoServiceClient,
+    private val syncEngine: SyncEngine,
 ) : ViewModel() {
+
+    init {
+        viewModelScope.launch {
+            // Mirror iOS seedFRESampleDataIfNeeded: once the initial sync finishes
+            // (SyncGate opens), if the account has no assets, clone the server's
+            // demo account so the user sees real data on first launch.
+            syncGate.awaitOpen()
+            val accountId = identityManager.getActiveAccountId() ?: return@launch
+            val count = try {
+                assetRepository.observeAssets(accountId).first().size
+            } catch (e: Exception) {
+                Timber.w(e, "[FRE] Could not read asset count")
+                return@launch
+            }
+            if (count > 0) return@launch
+            Timber.d("[FRE] Account $accountId has no assets — requesting sample data")
+            val result = client.loadSampleData(accountId)
+            if (result is NetworkResult.Success) {
+                Timber.d("[FRE] Sample data loaded, triggering follow-up sync")
+                syncEngine.sync()
+            } else {
+                Timber.w("[FRE] load-sample-data failed: $result")
+            }
+        }
+    }
 
     /**
      * The asset count for the currently active account, reactive to account changes.

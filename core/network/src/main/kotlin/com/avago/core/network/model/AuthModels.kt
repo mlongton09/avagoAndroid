@@ -1,5 +1,6 @@
 package com.avago.core.network.model
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -42,8 +43,9 @@ data class UserResponse(
 @Serializable
 data class AccountResponse(
     val account_id: String,
-    val name: String? = null,
+    @SerialName("account_name") val name: String? = null,
     val tier: String? = null,
+    val role: String? = null,
 )
 
 @Serializable
@@ -79,4 +81,14 @@ data class InvitationStatusResponse(
 data class DispatchConfigResponse(
     val enabled: Boolean,
     val columns: List<String> = emptyList(),
+)
+
+@Serializable
+data class AccountsEnvelope(
+    val accounts: List<AccountResponse> = emptyList(),
+)
+
+@Serializable
+data class MembersEnvelope(
+    val members: List<UserResponse> = emptyList(),
 )

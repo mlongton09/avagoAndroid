@@ -1,6 +1,7 @@
 package com.avago.feature.assets.nav
 
 import android.net.Uri
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import java.net.URLDecoder
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -116,10 +117,12 @@ fun NavGraphBuilder.assetsNavGraph(
         composable(AssetsRoute.LIST) {
             val onboardingVm: OnboardingViewModel = hiltViewModel()
             val showOnboardingScreen by onboardingVm.showOnboardingScreen.collectAsStateWithLifecycle()
-            if (showOnboardingScreen) {
-                navController.navigate(AssetsRoute.ONBOARDING) {
-                    popUpTo(AssetsRoute.LIST) { inclusive = false }
-                    launchSingleTop = true
+            LaunchedEffect(showOnboardingScreen) {
+                if (showOnboardingScreen) {
+                    navController.navigate(AssetsRoute.ONBOARDING) {
+                        popUpTo(AssetsRoute.LIST) { inclusive = false }
+                        launchSingleTop = true
+                    }
                 }
             }
             AssetListScreen(

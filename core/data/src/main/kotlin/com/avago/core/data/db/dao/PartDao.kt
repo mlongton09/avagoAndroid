@@ -17,7 +17,7 @@ interface PartDao {
     @Query("SELECT * FROM parts WHERE part_id = :id")
     suspend fun getById(id: String): PartEntity?
 
-    @Query("SELECT * FROM parts WHERE sku = :barcode LIMIT 1")
+    @Query("SELECT * FROM parts WHERE part_number = :barcode LIMIT 1")
     suspend fun getByBarcode(barcode: String): PartEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
