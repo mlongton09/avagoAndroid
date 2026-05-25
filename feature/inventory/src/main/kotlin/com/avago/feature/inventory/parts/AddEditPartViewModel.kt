@@ -70,8 +70,9 @@ class AddEditPartViewModel @Inject constructor(
             }
             val part = dbFactory.get(accountId).partDao().getById(id)
             if (part != null) {
-                // Parse manufacturer and status from attributes JSON
-                val attrs = parseAttributes(part.attributes)
+                // Prefer dedicated columns; fall back to legacy attributes JSON for migrated rows.
+                val attrs = if (part.manufacturer == null && part.status == null)
+                    parseAttributes(part.attributes) else emptyMap()
                 _state.value = _state.value.copy(
                     name = part.name,
                     sku = part.sku ?: "",
@@ -83,9 +84,9 @@ class AddEditPartViewModel @Inject constructor(
                     maxQty = "",
                     safetyStock = "",
                     barcode = "",
-                    manufacturer = attrs["manufacturer"] ?: "",
+                    manufacturer = part.manufacturer ?: attrs["manufacturer"] ?: "",
                     uom = part.unitOfMeasure ?: "each",
-                    status = attrs["status"] ?: "active",
+                    status = part.status ?: attrs["status"] ?: "active",
                     isLoading = false,
                 )
             } else {
@@ -156,6 +157,17 @@ class AddEditPartViewModel @Inject constructor(
                     unitOfMeasure = s.uom.takeIf { it.isNotBlank() },
                     defaultVendorId = null,
                     attributes = buildAttributesJson(s.manufacturer, s.status),
+                    manufacturer = s.manufacturer.takeIf { it.isNotBlank() },
+                    reorderQuantity = null,
+                    status = s.status,
+                    entityType = null,
+                    entityId = null,
+                    quantity = null,
+                    gtin = s.barcode.takeIf { it.isNotBlank() },
+                    serialNumber = null,
+                    notes = null,
+                    baseAmount = null,
+                    exchangeRateUsed = null,
                     createdAt = now,
                     updatedAt = now,
                     deletedAt = null,
@@ -176,6 +188,7 @@ class AddEditPartViewModel @Inject constructor(
                                 accountId = accountId,
                                 partId = id,
                                 locationId = s.locationId.takeIf { it.isNotBlank() },
+                                binId = s.binId.takeIf { it.isNotBlank() },
                                 quantityOnHand = initialQtyValue,
                                 status = "active",
                                 lastTransactionId = null,

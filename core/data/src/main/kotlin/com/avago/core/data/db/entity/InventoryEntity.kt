@@ -11,6 +11,7 @@ import androidx.room.PrimaryKey
         Index(value = ["account_id", "deleted_at"]),
         Index(value = ["part_id"]),
         Index(value = ["location_id"]),
+        Index(value = ["bin_id"]),
     ]
 )
 data class InventoryEntity(
@@ -26,6 +27,9 @@ data class InventoryEntity(
 
     @ColumnInfo(name = "location_id")
     val locationId: String?,
+
+    @ColumnInfo(name = "bin_id")
+    val binId: String? = null,
 
     @ColumnInfo(name = "quantity_on_hand")
     val quantityOnHand: Double,

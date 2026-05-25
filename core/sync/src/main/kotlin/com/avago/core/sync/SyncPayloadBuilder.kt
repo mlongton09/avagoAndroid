@@ -61,12 +61,12 @@ class SyncPayloadBuilder @Inject constructor(
                 "log" -> {
                     val e = db.logDao().getById(entityId) ?: return null
                     buildJsonObject {
-                        put("entry_id", e.entryId)
+                        put("log_id", e.entryId)
                         put("asset_id", e.assetId)
                         put("account_id", e.accountId)
                         put("title", e.title)
-                        put("entry_date", msToIso(e.entryDate))
-                        e.odometerValue?.let { put("odometer_value", it) }
+                        put("log_date", msToIso(e.entryDate))
+                        e.odometerValue?.let { put("meter", it) }
                         e.category?.let { put("category", it) }
                         e.cost?.let { put("cost", it) }
                         e.performedBy?.let { put("performed_by", it) }
@@ -78,11 +78,13 @@ class SyncPayloadBuilder @Inject constructor(
                         e.costItems?.let { put("cost_items", it) }
                         e.costLabor?.let { put("cost_labor", it) }
                         e.costTax?.let { put("cost_tax", it) }
+                        e.costMisc?.let { put("cost_misc", it) }
                         e.currency?.let { put("currency", it) }
                         e.baseAmount?.let { put("base_amount", it) }
                         e.exchangeRateUsed?.let { put("exchange_rate_used", it) }
                         e.configId?.let { put("config_id", it) }
                         e.configVersion?.let { put("config_version", it) }
+                        e.serviceId?.let { put("service_id", it) }
                         e.parentId?.let { put("parent_id", it) }
                         put("created_at", msToIso(e.createdAt))
                         put("updated_at", msToIso(e.updatedAt))
@@ -172,10 +174,15 @@ class SyncPayloadBuilder @Inject constructor(
                     buildJsonObject {
                         put("assignment_id", e.assignmentId)
                         put("wo_id", e.woId)
+                        put("account_id", e.accountId)
                         put("technician_id", e.technicianId)
+                        e.assignedBy?.let { put("assigned_by", it) }
                         put("assigned_at", msToIso(e.assignedAt))
                         e.unassignedAt?.let { put("unassigned_at", msToIso(it)) }
+                        e.scheduledStart?.let { put("scheduled_start", msToIso(it)) }
+                        e.scheduledEnd?.let { put("scheduled_end", msToIso(it)) }
                         put("status", e.status)
+                        e.notes?.let { put("notes", it) }
                     }
                 }
 
@@ -235,7 +242,8 @@ class SyncPayloadBuilder @Inject constructor(
                         put("inventory_id", e.inventoryId)
                         put("account_id", e.accountId)
                         put("part_id", e.partId)
-                        e.locationId?.let { put("location_id", it) }
+                        e.locationId?.let { put("location", it) }
+                        e.binId?.let { put("bin_id", it) }
                         put("quantity_on_hand", e.quantityOnHand)
                         put("status", e.status)
                         e.lastTransactionId?.let { put("last_transaction_id", it) }
@@ -250,14 +258,25 @@ class SyncPayloadBuilder @Inject constructor(
                     buildJsonObject {
                         put("part_id", e.partId)
                         put("account_id", e.accountId)
-                        e.sku?.let { put("sku", it) }
-                        put("name", e.name)
+                        e.sku?.let { put("part_number", it) }
+                        put("part_name", e.name)
                         e.description?.let { put("description", it) }
                         e.category?.let { put("category", it) }
                         e.unitOfMeasure?.let { put("unit_of_measure", it) }
                         e.defaultVendorId?.let { put("default_vendor_id", it) }
-                        e.cost?.let { put("cost", it) }
+                        e.cost?.let { put("unit_cost", it) }
                         e.currency?.let { put("currency", it) }
+                        e.manufacturer?.let { put("manufacturer", it) }
+                        e.reorderQuantity?.let { put("reorder_quantity", it) }
+                        e.status?.let { put("status", it) }
+                        e.entityType?.let { put("entity_type", it) }
+                        e.entityId?.let { put("entity_id", it) }
+                        e.quantity?.let { put("quantity", it) }
+                        e.gtin?.let { put("gtin", it) }
+                        e.serialNumber?.let { put("serial_number", it) }
+                        e.notes?.let { put("notes", it) }
+                        e.baseAmount?.let { put("base_amount", it) }
+                        e.exchangeRateUsed?.let { put("exchange_rate_used", it) }
                         e.attributes?.let { put("attributes", it) }
                         put("created_at", msToIso(e.createdAt))
                         put("updated_at", msToIso(e.updatedAt))
@@ -286,11 +305,22 @@ class SyncPayloadBuilder @Inject constructor(
                         put("vendor_id", e.vendorId)
                         put("account_id", e.accountId)
                         put("name", e.name)
+                        e.vendorCode?.let { put("vendor_code", it) }
+                        e.contactName?.let { put("contact_name", it) }
                         e.email?.let { put("email", it) }
                         e.phone?.let { put("phone", it) }
+                        e.fax?.let { put("fax", it) }
+                        e.website?.let { put("website", it) }
                         e.address?.let { put("address", it) }
+                        e.accountNumber?.let { put("account_number", it) }
                         e.paymentTerms?.let { put("payment_terms", it) }
+                        e.defaultCurrency?.let { put("default_currency", it) }
                         e.taxId?.let { put("tax_id", it) }
+                        e.rating?.let { put("rating", it) }
+                        put("preferred", e.preferred)
+                        put("active", e.active)
+                        e.qboVendorId?.let { put("qbo_vendor_id", it) }
+                        e.notes?.let { put("notes", it) }
                         put("created_at", msToIso(e.createdAt))
                         put("updated_at", msToIso(e.updatedAt))
                         e.deletedAt?.let { put("deleted_at", msToIso(it)) }
@@ -464,16 +494,21 @@ class SyncPayloadBuilder @Inject constructor(
                     buildJsonObject {
                         put("doc_id", e.docId)
                         e.assetId?.let { put("asset_id", it) }
+                        e.entityId?.let { put("entity_id", it) }
+                        e.entityType?.let { put("entity_type", it) }
                         put("account_id", e.accountId)
-                        put("name", e.name)
-                        put("doc_type", e.docType)
+                        put("title", e.name)
+                        e.docType?.let { put("document_type", it) }
                         e.mimeType?.let { put("mime_type", it) }
                         e.storageKey?.let { put("storage_key", it) }
                         e.downloadUrl?.let { put("download_url", it) }
+                        e.fileHash?.let { put("file_hash", it) }
+                        e.fileSize?.let { put("file_size", it) }
                         e.vendor?.let { put("vendor", it) }
-                        e.total?.let { put("total", it) }
+                        e.total?.let { put("total_amount", it) }
                         e.currency?.let { put("currency", it) }
                         e.purchaseDate?.let { put("purchase_date", msToIso(it)) }
+                        e.warrantyEndDate?.let { put("warranty_end_date", msToIso(it)) }
                         e.uploadedBy?.let { put("uploaded_by", it) }
                         e.uploadedAt?.let { put("uploaded_at", msToIso(it)) }
                         put("created_at", msToIso(e.createdAt))
@@ -506,13 +541,9 @@ class SyncPayloadBuilder @Inject constructor(
                         put("account_id", e.accountId)
                         put("user_id", e.userId)
                         e.skills?.let { put("skills", it) }
-                        e.certifications?.let { put("certifications", it) }
+                        put("is_available", e.isAvailable)
                         e.hourlyRate?.let { put("hourly_rate", it) }
-                        e.currency?.let { put("currency", it) }
-                        e.availability?.let { put("availability", it) }
-                        e.speedFactor?.let { put("speed_factor", it) }
-                        e.currentLocationLat?.let { put("current_location_lat", it) }
-                        e.currentLocationLng?.let { put("current_location_lng", it) }
+                        e.currency?.let { put("rate_currency", it) }
                         put("created_at", msToIso(e.createdAt))
                         put("updated_at", msToIso(e.updatedAt))
                         e.deletedAt?.let { put("deleted_at", msToIso(it)) }
@@ -540,6 +571,7 @@ class SyncPayloadBuilder @Inject constructor(
                         put("location_id", e.locationId)
                         put("account_id", e.accountId)
                         put("name", e.name)
+                        e.shortCode?.let { put("short_code", it) }
                         e.address?.let { put("address", it) }
                         e.city?.let { put("city", it) }
                         e.state?.let { put("state", it) }
@@ -547,6 +579,9 @@ class SyncPayloadBuilder @Inject constructor(
                         e.country?.let { put("country", it) }
                         e.latitude?.let { put("latitude", it) }
                         e.longitude?.let { put("longitude", it) }
+                        e.timezone?.let { put("timezone", it) }
+                        put("is_primary", e.isPrimary)
+                        put("archived", e.archived)
                         put("created_at", msToIso(e.createdAt))
                         put("updated_at", msToIso(e.updatedAt))
                         e.deletedAt?.let { put("deleted_at", msToIso(it)) }

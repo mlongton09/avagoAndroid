@@ -3,6 +3,7 @@ package com.avago.core.sync
 import androidx.room.withTransaction
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
+import com.avago.core.data.db.AvagoDatabase
 import com.avago.core.data.db.entity.AssetEntity
 import com.avago.core.data.db.entity.CycleCountEntity
 import com.avago.core.data.db.entity.CycleCountLineEntity
@@ -46,7 +47,10 @@ import com.avago.core.network.model.SyncOperation
 import com.avago.core.network.model.SyncPushRequest
 import com.avago.core.ui.AvagoToast
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.Instant
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -58,9 +62,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import timber.log.Timber
+import java.io.IOException
+import java.net.ConnectException
+import java.net.SocketTimeoutException
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Provider
 import javax.inject.Singleton
+import kotlin.math.roundToLong
+import kotlin.random.Random
 
 @Singleton
 class SyncEngine @Inject constructor(
@@ -79,11 +89,76 @@ class SyncEngine @Inject constructor(
     // Provider<> avoids potential circular dependency from PhotoUploader's own dependencies
     private val photoUploader: Provider<PhotoUploader>,
     private val syncGate: SyncGate,
+    private val connectivity: ConnectivityMonitor,
 ) {
     private val mutex = Mutex()
 
+    // Set to true when sync() is called while another cycle is already running.
+    // finishSync checks this and kicks off another cycle so late-arriving nudges
+    // (e.g. rapid WO + wo_assignment + WO pushes) aren't silently dropped.
+    // Mirrors iOS SyncEngine.resyncRequested.
+    private val resyncRequested = AtomicBoolean(false)
+
+    // Set to true when a sync cycle finishes with an error; cleared on success.
+    // ConnectivityMonitor observes this to trigger a re-sync on connectivity recovery.
+    // Mirrors iOS SyncEngine.lastSyncFailed.
+    private val lastSyncFailed = AtomicBoolean(false)
+
     private val _state = MutableStateFlow<SyncState>(SyncState.Idle)
     val state: StateFlow<SyncState> = _state.asStateFlow()
+
+    init {
+        // Observe connectivity: when the path recovers after a failure, trigger a sync.
+        // Mirrors iOS SyncEngine.setupPathMonitor → lastSyncFailed guard.
+        scope.launch {
+            connectivity.networkStatus.collect { reachable ->
+                if (reachable && lastSyncFailed.get()) {
+                    Timber.d("[SyncEngine] Connectivity restored — triggering sync")
+                    sync()
+                }
+            }
+        }
+    }
+
+    // entityType → (sqlTable, pkColumn, jsonPkKey)
+    // Used for: (1) optimistic concurrency version check on pull, (2) server_version update on push.
+    // json_pk_key is the JSON field that carries the entity ID from the server response.
+    private val entityVersionInfo: Map<String, Triple<String, String, String>> = mapOf(
+        "asset"             to Triple("assets",             "asset_id",          "asset_id"),
+        "log"               to Triple("log",                "log_id",            "log_id"),
+        "log_cost_line"     to Triple("log_cost_lines",     "line_id",           "line_id"),
+        "schedule"          to Triple("schedules",          "schedule_id",       "schedule_id"),
+        "work_order"        to Triple("work_orders",        "wo_id",             "wo_id"),
+        "wo_assignment"     to Triple("wo_assignments",     "assignment_id",     "assignment_id"),
+        "wo_checklist_item" to Triple("wo_checklist_items", "checklist_item_id", "checklist_item_id"),
+        "wo_comment"        to Triple("wo_comments",        "comment_id",        "comment_id"),
+        "wo_template"       to Triple("wo_templates",       "template_id",       "template_id"),
+        "tech_profile"      to Triple("tech_profiles",      "tech_id",           "tech_profile_id"),
+        "inventory"         to Triple("inventory",          "inventory_id",      "inventory_id"),
+        "part"              to Triple("parts",              "part_id",           "part_id"),
+        "stocking_level"    to Triple("stocking_levels",    "stocking_level_id", "stocking_level_id"),
+        "vendor"            to Triple("vendors",            "vendor_id",         "vendor_id"),
+        "purchase_order"    to Triple("purchase_orders",    "po_id",             "po_id"),
+        "po_line"           to Triple("po_lines",           "po_line_id",        "po_line_id"),
+        "grn"               to Triple("grns",               "grn_id",            "grn_id"),
+        "grn_line"          to Triple("grn_lines",          "grn_line_id",       "grn_line_id"),
+        "cycle_count"       to Triple("cycle_counts",       "cycle_count_id",    "cycle_count_id"),
+        "cycle_count_line"  to Triple("cycle_count_lines",  "line_id",           "line_id"),
+        "part_issue"        to Triple("part_issues",        "issue_id",          "issue_id"),
+        "part_issue_line"   to Triple("part_issue_lines",   "line_id",           "line_id"),
+        "doc"               to Triple("docs",               "doc_id",            "doc_id"),
+        "photo"             to Triple("photos",             "photo_id",          "photo_id"),
+        "location"          to Triple("locations",          "location_id",       "location_id"),
+        "item"              to Triple("items",              "item_id",           "item_id"),
+        "gl_account"        to Triple("gl_accounts",        "gl_account_id",     "gl_account_id"),
+        "job"               to Triple("jobs",               "job_id",            "job_id"),
+        "service"           to Triple("services",           "service_id",        "service_id"),
+    )
+
+    // Entity types for which a pending local push must block the pull upsert, preventing
+    // a stale server snapshot from overwriting uncommitted user edits.
+    // Mirrors iOS SyncEngine hasPendingPush guard (asset, log, work_order).
+    private val pendingPushGuardTypes = setOf("asset", "log", "work_order")
 
     /** Entity types pulled in canonical order. Must match server-supported types only. */
     private val pullEntityTypes = listOf(
@@ -105,34 +180,55 @@ class SyncEngine @Inject constructor(
     // Public API
     // ---------------------------------------------------------------------------
 
-    /** Full push + pull cycle. Returns immediately if already syncing. */
+    /**
+     * Full push + pull cycle. Safe to call from any coroutine.
+     * If a sync is already in progress, flags a re-sync to run after it completes so
+     * late-arriving nudges (e.g. rapid WO + wo_assignment pushes) aren't silently dropped.
+     * Mirrors iOS SyncEngine.sync().
+     */
     suspend fun sync(): SyncResult {
         if (!mutex.tryLock()) {
-            Timber.d("[SyncEngine] sync() skipped — already in progress")
+            resyncRequested.set(true)
+            Timber.d("[SyncEngine] sync() queued — already in progress")
             return SyncResult.Partial(0, 0)
         }
         return try {
-            runSync(pullAfterPush = true)
+            val result = runSync(pullAfterPush = true)
+            lastSyncFailed.set(result is SyncResult.Failed)
+            result
         } finally {
             mutex.unlock()
+            // One or more nudges arrived while we were syncing. Run another cycle so the
+            // late writes get pulled this session, not on the next scheduled sync.
+            if (resyncRequested.getAndSet(false) && !lastSyncFailed.get()) {
+                Timber.d("[SyncEngine] Re-sync requested by nudge during prior cycle — launching")
+                scope.launch { sync() }
+            }
         }
     }
 
-    /** Push-only cycle (called after DAO writes). Returns immediately if already syncing. */
+    /**
+     * Push-only cycle (called after DAO writes). Returns immediately if already syncing.
+     * Mirrors iOS SyncEngine.pushIfNeeded().
+     */
     suspend fun pushIfNeeded(): SyncResult {
         if (!mutex.tryLock()) {
-            Timber.d("[SyncEngine] pushIfNeeded() skipped — already in progress")
+            resyncRequested.set(true)
+            Timber.d("[SyncEngine] pushIfNeeded() queued — already in progress")
             return SyncResult.Partial(0, 0)
         }
         return try {
-            runSync(pullAfterPush = false)
+            val result = runSync(pullAfterPush = false)
+            lastSyncFailed.set(result is SyncResult.Failed)
+            result
         } finally {
             mutex.unlock()
         }
     }
 
-    /** Reset in-flight items on connectivity loss. */
+    /** Reset in-flight items on connectivity loss. Mirrors iOS SyncEngine.handleConnectivityLost(). */
     suspend fun handleConnectivityLost() {
+        resyncRequested.set(false)
         val accountId = identity.getActiveAccountId() ?: return
         val db = dbFactory.get(accountId)
         db.syncQueueDao().resetInFlightToPending()
@@ -179,8 +275,11 @@ class SyncEngine @Inject constructor(
         // -----------------------------------------------------------------------
         _state.value = SyncState.Pushing
 
-        // Reset stale in-flight items before starting (crash recovery)
+        // Recycle items left in_flight from a prior interrupted session, and retry
+        // transient errors (e.g. server temporarily rejecting an entity type).
+        // Mirrors iOS SyncEngine.runPush: resetInFlightToPending + resetErrorsToPending.
         db.syncQueueDao().resetInFlightToPending()
+        db.syncQueueDao().resetErrorsToPending()
 
         val pending = db.syncQueueDao().pendingItemsList()
         if (pending.isNotEmpty()) {
@@ -199,6 +298,10 @@ class SyncEngine @Inject constructor(
                         operation = item.operation,
                         payload = payload,
                         idempotency_key = item.queueId,
+                        // Send local server_version for server-side optimistic concurrency.
+                        // force=false: normal path; server rejects if a higher version exists.
+                        server_version = item.serverVersion ?: 0L,
+                        force = false,
                     )
                 }
             }
@@ -206,7 +309,8 @@ class SyncEngine @Inject constructor(
             if (operations.isNotEmpty()) {
                 Timber.d("[SyncEngine] Pushing ${operations.size} operation(s)")
                 try {
-                    val response = client.syncPush(accountId, SyncPushRequest(operations))
+                    val response = withRetry { client.syncPush(accountId, SyncPushRequest(operations)) }
+                    // Build case-insensitive lookup (server returns lowercase UUIDs).
                     val itemByEntityId = pending.associateBy { it.entityId.lowercase() }
 
                     for (result in response.results) {
@@ -215,9 +319,16 @@ class SyncEngine @Inject constructor(
 
                         when {
                             result.success -> {
+                                // Only overwrite local server_version when the server actually
+                                // told us one. If it didn't, keep the local version so the next
+                                // pull's version-guard still works correctly.
+                                // Mirrors iOS SyncQueueDAO.markSuccess nextVersion logic.
+                                val nextVersion = if ((result.server_version ?: 0L) > 0L)
+                                    result.server_version!! else (item.serverVersion ?: 1L)
                                 db.syncQueueDao().markSuccess(item.queueId)
+                                updateEntityServerVersion(db, item.entityType, item.entityId, nextVersion)
                                 pushedCount++
-                                Timber.d("[SyncEngine] Push success: ${item.entityType} ${item.entityId}")
+                                Timber.d("[SyncEngine] Push success: ${item.entityType} ${item.entityId} v$nextVersion")
                             }
                             result.conflict -> {
                                 db.syncQueueDao().markConflict(item.queueId)
@@ -274,7 +385,7 @@ class SyncEngine @Inject constructor(
 
                 var hasMore = true
                 while (hasMore) {
-                    val response = client.syncPull(accountId, entityType, lastSeq)
+                    val response = withRetry { client.syncPull(accountId, entityType, lastSeq) }
                     Timber.d("[SyncEngine] Pull $entityType: ${response.items.size} item(s), hasMore=${response.has_more}, maxSeq=${response.max_seq}")
 
                     db.withTransaction {
@@ -322,6 +433,35 @@ class SyncEngine @Inject constructor(
 
     private suspend fun upsertPulledItem(accountId: String, entityType: String, item: JsonObject) {
         val db = dbFactory.get(accountId)
+
+        // Optimistic concurrency: skip if the server sent an older or equal snapshot.
+        // hasPendingPush guard: for asset/log/work_order, skip if a local edit is queued
+        // to push — replaying an older server snapshot would overwrite the user's change.
+        // Mirrors iOS SyncEngine.upsertItem server_version check + hasPendingPush guard.
+        val incomingVersion = item.lng("server_version") ?: 0L
+        val versionInfo = entityVersionInfo[entityType]
+        if (versionInfo != null) {
+            val (table, pkCol, jsonPkKey) = versionInfo
+            val entityId = item.str(jsonPkKey)
+            if (entityId != null) {
+                try {
+                    val localVersion = queryLocalServerVersion(db, table, pkCol, entityId)
+                    if (incomingVersion > 0L && incomingVersion <= localVersion) {
+                        Timber.v("[SyncEngine] Skip pull $entityType $entityId — v$incomingVersion <= local v$localVersion")
+                        return
+                    }
+                } catch (_: Exception) { /* db query failed — proceed with upsert */ }
+                if (entityType in pendingPushGuardTypes) {
+                    try {
+                        if (db.syncQueueDao().hasPendingPush(entityType, entityId) != null) {
+                            Timber.d("[SyncEngine] Skip pull $entityType $entityId — pending push in queue")
+                            return
+                        }
+                    } catch (_: Exception) { /* proceed */ }
+                }
+            }
+        }
+
         try {
             when (entityType) {
                 "asset" -> {
@@ -367,12 +507,12 @@ class SyncEngine @Inject constructor(
                     val now = System.currentTimeMillis()
                     db.logDao().upsert(
                         LogEntity(
-                            entryId = item.str("entry_id") ?: item.str("log_id") ?: return,
+                            entryId = item.str("log_id") ?: return,
                             assetId = item.str("asset_id") ?: return,
                             accountId = item.str("account_id") ?: accountId,
                             title = item.str("title") ?: "",
-                            entryDate = isoToMs(item.str("log_date") ?: item.str("entry_date")) ?: now,
-                            odometerValue = item.dbl("odometer_value") ?: item.dbl("meter"),
+                            entryDate = isoToMs(item.str("log_date")) ?: now,
+                            odometerValue = item.dbl("meter"),
                             category = item.str("category"),
                             cost = item.dbl("cost"),
                             performedBy = item.str("performed_by"),
@@ -627,6 +767,7 @@ class SyncEngine @Inject constructor(
                             accountId = item.str("account_id") ?: accountId,
                             partId = item.str("part_id") ?: return,
                             locationId = item.str("location_id"),
+                            binId = item.str("bin_id"),
                             quantityOnHand = item.dbl("quantity_on_hand") ?: 0.0,
                             status = item.str("status") ?: "active",
                             lastTransactionId = item.str("last_transaction_id"),
@@ -645,15 +786,26 @@ class SyncEngine @Inject constructor(
                         PartEntity(
                             partId = item.str("part_id") ?: return,
                             accountId = item.str("account_id") ?: accountId,
-                            sku = item.str("sku"),
-                            name = item.str("name") ?: "",
+                            sku = item.str("part_number"),
+                            name = item.str("part_name") ?: "",
                             description = item.str("description"),
                             category = item.str("category"),
                             unitOfMeasure = item.str("unit_of_measure"),
                             defaultVendorId = item.str("default_vendor_id"),
-                            cost = item.dbl("cost"),
+                            cost = item.dbl("unit_cost"),
                             currency = item.str("currency"),
                             attributes = item.str("attributes"),
+                            manufacturer = item.str("manufacturer"),
+                            reorderQuantity = item.dbl("reorder_quantity"),
+                            status = item.str("status"),
+                            entityType = item.str("entity_type"),
+                            entityId = item.str("entity_id"),
+                            quantity = item.dbl("quantity"),
+                            gtin = item.str("gtin"),
+                            serialNumber = item.str("serial_number"),
+                            notes = item.str("notes"),
+                            baseAmount = item.dbl("base_amount"),
+                            exchangeRateUsed = item.dbl("exchange_rate_used"),
                             createdAt = isoToMs(item.str("created_at")) ?: now,
                             updatedAt = isoToMs(item.str("updated_at")) ?: now,
                             deletedAt = isoToMs(item.str("deleted_at")),
@@ -912,8 +1064,8 @@ class SyncEngine @Inject constructor(
                             entityId = item.str("entity_id"),
                             entityType = item.str("entity_type"),
                             accountId = item.str("account_id") ?: accountId,
-                            name = item.str("name") ?: item.str("filename") ?: "",
-                            docType = item.str("doc_type"),
+                            name = item.str("title") ?: item.str("name") ?: "",
+                            docType = item.str("document_type") ?: item.str("doc_type"),
                             mimeType = item.str("mime_type"),
                             storageKey = item.str("storage_key"),
                             downloadUrl = item.str("download_url"),
@@ -922,7 +1074,7 @@ class SyncEngine @Inject constructor(
                             ocrRawText = item.str("ocr_raw_text"),
                             ocrExtractedJson = item.str("ocr_extracted_json"),
                             vendor = item.str("vendor"),
-                            total = item.dbl("total"),
+                            total = item.dbl("total_amount") ?: item.dbl("total"),
                             currency = item.str("currency"),
                             purchaseDate = isoToMs(item.str("purchase_date")),
                             warrantyEndDate = isoToMs(item.str("warranty_end_date")),
@@ -1053,11 +1205,20 @@ class SyncEngine @Inject constructor(
                             logId = item.str("log_id") ?: return,
                             accountId = item.str("account_id") ?: accountId,
                             partId = item.str("part_id"),
-                            description = item.str("description"),
+                            description = item.str("name") ?: item.str("description"),
                             quantity = item.dbl("quantity") ?: 0.0,
-                            unitCost = item.dbl("unit_cost"),
+                            unitCost = item.dbl("unit_price") ?: item.dbl("unit_cost"),
                             currency = item.str("currency"),
                             notes = item.str("notes"),
+                            productionDate = isoToMs(item.str("production_date")),
+                            partNumber = item.str("part_number"),
+                            gtin = item.str("gtin"),
+                            manufacturerId = item.str("manufacturer_id"),
+                            serialNumber = item.str("serial_number"),
+                            revision = item.str("revision"),
+                            modelNumber = item.str("model_number"),
+                            lotNumber = item.str("lot_number"),
+                            country = item.str("country"),
                             createdAt = isoToMs(item.str("created_at")) ?: now,
                             updatedAt = isoToMs(item.str("updated_at")) ?: now,
                             deletedAt = isoToMs(item.str("deleted_at")),
@@ -1206,6 +1367,81 @@ class SyncEngine @Inject constructor(
             }
         } catch (e: Exception) {
             Timber.e(e, "[SyncEngine] Failed to upsert $entityType item")
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Retry / resiliency helpers
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Retry [block] up to [maxAttempts] times on transient network errors.
+     * Delays: 50–150 ms / 500–750 ms / 2000–2500 ms — matching iOS SyncEngine retryDelayMs.
+     */
+    private suspend fun <T> withRetry(maxAttempts: Int = 3, block: suspend () -> T): T {
+        var lastError: Exception? = null
+        for (attempt in 0 until maxAttempts) {
+            try { return block() } catch (e: Exception) {
+                lastError = e
+                if (attempt >= maxAttempts - 1 || !isRetryable(e)) throw e
+                val delay = retryDelayMs(attempt)
+                Timber.w("[SyncEngine] Transient error (attempt ${attempt + 1}/$maxAttempts), retry in ${delay}ms — ${e.message}")
+                kotlinx.coroutines.delay(delay)
+            }
+        }
+        throw lastError!!
+    }
+
+    private fun retryDelayMs(attempt: Int): Long = when (attempt) {
+        0    -> 50L   + Random.nextLong(0, 100)  // 50–150 ms
+        1    -> 500L  + Random.nextLong(0, 250)  // 500–750 ms
+        else -> 2000L + Random.nextLong(0, 500)  // 2000–2500 ms
+    }
+
+    private fun isRetryable(e: Exception): Boolean = when {
+        e is SocketTimeoutException                    -> true
+        e is ConnectException                          -> true
+        e is IOException                               -> true
+        e is NetworkException && e.code >= 500         -> true
+        else                                           -> false
+    }
+
+    // ---------------------------------------------------------------------------
+    // Server version helpers
+    // ---------------------------------------------------------------------------
+
+    /** Read the locally-stored server_version for a single row. Returns 0 if absent. */
+    private suspend fun queryLocalServerVersion(
+        db: AvagoDatabase, table: String, pkCol: String, id: String,
+    ): Long = withContext(Dispatchers.IO) {
+        try {
+            db.openHelper.readableDatabase.query(
+                "SELECT server_version FROM $table WHERE $pkCol = ? LIMIT 1",
+                arrayOf(id)
+            ).use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val col = cursor.getColumnIndex("server_version")
+                    if (col >= 0) cursor.getLong(col) else 0L
+                } else 0L
+            }
+        } catch (_: Exception) { 0L }
+    }
+
+    /**
+     * Stamp the locally-stored server_version after a successful push.
+     * Mirrors iOS SyncQueueDAO.markSuccess tableMap update.
+     */
+    private suspend fun updateEntityServerVersion(
+        db: AvagoDatabase, entityType: String, entityId: String, serverVersion: Long,
+    ) {
+        val (table, pkCol, _) = entityVersionInfo[entityType] ?: return
+        withContext(Dispatchers.IO) {
+            try {
+                db.openHelper.writableDatabase.execSQL(
+                    "UPDATE $table SET server_version = ? WHERE $pkCol = ?",
+                    arrayOf(serverVersion, entityId)
+                )
+            } catch (_: Exception) { }
         }
     }
 

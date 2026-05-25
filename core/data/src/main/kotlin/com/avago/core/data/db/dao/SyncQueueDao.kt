@@ -53,4 +53,22 @@ interface SyncQueueDao {
 
     @Query("DELETE FROM sync_queue WHERE queue_id = :id")
     suspend fun softDelete(id: String)
+
+    /**
+     * Reset error items back to pending so they are retried on the next push cycle.
+     * Items that have exceeded [maxAttempts] are left as errors to avoid infinite loops.
+     * Mirrors iOS SyncQueueDAO.resetErrorsToPending(maxAttempts:).
+     */
+    @Query("UPDATE sync_queue SET sync_status = 'pending' WHERE sync_status = 'error' AND attempts < :maxAttempts")
+    suspend fun resetErrorsToPending(maxAttempts: Long = 10L)
+
+    /**
+     * Returns non-null if a pending/in-flight/error push exists for the given entity.
+     * Used to defer overwriting a locally-edited row with a server pull's older snapshot
+     * — letting the push land first ensures the server sees the user's change before we
+     * replay an older state on top of it.
+     * Mirrors iOS SyncEngine.hasPendingPush(entityType:entityId:).
+     */
+    @Query("SELECT 1 FROM sync_queue WHERE entity_type = :entityType AND entity_id = :entityId AND sync_status IN ('pending', 'in_flight', 'error') LIMIT 1")
+    suspend fun hasPendingPush(entityType: String, entityId: String): Int?
 }
