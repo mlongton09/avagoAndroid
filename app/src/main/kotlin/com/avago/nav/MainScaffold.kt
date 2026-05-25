@@ -25,7 +25,7 @@ import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.Login
+import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PersonAdd
@@ -414,7 +414,7 @@ fun SideMenuContent(
             NavigationDrawerItem(
                 label = { Text("Sign In") },
                 selected = false,
-                icon = { Icon(Icons.Default.Login, contentDescription = null) },
+                icon = { Icon(Icons.AutoMirrored.Filled.Login, contentDescription = null) },
                 onClick = onSignIn,
                 modifier = Modifier.padding(horizontal = 8.dp),
             )
