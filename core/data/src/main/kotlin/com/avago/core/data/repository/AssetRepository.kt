@@ -38,18 +38,37 @@ class AssetRepository @Inject constructor(
 
     /**
      * Upserts the asset entity into the local DB and enqueues a sync-push operation.
+     *
+     * When saving the first real (non-FRE) asset, mirrors iOS ConfigSeeder behaviour:
+     * soft-delete all FRE sample assets so demo data doesn't mix with real data.
      */
     suspend fun upsertAsset(accountId: String, entity: AssetEntity) {
         val db = dbFactory.get(accountId)
         db.assetDao().upsert(entity)
+        if (!entity.isFreSample) {
+            maybeDeleteFreSamples(db, accountId, entity.assetId)
+        }
         enqueueSyncPush(
             db = db,
             entityType = "asset",
             entityId = entity.assetId,
             serverVersion = entity.serverVersion,
-            operation = "update",
+            operation = if (entity.serverVersion == 0L) "insert" else "update",
         )
         Timber.d("[AssetRepository] Upserted asset ${entity.assetId} and enqueued sync")
+    }
+
+    private suspend fun maybeDeleteFreSamples(db: AvagoDatabase, accountId: String, skipId: String) {
+        val realCount = db.assetDao().countRealAssets(accountId)
+        if (realCount != 1) return  // Either no real assets yet, or already cleaned up (>1 means already passed this point)
+        val now = System.currentTimeMillis()
+        val freIds = db.assetDao().freeSampleAssetIds(accountId)
+        if (freIds.isEmpty()) return
+        db.assetDao().softDeleteAllFreSamples(accountId, now)
+        for (id in freIds) {
+            enqueueSyncPush(db, "asset", id, 0L, "delete")
+        }
+        Timber.d("[AssetRepository] Cleaned up ${freIds.size} FRE sample asset(s) on first real asset save")
     }
 
     /**
@@ -57,13 +76,14 @@ class AssetRepository @Inject constructor(
      */
     suspend fun softDeleteAsset(accountId: String, assetId: String) {
         val db = dbFactory.get(accountId)
+        val asset = db.assetDao().getById(assetId)
         val now = System.currentTimeMillis()
         db.assetDao().softDelete(assetId, now)
         enqueueSyncPush(
             db = db,
             entityType = "asset",
             entityId = assetId,
-            serverVersion = 0L,
+            serverVersion = asset?.serverVersion ?: 0L,
             operation = "delete",
         )
         Timber.d("[AssetRepository] Soft-deleted asset $assetId")
