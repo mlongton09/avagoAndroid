@@ -44,7 +44,9 @@ import com.avago.core.data.db.entity.WorkOrderEntity
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkException
 import com.avago.core.network.model.SyncOperation
+import com.avago.core.network.model.SyncPullResponse
 import com.avago.core.network.model.SyncPushRequest
+import com.avago.core.network.model.SyncPushResponse
 import com.avago.core.ui.AvagoToast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -309,7 +311,7 @@ class SyncEngine @Inject constructor(
             if (operations.isNotEmpty()) {
                 Timber.d("[SyncEngine] Pushing ${operations.size} operation(s)")
                 try {
-                    val response = withRetry { client.syncPush(accountId, SyncPushRequest(operations)) }
+                    val response = withRetry<SyncPushResponse> { client.syncPush(accountId, SyncPushRequest(operations)) }
                     // Build case-insensitive lookup (server returns lowercase UUIDs).
                     val itemByEntityId = pending.associateBy { it.entityId.lowercase() }
 
@@ -385,7 +387,7 @@ class SyncEngine @Inject constructor(
 
                 var hasMore = true
                 while (hasMore) {
-                    val response = withRetry { client.syncPull(accountId, entityType, lastSeq) }
+                    val response = withRetry<SyncPullResponse> { client.syncPull(accountId, entityType, lastSeq) }
                     Timber.d("[SyncEngine] Pull $entityType: ${response.items.size} item(s), hasMore=${response.has_more}, maxSeq=${response.max_seq}")
 
                     db.withTransaction {
@@ -1439,7 +1441,7 @@ class SyncEngine @Inject constructor(
             try {
                 db.openHelper.writableDatabase.execSQL(
                     "UPDATE $table SET server_version = ? WHERE $pkCol = ?",
-                    arrayOf(serverVersion, entityId)
+                    arrayOf<Any?>(serverVersion, entityId)
                 )
             } catch (_: Exception) { }
         }

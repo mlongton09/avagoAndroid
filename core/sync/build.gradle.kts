@@ -40,4 +40,14 @@ dependencies {
     implementation(libs.serialization.json)
     implementation(libs.kotlinx.datetime)
     implementation(libs.room.ktx)
+
+    testImplementation(libs.junit5)
+    testRuntimeOnly(libs.junit5.engine)
+    testImplementation(libs.mockk)
+    testImplementation(libs.coroutines.test)
+    testImplementation(libs.turbine)
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
 }
