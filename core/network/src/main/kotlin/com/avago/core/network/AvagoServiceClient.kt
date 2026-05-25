@@ -2,6 +2,7 @@ package com.avago.core.network
 
 import com.avago.core.network.model.AccountResponse
 import com.avago.core.network.model.AiSkillResponse
+import com.avago.core.network.model.AiSkillsEnvelope
 import com.avago.core.network.model.AuditEventResponse
 import com.avago.core.network.model.AuthResponse
 import com.avago.core.network.model.BudgetPillResponse
@@ -32,6 +33,7 @@ import com.avago.core.network.model.ChatPrefsResponse
 import com.avago.core.network.model.ChatRosterEntry
 import com.avago.core.network.model.ChatSyncResponse
 import com.avago.core.network.model.ChatThreadResponse
+import com.avago.core.network.model.ChatThreadsEnvelope
 import com.avago.core.network.model.LinkPreviewResponse
 import com.avago.core.network.model.CreateCycleCountRequest
 import com.avago.core.network.model.CreateGrnRequest
@@ -862,7 +864,8 @@ class AvagoServiceClient @Inject constructor(
      */
     suspend fun getAiSkills(accountId: String): NetworkResult<List<AiSkillResponse>> =
         safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/ai/skills").body()
+            client.get("$baseUrl/accounts/$accountId/ai/skills")
+                .body<AiSkillsEnvelope>().skills
         }
 
     /**
@@ -1066,7 +1069,10 @@ class AvagoServiceClient @Inject constructor(
     // ---------------------------------------------------------------------------
 
     suspend fun getThreads(): NetworkResult<List<ChatThreadResponse>> =
-        safeNetworkCall { client.get("$baseUrl/chat/me/threads").body() }
+        safeNetworkCall {
+            client.get("$baseUrl/chat/me/threads")
+                .body<ChatThreadsEnvelope>().threads
+        }
 
     suspend fun getMessages(
         threadId: String,

@@ -47,6 +47,12 @@ data class ChatThreadResponse(
 )
 
 @Serializable
+data class ChatThreadsEnvelope(
+    val threads: List<ChatThreadResponse> = emptyList(),
+    val next_cursor: String? = null,
+)
+
+@Serializable
 data class SendMessageRequest(
     val body: String,
     val photo_url: String? = null,

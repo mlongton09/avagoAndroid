@@ -22,8 +22,8 @@ data class ChatListUiState(
     val threads: List<ChatThreadEntity> = emptyList(),
     val filter: ThreadFilter = ThreadFilter.ALL,
     val searchQuery: String = "",
+    val unreadOnly: Boolean = false,
     val isRefreshing: Boolean = false,
-    // TODO: compute from per-thread mention counts once ChatThreadEntity gains a mentionCount field.
     val unreadMentionCount: Int = 0,
 )
 
@@ -35,23 +35,26 @@ class ChatListViewModel @Inject constructor(
     private val _filter = MutableStateFlow(ThreadFilter.ALL)
     private val _isRefreshing = MutableStateFlow(false)
     private val _searchQuery = MutableStateFlow("")
+    private val _unreadOnly = MutableStateFlow(false)
     private val _allThreads = MutableStateFlow<List<ChatThreadEntity>>(emptyList())
 
     val uiState: StateFlow<ChatListUiState> = combine(
         _allThreads,
         _filter,
         _searchQuery,
+        _unreadOnly,
         _isRefreshing,
-    ) { threads, filter, query, refreshing ->
+    ) { threads, filter, query, unreadOnly, refreshing ->
         val filtered = threads
             .filter { it.matchesFilter(filter) }
             .filter { query.isBlank() || it.matchesSearch(query) }
+            .filter { !unreadOnly || it.unreadCount > 0 }
         ChatListUiState(
             threads = filtered,
             filter = filter,
             searchQuery = query,
+            unreadOnly = unreadOnly,
             isRefreshing = refreshing,
-            // TODO: replace with sum of per-thread mentionCount once field exists on ChatThreadEntity.
             unreadMentionCount = 0,
         )
     }.stateIn(
@@ -79,6 +82,10 @@ class ChatListViewModel @Inject constructor(
 
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
+    }
+
+    fun setUnreadOnly(value: Boolean) {
+        _unreadOnly.value = value
     }
 
     fun refresh() {

@@ -4,24 +4,34 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.automirrored.filled.Label
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Login
+import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonAdd
-import androidx.compose.material.icons.filled.Widgets
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -36,6 +46,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
@@ -48,7 +59,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
@@ -63,6 +77,7 @@ import com.avago.core.ui.AvagoToast
 import com.avago.core.ui.AvagoToastHost
 import com.avago.core.ui.OfflineBanner
 import com.avago.feature.auth.nav.AuthRoute
+import com.avago.feature.inventory.nav.InventoryRoute
 import com.avago.feature.settings.AccountSwitcherViewModel
 import com.avago.feature.settings.nav.SettingsRoute
 import kotlinx.coroutines.launch
@@ -78,26 +93,33 @@ data class BottomNavItem(
 )
 
 private val bottomNavItems = listOf(
-    BottomNavItem("Assets",      Icons.Default.Inventory2,  "assets_graph"),
-    BottomNavItem("Work Orders", Icons.AutoMirrored.Filled.Assignment,  "workorders_graph"),
-    BottomNavItem("Inventory",   Icons.Default.Widgets,     "inventory_graph"),
-    BottomNavItem("Reports",     Icons.Default.BarChart,    "reports"),
-    BottomNavItem("Chat",        Icons.AutoMirrored.Filled.Chat,        "chat"),
+    BottomNavItem("Assets",      Icons.AutoMirrored.Filled.MenuBook, "assets_graph"),
+    BottomNavItem("Work Orders", Icons.Default.CalendarToday,    "workorders_graph"),
+    BottomNavItem("Chat",        Icons.AutoMirrored.Filled.Chat, "chat"),
 )
+
+// ---------------------------------------------------------------------------
+// Route → display title (matches iOS per-tab title behaviour)
+// ---------------------------------------------------------------------------
+
+private fun titleForRoute(route: String?): String = when {
+    route == null                              -> "Avago"
+    route.startsWith("assets")                -> "Assets"
+    route.startsWith("workorders")            -> "Work Orders"
+    route.startsWith("inventory")             -> "Inventory"
+    route == "reports"                        -> "Reports"
+    route.startsWith("chat") ||
+        route.startsWith("thread")            -> "Chat"
+    route.startsWith("settings")             -> "Settings"
+    route.startsWith("docs")                  -> "Docs"
+    route.startsWith("schedule")              -> "Schedule"
+    else                                       -> "Avago"
+}
 
 // ---------------------------------------------------------------------------
 // Root scaffold
 // ---------------------------------------------------------------------------
 
-/**
- * Root Compose scaffold: ModalNavigationDrawer (with [AccountDrawerContent]) +
- * [Scaffold] (TopAppBar + [BottomNavBar] + [AvagoNavHost] body).
- *
- * Sync feedback surfaces inside this composable:
- * - [SyncStatusBanner]  — floating pill when sync is in progress
- * - [ConflictBottomSheet] is delegated to AvagoNavHost for now so it can live
- *   close to the content that owns resolution context.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScaffold(
@@ -111,12 +133,9 @@ fun MainScaffold(
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
-    // Scout sheet visibility state
     var scoutPaletteVisible by remember { mutableStateOf(false) }
     var voiceSheetVisible by remember { mutableStateOf(false) }
 
-    // Determine whether the current destination is an auth screen so we can
-    // hide the TopAppBar, BottomNav, and FAB during sign-in.
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val isAuthDestination = currentRoute == null ||
@@ -127,13 +146,13 @@ fun MainScaffold(
     AvagoToastHost(toastManager = toast) {
     ModalNavigationDrawer(
         drawerState = drawerState,
-        // Disable drawer swipe gesture on auth screens.
         gesturesEnabled = !isAuthDestination,
         drawerContent = {
             ModalDrawerSheet {
-                AccountDrawerContent(
-                    onSwitchAccount = {
+                SideMenuContent(
+                    onNavigate = { route ->
                         scope.launch { drawerState.close() }
+                        navController.navigate(route) { launchSingleTop = true }
                     },
                     onAddAccount = {
                         scope.launch { drawerState.close() }
@@ -141,6 +160,10 @@ fun MainScaffold(
                     },
                     onSignOut = { _ ->
                         scope.launch { drawerState.close() }
+                    },
+                    onSignIn = {
+                        scope.launch { drawerState.close() }
+                        navController.navigate(AuthRoute.GRAPH) { launchSingleTop = true }
                     },
                     navController = navController,
                 )
@@ -151,7 +174,26 @@ fun MainScaffold(
             topBar = {
                 if (!isAuthDestination) {
                     TopAppBar(
-                        title = { Text("Avago") },
+                        title = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(22.dp)
+                                        .clip(RoundedCornerShape(5.dp))
+                                        .background(MaterialTheme.colorScheme.error),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Build,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(13.dp),
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(7.dp))
+                                Text(titleForRoute(currentRoute))
+                            }
+                        },
                         navigationIcon = {
                             IconButton(onClick = { scope.launch { drawerState.open() } }) {
                                 Icon(Icons.Default.Menu, contentDescription = "Open menu")
@@ -169,16 +211,9 @@ fun MainScaffold(
                 }
             },
             floatingActionButton = {
-                // Scout FAB — hidden on auth screens.
                 if (!isAuthDestination) {
-                    // • Single tap  → ScoutPaletteSheet
-                    // • Long press  → VoiceInputSheet (voice transcription)
-                    //
-                    // pointerInput(detectTapGestures) is used instead of FAB's
-                    // built-in onClick so we can intercept the long-press gesture
-                    // before the FAB's ripple consumes it.
                     FloatingActionButton(
-                        onClick = {},   // gesture handled by pointerInput below
+                        onClick = {},
                         modifier = Modifier.pointerInput(Unit) {
                             detectTapGestures(
                                 onTap = { scoutPaletteVisible = true },
@@ -207,9 +242,6 @@ fun MainScaffold(
                 }
                 Box(modifier = Modifier.weight(1f)) {
                     AvagoNavHost(navController = navController)
-
-                    // Floating sync banner — sits above content, top-center.
-                    // Only meaningful when authenticated.
                     if (!isAuthDestination) {
                         SyncStatusBanner(
                             syncState = syncState,
@@ -221,18 +253,11 @@ fun MainScaffold(
         }
     }
 
-    // ---------------------------------------------------------------------------
-    // Scout sheets (outside the Scaffold so they overlay everything)
-    // ---------------------------------------------------------------------------
-
     if (!isAuthDestination) {
         ScoutPaletteSheet(
             visible = scoutPaletteVisible,
             onDismiss = { scoutPaletteVisible = false },
             onNavigate = { targetScreen, fields ->
-                // Stash Scout's pre-fill fields in the back-stack entry that owns
-                // the destination so the target form can read them in onResume /
-                // LaunchedEffect without needing a separate shared ViewModel.
                 navController.currentBackStackEntry
                     ?.savedStateHandle
                     ?.set("scout_fields", HashMap(fields))
@@ -245,9 +270,8 @@ fun MainScaffold(
             visible = voiceSheetVisible,
             onDismiss = { voiceSheetVisible = false },
             onTranscript = { transcript ->
-                // Funnel the voice transcript into Scout as if the user had typed it.
                 scoutViewModel.query(transcript)
-                scoutPaletteVisible = true   // show the palette so the result is visible
+                scoutPaletteVisible = true
             },
         )
     }
@@ -269,7 +293,6 @@ fun BottomNavBar(navController: NavHostController) {
                 selected = currentRoute == item.route || currentRoute?.startsWith("${item.route}/") == true,
                 onClick = {
                     navController.navigate(item.route) {
-                        // Avoid accumulating a large back stack on repeated taps.
                         popUpTo(navController.graph.startDestinationId) {
                             saveState = true
                         }
@@ -285,145 +308,224 @@ fun BottomNavBar(navController: NavHostController) {
 }
 
 // ---------------------------------------------------------------------------
-// Account drawer content
+// Side menu drawer content — matches iOS SideMenuViewController structure
 // ---------------------------------------------------------------------------
 
 @Composable
-fun AccountDrawerContent(
+fun SideMenuContent(
     viewModel: AccountSwitcherViewModel = hiltViewModel(),
-    onSwitchAccount: (String) -> Unit,
+    onNavigate: (String) -> Unit,
     onAddAccount: () -> Unit,
     onSignOut: (String) -> Unit,
+    onSignIn: () -> Unit = {},
     navController: NavHostController,
 ) {
     val accounts by viewModel.accounts.collectAsState()
     val activeId  by viewModel.activeAccountId.collectAsState()
+    val active = accounts.firstOrNull { it.accountId == activeId }
 
-    Column(modifier = Modifier.fillMaxHeight()) {
+    val navBackStack by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStack?.destination?.route
 
-        // App branding header
-        Box(
+    var showAccountSwitcher by remember { mutableStateOf(false) }
+
+    if (showAccountSwitcher) {
+        AlertDialog(
+            onDismissRequest = { showAccountSwitcher = false },
+            title = { Text("Switch Account") },
+            text = {
+                Column {
+                    accounts.forEach { account ->
+                        val label = when {
+                            account.isAnonymous -> "Guest"
+                            !account.email.isNullOrBlank() -> account.email!!
+                            !account.displayName.isNullOrBlank() -> account.displayName!!
+                            else -> "Unknown Account"
+                        }
+                        val isActive = account.accountId == activeId
+                        TextButton(
+                            onClick = {
+                                if (!isActive) viewModel.switchTo(account.accountId)
+                                showAccountSwitcher = false
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                text = if (isActive) "✓ $label" else label,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    TextButton(
+                        onClick = {
+                            showAccountSwitcher = false
+                            onAddAccount()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Add Account")
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAccountSwitcher = false }) { Text("Cancel") }
+            },
+        )
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxHeight()
+            .verticalScroll(rememberScrollState()),
+    ) {
+        // ── Header ───────────────────────────────────────────────────────────
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.primaryContainer)
-                .padding(horizontal = 24.dp, vertical = 28.dp),
+                .padding(horizontal = 20.dp, vertical = 20.dp),
         ) {
-            Column {
-                Text(
-                    text = "Avago",
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
-                val active = accounts.firstOrNull { it.accountId == activeId }
-                if (active != null) {
-                    val subtitle = active.email
-                        ?: active.displayName
-                        ?: active.accountId
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
-                }
+            Text(
+                text = "Avago",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            val subtitle = when {
+                active == null || active.isAnonymous -> "Not signed in"
+                !active.email.isNullOrBlank() -> active.email!!
+                !active.displayName.isNullOrBlank() -> active.displayName!!
+                else -> "Not signed in"
             }
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 3.dp),
+            )
         }
 
-        // Accounts section header
-        Text(
-            text = "ACCOUNTS",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
+        HorizontalDivider()
+
+        // ── ACCOUNT ──────────────────────────────────────────────────────────
+        DrawerSectionHeader("ACCOUNT")
+
+        // Show Sign In when anonymous or not signed in (mirrors iOS SideMenuViewController)
+        if (active == null || active.isAnonymous) {
+            NavigationDrawerItem(
+                label = { Text("Sign In") },
+                selected = false,
+                icon = { Icon(Icons.Default.Login, contentDescription = null) },
+                onClick = onSignIn,
+                modifier = Modifier.padding(horizontal = 8.dp),
+            )
+        }
+
+        NavigationDrawerItem(
+            label = { Text("Switch Account") },
+            selected = false,
+            icon = { Icon(Icons.Default.ManageAccounts, contentDescription = null) },
+            onClick = { showAccountSwitcher = true },
+            modifier = Modifier.padding(horizontal = 8.dp),
         )
 
-        // Account list
-        accounts.forEach { account ->
-            val isActive = account.accountId == activeId
-            val label    = account.displayName ?: account.email ?: account.accountId
-
+        if (active != null && !active.isAnonymous) {
             NavigationDrawerItem(
-                label = { Text(label) },
-                selected = isActive,
-                icon = { Icon(Icons.Default.Person, contentDescription = null) },
-                badge = if (isActive) {
-                    {
-                        Text(
-                            text = account.role?.uppercase() ?: "Active",
-                            style = MaterialTheme.typography.labelSmall,
-                        )
-                    }
-                } else if (account.role != null) {
-                    val role = account.role ?: ""
-                    {
-                        Text(
-                            text = role.uppercase(),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                } else {
-                    null
+                label = { Text("Invite Users") },
+                selected = false,
+                icon = { Icon(Icons.Default.PersonAdd, contentDescription = null) },
+                onClick = { onNavigate(SettingsRoute.GRAPH) },
+                modifier = Modifier.padding(horizontal = 8.dp),
+            )
+
+            val signOutLabel = "Sign Out of ${
+                when {
+                    !active.displayName.isNullOrBlank() -> active.displayName!!
+                    !active.email.isNullOrBlank() -> active.email!!
+                    else -> "this account"
+                }
+            }"
+            NavigationDrawerItem(
+                label = { Text(signOutLabel, color = MaterialTheme.colorScheme.error) },
+                selected = false,
+                icon = {
+                    Icon(
+                        Icons.AutoMirrored.Filled.Logout,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                    )
                 },
                 onClick = {
-                    if (!isActive) {
-                        viewModel.switchTo(account.accountId)
-                        onSwitchAccount(account.accountId)
+                    activeId?.let { id ->
+                        viewModel.signOut(id)
+                        onSignOut(id)
                     }
                 },
                 modifier = Modifier.padding(horizontal = 8.dp),
             )
         }
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-        // Add account
+        // ── REPORTS ──────────────────────────────────────────────────────────
+        DrawerSectionHeader("REPORTS")
+
         NavigationDrawerItem(
-            label = { Text("Add account") },
-            selected = false,
-            icon = { Icon(Icons.Default.PersonAdd, contentDescription = null) },
-            onClick = onAddAccount,
+            label = { Text("Cost Report") },
+            selected = currentRoute == "reports",
+            icon = { Icon(Icons.Default.BarChart, contentDescription = null) },
+            onClick = { onNavigate("reports") },
             modifier = Modifier.padding(horizontal = 8.dp),
         )
 
-        Spacer(modifier = Modifier.weight(1f))
+        NavigationDrawerItem(
+            label = { Text("By Category") },
+            selected = false,
+            icon = { Icon(Icons.AutoMirrored.Filled.Label, contentDescription = null) },
+            onClick = { onNavigate("reports") },
+            modifier = Modifier.padding(horizontal = 8.dp),
+        )
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-        // Settings link
+        // ── INVENTORY ────────────────────────────────────────────────────────
+        DrawerSectionHeader("INVENTORY")
+
         NavigationDrawerItem(
-            label = { Text("Settings") },
-            selected = navController.currentBackStackEntry?.destination?.route == SettingsRoute.Main,
-            icon = { Icon(Icons.Default.Person, contentDescription = null) },
-            onClick = {
-                navController.navigate(SettingsRoute.GRAPH) { launchSingleTop = true }
-            },
+            label = { Text("Inventory") },
+            selected = currentRoute?.startsWith("inventory") == true &&
+                currentRoute?.startsWith("inventory/purchase-orders") == false,
+            icon = { Icon(Icons.Default.Inventory2, contentDescription = null) },
+            onClick = { onNavigate("inventory_graph") },
             modifier = Modifier.padding(horizontal = 8.dp),
         )
 
-        // Sign out active account
         NavigationDrawerItem(
-            label = {
-                Text(
-                    text = "Sign out",
-                    color = MaterialTheme.colorScheme.error,
-                )
-            },
-            selected = false,
-            icon = {
-                Icon(
-                    Icons.AutoMirrored.Filled.Logout,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error,
-                )
-            },
-            onClick = {
-                activeId?.let { id ->
-                    viewModel.signOut(id)
-                    onSignOut(id)
-                }
-            },
+            label = { Text("Purchase Orders") },
+            selected = currentRoute?.startsWith("inventory/purchase-orders") == true,
+            icon = { Icon(Icons.Default.ShoppingCart, contentDescription = null) },
+            onClick = { onNavigate(InventoryRoute.PurchaseOrderList.route) },
+            modifier = Modifier.padding(horizontal = 8.dp),
+        )
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+        // ── Settings ─────────────────────────────────────────────────────────
+        NavigationDrawerItem(
+            label = { Text("Settings") },
+            selected = currentRoute?.startsWith("settings") == true,
+            icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+            onClick = { onNavigate(SettingsRoute.GRAPH) },
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
         )
     }
+}
+
+@Composable
+private fun DrawerSectionHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 20.dp, top = 10.dp, bottom = 4.dp),
+    )
 }

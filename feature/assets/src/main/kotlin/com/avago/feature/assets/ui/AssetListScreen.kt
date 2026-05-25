@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -37,7 +38,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -82,28 +82,13 @@ fun AssetListScreen(
     val showOnboarding by onboardingViewModel.showBanner.collectAsStateWithLifecycle()
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.assets_title)) },
-                actions = {
-                    IconButton(onClick = onScanBarcode) {
-                        Icon(
-                            imageVector = Icons.Default.QrCodeScanner,
-                            contentDescription = stringResource(R.string.barcode_scanner_action_description),
-                        )
-                    }
-                },
-            )
-        },
+        contentWindowInsets = WindowInsets(0),
         floatingActionButton = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                ScoutFAB(onQuery = { query -> scoutViewModel.query(query) })
-                FloatingActionButton(onClick = onAddAsset) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = stringResource(R.string.assets_add_content_description),
-                    )
-                }
+            FloatingActionButton(onClick = onAddAsset) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = stringResource(R.string.assets_add_content_description),
+                )
             }
         },
     ) { paddingValues ->
@@ -271,15 +256,23 @@ fun AssetListScreen(
                         ) { item ->
                             when (item) {
                                 is String -> {
-                                    Text(
-                                        text = item,
-                                        style = MaterialTheme.typography.labelLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(top = 8.dp, bottom = 2.dp),
-                                    )
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.surfaceVariant,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        Text(
+                                            text = item.uppercase(),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(
+                                                start = 16.dp,
+                                                top = 6.dp,
+                                                bottom = 6.dp,
+                                                end = 16.dp,
+                                            ),
+                                        )
+                                    }
                                 }
                                 is AssetEntity -> {
                                     AssetCard(

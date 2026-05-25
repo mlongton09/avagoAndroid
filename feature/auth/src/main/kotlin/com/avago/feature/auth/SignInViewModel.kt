@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.feature.auth.R
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
@@ -52,15 +53,24 @@ class SignInViewModel @Inject constructor(
             _state.value = SignInState.Loading
             try {
                 val credentialManager = CredentialManager.create(context)
-                val googleIdOption = GetGoogleIdOption.Builder()
-                    .setFilterByAuthorizedAccounts(false)
-                    .setServerClientId(WEB_CLIENT_ID)
-                    .build()
-                val request = GetCredentialRequest.Builder()
-                    .addCredentialOption(googleIdOption)
-                    .build()
-                val result = credentialManager.getCredential(context, request)
-                val googleIdToken = GoogleIdTokenCredential.createFrom(result.credential.data).idToken
+                // Try One Tap first; fall back to the full account-picker sheet on failure.
+                val credential = try {
+                    val googleIdOption = GetGoogleIdOption.Builder()
+                        .setFilterByAuthorizedAccounts(false)
+                        .setServerClientId(WEB_CLIENT_ID)
+                        .build()
+                    credentialManager.getCredential(
+                        context,
+                        GetCredentialRequest.Builder().addCredentialOption(googleIdOption).build(),
+                    ).credential
+                } catch (_: GetCredentialException) {
+                    val signInOption = GetSignInWithGoogleOption.Builder(WEB_CLIENT_ID).build()
+                    credentialManager.getCredential(
+                        context,
+                        GetCredentialRequest.Builder().addCredentialOption(signInOption).build(),
+                    ).credential
+                }
+                val googleIdToken = GoogleIdTokenCredential.createFrom(credential.data).idToken
                 val firebaseCredential = GoogleAuthProvider.getCredential(googleIdToken, null)
                 val authResult = FirebaseAuth.getInstance().signInWithCredential(firebaseCredential).await()
                 val idToken = authResult.user?.getIdToken(false)?.await()?.token

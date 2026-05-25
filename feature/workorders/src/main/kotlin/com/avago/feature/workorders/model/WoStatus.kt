@@ -3,9 +3,6 @@ package com.avago.feature.workorders.model
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-import com.avago.core.design.theme.AvagoAmber
-import com.avago.core.design.theme.AvagoBlue
-import com.avago.core.design.theme.AvagoGreen
 
 /**
  * Canonical 7-stage work order status machine.
@@ -33,9 +30,9 @@ enum class WoStatus(val key: String, val displayName: String) {
 fun WoStatus.statusColor(): Color = when (this) {
     WoStatus.OPEN -> MaterialTheme.colorScheme.primary
     WoStatus.ASSIGNED -> MaterialTheme.colorScheme.tertiary
-    WoStatus.IN_PROGRESS -> AvagoGreen
-    WoStatus.ON_HOLD -> AvagoAmber
-    WoStatus.PENDING_PARTS -> AvagoBlue
+    WoStatus.IN_PROGRESS -> MaterialTheme.colorScheme.secondary
+    WoStatus.ON_HOLD -> MaterialTheme.colorScheme.tertiary
+    WoStatus.PENDING_PARTS -> MaterialTheme.colorScheme.primary
     WoStatus.COMPLETE -> MaterialTheme.colorScheme.outline
     WoStatus.CANCELLED -> MaterialTheme.colorScheme.error
 }

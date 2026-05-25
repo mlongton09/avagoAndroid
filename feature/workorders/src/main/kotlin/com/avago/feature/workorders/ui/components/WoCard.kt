@@ -149,7 +149,7 @@ fun DueDateBadge(dueDateMs: Long?, status: WoStatus, modifier: Modifier = Modifi
 fun PriorityBadge(priority: String, modifier: Modifier = Modifier) {
     val color = when (priority) {
         "critical" -> MaterialTheme.colorScheme.error
-        "high" -> com.avago.core.design.theme.AvagoAmber
+        "high" -> MaterialTheme.colorScheme.tertiary
         "medium" -> MaterialTheme.colorScheme.primary
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }

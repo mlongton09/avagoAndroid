@@ -10,18 +10,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -30,37 +27,28 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.avago.feature.auth.R
 
 @Composable
 fun SignInScreen(
     onSignedIn: () -> Unit,
+    onNavigateToEmail: () -> Unit = {},
     viewModel: SignInViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val email by viewModel.email.collectAsStateWithLifecycle()
-    val password by viewModel.password.collectAsStateWithLifecycle()
-
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
-    var passwordVisible by remember { mutableStateOf(false) }
 
-    // React to state changes
     LaunchedEffect(state) {
         when (val s = state) {
             is SignInState.Success -> onSignedIn()
@@ -87,141 +75,124 @@ fun SignInScreen(
                     .padding(horizontal = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                // Title
+                // Logo
+                Icon(
+                    imageVector = Icons.Default.Build,
+                    contentDescription = null,
+                    modifier = Modifier.size(80.dp),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(Modifier.height(8.dp))
+
+                // App name
                 Text(
-                    text = stringResource(R.string.sign_in_app_title),
-                    style = MaterialTheme.typography.displaySmall,
+                    text = "avago",
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(Modifier.height(8.dp))
+
+                // Tagline
                 Text(
-                    text = stringResource(R.string.sign_in_subtitle),
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = "Your maintenance log",
+                    fontSize = 16.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
 
-                Spacer(modifier = Modifier.height(56.dp))
+                Spacer(Modifier.height(48.dp))
 
-                // Google Sign-In button
-                OutlinedButton(
-                    modifier = Modifier.fillMaxWidth(),
+                // Google Sign In
+                Button(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
                     onClick = {
-                        val activity = context as? android.app.Activity
-                        if (activity != null) {
-                            viewModel.signInWithGoogle(activity)
-                        }
+                        (context as? android.app.Activity)?.let { viewModel.signInWithGoogle(it) }
                     },
                     enabled = state !is SignInState.Loading,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF4285F4),
+                        contentColor = Color.White,
+                    ),
+                    shape = RoundedCornerShape(12.dp),
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = "G",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = Color(0xFF4285F4),
-                            modifier = Modifier.padding(end = 12.dp),
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(end = 8.dp),
                         )
-                        Text(stringResource(R.string.sign_in_google))
+                        Text("Sign in with Google")
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(Modifier.height(12.dp))
 
-                // OR divider
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    HorizontalDivider(modifier = Modifier.weight(1f))
-                    Text(
-                        text = stringResource(R.string.sign_in_divider_or),
-                        modifier = Modifier.padding(horizontal = 12.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    HorizontalDivider(modifier = Modifier.weight(1f))
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Email field
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = viewModel::setEmail,
-                    label = { Text(stringResource(R.string.sign_in_email_label)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = state !is SignInState.Loading,
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Password field
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = viewModel::setPassword,
-                    label = { Text(stringResource(R.string.sign_in_password_label)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    visualTransformation = if (passwordVisible) {
-                        VisualTransformation.None
-                    } else {
-                        PasswordVisualTransformation()
-                    },
-                    trailingIcon = {
-                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                            Icon(
-                                imageVector = if (passwordVisible) {
-                                    Icons.Filled.VisibilityOff
-                                } else {
-                                    Icons.Filled.Visibility
-                                },
-                                contentDescription = if (passwordVisible) {
-                                    stringResource(R.string.sign_in_hide_password)
-                                } else {
-                                    stringResource(R.string.sign_in_show_password)
-                                },
-                            )
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = state !is SignInState.Loading,
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Email sign-in button
+                // Sign in with Email
                 Button(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = { viewModel.signInWithEmail(context) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    onClick = onNavigateToEmail,
                     enabled = state !is SignInState.Loading,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    ),
+                    shape = RoundedCornerShape(12.dp),
                 ) {
-                    if (state is SignInState.Loading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary,
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Email,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .padding(end = 8.dp)
+                                .size(18.dp),
                         )
-                    } else {
-                        Text(stringResource(R.string.sign_in_button))
+                        Text("Sign in with Email")
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(Modifier.height(20.dp))
 
-                // Anonymous fallback
+                // "— or —"
+                Text(
+                    text = "— or —",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+
+                Spacer(Modifier.height(12.dp))
+
+                // Continue without signing in
                 TextButton(
                     onClick = { viewModel.continueAnonymously(context) },
                     enabled = state !is SignInState.Loading,
                 ) {
                     Text(
-                        text = stringResource(R.string.sign_in_continue_anonymous),
-                        style = MaterialTheme.typography.bodySmall,
+                        text = "Continue without signing in",
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+
+                Spacer(Modifier.height(4.dp))
+
+                // Local data notice
+                Text(
+                    text = "Your data is saved locally on this device.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+
+                if (state is SignInState.Loading) {
+                    Spacer(Modifier.height(16.dp))
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
                 }
             }
         }

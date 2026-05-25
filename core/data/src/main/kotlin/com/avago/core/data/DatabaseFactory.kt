@@ -3,7 +3,6 @@ package com.avago.core.data
 import android.content.Context
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import androidx.sqlite.db.SupportSQLiteDatabase
 import com.avago.core.data.db.AvagoDatabase
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -33,7 +32,6 @@ class DatabaseFactory(
         )
             .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
             .fallbackToDestructiveMigration(dropAllTables = true)
-            .addCallback(PragmaCallback)
             .build()
     }
 
@@ -55,14 +53,4 @@ class DatabaseFactory(
         java.io.File(dbDir, "avago.db-wal").delete()
     }
 
-    private object PragmaCallback : RoomDatabase.Callback() {
-        override fun onOpen(db: SupportSQLiteDatabase) {
-            super.onOpen(db)
-            if (db.isReadOnly) return
-            db.execSQL("PRAGMA foreign_keys=ON")
-            db.execSQL("PRAGMA synchronous=NORMAL")
-            db.execSQL("PRAGMA temp_store=MEMORY")
-            db.execSQL("PRAGMA mmap_size=134217728")
-        }
-    }
 }

@@ -26,6 +26,7 @@ fun NavGraphBuilder.authNavGraph(
         composable(AuthRoute.SignIn) {
             SignInScreen(
                 onSignedIn = onSignedIn,
+                onNavigateToEmail = { navController.navigate(AuthRoute.EmailSignIn) },
             )
         }
 

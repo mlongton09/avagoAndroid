@@ -8,33 +8,52 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = AvagoBlue,
-    secondary = AvagoGreen,
-    tertiary = AvagoAmber,
-    error = AvagoRed,
+    primary = DarkAccentBlue,
+    onPrimary = Color(0xFFE6EDF3),
+    primaryContainer = DarkPrimaryContainer,
+    onPrimaryContainer = DarkOnPrimaryContainer,
+    secondary = DarkAccentGreen,
+    onSecondary = Color(0xFFE6EDF3),
+    secondaryContainer = DarkSurfaceVariant,
+    onSecondaryContainer = DarkOnSurface,
+    tertiary = DarkAccentOrange,
+    onTertiary = Color(0xFFE6EDF3),
+    error = DarkAccentRed,
+    onError = Color(0xFFE6EDF3),
     background = DarkBackground,
-    surface = DarkSurface,
-    surfaceVariant = DarkSurfaceVariant,
     onBackground = DarkOnSurface,
+    surface = DarkSurface,
     onSurface = DarkOnSurface,
+    surfaceVariant = DarkSurfaceVariant,
     onSurfaceVariant = DarkOnSurfaceVariant,
+    surfaceContainer = DarkSurfaceContainer,
     outline = DarkOutline,
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = AvagoBlue,
-    secondary = AvagoGreen,
-    tertiary = AvagoAmber,
-    error = AvagoRed,
+    primary = LightAccentBlue,
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = LightPrimaryContainer,
+    onPrimaryContainer = LightOnPrimaryContainer,
+    secondary = LightAccentGreen,
+    onSecondary = Color(0xFFFFFFFF),
+    secondaryContainer = LightSurfaceVariant,
+    onSecondaryContainer = LightOnSurface,
+    tertiary = LightAccentOrange,
+    onTertiary = Color(0xFFFFFFFF),
+    error = LightAccentRed,
+    onError = Color(0xFFFFFFFF),
     background = LightBackground,
-    surface = LightSurface,
-    surfaceVariant = LightSurfaceVariant,
     onBackground = LightOnSurface,
+    surface = LightSurface,
     onSurface = LightOnSurface,
+    surfaceVariant = LightSurfaceVariant,
     onSurfaceVariant = LightOnSurfaceVariant,
+    surfaceContainer = LightSurfaceContainer,
     outline = LightOutline,
 )
 

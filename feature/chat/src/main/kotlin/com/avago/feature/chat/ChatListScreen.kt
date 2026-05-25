@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.Badge
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,7 +32,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -71,53 +71,53 @@ fun ChatListScreen(
 
     Scaffold(
         modifier = modifier,
-        topBar = {
-            TopAppBar(
-                title = { Text("Chat") },
-                actions = {
-                    IconButton(onClick = onMentions) {
-                        Icon(Icons.Default.Notifications, contentDescription = "Mentions")
-                    }
-                },
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = onNewThread) {
-                Icon(Icons.Default.Add, contentDescription = "New conversation")
-            }
-        },
+        contentWindowInsets = WindowInsets(0),
     ) { innerPadding ->
-        PullToRefreshBox(
-            isRefreshing = uiState.isRefreshing,
-            onRefresh = viewModel::refresh,
+        Box(
             modifier = Modifier
                 .padding(innerPadding)
                 .fillMaxSize(),
         ) {
+        PullToRefreshBox(
+            isRefreshing = uiState.isRefreshing,
+            onRefresh = viewModel::refresh,
+            modifier = Modifier.fillMaxSize(),
+        ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Search bar
-                OutlinedTextField(
-                    value = uiState.searchQuery,
-                    onValueChange = viewModel::setSearchQuery,
-                    placeholder = { Text("Search conversations") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    trailingIcon = {
-                        if (uiState.searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                                Icon(Icons.Default.Close, contentDescription = "Clear search")
+                // Search + notifications row — mirrors iOS: search bar with bell shortcut
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    OutlinedTextField(
+                        value = uiState.searchQuery,
+                        onValueChange = viewModel::setSearchQuery,
+                        placeholder = { Text("filter by person or asset name") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        trailingIcon = {
+                            if (uiState.searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { viewModel.setSearchQuery("") }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear search")
+                                }
                             }
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                    ),
-                )
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 12.dp, top = 8.dp, bottom = 8.dp),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                        ),
+                    )
+                    IconButton(
+                        onClick = onMentions,
+                        modifier = Modifier.padding(end = 4.dp),
+                    ) {
+                        Icon(Icons.Default.Notifications, contentDescription = "Mentions")
+                    }
+                }
 
-                // Filter chips
+                // Filter chips — All / Direct / Work Orders / Assets + Unread toggle
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -127,6 +127,13 @@ fun ChatListScreen(
                             selected = uiState.filter == filter,
                             onClick = { viewModel.setFilter(filter) },
                             label = { Text(label) },
+                        )
+                    }
+                    item {
+                        FilterChip(
+                            selected = uiState.unreadOnly,
+                            onClick = { viewModel.setUnreadOnly(!uiState.unreadOnly) },
+                            label = { Text("Unread") },
                         )
                     }
                 }
@@ -164,6 +171,16 @@ fun ChatListScreen(
                 }
             }
         }
+        // New-conversation FAB
+        FloatingActionButton(
+            onClick = onNewThread,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp),
+        ) {
+            Icon(Icons.Default.Add, contentDescription = "New conversation")
+        }
+        } // Box
     }
 }
 

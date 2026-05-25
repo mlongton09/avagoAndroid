@@ -198,7 +198,8 @@ fun ScoutPaletteSheet(
                         val q = input.drop(1).lowercase()
                         if (q.isEmpty()) skills
                         else skills.filter {
-                            it.name.lowercase().contains(q) ||
+                            it.name?.lowercase()?.contains(q) == true ||
+                                it.skill_id.lowercase().contains(q) ||
                                 it.description?.lowercase()?.contains(q) == true
                         }
                     }
@@ -209,14 +210,14 @@ fun ScoutPaletteSheet(
             LazyColumn(modifier = Modifier.fillMaxWidth()) {
                 items(displaySkills, key = { it.skill_id }) { skill ->
                     ListItem(
-                        headlineContent = { Text(skill.name) },
+                        headlineContent = { Text(skill.name ?: skill.skill_id) },
                         supportingContent = skill.description?.let { desc -> { Text(desc) } },
                         leadingContent = {
                             Icon(Icons.Default.AutoAwesome, contentDescription = null)
                         },
                         modifier = Modifier.clickable {
                             input = ""
-                            viewModel.query(skill.name)
+                            viewModel.query(skill.name ?: skill.skill_id)
                         },
                     )
                 }

@@ -1,5 +1,6 @@
 package com.avago.core.network.model
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
@@ -43,8 +44,11 @@ data class ScoutQueryResponse(
 /** Wire model for GET /accounts/{accountId}/ai/skills */
 @Serializable
 data class AiSkillResponse(
-    val skill_id: String,
-    val name: String,
+    @SerialName("name") val skill_id: String,
+    @SerialName("display_name") val name: String? = null,
     val description: String? = null,
     val input_schema: String? = null,
 )
+
+@Serializable
+data class AiSkillsEnvelope(val skills: List<AiSkillResponse> = emptyList())
