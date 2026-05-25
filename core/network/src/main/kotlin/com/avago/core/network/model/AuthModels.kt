@@ -10,8 +10,10 @@ data class ProvisionRequest(
 
 @Serializable
 data class SignInRequest(
-    val firebase_token: String,
-    val device_id: String,
+    val provider: String,
+    val oauth_token: String,
+    val device_id: String? = null,
+    val platform: String = "android",
 )
 
 @Serializable

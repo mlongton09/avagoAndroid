@@ -145,10 +145,10 @@ class IdentityManager @Inject constructor(
     // Sign-in with Firebase
     // ---------------------------------------------------------------------------
 
-    suspend fun signInWithFirebase(context: Context, firebaseToken: String) =
+    suspend fun signInWithFirebase(context: Context, firebaseToken: String, provider: String = "firebase") =
         withContext(Dispatchers.IO) {
             val deviceId = tokenStore.getOrCreateDeviceId()
-            val response = client.signIn(firebaseToken, deviceId)
+            val response = client.signIn(firebaseToken, deviceId, provider)
             val accountId = requireNotNull(response.account_id) {
                 "Server did not return account_id in sign-in response"
             }
@@ -203,7 +203,7 @@ class IdentityManager @Inject constructor(
                     .addOnSuccessListener { result -> cont.resumeWith(Result.success(result.token)) }
                     .addOnFailureListener { cont.resumeWith(Result.success(null)) }
             } ?: return false
-            signInWithFirebase(appContext, token)
+            signInWithFirebase(appContext, token, "firebase")
             true
         } catch (e: Exception) {
             Timber.w(e, "Silent re-auth failed")
@@ -480,7 +480,7 @@ class IdentityManager @Inject constructor(
                     .addOnSuccessListener { cont.resumeWith(Result.success(it.token)) }
                     .addOnFailureListener { cont.resumeWith(Result.success(null)) }
             } ?: return false
-            signInWithFirebase(appContext, firebaseToken)
+            signInWithFirebase(appContext, firebaseToken, "firebase")
             _activeAccountId.value == accountId
         } catch (e: Exception) {
             Timber.w(e, "reAuthenticateNamedAccount failed for $accountId")

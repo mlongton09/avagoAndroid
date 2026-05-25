@@ -106,9 +106,9 @@ class AvagoServiceClient @Inject constructor(
             setBody(ProvisionRequest(device_id = deviceId))
         }.body() }
 
-    suspend fun signIn(firebaseToken: String, deviceId: String): AuthResponse =
+    suspend fun signIn(firebaseToken: String, deviceId: String, provider: String = "firebase"): AuthResponse =
         safeCall { client.post("$baseUrl/auth/signin") {
-            setBody(SignInRequest(firebase_token = firebaseToken, device_id = deviceId))
+            setBody(SignInRequest(provider = provider, oauth_token = firebaseToken, device_id = deviceId))
         }.body() }
 
     suspend fun refreshTokens(refreshToken: String, deviceId: String): AuthResponse =

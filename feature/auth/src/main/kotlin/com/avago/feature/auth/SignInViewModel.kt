@@ -75,7 +75,7 @@ class SignInViewModel @Inject constructor(
                 val authResult = FirebaseAuth.getInstance().signInWithCredential(firebaseCredential).await()
                 val idToken = authResult.user?.getIdToken(false)?.await()?.token
                     ?: throw Exception(appContext.getString(R.string.auth_error_token_unavailable))
-                identityManager.signInWithFirebase(context, idToken)
+                identityManager.signInWithFirebase(context, idToken, "firebase")
                 _state.value = SignInState.Success
             } catch (e: GetCredentialException) {
                 Timber.w(e, "Google sign-in cancelled or failed")
@@ -111,7 +111,7 @@ class SignInViewModel @Inject constructor(
                     .signInWithEmailAndPassword(trimmedEmail, password).await()
                 val idToken = authResult.user?.getIdToken(false)?.await()?.token
                     ?: throw Exception(appContext.getString(R.string.auth_error_token_unavailable))
-                identityManager.signInWithFirebase(appContext, idToken)
+                identityManager.signInWithFirebase(appContext, idToken, "firebase")
                 _state.value = SignInState.Success
             } catch (e: Exception) {
                 Timber.e(e, "Email sign-in error")
