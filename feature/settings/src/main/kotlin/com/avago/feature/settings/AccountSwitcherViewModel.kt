@@ -35,6 +35,9 @@ class AccountSwitcherViewModel @Inject constructor(
 
     init {
         refreshAccounts()
+        viewModelScope.launch {
+            identity.activeAccountId.collect { refreshAccounts() }
+        }
     }
 
     // ---------------------------------------------------------------------------

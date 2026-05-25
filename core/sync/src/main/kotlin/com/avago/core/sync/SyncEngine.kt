@@ -85,9 +85,9 @@ class SyncEngine @Inject constructor(
     private val _state = MutableStateFlow<SyncState>(SyncState.Idle)
     val state: StateFlow<SyncState> = _state.asStateFlow()
 
-    /** Entity types pulled in canonical order. */
+    /** Entity types pulled in canonical order. Must match server-supported types only. */
     private val pullEntityTypes = listOf(
-        "asset", "log", "log_cost_line", "schedule",
+        "asset", "log", "log_cost_line",
         "work_order", "wo_assignment", "wo_checklist_item", "wo_comment", "wo_template",
         "tech_profile",
         "inventory", "part", "stocking_level",
@@ -96,11 +96,9 @@ class SyncEngine @Inject constructor(
         "cycle_count", "cycle_count_line",
         "part_issue", "part_issue_line",
         "doc", "photo",
-        "user", "location",
-        "role_permission_defaults", "account_role_permissions",
+        "location",
         "label_template",
         "item", "gl_account", "job", "service",
-        "asset_location_history", "role_label_cache", "event",
     )
 
     // ---------------------------------------------------------------------------

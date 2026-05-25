@@ -33,7 +33,7 @@ data class SyncPushResponse(
 
 @Serializable
 data class SyncPullResponse(
-    val items: List<JsonObject>,
-    val has_more: Boolean,
-    val max_seq: Long,
+    val items: List<JsonObject> = emptyList(),
+    val has_more: Boolean = false,
+    val max_seq: Long = 0,
 )

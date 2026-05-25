@@ -1,5 +1,6 @@
 package com.avago.core.network.model
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -35,7 +36,7 @@ data class ChatMessagesResponse(
 data class ChatThreadResponse(
     val thread_id: String,
     val account_id: String,
-    val thread_type: String,
+    @SerialName("type") val thread_type: String,
     val display_name: String? = null,
     val last_message_preview: String? = null,
     val last_message_at: String? = null,
@@ -43,7 +44,7 @@ data class ChatThreadResponse(
     val subject_summary: String? = null,
     val server_version: Long = 0,
     val created_at: String,
-    val updated_at: String,
+    val updated_at: String = "",
 )
 
 @Serializable

@@ -259,12 +259,18 @@ class AvagoServiceClient @Inject constructor(
         entityType: String,
         lastSeq: Long,
         limit: Int = 200,
-    ): SyncPullResponse =
-        safeCall { client.get("$baseUrl/accounts/$accountId/sync/pull") {
+    ): SyncPullResponse = safeCall {
+        val response: HttpResponse = client.get("$baseUrl/accounts/$accountId/sync/pull") {
             parameter("entity_type", entityType)
             parameter("last_seq", lastSeq)
             parameter("limit", limit)
-        }.body() }
+        }
+        if (!response.status.isSuccess()) {
+            Timber.w("[AvagoServiceClient] syncPull $entityType → HTTP ${response.status.value}, skipping")
+            return@safeCall SyncPullResponse(items = emptyList(), has_more = false, max_seq = lastSeq)
+        }
+        response.body()
+    }
 
     suspend fun getMembers(accountId: String): List<UserResponse> =
         safeCall { client.get("$baseUrl/accounts/$accountId/members").body() }
