@@ -220,7 +220,7 @@ class AddEditVendorViewModel @Inject constructor(
                 )
                 val db = dbFactory.get(accountId)
                 db.vendorDao().upsert(entity)
-                db.syncQueueDao().enqueueOrReplace(
+                db.syncQueueDao().enqueueWithDedup(
                     SyncQueueEntity(
                         queueId = UUID.randomUUID().toString(),
                         entityType = "vendor",

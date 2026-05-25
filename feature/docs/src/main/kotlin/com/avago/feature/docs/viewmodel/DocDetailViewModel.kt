@@ -59,7 +59,7 @@ class DocDetailViewModel @Inject constructor(
             val db = dbFactory.get(accountId)
             val now = System.currentTimeMillis()
             db.docDao().softDelete(docId, now)
-            db.syncQueueDao().enqueueOrReplace(
+            db.syncQueueDao().enqueueWithDedup(
                 SyncQueueEntity(
                     queueId = UUID.randomUUID().toString(),
                     entityType = "doc",
@@ -98,7 +98,7 @@ class DocDetailViewModel @Inject constructor(
                 val db = dbFactory.get(accountId)
                 db.docDao().upsert(updated)
                 _doc.value = updated
-                db.syncQueueDao().enqueueOrReplace(
+                db.syncQueueDao().enqueueWithDedup(
                     SyncQueueEntity(
                         queueId = UUID.randomUUID().toString(),
                         entityType = "doc",

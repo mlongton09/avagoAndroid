@@ -200,7 +200,7 @@ class WorkOrderRepository @Inject constructor(
     ) {
         val db = dbFactory.get(accountId)
         val now = System.currentTimeMillis()
-        db.syncQueueDao().enqueueOrReplace(
+        db.syncQueueDao().enqueueWithDedup(
             SyncQueueEntity(
                 queueId = "${entityType}_${entityId}",
                 entityType = entityType,

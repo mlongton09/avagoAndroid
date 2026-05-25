@@ -129,7 +129,7 @@ class LogDetailViewModel @Inject constructor(
                 createdAt = now,
                 updatedAt = now,
             )
-            db.syncQueueDao().enqueueOrReplace(entity)
+            db.syncQueueDao().enqueueWithDedup(entity)
             syncEngine.pushIfNeeded()
         } catch (e: Exception) {
             Timber.e(e, "[LogDetailViewModel] Failed to enqueue delete for $entryId")

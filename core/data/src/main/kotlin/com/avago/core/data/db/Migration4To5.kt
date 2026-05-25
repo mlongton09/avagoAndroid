@@ -10,6 +10,7 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
         migrateLog(db)
         migrateItems(db)
         migrateInventory(db)
+        migrateAssetsDepreciation(db)
     }
 }
 
@@ -236,4 +237,12 @@ private fun migrateItems(db: SupportSQLiteDatabase) {
 private fun migrateInventory(db: SupportSQLiteDatabase) {
     db.execSQL("ALTER TABLE inventory ADD COLUMN bin_id TEXT")
     db.execSQL("CREATE INDEX index_inventory_bin_id ON inventory (bin_id)")
+}
+
+internal fun migrateAssetsDepreciation(db: SupportSQLiteDatabase) {
+    db.execSQL("ALTER TABLE assets ADD COLUMN purchase_price REAL")
+    db.execSQL("ALTER TABLE assets ADD COLUMN salvage_value REAL")
+    db.execSQL("ALTER TABLE assets ADD COLUMN useful_life_months INTEGER")
+    db.execSQL("ALTER TABLE assets ADD COLUMN depreciation_method TEXT")
+    db.execSQL("ALTER TABLE assets ADD COLUMN placed_in_service_date INTEGER")
 }

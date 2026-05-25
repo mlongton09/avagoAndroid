@@ -71,4 +71,36 @@ interface SyncQueueDao {
      */
     @Query("SELECT 1 FROM sync_queue WHERE entity_type = :entityType AND entity_id = :entityId AND sync_status IN ('pending', 'in_flight', 'error') LIMIT 1")
     suspend fun hasPendingPush(entityType: String, entityId: String): Int?
+
+    @Query("SELECT * FROM sync_queue WHERE queue_id = :queueId AND sync_status IN ('pending', 'error')")
+    suspend fun getPendingByQueueId(queueId: String): SyncQueueEntity?
+
+    /**
+     * Enqueue with iOS-compatible dedup logic:
+     *
+     * - insert + delete  → cancel both (delete the pending insert, skip enqueueing delete)
+     * - insert + update  → keep as "insert" but use the new payload
+     * - delete + insert  → treat as a fresh insert (re-create on server)
+     * - anything else    → replace the existing row with the new one
+     *
+     * Mirrors iOS SyncQueueDAO.enqueue() dedup rules.
+     */
+    @Transaction
+    suspend fun enqueueWithDedup(entity: SyncQueueEntity) {
+        val existing = getPendingByQueueId(entity.queueId)
+        when {
+            existing?.operation == "insert" && entity.operation == "delete" -> {
+                // Cancel: asset was created locally but never synced; deleting it is a no-op
+                softDelete(existing.queueId)
+            }
+            existing?.operation == "insert" && entity.operation == "update" -> {
+                // Merge: keep "insert" so the server creates it, but use the latest payload
+                upsert(entity.copy(operation = "insert"))
+            }
+            else -> {
+                // Default: replace with the latest operation + payload
+                upsert(entity)
+            }
+        }
+    }
 }

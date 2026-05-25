@@ -2,6 +2,10 @@ package com.avago.core.sync
 
 import com.avago.core.data.DatabaseFactory
 import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toInstant
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -52,6 +56,11 @@ class SyncPayloadBuilder @Inject constructor(
                         put("is_rental", e.isRental)
                         e.rentalRate?.let { put("rental_rate", it) }
                         e.rentalRateUnit?.let { put("rental_rate_unit", it) }
+                        e.purchasePrice?.let { put("purchase_price", it) }
+                        e.salvageValue?.let { put("salvage_value", it) }
+                        e.usefulLifeMonths?.let { put("useful_life_months", it) }
+                        e.depreciationMethod?.let { put("depreciation_method", it) }
+                        e.placedInServiceDate?.let { put("placed_in_service_date", msToDateOnly(it)) }
                         put("created_at", msToIso(e.createdAt))
                         put("updated_at", msToIso(e.updatedAt))
                         e.deletedAt?.let { put("deleted_at", msToIso(it)) }
@@ -65,7 +74,7 @@ class SyncPayloadBuilder @Inject constructor(
                         put("asset_id", e.assetId)
                         put("account_id", e.accountId)
                         put("title", e.title)
-                        put("log_date", msToIso(e.entryDate))
+                        put("log_date", msToDateOnly(e.entryDate))
                         e.odometerValue?.let { put("meter", it) }
                         e.category?.let { put("category", it) }
                         e.cost?.let { put("cost", it) }
@@ -507,8 +516,8 @@ class SyncPayloadBuilder @Inject constructor(
                         e.vendor?.let { put("vendor", it) }
                         e.total?.let { put("total_amount", it) }
                         e.currency?.let { put("currency", it) }
-                        e.purchaseDate?.let { put("purchase_date", msToIso(it)) }
-                        e.warrantyEndDate?.let { put("warranty_end_date", msToIso(it)) }
+                        e.purchaseDate?.let { put("purchase_date", msToDateOnly(it)) }
+                        e.warrantyEndDate?.let { put("warranty_end_date", msToDateOnly(it)) }
                         e.uploadedBy?.let { put("uploaded_by", it) }
                         e.uploadedAt?.let { put("uploaded_at", msToIso(it)) }
                         put("created_at", msToIso(e.createdAt))
@@ -606,4 +615,19 @@ class SyncPayloadBuilder @Inject constructor(
     /** Convert epoch-milliseconds to ISO-8601 string for the wire format. */
     private fun msToIso(ms: Long): String =
         Instant.fromEpochMilliseconds(ms).toString()
+
+    /**
+     * Convert epoch-milliseconds to a calendar-date string sent as noon UTC.
+     *
+     * Date-only fields (log_date, purchase_date, placed_in_service_date, etc.) are stored
+     * as local-midnight epoch millis. Sending the raw UTC instant can cause off-by-one-day
+     * errors in UTC+ timezones (local midnight is the prior UTC day). Noon UTC is safely
+     * within the same calendar day across all timezones from UTC-11 to UTC+11.
+     */
+    private fun msToDateOnly(ms: Long): String {
+        val local = Instant.fromEpochMilliseconds(ms)
+            .toLocalDateTime(TimeZone.currentSystemDefault())
+        val noon = LocalDateTime(local.year, local.month, local.dayOfMonth, 12, 0, 0)
+        return noon.toInstant(TimeZone.UTC).toString()
+    }
 }

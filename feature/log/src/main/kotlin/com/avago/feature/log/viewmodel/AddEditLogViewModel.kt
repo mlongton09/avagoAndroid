@@ -571,7 +571,7 @@ class AddEditLogViewModel @Inject constructor(
 
     private suspend fun enqueueLogSync(accountId: String, entryId: String, now: Long) {
         val db = dbFactory.get(accountId)
-        db.syncQueueDao().enqueueOrReplace(
+        db.syncQueueDao().enqueueWithDedup(
             SyncQueueEntity(
                 queueId = "log:$entryId:upsert",
                 entityType = "log",
@@ -590,7 +590,7 @@ class AddEditLogViewModel @Inject constructor(
 
     private suspend fun enqueueCostLineSync(accountId: String, lineId: String, now: Long) {
         val db = dbFactory.get(accountId)
-        db.syncQueueDao().enqueueOrReplace(
+        db.syncQueueDao().enqueueWithDedup(
             SyncQueueEntity(
                 queueId = "log_cost_line:$lineId:upsert",
                 entityType = "log_cost_line",

@@ -138,7 +138,7 @@ class DocAddViewModel @Inject constructor(
                         seq = null,
                     ),
                 )
-                db.syncQueueDao().enqueueOrReplace(
+                db.syncQueueDao().enqueueWithDedup(
                     SyncQueueEntity(
                         queueId = UUID.randomUUID().toString(),
                         entityType = "doc",

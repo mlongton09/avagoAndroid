@@ -92,6 +92,21 @@ data class AssetEntity(
     @ColumnInfo(name = "rental_rate_unit")
     val rentalRateUnit: String?,
 
+    @ColumnInfo(name = "purchase_price")
+    val purchasePrice: Double? = null,
+
+    @ColumnInfo(name = "salvage_value")
+    val salvageValue: Double? = null,
+
+    @ColumnInfo(name = "useful_life_months")
+    val usefulLifeMonths: Long? = null,
+
+    @ColumnInfo(name = "depreciation_method")
+    val depreciationMethod: String? = null,
+
+    @ColumnInfo(name = "placed_in_service_date")
+    val placedInServiceDate: Long? = null,
+
     @ColumnInfo(name = "created_at")
     val createdAt: Long,
 

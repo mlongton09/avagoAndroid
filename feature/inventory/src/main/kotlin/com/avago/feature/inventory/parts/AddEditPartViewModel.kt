@@ -199,7 +199,7 @@ class AddEditPartViewModel @Inject constructor(
                                 seq = null,
                             ),
                         )
-                        db.syncQueueDao().enqueueOrReplace(
+                        db.syncQueueDao().enqueueWithDedup(
                             SyncQueueEntity(
                                 queueId = UUID.randomUUID().toString(),
                                 entityType = "inventory",
@@ -217,7 +217,7 @@ class AddEditPartViewModel @Inject constructor(
                     }
                 }
 
-                db.syncQueueDao().enqueueOrReplace(
+                db.syncQueueDao().enqueueWithDedup(
                     SyncQueueEntity(
                         queueId = UUID.randomUUID().toString(),
                         entityType = "part",
