@@ -1,7 +1,5 @@
 package com.avago.core.sync
 
-import android.content.Context
-import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.AvagoDatabase
 import com.avago.core.data.db.dao.SyncMetadataDao
@@ -35,8 +33,6 @@ class DeltaPushApplierTest {
     private val dispatcher = UnconfinedTestDispatcher()
     private val testScope = TestScope(dispatcher)
 
-    private val mockContext = mockk<Context>(relaxed = true)
-    private val mockIdentity = mockk<IdentityManager>(relaxed = true)
     private val mockDbFactory = mockk<DatabaseFactory>()
     private val mockDb = mockk<AvagoDatabase>(relaxed = true)
     private val mockMetadataDao = mockk<SyncMetadataDao>()
@@ -60,8 +56,6 @@ class DeltaPushApplierTest {
         coEvery { mockMetadataDao.updateWatermark(any(), any()) } just Runs
 
         applier = DeltaPushApplier(
-            context = mockContext,
-            identity = mockIdentity,
             dbFactory = mockDbFactory,
             serviceClient = mockServiceClient,
             syncEngine = mockSyncEngineProvider,

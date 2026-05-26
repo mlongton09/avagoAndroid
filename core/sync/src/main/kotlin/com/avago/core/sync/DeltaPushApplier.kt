@@ -1,11 +1,8 @@
 package com.avago.core.sync
 
-import android.content.Context
-import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.SyncMetadataEntity
 import com.avago.core.network.AvagoServiceClient
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
@@ -32,8 +29,6 @@ import javax.inject.Singleton
  */
 @Singleton
 class DeltaPushApplier @Inject constructor(
-    @ApplicationContext private val context: Context,
-    private val identity: IdentityManager,
     private val dbFactory: DatabaseFactory,
     private val serviceClient: AvagoServiceClient,
     // Provider<> breaks circular dependency: SyncEngine → DeltaPushApplier → SyncEngine.
@@ -137,7 +132,7 @@ class DeltaPushApplier @Inject constructor(
      */
     suspend fun flushMetrics(accountId: String) {
         if (metricsCounters.isEmpty()) return
-        val snapshot = buildMap<String, Long> {
+        val snapshot = buildMap {
             for ((key, counter) in metricsCounters) {
                 val value = counter.getAndSet(0L)
                 if (value > 0L) put(key, value)
