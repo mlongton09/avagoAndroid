@@ -148,7 +148,7 @@ class DeltaPushApplier @Inject constructor(
         try {
             serviceClient.postClientMetrics(json)
             Timber.d("$TAG flushMetrics: flushed ${snapshot.size} counters for accountId=$accountId")
-        } catch (_: Exception) {
+        } catch (e: Exception) {
             // Restore counts so they are not lost on transient failure.
             for ((key, value) in snapshot) {
                 metricsCounters.getOrPut(key) { AtomicLong(0L) }.addAndGet(value)
