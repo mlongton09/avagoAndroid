@@ -59,6 +59,10 @@ class IdentityManager @Inject constructor(
     private val _signOutEvents = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val signOutEvents: SharedFlow<String> = _signOutEvents.asSharedFlow()
 
+    /** Emits Unit whenever the accounts manifest is written. Mirrors iOS AVUserProfileDidChange. */
+    private val _accountsChanged = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
+    val accountsChanged: SharedFlow<Unit> = _accountsChanged.asSharedFlow()
+
     private val _activeUserId = MutableStateFlow<String?>(null)
     val activeUserId: StateFlow<String?> = _activeUserId.asStateFlow()
 
@@ -177,6 +181,7 @@ class IdentityManager @Inject constructor(
             )
             AccountManifest.addOrUpdate(context, record)
             setActiveAccount(accountId, user?.user_id)
+            _accountsChanged.tryEmit(Unit)
             crashDiagnosticsProvider.get().setUserContext()
 
             Timber.d("IdentityManager: signed in as $accountId")
@@ -299,6 +304,7 @@ class IdentityManager @Inject constructor(
     suspend fun addAccount(record: AccountRecord) = withContext(Dispatchers.IO) {
         AccountManifest.addOrUpdate(appContext, record)
         setActiveAccount(record.accountId)
+        _accountsChanged.tryEmit(Unit)
         Timber.d("IdentityManager: addAccount ${record.accountId}")
     }
 
@@ -311,6 +317,7 @@ class IdentityManager @Inject constructor(
         _signOutEvents.emit(accountId)
         tokenStore.clearTokens(accountId)
         AccountManifest.remove(context, accountId)
+        _accountsChanged.tryEmit(Unit)
         if (_activeAccountId.value == accountId) {
             // Switch to another account if one exists, otherwise go unauthenticated.
             val remaining = AccountManifest.load(context)
@@ -330,6 +337,7 @@ class IdentityManager @Inject constructor(
         accounts.forEach { _signOutEvents.emit(it.accountId) }
         tokenStore.clearAllTokens()
         AccountManifest.save(appContext, emptyList())
+        _accountsChanged.tryEmit(Unit)
         setActiveAccount(null)
         Timber.d("IdentityManager: signed out of all accounts")
     }
@@ -352,6 +360,7 @@ class IdentityManager @Inject constructor(
                             )
                         )
                     }
+                    _accountsChanged.tryEmit(Unit)
                     Timber.d("IdentityManager: prefetched ${result.data.size} account(s)")
                 }
             } catch (e: Exception) {

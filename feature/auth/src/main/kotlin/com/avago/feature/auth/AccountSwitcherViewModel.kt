@@ -26,6 +26,12 @@ class AccountSwitcherViewModel @Inject constructor(
 
     init {
         _accounts.value = accountManifest.allAccounts()
+        viewModelScope.launch {
+            identityManager.activeAccountId.collect { _accounts.value = accountManifest.allAccounts() }
+        }
+        viewModelScope.launch {
+            identityManager.accountsChanged.collect { _accounts.value = accountManifest.allAccounts() }
+        }
     }
 
     fun switchTo(accountId: String) {

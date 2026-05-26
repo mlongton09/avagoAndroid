@@ -268,8 +268,7 @@ class AvagoServiceClient @Inject constructor(
             parameter("limit", limit)
         }
         if (!response.status.isSuccess()) {
-            Timber.w("[AvagoServiceClient] syncPull $entityType → HTTP ${response.status.value}, skipping")
-            return@safeCall SyncPullResponse(items = emptyList(), has_more = false, max_seq = lastSeq)
+            throw NetworkException(response.status.value, "syncPull $entityType HTTP ${response.status.value}")
         }
         response.body()
     }

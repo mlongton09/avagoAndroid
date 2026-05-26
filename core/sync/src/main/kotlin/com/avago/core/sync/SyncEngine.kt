@@ -400,9 +400,15 @@ class SyncEngine @Inject constructor(
                     lastSeq = response.max_seq
                     hasMore = response.has_more && response.items.isNotEmpty()
                 }
+            } catch (e: NetworkException) {
+                if (e.code == 403) {
+                    Timber.w("[SyncEngine] Pull $entityType got 403 — aborting sync, triggering re-auth")
+                    identity.onRefreshFailed()
+                    return SyncResult.Failed(e)
+                }
+                Timber.e(e, "[SyncEngine] Pull $entityType failed (HTTP ${e.code}) — continuing")
             } catch (e: Exception) {
-                Timber.e(e, "[SyncEngine] Pull $entityType failed")
-                // Continue with other entity types — partial sync is better than none
+                Timber.e(e, "[SyncEngine] Pull $entityType failed — continuing")
             }
         }
 
