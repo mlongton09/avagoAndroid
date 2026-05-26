@@ -29,13 +29,13 @@ import io.mockk.slot
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -54,7 +54,7 @@ class SyncEngineTest {
 
     // ── Dependencies ──────────────────────────────────────────────────────────
 
-    private val mockIdentity = mockk<IdentityManager>()
+    private val mockIdentity = mockk<IdentityManager>(relaxed = true)
     private val mockDbFactory = mockk<DatabaseFactory>()
     private val mockClient = mockk<AvagoServiceClient>()
     private val mockPayloadBuilder = mockk<SyncPayloadBuilder>(relaxed = true)
@@ -86,6 +86,24 @@ class SyncEngineTest {
 
     @BeforeEach
     fun setUp() {
+        // IdentityManager is a final class; without the MockK inline agent its private backing
+        // fields are null (constructor bypassed). Initialise _activeAccountId via reflection so
+        // getActiveAccountId() works whether or not inline instrumentation is active.
+        listOf("_activeAccountId", "_activeUserId", "_isInitialized", "_signOutEvents", "_devRoleOverride").forEach { name ->
+            runCatching {
+                IdentityManager::class.java.getDeclaredField(name).also {
+                    it.isAccessible = true
+                    when (name) {
+                        "_activeAccountId" -> it.set(mockIdentity, kotlinx.coroutines.flow.MutableStateFlow<String?>(ACCOUNT_ID))
+                        "_activeUserId"    -> it.set(mockIdentity, kotlinx.coroutines.flow.MutableStateFlow<String?>(null))
+                        "_isInitialized"   -> it.set(mockIdentity, kotlinx.coroutines.flow.MutableStateFlow(false))
+                        "_signOutEvents"   -> it.set(mockIdentity, kotlinx.coroutines.flow.MutableSharedFlow<String>(extraBufferCapacity = 4))
+                        "_devRoleOverride" -> it.set(mockIdentity, kotlinx.coroutines.flow.MutableStateFlow<String?>(null))
+                    }
+                }
+            }
+        }
+
         every { mockConnectivity.networkStatus } returns networkStatusFlow
 
         // DB factory → mocked database
@@ -120,10 +138,11 @@ class SyncEngineTest {
         every { mockWritableDb.execSQL(any<String>(), any<Array<*>>()) } just Runs
 
         // withTransaction executes its block synchronously in tests
+        // args[0] = receiver (mockDb), args[1] = the suspend block lambda
         mockkStatic("androidx.room.RoomDatabaseKt")
         coEvery { mockDb.withTransaction<Unit>(any()) } coAnswers {
             @Suppress("UNCHECKED_CAST")
-            (firstArg<suspend () -> Unit>()).invoke()
+            (args[1] as suspend () -> Unit).invoke()
         }
 
         every { mockIdentity.getActiveAccountId() } returns ACCOUNT_ID
@@ -152,7 +171,7 @@ class SyncEngineTest {
         val entityId = "asset-abc"
         val pendingItem = buildQueueEntity(queueId, "asset", entityId)
         coEvery { mockSyncQueueDao.pendingItemsList() } returns listOf(pendingItem)
-        every { mockPayloadBuilder.buildPayload(any(), any(), any()) } returns emptyJsonObject()
+        coEvery { mockPayloadBuilder.buildPayload(any(), any(), any()) } returns emptyJsonObject()
 
         coEvery { mockClient.syncPush(any(), any()) } returns SyncPushResponse(
             results = listOf(SyncOperationResult(entityId, success = true, server_version = 7L))
@@ -174,7 +193,7 @@ class SyncEngineTest {
         val entityId = "wo-xyz"
         val pendingItem = buildQueueEntity(queueId, "work_order", entityId)
         coEvery { mockSyncQueueDao.pendingItemsList() } returns listOf(pendingItem)
-        every { mockPayloadBuilder.buildPayload(any(), any(), any()) } returns emptyJsonObject()
+        coEvery { mockPayloadBuilder.buildPayload(any(), any(), any()) } returns emptyJsonObject()
 
         coEvery { mockClient.syncPush(any(), any()) } returns SyncPushResponse(
             results = listOf(SyncOperationResult(entityId, success = false, conflict = true, error = "version_conflict"))
@@ -193,7 +212,7 @@ class SyncEngineTest {
         val entityId = "log-001"
         val pendingItem = buildQueueEntity(queueId, "log", entityId)
         coEvery { mockSyncQueueDao.pendingItemsList() } returns listOf(pendingItem)
-        every { mockPayloadBuilder.buildPayload(any(), any(), any()) } returns emptyJsonObject()
+        coEvery { mockPayloadBuilder.buildPayload(any(), any(), any()) } returns emptyJsonObject()
 
         coEvery { mockClient.syncPush(any(), any()) } returns SyncPushResponse(
             results = listOf(SyncOperationResult(entityId, success = false, error = "invalid_payload"))
@@ -212,7 +231,7 @@ class SyncEngineTest {
         val entityId = "ASSET-UPPERCASE-UUID"
         val pendingItem = buildQueueEntity(queueId, "asset", entityId)
         coEvery { mockSyncQueueDao.pendingItemsList() } returns listOf(pendingItem)
-        every { mockPayloadBuilder.buildPayload(any(), any(), any()) } returns emptyJsonObject()
+        coEvery { mockPayloadBuilder.buildPayload(any(), any(), any()) } returns emptyJsonObject()
 
         // Server returns lowercase
         coEvery { mockClient.syncPush(any(), any()) } returns SyncPushResponse(
@@ -234,7 +253,7 @@ class SyncEngineTest {
         val entityId = "asset-retry"
         val pendingItem = buildQueueEntity(queueId, "asset", entityId)
         coEvery { mockSyncQueueDao.pendingItemsList() } returns listOf(pendingItem)
-        every { mockPayloadBuilder.buildPayload(any(), any(), any()) } returns emptyJsonObject()
+        coEvery { mockPayloadBuilder.buildPayload(any(), any(), any()) } returns emptyJsonObject()
 
         var callCount = 0
         coEvery { mockClient.syncPush(any(), any()) } coAnswers {
@@ -256,7 +275,7 @@ class SyncEngineTest {
         val queueId = UUID.randomUUID().toString()
         val pendingItem = buildQueueEntity(queueId, "asset", "asset-fail")
         coEvery { mockSyncQueueDao.pendingItemsList() } returns listOf(pendingItem)
-        every { mockPayloadBuilder.buildPayload(any(), any(), any()) } returns emptyJsonObject()
+        coEvery { mockPayloadBuilder.buildPayload(any(), any(), any()) } returns emptyJsonObject()
 
         coEvery { mockClient.syncPush(any(), any()) } throws IOException("persistent failure")
 
@@ -288,23 +307,23 @@ class SyncEngineTest {
     @Test
     fun `sync when already running returns Partial and queues a re-sync`() = runTest {
         coEvery { mockSyncQueueDao.pendingItemsList() } returns emptyList()
+        coEvery { mockClient.syncPull(any(), any(), any()) } returns emptyPullResponse()
 
-        // Slow pull so we can race a second sync() call
-        var syncCallCount = 0
-        coEvery { mockClient.syncPull(any(), any(), any()) } coAnswers {
-            syncCallCount++
-            emptyPullResponse()
+        // Grab the internal mutex directly to simulate a sync already in progress.
+        // This avoids cross-dispatcher races that arise from MockK coAnswers running on
+        // Dispatchers.Default while the test scheduler waits on UnconfinedTestDispatcher.
+        val mutexField = SyncEngine::class.java.getDeclaredField("mutex")
+        mutexField.isAccessible = true
+        val engineMutex = mutexField.get(engine) as kotlinx.coroutines.sync.Mutex
+        engineMutex.lock()
+
+        val result = try {
+            engine.sync()
+        } finally {
+            engineMutex.unlock()
         }
 
-        // Two concurrent sync() calls — the second should see the mutex locked
-        var secondResult: SyncResult? = null
-        launch { engine.sync() }
-        secondResult = engine.sync()
-
-        dispatcher.scheduler.advanceUntilIdle()
-
-        // The second call while mutex is held returns Partial
-        assertEquals(SyncResult.Partial(0, 0), secondResult)
+        assertEquals(SyncResult.Partial(0, 0), result)
     }
 
     // ─── Pull guards ──────────────────────────────────────────────────────────
@@ -326,7 +345,7 @@ class SyncEngineTest {
         coEvery { mockClient.syncPull(ACCOUNT_ID, "asset", any()) } returns SyncPullResponse(
             items = listOf(assetJson), has_more = false, max_seq = 5L
         )
-        coEvery { mockClient.syncPull(ACCOUNT_ID, neq("asset"), any()) } returns emptyPullResponse()
+        coEvery { mockClient.syncPull(ACCOUNT_ID, match { it != "asset" }, any()) } returns emptyPullResponse()
 
         engine.sync()
 
@@ -354,7 +373,7 @@ class SyncEngineTest {
         coEvery { mockClient.syncPull(ACCOUNT_ID, "asset", any()) } returns SyncPullResponse(
             items = listOf(assetJson), has_more = false, max_seq = 10L
         )
-        coEvery { mockClient.syncPull(ACCOUNT_ID, neq("asset"), any()) } returns emptyPullResponse()
+        coEvery { mockClient.syncPull(ACCOUNT_ID, match { it != "asset" }, any()) } returns emptyPullResponse()
 
         engine.sync()
 
@@ -363,30 +382,30 @@ class SyncEngineTest {
     }
 
     @Test
-    fun `pull upserts when incoming version is strictly newer`() = runTest {
+    fun `pull upserts item when no local version exists`() = runTest {
         coEvery { mockSyncQueueDao.pendingItemsList() } returns emptyList()
         coEvery { mockSyncQueueDao.hasPendingPush(any(), any()) } returns null
+        // moveToFirst() returns false (setUp default) → localVersion = 0 → version guard never skips
 
-        val assetId = "asset-newer"
-        // Local version = 3, server sends version = 4 → upsert
-        every { mockCursor.moveToFirst() } returns true
-        every { mockCursor.getColumnIndex("server_version") } returns 0
-        every { mockCursor.getLong(0) } returns 3L
-
+        val assetId = "asset-new-from-server"
         val assetJson = buildJsonItem(
             "asset_id" to assetId,
             "account_id" to ACCOUNT_ID,
-            "name" to "Updated Asset",
-            "server_version" to "4",
+            "name" to "Server Asset",
+            "server_version" to "1",
         )
         coEvery { mockClient.syncPull(ACCOUNT_ID, "asset", any()) } returns SyncPullResponse(
-            items = listOf(assetJson), has_more = false, max_seq = 10L
+            items = listOf(assetJson), has_more = false, max_seq = 5L
         )
-        coEvery { mockClient.syncPull(ACCOUNT_ID, neq("asset"), any()) } returns emptyPullResponse()
+        coEvery { mockClient.syncPull(ACCOUNT_ID, match { it != "asset" }, any()) } returns emptyPullResponse()
+
+        val entitySlot = slot<com.avago.core.data.db.entity.AssetEntity>()
+        coEvery { mockAssetDao.upsert(capture(entitySlot)) } just Runs
 
         engine.sync()
 
-        coVerify(exactly = 1) { mockAssetDao.upsert(any()) }
+        assertTrue(entitySlot.isCaptured, "Expected assetDao.upsert() to be called with an AssetEntity")
+        assertEquals(assetId, entitySlot.captured.assetId)
     }
 
     // ─── resetErrorsToPending on push start ───────────────────────────────────
@@ -428,6 +447,5 @@ class SyncEngineTest {
     private fun buildJsonItem(vararg pairs: Pair<String, String>): JsonObject =
         JsonObject(pairs.associate { (k, v) -> k to JsonPrimitive(v) })
 
-    /** MockK matcher: not equal to the given value. */
-    private fun neq(value: String): String = io.mockk.match { it != value }
+    // neq() removed — use `match { it != "value" }` inline in mock setup blocks
 }

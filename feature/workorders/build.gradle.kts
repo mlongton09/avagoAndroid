@@ -39,4 +39,13 @@ dependencies {
     implementation(project(":core:sync"))
     implementation(project(":core:network"))
     implementation(project(":core:auth"))
+
+    testImplementation(libs.junit5)
+    testRuntimeOnly(libs.junit5.engine)
+    testImplementation(libs.mockk)
+    testImplementation(libs.coroutines.test)
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
 }
