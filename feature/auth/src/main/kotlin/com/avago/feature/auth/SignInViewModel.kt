@@ -96,9 +96,9 @@ class SignInViewModel @Inject constructor(
             } catch (e: FirebaseNetworkException) {
                 Timber.w(e, "Email sign-in network error")
                 _state.value = SignInState.Error(appContext.getString(R.string.auth_error_network))
-            } catch (e: FirebaseAuthInvalidCredentialsException) {
+            } catch (_: FirebaseAuthInvalidCredentialsException) {
                 _state.value = SignInState.Error(appContext.getString(R.string.auth_error_wrong_password))
-            } catch (e: FirebaseAuthInvalidUserException) {
+            } catch (_: FirebaseAuthInvalidUserException) {
                 _state.value = SignInState.Error(appContext.getString(R.string.auth_error_user_not_found))
             } catch (e: Exception) {
                 Timber.e(e, "Email sign-in error")

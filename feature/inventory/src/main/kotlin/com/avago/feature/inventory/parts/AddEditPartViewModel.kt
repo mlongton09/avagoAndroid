@@ -124,8 +124,6 @@ class AddEditPartViewModel @Inject constructor(
     fun setMinQty(v: String) { _state.value = _state.value.copy(minQty = v) }
     fun setMaxQty(v: String) { _state.value = _state.value.copy(maxQty = v) }
     fun setSafetyStock(v: String) { _state.value = _state.value.copy(safetyStock = v) }
-    fun setLocationId(v: String) { _state.value = _state.value.copy(locationId = v) }
-    fun setBinId(v: String) { _state.value = _state.value.copy(binId = v) }
     fun setBarcode(v: String) { _state.value = _state.value.copy(barcode = v) }
     fun setManufacturer(v: String) { _state.value = _state.value.copy(manufacturer = v) }
     fun setUom(v: String) { _state.value = _state.value.copy(uom = v) }
