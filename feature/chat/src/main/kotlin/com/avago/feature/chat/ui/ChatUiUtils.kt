@@ -61,7 +61,7 @@ fun ChatThreadEntity.lastMessagePreviewText(): String {
     if (stripped.matches(Regex("https?://\\S+"))) {
         return try {
             Uri.parse(stripped).host?.removePrefix("www.") ?: stripped
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             stripped
         }
     }
@@ -113,7 +113,7 @@ fun Long.toMessageTimestamp(): String {
 
 private fun String.parseJsonObjectSafely(): JsonObject? = try {
     json.parseToJsonElement(this).jsonObject
-} catch (e: Exception) {
+} catch (_: Exception) {
     null
 }
 
@@ -128,7 +128,7 @@ fun String?.parseReactions(): Map<String, List<String>> {
                 emptyList<String>()
             }
         }
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         emptyMap()
     }
 }

@@ -308,7 +308,7 @@ private fun formatRentalDate(isoString: String): String = try {
     val instant = Instant.parse(isoString)
     val formatter = DateTimeFormatter.ofPattern("MMM d, yyyy")
     instant.atZone(ZoneId.systemDefault()).toLocalDate().format(formatter)
-} catch (e: Exception) {
+} catch (_: Exception) {
     isoString
 }
 
@@ -320,6 +320,6 @@ private fun formatRentalRate(amount: Double, currency: String): String = try {
         else -> Locale.getDefault()
     }
     NumberFormat.getCurrencyInstance(locale).format(amount)
-} catch (e: Exception) {
+} catch (_: Exception) {
     "%.2f %s".format(amount, currency)
 }

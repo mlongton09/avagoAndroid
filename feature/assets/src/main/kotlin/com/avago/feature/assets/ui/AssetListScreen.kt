@@ -399,7 +399,7 @@ private fun rememberParsedColor(hex: String?): Color {
     return try {
         val colorLong = hex.removePrefix("#").toLong(16)
         if (hex.length == 7) Color(0xFF000000L or colorLong) else Color(colorLong)
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         fallback
     }
 }

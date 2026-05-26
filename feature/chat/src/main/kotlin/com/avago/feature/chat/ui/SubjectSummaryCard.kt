@@ -37,7 +37,7 @@ fun SubjectSummaryCard(
 ) {
     val summary: JsonObject = try {
         json.parseToJsonElement(subjectSummaryJson).jsonObject
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         return
     }
 

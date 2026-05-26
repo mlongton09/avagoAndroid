@@ -102,7 +102,7 @@ class AddEditPartViewModel @Inject constructor(
             buildMap {
                 json.keys().forEach { key -> put(key, json.optString(key)) }
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             emptyMap()
         }
     }

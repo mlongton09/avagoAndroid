@@ -228,6 +228,6 @@ class OutboxRetryCoordinator @Inject constructor(
 /** Parse an ISO-8601 string to epoch milliseconds, returning null on parse failure. */
 private fun String.toEpochMillisOrNull(): Long? = try {
     java.time.Instant.parse(this).toEpochMilli()
-} catch (e: Exception) {
+} catch (_: Exception) {
     null
 }

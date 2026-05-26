@@ -1495,7 +1495,7 @@ class SyncEngine @Inject constructor(
         if (iso.isNullOrBlank() || iso == "null") return null
         return try {
             Instant.parse(iso).toEpochMilliseconds()
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }

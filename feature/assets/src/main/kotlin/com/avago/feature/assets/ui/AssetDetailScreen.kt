@@ -1071,6 +1071,6 @@ private fun formatDate(epochMs: Long): String =
 
 private fun formatCurrency(amount: Double): String = try {
     NumberFormat.getCurrencyInstance(Locale.getDefault()).format(amount)
-} catch (e: Exception) {
+} catch (_: Exception) {
     "%.2f".format(amount)
 }

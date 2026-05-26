@@ -37,7 +37,7 @@ fun LinkPreviewCard(
 
     val siteName = try {
         Uri.parse(url).host?.removePrefix("www.")?.uppercase()
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         null
     }
 

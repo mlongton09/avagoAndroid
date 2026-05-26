@@ -305,12 +305,12 @@ private fun ReactionRow(reactionsJson: String) {
         obj.entries.mapNotNull { (emoji, value) ->
             val count: Int = try {
                 (value as JsonArray).size
-            } catch (e: Exception) {
-                try { (value as JsonObject).size } catch (e2: Exception) { 0 }
+            } catch (_: Exception) {
+                try { (value as JsonObject).size } catch (_: Exception) { 0 }
             }
             if (count > 0) emoji to count else null
         }
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         emptyList()
     }
 

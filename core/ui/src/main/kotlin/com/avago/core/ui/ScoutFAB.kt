@@ -135,7 +135,7 @@ fun ScoutSheet(
                     try {
                         val reply = onQuery(query)
                         messages = messages + ScoutMessage("assistant", reply)
-                    } catch (e: Exception) {
+                    } catch (_: Exception) {
                         messages = messages + ScoutMessage("error", "Sorry, I couldn't process that request.")
                     } finally {
                         isLoading = false
