@@ -30,6 +30,7 @@ dependencies {
     implementation(libs.firebase.auth)
     implementation(libs.firebase.messaging)
 
+    implementation(libs.work.runtime)
     api(project(":core:network"))
     implementation(project(":core:data"))
 }

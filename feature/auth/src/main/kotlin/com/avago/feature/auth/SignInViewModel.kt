@@ -1,21 +1,15 @@
 package com.avago.feature.auth
 
 import android.content.Context
-import androidx.credentials.CredentialManager
-import androidx.credentials.GetCredentialRequest
-import androidx.credentials.exceptions.GetCredentialException
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.feature.auth.R
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
-import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
-import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
-import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.auth.OAuthProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -55,34 +49,14 @@ class SignInViewModel @Inject constructor(
         viewModelScope.launch {
             _state.value = SignInState.Loading
             try {
-                val credentialManager = CredentialManager.create(context)
-                // Try One Tap first; fall back to the full account-picker sheet on failure.
-                val credential = try {
-                    val googleIdOption = GetGoogleIdOption.Builder()
-                        .setFilterByAuthorizedAccounts(false)
-                        .setServerClientId(WEB_CLIENT_ID)
-                        .build()
-                    credentialManager.getCredential(
-                        context,
-                        GetCredentialRequest.Builder().addCredentialOption(googleIdOption).build(),
-                    ).credential
-                } catch (_: GetCredentialException) {
-                    val signInOption = GetSignInWithGoogleOption.Builder(WEB_CLIENT_ID).build()
-                    credentialManager.getCredential(
-                        context,
-                        GetCredentialRequest.Builder().addCredentialOption(signInOption).build(),
-                    ).credential
-                }
-                val googleIdToken = GoogleIdTokenCredential.createFrom(credential.data).idToken
-                val firebaseCredential = GoogleAuthProvider.getCredential(googleIdToken, null)
-                val authResult = FirebaseAuth.getInstance().signInWithCredential(firebaseCredential).await()
+                val provider = OAuthProvider.newBuilder("google.com").build()
+                val authResult = FirebaseAuth.getInstance()
+                    .startActivityForSignInWithProvider(context, provider)
+                    .await()
                 val idToken = authResult.user?.getIdToken(false)?.await()?.token
                     ?: throw Exception(appContext.getString(R.string.auth_error_token_unavailable))
-                identityManager.signInWithFirebase(context, idToken, "firebase")
+                identityManager.signInWithFirebase(context, idToken, "google")
                 _state.value = SignInState.Success
-            } catch (e: GetCredentialException) {
-                Timber.w(e, "Google sign-in cancelled or failed")
-                _state.value = SignInState.Error(appContext.getString(R.string.auth_error_google_sign_in_failed))
             } catch (e: FirebaseNetworkException) {
                 Timber.w(e, "Sign-in network error")
                 _state.value = SignInState.Error(appContext.getString(R.string.auth_error_network))
@@ -148,9 +122,6 @@ class SignInViewModel @Inject constructor(
 
     fun clearError() { _state.value = SignInState.Idle }
 
-    companion object {
-        const val WEB_CLIENT_ID = "725636610313-5vvadjscbchtu0tscv11kombh5s06t0v.apps.googleusercontent.com"
-    }
 }
 
 // Extension to convert a Firebase Task to a suspend function with cancellation support.

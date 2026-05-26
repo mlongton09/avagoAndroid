@@ -12,7 +12,15 @@ data class AccountRecord(
     val addedAt: Long = System.currentTimeMillis(),
     val memberships: List<AccountMembership> = emptyList(),
     val isAnonymous: Boolean = false,
-)
+    /** Account-level name (e.g. "Farmer mark") — separate from the user's personal displayName. */
+    val accountName: String? = null,
+) {
+    /** Mirrors iOS AccountRecord.displayLabel — prefers accountName over displayName. */
+    val displayLabel: String get() = accountName?.takeIf { it.isNotBlank() }
+        ?: displayName?.takeIf { it.isNotBlank() }
+        ?: email
+        ?: accountId
+}
 
 @Serializable
 data class AccountMembership(

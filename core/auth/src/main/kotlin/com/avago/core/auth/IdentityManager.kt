@@ -7,6 +7,9 @@ import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
 import com.avago.core.network.RefreshFailedHandler
 import com.avago.core.network.model.DeviceUpdateRequest
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequest
+import androidx.work.WorkManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -112,6 +115,9 @@ class IdentityManager @Inject constructor(
                         validateRoleFromMembersList(last.accountId, userId)
                     }
                 }
+                // Refresh the account list from the server on every launch so secondary
+                // accounts (e.g. added on another device) appear without requiring sign-out.
+                if (!last.isAnonymous) fetchMyAccountsAsync()
             } else {
                 Timber.d("IdentityManager: no accounts on disk, provisioning")
                 provisionConnected(appContext)
@@ -171,6 +177,8 @@ class IdentityManager @Inject constructor(
             } else {
                 emptyList()
             }
+            Timber.d("IdentityManager: sign-in response has ${response.accounts.size} account(s): ${response.accounts.map { "${it.account_id}=${it.name}" }}")
+            val accountSummary = response.accounts.find { it.account_id == accountId }
             val record = AccountRecord(
                 accountId = accountId,
                 userId = user?.user_id,
@@ -178,8 +186,16 @@ class IdentityManager @Inject constructor(
                 email = user?.email,
                 role = user?.role,
                 memberships = memberships,
+                accountName = accountSummary?.name,
             )
             AccountManifest.addOrUpdate(context, record)
+            // Add any other accounts from the sign-in response that aren't already stored
+            response.accounts.filter { it.account_id != accountId }.forEach { acct ->
+                Timber.d("IdentityManager: adding secondary account ${acct.account_id} (${acct.name}) to manifest")
+                accountManifest.addIfMissing(
+                    AccountRecord(accountId = acct.account_id, accountName = acct.name, role = acct.role)
+                )
+            }
             setActiveAccount(accountId, user?.user_id)
             _accountsChanged.tryEmit(Unit)
             crashDiagnosticsProvider.get().setUserContext()
@@ -189,6 +205,7 @@ class IdentityManager @Inject constructor(
                 .onFailure { Timber.w(it, "IdentityManager: migrateAnonymousToAuthenticated failed") }
             registerPushTokenAsync()
             fetchMyAccountsAsync()
+            enqueueSyncWork()
             val capturedUserId = user?.user_id
             if (capturedUserId != null) {
                 @Suppress("OPT_IN_USAGE")
@@ -211,7 +228,7 @@ class IdentityManager @Inject constructor(
                     .addOnSuccessListener { result -> cont.resumeWith(Result.success(result.token)) }
                     .addOnFailureListener { cont.resumeWith(Result.success(null)) }
             } ?: return false
-            signInWithFirebase(appContext, token, "firebase")
+            signInWithFirebase(appContext, token, firebaseUser.inferProvider())
             true
         } catch (e: Exception) {
             Timber.w(e, "Silent re-auth failed")
@@ -312,14 +329,16 @@ class IdentityManager @Inject constructor(
     // Sign-out
     // ---------------------------------------------------------------------------
 
-    /** Sign out of [accountId], removing its tokens and manifest entry. */
+    /** Sign out of [accountId], removing its tokens, manifest entry, and local database. */
     suspend fun signOut(context: Context, accountId: String) = withContext(Dispatchers.IO) {
         _signOutEvents.emit(accountId)
         tokenStore.clearTokens(accountId)
         AccountManifest.remove(context, accountId)
+        try { databaseFactory.deleteDatabase(accountId) } catch (e: Exception) {
+            Timber.w(e, "IdentityManager: failed to delete DB for $accountId")
+        }
         _accountsChanged.tryEmit(Unit)
         if (_activeAccountId.value == accountId) {
-            // Switch to another account if one exists, otherwise go unauthenticated.
             val remaining = AccountManifest.load(context)
             setActiveAccount(remaining.lastOrNull()?.accountId)
         }
@@ -331,10 +350,15 @@ class IdentityManager @Inject constructor(
      */
     suspend fun signOut(accountId: String) = signOut(appContext, accountId)
 
-    /** Sign out of all accounts, clearing all cached tokens. */
+    /** Sign out of all accounts, clearing all cached tokens and local databases. */
     suspend fun signOutAll() = withContext(Dispatchers.IO) {
         val accounts = AccountManifest.load(appContext)
-        accounts.forEach { _signOutEvents.emit(it.accountId) }
+        accounts.forEach { account ->
+            _signOutEvents.emit(account.accountId)
+            try { databaseFactory.deleteDatabase(account.accountId) } catch (e: Exception) {
+                Timber.w(e, "IdentityManager: failed to delete DB for ${account.accountId}")
+            }
+        }
         tokenStore.clearAllTokens()
         AccountManifest.save(appContext, emptyList())
         _accountsChanged.tryEmit(Unit)
@@ -352,16 +376,18 @@ class IdentityManager @Inject constructor(
             try {
                 val result = client.getAllAccounts()
                 if (result is NetworkResult.Success) {
+                    Timber.d("IdentityManager: fetchMyAccounts returned ${result.data.size} account(s): ${result.data.map { "${it.account_id}=${it.name}" }}")
                     result.data.forEach { acct ->
                         accountManifest.addIfMissing(
                             AccountRecord(
                                 accountId = acct.account_id,
-                                displayName = acct.name,
+                                accountName = acct.name,
+                                role = acct.role,
                             )
                         )
                     }
                     _accountsChanged.tryEmit(Unit)
-                    Timber.d("IdentityManager: prefetched ${result.data.size} account(s)")
+                    Timber.d("IdentityManager: prefetched ${result.data.size} account(s); manifest now has ${accountManifest.allAccounts().size}")
                 }
             } catch (e: Exception) {
                 Timber.w(e, "IdentityManager: fetchMyAccounts failed")
@@ -492,12 +518,30 @@ class IdentityManager @Inject constructor(
                     .addOnSuccessListener { cont.resumeWith(Result.success(it.token)) }
                     .addOnFailureListener { cont.resumeWith(Result.success(null)) }
             } ?: return false
-            signInWithFirebase(appContext, firebaseToken, "firebase")
+            signInWithFirebase(appContext, firebaseToken, firebaseUser.inferProvider())
             _activeAccountId.value == accountId
         } catch (e: Exception) {
             Timber.w(e, "reAuthenticateNamedAccount failed for $accountId")
             false
         }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Sync scheduling
+    // ---------------------------------------------------------------------------
+
+    private var syncWorkerClass: Class<out androidx.work.ListenableWorker>? = null
+
+    fun registerSyncWorker(cls: Class<out androidx.work.ListenableWorker>) {
+        syncWorkerClass = cls
+    }
+
+    private fun enqueueSyncWork() {
+        val cls = syncWorkerClass ?: return
+        val request = OneTimeWorkRequest.Builder(cls).build()
+        WorkManager.getInstance(appContext)
+            .enqueueUniqueWork("sync-after-signin", ExistingWorkPolicy.REPLACE, request)
+        Timber.d("IdentityManager: enqueued post-signin sync")
     }
 
     // ---------------------------------------------------------------------------
@@ -520,5 +564,14 @@ class IdentityManager @Inject constructor(
         return account.memberships
             .find { it.accountId == accountId }
             ?.isRoot ?: false
+    }
+}
+
+private fun com.google.firebase.auth.FirebaseUser.inferProvider(): String {
+    val providers = providerData.map { it.providerId }
+    return when {
+        "google.com" in providers -> "google"
+        "apple.com" in providers -> "apple"
+        else -> "firebase"
     }
 }

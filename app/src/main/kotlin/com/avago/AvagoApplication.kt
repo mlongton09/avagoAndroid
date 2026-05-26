@@ -104,6 +104,7 @@ class AvagoApplication : Application(), Configuration.Provider {
             }
         }
 
+        identityManager.registerSyncWorker(SyncWorker::class.java)
         schedulePeriodicSync()
         observeAccountChangesForSync()
         observeConnectivityForSync()

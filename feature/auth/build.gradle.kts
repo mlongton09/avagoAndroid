@@ -35,9 +35,6 @@ dependencies {
     implementation(project(":core:ui"))
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
-    implementation(libs.credentials)
-    implementation(libs.credentials.play.services)
-    implementation(libs.googleid)
     implementation(project(":core:auth"))
     implementation(project(":core:network"))
 }

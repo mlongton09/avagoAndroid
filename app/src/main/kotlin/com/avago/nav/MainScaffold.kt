@@ -338,6 +338,7 @@ fun SideMenuContent(
                     accounts.forEach { account ->
                         val label = when {
                             account.isAnonymous -> "Guest"
+                            !account.accountName.isNullOrBlank() -> account.accountName!!
                             !account.email.isNullOrBlank() -> account.email!!
                             !account.displayName.isNullOrBlank() -> account.displayName!!
                             else -> "Unknown Account"
@@ -439,6 +440,7 @@ fun SideMenuContent(
 
             val signOutLabel = "Sign Out of ${
                 when {
+                    !active.accountName.isNullOrBlank() -> active.accountName!!
                     !active.displayName.isNullOrBlank() -> active.displayName!!
                     !active.email.isNullOrBlank() -> active.email!!
                     else -> "this account"
