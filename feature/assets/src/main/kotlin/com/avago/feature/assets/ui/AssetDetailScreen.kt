@@ -22,13 +22,13 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AccountTree
-import androidx.compose.material.icons.filled.Article
+import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PictureAsPdf
-import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -703,7 +703,7 @@ private fun RentalsCard(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Icon(
-                    imageVector = Icons.Default.ReceiptLong,
+                    imageVector = Icons.AutoMirrored.Filled.ReceiptLong,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                 )
@@ -987,7 +987,7 @@ private fun DocumentsCard(
                 modifier = Modifier.padding(bottom = 8.dp),
             ) {
                 Icon(
-                    imageVector = Icons.Default.Article,
+                    imageVector = Icons.AutoMirrored.Filled.Article,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                 )
