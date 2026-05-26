@@ -11,7 +11,10 @@ import com.avago.feature.auth.R
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.GoogleAuthProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -80,6 +83,9 @@ class SignInViewModel @Inject constructor(
             } catch (e: GetCredentialException) {
                 Timber.w(e, "Google sign-in cancelled or failed")
                 _state.value = SignInState.Error(appContext.getString(R.string.auth_error_google_sign_in_failed))
+            } catch (e: FirebaseNetworkException) {
+                Timber.w(e, "Sign-in network error")
+                _state.value = SignInState.Error(appContext.getString(R.string.auth_error_network))
             } catch (e: Exception) {
                 Timber.e(e, "Sign-in error")
                 _state.value = SignInState.Error(e.message ?: appContext.getString(R.string.auth_error_sign_in_failed))
@@ -113,6 +119,13 @@ class SignInViewModel @Inject constructor(
                     ?: throw Exception(appContext.getString(R.string.auth_error_token_unavailable))
                 identityManager.signInWithFirebase(appContext, idToken, "firebase")
                 _state.value = SignInState.Success
+            } catch (e: FirebaseNetworkException) {
+                Timber.w(e, "Email sign-in network error")
+                _state.value = SignInState.Error(appContext.getString(R.string.auth_error_network))
+            } catch (e: FirebaseAuthInvalidCredentialsException) {
+                _state.value = SignInState.Error(appContext.getString(R.string.auth_error_wrong_password))
+            } catch (e: FirebaseAuthInvalidUserException) {
+                _state.value = SignInState.Error(appContext.getString(R.string.auth_error_user_not_found))
             } catch (e: Exception) {
                 Timber.e(e, "Email sign-in error")
                 _state.value = SignInState.Error(e.message ?: appContext.getString(R.string.auth_error_sign_in_failed))
