@@ -265,8 +265,8 @@ class SyncEngine @Inject constructor(
     private suspend fun runSync(pullAfterPush: Boolean): SyncResult {
         val accountId = identity.getActiveAccountId()
         if (accountId == null) {
-            Timber.w("[SyncEngine] No active account — skipping sync")
-            return SyncResult.Failed(IllegalStateException("No active account"))
+            Timber.d("[SyncEngine] No active account — skipping sync")
+            return SyncResult.Partial(0, 0)
         }
 
         val db = dbFactory.get(accountId)
