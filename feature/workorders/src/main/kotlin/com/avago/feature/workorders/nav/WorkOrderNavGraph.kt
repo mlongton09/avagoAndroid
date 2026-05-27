@@ -55,6 +55,7 @@ fun NavGraphBuilder.workOrderNavGraph(
     navController: NavHostController,
     onNavigateToAssetPicker: (returnRoute: String) -> Unit = {},
     onNavigateToInventoryPicker: (returnRoute: String) -> Unit = {},
+    onNavigateToLogWork: ((assetId: String?) -> Unit)? = null,
 ) {
     navigation(
         startDestination = WorkOrderRoute.LIST,
@@ -85,9 +86,7 @@ fun NavGraphBuilder.workOrderNavGraph(
                 onTechClick = { techId -> navController.navigate(WorkOrderRoute.techProfile(techId)) },
                 onAddPart = { onNavigateToInventoryPicker(WorkOrderRoute.detail(woId)) },
                 onManageCostLines = { navController.navigate(WorkOrderRoute.costLinesEditor(woId)) },
-                // TODO (log-capture parity): once WorkOrderDetailScreen gains onLogWork param,
-                // wire it here:
-                //   onLogWork = { navController.navigate("log/add_edit?entryId=&assetId=") },
+                onLogWork = onNavigateToLogWork,
             )
         }
 

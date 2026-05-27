@@ -53,6 +53,18 @@ class AddEditScheduleViewModel @Inject constructor(
     val meterType = MutableStateFlow("odometer")
     val meterInterval = MutableStateFlow("")
     val meterCurrent = MutableStateFlow("")
+
+    // End-repeat options (mirrors iOS AddEditScheduleViewController)
+    // "never" | "date" | "count"
+    val endType = MutableStateFlow("never")
+    val endDate = MutableStateFlow<LocalDate?>(null)
+    val endCount = MutableStateFlow(1)
+
+    // Additional detail fields (mirrors iOS: location, timezone, notes)
+    val location = MutableStateFlow("")
+    val timezone = MutableStateFlow(java.util.TimeZone.getDefault().id)
+    val notes = MutableStateFlow("")
+
     // Validation
     val titleError = MutableStateFlow(false)
     val assetError = MutableStateFlow(false)
@@ -92,6 +104,20 @@ class AddEditScheduleViewModel @Inject constructor(
                 meterType.value = existing.meterType ?: "odometer"
                 meterInterval.value = existing.meterInterval?.toString() ?: ""
                 meterCurrent.value = existing.meterDue?.toString() ?: ""
+
+                // End-repeat options
+                endType.value = existing.endType ?: "never"
+                endCount.value = existing.endCount?.toInt()?.coerceAtLeast(1) ?: 1
+                if (existing.endDate != null) {
+                    endDate.value = RruleHelper.epochMsToLocalDate(existing.endDate)
+                }
+
+                // nextDueAt doubles as the start date for date-based schedules
+                if (existing.nextDueAt != null) {
+                    RruleHelper.epochMsToLocalDate(existing.nextDueAt)?.let {
+                        startDate.value = it
+                    }
+                }
             } catch (e: Exception) {
                 Timber.e(e, "[AddEditScheduleVM] loadExisting failed")
             }
@@ -139,6 +165,20 @@ class AddEditScheduleViewModel @Inject constructor(
 
                 val id = scheduleId ?: UUID.randomUUID().toString()
 
+                val resolvedEndType = endType.value.takeIf {
+                    scheduleType.value == ScheduleTypeSelection.BY_DATE && rrule != null
+                } ?: "never"
+
+                val resolvedEndDate: Long? = if (resolvedEndType == "date") {
+                    endDate.value
+                        ?.atStartOfDay(ZoneId.systemDefault())
+                        ?.toInstant()
+                        ?.toEpochMilli()
+                } else null
+
+                val resolvedEndCount: Long? =
+                    if (resolvedEndType == "count") endCount.value.toLong() else null
+
                 val entity = ScheduleEntity(
                     scheduleId = id,
                     assetId = assetId.value,
@@ -148,9 +188,9 @@ class AddEditScheduleViewModel @Inject constructor(
                     scheduleType = if (scheduleType.value == ScheduleTypeSelection.BY_METER)
                         "meter" else "calendar",
                     rrule = rrule,
-                    endType = null,
-                    endCount = null,
-                    endDate = null,
+                    endType = resolvedEndType,
+                    endCount = resolvedEndCount,
+                    endDate = resolvedEndDate,
                     meterType = meterType.value.ifBlank { null },
                     meterDue = meterCurrent.value.toDoubleOrNull(),
                     meterInterval = meterInterval.value.toDoubleOrNull(),

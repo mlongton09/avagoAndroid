@@ -63,7 +63,11 @@ fun InventoryListScreen(
             TopAppBar(title = { Text(stringResource(R.string.inventory_title)) })
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddPart) {
+            FloatingActionButton(
+                onClick = onAddPart,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = Color.White,
+            ) {
                 Icon(Icons.Default.Add, contentDescription = stringResource(R.string.inventory_add_part))
             }
         },

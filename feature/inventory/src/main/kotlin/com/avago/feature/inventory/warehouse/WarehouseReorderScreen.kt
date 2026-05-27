@@ -141,7 +141,11 @@ fun WarehouseReorderScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onCreatePo) {
+            FloatingActionButton(
+                onClick = onCreatePo,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = Color.White,
+            ) {
                 Icon(
                     Icons.Default.ShoppingCart,
                     contentDescription = "Create Purchase Order",

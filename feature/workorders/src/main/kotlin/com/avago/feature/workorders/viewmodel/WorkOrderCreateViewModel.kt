@@ -56,6 +56,7 @@ class WorkOrderCreateViewModel @Inject constructor(
 
     val title = MutableStateFlow("")
     val description = MutableStateFlow("")
+    val category = MutableStateFlow<String?>(null)
     val assetId = MutableStateFlow<String?>(null)
     val assetName = MutableStateFlow<String?>(null)
     val dueDateMs = MutableStateFlow<Long?>(null)
@@ -109,6 +110,7 @@ class WorkOrderCreateViewModel @Inject constructor(
                 val wo = repository.getById(accountId, editingWoId) ?: return@launch
                 title.value = wo.title
                 description.value = wo.description ?: ""
+                category.value = wo.category
                 assetId.value = wo.assetId
                 dueDateMs.value = wo.dueDate
                 priority.value = WoPriority.fromKey(wo.priority)
@@ -253,9 +255,12 @@ class WorkOrderCreateViewModel @Inject constructor(
                     locationId = existing?.locationId,
                     title = titleVal,
                     description = description.value.ifBlank { null },
-                    category = existing?.category,
+                    category = category.value ?: existing?.category,
                     priority = priority.value.key,
-                    status = existing?.status ?: "open",
+                    // New WOs are submitted as "pending_review" — mirrors iOS:
+                    //   wo.status = "pending_review" (draft is no longer a creatable state).
+                    // Edit mode preserves the existing status.
+                    status = existing?.status ?: "pending_review",
                     requesterId = existing?.requesterId,
                     assignedTo = assignedTechIds.value.firstOrNull() ?: existing?.assignedTo,
                     dispatcherNotes = existing?.dispatcherNotes,

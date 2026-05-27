@@ -1,6 +1,7 @@
 package com.avago.feature.workorders.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -88,6 +89,7 @@ fun WorkOrderDetailScreen(
     onAddPart: () -> Unit = {},
     onManageCostLines: () -> Unit = {},
     onOpenChat: ((threadId: String) -> Unit)? = null,
+    onLogWork: ((assetId: String?) -> Unit)? = null,
     modifier: Modifier = Modifier,
     viewModel: WorkOrderDetailViewModel = hiltViewModel(),
 ) {
@@ -193,6 +195,17 @@ fun WorkOrderDetailScreen(
 
     Scaffold(
         modifier = modifier,
+        floatingActionButton = {
+            if (onLogWork != null) {
+                androidx.compose.material3.FloatingActionButton(
+                    onClick = { onLogWork(wo?.assetId) },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.White,
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Log work")
+                }
+            }
+        },
         topBar = {
             TopAppBar(
                 navigationIcon = {

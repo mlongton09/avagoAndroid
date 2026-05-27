@@ -9,6 +9,8 @@ import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.DocEntity
 import com.avago.core.data.db.entity.SyncQueueEntity
+import com.avago.core.network.AvagoServiceClient
+import com.avago.core.network.NetworkResult
 import com.avago.core.ocr.AvagoTextRecognizer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -17,7 +19,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import timber.log.Timber
-import java.util.UUID
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
 import javax.inject.Inject
 
 @HiltViewModel
@@ -26,6 +31,7 @@ class DocDetailViewModel @Inject constructor(
     private val dbFactory: DatabaseFactory,
     private val identity: IdentityManager,
     private val textRecognizer: AvagoTextRecognizer,
+    private val serviceClient: AvagoServiceClient,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -92,9 +98,39 @@ class DocDetailViewModel @Inject constructor(
                     return@launch
                 }
                 val current = _doc.value ?: return@launch
-                val now = System.currentTimeMillis()
-                val updated = current.copy(ocrRawText = rawText, updatedAt = now)
                 val accountId = identity.getActiveAccountId() ?: return@launch
+
+                // Re-run server-side structured extraction after re-scan, mirroring
+                // the iOS reScan path which also calls extractDocOcr after re-OCRing.
+                val ocrResult = if (rawText.isNotBlank()) {
+                    when (val result = serviceClient.extractDocOcr(
+                        accountId = accountId,
+                        ocrRawText = rawText,
+                        documentType = current.docType ?: "unknown",
+                        assetId = current.assetId,
+                    )) {
+                        is NetworkResult.Success -> result.data
+                        else -> {
+                            Timber.d("[DocDetailViewModel] OCR re-extraction unavailable — keeping existing fields")
+                            null
+                        }
+                    }
+                } else null
+
+                val now = System.currentTimeMillis()
+                val updated = if (ocrResult != null) {
+                    current.copy(
+                        ocrRawText = rawText,
+                        vendor = ocrResult.vendor ?: current.vendor,
+                        total = ocrResult.total ?: current.total,
+                        purchaseDate = ocrResult.date?.parseToEpochMs() ?: current.purchaseDate,
+                        warrantyEndDate = ocrResult.end_date?.parseToEpochMs() ?: current.warrantyEndDate,
+                        updatedAt = now,
+                    )
+                } else {
+                    current.copy(ocrRawText = rawText, updatedAt = now)
+                }
+
                 val db = dbFactory.get(accountId)
                 db.docDao().upsert(updated)
                 _doc.value = updated
@@ -121,5 +157,22 @@ class DocDetailViewModel @Inject constructor(
 
     fun clearError() {
         _errorMessage.value = null
+    }
+
+    // ---------------------------------------------------------------------------
+    // Helpers
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Parses an ISO-8601 date string (yyyy-MM-dd) from the OCR response into
+     * milliseconds since epoch.  Returns null on any parse failure.
+     */
+    private fun String.parseToEpochMs(): Long? = try {
+        LocalDate.parse(this, DateTimeFormatter.ISO_LOCAL_DATE)
+            .atStartOfDay(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
+    } catch (_: DateTimeParseException) {
+        null
     }
 }

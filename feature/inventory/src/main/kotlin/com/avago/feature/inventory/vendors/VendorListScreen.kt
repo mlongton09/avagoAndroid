@@ -23,6 +23,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -42,7 +43,11 @@ fun VendorListScreen(
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.vendors_title)) }) },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddVendor) {
+            FloatingActionButton(
+                onClick = onAddVendor,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = Color.White,
+            ) {
                 Icon(Icons.Default.Add, contentDescription = stringResource(R.string.vendors_add))
             }
         },

@@ -10,6 +10,7 @@ import com.avago.core.data.db.entity.ScheduleEntity
 import com.avago.core.data.db.entity.WorkOrderEntity
 import com.avago.core.sync.SyncEngine
 import com.avago.feature.schedule.repository.ScheduleRepository
+import com.avago.feature.schedule.util.RruleHelper
 import com.avago.feature.schedule.util.addScheduleToAndroidCalendar
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -70,6 +71,13 @@ class ScheduleDetailViewModel @Inject constructor(
     private val _deleted = MutableStateFlow(false)
     val deleted: StateFlow<Boolean> = _deleted.asStateFlow()
 
+    private val _completeServiceEvent = MutableStateFlow(false)
+    /**
+     * Emits `true` once when the user completes a service — the UI should
+     * navigate to create a new log entry, then reset this flag via [onCompleteServiceHandled].
+     */
+    val completeServiceEvent: StateFlow<Boolean> = _completeServiceEvent.asStateFlow()
+
     fun delete() {
         val accountId = _accountId.value ?: return
         viewModelScope.launch {
@@ -84,6 +92,54 @@ class ScheduleDetailViewModel @Inject constructor(
                 _isSaving.value = false
             }
         }
+    }
+
+    /**
+     * Advances the schedule to its next occurrence and records completion.
+     *
+     * Mirrors iOS AddEditScheduleViewController.completeServiceTapped():
+     * - If the schedule has an RRULE, compute the next due date and update
+     *   lastCompletedAt so the scheduler advances the occurrence.
+     * - If the schedule has no RRULE (one-off), soft-delete it.
+     * - In both cases emit [completeServiceEvent] so the UI can open a new log entry.
+     */
+    fun completeService() {
+        val accountId = _accountId.value ?: return
+        val s = schedule.value ?: return
+        viewModelScope.launch {
+            _isSaving.value = true
+            try {
+                val now = System.currentTimeMillis()
+                if (!s.rrule.isNullOrBlank() && s.nextDueAt != null) {
+                    // Advance nextDueAt by one RRULE interval.
+                    val currentDue = RruleHelper.epochMsToLocalDate(s.nextDueAt)
+                    val nextDue = currentDue?.let { RruleHelper.nextOccurrence(s.rrule, it) }
+                    val nextDueMs = nextDue
+                        ?.atStartOfDay(java.time.ZoneId.systemDefault())
+                        ?.toInstant()
+                        ?.toEpochMilli()
+                    val updated = s.copy(
+                        lastCompletedAt = now,
+                        nextDueAt = nextDueMs ?: s.nextDueAt,
+                        updatedAt = now,
+                    )
+                    repository.upsert(accountId, updated)
+                } else {
+                    // One-off schedule finished — soft-delete it.
+                    repository.softDelete(accountId, scheduleId)
+                }
+                _completeServiceEvent.value = true
+            } catch (e: Exception) {
+                Timber.e(e, "[ScheduleDetailVM] completeService failed")
+                _error.value = e.message
+            } finally {
+                _isSaving.value = false
+            }
+        }
+    }
+
+    fun onCompleteServiceHandled() {
+        _completeServiceEvent.value = false
     }
 
     fun addToCalendar(context: Context, assetName: String) {

@@ -28,6 +28,9 @@ class DocListViewModel @Inject constructor(
     private val syncEngine: SyncEngine,
 ) : ViewModel() {
 
+    /** When non-null, show only docs belonging to this asset (mirrors iOS DocsListViewController). */
+    val assetId = MutableStateFlow<String?>(null)
+
     private val _filter = MutableStateFlow<String?>(null)
     val filter: StateFlow<String?> = _filter.asStateFlow()
 
@@ -48,8 +51,10 @@ class DocListViewModel @Inject constructor(
             initialValue = emptyList(),
         )
 
-    val docs: StateFlow<List<DocEntity>> = combine(_allDocs, _filter) { all, type ->
-        if (type == null) all else all.filter { it.docType == type }
+    val docs: StateFlow<List<DocEntity>> = combine(_allDocs, _filter, assetId) { all, type, filterAssetId ->
+        all
+            .filter { filterAssetId == null || it.assetId == filterAssetId }
+            .let { filtered -> if (type == null) filtered else filtered.filter { it.docType == type } }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),

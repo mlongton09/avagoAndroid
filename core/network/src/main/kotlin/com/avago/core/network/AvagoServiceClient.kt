@@ -489,6 +489,16 @@ class AvagoServiceClient @Inject constructor(
         }
     }
 
+    suspend fun cancelPurchaseOrder(accountId: String, poId: String) {
+        safeCall<Unit> {
+            val response: HttpResponse =
+                client.post("$baseUrl/accounts/$accountId/purchase-orders/$poId/cancel")
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
+        }
+    }
+
     suspend fun duplicatePurchaseOrder(accountId: String, poId: String): PurchaseOrderResponse =
         safeCall {
             client.post("$baseUrl/accounts/$accountId/purchase-orders/$poId/duplicate").body()

@@ -32,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -74,6 +75,8 @@ fun CycleCountDetailScreen(
                         )
                     },
                     text = { Text(stringResource(R.string.cycle_count_floor_fab)) },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.White,
                 )
             }
         },

@@ -58,6 +58,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
@@ -171,7 +172,11 @@ fun AssetDetailScreen(
         floatingActionButton = {
             // FAB only visible on the Log tab (index 0)
             if (pagerState.currentPage == 0) {
-                FloatingActionButton(onClick = onAddLogEntry) {
+                FloatingActionButton(
+                    onClick = onAddLogEntry,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.White,
+                ) {
                     Icon(
                         imageVector = Icons.Default.Add,
                         contentDescription = stringResource(R.string.asset_detail_add_log),

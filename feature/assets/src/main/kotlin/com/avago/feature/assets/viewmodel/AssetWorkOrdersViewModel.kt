@@ -13,9 +13,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import timber.log.Timber
 import javax.inject.Inject
+
+/** Statuses that count as "open" (not yet resolved) for badge display purposes. */
+private val OPEN_WO_STATUSES = setOf("open", "assigned", "in_progress", "on_hold", "pending_parts")
 
 @HiltViewModel
 class AssetWorkOrdersViewModel @Inject constructor(
@@ -39,4 +43,13 @@ class AssetWorkOrdersViewModel @Inject constructor(
                 }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
+     * Count of work orders that are currently active (not completed or cancelled).
+     * Mirrors the open-WO pill badge iOS shows on the Work Orders tab strip in
+     * AssetDetailViewController (AVTabStrip.setBadge(at:count:)).
+     */
+    val openCount: StateFlow<Int> = workOrders
+        .map { list -> list.count { it.status in OPEN_WO_STATUSES } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 }

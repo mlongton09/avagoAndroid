@@ -48,6 +48,14 @@ class WorkOrderListViewModel @Inject constructor(
     private val _horizon = MutableStateFlow(WoHorizon.NOW)
     val horizon: StateFlow<WoHorizon> = _horizon.asStateFlow()
 
+    /**
+     * Multi-select status filter — mirrors iOS UnifiedWorkOrdersViewController's
+     * `selectedStatuses` set. Empty set means "show all" (no filter applied).
+     * Each entry is a raw status key, e.g. "pending_review", "assigned", etc.
+     */
+    private val _statusFilter = MutableStateFlow<Set<String>>(emptySet())
+    val statusFilter: StateFlow<Set<String>> = _statusFilter.asStateFlow()
+
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
@@ -80,15 +88,12 @@ class WorkOrderListViewModel @Inject constructor(
             )
 
     val buckets: StateFlow<List<WoBucket>> = combine(
-        _allWos,
-        _searchQuery,
-        _scopeFilter,
-        _horizon,
-    ) { all, query, scope, horizon ->
+        combine(_allWos, _searchQuery, _scopeFilter, _horizon) { a, b, c, d -> Quad(a, b, c, d) },
+        _statusFilter,
+    ) { (all, query, scope, horizon), statusFilter ->
         val myUserId = identityManager.getActiveUserId() ?: identityManager.getActiveAccountId()
         val zone = ZoneId.systemDefault()
         val today = LocalDate.now(zone)
-        val nowMs = System.currentTimeMillis()
 
         // 1. Horizon filter (matches iOS Now / Next / Later semantics)
         val horizonFiltered = when (horizon) {
@@ -121,14 +126,18 @@ class WorkOrderListViewModel @Inject constructor(
             }
         }
 
-        // 3. Search filter
-        val searched = scopeFiltered.filter { wo ->
+        // 3. Status filter — mirrors iOS selectedStatuses multi-select. Empty means "all".
+        val statusFiltered = if (statusFilter.isEmpty()) scopeFiltered
+        else scopeFiltered.filter { wo -> wo.status in statusFilter }
+
+        // 4. Search filter
+        val searched = statusFiltered.filter { wo ->
             if (query.isBlank()) true
             else wo.title.contains(query, ignoreCase = true) ||
                 wo.description?.contains(query, ignoreCase = true) == true
         }
 
-        // 4. Group into buckets
+        // 5. Group into buckets
         val completedStatuses = listOf("complete", "cancelled")
 
         val overdue = mutableListOf<WorkOrderEntity>()
@@ -189,6 +198,17 @@ class WorkOrderListViewModel @Inject constructor(
 
     fun onHorizonChanged(h: WoHorizon) { _horizon.value = h }
 
+    /** Toggle one status key in the multi-select filter (mirrors iOS makeStatusFilterMenu). */
+    fun toggleStatusFilter(statusKey: String) {
+        _statusFilter.value = if (statusKey in _statusFilter.value)
+            _statusFilter.value - statusKey
+        else
+            _statusFilter.value + statusKey
+    }
+
+    /** Clear all active status filters. */
+    fun clearStatusFilter() { _statusFilter.value = emptySet() }
+
     fun refresh() {
         viewModelScope.launch {
             _isRefreshing.value = true
@@ -204,3 +224,11 @@ class WorkOrderListViewModel @Inject constructor(
         }
     }
 }
+
+/** Tuple helper for combining 4 flows — avoids nesting a second combine(). */
+private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+
+private operator fun <A, B, C, D> Quad<A, B, C, D>.component1() = first
+private operator fun <A, B, C, D> Quad<A, B, C, D>.component2() = second
+private operator fun <A, B, C, D> Quad<A, B, C, D>.component3() = third
+private operator fun <A, B, C, D> Quad<A, B, C, D>.component4() = fourth

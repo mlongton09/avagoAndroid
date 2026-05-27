@@ -129,6 +129,9 @@ fun AvagoNavHost(
                 onNavigateToInventoryPicker = {
                     navController.navigate("inventory/picker")
                 },
+                onNavigateToLogWork = { assetId ->
+                    navController.navigate(LogRoute.addEdit(assetId = assetId))
+                },
             )
 
             // ── Inventory ─────────────────────────────────────────────────────────

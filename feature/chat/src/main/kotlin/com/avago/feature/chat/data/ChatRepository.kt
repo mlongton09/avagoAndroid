@@ -50,7 +50,9 @@ class ChatRepository @Inject constructor(
 
     fun observeThread(threadId: String): Flow<ChatThreadEntity?> {
         val accountId = identity.activeAccountId.value ?: return emptyFlow()
-        return chatDbFactory.get(accountId).chatThreadDao().observeById(threadId)
+        return flow {
+            emitAll(chatDbFactory.get(accountId).chatThreadDao().observeById(threadId))
+        }
     }
 
     /** Pull threads from server and upsert into local DB. */

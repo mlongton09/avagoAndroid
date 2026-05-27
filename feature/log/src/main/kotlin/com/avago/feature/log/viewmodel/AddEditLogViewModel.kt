@@ -9,6 +9,7 @@ import com.avago.core.data.db.entity.LogCostLineEntity
 import com.avago.core.data.db.entity.LogEntity
 import com.avago.core.data.db.entity.PhotoEntity
 import com.avago.core.data.db.entity.SyncQueueEntity
+import com.avago.core.data.repository.UserPreferencesRepository
 import com.avago.core.sync.SyncEngine
 import com.avago.feature.log.model.InspectionFieldDef
 import com.avago.feature.log.model.LogCostLineDraft
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.firstOrNull
 import timber.log.Timber
 import java.util.UUID
 import javax.inject.Inject
@@ -107,6 +109,7 @@ class AddEditLogViewModel @Inject constructor(
     private val dbFactory: DatabaseFactory,
     private val identity: IdentityManager,
     private val syncEngine: SyncEngine,
+    private val userPrefsRepository: UserPreferencesRepository,
 ) : ViewModel() {
 
     private val _form = MutableStateFlow(AddEditLogFormState())
@@ -457,6 +460,9 @@ class AddEditLogViewModel @Inject constructor(
                     CostMode.ITEMIZED -> current.itemizedTotal.takeIf { it > 0 }
                 }
 
+                // Read the user's preferred currency code (mirrors iOS CurrencyManager.shared.preferredCurrencyCode)
+                val preferredCurrency = userPrefsRepository.currencyFlow.firstOrNull() ?: "USD"
+
                 val entity = LogEntity(
                     entryId = entryId,
                     assetId = current.assetId,
@@ -485,9 +491,13 @@ class AddEditLogViewModel @Inject constructor(
                     costTax = if (current.costMode == CostMode.ITEMIZED) {
                         current.pendingCostLines.sumOf { it.taxAmount ?: 0.0 }.takeIf { it > 0 }
                     } else null,
-                    currency = null,
-                    baseAmount = null,
-                    exchangeRateUsed = null,
+                    // Persist currency so server-side cost rollups and reporting can convert
+                    // to a common base amount — mirrors iOS CurrencyManager.shared.preferredCurrencyCode.
+                    // For USD the exchange rate is 1.0 and baseAmount == cost; for other currencies
+                    // this will need to be updated when ExchangeRateService is wired in.
+                    currency = preferredCurrency,
+                    baseAmount = if (preferredCurrency == "USD") cost else null,
+                    exchangeRateUsed = if (preferredCurrency == "USD") 1.0 else null,
                     configId = null,
                     configVersion = null,
                     serviceId = null,

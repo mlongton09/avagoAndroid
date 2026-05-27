@@ -10,6 +10,7 @@ import com.avago.core.data.db.entity.WoCommentEntity
 import com.avago.core.data.db.entity.WorkOrderEntity
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
+import com.avago.core.network.model.BudgetPillResponse
 import com.avago.core.sync.SyncEngine
 import com.avago.feature.workorders.model.WoStatus
 import com.avago.feature.workorders.repository.WorkOrderRepository
@@ -256,11 +257,180 @@ class WorkOrderDetailViewModel @Inject constructor(
                     completedAt = if (targetStatus == WoStatus.COMPLETE) now else wo.completedAt,
                 )
                 repository.upsert(accountId, updated)
+                // Mirror iOS: also push the status change to the server so it doesn't
+                // wait for the next full sync cycle (especially important for CANCELLED,
+                // which iOS posts immediately via transitionWorkOrderStatus).
+                try {
+                    serviceClient.transitionWorkOrderStatus(accountId, woId, targetStatus.key)
+                } catch (e: Exception) {
+                    Timber.w(e, "[WoDetailVM] status server call failed — will retry via sync")
+                }
             } catch (e: Exception) {
                 Timber.e(e, "[WoDetailVM] transitionStatus failed")
                 _error.value = e.message
             } finally {
                 _isSaving.value = false
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Self-claim (tech claims unassigned WO from the detail screen)
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Mirrors iOS WorkOrderDetailViewController.claimTapped().
+     * Optimistically marks the WO as assigned to the current user, then fires the
+     * server claim endpoint.  On 409 (already claimed) the optimistic local update is
+     * reverted and [error] is surfaced so the UI can show an appropriate message.
+     */
+    fun claimWorkOrder(onConflict: () -> Unit = {}) {
+        val accountId = _accountId.value ?: return
+        val wo = workOrder.value ?: return
+        viewModelScope.launch {
+            _isSaving.value = true
+            try {
+                val userId = identityManager.getActiveUserId() ?: identityManager.getActiveAccountId() ?: return@launch
+                val now = System.currentTimeMillis()
+                // Optimistic local update
+                repository.upsert(accountId, wo.copy(
+                    assignedTo = userId,
+                    status = WoStatus.ASSIGNED.key,
+                    updatedAt = now,
+                ))
+                when (val result = serviceClient.claimWorkOrder(accountId, woId)) {
+                    is NetworkResult.Success -> syncEngine.sync()
+                    is NetworkResult.Error -> {
+                        // Revert optimistic update and surface the conflict
+                        repository.upsert(accountId, wo)
+                        if (result.code == 409) {
+                            onConflict()
+                            _error.value = "This work order was just claimed by someone else."
+                        } else {
+                            _error.value = "Could not claim the work order. Please try again."
+                        }
+                    }
+                    else -> {
+                        repository.upsert(accountId, wo)
+                        _error.value = "Could not claim the work order. Please try again."
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "[WoDetailVM] claimWorkOrder failed")
+                _error.value = e.message
+            } finally {
+                _isSaving.value = false
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Assign tech (dispatcher assigns a specific technician)
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Mirrors iOS WorkOrderDetailViewController.presentTechPicker / TechPickerViewController.
+     * Writes the assignment locally then pushes to the server via patchWorkOrder.
+     * [techId] is the userId of the technician to assign.
+     */
+    fun assignTech(techId: String) {
+        val accountId = _accountId.value ?: return
+        val wo = workOrder.value ?: return
+        viewModelScope.launch {
+            _isSaving.value = true
+            try {
+                val now = System.currentTimeMillis()
+                repository.upsert(accountId, wo.copy(
+                    assignedTo = techId,
+                    status = WoStatus.ASSIGNED.key,
+                    updatedAt = now,
+                ))
+                // Persist assignment record
+                val assignment = WoAssignmentEntity(
+                    assignmentId = UUID.randomUUID().toString(),
+                    woId = woId,
+                    accountId = accountId,
+                    technicianId = techId,
+                    assignedBy = identityManager.getActiveUserId(),
+                    assignedAt = now,
+                    unassignedAt = null,
+                    scheduledStart = null,
+                    scheduledEnd = null,
+                    status = "pending",
+                    notes = null,
+                    ekEventIdentifier = null,
+                    serverVersion = 0L,
+                    seq = null,
+                )
+                repository.upsertAssignment(accountId, assignment)
+            } catch (e: Exception) {
+                Timber.e(e, "[WoDetailVM] assignTech failed")
+                _error.value = e.message
+            } finally {
+                _isSaving.value = false
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Accept / Decline assignment (pending-assignment response by assignee)
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Mirrors iOS WorkOrderDetailViewController.handleAssignmentResponse(accepted: true).
+     * Calls the server accept endpoint; local assignment status is updated via the
+     * next sync pull (server is the source of truth for assignment status).
+     */
+    fun acceptAssignment(assignmentId: String) {
+        val accountId = _accountId.value ?: return
+        viewModelScope.launch {
+            try {
+                serviceClient.acceptAssignment(accountId, woId, assignmentId)
+                syncEngine.sync()
+            } catch (e: Exception) {
+                Timber.e(e, "[WoDetailVM] acceptAssignment failed")
+                _error.value = e.message
+            }
+        }
+    }
+
+    /**
+     * Mirrors iOS WorkOrderDetailViewController.handleAssignmentResponse(accepted: false).
+     */
+    fun declineAssignment(assignmentId: String) {
+        val accountId = _accountId.value ?: return
+        viewModelScope.launch {
+            try {
+                serviceClient.declineAssignment(accountId, woId, assignmentId)
+                syncEngine.sync()
+            } catch (e: Exception) {
+                Timber.e(e, "[WoDetailVM] declineAssignment failed")
+                _error.value = e.message
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Budget pill
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Mirrors iOS WorkOrderDetailViewController.loadRelatedData() → fetchBudgetPill.
+     * Shows remaining / total budget for the WO's linked budget if any.
+     */
+    private val _budgetPill = MutableStateFlow<BudgetPillResponse?>(null)
+    val budgetPill: StateFlow<BudgetPillResponse?> = _budgetPill.asStateFlow()
+
+    private fun loadBudgetPill() {
+        viewModelScope.launch {
+            val accountId = _accountId.value ?: return@launch
+            try {
+                when (val result = serviceClient.getWorkOrderBudgetPill(accountId, woId)) {
+                    is NetworkResult.Success -> _budgetPill.value = result.data
+                    else -> { /* no budget configured for this WO — leave null */ }
+                }
+            } catch (e: Exception) {
+                Timber.d(e, "[WoDetailVM] loadBudgetPill failed (non-critical)")
             }
         }
     }
@@ -368,15 +538,36 @@ class WorkOrderDetailViewModel @Inject constructor(
         }
     }
 
-    fun saveRecurrence(rrule: String) {
+    /**
+     * Save recurrence rule + end-type metadata.
+     *
+     * Mirrors iOS persistRepeats() which writes rrule, endType, endCount, endDate,
+     * and woKind together so the detail screen can reconstruct the full RepeatsConfig.
+     * Passing a blank/null rrule clears the rule (one-off).
+     *
+     * @param rrule     RRULE string, e.g. "FREQ=WEEKLY;INTERVAL=1". Pass "" to clear.
+     * @param endType   "never" | "count" | "date" | null (null → "never")
+     * @param endCount  Occurrence limit when endType == "count", else null.
+     * @param endDate   Epoch-millis cutoff when endType == "date", else null.
+     */
+    fun saveRecurrence(
+        rrule: String,
+        endType: String? = null,
+        endCount: Long? = null,
+        endDate: Long? = null,
+    ) {
         val accountId = _accountId.value ?: return
         val wo = workOrder.value ?: return
         viewModelScope.launch {
             _isSaving.value = true
             try {
+                val isClearing = rrule.isBlank()
                 val updated = wo.copy(
-                    rrule = rrule,
-                    woKind = "recurring_parent",
+                    rrule = if (isClearing) null else rrule,
+                    woKind = if (isClearing) "one_off" else "recurring_parent",
+                    endType = if (isClearing) null else (endType ?: "never"),
+                    endCount = if (endType == "count") endCount else null,
+                    endDate = if (endType == "date") endDate else null,
                     updatedAt = System.currentTimeMillis(),
                 )
                 repository.upsert(accountId, updated)
@@ -404,5 +595,6 @@ class WorkOrderDetailViewModel @Inject constructor(
     init {
         loadAuditHistory()
         resolveWorkOrderThread()
+        loadBudgetPill()
     }
 }

@@ -36,6 +36,8 @@ data class AddEditPartUiState(
     val barcode: String = "",
     val manufacturer: String = "",
     val uom: String = "each",
+    val reorderQty: String = "",
+    val notes: String = "",
     val status: String = "active",
     val initialQty: String = "",
     val nameError: String? = null,
@@ -86,6 +88,8 @@ class AddEditPartViewModel @Inject constructor(
                     barcode = "",
                     manufacturer = part.manufacturer ?: attrs["manufacturer"] ?: "",
                     uom = part.unitOfMeasure ?: "each",
+                    reorderQty = part.reorderQuantity?.toString() ?: "",
+                    notes = part.notes ?: "",
                     status = part.status ?: attrs["status"] ?: "active",
                     isLoading = false,
                 )
@@ -127,6 +131,8 @@ class AddEditPartViewModel @Inject constructor(
     fun setBarcode(v: String) { _state.value = _state.value.copy(barcode = v) }
     fun setManufacturer(v: String) { _state.value = _state.value.copy(manufacturer = v) }
     fun setUom(v: String) { _state.value = _state.value.copy(uom = v) }
+    fun setReorderQty(v: String) { _state.value = _state.value.copy(reorderQty = v) }
+    fun setNotes(v: String) { _state.value = _state.value.copy(notes = v) }
     fun setStatus(v: String) { _state.value = _state.value.copy(status = v) }
     fun setInitialQty(v: String) { _state.value = _state.value.copy(initialQty = v) }
 
@@ -156,14 +162,14 @@ class AddEditPartViewModel @Inject constructor(
                     defaultVendorId = null,
                     attributes = buildAttributesJson(s.manufacturer, s.status),
                     manufacturer = s.manufacturer.takeIf { it.isNotBlank() },
-                    reorderQuantity = null,
+                    reorderQuantity = s.reorderQty.toIntOrNull(),
                     status = s.status,
                     entityType = null,
                     entityId = null,
                     quantity = null,
                     gtin = s.barcode.takeIf { it.isNotBlank() },
                     serialNumber = null,
-                    notes = null,
+                    notes = s.notes.takeIf { it.isNotBlank() },
                     baseAmount = null,
                     exchangeRateUsed = null,
                     createdAt = now,

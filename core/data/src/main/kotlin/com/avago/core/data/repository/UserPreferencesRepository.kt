@@ -14,10 +14,19 @@ import javax.inject.Singleton
 private val Context.userPreferencesDataStore by preferencesDataStore(name = "user_prefs")
 
 /**
- * Persists user-facing preferences (theme, distance unit, language) via Jetpack DataStore.
+ * Persists user-facing preferences (theme, distance unit, fuel unit, currency,
+ * language, disable_quotes, enable_human_in_loop) via Jetpack DataStore.
  *
  * All flows emit the current value immediately and on every subsequent change,
  * making them safe to collect inside [androidx.lifecycle.ViewModel.viewModelScope].
+ *
+ * Mirrors the preference keys used by the iOS app:
+ *   - AVDefaultsKeyThemeOverride
+ *   - AVDefaultsKeyDefaultOdometerUnit
+ *   - AVDefaultsKeyFuelVolumeUnit
+ *   - AVDefaultsKeyCurrency
+ *   - AVDefaultsKeyDisableQuotes
+ *   - AVDefaultsKeyEnableHumanInLoop
  */
 @Singleton
 class UserPreferencesRepository @Inject constructor(
@@ -56,6 +65,31 @@ class UserPreferencesRepository @Inject constructor(
         prefs[FRE_COMPLETED_KEY] ?: false
     }
 
+    /**
+     * Fuel volume unit — "gallon" (default) or "liter".
+     * Mirrors iOS AVDefaultsKeyFuelVolumeUnit.
+     */
+    val fuelVolumeUnitFlow: Flow<String> = dataStore.data.map { prefs ->
+        prefs[FUEL_VOLUME_UNIT_KEY] ?: "gallon"
+    }
+
+    /**
+     * When `true` the "daily quotes" banner is hidden.
+     * Mirrors iOS AVDefaultsKeyDisableQuotes.
+     */
+    val disableQuotesFlow: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[DISABLE_QUOTES_KEY] ?: false
+    }
+
+    /**
+     * AI Human-in-the-Loop — when `true` Scout populates a form for the user to
+     * review before committing (default).  When `false` Scout acts directly.
+     * Mirrors iOS AVDefaultsKeyEnableHumanInLoop.
+     */
+    val enableHumanInLoopFlow: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[ENABLE_HUMAN_IN_LOOP_KEY] ?: true
+    }
+
     // ── Mutators ──────────────────────────────────────────────────────────────
 
     suspend fun setTheme(value: String) {
@@ -86,6 +120,18 @@ class UserPreferencesRepository @Inject constructor(
         dataStore.edit { prefs -> prefs[FRE_COMPLETED_KEY] = true }
     }
 
+    suspend fun setFuelVolumeUnit(value: String) {
+        dataStore.edit { prefs -> prefs[FUEL_VOLUME_UNIT_KEY] = value }
+    }
+
+    suspend fun setDisableQuotes(value: Boolean) {
+        dataStore.edit { prefs -> prefs[DISABLE_QUOTES_KEY] = value }
+    }
+
+    suspend fun setEnableHumanInLoop(value: Boolean) {
+        dataStore.edit { prefs -> prefs[ENABLE_HUMAN_IN_LOOP_KEY] = value }
+    }
+
     // ── Keys ──────────────────────────────────────────────────────────────────
 
     companion object {
@@ -96,5 +142,8 @@ class UserPreferencesRepository @Inject constructor(
         val NOTIFICATIONS_ENABLED_KEY = booleanPreferencesKey("notifications_enabled")
         val FRE_DISMISSED_KEY = booleanPreferencesKey("fre_dismissed")
         val FRE_COMPLETED_KEY = booleanPreferencesKey("fre_completed")
+        val FUEL_VOLUME_UNIT_KEY = stringPreferencesKey("fuel_volume_unit")
+        val DISABLE_QUOTES_KEY = booleanPreferencesKey("disable_quotes")
+        val ENABLE_HUMAN_IN_LOOP_KEY = booleanPreferencesKey("enable_human_in_loop")
     }
 }

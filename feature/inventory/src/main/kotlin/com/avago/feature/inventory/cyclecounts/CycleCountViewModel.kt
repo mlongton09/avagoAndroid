@@ -226,6 +226,8 @@ class CycleCountDetailViewModel @Inject constructor(
             }
         }
     }
+
+    fun clearError() { _actionError.value = null }
 }
 
 // ---------------------------------------------------------------------------

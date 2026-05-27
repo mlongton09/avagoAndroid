@@ -25,4 +25,8 @@ data class UpdatePreferencesRequest(
     val currency: String? = null,
     val locale: String? = null,
     val disable_quotes: Boolean? = null,
+    /** "gallon" | "liter" — mirrors iOS AVDefaultsKeyFuelVolumeUnit */
+    val fuel_volume_unit: String? = null,
+    /** When true the Scout AI populates a form for user review before saving. */
+    val enable_human_in_loop: Boolean? = null,
 )

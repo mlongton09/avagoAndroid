@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import timber.log.Timber
 import java.util.Calendar
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 /**
@@ -167,6 +168,34 @@ class AssetDetailViewModel @Inject constructor(
      */
     val lastServiceDate: StateFlow<Long?> = _allLogs
         .map { logs -> logs.maxOfOrNull { it.entryDate } }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = null,
+        )
+
+    /**
+     * Total number of log entries for this asset.
+     * Mirrors the "entries" column in the iOS AssetDetailHeaderView stats strip.
+     */
+    val entryCount: StateFlow<Int> = _allLogs
+        .map { logs -> logs.size }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = 0,
+        )
+
+    /**
+     * Number of days elapsed since the most recent log entry, or null if there are no entries.
+     * Mirrors the "since service" column in the iOS stats strip (sinceString(forDate:)).
+     */
+    val daysSinceLastService: StateFlow<Int?> = _allLogs
+        .map { logs ->
+            val latest = logs.maxOfOrNull { it.entryDate } ?: return@map null
+            val elapsed = System.currentTimeMillis() - latest
+            TimeUnit.MILLISECONDS.toDays(elapsed).toInt()
+        }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),

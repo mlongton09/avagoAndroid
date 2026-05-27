@@ -175,6 +175,22 @@ class PurchaseOrderViewModel @Inject constructor(
         }
     }
 
+    fun cancel() {
+        val accountId = identityManager.getActiveAccountId() ?: return
+        viewModelScope.launch {
+            _isActioning.value = true
+            _actionError.value = null
+            try {
+                serviceClient.cancelPurchaseOrder(accountId, poId)
+            } catch (e: Exception) {
+                Timber.e(e, "PurchaseOrderViewModel: cancel failed")
+                _actionError.value = e.message
+            } finally {
+                _isActioning.value = false
+            }
+        }
+    }
+
     fun openGrnSheet() { _showGrnSheet.value = true }
     fun dismissGrnSheet() { _showGrnSheet.value = false }
     fun clearError() { _actionError.value = null }

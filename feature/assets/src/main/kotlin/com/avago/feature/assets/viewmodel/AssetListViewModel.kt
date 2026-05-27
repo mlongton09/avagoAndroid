@@ -3,6 +3,7 @@ package com.avago.feature.assets.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
+import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.AssetEntity
 import com.avago.core.data.repository.AssetRepository
 import com.avago.core.sync.SyncEngine
@@ -23,11 +24,15 @@ import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
 
+/** Statuses that count as "open" for the work-order pill on each asset row (mirrors iOS). */
+private val OPEN_WO_STATUSES = setOf("open", "assigned", "in_progress", "on_hold", "pending_parts")
+
 @HiltViewModel
 class AssetListViewModel @Inject constructor(
     private val repository: AssetRepository,
     private val identityManager: IdentityManager,
     private val syncEngine: SyncEngine,
+    private val dbFactory: DatabaseFactory,
 ) : ViewModel() {
 
     private val _searchQuery = MutableStateFlow("")
@@ -99,6 +104,46 @@ class AssetListViewModel @Inject constructor(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = emptyList(),
+        )
+
+    /**
+     * Per-asset open work-order counts. The map contains only assets that have at
+     * least one active (non-closed, non-cancelled) work order — a missing key means
+     * zero open WOs. Mirrors the `openWOCountsByAsset` dictionary in iOS
+     * AssetsListViewController that drives the pill badge on each asset cell.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val openWoCountsByAsset: StateFlow<Map<String, Int>> = identityManager.activeAccountId
+        .flatMapLatest { accountId ->
+            if (accountId == null) {
+                flowOf(emptyMap())
+            } else {
+                try {
+                    dbFactory.get(accountId).workOrderDao().observeAll(accountId)
+                        .map { wos ->
+                            wos
+                                .filter { it.status in OPEN_WO_STATUSES && it.assetId != null }
+                                .groupBy { it.assetId!! }
+                                .mapValues { (_, list) -> list.size }
+                        }
+                        .catch { e ->
+                            Timber.e(e, "[AssetListViewModel] openWoCountsByAsset flow error")
+                            emit(emptyMap())
+                        }
+                } catch (e: Exception) {
+                    Timber.e(e, "[AssetListViewModel] Could not get workOrderDao for $accountId")
+                    flowOf(emptyMap())
+                }
+            }
+        }
+        .catch { e ->
+            Timber.e(e, "[AssetListViewModel] openWoCountsByAsset outer flow error")
+            emit(emptyMap())
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyMap(),
         )
 
     fun onSearchQueryChanged(query: String) { _searchQuery.value = query }

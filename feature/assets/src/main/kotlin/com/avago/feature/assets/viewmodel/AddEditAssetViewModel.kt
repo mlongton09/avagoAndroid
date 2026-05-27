@@ -5,6 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.db.entity.AssetEntity
 import com.avago.core.data.repository.AssetRepository
+import com.avago.core.network.AvagoServiceClient
+import com.avago.core.network.NetworkResult
+import com.avago.core.network.model.GeocodeRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,6 +16,15 @@ import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.util.UUID
 import javax.inject.Inject
+
+/**
+ * Result of a geocode lookup triggered from the address section of the add/edit form.
+ * Mirrors the iOS geocodeLookupTapped(_:) action in AddAssetViewController.
+ */
+sealed interface GeocodeResult {
+    data class Success(val lat: Double, val lon: Double, val formattedAddress: String?) : GeocodeResult
+    data class Error(val message: String) : GeocodeResult
+}
 
 /**
  * All mutable form fields for the AddEditAsset screen collected in one data class
@@ -59,6 +71,7 @@ private val KNOWN_ATTRIBUTE_KEYS = setOf(
 class AddEditAssetViewModel @Inject constructor(
     private val repository: AssetRepository,
     private val identityManager: IdentityManager,
+    private val serviceClient: AvagoServiceClient,
 ) : ViewModel() {
 
     private val _form = MutableStateFlow(AssetFormState())
@@ -133,6 +146,96 @@ class AddEditAssetViewModel @Inject constructor(
     /** Called when a VIN barcode is scanned externally. */
     fun onVinScanned(scanned: String) {
         _form.value = _form.value.copy(vinSerial = scanned)
+    }
+
+    // ---------------------------------------------------------------------------
+    // Geocode (real-estate address section — mirrors iOS geocodeLookupTapped)
+    // ---------------------------------------------------------------------------
+
+    private val _geocodeResult = MutableStateFlow<GeocodeResult?>(null)
+    /** One-shot geocode result; the UI should consume it and reset to null. */
+    val geocodeResult: StateFlow<GeocodeResult?> = _geocodeResult.asStateFlow()
+
+    private val _isGeocodeLookupInProgress = MutableStateFlow(false)
+    val isGeocodeLookupInProgress: StateFlow<Boolean> = _isGeocodeLookupInProgress.asStateFlow()
+
+    /**
+     * Geocodes the current address fields and updates [geocodeResult].
+     * Mirrors iOS AddAssetViewController.geocodeLookupTapped().
+     * The caller should set [geocodeResult] to null after consuming the result.
+     */
+    fun geocodeAddress() {
+        val current = _form.value
+        val hasAnyAddress = listOf(
+            current.streetAddress,
+            current.city,
+            current.postalCode,
+        ).any { it.isNotBlank() }
+
+        if (!hasAnyAddress) {
+            _geocodeResult.value = GeocodeResult.Error("Enter at least a street address, city, or postal code before looking up coordinates.")
+            return
+        }
+
+        _isGeocodeLookupInProgress.value = true
+        viewModelScope.launch {
+            try {
+                val accountId = identityManager.getActiveAccountId()
+                if (accountId == null) {
+                    _geocodeResult.value = GeocodeResult.Error("No active account.")
+                    return@launch
+                }
+                val result = serviceClient.geocodeAddress(
+                    accountId = accountId,
+                    request = GeocodeRequest(
+                        address_line1 = current.streetAddress.ifBlank { null },
+                        city = current.city.ifBlank { null },
+                        state = current.stateProvince.ifBlank { null },
+                        postal_code = current.postalCode.ifBlank { null },
+                        country = current.country.ifBlank { null },
+                    ),
+                )
+                when (result) {
+                    is NetworkResult.Success -> {
+                        val response = result.data
+                        val lat = response.lat
+                        val lon = response.lon
+                        if (lat != null && lon != null) {
+                            _geocodeResult.value = GeocodeResult.Success(
+                                lat = lat,
+                                lon = lon,
+                                formattedAddress = response.formatted_address,
+                            )
+                            // Store coordinates in customAttributes so they round-trip through
+                            // the attributes JSON (mirrors iOS attributeValues["latitude"] = …).
+                            val updated = _form.value.customAttributes.toMutableMap()
+                            updated["latitude"] = lat.toString()
+                            updated["longitude"] = lon.toString()
+                            _form.value = _form.value.copy(customAttributes = updated)
+                        } else {
+                            _geocodeResult.value = GeocodeResult.Error("No coordinates found for this address.")
+                        }
+                    }
+                    is NetworkResult.Error -> {
+                        Timber.e("[AddEditAssetViewModel] Geocode failed: ${result.code} ${result.message}")
+                        _geocodeResult.value = GeocodeResult.Error(result.message)
+                    }
+                    is NetworkResult.Unauthorized -> {
+                        _geocodeResult.value = GeocodeResult.Error("Unauthorized. Please sign in again.")
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "[AddEditAssetViewModel] Geocode error")
+                _geocodeResult.value = GeocodeResult.Error(e.message ?: "Geocode lookup failed.")
+            } finally {
+                _isGeocodeLookupInProgress.value = false
+            }
+        }
+    }
+
+    /** Clears the geocode result after the UI has consumed it. */
+    fun clearGeocodeResult() {
+        _geocodeResult.value = null
     }
 
     // ---------------------------------------------------------------------------

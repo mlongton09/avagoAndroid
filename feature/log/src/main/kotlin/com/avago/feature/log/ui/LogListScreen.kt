@@ -35,6 +35,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -86,7 +87,11 @@ fun LogListScreen(
         floatingActionButton = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 ScoutFAB(onQuery = { query -> scoutViewModel.query(query) })
-                FloatingActionButton(onClick = onAddLog) {
+                FloatingActionButton(
+                    onClick = onAddLog,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.White,
+                ) {
                     Icon(Icons.Default.Add, contentDescription = "Add log entry")
                 }
             }

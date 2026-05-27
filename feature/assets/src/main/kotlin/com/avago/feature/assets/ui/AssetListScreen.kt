@@ -88,7 +88,11 @@ fun AssetListScreen(
     Scaffold(
         contentWindowInsets = WindowInsets(0),
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddAsset) {
+            FloatingActionButton(
+                onClick = onAddAsset,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = Color.White,
+            ) {
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = stringResource(R.string.assets_add_content_description),

@@ -27,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -49,7 +50,11 @@ fun CycleCountListScreen(
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.cycle_count_list_title)) }) },
         floatingActionButton = {
-            FloatingActionButton(onClick = viewModel::openCreate) {
+            FloatingActionButton(
+                onClick = viewModel::openCreate,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = Color.White,
+            ) {
                 Icon(Icons.Default.Add, contentDescription = stringResource(R.string.cycle_count_create))
             }
         },

@@ -44,6 +44,7 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.FabPosition
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -171,6 +172,7 @@ fun MainScaffold(
         },
     ) {
         Scaffold(
+            floatingActionButtonPosition = FabPosition.Start,
             topBar = {
                 if (!isAuthDestination) {
                     TopAppBar(
@@ -220,8 +222,8 @@ fun MainScaffold(
                                 onLongPress = { voiceSheetVisible = true },
                             )
                         },
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = Color.White,
                     ) {
                         Icon(
                             imageVector = Icons.Default.AutoAwesome,

@@ -10,6 +10,7 @@ import com.avago.core.data.db.entity.DocEntity
 import com.avago.core.data.db.entity.SyncQueueEntity
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
+import com.avago.core.network.model.DocOcrResponse
 import com.avago.core.ocr.AvagoTextRecognizer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -18,6 +19,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
 import java.util.UUID
 import javax.inject.Inject
 
@@ -36,7 +41,7 @@ class DocAddViewModel @Inject constructor(
         data class OcrProcessing(val pageCount: Int) : UiState()
         data class Form(
             val rawText: String,
-            val extractedJson: String?,
+            val ocrResult: DocOcrResponse?,
             val pageUris: List<Uri>,
         ) : UiState()
         object Saving : UiState()
@@ -55,7 +60,7 @@ class DocAddViewModel @Inject constructor(
         _state.value = UiState.Scanning
     }
 
-    fun processScannedPages(pageUris: List<Uri>) {
+    fun processScannedPages(pageUris: List<Uri>, docType: String = "unknown") {
         if (pageUris.isEmpty()) {
             _state.value = UiState.Error("No pages received from scanner")
             return
@@ -70,11 +75,17 @@ class DocAddViewModel @Inject constructor(
             }
 
             val accountId = identity.activeAccountId.value
-            val extractedJson: String? = if (accountId != null && rawText.isNotBlank()) {
-                when (val result = serviceClient.extractDoc(accountId, rawText, "unknown")) {
+            val ocrResult: DocOcrResponse? = if (accountId != null && rawText.isNotBlank()) {
+                // Use the dedicated doc OCR extraction endpoint (mirrors iOS extractDocOcr).
+                // Falls back to null gracefully so the user can still fill in fields manually.
+                when (val result = serviceClient.extractDocOcr(
+                    accountId = accountId,
+                    ocrRawText = rawText,
+                    documentType = docType,
+                )) {
                     is NetworkResult.Success -> result.data
                     else -> {
-                        Timber.d("[DocAddViewModel] AI extraction unavailable — continuing without it")
+                        Timber.d("[DocAddViewModel] Doc OCR extraction unavailable — continuing without it")
                         null
                     }
                 }
@@ -82,7 +93,7 @@ class DocAddViewModel @Inject constructor(
                 null
             }
 
-            _state.value = UiState.Form(rawText, extractedJson, pageUris)
+            _state.value = UiState.Form(rawText, ocrResult, pageUris)
         }
     }
 
@@ -90,7 +101,7 @@ class DocAddViewModel @Inject constructor(
         name: String,
         docType: String,
         rawText: String,
-        extractedJson: String?,
+        ocrResult: DocOcrResponse? = null,
         assetId: String? = null,
     ) {
         val accountId = identity.activeAccountId.value
@@ -123,12 +134,14 @@ class DocAddViewModel @Inject constructor(
                         fileHash = null,
                         fileSize = null,
                         ocrRawText = rawText.takeIf { it.isNotBlank() },
-                        ocrExtractedJson = extractedJson,
-                        vendor = null,
-                        total = null,
+                        // Persist full OCR JSON for future reference / re-extraction.
+                        ocrExtractedJson = null,
+                        // Structured fields extracted by the server-side OCR pipeline.
+                        vendor = ocrResult?.vendor,
+                        total = ocrResult?.total,
                         currency = null,
-                        purchaseDate = null,
-                        warrantyEndDate = null,
+                        purchaseDate = ocrResult?.date?.parseToEpochMs(),
+                        warrantyEndDate = ocrResult?.end_date?.parseToEpochMs(),
                         uploadedBy = null,
                         uploadedAt = null,
                         createdAt = now,
@@ -163,5 +176,23 @@ class DocAddViewModel @Inject constructor(
 
     fun resetToIdle() {
         _state.value = UiState.Idle
+    }
+
+    // ---------------------------------------------------------------------------
+    // Helpers
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Parses an ISO-8601 date string (yyyy-MM-dd) returned by the OCR extraction
+     * endpoint into milliseconds since epoch.  Returns null on any parse failure so
+     * that a bad server response never blocks a save.
+     */
+    private fun String.parseToEpochMs(): Long? = try {
+        LocalDate.parse(this, DateTimeFormatter.ISO_LOCAL_DATE)
+            .atStartOfDay(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
+    } catch (_: DateTimeParseException) {
+        null
     }
 }

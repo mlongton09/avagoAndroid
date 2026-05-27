@@ -125,7 +125,7 @@ class InventoryListViewModel @Inject constructor(
             val matchesQuery = query.isBlank() ||
                 item.part.name.contains(query, ignoreCase = true) ||
                 item.part.sku?.contains(query, ignoreCase = true) == true ||
-                item.part.unitOfMeasure?.contains(query, ignoreCase = true) == true
+                item.part.manufacturer?.contains(query, ignoreCase = true) == true
             val matchesCategory = category == null || item.part.category == category
             val matchesStock = when (stockFilterVal) {
                 "in_stock" -> onHand > threshold
