@@ -165,7 +165,7 @@ fun DocAddScreen(
                                 name = name,
                                 docType = docType,
                                 rawText = s.rawText,
-                                extractedJson = s.extractedJson,
+                                ocrResult = s.ocrResult,
                                 assetId = null,
                             )
                         },

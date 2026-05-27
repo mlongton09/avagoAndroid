@@ -1,5 +1,6 @@
 package com.avago.feature.auth
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Email
@@ -75,13 +77,21 @@ fun SignInScreen(
                     .padding(horizontal = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                // Logo
-                Icon(
-                    imageVector = Icons.Default.Build,
-                    contentDescription = null,
-                    modifier = Modifier.size(80.dp),
-                    tint = MaterialTheme.colorScheme.onSurface,
-                )
+                // Logo — red rounded square with white wrench (matches iOS)
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(MaterialTheme.colorScheme.error),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Build,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = Color.White,
+                    )
+                }
                 Spacer(Modifier.height(8.dp))
 
                 // App name
