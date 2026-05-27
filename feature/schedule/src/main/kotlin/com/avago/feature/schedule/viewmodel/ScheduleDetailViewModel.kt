@@ -110,10 +110,11 @@ class ScheduleDetailViewModel @Inject constructor(
             _isSaving.value = true
             try {
                 val now = System.currentTimeMillis()
-                if (!s.rrule.isNullOrBlank() && s.nextDueAt != null) {
+                val rrule = s.rrule
+                if (!rrule.isNullOrBlank() && s.nextDueAt != null) {
                     // Advance nextDueAt by one RRULE interval.
                     val currentDue = RruleHelper.epochMsToLocalDate(s.nextDueAt)
-                    val nextDue = currentDue?.let { RruleHelper.nextOccurrence(s.rrule, it) }
+                    val nextDue = currentDue?.let { RruleHelper.nextOccurrence(rrule, it) }
                     val nextDueMs = nextDue
                         ?.atStartOfDay(java.time.ZoneId.systemDefault())
                         ?.toInstant()
