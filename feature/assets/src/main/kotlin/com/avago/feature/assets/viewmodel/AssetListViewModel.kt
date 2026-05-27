@@ -6,6 +6,7 @@ import com.avago.core.auth.IdentityManager
 import com.avago.core.data.db.entity.AssetEntity
 import com.avago.core.data.repository.AssetRepository
 import com.avago.core.sync.SyncEngine
+import com.avago.feature.assets.model.AssetTypes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -40,12 +42,6 @@ class AssetListViewModel @Inject constructor(
     private val _filterType = MutableStateFlow<String?>(null)
     val filterType: StateFlow<String?> = _filterType.asStateFlow()
 
-    private val _statusFilter = MutableStateFlow("all")
-    val statusFilter: StateFlow<String> = _statusFilter.asStateFlow()
-
-    /**
-     * The full unfiltered asset list, reactive to the active account.
-     */
     @OptIn(ExperimentalCoroutinesApi::class)
     private val _allAssets: StateFlow<List<AssetEntity>> =
         identityManager.activeAccountId
@@ -71,34 +67,32 @@ class AssetListViewModel @Inject constructor(
                 initialValue = emptyList(),
             )
 
-    /**
-     * Filtered and searched list presented to the UI.
-     */
+    /** Distinct asset type keys present in the account's assets, ordered by AssetTypes.all. */
+    val presentTypes: StateFlow<List<String>> = _allAssets
+        .map { all ->
+            val typeOrder = AssetTypes.all.map { it.key }
+            val present = all.mapNotNull { it.assetType }.toHashSet()
+            typeOrder.filter { it in present } + (present - typeOrder.toHashSet())
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList(),
+        )
+
     val assets: StateFlow<List<AssetEntity>> = combine(
         _allAssets,
         _searchQuery,
         _filterType,
-        _statusFilter,
-    ) { all, query, type, status ->
+    ) { all, query, type ->
         all
-            .filter { asset ->
-                type == null || asset.assetType == type
-            }
-            .filter { asset ->
-                when (status) {
-                    "active" -> asset.deletedAt == null
-                    "inactive" -> asset.deletedAt != null
-                    else -> true // "all"
-                }
-            }
+            .filter { asset -> type == null || asset.assetType == type }
             .filter { asset ->
                 if (query.isBlank()) true
-                else {
-                    asset.name.contains(query, ignoreCase = true) ||
-                        asset.make?.contains(query, ignoreCase = true) == true ||
-                        asset.model?.contains(query, ignoreCase = true) == true ||
-                        asset.assetType?.contains(query, ignoreCase = true) == true
-                }
+                else asset.name.contains(query, ignoreCase = true) ||
+                    asset.make?.contains(query, ignoreCase = true) == true ||
+                    asset.model?.contains(query, ignoreCase = true) == true ||
+                    asset.assetType?.contains(query, ignoreCase = true) == true
             }
     }
         .stateIn(
@@ -107,17 +101,9 @@ class AssetListViewModel @Inject constructor(
             initialValue = emptyList(),
         )
 
-    fun onSearchQueryChanged(query: String) {
-        _searchQuery.value = query
-    }
+    fun onSearchQueryChanged(query: String) { _searchQuery.value = query }
 
-    fun onFilterTypeChanged(type: String?) {
-        _filterType.value = type
-    }
-
-    fun onStatusFilterChanged(status: String) {
-        _statusFilter.value = status
-    }
+    fun onFilterTypeChanged(type: String?) { _filterType.value = type }
 
     fun refresh() {
         viewModelScope.launch {

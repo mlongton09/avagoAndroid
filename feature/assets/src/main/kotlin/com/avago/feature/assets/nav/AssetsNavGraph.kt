@@ -129,6 +129,9 @@ fun NavGraphBuilder.assetsNavGraph(
                 onAssetClick = { assetId ->
                     navController.navigate(AssetsRoute.detail(assetId))
                 },
+                onAssetLongPress = { assetId ->
+                    navController.navigate(AssetsRoute.addEdit(assetId))
+                },
                 onAddAsset = {
                     navController.navigate(AssetsRoute.addEdit())
                 },

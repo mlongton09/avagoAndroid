@@ -1,0 +1,321 @@
+package com.avago.feature.log.ui
+
+import androidx.compose.ui.graphics.Color
+
+private const val DEFAULT_ICON = "cat_service"
+
+private val categoryIdToIconName: Map<String, String> = mapOf(
+    // General
+    "service" to "cat_service", "repair" to "cat_repair", "inspection" to "cat_inspection",
+    "pm_service" to "cat_service", "storage_prep" to "cat_service", "season_prep" to "cat_service",
+    "exercise_log" to "cat_service", "post_use_flush" to "cat_service",
+    "spring_commissioning" to "cat_service", "winterization" to "cat_service",
+    "unit_turnover" to "cat_service", "unit_carpet" to "cat_service", "unit_pest" to "cat_service",
+    "suite_fit_out" to "cat_service", "suite_pest" to "cat_service",
+    "bay_pest" to "cat_service", "pest_control" to "cat_service",
+    // Engine
+    "oil_change" to "cat_oil", "engine_oil_filter" to "cat_oil", "oil_analysis" to "cat_oil",
+    "oil_sample_analysis" to "cat_oil", "hydraulic_oil_change" to "cat_oil",
+    "spark_plugs" to "cat_engine", "engine_service" to "cat_engine",
+    "engine_tune_up" to "cat_engine", "dpf_egr_service" to "cat_engine",
+    "block_heater_check" to "cat_engine", "motor_service" to "cat_engine",
+    "generator_service" to "cat_engine", "emergency_generator" to "cat_engine",
+    "valve_inspection" to "cat_engine", "choke_throttle_service" to "cat_engine",
+    "bow_thruster_service" to "cat_engine",
+    // Filters
+    "air_filter" to "cat_filters", "fuel_filter" to "cat_filters",
+    "cab_filter_service" to "cat_filters", "cabin_air_filter" to "cat_filters",
+    "intake_snorkel" to "cat_filters", "hvac_filter_service" to "cat_filters",
+    "air_intake_service" to "cat_filters",
+    // Tires
+    "tire_check" to "cat_tires", "tire_inspection" to "cat_tires",
+    "tire_replacement" to "cat_tires", "tire_rotation" to "cat_tires",
+    "tire_chains_service" to "cat_tires", "axle_ubolt_torque" to "cat_tires",
+    // Brakes
+    "brake_inspection" to "cat_brakes", "brake_replacement" to "cat_brakes",
+    "air_brake_service" to "cat_brakes", "air_dryer_service" to "cat_brakes",
+    "brake_chamber_service" to "cat_brakes", "slack_adjuster_check" to "cat_brakes",
+    "regen_brake_check" to "cat_brakes",
+    // Drivetrain
+    "belt_inspection" to "cat_drivetrain", "belt_replacement" to "cat_drivetrain",
+    "chain_service" to "cat_drivetrain", "cv_axle_service" to "cat_drivetrain",
+    "clutch_service" to "cat_drivetrain", "clutch_adjustment" to "cat_drivetrain",
+    "chaincase_service" to "cat_drivetrain", "timing_belt" to "cat_drivetrain",
+    "transfer_case_service" to "cat_drivetrain", "driveshaft_ujoint_service" to "cat_drivetrain",
+    "cvt_clutch_service" to "cat_drivetrain", "cv_boot_service" to "cat_drivetrain",
+    "front_diff_actuator" to "cat_drivetrain", "skid_plate_service" to "cat_drivetrain",
+    "final_drive_service" to "cat_drivetrain", "track_tension_adjust" to "cat_drivetrain",
+    // Transmission
+    "transmission_service" to "cat_gearbox",
+    // Fluids
+    "fluid_check" to "cat_fluid", "fluid_service" to "cat_fluid", "fluid_top_up" to "cat_fluid",
+    "flush_service" to "cat_fluid", "coolant_flush" to "cat_fluid", "coolant_check" to "cat_fluid",
+    "cooling_flush" to "cat_fluid", "cooling_check" to "cat_fluid", "cooling_system" to "cat_fluid",
+    "differential_fluid" to "cat_fluid", "chassis_lubrication" to "cat_fluid",
+    "greasing" to "cat_fluid", "grease_service" to "cat_fluid",
+    "suspension_greasing" to "cat_fluid", "fuel_quality" to "cat_fluid",
+    "fuel_system" to "cat_fluid", "fuel_water_separator" to "cat_fluid",
+    "hydrostatic_service" to "cat_fluid", "fork_oil" to "cat_fluid",
+    "jet_pump_oil" to "cat_fluid", "power_steering_service" to "cat_fluid",
+    "brake_fluid_flush" to "cat_fluid",
+    // Battery
+    "battery_check" to "cat_battery", "battery_service" to "cat_battery",
+    "battery_replace" to "cat_battery", "battery_equalization" to "cat_battery",
+    "battery_capacity_test" to "cat_battery", "breakaway_battery" to "cat_battery",
+    // Electric
+    "electrical_check" to "cat_electric", "electrical" to "cat_electric",
+    "electronics" to "cat_electric", "lighting_check" to "cat_electric",
+    "charger_check" to "cat_electric", "wiring_check" to "cat_electric",
+    "wiring_lights" to "cat_electric", "transfer_switch" to "cat_electric",
+    "ats_test" to "cat_electric", "alternator_service" to "cat_electric",
+    "alternator_replace" to "cat_electric", "solenoid_controller" to "cat_electric",
+    "speed_controller" to "cat_electric", "motor_brush_service" to "cat_electric",
+    "paralleling_system" to "cat_electric", "voltage_regulation" to "cat_electric",
+    "thermographic_scan" to "cat_electric", "nurse_call_system" to "cat_electric",
+    "intercom_service" to "cat_electric", "bay_lighting" to "cat_electric",
+    "bay_electrical" to "cat_electric", "suite_electrical" to "cat_electric",
+    "suite_led_retrofit" to "cat_electric", "suite_lighting" to "cat_electric",
+    "unit_electrical" to "cat_electric", "unit_lighting" to "cat_electric",
+    "battery_watering" to "cat_electric", "bms_service" to "cat_electric",
+    "battery_charger_service" to "cat_electric", "frequency_check" to "cat_electric",
+    "output_breaker_service" to "cat_electric", "annunciator_check" to "cat_electric",
+    "ats_maintenance" to "cat_electric", "charge_receptacle_service" to "cat_electric",
+    "fnr_switch_service" to "cat_electric", "controller_program" to "cat_electric",
+    // Exhaust
+    "exhaust_service" to "cat_exhaust", "aero_fairing_service" to "cat_exhaust",
+    "mudflap_fender_service" to "cat_exhaust", "sound_enclosure_seal" to "cat_exhaust",
+    // Turbo
+    "turbocharger_service" to "cat_turbo",
+    // Injector
+    "injector_service" to "cat_injector", "injection_service" to "cat_injector",
+    // EVSE
+    "evse_charging" to "cat_evse",
+    // Fuel tank / fuel system
+    "fuel_system_service" to "cat_fuel_tank", "fuel_polishing" to "cat_fuel_tank",
+    "fuel_tank_cleaning" to "cat_fuel_system", "day_tank_service" to "cat_fuel_system",
+    "scrubber_service" to "cat_fuel_system", "def_tank_service" to "cat_fuel_system",
+    "def_tank_service_eq" to "cat_fuel_system", "fuel_sample_analysis" to "cat_fuel_system",
+    // Safety
+    "safety_check" to "cat_safety", "safety_equipment" to "cat_safety",
+    "fire_safety" to "cat_safety", "dot_inspection" to "cat_safety",
+    "safety_inspection" to "cat_safety", "emergency_systems" to "cat_safety",
+    "emergency_lighting" to "cat_safety", "fire_door_test" to "cat_safety",
+    "fire_sprinkler_test" to "cat_safety", "fire_suppression" to "cat_safety",
+    "fire_extinguisher_check" to "cat_safety", "ansul_inspection" to "cat_safety",
+    "epirb_service" to "cat_safety", "liferaft_service" to "cat_safety",
+    "lifeboat_davit_service" to "cat_safety", "access_control" to "cat_safety",
+    "security_systems" to "cat_safety", "bilge_alarm_service" to "cat_safety",
+    "bilge_drain_check" to "cat_safety", "co2_system_service" to "cat_safety",
+    "smoke_co_detector" to "cat_safety", "unit_smoke_detector" to "cat_safety",
+    "suite_fire_extinguisher" to "cat_safety", "bay_fire_extinguisher" to "cat_safety",
+    "bay_eyewash" to "cat_safety", "eyewash_station" to "cat_safety",
+    "load_securement" to "cat_safety", "lp_gas_service" to "cat_safety",
+    "lpg_system" to "cat_safety", "dryer_vent_cleaning" to "cat_safety",
+    "autoclave_service" to "cat_safety", "bay_safety_markings" to "cat_safety",
+    "crane_hoist_service" to "cat_safety", "reflective_tape" to "cat_safety",
+    "fire_main_service" to "cat_safety", "load_test" to "cat_safety",
+    "suite_security" to "cat_safety",
+    // Inspection (specific checks)
+    "rollcage_harness_check" to "cat_inspection", "ride_hour_service" to "cat_inspection",
+    "pre_ride_check" to "cat_inspection", "rops_fops_inspection" to "cat_inspection",
+    "grease_point_audit" to "cat_inspection", "leak_inspection" to "cat_inspection",
+    "axle_weight_verification" to "cat_inspection", "marpol_inspection" to "cat_inspection",
+    "charter_inspection" to "cat_inspection", "class_society_survey" to "cat_inspection",
+    "isps_drill" to "cat_inspection", "ada_accessibility_check" to "cat_inspection",
+    "humidity_calibration" to "cat_inspection", "pressure_differential_test" to "cat_inspection",
+    "lab_fume_hood_cert" to "cat_inspection", "bsc_certification" to "cat_inspection",
+    "imaging_calibration" to "cat_inspection", "code_blue_test" to "cat_inspection",
+    "infection_control_round" to "cat_inspection",
+    // Mechanical
+    "fifth_wheel_service" to "cat_mechanical", "wheel_alignment" to "cat_mechanical",
+    "steering_service" to "cat_mechanical", "suspension_steering" to "cat_mechanical",
+    "bearing_service" to "cat_mechanical", "cutting_edge_service" to "cat_mechanical",
+    "bucket_service" to "cat_mechanical", "swing_bearing_service" to "cat_mechanical",
+    "pin_bushing_service" to "cat_mechanical", "vibration_isolators" to "cat_mechanical",
+    "shaft_packing" to "cat_mechanical", "propeller" to "cat_mechanical",
+    "deck_equipment" to "cat_mechanical", "impeller" to "cat_mechanical",
+    "impeller_check" to "cat_mechanical", "axle_service" to "cat_mechanical",
+    "boiler_service" to "cat_mechanical", "leveling_service" to "cat_mechanical",
+    "hitch_coupler" to "cat_mechanical", "handlebar_controls" to "cat_mechanical",
+    "nozzle_deflector" to "cat_mechanical", "blade_service" to "cat_mechanical",
+    "blade_balancing" to "cat_mechanical", "compressed_air_system" to "cat_mechanical",
+    "conveyor_service" to "cat_mechanical", "trailer_service" to "cat_mechanical",
+    "tie_rod_service" to "cat_mechanical", "deck_leveling" to "cat_mechanical",
+    "dock_equipment" to "cat_mechanical", "anti_scalp_service" to "cat_mechanical",
+    "spindle_service" to "cat_mechanical", "apu_service" to "cat_mechanical",
+    "seat_latch_service" to "cat_mechanical", "ski_service" to "cat_mechanical",
+    "slide_replacement" to "cat_mechanical", "slideout_service" to "cat_mechanical",
+    "bay_overhead_door" to "cat_mechanical", "suite_door_lock" to "cat_mechanical",
+    "unit_door_lock" to "cat_mechanical", "garage_door_service" to "cat_mechanical",
+    "rigging_inspection" to "cat_mechanical", "deck_hardware" to "cat_mechanical",
+    "wheel_bearing_service" to "cat_mechanical", "get_service" to "cat_mechanical",
+    "quick_coupler_service" to "cat_mechanical", "ripper_service" to "cat_mechanical",
+    "governor_adjustment" to "cat_mechanical", "bay_equipment_anchor" to "cat_mechanical",
+    "wear_ring" to "cat_mechanical", "bay_compressed_air" to "cat_mechanical",
+    // Suspension
+    "suspension_service" to "cat_suspension",
+    // Undercarriage
+    "track_inspection" to "cat_undercarriage", "undercarriage_service" to "cat_undercarriage",
+    // Hydraulics
+    "hydraulic_fluid" to "cat_hydraulics", "liftgate_service" to "cat_hydraulics",
+    "swing_motor_service" to "cat_hydraulics",
+    // Hull
+    "hull_survey" to "cat_hull", "hull_inspection" to "cat_hull",
+    "zincs_anodes" to "cat_hull", "antifouling" to "cat_hull",
+    "ride_plate_service" to "cat_hull", "bottom_paint_touchup" to "cat_hull",
+    // Bilge
+    "bilge_pump" to "cat_bilge",
+    // Mooring
+    "mooring_service" to "cat_mooring", "running_rigging_service" to "cat_mooring",
+    "winch_use_log" to "cat_mooring", "kingpin_fifth_wheel_lube" to "cat_mooring",
+    // Seacock
+    "seacock_service" to "cat_seacock",
+    // Navigation
+    "navigation_systems" to "cat_navigation", "satellite_antenna" to "cat_navigation",
+    "telematics_check" to "cat_navigation", "vhf_epirb_service" to "cat_navigation",
+    "eld_telematics_service" to "cat_it_systems",
+    // Winch
+    "winch_service" to "cat_winch",
+    // Lighting
+    "nav_light_test" to "cat_lighting", "surgical_light_service" to "cat_lighting",
+    // Wash / Cleaning
+    "detailing" to "cat_wash", "exterior_wash" to "cat_wash",
+    "deep_cleaning" to "cat_cleaning", "cab_interior_service" to "cat_cleaning",
+    "seat_service" to "cat_cleaning", "upholstery_service" to "cat_cleaning",
+    // HVAC
+    "ac_service" to "cat_hvac", "hvac_air_quality" to "cat_hvac",
+    "hvac_service" to "cat_hvac", "cooling_tower" to "cat_hvac",
+    "ventilation_service" to "cat_hvac", "bay_hvac" to "cat_hvac",
+    "suite_hvac" to "cat_hvac", "unit_hvac_filter" to "cat_hvac",
+    "cab_hvac_pm" to "cat_hvac", "absorption_fridge_service" to "cat_hvac",
+    "hood_cleaning" to "cat_hvac", "hood_filter_cleaning" to "cat_hvac",
+    // Plumbing
+    "plumbing_check" to "cat_plumbing", "plumbing_flush" to "cat_plumbing",
+    "plumbing_inspection" to "cat_plumbing", "water_management" to "cat_plumbing",
+    "backflow_preventer" to "cat_plumbing", "floor_drain_service" to "cat_plumbing",
+    "bay_floor_drain" to "cat_plumbing", "bay_plumbing" to "cat_plumbing",
+    "septic_service" to "cat_plumbing", "holding_tank_service" to "cat_plumbing",
+    "stormwater_management" to "cat_plumbing", "suite_drain" to "cat_plumbing",
+    "suite_plumbing" to "cat_plumbing", "unit_drain_unblock" to "cat_plumbing",
+    "unit_faucet_repair" to "cat_plumbing", "unit_garbage_disposal" to "cat_plumbing",
+    "unit_pipe_leak" to "cat_plumbing", "unit_toilet_repair" to "cat_plumbing",
+    "unit_water_heater" to "cat_plumbing", "water_heater_service" to "cat_plumbing",
+    "water_filtration" to "cat_plumbing", "water_system_service" to "cat_plumbing",
+    "sump_pump_service" to "cat_plumbing", "oily_water_separator" to "cat_plumbing",
+    "ballast_water_mgmt" to "cat_plumbing", "msd_service" to "cat_plumbing",
+    "blackwater_tank_service" to "cat_plumbing", "di_ro_water_service" to "cat_plumbing",
+    "dialysis_water_service" to "cat_plumbing", "grease_trap" to "cat_plumbing",
+    "beverage_line_cleaning" to "cat_plumbing", "suite_bathroom" to "cat_plumbing",
+    "spill_containment" to "cat_plumbing",
+    // Compliance
+    "compliance_audit" to "cat_compliance", "registration_renewal" to "cat_compliance",
+    "sterilization" to "cat_compliance", "manning_compliance" to "cat_compliance",
+    "oil_record_book" to "cat_compliance", "stability_test" to "cat_compliance",
+    "runtime_log" to "cat_compliance", "health_inspection" to "cat_compliance",
+    "medical_gas_service" to "cat_compliance", "energy_audit" to "cat_compliance",
+    "bay_spill_containment" to "cat_compliance", "uscg_inspection" to "cat_compliance",
+    "safety_compliance" to "cat_compliance",
+    // Waste
+    "waste_management" to "cat_waste", "trash_chute_service" to "cat_waste",
+    // Structure
+    "roof_inspection" to "cat_structure", "roof_seal" to "cat_structure",
+    "structural_check" to "cat_structure", "chimney_service" to "cat_structure",
+    "floor_inspection" to "cat_structure", "flooring_service" to "cat_structure",
+    "floor_coating" to "cat_structure", "foundation_check" to "cat_structure",
+    "racking_inspection" to "cat_structure", "deck_balcony_service" to "cat_structure",
+    "suite_drywall" to "cat_structure", "suite_flooring" to "cat_structure",
+    "suite_window" to "cat_structure", "tunnel_runningboard" to "cat_structure",
+    "unit_drywall" to "cat_structure", "unit_flooring" to "cat_structure",
+    "unit_window_screen" to "cat_structure", "bay_floor_repair" to "cat_structure",
+    "bay_roof_ceiling" to "cat_structure",
+    // Exterior / Paint
+    "exterior_maint" to "cat_exterior", "exterior_paint" to "cat_exterior",
+    "body_panel_service" to "cat_exterior", "caulk_weatherstrip" to "cat_exterior",
+    "painting_service" to "cat_exterior", "gutter_cleaning" to "cat_exterior",
+    "awning_service" to "cat_exterior", "slide_topper_service" to "cat_exterior",
+    "corrosion_check" to "cat_exterior", "enclosure_service" to "cat_exterior",
+    "deck_fence_service" to "cat_exterior", "bay_paint_coating" to "cat_exterior",
+    "suite_paint" to "cat_exterior", "unit_paint" to "cat_exterior",
+    "body_paint_repair" to "cat_exterior", "attic_insulation_service" to "cat_exterior",
+    "parking_lot_maint" to "cat_exterior", "suite_signage" to "cat_exterior",
+    // Window
+    "window_seal_service" to "cat_window", "window_service" to "cat_window",
+    "windshield_service" to "cat_window",
+    // Wipers
+    "wiper_blades" to "cat_wipers",
+    // Appliances
+    "appliance_service" to "cat_appliances", "refrigeration_service" to "cat_appliances",
+    "refrigeration" to "cat_appliances", "dishwasher_service" to "cat_appliances",
+    "ice_machine_service" to "cat_appliances", "laundry_equipment" to "cat_appliances",
+    "unit_refrigerator" to "cat_appliances", "suite_kitchenette" to "cat_appliances",
+    // Elevator
+    "elevator_service" to "cat_elevator",
+    // Medical Equipment
+    "medical_equipment" to "cat_medical_equipment",
+    "mri_cold_head_service" to "cat_equipment", "pneumatic_tube_service" to "cat_equipment",
+    "exam_table_service" to "cat_equipment", "patient_lift_service" to "cat_equipment",
+    // IT Systems
+    "it_systems" to "cat_it_systems", "bay_data_cabling" to "cat_it_systems",
+    "suite_data_cabling" to "cat_it_systems",
+    // Solar
+    "solar_system_service" to "cat_solar",
+    // Cable
+    "cable_service" to "cat_cable",
+    // Landscaping
+    "landscaping" to "cat_landscaping", "irrigation_service" to "cat_landscaping",
+    "amenity_room_service" to "cat_landscaping", "bike_storage_service" to "cat_landscaping",
+    // Pool
+    "pool_spa_service" to "cat_pool",
+    // Common Areas
+    "common_area_maint" to "cat_common_areas",
+    // Doors
+    "door_lock_service" to "cat_door", "overhead_door_service" to "cat_door",
+    // Equipment
+    "equipment_service" to "cat_equipment", "attachment_service" to "cat_equipment",
+    "mulch_bagger_service" to "cat_equipment", "asrs_agv_service" to "cat_equipment",
+    "bay_turnover" to "cat_equipment", "bay_walkthrough" to "cat_equipment",
+    // Remodel
+    "unit_remodel" to "cat_repair", "suite_remodel" to "cat_repair",
+    "bay_remodel" to "cat_repair",
+    // Kitchen
+    "kitchen_equipment" to "cat_kitchen_equipment",
+)
+
+private val iconNameToColor: Map<String, Long> = mapOf(
+    "cat_service" to 0xFF007AFFL, "cat_repair" to 0xFFA2845EL,
+    "cat_inspection" to 0xFFFF2D55L, "cat_oil" to 0xFFFF9500L,
+    "cat_filters" to 0xFF30B0C7L, "cat_tires" to 0xFF34C759L,
+    "cat_brakes" to 0xFFFF3B30L, "cat_drivetrain" to 0xFF8E8E93L,
+    "cat_fluid" to 0xFF0A84FFL, "cat_engine" to 0xFF5856D6L,
+    "cat_battery" to 0xFF636366L, "cat_gearbox" to 0xFF8E8E93L,
+    "cat_suspension" to 0xFF636366L, "cat_exhaust" to 0xFF636366L,
+    "cat_electric" to 0xFFFFC300L, "cat_safety" to 0xFFFF2D55L,
+    "cat_mechanical" to 0xFF636366L, "cat_wash" to 0xFF30B0C7L,
+    "cat_winch" to 0xFF8E8E93L, "cat_navigation" to 0xFF34C759L,
+    "cat_hull" to 0xFF8E8E93L, "cat_bilge" to 0xFF0A84FFL,
+    "cat_mooring" to 0xFF5856D6L, "cat_seacock" to 0xFF0A84FFL,
+    "cat_hydraulics" to 0xFF5856D6L, "cat_undercarriage" to 0xFF636366L,
+    "cat_turbo" to 0xFFFF9500L, "cat_injector" to 0xFFFFC300L,
+    "cat_evse" to 0xFF34C759L, "cat_compliance" to 0xFF007AFFL,
+    "cat_fuel_tank" to 0xFFFFC300L, "cat_fuel_system" to 0xFFFFC300L,
+    "cat_appliances" to 0xFF0A84FFL, "cat_hvac" to 0xFF30B0C7L,
+    "cat_plumbing" to 0xFF0A84FFL, "cat_paint" to 0xFFA2845EL,
+    "cat_flooring" to 0xFFA2845EL, "cat_cleaning" to 0xFFA2845EL,
+    "cat_exterior" to 0xFF636366L, "cat_medical_equipment" to 0xFF5856D6L,
+    "cat_elevator" to 0xFF636366L, "cat_it_systems" to 0xFF5856D6L,
+    "cat_waste" to 0xFFA2845EL, "cat_structure" to 0xFF8E8E93L,
+    "cat_equipment" to 0xFF636366L, "cat_solar" to 0xFF34C759L,
+    "cat_cable" to 0xFF8E8E93L, "cat_blades" to 0xFF636366L,
+    "cat_landscaping" to 0xFF34C759L, "cat_pool" to 0xFF0A84FFL,
+    "cat_common_areas" to 0xFF636366L, "cat_doors" to 0xFF636366L,
+    "cat_door" to 0xFF636366L, "cat_kitchen_equipment" to 0xFFFF9500L,
+    "cat_wipers" to 0xFF636366L, "cat_window" to 0xFF30B0C7L,
+    "cat_lighting" to 0xFFFFC300L, "cat_anchoring" to 0xFF5856D6L,
+)
+
+fun categoryIconName(categoryId: String?): String =
+    if (categoryId == null) DEFAULT_ICON
+    else categoryIdToIconName[categoryId] ?: DEFAULT_ICON
+
+fun categoryBadgeColor(iconName: String): Color =
+    Color(iconNameToColor[iconName] ?: 0xFF8E8E93L)

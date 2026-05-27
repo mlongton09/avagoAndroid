@@ -42,6 +42,7 @@ import javax.inject.Inject
 @HiltAndroidApp
 class AvagoApplication : Application(), Configuration.Provider {
 
+
     @Inject lateinit var workerFactory: HiltWorkerFactory
     @Inject lateinit var identityManager: IdentityManager
     @Inject lateinit var crashDiagnostics: CrashDiagnostics

@@ -10,7 +10,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
@@ -53,8 +52,16 @@ class ChatListViewModel @Inject constructor(
             .filter { it.matchesFilter(filter) }
             .filter { query.isBlank() || it.matchesSearch(query) }
             .filter { !unreadOnly || it.unreadCount > 0 }
+        val sorted = if (filter == ThreadFilter.ALL) {
+            filtered.sortedWith(
+                compareBy<ChatThreadEntity> { TYPE_ORDER[it.threadType] ?: 99 }
+                    .thenByDescending { it.lastMessageAt ?: 0L }
+            )
+        } else {
+            filtered.sortedByDescending { it.lastMessageAt ?: 0L }
+        }
         ChatListUiState(
-            threads = filtered,
+            threads = sorted,
             filter = filter,
             searchQuery = query,
             unreadOnly = unreadOnly,
@@ -102,6 +109,17 @@ class ChatListViewModel @Inject constructor(
             }
             _isRefreshing.value = false
         }
+    }
+
+    companion object {
+        // Defines display order when ALL filter is active — mirrors iOS chat list ordering.
+        private val TYPE_ORDER = mapOf(
+            "team" to 0,
+            "asset" to 1,
+            "direct" to 2,
+            "group" to 3,
+            "wo" to 4,
+        )
     }
 
     private fun ChatThreadEntity.matchesFilter(filter: ThreadFilter): Boolean = when (filter) {

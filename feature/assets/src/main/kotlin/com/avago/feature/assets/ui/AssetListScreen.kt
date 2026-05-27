@@ -2,8 +2,9 @@ package com.avago.feature.assets.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,21 +17,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -41,10 +41,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -54,8 +58,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.data.db.entity.AssetEntity
 import com.avago.core.ui.EmptyState
 import com.avago.core.ui.QuoteBanner
-import com.avago.core.ui.ScoutFAB
-import com.avago.core.ui.ScoutViewModel
 import com.avago.feature.assets.R
 import com.avago.feature.assets.model.AssetTypes
 import com.avago.feature.assets.viewmodel.AssetListViewModel
@@ -63,23 +65,25 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun AssetListScreen(
     onAssetClick: (assetId: String) -> Unit,
+    onAssetLongPress: (assetId: String) -> Unit = {},
     onAddAsset: () -> Unit,
     onScanBarcode: () -> Unit = {},
     viewModel: AssetListViewModel = hiltViewModel(),
     onboardingViewModel: OnboardingViewModel = hiltViewModel(),
-    scoutViewModel: ScoutViewModel = hiltViewModel(),
 ) {
     val assets by viewModel.assets.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val filterType by viewModel.filterType.collectAsStateWithLifecycle()
-    val statusFilter by viewModel.statusFilter.collectAsStateWithLifecycle()
+    val presentTypes by viewModel.presentTypes.collectAsStateWithLifecycle()
     val syncError by viewModel.syncError.collectAsStateWithLifecycle()
     val showOnboarding by onboardingViewModel.showBanner.collectAsStateWithLifecycle()
+
+    var showFilterMenu by remember { mutableStateOf(false) }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0),
@@ -100,89 +104,93 @@ fun AssetListScreen(
                 .padding(paddingValues),
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Search bar
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { viewModel.onSearchQueryChanged(it) },
-                    placeholder = { Text(stringResource(R.string.assets_search_placeholder)) },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    trailingIcon = {
-                        if (searchQuery.isNotBlank()) {
-                            IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
-                                Icon(Icons.Default.Clear, contentDescription = null)
-                            }
-                        }
-                    },
-                    singleLine = true,
+
+                // Search bar + filter button in one row (matches iOS header layout)
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    shape = RoundedCornerShape(12.dp),
-                )
-
-                // Filter chips
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(bottom = 8.dp),
+                        .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    item {
-                        FilterChip(
-                            selected = filterType == null,
-                            onClick = { viewModel.onFilterTypeChanged(null) },
-                            label = { Text(stringResource(R.string.assets_filter_all)) },
-                        )
-                    }
-                    items(AssetTypes.all) { typeItem ->
-                        FilterChip(
-                            selected = filterType == typeItem.key,
-                            onClick = {
-                                viewModel.onFilterTypeChanged(
-                                    if (filterType == typeItem.key) null else typeItem.key
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { viewModel.onSearchQueryChanged(it) },
+                        placeholder = { Text(stringResource(R.string.assets_search_placeholder)) },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        trailingIcon = {
+                            if (searchQuery.isNotBlank()) {
+                                IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
+                                    Icon(Icons.Default.Clear, contentDescription = null)
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                    )
+
+                    // Filter button — icon when inactive, pill with × when active
+                    Box {
+                        if (filterType != null) {
+                            val labelResId = AssetTypes.labelResIdFor(filterType)
+                            val label = if (labelResId != null) stringResource(labelResId)
+                            else filterType!!.replace("_", " ")
+                                .replaceFirstChar { it.uppercase() }
+                            Surface(
+                                onClick = { viewModel.onFilterTypeChanged(null) },
+                                shape = RoundedCornerShape(14.dp),
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                modifier = Modifier.padding(start = 8.dp),
+                            ) {
+                                Text(
+                                    text = "$label  ×",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                                 )
-                            },
-                            label = { Text(stringResource(typeItem.labelResId)) },
-                            leadingIcon = {
+                            }
+                        } else {
+                            IconButton(onClick = { showFilterMenu = true }) {
                                 Icon(
-                                    imageVector = typeItem.icon,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
+                                    imageVector = Icons.Default.FilterList,
+                                    contentDescription = "Filter by asset type",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
-                            },
-                        )
+                            }
+                        }
+                        DropdownMenu(
+                            expanded = showFilterMenu,
+                            onDismissRequest = { showFilterMenu = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.assets_filter_all)) },
+                                onClick = {
+                                    viewModel.onFilterTypeChanged(null)
+                                    showFilterMenu = false
+                                },
+                            )
+                            presentTypes.forEach { typeKey ->
+                                val labelResId = AssetTypes.labelResIdFor(typeKey)
+                                val label = if (labelResId != null) stringResource(labelResId)
+                                else typeKey.replace("_", " ")
+                                    .replaceFirstChar { it.uppercase() }
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = if (filterType == typeKey) "✓ $label" else label,
+                                        )
+                                    },
+                                    onClick = {
+                                        viewModel.onFilterTypeChanged(typeKey)
+                                        showFilterMenu = false
+                                    },
+                                )
+                            }
+                        }
                     }
                 }
 
-                // Status filter chips (All / Active / Inactive)
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(bottom = 8.dp),
-                ) {
-                    item {
-                        FilterChip(
-                            selected = statusFilter == "all",
-                            onClick = { viewModel.onStatusFilterChanged("all") },
-                            label = { Text("All") },
-                        )
-                    }
-                    item {
-                        FilterChip(
-                            selected = statusFilter == "active",
-                            onClick = { viewModel.onStatusFilterChanged("active") },
-                            label = { Text("Active") },
-                        )
-                    }
-                    item {
-                        FilterChip(
-                            selected = statusFilter == "inactive",
-                            onClick = { viewModel.onStatusFilterChanged("inactive") },
-                            label = { Text("Inactive") },
-                        )
-                    }
-                }
-
-                // FRE banner — shown only on first launch before any assets are added
+                // FRE banner
                 AnimatedVisibility(
                     visible = showOnboarding,
                     enter = slideInVertically(initialOffsetY = { -it }),
@@ -219,29 +227,31 @@ fun AssetListScreen(
                     }
                 }
 
-                // Content
                 if (assets.isEmpty()) {
                     EmptyState(
                         message = stringResource(R.string.assets_empty),
                         modifier = Modifier.fillMaxSize(),
                     )
                 } else {
-                    // Build combined list: interleave String section headers and AssetEntity items
+                    // Build type-grouped sectioned list matching iOS section order
+                    val typeOrder = AssetTypes.all.map { it.key }
+                    val grouped = assets.groupBy { it.assetType ?: "other" }
                     val sectionedItems: List<Any> = buildList {
-                        var lastHeader: String? = null
-                        assets.sortedBy { it.name.lowercase() }.forEach { asset ->
-                            val header = asset.name.firstOrNull()?.uppercaseChar()?.toString() ?: "#"
-                            if (header != lastHeader) {
-                                add(header)
-                                lastHeader = header
+                        for (typeKey in typeOrder) {
+                            val items = grouped[typeKey] ?: continue
+                            add(typeKey)
+                            addAll(items.sortedBy { it.name.lowercase() })
+                        }
+                        for ((typeKey, items) in grouped) {
+                            if (typeKey !in typeOrder) {
+                                add(typeKey)
+                                addAll(items.sortedBy { it.name.lowercase() })
                             }
-                            add(asset)
                         }
                     }
 
                     LazyColumn(
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(bottom = 80.dp),
                         modifier = Modifier.fillMaxSize(),
                     ) {
                         items(
@@ -255,40 +265,24 @@ fun AssetListScreen(
                             },
                         ) { item ->
                             when (item) {
-                                is String -> {
-                                    Surface(
-                                        color = MaterialTheme.colorScheme.surfaceVariant,
-                                        modifier = Modifier.fillMaxWidth(),
-                                    ) {
-                                        Text(
-                                            text = item.uppercase(),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.padding(
-                                                start = 16.dp,
-                                                top = 6.dp,
-                                                bottom = 6.dp,
-                                                end = 16.dp,
-                                            ),
-                                        )
-                                    }
-                                }
+                                is String -> AssetSectionHeader(typeKey = item)
                                 is AssetEntity -> {
-                                    AssetCard(
+                                    AssetRow(
                                         asset = item,
                                         onClick = { onAssetClick(item.assetId) },
+                                        onLongClick = { onAssetLongPress(item.assetId) },
+                                    )
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(start = 72.dp),
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
                                     )
                                 }
                             }
                         }
 
-                        // Quote banner footer — only shown when there are assets and banner is dismissed
                         if (!showOnboarding) {
                             item(key = "quote_banner") {
-                                QuoteBanner(
-                                    modifier = Modifier.padding(vertical = 8.dp),
-                                )
+                                QuoteBanner(modifier = Modifier.padding(16.dp))
                             }
                         }
                     }
@@ -299,70 +293,76 @@ fun AssetListScreen(
 }
 
 @Composable
-private fun AssetCard(
+private fun AssetSectionHeader(typeKey: String) {
+    val labelResId = AssetTypes.labelResIdFor(typeKey)
+    val label = if (labelResId != null) stringResource(labelResId)
+    else typeKey.replace("_", " ").replaceFirstChar { it.uppercase() }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+    ) {
+        Text(
+            text = label.uppercase(),
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun AssetRow(
     asset: AssetEntity,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Card(
+    Row(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        shape = RoundedCornerShape(12.dp),
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // Color avatar with type icon
-            AssetAvatar(
-                color = asset.avatarColor,
-                initial = asset.avatarInitial ?: asset.name.firstOrNull()?.uppercaseChar()?.toString() ?: "A",
-                assetType = asset.assetType,
-                size = 48,
+        AssetAvatar(
+            color = asset.avatarColor,
+            initial = asset.avatarInitial ?: asset.name.firstOrNull()?.uppercaseChar()?.toString() ?: "A",
+            assetType = asset.assetType,
+            size = 40,
+        )
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = asset.name,
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurface,
             )
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
+            val subtitle = listOfNotNull(asset.year?.toString(), asset.make, asset.model)
+                .joinToString(" ")
+            if (subtitle.isNotBlank()) {
                 Text(
-                    text = asset.name,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (asset.make != null || asset.model != null || asset.year != null) {
-                    Text(
-                        text = listOfNotNull(asset.year?.toString(), asset.make, asset.model)
-                            .joinToString(" "),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                asset.assetType?.let { assetType ->
-                    val labelResId = AssetTypes.labelResIdFor(assetType)
-                    Text(
-                        text = if (labelResId != null) stringResource(labelResId)
-                        else assetType.replace("_", " ").replaceFirstChar { it.uppercase() },
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
             }
-
-            // Last service date (updatedAt as proxy until log entries are loaded here)
-            Text(
-                text = formatDate(asset.updatedAt),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
+
+        Text(
+            text = formatDate(asset.updatedAt),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -382,19 +382,19 @@ internal fun AssetAvatar(
             .background(parsedColor),
         contentAlignment = Alignment.Center,
     ) {
-        val typeIcon = AssetTypes.iconFor(assetType)
+        val iconRes = AssetTypes.iconResFor(assetType)
         Icon(
-            imageVector = typeIcon,
+            painter = painterResource(iconRes),
             contentDescription = null,
             tint = Color.White,
-            modifier = Modifier.size((size * 0.5f).dp),
+            modifier = Modifier.size((size * 0.55f).dp),
         )
     }
 }
 
 @Composable
 private fun rememberParsedColor(hex: String?): Color {
-    val fallback = MaterialTheme.colorScheme.primaryContainer
+    val fallback = MaterialTheme.colorScheme.primary
     if (hex == null || !hex.startsWith("#") || (hex.length != 7 && hex.length != 9)) return fallback
     return try {
         val colorLong = hex.removePrefix("#").toLong(16)
@@ -404,6 +404,5 @@ private fun rememberParsedColor(hex: String?): Color {
     }
 }
 
-private fun formatDate(epochMs: Long): String {
-    return SimpleDateFormat("MMM d", Locale.getDefault()).format(Date(epochMs))
-}
+private fun formatDate(epochMs: Long): String =
+    SimpleDateFormat("MMM d", Locale.getDefault()).format(Date(epochMs))

@@ -10,20 +10,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.LocalGasStation
-import androidx.compose.material.icons.filled.Note
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
@@ -40,9 +35,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil3.ImageLoader
+import coil3.compose.AsyncImage
+import coil3.svg.SvgDecoder
 import com.avago.core.data.db.entity.LogEntity
 import com.avago.core.ui.ScoutFAB
 import com.avago.core.ui.ScoutViewModel
@@ -72,7 +73,6 @@ fun LogListScreen(
     val categoryFilter by viewModel.categoryFilter.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
 
-    // Group logs by year for sticky headers
     val grouped = logs.groupBy { log ->
         Calendar.getInstance().apply { timeInMillis = log.entryDate }.get(Calendar.YEAR)
     }.toSortedMap(reverseOrder())
@@ -101,7 +101,6 @@ fun LogListScreen(
                 .padding(innerPadding),
         ) {
             Column {
-                // Category filter pills
                 if (categories.isNotEmpty()) {
                     LazyRow(
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
@@ -135,7 +134,6 @@ fun LogListScreen(
                 } else {
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
                         grouped.forEach { (year, yearLogs) ->
-                            // Sticky year header
                             stickyHeader(key = "year_$year") {
                                 YearHeader(year = year)
                             }
@@ -186,16 +184,9 @@ private fun LogListRow(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Category icon
-        Icon(
-            imageVector = categoryIcon(log.category),
-            contentDescription = log.category,
-            modifier = Modifier.size(32.dp),
-            tint = MaterialTheme.colorScheme.primary,
-        )
+        CategoryBadge(categoryId = log.category)
         Spacer(Modifier.width(12.dp))
 
-        // Title + category + date
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = log.title,
@@ -217,7 +208,6 @@ private fun LogListRow(
             )
         }
 
-        // Cost + status
         Column(horizontalAlignment = Alignment.End) {
             val displayCost = log.cost
             if (displayCost != null && displayCost > 0) {
@@ -227,7 +217,6 @@ private fun LogListRow(
                     fontWeight = FontWeight.Medium,
                 )
             }
-            // Sync status indicator: show dot if not yet synced (serverVersion == 0 and seq == null)
             if (log.serverVersion == 0L && log.seq == null) {
                 Text(
                     text = "Pending",
@@ -239,10 +228,33 @@ private fun LogListRow(
     }
 }
 
-private fun categoryIcon(category: String?) = when {
-    category == null -> Icons.Default.Build
-    category.contains("inspect", ignoreCase = true) -> Icons.Default.CheckCircle
-    category.contains("fuel", ignoreCase = true) -> Icons.Default.LocalGasStation
-    category.contains("note", ignoreCase = true) -> Icons.Default.Note
-    else -> Icons.Default.Build
+@Composable
+private fun CategoryBadge(
+    categoryId: String?,
+    modifier: Modifier = Modifier,
+) {
+    val iconName = categoryIconName(categoryId)
+    val bgColor = categoryBadgeColor(iconName)
+    val context = LocalContext.current
+    val imageLoader = remember(context) {
+        ImageLoader.Builder(context)
+            .components { add(SvgDecoder.Factory()) }
+            .build()
+    }
+
+    Box(
+        modifier = modifier
+            .size(40.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(bgColor),
+        contentAlignment = Alignment.Center,
+    ) {
+        AsyncImage(
+            model = "file:///android_asset/icons/$iconName.svg",
+            imageLoader = imageLoader,
+            contentDescription = categoryId,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.size(20.dp),
+        )
+    }
 }

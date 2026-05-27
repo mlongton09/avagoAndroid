@@ -35,6 +35,7 @@ dependencies {
     implementation(libs.serialization.json)
     implementation(libs.coil.compose)
     implementation(libs.coil.ktor)
+    implementation(libs.coil.svg)
     implementation(libs.mlkit.barcode)
     implementation(libs.camera.core)
     implementation(libs.camera.camera2)
