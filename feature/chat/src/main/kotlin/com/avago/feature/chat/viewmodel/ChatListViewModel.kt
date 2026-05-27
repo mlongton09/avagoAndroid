@@ -40,14 +40,15 @@ class ChatListViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     private val _unreadOnly = MutableStateFlow(false)
     private val _allThreads = MutableStateFlow<List<ChatThreadEntity>>(emptyList())
+    private val _unreadMentionCount = MutableStateFlow(0)
 
     val uiState: StateFlow<ChatListUiState> = combine(
         _allThreads,
         _filter,
         _searchQuery,
         _unreadOnly,
-        _isRefreshing,
-    ) { threads, filter, query, unreadOnly, refreshing ->
+        combine(_isRefreshing, _unreadMentionCount) { refreshing, mentionCount -> refreshing to mentionCount },
+    ) { threads, filter, query, unreadOnly, (refreshing, mentionCount) ->
         val filtered = threads
             .filter { it.matchesFilter(filter) }
             .filter { query.isBlank() || it.matchesSearch(query) }
@@ -55,10 +56,14 @@ class ChatListViewModel @Inject constructor(
         val sorted = if (filter == ThreadFilter.ALL) {
             filtered.sortedWith(
                 compareBy<ChatThreadEntity> { TYPE_ORDER[it.threadType] ?: 99 }
+                    .thenByDescending { it.isFavorite }
                     .thenByDescending { it.lastMessageAt ?: 0L }
             )
         } else {
-            filtered.sortedByDescending { it.lastMessageAt ?: 0L }
+            filtered.sortedWith(
+                compareByDescending<ChatThreadEntity> { it.isFavorite }
+                    .thenByDescending { it.lastMessageAt ?: 0L }
+            )
         }
         ChatListUiState(
             threads = sorted,
@@ -66,7 +71,7 @@ class ChatListViewModel @Inject constructor(
             searchQuery = query,
             unreadOnly = unreadOnly,
             isRefreshing = refreshing,
-            unreadMentionCount = 0,
+            unreadMentionCount = mentionCount,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -76,6 +81,7 @@ class ChatListViewModel @Inject constructor(
 
     init {
         observeThreads()
+        observeUnreadMentionCount()
         refresh()
         // Ensure the WebSocket connection is live whenever the chat list is active.
         identity.activeAccountId.value?.let { realtimeClient.connect(it) }
@@ -86,6 +92,14 @@ class ChatListViewModel @Inject constructor(
             repository.observeThreads()
                 .catch { e -> Timber.e(e, "observeThreads error") }
                 .collect { _allThreads.value = it }
+        }
+    }
+
+    private fun observeUnreadMentionCount() {
+        viewModelScope.launch {
+            repository.observeUnreadMentionCount()
+                .catch { e -> Timber.e(e, "observeUnreadMentionCount error") }
+                .collect { _unreadMentionCount.value = it }
         }
     }
 

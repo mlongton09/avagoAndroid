@@ -104,6 +104,7 @@ class ThreadViewModel @Inject constructor(
     )
 
     init {
+        observeThread()
         observeMessages()
         observePinnedMessage()
         observeRoster()
@@ -119,6 +120,14 @@ class ThreadViewModel @Inject constructor(
         connectRealtime()
         val accountId = identity.activeAccountId.value
         if (accountId != null) outbox.startRetrying(accountId)
+    }
+
+    private fun observeThread() {
+        viewModelScope.launch {
+            repository.observeThread(threadId)
+                .catch { e -> Timber.e(e, "observeThread error") }
+                .collect { _thread.value = it }
+        }
     }
 
     private fun observeMessages() {
@@ -247,12 +256,8 @@ class ThreadViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoadingMore.value = true
             try {
-                repository.loadMoreMessages(threadId, oldest)
-                // If the page came back empty, there's nothing more to load.
-                // The repository upserts whatever it gets, so we infer "no more"
-                // when zero new messages appear. A more precise approach would use
-                // the has_more field from ChatMessagesResponse — that would require
-                // returning it from repository.loadMoreMessages. Keep simple for now.
+                val hasMore = repository.loadMoreMessages(threadId, oldest)
+                _hasMore.value = hasMore
             } catch (e: Exception) {
                 Timber.e(e, "loadMoreMessages failed")
             } finally {

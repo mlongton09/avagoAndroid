@@ -21,6 +21,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import timber.log.Timber
 import java.util.UUID
 import javax.inject.Inject
@@ -33,6 +37,8 @@ class ChatRepository @Inject constructor(
     private val identity: IdentityManager,
 ) {
 
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+
     // ---------------------------------------------------------------------------
     // Thread list
     // ---------------------------------------------------------------------------
@@ -40,6 +46,11 @@ class ChatRepository @Inject constructor(
     suspend fun observeThreads(): Flow<List<ChatThreadEntity>> {
         val accountId = identity.activeAccountId.value ?: return emptyFlow()
         return chatDbFactory.get(accountId).chatThreadDao().observeAll(accountId)
+    }
+
+    fun observeThread(threadId: String): Flow<ChatThreadEntity?> {
+        val accountId = identity.activeAccountId.value ?: return emptyFlow()
+        return chatDbFactory.get(accountId).chatThreadDao().observeById(threadId)
     }
 
     /** Pull threads from server and upsert into local DB. */
@@ -114,17 +125,24 @@ class ChatRepository @Inject constructor(
      * Fetch a page of older messages (cursor-based pagination).
      * [beforeCreatedAt] is the epoch-ms timestamp of the oldest message currently loaded.
      */
-    suspend fun loadMoreMessages(threadId: String, beforeCreatedAt: Long, limit: Int = 50) {
-        val accountId = identity.activeAccountId.value ?: return
-        // Convert epoch ms to ISO-8601 for the server cursor parameter.
+    /** Returns true if there are more pages to load (server returned a full page). */
+    suspend fun loadMoreMessages(threadId: String, beforeCreatedAt: Long, limit: Int = 50): Boolean {
+        val accountId = identity.activeAccountId.value ?: return false
         val beforeIso = java.time.Instant.ofEpochMilli(beforeCreatedAt).toString()
-        when (val result = client.getMessages(threadId = threadId, before = beforeIso, limit = limit)) {
+        return when (val result = client.getMessages(threadId = threadId, before = beforeIso, limit = limit)) {
             is NetworkResult.Success -> {
                 val db = chatDbFactory.get(accountId)
                 db.chatMessageDao().upsertAll(result.data.messages.map { it.toEntity(accountId) })
+                result.data.messages.size >= limit
             }
-            is NetworkResult.Error -> Timber.w("loadMoreMessages failed: ${result.message}")
-            is NetworkResult.Unauthorized -> Timber.w("loadMoreMessages: unauthorized")
+            is NetworkResult.Error -> {
+                Timber.w("loadMoreMessages failed: ${result.message}")
+                false
+            }
+            is NetworkResult.Unauthorized -> {
+                Timber.w("loadMoreMessages: unauthorized")
+                false
+            }
         }
     }
 
@@ -314,6 +332,145 @@ class ChatRepository @Inject constructor(
     }
 
     // ---------------------------------------------------------------------------
+    // Delta sync — cursor persistence
+    // ---------------------------------------------------------------------------
+
+    suspend fun getChatSyncCursor(accountId: String): String? {
+        return chatDbFactory.get(accountId).chatSyncStateDao()
+            .getValue("chat_sync_cursor_$accountId")
+    }
+
+    suspend fun saveChatSyncCursor(accountId: String, cursor: String) {
+        val now = System.currentTimeMillis()
+        chatDbFactory.get(accountId).chatSyncStateDao().setValue(
+            com.avago.core.data.db.entity.ChatSyncStateEntity(
+                key = "chat_sync_cursor_$accountId",
+                value = cursor,
+                updatedAt = now,
+            )
+        )
+    }
+
+    // ---------------------------------------------------------------------------
+    // Delta sync — op applier
+    // ---------------------------------------------------------------------------
+
+    suspend fun applyChatSyncOp(accountId: String, op: com.avago.core.network.model.ChatSyncOp) {
+        val payload = op.payload ?: return
+        try {
+            when (op.op) {
+                "upsert" -> when (op.entity_type) {
+                    "message" -> {
+                        val msg = json.decodeFromString<com.avago.core.network.model.ChatMessageResponse>(payload)
+                        handleRealtimeMessage(msg)
+                    }
+                    "thread" -> {
+                        val thread = json.decodeFromString<com.avago.core.network.model.ChatThreadResponse>(payload)
+                        chatDbFactory.get(accountId).chatThreadDao().upsert(thread.toEntity())
+                    }
+                    else -> Timber.d("[ChatSync] unhandled upsert entity_type=${op.entity_type}")
+                }
+                "delete" -> when (op.entity_type) {
+                    "message" -> {
+                        val msgId = json.parseToJsonElement(payload).jsonObject["message_id"]
+                            ?.jsonPrimitive?.content ?: return
+                        handleRealtimeMessageDeleted(msgId)
+                    }
+                    else -> Timber.d("[ChatSync] unhandled delete entity_type=${op.entity_type}")
+                }
+                else -> Timber.d("[ChatSync] unhandled op=${op.op}")
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "[ChatSync] applyChatSyncOp failed for op=${op.op} entity=${op.entity_type}")
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Reaction handling
+    // ---------------------------------------------------------------------------
+
+    suspend fun handleRealtimeReaction(messageId: String, emoji: String, userId: String, added: Boolean) {
+        val accountId = identity.activeAccountId.value ?: return
+        val db = chatDbFactory.get(accountId)
+        val msg = db.chatMessageDao().getById(messageId) ?: return
+        val now = System.currentTimeMillis()
+        // Parse existing reactions JSON, apply delta, write back
+        val reactions = parseReactions(msg.reactions)
+        val users = reactions[emoji]?.toMutableList() ?: mutableListOf()
+        if (added) { if (!users.contains(userId)) users.add(userId) }
+        else users.remove(userId)
+        val updated = reactions.toMutableMap()
+        if (users.isEmpty()) updated.remove(emoji) else updated[emoji] = users
+        val newReactionsJson = buildReactionsJson(updated)
+        db.chatMessageDao().upsert(msg.copy(reactions = newReactionsJson, updatedAt = now))
+    }
+
+    private fun parseReactions(raw: String?): Map<String, List<String>> {
+        if (raw.isNullOrBlank()) return emptyMap()
+        return try {
+            val obj = json.parseToJsonElement(raw).jsonObject
+            obj.entries.associate { (emoji, ids) ->
+                emoji to ids.jsonObject.keys.toList()
+            }
+        } catch (_: Exception) { emptyMap() }
+    }
+
+    private fun buildReactionsJson(reactions: Map<String, List<String>>): String {
+        val sb = StringBuilder("{")
+        reactions.entries.forEachIndexed { i, (emoji, users) ->
+            if (i > 0) sb.append(",")
+            sb.append("\"$emoji\":{")
+            users.forEachIndexed { j, uid ->
+                if (j > 0) sb.append(",")
+                sb.append("\"$uid\":true")
+            }
+            sb.append("}")
+        }
+        sb.append("}")
+        return sb.toString()
+    }
+
+    // ---------------------------------------------------------------------------
+    // Thread event handlers
+    // ---------------------------------------------------------------------------
+
+    suspend fun handleRealtimeThreadCreated(threadId: String) {
+        val accountId = identity.activeAccountId.value ?: return
+        when (val result = client.getThread(threadId)) {
+            is NetworkResult.Success -> {
+                chatDbFactory.get(accountId).chatThreadDao().upsert(result.data.toEntity())
+            }
+            else -> Timber.w("handleRealtimeThreadCreated: failed to fetch thread $threadId")
+        }
+    }
+
+    suspend fun handleRealtimeThreadArchived(threadId: String) {
+        val accountId = identity.activeAccountId.value ?: return
+        chatDbFactory.get(accountId).chatThreadDao()
+            .updateArchived(threadId, true, System.currentTimeMillis())
+    }
+
+    suspend fun handleRealtimeThreadRenamed(threadId: String, newName: String) {
+        val accountId = identity.activeAccountId.value ?: return
+        chatDbFactory.get(accountId).chatThreadDao()
+            .updateDisplayName(threadId, newName, System.currentTimeMillis())
+    }
+
+    suspend fun handleRealtimeNotifPrefChanged(threadId: String, pref: String) {
+        val accountId = identity.activeAccountId.value ?: return
+        chatDbFactory.get(accountId).chatThreadDao()
+            .updateNotificationPref(threadId, pref, System.currentTimeMillis())
+    }
+
+    suspend fun markDelivered(messageIds: List<String>) {
+        if (messageIds.isEmpty()) return
+        when (val result = client.markMessagesDelivered(messageIds)) {
+            is NetworkResult.Error -> Timber.w("markDelivered failed: ${result.message}")
+            else -> {}
+        }
+    }
+
+    // ---------------------------------------------------------------------------
     // Mapping helpers
     // ---------------------------------------------------------------------------
 
@@ -339,6 +496,8 @@ class ChatRepository @Inject constructor(
             subjectSummary = subject_summary?.toString(),
             serverVersion = 0,
             deletedAt = null,
+            isFavorite = is_favorite,
+            isArchived = false, // server doesn't send is_archived in list endpoint
             createdAt = runCatching { java.time.Instant.parse(created_at).toEpochMilli() }.getOrDefault(now),
             updatedAt = now,
         )

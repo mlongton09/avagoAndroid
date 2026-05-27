@@ -4,6 +4,7 @@ import com.avago.core.auth.IdentityManager
 import com.avago.core.network.model.ChatMessageResponse
 import com.avago.core.sync.ApplicationScope
 import com.avago.feature.chat.data.ChatRepository
+import kotlin.random.Random
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -43,6 +44,7 @@ class ChatRealtimeClient @Inject constructor(
     @Named("baseUrl") private val baseUrl: String,
     private val repository: ChatRepository,
     @ApplicationScope private val scope: CoroutineScope,
+    private val backgroundSync: BackgroundSyncCoordinator,
 ) {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
@@ -56,8 +58,14 @@ class ChatRealtimeClient @Inject constructor(
     val typingChangedFlow: SharedFlow<TypingChangedEvent> = _typingChanged.asSharedFlow()
 
     private var wsJob: Job? = null
+    private var ackJob: Job? = null
     @Volatile private var webSocket: WebSocket? = null
     @Volatile private var connectedAccountId: String? = null
+
+    // ── Delivery ack batching ─────────────────────────────────────────────────
+
+    private val pendingAckIds = mutableSetOf<String>()
+    private val ackLock = Any()
 
     init {
         scope.launch {
@@ -75,14 +83,31 @@ class ChatRealtimeClient @Inject constructor(
         if (connectedAccountId == accountId && wsJob?.isActive == true) return
         disconnect()
         connectedAccountId = accountId
+
+        // Start delivery-ack flush job (iOS pattern: flush every 2s).
+        ackJob = scope.launch {
+            while (isActive) {
+                delay(2_000)
+                val ids = synchronized(ackLock) {
+                    if (pendingAckIds.isEmpty()) return@synchronized emptyList()
+                    val copy = pendingAckIds.toList()
+                    pendingAckIds.clear()
+                    copy
+                }
+                if (ids.isNotEmpty()) {
+                    scope.launch { repository.markDelivered(ids) }
+                }
+            }
+        }
+
         wsJob = scope.launch {
-            var backoffMs = 2_000L
+            var backoffMs = 1_000L
             while (isActive) {
                 val token = identity.getAccessToken(accountId)
                 if (token == null) {
                     Timber.w("ChatWS: no token for $accountId, retrying in ${backoffMs}ms")
                     delay(backoffMs)
-                    backoffMs = minOf(backoffMs * 2, 30_000L)
+                    backoffMs = nextBackoffMs(backoffMs)
                     continue
                 }
                 val wsUrl = buildWsUrl(accountId, token)
@@ -93,7 +118,9 @@ class ChatRealtimeClient @Inject constructor(
                         Timber.d("ChatWS: connected for $accountId")
                         webSocket = ws
                         connected = true
-                        backoffMs = 2_000L
+                        backoffMs = 1_000L
+                        // Trigger delta sync on reconnect (iOS pattern).
+                        scope.launch { backgroundSync.runDelta() }
                     }
 
                     override fun onMessage(ws: WebSocket, text: String) {
@@ -127,7 +154,7 @@ class ChatRealtimeClient @Inject constructor(
                     Timber.w("ChatWS: connect timed out for $accountId, retrying in ${backoffMs}ms")
                     ws.cancel()
                     delay(backoffMs)
-                    backoffMs = minOf(backoffMs * 2, 30_000L)
+                    backoffMs = nextBackoffMs(backoffMs)
                     continue
                 }
                 // Stay connected until the socket closes or job is cancelled.
@@ -138,12 +165,14 @@ class ChatRealtimeClient @Inject constructor(
                 // Socket dropped — reconnect after backoff.
                 Timber.d("ChatWS: socket dropped for $accountId, reconnecting in ${backoffMs}ms")
                 delay(backoffMs)
-                backoffMs = minOf(backoffMs * 2, 30_000L)
+                backoffMs = nextBackoffMs(backoffMs)
             }
         }
     }
 
     fun disconnect() {
+        ackJob?.cancel()
+        ackJob = null
         wsJob?.cancel()
         wsJob = null
         webSocket?.close(1000, "signed out")
@@ -161,6 +190,14 @@ class ChatRealtimeClient @Inject constructor(
         webSocket?.send("""{"type":"read","thread_id":"$threadId","message_id":"$messageId"}""")
     }
 
+    // ── Reconnect backoff with ±25% jitter (iOS pattern) ─────────────────────
+
+    private fun nextBackoffMs(current: Long): Long {
+        val next = minOf(current * 2, 30_000L)
+        val jitter = (next * 0.25 * (Random.nextDouble() * 2 - 1)).toLong()
+        return next + jitter
+    }
+
     // ── Internal event dispatch ───────────────────────────────────────────────
 
     private fun handleMessage(raw: String) {
@@ -174,6 +211,10 @@ class ChatRealtimeClient @Inject constructor(
                 val msg = runCatching {
                     json.decodeFromJsonElement<ChatMessageResponse>(msgJson)
                 }.getOrNull() ?: return
+                // Queue delivery ack for messages from other users.
+                if (type == "message.created" && msg.author_id != identity.getActiveUserId()) {
+                    synchronized(ackLock) { pendingAckIds.add(msg.message_id) }
+                }
                 scope.launch { repository.handleRealtimeMessage(msg) }
             }
             "message.deleted" -> {
@@ -188,10 +229,52 @@ class ChatRealtimeClient @Inject constructor(
                 val messageId = payload?.get("message_id")?.jsonPrimitive?.content ?: return
                 scope.launch { repository.handleRealtimeMessagePinned(messageId, false) }
             }
+            "message.reaction_added" -> {
+                val messageId = payload?.get("message_id")?.jsonPrimitive?.content ?: return
+                val emoji = payload["emoji"]?.jsonPrimitive?.content ?: return
+                val userId = payload["user_id"]?.jsonPrimitive?.content ?: return
+                scope.launch { repository.handleRealtimeReaction(messageId, emoji, userId, added = true) }
+            }
+            "message.reaction_removed" -> {
+                val messageId = payload?.get("message_id")?.jsonPrimitive?.content ?: return
+                val emoji = payload["emoji"]?.jsonPrimitive?.content ?: return
+                val userId = payload["user_id"]?.jsonPrimitive?.content ?: return
+                scope.launch { repository.handleRealtimeReaction(messageId, emoji, userId, added = false) }
+            }
+            "thread.created" -> {
+                val threadId = payload?.get("thread_id")?.jsonPrimitive?.content ?: return
+                scope.launch { repository.handleRealtimeThreadCreated(threadId) }
+            }
+            "thread.archived" -> {
+                val threadId = payload?.get("thread_id")?.jsonPrimitive?.content ?: return
+                scope.launch { repository.handleRealtimeThreadArchived(threadId) }
+            }
+            "thread.renamed" -> {
+                val threadId = payload?.get("thread_id")?.jsonPrimitive?.content ?: return
+                val newName = payload["name"]?.jsonPrimitive?.content ?: return
+                scope.launch { repository.handleRealtimeThreadRenamed(threadId, newName) }
+            }
+            "thread.members_added", "thread.members_removed", "thread.left" -> {
+                val threadId = payload?.get("thread_id")?.jsonPrimitive?.content ?: return
+                scope.launch { repository.syncThreadMembers(threadId) }
+            }
+            "thread.notification_pref_updated" -> {
+                val threadId = payload?.get("thread_id")?.jsonPrimitive?.content ?: return
+                val pref = payload["notification_pref"]?.jsonPrimitive?.content ?: return
+                scope.launch { repository.handleRealtimeNotifPrefChanged(threadId, pref) }
+            }
             "thread.unread_increment" -> {
                 val threadId = payload?.get("thread_id")?.jsonPrimitive?.content ?: return
                 val count = payload["unread_count"]?.jsonPrimitive?.content?.toLongOrNull() ?: return
                 scope.launch { repository.handleThreadUnreadIncrement(threadId, count) }
+            }
+            "presence.online" -> {
+                val userId = payload?.get("user_id")?.jsonPrimitive?.content ?: return
+                scope.launch { repository.updatePresence(userId, "online") }
+            }
+            "presence.offline" -> {
+                val userId = payload?.get("user_id")?.jsonPrimitive?.content ?: return
+                scope.launch { repository.updatePresence(userId, "offline") }
             }
             "typing.changed" -> {
                 val threadId = payload?.get("thread_id")?.jsonPrimitive?.content ?: return
