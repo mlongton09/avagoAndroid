@@ -268,23 +268,48 @@ class ChatRepository @Inject constructor(
         return chatDbFactory.get(accountId).chatMessageDao().observeMentions(username)
     }
 
-    /** Upsert a message received via SSE (real-time). */
+    /** Upsert a message received via WebSocket realtime event. */
     suspend fun handleRealtimeMessage(msg: ChatMessageResponse) {
         val accountId = identity.activeAccountId.value ?: return
         val db = chatDbFactory.get(accountId)
         val now = System.currentTimeMillis()
         db.chatMessageDao().upsert(msg.toEntity(accountId))
-        // Update thread's last preview.
         db.chatThreadDao().getById(msg.thread_id)?.let { thread ->
             db.chatThreadDao().upsert(
                 thread.copy(
-                    lastMessagePreview = msg.body_preview ?: msg.body_md.take(120),
-                    lastMessageAt = msg.created_at.let {
-                        runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrDefault(now)
-                    },
+                    lastMessagePreview = msg.body_md.take(120),
+                    lastMessageAt = runCatching {
+                        java.time.Instant.parse(msg.created_at).toEpochMilli()
+                    }.getOrDefault(now),
                     updatedAt = now,
                 )
             )
+        }
+    }
+
+    /** Mark a message as deleted in local DB when a `message.deleted` WS event arrives. */
+    suspend fun handleRealtimeMessageDeleted(messageId: String) {
+        val accountId = identity.activeAccountId.value ?: return
+        val db = chatDbFactory.get(accountId)
+        val now = System.currentTimeMillis()
+        db.chatMessageDao().getById(messageId)?.let { entity ->
+            db.chatMessageDao().upsert(entity.copy(deletedAt = now, updatedAt = now))
+        }
+    }
+
+    /** Update pinned state in local DB when a `message.pinned/unpinned` WS event arrives. */
+    suspend fun handleRealtimeMessagePinned(messageId: String, pinned: Boolean) {
+        val accountId = identity.activeAccountId.value ?: return
+        chatDbFactory.get(accountId).chatMessageDao().updatePinned(messageId, pinned)
+    }
+
+    /** Update the unread count on a thread when a `thread.unread_increment` WS event arrives. */
+    suspend fun handleThreadUnreadIncrement(threadId: String, unreadCount: Long) {
+        val accountId = identity.activeAccountId.value ?: return
+        val db = chatDbFactory.get(accountId)
+        val now = System.currentTimeMillis()
+        db.chatThreadDao().getById(threadId)?.let { thread ->
+            db.chatThreadDao().upsert(thread.copy(unreadCount = unreadCount.toInt(), updatedAt = now))
         }
     }
 
@@ -509,17 +534,17 @@ class ChatRepository @Inject constructor(
             messageId = message_id,
             threadId = thread_id,
             accountId = accountId,
-            senderId = sender_id,
-            senderName = sender_name,
+            senderId = author_id ?: author?.id ?: "",
+            senderName = author?.display_name,
             bodyMd = body_md,
-            bodyPreview = body_preview,
+            bodyPreview = body_md.take(120),
             editedAt = edited_at?.let {
                 runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull()
             },
-            linkPreviewTitle = link_preview_title,
-            linkPreviewDescription = link_preview_description,
-            linkPreviewImageUrl = link_preview_image_url,
-            linkPreviewUrl = link_preview_url,
+            linkPreviewTitle = link_preview?.title,
+            linkPreviewDescription = link_preview?.description,
+            linkPreviewImageUrl = link_preview?.image_url,
+            linkPreviewUrl = link_preview?.url,
             photoUrl = photo_url,
             reactions = reactions,
             outboxStatus = null,

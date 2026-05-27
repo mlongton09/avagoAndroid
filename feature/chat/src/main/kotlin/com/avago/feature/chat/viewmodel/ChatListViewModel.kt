@@ -2,8 +2,10 @@ package com.avago.feature.chat.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.avago.core.auth.IdentityManager
 import com.avago.core.data.db.entity.ChatThreadEntity
 import com.avago.feature.chat.data.ChatRepository
+import com.avago.feature.chat.realtime.ChatRealtimeClient
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -30,6 +32,8 @@ data class ChatListUiState(
 @HiltViewModel
 class ChatListViewModel @Inject constructor(
     private val repository: ChatRepository,
+    private val realtimeClient: ChatRealtimeClient,
+    private val identity: IdentityManager,
 ) : ViewModel() {
 
     private val _filter = MutableStateFlow(ThreadFilter.ALL)
@@ -66,6 +70,8 @@ class ChatListViewModel @Inject constructor(
     init {
         observeThreads()
         refresh()
+        // Ensure the WebSocket connection is live whenever the chat list is active.
+        identity.activeAccountId.value?.let { realtimeClient.connect(it) }
     }
 
     private fun observeThreads() {

@@ -147,11 +147,15 @@ class ThreadViewModel @Inject constructor(
     }
 
     private fun connectRealtime() {
-        realtimeClient.connect(threadId) { msg ->
-            viewModelScope.launch {
-                repository.handleRealtimeMessage(msg)
-                // Typing indicator: if a "typing" event type is added later,
-                // handle it here by setting _isTypingRemote briefly.
+        val accountId = identity.activeAccountId.value ?: return
+        realtimeClient.connect(accountId)
+        // Observe typing events scoped to this thread.
+        viewModelScope.launch {
+            realtimeClient.typingChangedFlow.collect { event ->
+                if (event.threadId == threadId) {
+                    _typingUserNames.value = event.typingUserIds
+                    _isTypingRemote.value = event.typingUserIds.isNotEmpty()
+                }
             }
         }
     }
@@ -263,6 +267,7 @@ class ThreadViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
-        realtimeClient.disconnect()
+        // Do NOT disconnect the singleton ChatRealtimeClient here — it's account-scoped
+        // and must stay alive across thread navigation. It disconnects only on sign-out.
     }
 }

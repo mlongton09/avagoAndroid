@@ -29,6 +29,7 @@ import com.avago.core.network.model.ChatMediaPresignResponse
 import com.avago.core.network.model.ChatMemberResponse
 import com.avago.core.network.model.ChatMessageResponse
 import com.avago.core.network.model.ChatMessagesResponse
+import com.avago.core.network.model.SendMessageEnvelope
 import com.avago.core.network.model.ChatPageResponse
 import com.avago.core.network.model.ChatPrefsRequest
 import com.avago.core.network.model.ChatPrefsResponse
@@ -1101,7 +1102,7 @@ class AvagoServiceClient @Inject constructor(
         safeNetworkCall {
             client.post("$baseUrl/chat/threads/$threadId/messages") {
                 setBody(SendMessageRequest(body = body, photo_url = photoUrl))
-            }.body()
+            }.body<SendMessageEnvelope>().message
         }
 
     suspend fun editMessage(
@@ -1112,7 +1113,7 @@ class AvagoServiceClient @Inject constructor(
         safeNetworkCall {
             client.put("$baseUrl/chat/messages/$messageId") {
                 setBody(EditMessageRequest(body = body))
-            }.body()
+            }.body<SendMessageEnvelope>().message
         }
 
     /** PATCH /chat/messages/:messageId — partial-update a chat message (iOS style). */
@@ -1170,7 +1171,7 @@ class AvagoServiceClient @Inject constructor(
         safeNetworkCall {
             client.post("$baseUrl/chat/threads/$threadId/messages/$messageId/replies") {
                 setBody(SendMessageRequest(body = body))
-            }.body()
+            }.body<SendMessageEnvelope>().message
         }
 
     // ---------------------------------------------------------------------------

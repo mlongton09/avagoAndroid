@@ -4,18 +4,28 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
+data class ChatMessageAuthorResponse(
+    val id: String? = null,
+    val display_name: String? = null,
+)
+
+@Serializable
+data class ChatLinkPreviewResponse(
+    val url: String? = null,
+    val title: String? = null,
+    val description: String? = null,
+    val image_url: String? = null,
+)
+
+@Serializable
 data class ChatMessageResponse(
     val message_id: String,
     val thread_id: String,
-    val sender_id: String,
-    val sender_name: String? = null,
+    val author_id: String? = null,
+    val author: ChatMessageAuthorResponse? = null,
     val body_md: String,
-    val body_preview: String? = null,
-    val edited_at: String? = null, // ISO-8601
-    val link_preview_title: String? = null,
-    val link_preview_description: String? = null,
-    val link_preview_image_url: String? = null,
-    val link_preview_url: String? = null,
+    val edited_at: String? = null,
+    val link_preview: ChatLinkPreviewResponse? = null,
     val photo_url: String? = null,
     val reactions: String? = null,
     val server_version: Long = 0,
@@ -26,9 +36,13 @@ data class ChatMessageResponse(
 )
 
 @Serializable
+data class SendMessageEnvelope(
+    val message: ChatMessageResponse,
+)
+
+@Serializable
 data class ChatMessagesResponse(
-    val messages: List<ChatMessageResponse>,
-    val has_more: Boolean,
+    val messages: List<ChatMessageResponse> = emptyList(),
     val next_cursor: String? = null,
 )
 

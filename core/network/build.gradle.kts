@@ -29,7 +29,7 @@ dependencies {
 
     // Ktor
     implementation(libs.ktor.core)
-    implementation(libs.ktor.okhttp)
+    api(libs.ktor.okhttp)
     implementation(libs.ktor.content.negotiation)
     implementation(libs.ktor.json)
     implementation(libs.ktor.auth)
