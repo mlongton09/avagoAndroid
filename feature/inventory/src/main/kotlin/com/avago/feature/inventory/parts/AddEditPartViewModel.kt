@@ -162,7 +162,7 @@ class AddEditPartViewModel @Inject constructor(
                     defaultVendorId = null,
                     attributes = buildAttributesJson(s.manufacturer, s.status),
                     manufacturer = s.manufacturer.takeIf { it.isNotBlank() },
-                    reorderQuantity = s.reorderQty.toIntOrNull(),
+                    reorderQuantity = s.reorderQty.toDoubleOrNull(),
                     status = s.status,
                     entityType = null,
                     entityId = null,
