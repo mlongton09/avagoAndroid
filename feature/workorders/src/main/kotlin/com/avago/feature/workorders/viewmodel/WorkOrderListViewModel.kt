@@ -24,9 +24,11 @@ import java.time.LocalDate
 import java.time.ZoneId
 import javax.inject.Inject
 
-enum class WoListFilter { ALL, OPEN, MINE, OVERDUE }
+/** Scope toggle — matches iOS "Mine / All" selector. */
+enum class WoListFilter { MINE, ALL }
 
-enum class WoHorizon { ALL_TIME, THIS_WEEK, THIS_MONTH }
+/** Horizon selector — matches iOS "Now / Next / Later" segmented control. */
+enum class WoHorizon { NOW, NEXT, LATER }
 
 data class WoBucket(val label: String, val items: List<WorkOrderEntity>)
 
@@ -40,10 +42,10 @@ class WorkOrderListViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    private val _scopeFilter = MutableStateFlow(WoListFilter.ALL)
+    private val _scopeFilter = MutableStateFlow(WoListFilter.MINE)
     val filter: StateFlow<WoListFilter> = _scopeFilter.asStateFlow()
 
-    private val _horizon = MutableStateFlow(WoHorizon.ALL_TIME)
+    private val _horizon = MutableStateFlow(WoHorizon.NOW)
     val horizon: StateFlow<WoHorizon> = _horizon.asStateFlow()
 
     private val _isRefreshing = MutableStateFlow(false)
@@ -88,42 +90,34 @@ class WorkOrderListViewModel @Inject constructor(
         val today = LocalDate.now(zone)
         val nowMs = System.currentTimeMillis()
 
-        // 1. Horizon filter
+        // 1. Horizon filter (matches iOS Now / Next / Later semantics)
         val horizonFiltered = when (horizon) {
-            WoHorizon.ALL_TIME -> all
-            WoHorizon.THIS_WEEK -> all.filter { wo ->
+            WoHorizon.NOW -> all.filter { wo ->
                 val due = wo.dueDate
-                if (due == null) {
-                    // no-due-date items shown in all horizons
-                    true
-                } else {
+                if (due == null) true
+                else {
                     val dueDate = Instant.ofEpochMilli(due).atZone(zone).toLocalDate()
-                    // overdue OR within next 7 days
+                    // Overdue OR due within the next 7 days — actionable now
                     dueDate.isBefore(today) || !dueDate.isAfter(today.plusDays(7))
                 }
             }
-            WoHorizon.THIS_MONTH -> all.filter { wo ->
+            WoHorizon.NEXT -> all.filter { wo ->
                 val due = wo.dueDate
-                if (due == null) {
-                    true
-                } else {
+                if (due == null) true
+                else {
                     val dueDate = Instant.ofEpochMilli(due).atZone(zone).toLocalDate()
-                    // overdue OR within next 30 days
+                    // Overdue OR due within the next 30 days — coming up soon
                     dueDate.isBefore(today) || !dueDate.isAfter(today.plusDays(30))
                 }
             }
+            WoHorizon.LATER -> all  // All work orders — full planning view
         }
 
-        // 2. Scope filter
+        // 2. Scope filter (matches iOS Mine / All toggle)
         val scopeFiltered = horizonFiltered.filter { wo ->
             when (scope) {
-                WoListFilter.ALL -> true
-                WoListFilter.OPEN -> wo.status !in listOf("complete", "cancelled")
                 WoListFilter.MINE -> wo.assignedTo == myUserId || wo.createdBy == myUserId
-                WoListFilter.OVERDUE -> {
-                    val due = wo.dueDate ?: return@filter false
-                    due < nowMs && wo.status !in listOf("complete", "cancelled")
-                }
+                WoListFilter.ALL -> true
             }
         }
 

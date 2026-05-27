@@ -1,6 +1,5 @@
 package com.avago.feature.workorders
 
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -10,24 +9,25 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.Badge
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -60,17 +60,15 @@ fun WorkOrderListScreen(
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val syncError by viewModel.syncError.collectAsStateWithLifecycle()
 
-    val scopeTabs = listOf(
-        WoListFilter.ALL to stringResource(R.string.wo_tab_all),
-        WoListFilter.OPEN to stringResource(R.string.wo_tab_open),
-        WoListFilter.MINE to stringResource(R.string.wo_tab_mine),
-        WoListFilter.OVERDUE to stringResource(R.string.wo_tab_overdue),
+    val horizonOptions = listOf(
+        WoHorizon.NOW  to stringResource(R.string.wo_horizon_now),
+        WoHorizon.NEXT to stringResource(R.string.wo_horizon_next),
+        WoHorizon.LATER to stringResource(R.string.wo_horizon_later),
     )
 
-    val horizonChips = listOf(
-        WoHorizon.ALL_TIME to stringResource(R.string.wo_horizon_all_time),
-        WoHorizon.THIS_WEEK to stringResource(R.string.wo_horizon_this_week),
-        WoHorizon.THIS_MONTH to stringResource(R.string.wo_horizon_this_month),
+    val scopeOptions = listOf(
+        WoListFilter.MINE to stringResource(R.string.wo_scope_mine),
+        WoListFilter.ALL  to stringResource(R.string.wo_scope_all),
     )
 
     Scaffold(
@@ -90,31 +88,46 @@ fun WorkOrderListScreen(
                 .padding(innerPadding)
                 .fillMaxSize(),
         ) {
-            // Horizon filter chips (horizontal scroll)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                horizonChips.forEach { (h, label) ->
-                    FilterChip(
-                        selected = horizon == h,
-                        onClick = { viewModel.onHorizonChanged(h) },
-                        label = { Text(label) },
-                    )
-                }
-            }
-
-            // Scope tab row
-            PrimaryTabRow(selectedTabIndex = scopeTabs.indexOfFirst { it.first == filter }) {
-                scopeTabs.forEachIndexed { _, (tabFilter, label) ->
-                    Tab(
-                        selected = filter == tabFilter,
-                        onClick = { viewModel.onFilterChanged(tabFilter) },
-                        text = { Text(label) },
-                    )
+            // ── Filter bar — matches iOS Now/Next/Later + Mine/All row ────────────
+            Surface(color = MaterialTheme.colorScheme.surface) {
+                Column {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        // Now / Next / Later — fills remaining width
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1f)) {
+                            horizonOptions.forEachIndexed { index, (h, label) ->
+                                SegmentedButton(
+                                    selected = horizon == h,
+                                    onClick = { viewModel.onHorizonChanged(h) },
+                                    shape = SegmentedButtonDefaults.itemShape(
+                                        index = index,
+                                        count = horizonOptions.size,
+                                    ),
+                                    label = { Text(label) },
+                                )
+                            }
+                        }
+                        // Mine / All — fixed 110 dp to match iOS scope toggle
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.width(110.dp)) {
+                            scopeOptions.forEachIndexed { index, (s, label) ->
+                                SegmentedButton(
+                                    selected = filter == s,
+                                    onClick = { viewModel.onScopeChanged(s) },
+                                    shape = SegmentedButtonDefaults.itemShape(
+                                        index = index,
+                                        count = scopeOptions.size,
+                                    ),
+                                    label = { Text(label) },
+                                )
+                            }
+                        }
+                    }
+                    HorizontalDivider()
                 }
             }
 

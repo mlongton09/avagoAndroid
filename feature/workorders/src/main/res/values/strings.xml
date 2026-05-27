@@ -3,19 +3,17 @@
 
     <!-- WO List -->
     <string name="wo_list_title">Work Orders</string>
-    <string name="wo_tab_all">All</string>
-    <string name="wo_tab_open">Open</string>
-    <string name="wo_tab_mine">My WOs</string>
-    <string name="wo_tab_overdue">Overdue</string>
+    <string name="wo_scope_mine">Mine</string>
+    <string name="wo_scope_all">All</string>
     <string name="wo_search_placeholder">Search work orders…</string>
     <string name="wo_filter_fab_description">Filter work orders</string>
     <string name="wo_create_fab_description">Create work order</string>
     <string name="wo_empty">No work orders found</string>
 
-    <!-- Horizon filter chips -->
-    <string name="wo_horizon_all_time">All Time</string>
-    <string name="wo_horizon_this_week">This Week</string>
-    <string name="wo_horizon_this_month">This Month</string>
+    <!-- Horizon segmented control (matches iOS Now / Next / Later) -->
+    <string name="wo_horizon_now">Now</string>
+    <string name="wo_horizon_next">Next</string>
+    <string name="wo_horizon_later">Later</string>
 
     <!-- Bucket headers -->
     <string name="wo_bucket_overdue">Overdue</string>
