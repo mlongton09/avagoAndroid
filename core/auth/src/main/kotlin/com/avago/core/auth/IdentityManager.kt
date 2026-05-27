@@ -230,6 +230,8 @@ class IdentityManager @Inject constructor(
             } ?: return false
             signInWithFirebase(appContext, token, firebaseUser.inferProvider())
             true
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e // don't swallow — let the cancelled scope propagate
         } catch (e: Exception) {
             Timber.w(e, "Silent re-auth failed")
             false
@@ -237,15 +239,20 @@ class IdentityManager @Inject constructor(
     }
 
     override suspend fun onRefreshFailed() {
-        val reAuthed = reAuthenticateSilently()
-        if (!reAuthed) {
-            val accountId = getActiveAccountId()
-            if (accountId != null && !accountId.startsWith("anon_")) {
-                val namedReauthed = reAuthenticateNamedAccount(accountId)
-                if (!namedReauthed) signOut(accountId)
-            } else if (accountId != null) {
-                signOut(accountId)
+        try {
+            val reAuthed = reAuthenticateSilently()
+            if (!reAuthed) {
+                val accountId = getActiveAccountId()
+                if (accountId != null && !accountId.startsWith("anon_")) {
+                    val namedReauthed = reAuthenticateNamedAccount(accountId)
+                    if (!namedReauthed) signOut(accountId)
+                } else if (accountId != null) {
+                    signOut(accountId)
+                }
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            Timber.d("IdentityManager: onRefreshFailed cancelled — likely SyncWorker replaced, ignoring")
+            throw e
         }
     }
 
@@ -520,6 +527,8 @@ class IdentityManager @Inject constructor(
             } ?: return false
             signInWithFirebase(appContext, firebaseToken, firebaseUser.inferProvider())
             _activeAccountId.value == accountId
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e // don't swallow — let the cancelled scope propagate
         } catch (e: Exception) {
             Timber.w(e, "reAuthenticateNamedAccount failed for $accountId")
             false

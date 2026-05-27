@@ -34,6 +34,7 @@ import com.avago.core.network.model.ChatPageResponse
 import com.avago.core.network.model.ChatPrefsRequest
 import com.avago.core.network.model.ChatPrefsResponse
 import com.avago.core.network.model.ChatRosterEntry
+import com.avago.core.network.model.ChatRosterEnvelope
 import com.avago.core.network.model.ChatSyncResponse
 import com.avago.core.network.model.ChatThreadResponse
 import com.avago.core.network.model.ChatThreadsEnvelope
@@ -1558,7 +1559,7 @@ class AvagoServiceClient @Inject constructor(
 
     /** GET /chat/me/roster */
     suspend fun getChatRoster(): NetworkResult<List<ChatRosterEntry>> =
-        safeNetworkCall { client.get("$baseUrl/chat/me/roster").body() }
+        safeNetworkCall { client.get("$baseUrl/chat/me/roster").body<ChatRosterEnvelope>().members }
 
     /** GET /chat/me/mentions?cursor=... */
     suspend fun getMyMentions(cursor: String? = null): NetworkResult<ChatPageResponse> =

@@ -168,6 +168,14 @@ data class ChatPrefsRequest(
 data class ChatRosterEntry(
     val user_id: String,
     val display_name: String? = null,
-    val is_online: Boolean = false,
-    val last_seen_at: Long? = null,
+    val email: String? = null,
+    val avatar_url: String? = null,
+    val presence: String? = null,
+    val role: String? = null,
+)
+
+@Serializable
+data class ChatRosterEnvelope(
+    val generated_at: String? = null,
+    val members: List<ChatRosterEntry> = emptyList(),
 )

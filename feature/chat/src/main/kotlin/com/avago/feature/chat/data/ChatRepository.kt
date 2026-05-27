@@ -689,10 +689,10 @@ class ChatRepository @Inject constructor(
         accountId = accountId,
         userId = user_id,
         displayName = display_name,
-        email = null,
-        photoUrl = null,
-        role = null,
-        isActive = true,
+        email = email,
+        photoUrl = avatar_url,
+        role = role,
+        isActive = presence != "offline",
         updatedAt = System.currentTimeMillis(),
     )
 
