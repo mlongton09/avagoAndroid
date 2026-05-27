@@ -1,6 +1,5 @@
 package com.avago.core.network
 
-import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.plugins.ServerResponseException
 import kotlinx.coroutines.delay
 import timber.log.Timber
@@ -33,6 +32,6 @@ private fun isTransient(e: Exception): Boolean = when (e) {
     is SocketTimeoutException -> true
     is IOException -> true
     is ServerResponseException -> e.response.status.value in 500..599
-    is ClientRequestException -> e.response.status.value == 429
+    // 429 is not retried — respect the rate limit; caller should back off
     else -> false
 }

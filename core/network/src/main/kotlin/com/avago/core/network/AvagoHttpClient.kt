@@ -59,6 +59,9 @@ object AvagoHttpClient {
         isDebug: Boolean = false,
         refreshFailedHandler: RefreshFailedHandler? = null,
     ): HttpClient = HttpClient(OkHttp) {
+        // Throw ResponseException for any non-2xx before body deserialization (mirrors iOS status-before-parse)
+        expectSuccess = true
+
         install(ContentNegotiation) {
             json(jsonConfig)
         }
@@ -164,6 +167,8 @@ object AvagoHttpClient {
      * so we don't create a circular auth loop.
      */
     fun createUnauthenticatedClient(isDebug: Boolean = false): HttpClient = HttpClient(OkHttp) {
+        expectSuccess = true
+
         install(ContentNegotiation) {
             json(jsonConfig)
         }

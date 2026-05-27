@@ -406,6 +406,12 @@ class SyncEngine @Inject constructor(
                     identity.onRefreshFailed()
                     return SyncResult.Failed(e)
                 }
+                if (e.code == 429) {
+                    Timber.w("[SyncEngine] Pull $entityType got 429 — rate limited, aborting pull phase")
+                    _state.value = SyncState.Error("Rate limited")
+                    lastSyncFailed.set(true)
+                    return SyncResult.Failed(e)
+                }
                 Timber.e(e, "[SyncEngine] Pull $entityType failed (HTTP ${e.code}) — continuing")
             } catch (e: Exception) {
                 Timber.e(e, "[SyncEngine] Pull $entityType failed — continuing")
