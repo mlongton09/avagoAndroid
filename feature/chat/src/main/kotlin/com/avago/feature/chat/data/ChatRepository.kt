@@ -319,21 +319,28 @@ class ChatRepository @Inject constructor(
 
     private fun ChatThreadResponse.toEntity(): ChatThreadEntity {
         val now = System.currentTimeMillis()
+        val myUserId = identity.getActiveUserId()
+        // For direct threads show the other participant; for group use the thread name or member list.
+        val resolvedDisplayName = when (thread_type) {
+            "direct" -> members.firstOrNull { it.user_id != myUserId }?.display_name ?: name
+            "group" -> name ?: members.joinToString(", ") { it.display_name ?: "?" }.ifBlank { null }
+            else -> name
+        }
         return ChatThreadEntity(
             threadId = thread_id,
             accountId = account_id,
             threadType = thread_type,
-            displayName = display_name,
+            displayName = resolvedDisplayName,
             lastMessagePreview = last_message_preview,
-            lastMessageAt = last_message_at?.let {
+            lastMessageAt = last_activity_at?.let {
                 runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull()
             },
             unreadCount = unread_count,
-            subjectSummary = subject_summary,
-            serverVersion = server_version,
+            subjectSummary = subject_summary?.toString(),
+            serverVersion = 0,
             deletedAt = null,
             createdAt = runCatching { java.time.Instant.parse(created_at).toEpochMilli() }.getOrDefault(now),
-            updatedAt = runCatching { java.time.Instant.parse(updated_at).toEpochMilli() }.getOrDefault(now),
+            updatedAt = now,
         )
     }
 

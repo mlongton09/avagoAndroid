@@ -13,6 +13,7 @@ private val json = Json { ignoreUnknownKeys = true; isLenient = true }
  * Returns the display title for a thread row, mirroring iOS ThreadRowCell logic.
  */
 fun ChatThreadEntity.displayTitle(): String {
+    if (threadType == "team") return "Team room"
     if (threadType == "direct" || threadType == "group") {
         return displayName ?: "Chat"
     }
@@ -39,9 +40,10 @@ fun ChatThreadEntity.displayTitle(): String {
 /**
  * Returns the icon emoji for a thread, mirroring iOS ThreadRowCell.
  */
-fun ChatThreadEntity.iconEmoji(): String? = when {
-    threadType.startsWith("wo") -> "🔧" // 🔧
-    threadType == "direct" || threadType == "group" -> "💬" // 💬
+fun ChatThreadEntity.iconEmoji(): String? = when (threadType) {
+    "team" -> "👥"
+    "asset" -> "🏷️"
+    "wo" -> "🔧"
     else -> "💬"
 }
 

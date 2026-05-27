@@ -2,6 +2,7 @@ package com.avago.core.network.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 @Serializable
 data class ChatMessageAuthorResponse(
@@ -51,14 +52,18 @@ data class ChatThreadResponse(
     val thread_id: String,
     val account_id: String,
     @SerialName("type") val thread_type: String,
-    val display_name: String? = null,
+    // Server sends "name" for direct/group thread title (not "display_name")
+    val name: String? = null,
     val last_message_preview: String? = null,
-    val last_message_at: String? = null,
+    // Server sends "last_activity_at" (not "last_message_at")
+    @SerialName("last_activity_at") val last_activity_at: String? = null,
     val unread_count: Int = 0,
-    val subject_summary: String? = null,
-    val server_version: Long = 0,
+    // Server sends subject_summary as a JSON object, not a string
+    val subject_summary: JsonElement? = null,
+    val is_favorite: Boolean = false,
+    // Members array present for direct/group threads — used to resolve display names
+    val members: List<ChatMemberResponse> = emptyList(),
     val created_at: String,
-    val updated_at: String = "",
 )
 
 @Serializable
