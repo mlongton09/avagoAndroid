@@ -16,6 +16,7 @@ import androidx.navigation.compose.rememberNavController
 import com.avago.app.MainViewModel
 import com.avago.core.sync.ui.SyncConflictSheet
 import com.avago.core.sync.ui.SyncConflictViewModel
+import com.avago.feature.assets.nav.AssetsRoute
 import com.avago.feature.assets.nav.assetsNavGraph
 import com.avago.feature.auth.nav.AuthRoute
 import com.avago.feature.auth.nav.authNavGraph
@@ -23,6 +24,8 @@ import com.avago.feature.chat.nav.chatNavGraph
 import com.avago.feature.chat.nav.ChatRoute
 import com.avago.feature.docs.nav.docsNavGraph
 import com.avago.feature.inventory.nav.inventoryNavGraph
+import com.avago.feature.log.nav.LogRoute
+import com.avago.feature.log.nav.logNavGraph
 import com.avago.feature.reports.ReportsScreen
 import com.avago.feature.schedule.nav.scheduleNavGraph
 import com.avago.feature.settings.nav.settingsNavGraph
@@ -90,10 +93,43 @@ fun AvagoNavHost(
             )
 
             // ── Assets ────────────────────────────────────────────────────────────
-            assetsNavGraph(navController = navController)
+            assetsNavGraph(
+                navController = navController,
+                onNavigateToAddLogEntry = { assetId ->
+                    navController.navigate(LogRoute.addEdit(assetId = assetId))
+                },
+                onNavigateToLogDetail = { entryId ->
+                    navController.navigate(LogRoute.detail(entryId))
+                },
+                onNavigateToWorkOrder = { woId ->
+                    navController.navigate("workorders/detail/$woId")
+                },
+                onAssetPicked = { assetId ->
+                    navController.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.set("selected_asset_id", assetId)
+                    navController.popBackStack()
+                },
+            )
+
+            // ── Log ───────────────────────────────────────────────────────────────
+            logNavGraph(
+                navController = navController,
+                onOpenAssetPicker = {
+                    navController.navigate(AssetsRoute.PICKER)
+                },
+            )
 
             // ── Work Orders ───────────────────────────────────────────────────────
-            workOrderNavGraph(navController = navController)
+            workOrderNavGraph(
+                navController = navController,
+                onNavigateToAssetPicker = {
+                    navController.navigate(AssetsRoute.PICKER)
+                },
+                onNavigateToInventoryPicker = {
+                    navController.navigate("inventory/picker")
+                },
+            )
 
             // ── Inventory ─────────────────────────────────────────────────────────
             inventoryNavGraph(navController = navController)
@@ -104,7 +140,12 @@ fun AvagoNavHost(
             }
 
             // ── Schedule ──────────────────────────────────────────────────────────
-            scheduleNavGraph(navController = navController)
+            scheduleNavGraph(
+                navController = navController,
+                onNavigateToAssetPicker = {
+                    navController.navigate(AssetsRoute.PICKER)
+                },
+            )
 
             // ── Docs ──────────────────────────────────────────────────────────────
             docsNavGraph(navController = navController)
