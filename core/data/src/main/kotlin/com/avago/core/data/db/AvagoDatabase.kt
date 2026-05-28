@@ -143,7 +143,7 @@ import com.avago.core.data.db.entity.WorkOrderEntity
         RoleLabelCacheEntity::class,
         EventEntity::class,
     ],
-    version = 6,
+    version = 9,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)

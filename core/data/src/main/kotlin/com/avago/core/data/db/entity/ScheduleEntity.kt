@@ -61,6 +61,12 @@ data class ScheduleEntity(
     @ColumnInfo(name = "is_active")
     val isActive: Boolean,
 
+    @ColumnInfo(name = "timezone")
+    val timezone: String?,
+
+    @ColumnInfo(name = "notes")
+    val notes: String?,
+
     @ColumnInfo(name = "created_at")
     val createdAt: Long,
 

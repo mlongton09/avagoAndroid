@@ -72,6 +72,9 @@ data class DocEntity(
     @ColumnInfo(name = "warranty_end_date")
     val warrantyEndDate: Long?,
 
+    @ColumnInfo(name = "notes")
+    val notes: String?,
+
     @ColumnInfo(name = "uploaded_by")
     val uploadedBy: String?,
 
