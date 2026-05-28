@@ -20,6 +20,17 @@ private val MIGRATION_2_3 = object : Migration(2, 3) {
     }
 }
 
+private val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("ALTER TABLE chat_messages ADD COLUMN server_version INTEGER NOT NULL DEFAULT 0")
+        database.execSQL("ALTER TABLE chat_messages ADD COLUMN parent_message_id TEXT")
+        database.execSQL("ALTER TABLE chat_messages ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_chat_messages_thread_id_parent_message_id ON chat_messages(thread_id, parent_message_id)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_chat_messages_is_pinned ON chat_messages(is_pinned)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_chat_messages_needs_reply ON chat_messages(needs_reply)")
+    }
+}
+
 private val MIGRATION_3_4 = object : Migration(3, 4) {
     override fun migrate(database: SupportSQLiteDatabase) {
         database.execSQL("ALTER TABLE chat_messages ADD COLUMN sender_avatar_url TEXT")
@@ -59,7 +70,7 @@ class ChatDatabaseFactory @Inject constructor(
             val dir = File(ctx.filesDir, "accounts/$accountId").apply { mkdirs() }
             Room.databaseBuilder(ctx, ChatDatabase::class.java, File(dir, "chat.db").path)
                 .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .fallbackToDestructiveMigration(dropAllTables = true)
                 .build()
         }
