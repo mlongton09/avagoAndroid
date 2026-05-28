@@ -20,6 +20,7 @@ android {
 
 dependencies {
     implementation(project(":core:auth"))
+    implementation(project(":core:permissions"))
     implementation(project(":core:sync"))
 
     implementation(libs.hilt.android)
