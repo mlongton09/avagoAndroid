@@ -63,10 +63,10 @@ data class ChatMessageEntity(
     /** Idempotency key sent with the outbox message; echoed back by server. */
     @ColumnInfo(name = "client_ref") val clientRef: String? = null,
     @ColumnInfo(name = "outbox_status") val outboxStatus: String? = null, // null=delivered, "sending", "failed"
-    @ColumnInfo(name = "server_version") val serverVersion: Long = 0,
+    @ColumnInfo(name = "server_version", defaultValue = "0") val serverVersion: Long = 0,
     @ColumnInfo(name = "deleted_at") val deletedAt: Long? = null,
     @ColumnInfo(name = "created_at") val createdAt: Long,
     @ColumnInfo(name = "updated_at") val updatedAt: Long,
     @ColumnInfo(name = "parent_message_id") val parentMessageId: String? = null,
-    @ColumnInfo(name = "is_pinned") val isPinned: Boolean = false,
+    @ColumnInfo(name = "is_pinned", defaultValue = "0") val isPinned: Boolean = false,
 )

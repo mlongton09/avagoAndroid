@@ -279,7 +279,15 @@ class SyncEngine @Inject constructor(
         pullEntityTypes.forEach { entityType ->
             db.syncMetadataDao().resetWatermark(entityType)
         }
-        Timber.d("[SyncEngine] resetAllWatermarks: cleared watermarks for $accountId")
+        // Also clear any rate-limit backoff so the next sign-in can sync immediately.
+        setRateLimitedUntil(0L)
+        Timber.d("[SyncEngine] resetAllWatermarks: cleared watermarks and rate-limit backoff for $accountId")
+    }
+
+    /** Clear any rate-limit backoff so the next sync runs immediately. Call on sign-in. */
+    fun clearRateLimitBackoff() {
+        setRateLimitedUntil(0L)
+        Timber.d("[SyncEngine] clearRateLimitBackoff: backoff cleared")
     }
 
     /** Expose active account ID for SyncConflictCoordinator to use. */

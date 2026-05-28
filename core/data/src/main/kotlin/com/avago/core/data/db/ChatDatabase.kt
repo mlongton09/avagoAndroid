@@ -36,7 +36,7 @@ import com.avago.core.data.db.entity.ChatThreadMemberEntity
         ChatOutboxEntity::class,
         ChatThreadLastReadEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 abstract class ChatDatabase : RoomDatabase() {

@@ -62,6 +62,10 @@ class IdentityManager @Inject constructor(
     private val _signOutEvents = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val signOutEvents: SharedFlow<String> = _signOutEvents.asSharedFlow()
 
+    /** Emits the account ID on successful sign-in. Observed by the app layer to clear rate-limit backoffs. */
+    private val _signInEvents = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val signInEvents: SharedFlow<String> = _signInEvents.asSharedFlow()
+
     /** Emits Unit whenever the accounts manifest is written. Mirrors iOS AVUserProfileDidChange. */
     private val _accountsChanged = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
     val accountsChanged: SharedFlow<Unit> = _accountsChanged.asSharedFlow()
@@ -226,6 +230,8 @@ class IdentityManager @Inject constructor(
                 }
             }.onFailure { Timber.w(it, "IdentityManager: post sign-in account fetch failed") }
 
+            // Notify observers (e.g. SyncEngine rate-limit reset) before enqueueing sync.
+            _signInEvents.emit(accountId)
             // Enqueue sync AFTER all sequential calls complete, so the sync starts with
             // full account/role info already written — mirrors iOS pattern.
             enqueueSyncWork()

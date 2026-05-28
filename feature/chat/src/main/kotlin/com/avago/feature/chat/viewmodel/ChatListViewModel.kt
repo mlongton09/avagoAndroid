@@ -88,7 +88,12 @@ class ChatListViewModel @Inject constructor(
         observeThreads()
         observeUnreadMentionCount()
         refresh()
+        // Sync roster (GET /chat/me/roster) on load — mirrors iOS AppBootstrapCoordinator.startChatServices().
+        viewModelScope.launch {
+            repository.syncRoster()
+        }
         // Ensure the WebSocket connection is live whenever the chat list is active.
+        // WebSocket onOpen triggers BackgroundSyncCoordinator.runDelta() — matches iOS reconnect behavior.
         identity.activeAccountId.value?.let { realtimeClient.connect(it) }
     }
 
