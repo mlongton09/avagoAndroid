@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.data.db.entity.ChatMessageEntity
+import com.avago.feature.chat.ui.DateSeparatorItem
 import com.avago.feature.chat.ui.MessageActionSheet
 import com.avago.feature.chat.ui.MessageBubble
 import com.avago.feature.chat.ui.MessageComposer
@@ -68,6 +69,7 @@ import com.avago.feature.chat.viewmodel.ThreadViewModel
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -132,6 +134,17 @@ fun ThreadScreen(
             val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
             val totalItems = listState.layoutInfo.totalItemsCount
             totalItems == 0 || lastVisible >= totalItems - 2
+        }
+    }
+
+    // Scroll to bottom unconditionally on initial load — mirrors iOS scrollToBottom(animated:false)
+    var initialScrollDone by remember { mutableStateOf(false) }
+    LaunchedEffect(uiState.messages.isNotEmpty()) {
+        if (uiState.messages.isNotEmpty() && !initialScrollDone) {
+            initialScrollDone = true
+            snapshotFlow { listState.layoutInfo.totalItemsCount }
+                .first { it > 0 }
+                .let { total -> listState.scrollToItem(total - 1) }
         }
     }
 
@@ -322,8 +335,13 @@ fun ThreadScreen(
                                 val msgIndex = messages.indexOf(item)
                                 val prevMsg = messages.getOrNull(msgIndex - 1)
                                 val nextMsg = messages.getOrNull(msgIndex + 1)
-                                val isGroupStart = prevMsg == null || prevMsg.senderId != item.senderId
-                                val isGroupEnd = nextMsg == null || nextMsg.senderId != item.senderId
+                                val groupWindowMs = 5 * 60 * 1000L
+                                val isGroupStart = prevMsg == null
+                                    || prevMsg.senderId != item.senderId
+                                    || item.createdAt - prevMsg.createdAt > groupWindowMs
+                                val isGroupEnd = nextMsg == null
+                                    || nextMsg.senderId != item.senderId
+                                    || nextMsg.createdAt - item.createdAt > groupWindowMs
 
                                 // Unread divider
                                 val unreadCount = uiState.thread?.unreadCount ?: 0
@@ -451,28 +469,13 @@ private fun Long.toDateLabel(): String {
             cal.get(java.util.Calendar.YEAR) == today.get(java.util.Calendar.YEAR) -> "Today"
         cal.get(java.util.Calendar.DAY_OF_YEAR) == yesterday.get(java.util.Calendar.DAY_OF_YEAR) &&
             cal.get(java.util.Calendar.YEAR) == yesterday.get(java.util.Calendar.YEAR) -> "Yesterday"
-        else -> java.text.SimpleDateFormat("MMM d", java.util.Locale.getDefault()).format(cal.time)
-    }
-}
-
-@Composable
-private fun DateSeparatorItem(label: String, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Surface(
-            shape = MaterialTheme.shapes.small,
-            color = MaterialTheme.colorScheme.surfaceVariant,
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-            )
+        else -> {
+            val sevenDaysAgo = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DAY_OF_YEAR, -6) }
+            if (cal.after(sevenDaysAgo)) {
+                java.text.SimpleDateFormat("EEEE", java.util.Locale.getDefault()).format(cal.time)
+            } else {
+                java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.getDefault()).format(cal.time)
+            }
         }
     }
 }

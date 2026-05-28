@@ -43,7 +43,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -149,7 +156,9 @@ fun MessageBubble(
             }
 
             Column(
-                modifier = Modifier.widthIn(max = 280.dp),
+                modifier = Modifier
+                    .widthIn(max = 280.dp)
+                    .graphicsLayer { clip = false },
                 horizontalAlignment = if (isOwn) Alignment.End else Alignment.Start,
             ) {
                 if (!isOwn && isGroupStart) {
@@ -175,6 +184,7 @@ fun MessageBubble(
                 BubbleBody(
                     message = message,
                     isOwn = isOwn,
+                    isGroupEnd = isGroupEnd,
                     hasLinkPreview = message.linkPreviewUrl != null,
                     onLongPress = onLongPress,
                 )
@@ -268,6 +278,7 @@ private fun NeedsReplyPill(modifier: Modifier = Modifier) {
 private fun BubbleBody(
     message: ChatMessageEntity,
     isOwn: Boolean,
+    isGroupEnd: Boolean,
     hasLinkPreview: Boolean,
     onLongPress: (ChatMessageEntity) -> Unit,
 ) {
@@ -299,8 +310,18 @@ private fun BubbleBody(
 
     Column(
         modifier = Modifier
-            .clip(MaterialTheme.shapes.large)
-            .background(bubbleColor)
+            .graphicsLayer { clip = false }
+            .drawBehind {
+                if (bubbleColor != Color.Transparent) {
+                    val crPx = 18.dp.toPx()
+                    val twPx = 6.dp.toPx()
+                    val hasTail = isGroupEnd && !hasLinkPreview
+                    drawPath(
+                        createBubblePath(size, isOwn, hasTail, crPx, twPx),
+                        color = bubbleColor,
+                    )
+                }
+            }
             .padding(horizontal = 14.dp, vertical = 9.dp)
             .pointerInput(Unit) {
                 detectTapGestures(onLongPress = { onLongPress(message) })
@@ -542,3 +563,45 @@ private fun senderInitials(name: String?): String {
 }
 
 private val reactionJson = Json { ignoreUnknownKeys = true; isLenient = true }
+
+// ---------------------------------------------------------------------------
+// Bubble path — iMessage-style tail, mirrors iOS BubbleShapeView.makePath()
+// ---------------------------------------------------------------------------
+
+private fun createBubblePath(size: Size, isOwn: Boolean, hasTail: Boolean, cr: Float, tw: Float): Path {
+    val w = size.width
+    val h = size.height
+    val path = Path()
+    if (!hasTail) {
+        path.addRoundRect(RoundRect(Rect(0f, 0f, w, h), CornerRadius(cr)))
+        return path
+    }
+    if (isOwn) {
+        // Trailing: tail at bottom-right — mirrors iOS BubbleShapeView .trailing
+        path.moveTo(cr, 0f)
+        path.lineTo(w - cr, 0f)
+        path.arcTo(Rect(w - cr * 2, 0f, w, cr * 2), -90f, 90f, false)
+        path.lineTo(w, h - cr * 0.7f)
+        path.quadraticTo(w + 1f, h - cr * 0.4f, w + tw - 1f, h - 1f)
+        path.quadraticTo(w, h + 1f, w - cr * 0.45f, h)
+        path.lineTo(cr, h)
+        path.arcTo(Rect(0f, h - cr * 2, cr * 2, h), 90f, 90f, false)
+        path.lineTo(0f, cr)
+        path.arcTo(Rect(0f, 0f, cr * 2, cr * 2), 180f, 90f, false)
+        path.close()
+    } else {
+        // Leading: tail at bottom-left — mirrors iOS BubbleShapeView .leading
+        path.moveTo(cr, 0f)
+        path.lineTo(w - cr, 0f)
+        path.arcTo(Rect(w - cr * 2, 0f, w, cr * 2), -90f, 90f, false)
+        path.lineTo(w, h - cr)
+        path.arcTo(Rect(w - cr * 2, h - cr * 2, w, h), 0f, 90f, false)
+        path.lineTo(cr * 0.45f, h)
+        path.quadraticTo(0f, h + 1f, -tw + 1f, h - 1f)
+        path.quadraticTo(-1f, h - cr * 0.4f, 0f, h - cr * 0.7f)
+        path.lineTo(0f, cr)
+        path.arcTo(Rect(0f, 0f, cr * 2, cr * 2), 180f, 90f, false)
+        path.close()
+    }
+    return path
+}

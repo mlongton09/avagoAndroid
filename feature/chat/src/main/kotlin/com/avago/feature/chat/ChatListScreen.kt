@@ -163,61 +163,57 @@ fun ChatListScreen(
                                 onClick = onMentions,
                             )
                         }
-                        items(uiState.threads, key = { it.threadId }) { thread ->
-                            val swipeState = rememberSwipeToDismissBoxState(
-                                confirmValueChange = { value ->
-                                    when (value) {
-                                        SwipeToDismissBoxValue.StartToEnd -> {
-                                            viewModel.setFavorite(thread.threadId, !thread.isFavorite)
-                                            false // don't dismiss, just toggle
-                                        }
-                                        SwipeToDismissBoxValue.EndToStart -> {
-                                            viewModel.muteThread(thread.threadId, 8)
-                                            false
-                                        }
-                                        else -> false
-                                    }
-                                },
-                            )
-                            SwipeToDismissBox(
-                                state = swipeState,
-                                backgroundContent = {
-                                    val dir = swipeState.targetValue
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .background(
-                                                if (dir == SwipeToDismissBoxValue.StartToEnd)
-                                                    MaterialTheme.colorScheme.primaryContainer
-                                                else
-                                                    MaterialTheme.colorScheme.secondaryContainer
-                                            )
-                                            .padding(horizontal = 20.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = if (dir == SwipeToDismissBoxValue.StartToEnd)
-                                            Arrangement.Start else Arrangement.End,
-                                    ) {
-                                        if (dir == SwipeToDismissBoxValue.StartToEnd) {
-                                            Icon(
-                                                Icons.Default.Star,
-                                                contentDescription = if (thread.isFavorite) "Unfavorite" else "Favorite",
-                                                tint = if (thread.isFavorite) MaterialTheme.colorScheme.primary
-                                                       else MaterialTheme.colorScheme.onPrimaryContainer,
-                                            )
-                                        } else {
-                                            Icon(
-                                                Icons.Default.NotificationsOff,
-                                                contentDescription = "Mute 8 hours",
-                                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                            )
-                                        }
-                                    }
-                                },
-                            ) {
-                                ThreadRow(
-                                    thread = thread,
-                                    onClick = { onThreadClick(thread.threadId) },
-                                )
+                        // Group threads by type — mirrors iOS ThreadListViewController sections
+                        val teamThreads = uiState.threads.filter { it.threadType == "team" }
+                        val assetWoThreads = uiState.threads.filter { it.threadType == "wo" || it.threadType == "asset" }
+                        val directThreads = uiState.threads.filter { it.threadType == "direct" }
+                        val groupThreads = uiState.threads.filter { it.threadType == "group" }
+                        val otherThreads = uiState.threads.filter {
+                            it.threadType !in setOf("team", "wo", "asset", "direct", "group")
+                        }
+
+                        // Team threads — no section header (top special rows, like iOS)
+                        items(teamThreads, key = { it.threadId }) { thread ->
+                            ThreadRowWithSwipe(thread, viewModel, onThreadClick)
+                        }
+
+                        // "Work Orders & Assets" section
+                        if (assetWoThreads.isNotEmpty()) {
+                            stickyHeader(key = "header_assets") {
+                                SectionHeader("Work Orders & Assets")
+                            }
+                            items(assetWoThreads, key = { it.threadId }) { thread ->
+                                ThreadRowWithSwipe(thread, viewModel, onThreadClick)
+                            }
+                        }
+
+                        // "Direct Messages" section
+                        if (directThreads.isNotEmpty()) {
+                            stickyHeader(key = "header_direct") {
+                                SectionHeader("Direct Messages")
+                            }
+                            items(directThreads, key = { it.threadId }) { thread ->
+                                ThreadRowWithSwipe(thread, viewModel, onThreadClick)
+                            }
+                        }
+
+                        // "Group Chats" section
+                        if (groupThreads.isNotEmpty()) {
+                            stickyHeader(key = "header_groups") {
+                                SectionHeader("Group Chats")
+                            }
+                            items(groupThreads, key = { it.threadId }) { thread ->
+                                ThreadRowWithSwipe(thread, viewModel, onThreadClick)
+                            }
+                        }
+
+                        // "Other" section
+                        if (otherThreads.isNotEmpty()) {
+                            stickyHeader(key = "header_other") {
+                                SectionHeader("Other")
+                            }
+                            items(otherThreads, key = { it.threadId }) { thread ->
+                                ThreadRowWithSwipe(thread, viewModel, onThreadClick)
                             }
                         }
                     }
@@ -277,6 +273,88 @@ private fun MentionsShortcutRow(
             }
         }
     }
+}
+
+/**
+ * Thread row wrapped in swipe-to-favorite / swipe-to-mute. Extracted so it can be
+ * reused across all section groups in the LazyColumn.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ThreadRowWithSwipe(
+    thread: ChatThreadEntity,
+    viewModel: ChatListViewModel,
+    onThreadClick: (threadId: String) -> Unit,
+) {
+    val swipeState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            when (value) {
+                SwipeToDismissBoxValue.StartToEnd -> {
+                    viewModel.setFavorite(thread.threadId, !thread.isFavorite)
+                    false // don't dismiss, just toggle
+                }
+                SwipeToDismissBoxValue.EndToStart -> {
+                    viewModel.muteThread(thread.threadId, 8)
+                    false
+                }
+                else -> false
+            }
+        },
+    )
+    SwipeToDismissBox(
+        state = swipeState,
+        backgroundContent = {
+            val dir = swipeState.targetValue
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        if (dir == SwipeToDismissBoxValue.StartToEnd)
+                            MaterialTheme.colorScheme.primaryContainer
+                        else
+                            MaterialTheme.colorScheme.secondaryContainer
+                    )
+                    .padding(horizontal = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = if (dir == SwipeToDismissBoxValue.StartToEnd)
+                    Arrangement.Start else Arrangement.End,
+            ) {
+                if (dir == SwipeToDismissBoxValue.StartToEnd) {
+                    Icon(
+                        Icons.Default.Star,
+                        contentDescription = if (thread.isFavorite) "Unfavorite" else "Favorite",
+                        tint = if (thread.isFavorite) MaterialTheme.colorScheme.primary
+                               else MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.NotificationsOff,
+                        contentDescription = "Mute 8 hours",
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
+                }
+            }
+        },
+    ) {
+        ThreadRow(
+            thread = thread,
+            onClick = { onThreadClick(thread.threadId) },
+        )
+    }
+}
+
+@Composable
+private fun SectionHeader(title: String, modifier: Modifier = Modifier) {
+    Text(
+        text = title.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+        fontWeight = FontWeight.SemiBold,
+        modifier = modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+    )
 }
 
 @Composable
