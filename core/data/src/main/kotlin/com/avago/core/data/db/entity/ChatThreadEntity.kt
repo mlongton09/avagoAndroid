@@ -14,7 +14,7 @@ import androidx.room.PrimaryKey
 data class ChatThreadEntity(
     @PrimaryKey @ColumnInfo(name = "thread_id") val threadId: String,
     @ColumnInfo(name = "account_id") val accountId: String,
-    @ColumnInfo(name = "thread_type") val threadType: String, // "direct" | "group" | "wo_<woId>" | "asset_<assetId>"
+    @ColumnInfo(name = "thread_type") val threadType: String, // "team" | "direct" | "group" | "wo" | "asset"
     @ColumnInfo(name = "display_name") val displayName: String?,
     @ColumnInfo(name = "last_message_preview") val lastMessagePreview: String?,
     @ColumnInfo(name = "last_message_at") val lastMessageAt: Long?,

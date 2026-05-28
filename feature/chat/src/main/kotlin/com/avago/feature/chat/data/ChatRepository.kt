@@ -22,8 +22,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.emitAll
-import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -304,12 +304,34 @@ class ChatRepository @Inject constructor(
         return chatDbFactory.get(accountId).chatMessageDao().observeMentions(username)
     }
 
-    /** Upsert a message received via WebSocket realtime event. */
+    /** Upsert a message received via WebSocket realtime event or delta sync. */
     suspend fun handleRealtimeMessage(msg: ChatMessageResponse) {
         val accountId = identity.activeAccountId.value ?: return
+        val myUserId = identity.getActiveUserId()
         val db = chatDbFactory.get(accountId)
         val now = System.currentTimeMillis()
         db.chatMessageDao().upsert(msg.toEntity(accountId))
+        // Mirror iOS ChatStore.upsertMessage: write a mention record whenever the current
+        // user appears in mentioned_user_ids (and didn't send the message themselves).
+        if (myUserId != null
+            && msg.mentioned_user_ids.contains(myUserId)
+            && msg.author_id != myUserId
+            && msg.author?.id != myUserId
+        ) {
+            db.chatMentionDao().upsert(
+                ChatMentionEntity(
+                    mentionId = msg.message_id,
+                    threadId = msg.thread_id,
+                    messageId = msg.message_id,
+                    accountId = accountId,
+                    mentionedBy = msg.author_id ?: msg.author?.id,
+                    isRead = false,
+                    createdAt = runCatching {
+                        java.time.Instant.parse(msg.created_at).toEpochMilli()
+                    }.getOrDefault(now),
+                )
+            )
+        }
         db.chatThreadDao().getById(msg.thread_id)?.let { thread ->
             db.chatThreadDao().upsert(
                 thread.copy(
@@ -373,40 +395,42 @@ class ChatRepository @Inject constructor(
     // Delta sync — op applier
     // ---------------------------------------------------------------------------
 
+    // Server op shape: {"kind": "thread.upserted"|"message.created"|"message.updated"|"message.deleted", ...}
     suspend fun applyChatSyncOp(accountId: String, op: com.avago.core.network.model.ChatSyncOp) {
-        val payload = op.payload ?: return
         try {
-            when (op.op) {
-                "upsert" -> when (op.entity_type) {
-                    "message" -> {
-                        val msg = json.decodeFromString<com.avago.core.network.model.ChatMessageResponse>(payload)
-                        handleRealtimeMessage(msg)
-                    }
-                    "thread" -> {
-                        val thread = json.decodeFromString<com.avago.core.network.model.ChatThreadResponse>(payload)
-                        val db = chatDbFactory.get(accountId)
-                        val existing = db.chatThreadDao().getById(thread.thread_id)
-                        db.chatThreadDao().upsert(
-                            thread.toEntity().copy(
-                                notificationPref = existing?.notificationPref,
-                                isArchived = existing?.isArchived ?: false,
-                            )
+            when (op.kind) {
+                "thread.upserted" -> {
+                    val thread = op.thread?.let {
+                        json.decodeFromJsonElement<com.avago.core.network.model.ChatThreadResponse>(it)
+                    } ?: return
+                    val db = chatDbFactory.get(accountId)
+                    val existing = db.chatThreadDao().getById(thread.thread_id)
+                    val newEntity = thread.toEntity()
+                    db.chatThreadDao().upsert(
+                        newEntity.copy(
+                            notificationPref = existing?.notificationPref,
+                            // Bootstrap payload includes is_archived; preserve if already set locally.
+                            isArchived = newEntity.isArchived || (existing?.isArchived ?: false),
+                            // Bootstrap payload lacks name/members for direct/group threads; keep
+                            // the display name already resolved by syncThreads() if available.
+                            displayName = newEntity.displayName ?: existing?.displayName,
                         )
-                    }
-                    else -> Timber.d("[ChatSync] unhandled upsert entity_type=${op.entity_type}")
+                    )
                 }
-                "delete" -> when (op.entity_type) {
-                    "message" -> {
-                        val msgId = json.parseToJsonElement(payload).jsonObject["message_id"]
-                            ?.jsonPrimitive?.content ?: return
-                        handleRealtimeMessageDeleted(msgId)
-                    }
-                    else -> Timber.d("[ChatSync] unhandled delete entity_type=${op.entity_type}")
+                "message.created", "message.updated" -> {
+                    val msg = op.message?.let {
+                        json.decodeFromJsonElement<com.avago.core.network.model.ChatMessageResponse>(it)
+                    } ?: return
+                    handleRealtimeMessage(msg)
                 }
-                else -> Timber.d("[ChatSync] unhandled op=${op.op}")
+                "message.deleted" -> {
+                    val msgId = op.message_id ?: return
+                    handleRealtimeMessageDeleted(msgId)
+                }
+                else -> Timber.d("[ChatSync] unhandled kind=${op.kind}")
             }
         } catch (e: Exception) {
-            Timber.e(e, "[ChatSync] applyChatSyncOp failed for op=${op.op} entity=${op.entity_type}")
+            Timber.e(e, "[ChatSync] applyChatSyncOp failed for kind=${op.kind}")
         }
     }
 

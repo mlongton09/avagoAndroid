@@ -169,15 +169,22 @@ data class ChatMediaPresignResponse(
 @Serializable
 data class ChatSyncResponse(
     val ops: List<ChatSyncOp> = emptyList(),
-    val cursor: String? = null,
+    // Server field is "next_cursor", not "cursor".
+    @SerialName("next_cursor") val cursor: String? = null,
     val has_more: Boolean = false,
 )
 
+// Server sends: {"kind": "thread.upserted"|"message.created"|"message.updated"|"message.deleted", ...}
+// All extra fields are optional so one class covers every op kind.
 @Serializable
 data class ChatSyncOp(
-    val op: String,  // "upsert", "delete"
-    val entity_type: String,
-    val payload: String? = null,  // JSON string
+    val kind: String = "",
+    // thread.upserted
+    val thread: JsonElement? = null,
+    // message.created / message.updated
+    val message: JsonElement? = null,
+    // message.deleted
+    val message_id: String? = null,
 )
 
 @Serializable
