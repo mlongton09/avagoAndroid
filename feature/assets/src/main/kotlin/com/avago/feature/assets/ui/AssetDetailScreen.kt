@@ -50,17 +50,29 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -82,7 +94,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private val ASSET_DETAIL_TABS = listOf("Log", "Info", "Documents", "Work Orders")
+private val ASSET_DETAIL_TABS = listOf("Log", "Docs", "Work Orders")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -103,9 +115,8 @@ fun AssetDetailScreen(
 ) {
     val asset by viewModel.asset.collectAsStateWithLifecycle()
     val logsByYear by viewModel.logsByYear.collectAsStateWithLifecycle()
-    val totalCost by viewModel.totalCost.collectAsStateWithLifecycle()
+    val entryCount by viewModel.entryCount.collectAsStateWithLifecycle()
     val lastServiceDate by viewModel.lastServiceDate.collectAsStateWithLifecycle()
-    val latestMeterReading by viewModel.latestMeterReading.collectAsStateWithLifecycle()
     val availableCategories by viewModel.availableCategories.collectAsStateWithLifecycle()
     val categoryFilter by viewModel.categoryFilter.collectAsStateWithLifecycle()
     val photos by viewModel.photos.collectAsStateWithLifecycle()
@@ -114,6 +125,37 @@ fun AssetDetailScreen(
     var showOverflowMenu by remember { mutableStateOf(false) }
     val pagerState = rememberPagerState { ASSET_DETAIL_TABS.size }
     val scope = rememberCoroutineScope()
+
+    // Collapsing header — mirrors iOS AssetDetailViewController collapse behavior:
+    // scroll down past threshold → snap-collapse with 250ms animation;
+    // overscroll at top → snap-expand.
+    var isHeaderCollapsed by remember { mutableStateOf(false) }
+    var downAccumPx by remember { mutableFloatStateOf(0f) }
+    val collapseThresholdPx = with(LocalDensity.current) { 56.dp.toPx() }
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (available.y < 0f && !isHeaderCollapsed) {
+                    downAccumPx -= available.y  // accumulate positive distance scrolled down
+                    if (downAccumPx >= collapseThresholdPx) {
+                        isHeaderCollapsed = true
+                        downAccumPx = 0f
+                    }
+                } else if (available.y > 0f) {
+                    downAccumPx = 0f  // reset accumulator when scrolling back up
+                }
+                return Offset.Zero
+            }
+
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                // available.y > 0 means list is at top and user is still pulling down (overscroll)
+                if (available.y > 0f && isHeaderCollapsed) {
+                    isHeaderCollapsed = false
+                }
+                return Offset.Zero
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -202,17 +244,26 @@ fun AssetDetailScreen(
 
         val safeAsset = asset ?: error("unreachable: null guard above already returned")
 
-        // Fixed asset identity header above the pager
-        Column(modifier = Modifier.padding(paddingValues)) {
-            AssetDetailHeader(asset = safeAsset)
-            AssetStatsRow(
-                totalCost = totalCost,
-                lastServiceDate = lastServiceDate,
-                latestMeterReading = latestMeterReading,
-                meterType = safeAsset.meterType,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
-            HorizontalDivider()
+        Column(
+            modifier = Modifier
+                .padding(paddingValues)
+                .nestedScroll(nestedScrollConnection),
+        ) {
+            AnimatedVisibility(
+                visible = !isHeaderCollapsed,
+                enter = expandVertically(animationSpec = tween(250)) + fadeIn(tween(250)),
+                exit = shrinkVertically(animationSpec = tween(250)) + fadeOut(tween(150)),
+            ) {
+                Column {
+                    AssetDetailHeader(asset = safeAsset)
+                    AssetStatsRow(
+                        entryCount = entryCount,
+                        lastServiceDate = lastServiceDate,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                    HorizontalDivider()
+                }
+            }
 
             HorizontalPager(
                 state = pagerState,
@@ -226,18 +277,8 @@ fun AssetDetailScreen(
                         onCategoryFilterChanged = { viewModel.onCategoryFilterChanged(it) },
                         onLogEntryClick = onLogEntryClick,
                     )
-                    1 -> InfoTab(
-                        asset = safeAsset,
-                        photos = photos,
-                        onOpenPhotoGallery = onOpenPhotoGallery,
-                        onOpenNotes = onOpenNotes,
-                        onOpenWheelConfig = onOpenWheelConfig,
-                        onOpenWheelDataInput = onOpenWheelDataInput,
-                        onOpenRentals = onOpenRentals,
-                        onOpenAsset = onOpenAsset,
-                    )
-                    2 -> DocumentsTab(documents = documents)
-                    3 -> WorkOrdersTab(onOpenWorkOrders = onOpenWorkOrders)
+                    1 -> DocumentsTab(documents = documents)
+                    2 -> WorkOrdersTab(onOpenWorkOrders = onOpenWorkOrders)
                 }
             }
         }
@@ -515,41 +556,44 @@ private fun AssetDetailHeader(
 
 @Composable
 private fun AssetStatsRow(
-    totalCost: Double,
+    entryCount: Int,
     lastServiceDate: Long?,
-    latestMeterReading: Double?,
-    meterType: String?,
     modifier: Modifier = Modifier,
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-        ),
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(44.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
+        StatCell(
+            label = "ENTRIES",
+            value = entryCount.toString(),
+            modifier = Modifier.weight(1f),
+        )
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-        ) {
-            StatCell(
-                label = stringResource(R.string.asset_detail_total_cost),
-                value = if (totalCost > 0.0) formatCurrency(totalCost) else stringResource(R.string.asset_detail_na),
-            )
-            StatCell(
-                label = stringResource(R.string.asset_detail_last_service),
-                value = if (lastServiceDate != null) formatDate(lastServiceDate)
-                else stringResource(R.string.asset_detail_na),
-            )
-            if (meterType != null) {
-                StatCell(
-                    label = stringResource(R.string.asset_detail_meter_reading),
-                    value = formatMeterReading(latestMeterReading, meterType),
-                )
-            }
-        }
+                .height(28.dp)
+                .width(0.5.dp)
+                .background(MaterialTheme.colorScheme.outlineVariant)
+        )
+        StatCell(
+            label = "LAST SERVICE",
+            value = if (lastServiceDate != null) formatShortDate(lastServiceDate) else "Never",
+            modifier = Modifier.weight(1f),
+        )
+        Box(
+            modifier = Modifier
+                .height(28.dp)
+                .width(0.5.dp)
+                .background(MaterialTheme.colorScheme.outlineVariant)
+        )
+        StatCell(
+            label = "SINCE SERVICE",
+            value = if (lastServiceDate != null) sinceService(lastServiceDate) else "—",
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
@@ -562,16 +606,18 @@ private fun StatCell(
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
         )
     }
 }
@@ -1077,6 +1123,22 @@ fun formatMeterReading(value: Double?, meterType: String?): String {
 
 private fun formatDate(epochMs: Long): String =
     SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date(epochMs))
+
+private fun formatShortDate(epochMs: Long): String =
+    SimpleDateFormat("MMM d", Locale.getDefault()).format(Date(epochMs))
+
+private fun sinceService(epochMs: Long): String {
+    val days = ((System.currentTimeMillis() - epochMs) / 86_400_000L).toInt()
+    return when {
+        days < 1  -> "Today"
+        days == 1 -> "1 day"
+        days < 30 -> "$days days"
+        days < 60 -> "1 month"
+        days < 365 -> "${days / 30} months"
+        days < 730 -> "1 year"
+        else -> "${days / 365} years"
+    }
+}
 
 private fun formatCurrency(amount: Double): String = try {
     NumberFormat.getCurrencyInstance(Locale.getDefault()).format(amount)
