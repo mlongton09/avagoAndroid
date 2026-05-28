@@ -17,6 +17,7 @@ import com.avago.feature.inventory.parts.PartDetailScreen
 import com.avago.feature.inventory.purchaseorders.PurchaseOrderDetailScreen
 import com.avago.feature.inventory.purchaseorders.PurchaseOrderListScreen
 import com.avago.feature.inventory.purchaseorders.PurchaseOrderCreateScreen
+import com.avago.feature.inventory.purchaseorders.PurchaseOrdersContainerScreen
 import com.avago.feature.inventory.ui.LabelScannerScreen
 import com.avago.feature.inventory.vendors.AddEditVendorScreen
 import com.avago.feature.inventory.vendors.VendorDetailScreen
@@ -175,9 +176,10 @@ fun NavGraphBuilder.inventoryNavGraph(navController: NavHostController) {
 
         // Purchase Orders
         composable(InventoryRoute.PurchaseOrderList.route) {
-            PurchaseOrderListScreen(
+            PurchaseOrdersContainerScreen(
                 onPoClick = { poId -> navController.navigate(InventoryRoute.PurchaseOrderDetail.build(poId)) },
                 onCreatePo = { navController.navigate(InventoryRoute.CreateEditPurchaseOrder.build()) },
+                onCountClick = { countId -> navController.navigate(InventoryRoute.CycleCountDetail.build(countId)) },
             )
         }
         composable(

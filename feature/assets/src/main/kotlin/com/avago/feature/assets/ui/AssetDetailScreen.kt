@@ -19,12 +19,14 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Edit
@@ -76,6 +78,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -256,7 +259,7 @@ fun AssetDetailScreen(
                 exit = shrinkVertically(animationSpec = tween(250)) + fadeOut(tween(150)),
             ) {
                 Column {
-                    AssetDetailHeader(asset = safeAsset)
+                    AssetDetailHeader(asset = safeAsset, onAddPhoto = { onOpenPhotoGallery(0) })
                     AssetStatsRow(
                         entryCount = entryCount,
                         lastServiceDate = lastServiceDate,
@@ -501,55 +504,78 @@ private fun WorkOrdersTab(onOpenWorkOrders: () -> Unit) {
 private fun AssetDetailHeader(
     asset: AssetEntity,
     modifier: Modifier = Modifier,
+    onAddPhoto: () -> Unit = {},
 ) {
-    Row(
+    Box(
         modifier = modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
+            .fillMaxWidth(),
     ) {
-        AssetAvatar(
-            initial = asset.avatarInitial ?: asset.name.firstOrNull()?.uppercaseChar()?.toString() ?: "A",
-            assetType = asset.assetType,
-            size = 64,
-        )
-        Column {
-            Text(
-                text = asset.name,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            AssetAvatar(
+                initial = asset.avatarInitial ?: asset.name.firstOrNull()?.uppercaseChar()?.toString() ?: "A",
+                assetType = asset.assetType,
+                size = 64,
             )
-            asset.assetType?.let { assetType ->
-                val labelResId = AssetTypes.labelResIdFor(assetType)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = if (labelResId != null) stringResource(labelResId)
-                    else assetType.replace("_", " ").replaceFirstChar { it.uppercase() },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
+                    text = asset.name,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
                 )
+                asset.assetType?.let { assetType ->
+                    val labelResId = AssetTypes.labelResIdFor(assetType)
+                    Text(
+                        text = if (labelResId != null) stringResource(labelResId)
+                        else assetType.replace("_", " ").replaceFirstChar { it.uppercase() },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                val makeModelYear = listOfNotNull(
+                    asset.year?.toString(),
+                    asset.make,
+                    asset.model,
+                ).joinToString(" ")
+                if (makeModelYear.isNotBlank()) {
+                    Text(
+                        text = makeModelYear,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                // Fleet number badge
+                val fleetNumber = parseAttributes(asset.attributes)["fleet_number"]
+                if (!fleetNumber.isNullOrBlank()) {
+                    Text(
+                        text = "Fleet #$fleetNumber",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.secondary,
+                    )
+                }
             }
-            val makeModelYear = listOfNotNull(
-                asset.year?.toString(),
-                asset.make,
-                asset.model,
-            ).joinToString(" ")
-            if (makeModelYear.isNotBlank()) {
-                Text(
-                    text = makeModelYear,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            // Fleet number badge
-            val fleetNumber = parseAttributes(asset.attributes)["fleet_number"]
-            if (!fleetNumber.isNullOrBlank()) {
-                Text(
-                    text = "Fleet #$fleetNumber",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.secondary,
-                )
-            }
+        }
+        IconButton(
+            onClick = onAddPhoto,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(8.dp)
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.3f)),
+        ) {
+            Icon(
+                imageVector = Icons.Default.CameraAlt,
+                contentDescription = "Add photo",
+                tint = Color.White,
+                modifier = Modifier.size(20.dp),
+            )
         }
     }
     HorizontalDivider()

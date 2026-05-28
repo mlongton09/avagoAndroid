@@ -5,7 +5,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,13 +14,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -110,26 +108,11 @@ fun LogListScreen(
                 .padding(innerPadding),
         ) {
             Column {
-                if (categories.isNotEmpty()) {
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        item {
-                            FilterChip(
-                                selected = categoryFilter == null,
-                                onClick = { viewModel.setFilter(null) },
-                                label = { Text("All") },
-                            )
-                        }
-                        items(categories) { cat ->
-                            FilterChip(
-                                selected = categoryFilter == cat,
-                                onClick = { viewModel.setFilter(if (categoryFilter == cat) null else cat) },
-                                label = { Text(cat) },
-                            )
-                        }
-                    }
+                if (categoryFilter != null) {
+                    FilterBanner(
+                        categoryFilter = categoryFilter,
+                        onClear = { viewModel.setFilter(null) },
+                    )
                 }
 
                 if (logs.isEmpty()) {
@@ -150,6 +133,7 @@ fun LogListScreen(
                                 LogListRow(
                                     log = log,
                                     onClick = { onLogClick(log.entryId) },
+                                    onCategoryClick = { viewModel.setFilter(log.category) },
                                 )
                             }
                         }
@@ -157,6 +141,35 @@ fun LogListScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun FilterBanner(
+    categoryFilter: String?,
+    onClear: () -> Unit,
+) {
+    val label = categoryFilter?.replace("_", " ")?.replaceFirstChar { it.uppercase() } ?: ""
+    val dotColor = categoryBadgeColor(categoryIconName(categoryFilter))
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.primaryContainer)
+            .clickable { onClear() }
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(dotColor),
+        )
+        Text(
+            text = "Filtering by $label",
+            style = MaterialTheme.typography.labelMedium,
+        )
     }
 }
 
@@ -181,6 +194,7 @@ private fun YearHeader(year: Int) {
 private fun LogListRow(
     log: LogEntity,
     onClick: () -> Unit,
+    onCategoryClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val dateFormatter = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
@@ -195,7 +209,7 @@ private fun LogListRow(
             .padding(start = 14.dp, end = 16.dp, top = 7.dp, bottom = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CategoryBadge(categoryId = log.category)
+        CategoryBadge(categoryId = log.category, onClick = onCategoryClick)
         Spacer(Modifier.width(10.dp))
 
         // Title + optional pending tag — fills available space
@@ -240,6 +254,7 @@ private fun LogListRow(
 private fun CategoryBadge(
     categoryId: String?,
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
 ) {
     val iconName = categoryIconName(categoryId)
     val bgColor = categoryBadgeColor(iconName)
@@ -249,7 +264,8 @@ private fun CategoryBadge(
         modifier = modifier
             .size(40.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(bgColor),
+            .background(bgColor)
+            .then(if (onClick != null) Modifier.clickable { onClick.invoke() } else Modifier),
         contentAlignment = Alignment.Center,
     ) {
         AsyncImage(

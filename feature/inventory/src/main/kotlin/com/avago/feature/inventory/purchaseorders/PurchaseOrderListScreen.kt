@@ -97,7 +97,7 @@ fun PurchaseOrderListScreen(
 }
 
 @Composable
-private fun PoCard(item: PoListItem, onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun PoCard(item: PoListItem, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Card(
         modifier = modifier
             .fillMaxWidth()

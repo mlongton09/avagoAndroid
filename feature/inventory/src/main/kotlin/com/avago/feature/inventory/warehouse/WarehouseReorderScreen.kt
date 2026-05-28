@@ -187,7 +187,7 @@ fun WarehouseReorderScreen(
 }
 
 @Composable
-private fun ReorderItemCard(item: ReorderItem) {
+internal fun ReorderItemCard(item: ReorderItem) {
     val onHand = item.totalOnHand
     val reorderQty = item.stockingLevel.reorderQty ?: 0.0
 
