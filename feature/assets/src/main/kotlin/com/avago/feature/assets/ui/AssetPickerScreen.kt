@@ -137,7 +137,6 @@ private fun AssetPickerRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         AssetAvatar(
-            color = asset.avatarColor,
             initial = asset.avatarInitial ?: asset.name.firstOrNull()?.uppercaseChar()?.toString() ?: "A",
             assetType = asset.assetType,
             size = 40,

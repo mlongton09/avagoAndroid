@@ -1,7 +1,5 @@
 package com.avago.feature.settings
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -16,7 +14,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Policy
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -45,6 +42,8 @@ import com.avago.feature.settings.R
 @Composable
 fun AboutScreen(
     onNavigateToLicenses: () -> Unit,
+    onNavigateToPrivacyPolicy: () -> Unit,
+    onNavigateToTerms: () -> Unit,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -110,7 +109,7 @@ fun AboutScreen(
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.about_privacy_policy)) },
                     leadingContent = {
-                        Icon(Icons.Default.OpenInBrowser, contentDescription = null)
+                        Icon(Icons.Default.Policy, contentDescription = null)
                     },
                     trailingContent = {
                         Icon(
@@ -119,11 +118,7 @@ fun AboutScreen(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     },
-                    modifier = Modifier.clickable(role = Role.Button) {
-                        context.startActivity(
-                            Intent(Intent.ACTION_VIEW, Uri.parse("https://avago.app/privacy")),
-                        )
-                    },
+                    modifier = Modifier.clickable(role = Role.Button, onClick = onNavigateToPrivacyPolicy),
                 )
             }
 
@@ -133,7 +128,7 @@ fun AboutScreen(
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.about_terms_of_service)) },
                     leadingContent = {
-                        Icon(Icons.Default.OpenInBrowser, contentDescription = null)
+                        Icon(Icons.Default.Policy, contentDescription = null)
                     },
                     trailingContent = {
                         Icon(
@@ -142,11 +137,7 @@ fun AboutScreen(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     },
-                    modifier = Modifier.clickable(role = Role.Button) {
-                        context.startActivity(
-                            Intent(Intent.ACTION_VIEW, Uri.parse("https://avago.app/terms")),
-                        )
-                    },
+                    modifier = Modifier.clickable(role = Role.Button, onClick = onNavigateToTerms),
                 )
             }
 

@@ -28,7 +28,7 @@ import javax.inject.Inject
 @HiltViewModel
 class ScoutViewModel @Inject constructor(
     private val extractor: AiExtractor,
-    private val contextHost: ScoutContextHost,
+    private val contextHost: ScreenContextStore,
     private val executor: ScoutSkillExecutor,
     private val prefs: UserPreferencesRepository,
     private val formFillRouter: FormFillRouter,

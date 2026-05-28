@@ -234,12 +234,12 @@ fun AssetListScreen(
                         for (typeKey in typeOrder) {
                             val items = grouped[typeKey] ?: continue
                             add(typeKey)
-                            addAll(items.sortedBy { it.name.lowercase() })
+                            addAll(items.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name }))
                         }
                         for ((typeKey, items) in grouped) {
                             if (typeKey !in typeOrder) {
                                 add(typeKey)
-                                addAll(items.sortedBy { it.name.lowercase() })
+                                addAll(items.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name }))
                             }
                         }
                     }
@@ -323,7 +323,6 @@ private fun AssetRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         AssetAvatar(
-            color = asset.avatarColor,
             initial = asset.avatarInitial ?: asset.name.firstOrNull()?.uppercaseChar()?.toString() ?: "A",
             assetType = asset.assetType,
             size = 40,
@@ -362,39 +361,46 @@ private fun AssetRow(
 
 @Composable
 internal fun AssetAvatar(
-    color: String?,
     initial: String,
     assetType: String?,
     size: Int,
     modifier: Modifier = Modifier,
 ) {
-    val parsedColor = rememberParsedColor(color)
+    val knownType = AssetTypes.isKnownType(assetType)
+    val bgColor = rememberParsedColor(AssetTypes.colorHexFor(assetType))
     Box(
         modifier = modifier
             .size(size.dp)
             .clip(CircleShape)
-            .background(parsedColor),
+            .background(bgColor),
         contentAlignment = Alignment.Center,
     ) {
-        val iconRes = AssetTypes.iconResFor(assetType)
-        Icon(
-            painter = painterResource(iconRes),
-            contentDescription = null,
-            tint = Color.White,
-            modifier = Modifier.size((size * 0.55f).dp),
-        )
+        if (knownType) {
+            Icon(
+                painter = painterResource(AssetTypes.iconResFor(assetType)),
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size((size * 0.55f).dp),
+            )
+        } else {
+            Text(
+                text = initial,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                ),
+            )
+        }
     }
 }
 
 @Composable
-private fun rememberParsedColor(hex: String?): Color {
-    val fallback = MaterialTheme.colorScheme.primary
-    if (hex == null || !hex.startsWith("#") || (hex.length != 7 && hex.length != 9)) return fallback
+private fun rememberParsedColor(hex: String): Color {
     return try {
         val colorLong = hex.removePrefix("#").toLong(16)
-        if (hex.length == 7) Color(0xFF000000L or colorLong) else Color(colorLong)
+        Color(0xFF000000L or colorLong)
     } catch (_: Exception) {
-        fallback
+        MaterialTheme.colorScheme.primary
     }
 }
 

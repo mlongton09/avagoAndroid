@@ -67,7 +67,7 @@ class AiExtractor @Inject constructor(
      * @return        [ScoutResponse] with the matched skill, pre-filled
      *                form fields, and an optional action card.
      */
-    suspend fun nlSearch(query: String, ctx: ScoutContext): Result<ScoutResponse> {
+    suspend fun nlSearch(query: String, ctx: ScreenContext): Result<ScoutResponse> {
         val accountId = tokenStore.activeAccountId
             ?: return Result.failure(IllegalStateException("No active account"))
 

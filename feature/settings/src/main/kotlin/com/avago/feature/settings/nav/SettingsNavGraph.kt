@@ -6,6 +6,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navigation
 import com.avago.feature.settings.AboutScreen
 import com.avago.feature.settings.DeveloperScreen
+import com.avago.feature.settings.LegalTextScreen
+import com.avago.feature.settings.LegalTextType
 import com.avago.feature.settings.InviteUsersScreen
 import com.avago.feature.settings.LicensesScreen
 import com.avago.feature.settings.MembersListScreen
@@ -24,6 +26,8 @@ object SettingsRoute {
     const val Developer = "settings/developer"
     const val About = "settings/about"
     const val TechProfile = "settings/tech_profile"
+    const val PrivacyPolicy = "settings/legal/privacy"
+    const val TermsOfService = "settings/legal/terms"
 }
 
 /**
@@ -69,6 +73,22 @@ fun NavGraphBuilder.settingsNavGraph(navController: NavController) {
         composable(SettingsRoute.About) {
             AboutScreen(
                 onNavigateToLicenses = { navController.navigate(SettingsRoute.Licenses) },
+                onNavigateToPrivacyPolicy = { navController.navigate(SettingsRoute.PrivacyPolicy) },
+                onNavigateToTerms = { navController.navigate(SettingsRoute.TermsOfService) },
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(SettingsRoute.PrivacyPolicy) {
+            LegalTextScreen(
+                type = LegalTextType.PRIVACY_POLICY,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(SettingsRoute.TermsOfService) {
+            LegalTextScreen(
+                type = LegalTextType.TERMS_OF_SERVICE,
                 onBack = { navController.popBackStack() },
             )
         }

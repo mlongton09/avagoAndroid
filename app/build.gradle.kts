@@ -108,6 +108,9 @@ dependencies {
     implementation(libs.credentials.play.services)
     implementation(libs.googleid)
 
+    implementation(libs.coil.compose)
+    implementation(libs.coil.svg)
+
     implementation(libs.splashscreen)
     implementation(libs.timber)
     implementation(libs.coroutines.android)

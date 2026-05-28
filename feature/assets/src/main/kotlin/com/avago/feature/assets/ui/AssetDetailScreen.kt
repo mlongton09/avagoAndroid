@@ -468,7 +468,6 @@ private fun AssetDetailHeader(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         AssetAvatar(
-            color = asset.avatarColor,
             initial = asset.avatarInitial ?: asset.name.firstOrNull()?.uppercaseChar()?.toString() ?: "A",
             assetType = asset.assetType,
             size = 64,

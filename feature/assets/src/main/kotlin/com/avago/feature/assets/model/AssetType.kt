@@ -9,36 +9,38 @@ data class AssetTypeItem(
     @DrawableRes val iconRes: Int,
     /** Asset name under `assets/icons/` for the hero illustration, or null. */
     val heroImageName: String? = null,
+    /** Background color hex for the asset avatar, matching iOS AvatarView.colorForAssetType(). */
+    val colorHex: String = "#2563EB",
 )
 
 object AssetTypes {
     val all: List<AssetTypeItem> = listOf(
-        AssetTypeItem("vehicle",              R.string.asset_type_vehicle,              R.drawable.ic_asset_light_vehicle,       "hero_light_vehicle"),
-        AssetTypeItem("light_vehicle",        R.string.asset_type_light_vehicle,        R.drawable.ic_asset_light_vehicle,       "hero_light_vehicle"),
-        AssetTypeItem("motorcycle",           R.string.asset_type_motorcycle,           R.drawable.ic_asset_motorcycle,          "hero_motorcycle"),
-        AssetTypeItem("ev",                   R.string.asset_type_ev,                   R.drawable.ic_asset_light_vehicle,       "hero_light_vehicle"),
-        AssetTypeItem("truck",                R.string.asset_type_truck,                R.drawable.ic_asset_commercial_vehicle,  "hero_commercial_vehicle"),
-        AssetTypeItem("commercial_vehicle",   R.string.asset_type_commercial_vehicle,   R.drawable.ic_asset_commercial_vehicle,  "hero_commercial_vehicle"),
-        AssetTypeItem("recreational_vehicle", R.string.asset_type_recreational_vehicle, R.drawable.ic_asset_recreational_vehicle,"hero_recreational_vehicle"),
-        AssetTypeItem("trailer",              R.string.asset_type_trailer,              R.drawable.ic_asset_trailer,             null),
-        AssetTypeItem("atv_utv",              R.string.asset_type_atv_utv,              R.drawable.ic_asset_atv_utv,             null),
-        AssetTypeItem("snowmobile",           R.string.asset_type_snowmobile,           R.drawable.ic_asset_snowmobile,          null),
-        AssetTypeItem("golf_cart",            R.string.asset_type_golf_cart,            R.drawable.ic_asset_golf_cart,           null),
-        AssetTypeItem("equipment",            R.string.asset_type_equipment,            R.drawable.ic_asset_heavy_equipment,     "hero_heavy_equipment"),
-        AssetTypeItem("heavy_equipment",      R.string.asset_type_heavy_equipment,      R.drawable.ic_asset_heavy_equipment,     "hero_heavy_equipment"),
-        AssetTypeItem("generator",            R.string.asset_type_generator,            R.drawable.ic_asset_generator,           null),
-        AssetTypeItem("lawn_equipment",       R.string.asset_type_lawn_equipment,       R.drawable.ic_asset_lawn_equipment,      null),
-        AssetTypeItem("compressor",           R.string.asset_type_compressor,           R.drawable.ic_asset_generator,           null),
-        AssetTypeItem("forklift",             R.string.asset_type_forklift,             R.drawable.ic_asset_heavy_equipment,     "hero_heavy_equipment"),
-        AssetTypeItem("crane",                R.string.asset_type_crane,                R.drawable.ic_asset_heavy_equipment,     "hero_heavy_equipment"),
-        AssetTypeItem("personal_watercraft",  R.string.asset_type_personal_watercraft,  R.drawable.ic_asset_personal_watercraft, null),
-        AssetTypeItem("pleasure_craft",       R.string.asset_type_pleasure_craft,       R.drawable.ic_asset_pleasure_craft,      "hero_pleasure_craft"),
-        AssetTypeItem("commercial_vessel",    R.string.asset_type_commercial_vessel,    R.drawable.ic_asset_commercial_vessel,   "hero_commercial_vessel"),
-        AssetTypeItem("residential",          R.string.asset_type_residential,          R.drawable.ic_asset_residential,         "hero_residential"),
-        AssetTypeItem("multifamily",          R.string.asset_type_multifamily,          R.drawable.ic_asset_multifamily,         "hero_multifamily"),
-        AssetTypeItem("office",               R.string.asset_type_office,               R.drawable.ic_asset_office,              "hero_office"),
-        AssetTypeItem("industrial",           R.string.asset_type_industrial,           R.drawable.ic_asset_industrial,          "hero_industrial"),
-        AssetTypeItem("healthcare",           R.string.asset_type_healthcare,           R.drawable.ic_asset_healthcare,          "hero_healthcare"),
+        AssetTypeItem("vehicle",              R.string.asset_type_vehicle,              R.drawable.ic_asset_light_vehicle,        "hero_light_vehicle",        "#3882C8"),
+        AssetTypeItem("light_vehicle",        R.string.asset_type_light_vehicle,        R.drawable.ic_asset_light_vehicle,        "hero_light_vehicle",        "#3882C8"),
+        AssetTypeItem("motorcycle",           R.string.asset_type_motorcycle,           R.drawable.ic_asset_motorcycle,           "hero_motorcycle",           "#7038C0"),
+        AssetTypeItem("ev",                   R.string.asset_type_ev,                   R.drawable.ic_asset_light_vehicle,        "hero_light_vehicle",        "#3882C8"),
+        AssetTypeItem("truck",                R.string.asset_type_truck,                R.drawable.ic_asset_commercial_vehicle,   "hero_commercial_vehicle",   "#F07828"),
+        AssetTypeItem("commercial_vehicle",   R.string.asset_type_commercial_vehicle,   R.drawable.ic_asset_commercial_vehicle,   "hero_commercial_vehicle",   "#F07828"),
+        AssetTypeItem("recreational_vehicle", R.string.asset_type_recreational_vehicle, R.drawable.ic_asset_recreational_vehicle, "hero_recreational_vehicle", "#38B838"),
+        AssetTypeItem("trailer",              R.string.asset_type_trailer,              R.drawable.ic_asset_trailer,              null,                        "#48B8E0"),
+        AssetTypeItem("atv_utv",              R.string.asset_type_atv_utv,              R.drawable.ic_asset_atv_utv,              null,                        "#E83820"),
+        AssetTypeItem("snowmobile",           R.string.asset_type_snowmobile,           R.drawable.ic_asset_snowmobile,           null,                        "#40CCE8"),
+        AssetTypeItem("golf_cart",            R.string.asset_type_golf_cart,            R.drawable.ic_asset_golf_cart,            null,                        "#90CC30"),
+        AssetTypeItem("equipment",            R.string.asset_type_equipment,            R.drawable.ic_asset_heavy_equipment,      "hero_heavy_equipment",      "#F5A020"),
+        AssetTypeItem("heavy_equipment",      R.string.asset_type_heavy_equipment,      R.drawable.ic_asset_heavy_equipment,      "hero_heavy_equipment",      "#F5A020"),
+        AssetTypeItem("generator",            R.string.asset_type_generator,            R.drawable.ic_asset_generator,            null,                        "#F0D820"),
+        AssetTypeItem("lawn_equipment",       R.string.asset_type_lawn_equipment,       R.drawable.ic_asset_lawn_equipment,       null,                        "#68C020"),
+        AssetTypeItem("compressor",           R.string.asset_type_compressor,           R.drawable.ic_asset_generator,            null,                        "#F0D820"),
+        AssetTypeItem("forklift",             R.string.asset_type_forklift,             R.drawable.ic_asset_heavy_equipment,      "hero_heavy_equipment",      "#F5A020"),
+        AssetTypeItem("crane",                R.string.asset_type_crane,                R.drawable.ic_asset_heavy_equipment,      "hero_heavy_equipment",      "#F5A020"),
+        AssetTypeItem("personal_watercraft",  R.string.asset_type_personal_watercraft,  R.drawable.ic_asset_personal_watercraft,  null,                        "#2888C8"),
+        AssetTypeItem("pleasure_craft",       R.string.asset_type_pleasure_craft,       R.drawable.ic_asset_pleasure_craft,       "hero_pleasure_craft",       "#2850C0"),
+        AssetTypeItem("commercial_vessel",    R.string.asset_type_commercial_vessel,    R.drawable.ic_asset_commercial_vessel,    "hero_commercial_vessel",    "#2040B0"),
+        AssetTypeItem("residential",          R.string.asset_type_residential,          R.drawable.ic_asset_residential,          "hero_residential",          "#D82020"),
+        AssetTypeItem("multifamily",          R.string.asset_type_multifamily,          R.drawable.ic_asset_multifamily,          "hero_multifamily",          "#E04018"),
+        AssetTypeItem("office",               R.string.asset_type_office,               R.drawable.ic_asset_office,               "hero_office",               "#2868C0"),
+        AssetTypeItem("industrial",           R.string.asset_type_industrial,           R.drawable.ic_asset_industrial,           "hero_industrial",           "#C88018"),
+        AssetTypeItem("healthcare",           R.string.asset_type_healthcare,           R.drawable.ic_asset_healthcare,           "hero_healthcare",           "#28B8C0"),
     )
 
     private val keySet = all.map { it.key }.toHashSet()
@@ -55,6 +57,12 @@ object AssetTypes {
     /** Hero illustration asset name for `assets/icons/<name>.svg`, or null when not available. */
     fun heroImageNameFor(key: String?): String? =
         all.firstOrNull { it.key == key }?.heroImageName
+
+    /** Avatar background color matching iOS AvatarView.colorForAssetType(); `#2563EB` for unknown types. */
+    fun colorHexFor(key: String?): String =
+        all.firstOrNull { it.key == key }?.colorHex ?: "#2563EB"
+
+    fun isKnownType(key: String?): Boolean = key != null && keySet.contains(key)
 }
 
 val AssetColorPalette: List<Long> = listOf(

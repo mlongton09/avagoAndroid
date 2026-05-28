@@ -7,7 +7,7 @@ import dagger.hilt.components.SingletonComponent
 /**
  * Hilt module for `:core:ai` singletons.
  *
- * [ScoutContextHost], [AiExtractor], and [ScoutViewModel] are all
+ * [ScreenContextStore], [AiExtractor], and [ScoutViewModel] are all
  * `@Singleton` / `@HiltViewModel` with `@Inject constructor`, so Hilt
  * discovers them automatically — no explicit [dagger.Provides] bindings
  * are needed today.

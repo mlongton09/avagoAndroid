@@ -1,7 +1,11 @@
 package com.avago
 
 import android.app.Application
+import android.content.Context
 import android.os.Trace
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
+import coil3.svg.SvgDecoder
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -26,6 +30,7 @@ import com.avago.core.sync.SyncEngine
 import com.avago.core.sync.SyncGate
 import com.avago.core.sync.SyncWorker
 import com.avago.core.sync.TechLocationService
+import com.avago.feature.chat.realtime.BackgroundSyncCoordinator
 import com.avago.feature.chat.realtime.OutboxRetryCoordinator
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
@@ -40,7 +45,13 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 @HiltAndroidApp
-class AvagoApplication : Application(), Configuration.Provider {
+class AvagoApplication : Application(), Configuration.Provider, SingletonImageLoader.Factory {
+
+    override fun newImageLoader(context: Context): ImageLoader =
+        ImageLoader.Builder(context)
+            .components { add(SvgDecoder.Factory()) }
+            .build()
+
 
 
     @Inject lateinit var workerFactory: HiltWorkerFactory
@@ -56,6 +67,7 @@ class AvagoApplication : Application(), Configuration.Provider {
     @Inject lateinit var outboxRetryCoordinator: OutboxRetryCoordinator
     @Inject lateinit var photoCacheSweeper: PhotoCacheSweeper
     @Inject lateinit var deltaApplier: DeltaPushApplier
+    @Inject lateinit var chatBackgroundSync: BackgroundSyncCoordinator
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -109,6 +121,7 @@ class AvagoApplication : Application(), Configuration.Provider {
         schedulePeriodicSync()
         observeConnectivityForSync()
         observeSignOutForWatermarkReset()
+        observeSignInForRateLimitClear()
         observePermissionsStaleness()
         observeAppForeground()
 
@@ -160,6 +173,14 @@ class AvagoApplication : Application(), Configuration.Provider {
         }
     }
 
+    private fun observeSignInForRateLimitClear() {
+        appScope.launch {
+            identityManager.signInEvents.collect {
+                syncEngine.clearRateLimitBackoff()
+            }
+        }
+    }
+
     private fun observePermissionsStaleness() {
         appScope.launch {
             serviceClient.permissionsStaleEvents.collect { accountId ->
@@ -199,6 +220,17 @@ class AvagoApplication : Application(), Configuration.Provider {
                 )
                 techLocationService.startMonitoring()
                 outboxRetryCoordinator.startPeriodicFlush()
+                // Catch up on chat messages that arrived while backgrounded (mirrors iOS
+                // AppBootstrapCoordinator.handleAppForeground → BackgroundSyncCoordinator.runDelta).
+                // WebSocket onOpen already calls runDelta on reconnect; this covers the case
+                // where the socket stayed alive across a short background/foreground cycle.
+                appScope.launch {
+                    try {
+                        chatBackgroundSync.runDelta()
+                    } catch (e: Exception) {
+                        Timber.e(e, "AvagoApplication: chat delta sync on foreground failed")
+                    }
+                }
 
                 // Deferred cache sweep — give the app 30 s to settle before evicting local photos
                 appScope.launch {

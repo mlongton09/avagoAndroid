@@ -38,13 +38,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import coil3.ImageLoader
 import coil3.compose.AsyncImage
-import coil3.svg.SvgDecoder
 import com.avago.core.data.db.entity.LogEntity
 import com.avago.core.ui.ScoutFAB
 import com.avago.core.ui.ScoutViewModel
@@ -240,12 +237,6 @@ private fun CategoryBadge(
 ) {
     val iconName = categoryIconName(categoryId)
     val bgColor = categoryBadgeColor(iconName)
-    val context = LocalContext.current
-    val imageLoader = remember(context) {
-        ImageLoader.Builder(context)
-            .components { add(SvgDecoder.Factory()) }
-            .build()
-    }
 
     Box(
         modifier = modifier
@@ -256,7 +247,6 @@ private fun CategoryBadge(
     ) {
         AsyncImage(
             model = "file:///android_asset/icons/$iconName.svg",
-            imageLoader = imageLoader,
             contentDescription = categoryId,
             contentScale = ContentScale.Fit,
             modifier = Modifier.size(20.dp),
