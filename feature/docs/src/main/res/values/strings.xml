@@ -32,6 +32,7 @@
 
     <!-- Doc Add -->
     <string name="doc_add_title">Add Document</string>
+    <string name="doc_edit_title">Edit Document</string>
     <string name="doc_add_scan">Scan Document</string>
     <string name="doc_add_scan_description">Use camera to scan pages</string>
     <string name="doc_add_import">Import from Files</string>

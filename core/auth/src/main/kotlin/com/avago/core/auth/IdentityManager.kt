@@ -71,14 +71,20 @@ class IdentityManager @Inject constructor(
 
     val isSignedIn: Boolean get() = _activeAccountId.value != null
 
+    // True when the active account is an anonymous/guest session (no real credentials).
+    // UI uses this to show "Sign In" prompts and keep the auth screen visible.
+    private val _activeAccountIsAnonymous = MutableStateFlow(false)
+    val activeAccountIsAnonymous: StateFlow<Boolean> = _activeAccountIsAnonymous.asStateFlow()
+
     private val _devRoleOverride = MutableStateFlow<String?>(null)
     val devRoleOverride: StateFlow<String?> = _devRoleOverride
 
     private val client: AvagoServiceClient get() = serviceClientProvider.get()
 
-    private fun setActiveAccount(accountId: String?, userId: String? = null) {
+    private fun setActiveAccount(accountId: String?, userId: String? = null, isAnonymous: Boolean = false) {
         _activeAccountId.value = accountId
         _activeUserId.value = userId
+        _activeAccountIsAnonymous.value = isAnonymous
         // Keep the token store's active pointer in sync so TokenProvider
         // can serve the correct credentials without depending on IdentityManager.
         tokenStore.activeAccountId = accountId
@@ -104,7 +110,7 @@ class IdentityManager @Inject constructor(
             val accounts = AccountManifest.load(appContext)
             if (accounts.isNotEmpty()) {
                 val last = accounts.last()
-                setActiveAccount(last.accountId, last.userId)
+                setActiveAccount(last.accountId, last.userId, isAnonymous = last.isAnonymous)
                 crashDiagnosticsProvider.get().setUserContext()
                 accountManifest.deduplicateAnonymousAccounts(last.accountId)
                 Timber.d("IdentityManager: restored account ${last.accountId}")
@@ -145,7 +151,7 @@ class IdentityManager @Inject constructor(
 
         val record = AccountRecord(accountId = accountId, isAnonymous = true)
         AccountManifest.addOrUpdate(context, record)
-        setActiveAccount(accountId)
+        setActiveAccount(accountId, isAnonymous = true)
 
         Timber.d("IdentityManager: provisioned as $accountId")
         registerPushTokenAsync()
@@ -168,6 +174,10 @@ class IdentityManager @Inject constructor(
             // Switch token provider to the new account before any subsequent API calls
             // so the Ktor bearer plugin sends the new token, not the old anonymous one.
             setActiveAccount(accountId)
+            // Ktor caches the bearer token from loadTokens internally. Clear that cache
+            // now so the next request re-invokes loadTokens and picks up the new token
+            // rather than reusing the previous session's (anonymous) cached token.
+            client.clearBearerTokenCache()
 
             // Fetch profile to fill in the manifest record
             val user = runCatching { client.getMe() }.getOrNull()
@@ -196,7 +206,7 @@ class IdentityManager @Inject constructor(
                     AccountRecord(accountId = acct.account_id, accountName = acct.name, role = acct.role)
                 )
             }
-            setActiveAccount(accountId, user?.user_id)
+            setActiveAccount(accountId, user?.user_id, isAnonymous = false)
             _accountsChanged.tryEmit(Unit)
             crashDiagnosticsProvider.get().setUserContext()
 
@@ -349,6 +359,8 @@ class IdentityManager @Inject constructor(
             val remaining = AccountManifest.load(context)
             setActiveAccount(remaining.lastOrNull()?.accountId)
         }
+        // Clear cached bearer token so the next session's sign-in starts fresh.
+        client.clearBearerTokenCache()
         Timber.d("IdentityManager: signed out of $accountId")
     }
 

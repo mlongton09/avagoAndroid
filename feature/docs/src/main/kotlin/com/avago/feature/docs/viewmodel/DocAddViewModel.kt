@@ -43,6 +43,17 @@ class DocAddViewModel @Inject constructor(
             val rawText: String,
             val ocrResult: DocOcrResponse?,
             val pageUris: List<Uri>,
+            // Pre-filled / user-editable fields
+            val name: String = "",
+            val docType: String = "receipt",
+            val vendor: String = "",
+            val amount: String = "",
+            val currency: String = "USD",
+            val purchaseDateMs: Long? = null,
+            val warrantyEndDateMs: Long? = null,
+            val notes: String = "",
+            // Edit mode — non-null means we are editing an existing doc
+            val existingDocId: String? = null,
         ) : UiState()
         object Saving : UiState()
         object Done : UiState()
@@ -58,6 +69,33 @@ class DocAddViewModel @Inject constructor(
 
     fun onImportRequested() {
         _state.value = UiState.Scanning
+    }
+
+    /** Load an existing doc for editing — skips the scan/OCR pipeline entirely. */
+    fun loadForEdit(docId: String) {
+        val accountId = identity.activeAccountId.value ?: return
+        viewModelScope.launch {
+            try {
+                val doc = dbFactory.get(accountId).docDao().getById(docId) ?: return@launch
+                _state.value = UiState.Form(
+                    rawText = doc.ocrRawText ?: "",
+                    ocrResult = null,
+                    pageUris = emptyList(),
+                    name = doc.name,
+                    docType = doc.docType ?: "receipt",
+                    vendor = doc.vendor ?: "",
+                    amount = doc.total?.toString() ?: "",
+                    currency = doc.currency ?: "USD",
+                    purchaseDateMs = doc.purchaseDate,
+                    warrantyEndDateMs = doc.warrantyEndDate,
+                    notes = doc.notes ?: "",
+                    existingDocId = docId,
+                )
+            } catch (e: Exception) {
+                Timber.e(e, "[DocAddViewModel] loadForEdit failed for docId=$docId")
+                _state.value = UiState.Error("Failed to load document")
+            }
+        }
     }
 
     fun processScannedPages(pageUris: List<Uri>, docType: String = "unknown") {
@@ -76,8 +114,6 @@ class DocAddViewModel @Inject constructor(
 
             val accountId = identity.activeAccountId.value
             val ocrResult: DocOcrResponse? = if (accountId != null && rawText.isNotBlank()) {
-                // Use the dedicated doc OCR extraction endpoint (mirrors iOS extractDocOcr).
-                // Falls back to null gracefully so the user can still fill in fields manually.
                 when (val result = serviceClient.extractDocOcr(
                     accountId = accountId,
                     ocrRawText = rawText,
@@ -89,20 +125,35 @@ class DocAddViewModel @Inject constructor(
                         null
                     }
                 }
-            } else {
-                null
-            }
+            } else null
 
-            _state.value = UiState.Form(rawText, ocrResult, pageUris)
+            _state.value = UiState.Form(
+                rawText = rawText,
+                ocrResult = ocrResult,
+                pageUris = pageUris,
+                name = "",
+                docType = docType.takeIf { it != "unknown" } ?: "receipt",
+                vendor = ocrResult?.vendor ?: "",
+                amount = ocrResult?.total?.toString() ?: "",
+                purchaseDateMs = ocrResult?.date?.parseToEpochMs(),
+                warrantyEndDateMs = ocrResult?.end_date?.parseToEpochMs(),
+            )
         }
     }
 
     fun save(
         name: String,
         docType: String,
+        vendor: String,
+        amount: String,
+        currency: String,
+        purchaseDateMs: Long?,
+        warrantyEndDateMs: Long?,
+        notes: String,
         rawText: String,
         ocrResult: DocOcrResponse? = null,
         assetId: String? = null,
+        existingDocId: String? = null,
     ) {
         val accountId = identity.activeAccountId.value
         if (accountId == null) {
@@ -116,39 +167,42 @@ class DocAddViewModel @Inject constructor(
         viewModelScope.launch {
             _state.value = UiState.Saving
             try {
-                val docId = UUID.randomUUID().toString()
+                val isEdit = existingDocId != null
+                val docId = existingDocId ?: UUID.randomUUID().toString()
                 val now = System.currentTimeMillis()
                 val db = dbFactory.get(accountId)
+
+                val existing = if (isEdit) db.docDao().getById(docId) else null
+
                 db.docDao().upsert(
                     DocEntity(
                         docId = docId,
                         accountId = accountId,
-                        assetId = assetId,
-                        entityId = null,
-                        entityType = null,
+                        assetId = existing?.assetId ?: assetId,
+                        entityId = existing?.entityId,
+                        entityType = existing?.entityType,
                         name = name.trim(),
                         docType = docType,
-                        mimeType = null,
-                        storageKey = null,
-                        downloadUrl = null,
-                        fileHash = null,
-                        fileSize = null,
-                        ocrRawText = rawText.takeIf { it.isNotBlank() },
-                        // Persist full OCR JSON for future reference / re-extraction.
-                        ocrExtractedJson = null,
-                        // Structured fields extracted by the server-side OCR pipeline.
-                        vendor = ocrResult?.vendor,
-                        total = ocrResult?.total,
-                        currency = null,
-                        purchaseDate = ocrResult?.date?.parseToEpochMs(),
-                        warrantyEndDate = ocrResult?.end_date?.parseToEpochMs(),
-                        uploadedBy = null,
-                        uploadedAt = null,
-                        createdAt = now,
+                        mimeType = existing?.mimeType,
+                        storageKey = existing?.storageKey,
+                        downloadUrl = existing?.downloadUrl,
+                        fileHash = existing?.fileHash,
+                        fileSize = existing?.fileSize,
+                        ocrRawText = rawText.takeIf { it.isNotBlank() } ?: existing?.ocrRawText,
+                        ocrExtractedJson = existing?.ocrExtractedJson,
+                        vendor = vendor.trim().takeIf { it.isNotBlank() },
+                        total = amount.toDoubleOrNull(),
+                        currency = currency.trim().takeIf { it.isNotBlank() },
+                        purchaseDate = purchaseDateMs,
+                        warrantyEndDate = warrantyEndDateMs,
+                        notes = notes.trim().takeIf { it.isNotBlank() },
+                        uploadedBy = existing?.uploadedBy,
+                        uploadedAt = existing?.uploadedAt,
+                        createdAt = existing?.createdAt ?: now,
                         updatedAt = now,
                         deletedAt = null,
-                        serverVersion = 0,
-                        seq = null,
+                        serverVersion = existing?.serverVersion ?: 0,
+                        seq = existing?.seq,
                     ),
                 )
                 db.syncQueueDao().enqueueWithDedup(
@@ -156,8 +210,8 @@ class DocAddViewModel @Inject constructor(
                         queueId = "doc_$docId",
                         entityType = "doc",
                         entityId = docId,
-                        operation = "insert",
-                        serverVersion = null,
+                        operation = if (isEdit) "update" else "insert",
+                        serverVersion = existing?.serverVersion,
                         payload = null,
                         syncStatus = "pending",
                         attempts = 0,
@@ -178,15 +232,6 @@ class DocAddViewModel @Inject constructor(
         _state.value = UiState.Idle
     }
 
-    // ---------------------------------------------------------------------------
-    // Helpers
-    // ---------------------------------------------------------------------------
-
-    /**
-     * Parses an ISO-8601 date string (yyyy-MM-dd) returned by the OCR extraction
-     * endpoint into milliseconds since epoch.  Returns null on any parse failure so
-     * that a bad server response never blocks a save.
-     */
     private fun String.parseToEpochMs(): Long? = try {
         LocalDate.parse(this, DateTimeFormatter.ISO_LOCAL_DATE)
             .atStartOfDay(ZoneId.systemDefault())

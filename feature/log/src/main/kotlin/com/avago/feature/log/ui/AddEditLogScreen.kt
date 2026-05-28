@@ -35,6 +35,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -116,7 +117,6 @@ fun AddEditLogScreen(
     modifier: Modifier = Modifier,
     viewModel: AddEditLogViewModel = hiltViewModel(),
 ) {
-    // Load existing entry for edit; also load inspection fields for the inspection log type
     LaunchedEffect(entryId) {
         if (entryId != null) viewModel.loadForEdit(entryId)
         else viewModel.loadCategories()
@@ -173,6 +173,19 @@ fun AddEditLogScreen(
     // Category picker state
     var showCategoryPicker by remember { mutableStateOf(false) }
 
+    // Inspection subtype picker
+    var showInspectionSubtypePicker by remember { mutableStateOf(false) }
+
+    // When log type switches to inspection, load subtypes and show picker if none selected
+    LaunchedEffect(form.logType) {
+        if (form.logType == "inspection") {
+            viewModel.loadInspectionSubtypes()
+            if (form.inspectionSubtype == null) {
+                showInspectionSubtypePicker = true
+            }
+        }
+    }
+
     // Date picker state
     var showDatePicker by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = form.entryDate)
@@ -204,10 +217,58 @@ fun AddEditLogScreen(
         GlobalCategoryPickerScreen(
             categories = buildLogCategoryItems(form.availableCategories),
             onSelect = { item ->
-                // "__none__" is the sentinel for "no category"
-                viewModel.onCategoryChanged(if (item.key == "__none__") null else item.displayName)
+                viewModel.onCategoryChanged(if (item.key == "__none__") null else item.key)
             },
             onDismiss = { showCategoryPicker = false },
+        )
+    }
+
+    // Inspection subtype picker dialog — matches iOS action sheet (Basic / Full / custom)
+    if (showInspectionSubtypePicker) {
+        val subtypes = form.availableInspectionSubtypes
+        val options: List<Pair<String, String?>> = if (subtypes.isEmpty()) {
+            listOf("Base" to "Basic", "Base" to "Full")
+        } else {
+            buildList {
+                if (subtypes.contains("Base")) {
+                    add("Base" to "Basic")
+                    add("Base" to "Full")
+                }
+                subtypes.filter { it != "Base" }.forEach { add(it to null) }
+            }
+        }
+        AlertDialog(
+            onDismissRequest = { showInspectionSubtypePicker = false },
+            title = { Text("Inspection Type") },
+            text = {
+                Column {
+                    options.forEachIndexed { idx, (subtype, mode) ->
+                        val label = when {
+                            mode == "Basic" -> "Basic"
+                            mode == "Full" -> "Full"
+                            else -> subtype
+                        }
+                        TextButton(
+                            onClick = {
+                                viewModel.setInspectionSubtype(subtype, mode)
+                                showInspectionSubtypePicker = false
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                label,
+                                modifier = Modifier.fillMaxWidth(),
+                                style = MaterialTheme.typography.bodyLarge,
+                            )
+                        }
+                        if (idx < options.lastIndex) HorizontalDivider()
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showInspectionSubtypePicker = false }) { Text("Cancel") }
+            },
         )
     }
 
@@ -324,7 +385,10 @@ fun AddEditLogScreen(
             FormSection {
                 FormRow(
                     label = "Category",
-                    value = form.category ?: "Select category",
+                    value = form.category?.replace("_", " ")
+                        ?.split(" ")
+                        ?.joinToString(" ") { it.replaceFirstChar { c -> c.uppercaseChar() } }
+                        ?: "Select category",
                     onClick = { showCategoryPicker = true },
                     isPlaceholder = form.category == null,
                 )
@@ -616,17 +680,35 @@ fun AddEditLogScreen(
             if (form.logType == "inspection") {
                 HorizontalDivider()
                 FormSection {
-                    Text(
-                        text = "Inspection Checklist",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.SemiBold,
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Inspection Checklist",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            if (form.inspectionSubtype != null) {
+                                val subtypeLabel = when {
+                                    form.inspectionMode != null ->
+                                        "${form.inspectionMode} (${form.inspectionSubtype})"
+                                    else -> form.inspectionSubtype.orEmpty()
+                                }
+                                Text(
+                                    text = subtypeLabel,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        }
+                        TextButton(onClick = { showInspectionSubtypePicker = true }) {
+                            Text(if (form.inspectionSubtype == null) "Select Type" else "Change")
+                        }
+                    }
                     Spacer(Modifier.height(8.dp))
-                    // Render config-driven inspection fields loaded from ConfigEntity.
-                    // Fields are loaded via loadInspectionFields() in the ViewModel whenever
-                    // the asset or log type changes. When no fields are configured for this
-                    // asset type the renderer is skipped and an empty-state message is shown.
                     if (form.inspectionFields.isNotEmpty()) {
                         InspectionFormRenderer(
                             fields = form.inspectionFields,
@@ -814,9 +896,16 @@ private fun FormRow(
  * the user can clear the selection.
  */
 private fun buildLogCategoryItems(availableCategories: List<String>): List<CategoryItem> {
-    val none = CategoryItem(key = "__none__", displayName = "None")
+    val none = CategoryItem(key = "__none__", displayName = "None", group = "COMMON")
     val rest = availableCategories.map { cat ->
-        CategoryItem(key = cat, displayName = cat)
+        val iconName = categoryIconName(cat)
+        CategoryItem(
+            key = cat,
+            displayName = cat.replace("_", " ").split(" ")
+                .joinToString(" ") { it.replaceFirstChar { c -> c.uppercaseChar() } },
+            color = categoryBadgeColor(iconName),
+            group = categoryGroup(cat),
+        )
     }
     return listOf(none) + rest
 }

@@ -60,14 +60,19 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import timber.log.Timber
 import java.io.IOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Provider
 import javax.inject.Singleton
@@ -76,6 +81,7 @@ import kotlin.random.Random
 
 @Singleton
 class SyncEngine @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     private val identity: IdentityManager,
     private val dbFactory: DatabaseFactory,
     private val client: AvagoServiceClient,
@@ -105,6 +111,21 @@ class SyncEngine @Inject constructor(
     // ConnectivityMonitor observes this to trigger a re-sync on connectivity recovery.
     // Mirrors iOS SyncEngine.lastSyncFailed.
     private val lastSyncFailed = AtomicBoolean(false)
+
+    // Epoch-ms after which rate-limited syncs may resume. Persisted to SharedPreferences
+    // so app restarts respect an active backoff and don't fire a request that extends the
+    // server's rate-limit window further.
+    private val rateLimitPrefs by lazy {
+        appContext.getSharedPreferences("sync_rate_limit", Context.MODE_PRIVATE)
+    }
+    private val rateLimitedUntilMs = AtomicLong(
+        rateLimitPrefs.getLong("rate_limited_until_ms", 0L)
+    )
+
+    private fun setRateLimitedUntil(epochMs: Long) {
+        rateLimitedUntilMs.set(epochMs)
+        rateLimitPrefs.edit().putLong("rate_limited_until_ms", epochMs).apply()
+    }
 
     private val _state = MutableStateFlow<SyncState>(SyncState.Idle)
     val state: StateFlow<SyncState> = _state.asStateFlow()
@@ -162,21 +183,27 @@ class SyncEngine @Inject constructor(
     // Mirrors iOS SyncEngine hasPendingPush guard (asset, log, work_order).
     private val pendingPushGuardTypes = setOf("asset", "log", "work_order")
 
-    /** Entity types pulled in canonical order. Must match server-supported types only. */
-    private val pullEntityTypes = listOf(
+    // Priority entities are pulled first so the asset list and work orders are visible
+    // as soon as possible. The sync gate opens after these complete.
+    private val priorityPullTypes = listOf(
         "asset", "log", "log_cost_line",
         "work_order", "wo_assignment", "wo_checklist_item", "wo_comment", "wo_template",
-        "tech_profile",
+        "tech_profile", "location",
+    )
+
+    // Secondary entities are pulled after the gate opens; the UI is already populated by then.
+    private val secondaryPullTypes = listOf(
         "inventory", "part", "stocking_level",
         "vendor", "purchase_order", "po_line",
         "grn", "grn_line",
         "cycle_count", "cycle_count_line",
         "part_issue", "part_issue_line",
         "doc", "photo",
-        "location",
         "label_template",
         "item", "gl_account", "job", "service",
     )
+
+    private val pullEntityTypes get() = priorityPullTypes + secondaryPullTypes
 
     // ---------------------------------------------------------------------------
     // Public API
@@ -263,9 +290,23 @@ class SyncEngine @Inject constructor(
     // ---------------------------------------------------------------------------
 
     private suspend fun runSync(pullAfterPush: Boolean): SyncResult {
+        // Wait for auth initialisation to complete. initOnLaunch() always sets
+        // isInitialized = true (even on failure) via its finally block, so this
+        // never blocks indefinitely. Without this guard, the foreground-sync
+        // lifecycle observer and observeAccountChangesForSync() can both fire
+        // before tokens are in the store, producing a flood of 401s.
+        identity.isInitialized.filter { it }.first()
+
         val accountId = identity.getActiveAccountId()
         if (accountId == null) {
             Timber.d("[SyncEngine] No active account — skipping sync")
+            return SyncResult.Partial(0, 0)
+        }
+
+        val backoffUntil = rateLimitedUntilMs.get()
+        if (backoffUntil > System.currentTimeMillis()) {
+            val remainingSec = (backoffUntil - System.currentTimeMillis()) / 1000
+            Timber.w("[SyncEngine] Rate-limited — skipping sync, ${remainingSec}s remaining")
             return SyncResult.Partial(0, 0)
         }
 
@@ -353,7 +394,13 @@ class SyncEngine @Inject constructor(
                     }
                 } catch (e: NetworkException) {
                     db.syncQueueDao().resetInFlightToPending()
-                    Timber.e(e, "[SyncEngine] Push HTTP failed")
+                    if (e.code == 429) {
+                        val waitSec = e.retryAfterSeconds ?: 900L
+                        setRateLimitedUntil(System.currentTimeMillis() + waitSec * 1_000L)
+                        Timber.w("[SyncEngine] Push got 429 — backing off ${waitSec}s")
+                    } else {
+                        Timber.e(e, "[SyncEngine] Push HTTP failed")
+                    }
                     _state.value = SyncState.Error(e.message)
                     return SyncResult.Failed(e)
                 } catch (e: Exception) {
@@ -377,51 +424,62 @@ class SyncEngine @Inject constructor(
         _state.value = SyncState.Pulling
         var pulledCount = 0
 
-        for (entityType in pullEntityTypes) {
-            try {
-                var lastSeq = db.syncMetadataDao().getWatermark(entityType) ?: 0L
-                // Ensure the metadata row exists so we can update it
-                if (lastSeq == 0L) {
-                    db.syncMetadataDao().upsert(SyncMetadataEntity(entityType, 0L, 0L))
-                }
-
-                var hasMore = true
-                while (hasMore) {
-                    val response = withRetry<SyncPullResponse> { client.syncPull(accountId, entityType, lastSeq) }
-                    Timber.d("[SyncEngine] Pull $entityType: ${response.items.size} item(s), hasMore=${response.has_more}, maxSeq=${response.max_seq}")
-
-                    db.withTransaction {
-                        for (item in response.items) {
-                            upsertPulledItem(accountId, entityType, item)
-                            pulledCount++
-                        }
-                        db.syncMetadataDao().updateWatermark(entityType, response.max_seq)
+        // Returns a SyncResult.Failed to abort the outer function, or null to continue.
+        suspend fun pullGroup(types: List<String>): SyncResult.Failed? {
+            for (entityType in types) {
+                try {
+                    var lastSeq = db.syncMetadataDao().getWatermark(entityType) ?: 0L
+                    if (lastSeq == 0L) {
+                        db.syncMetadataDao().upsert(SyncMetadataEntity(entityType, 0L, 0L))
                     }
-                    lastSeq = response.max_seq
-                    hasMore = response.has_more && response.items.isNotEmpty()
+
+                    var hasMore = true
+                    while (hasMore) {
+                        val response = withRetry<SyncPullResponse> { client.syncPull(accountId, entityType, lastSeq) }
+                        Timber.d("[SyncEngine] Pull $entityType: ${response.items.size} item(s), hasMore=${response.has_more}, maxSeq=${response.max_seq}")
+
+                        db.withTransaction {
+                            for (item in response.items) {
+                                upsertPulledItem(accountId, entityType, item)
+                                pulledCount++
+                            }
+                            db.syncMetadataDao().updateWatermark(entityType, response.max_seq)
+                        }
+                        lastSeq = response.max_seq
+                        hasMore = response.has_more && response.items.isNotEmpty()
+                    }
+                } catch (e: NetworkException) {
+                    if (e.code == 403) {
+                        Timber.w("[SyncEngine] Pull $entityType got 403 — aborting sync, triggering re-auth")
+                        identity.onRefreshFailed()
+                        return SyncResult.Failed(e)
+                    }
+                    if (e.code == 429) {
+                        val waitSec = e.retryAfterSeconds ?: 900L
+                        val until = System.currentTimeMillis() + waitSec * 1_000L
+                        setRateLimitedUntil(until)
+                        Timber.w("[SyncEngine] Pull $entityType got 429 — backing off ${waitSec}s")
+                        _state.value = SyncState.Error("Rate limited")
+                        lastSyncFailed.set(true)
+                        return SyncResult.Failed(e)
+                    }
+                    Timber.e(e, "[SyncEngine] Pull $entityType failed (HTTP ${e.code}) — continuing")
+                } catch (e: Exception) {
+                    Timber.e(e, "[SyncEngine] Pull $entityType failed — continuing")
                 }
-            } catch (e: NetworkException) {
-                if (e.code == 403) {
-                    Timber.w("[SyncEngine] Pull $entityType got 403 — aborting sync, triggering re-auth")
-                    identity.onRefreshFailed()
-                    return SyncResult.Failed(e)
-                }
-                if (e.code == 429) {
-                    Timber.w("[SyncEngine] Pull $entityType got 429 — rate limited, aborting pull phase")
-                    _state.value = SyncState.Error("Rate limited")
-                    lastSyncFailed.set(true)
-                    return SyncResult.Failed(e)
-                }
-                Timber.e(e, "[SyncEngine] Pull $entityType failed (HTTP ${e.code}) — continuing")
-            } catch (e: Exception) {
-                Timber.e(e, "[SyncEngine] Pull $entityType failed — continuing")
             }
+            return null
         }
 
-        // Notify the delta applier that the first full sync has completed for this account
+        // Pull asset/WO/log/location entities first so the landing screens show data immediately.
+        pullGroup(priorityPullTypes)?.let { return it }
+        // Open the gate now — asset list is populated and the UI can render while the
+        // slower secondary entities (inventory, docs, vendor, etc.) continue downloading.
         deltaApplier.get().markFirstSyncComplete(accountId)
-        // Open the sync gate so repository write paths can proceed
         syncGate.open()
+
+        // Pull remaining entity types in the background while the UI is already responsive.
+        pullGroup(secondaryPullTypes)?.let { return it }
 
         // Pull cross-device user preferences (non-fatal if this fails)
         try {
@@ -437,6 +495,7 @@ class SyncEngine @Inject constructor(
             Timber.e(e, "[SyncEngine] PhotoUploader sweep failed")
         }
 
+        setRateLimitedUntil(0L)
         _state.value = SyncState.Idle
         return SyncResult.Success
     }
@@ -607,6 +666,8 @@ class SyncEngine @Inject constructor(
                             lastCompletedAt = isoToMs(item.str("last_completed_at")),
                             nextDueAt = isoToMs(item.str("next_due_at")),
                             isActive = item.bool("is_active") ?: true,
+                            timezone = item.str("timezone"),
+                            notes = item.str("notes"),
                             createdAt = isoToMs(item.str("created_at")) ?: now,
                             updatedAt = isoToMs(item.str("updated_at")) ?: now,
                             deletedAt = isoToMs(item.str("deleted_at")),
@@ -1097,6 +1158,7 @@ class SyncEngine @Inject constructor(
                             currency = item.str("currency"),
                             purchaseDate = isoToMs(item.str("purchase_date")),
                             warrantyEndDate = isoToMs(item.str("warranty_end_date")),
+                            notes = item.str("notes"),
                             uploadedBy = item.str("uploaded_by"),
                             uploadedAt = isoToMs(item.str("uploaded_at")),
                             createdAt = isoToMs(item.str("created_at")) ?: now,
