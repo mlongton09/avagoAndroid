@@ -9,7 +9,6 @@ import com.avago.core.seed.model.DocTypeSeed
 import com.avago.core.seed.model.InspectionTypeSeed
 import com.avago.core.seed.model.InventoryCategorySeed
 import com.avago.core.seed.model.LogCategoryGroupSeed
-import com.avago.core.sync.SyncGate
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -23,23 +22,18 @@ class ConfigSeeder @Inject constructor(
     @ApplicationContext private val context: Context,
     private val dbFactory: DatabaseFactory,
     private val appLimits: AppLimits,
-    private val syncGate: SyncGate,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
     /**
      * Seeds the local Room database with bundled JSON config data on first launch.
-     * Safe to call on every app start — it checks for an existing "asset_types" config
-     * before inserting anything.
+     * Safe to call on every app start — guard is a [getByKey] existence check on the
+     * canonical "system/asset_types" row, matching iOS ConfigSeeder.seedIfNeeded().
+     *
+     * Config IDs are deterministic (UUID v3 from "scope:key") so re-seeding after a
+     * watermark reset produces the same primary keys rather than orphaned duplicates.
      */
     suspend fun seedIfNeeded(accountId: String) {
-        // If the sync gate is already open, server data has been received — skip seeding
-        // to avoid overwriting fresh server config with stale bundled defaults.
-        if (syncGate.isOpenNow) {
-            Timber.d("ConfigSeeder: sync gate is open (not first launch), skipping seed")
-            return
-        }
-
         val db = dbFactory.get(accountId)
         val existing = db.configDao().getByKey("system", "asset_types")
         if (existing != null) {
@@ -59,19 +53,25 @@ class ConfigSeeder @Inject constructor(
 
     // -------------------------------------------------------------------------
 
+    /** Deterministic UUID v3 from scope+key — matches iOS stable config ID approach.
+     *  Re-seeding after a watermark reset produces the same PK, preventing orphaned rows. */
+    private fun stableId(scope: String, key: String): String =
+        UUID.nameUUIDFromBytes("$scope:$key".toByteArray(Charsets.UTF_8)).toString()
+
     private suspend fun seedAssetTypes(
         accountId: String,
         db: com.avago.core.data.db.AvagoDatabase,
     ) {
         val jsonString = readAsset("seed/asset_types.json")
         val items = json.decodeFromString<List<AssetTypeSeed>>(jsonString)
+        val key = "asset_types"
         val now = System.currentTimeMillis()
         db.configDao().upsert(
             ConfigEntity(
-                configId = UUID.randomUUID().toString(),
+                configId = stableId("system", key),
                 accountId = accountId,
                 scope = "system",
-                key = "asset_types",
+                key = key,
                 value = json.encodeToString(items),
                 version = 1,
                 createdAt = now,
@@ -87,13 +87,14 @@ class ConfigSeeder @Inject constructor(
     ) {
         val jsonString = readAsset("seed/log_categories.json")
         val groups = json.decodeFromString<List<LogCategoryGroupSeed>>(jsonString)
+        val key = "log_categories"
         val now = System.currentTimeMillis()
         db.configDao().upsert(
             ConfigEntity(
-                configId = UUID.randomUUID().toString(),
+                configId = stableId("system", key),
                 accountId = accountId,
                 scope = "system",
-                key = "log_categories",
+                key = key,
                 value = json.encodeToString(groups),
                 version = 1,
                 createdAt = now,
@@ -109,13 +110,14 @@ class ConfigSeeder @Inject constructor(
     ) {
         val jsonString = readAsset("seed/inspection_types.json")
         val items = json.decodeFromString<List<InspectionTypeSeed>>(jsonString)
+        val key = "inspection_types"
         val now = System.currentTimeMillis()
         db.configDao().upsert(
             ConfigEntity(
-                configId = UUID.randomUUID().toString(),
+                configId = stableId("system", key),
                 accountId = accountId,
                 scope = "system",
-                key = "inspection_types",
+                key = key,
                 value = json.encodeToString(items),
                 version = 1,
                 createdAt = now,
@@ -131,13 +133,14 @@ class ConfigSeeder @Inject constructor(
     ) {
         val jsonString = readAsset("seed/doc_types.json")
         val items = json.decodeFromString<List<DocTypeSeed>>(jsonString)
+        val key = "doc_types"
         val now = System.currentTimeMillis()
         db.configDao().upsert(
             ConfigEntity(
-                configId = UUID.randomUUID().toString(),
+                configId = stableId("system", key),
                 accountId = accountId,
                 scope = "system",
-                key = "doc_types",
+                key = key,
                 value = json.encodeToString(items),
                 version = 1,
                 createdAt = now,
@@ -153,13 +156,14 @@ class ConfigSeeder @Inject constructor(
     ) {
         val jsonString = readAsset("seed/inventory_categories.json")
         val items = json.decodeFromString<List<InventoryCategorySeed>>(jsonString)
+        val key = "inventory_categories"
         val now = System.currentTimeMillis()
         db.configDao().upsert(
             ConfigEntity(
-                configId = UUID.randomUUID().toString(),
+                configId = stableId("system", key),
                 accountId = accountId,
                 scope = "system",
-                key = "inventory_categories",
+                key = key,
                 value = json.encodeToString(items),
                 version = 1,
                 createdAt = now,
@@ -175,13 +179,14 @@ class ConfigSeeder @Inject constructor(
     ) {
         val jsonString = readAsset("seed/limits.json")
         val limits = json.decodeFromString<AppLimitsSeed>(jsonString)
+        val key = "limits"
         val now = System.currentTimeMillis()
         db.configDao().upsert(
             ConfigEntity(
-                configId = UUID.randomUUID().toString(),
+                configId = stableId("system", key),
                 accountId = accountId,
                 scope = "system",
-                key = "limits",
+                key = key,
                 value = json.encodeToString(limits),
                 version = 1,
                 createdAt = now,

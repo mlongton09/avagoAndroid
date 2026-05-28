@@ -3,7 +3,10 @@ package com.avago.feature.chat.realtime
 import com.avago.core.auth.IdentityManager
 import com.avago.core.network.model.ChatMessageResponse
 import com.avago.core.sync.ApplicationScope
+import com.avago.core.sync.ConnectivityMonitor
 import com.avago.feature.chat.data.ChatRepository
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlin.random.Random
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -45,6 +48,7 @@ class ChatRealtimeClient @Inject constructor(
     private val repository: ChatRepository,
     @ApplicationScope private val scope: CoroutineScope,
     private val backgroundSync: BackgroundSyncCoordinator,
+    private val connectivityMonitor: ConnectivityMonitor,
 ) {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
@@ -103,6 +107,15 @@ class ChatRealtimeClient @Inject constructor(
         wsJob = scope.launch {
             var backoffMs = 1_000L
             while (isActive) {
+                // Wait for network before attempting to connect — mirrors iOS NWPathMonitor gate.
+                // Avoids hammering connection attempts (and wasting battery) when fully offline.
+                if (!connectivityMonitor.networkStatus.first()) {
+                    Timber.d("ChatWS: offline — waiting for network before connecting")
+                    connectivityMonitor.networkStatus.filter { it }.first()
+                    backoffMs = 1_000L // reset backoff on fresh network arrival
+                    Timber.d("ChatWS: network available — reconnecting")
+                }
+
                 val token = identity.getAccessToken(accountId)
                 if (token == null) {
                     Timber.w("ChatWS: no token for $accountId, retrying in ${backoffMs}ms")
