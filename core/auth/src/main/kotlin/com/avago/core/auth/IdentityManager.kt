@@ -114,16 +114,6 @@ class IdentityManager @Inject constructor(
                 crashDiagnosticsProvider.get().setUserContext()
                 accountManifest.deduplicateAnonymousAccounts(last.accountId)
                 Timber.d("IdentityManager: restored account ${last.accountId}")
-                val userId = last.userId
-                if (userId != null) {
-                    @Suppress("OPT_IN_USAGE")
-                    GlobalScope.launch(Dispatchers.IO) {
-                        validateRoleFromMembersList(last.accountId, userId)
-                    }
-                }
-                // Refresh the account list from the server on every launch so secondary
-                // accounts (e.g. added on another device) appear without requiring sign-out.
-                if (!last.isAnonymous) fetchMyAccountsAsync()
             } else {
                 Timber.d("IdentityManager: no accounts on disk, provisioning")
                 provisionConnected(appContext)
@@ -268,13 +258,8 @@ class IdentityManager @Inject constructor(
         try {
             val reAuthed = reAuthenticateSilently()
             if (!reAuthed) {
-                val accountId = getActiveAccountId()
-                if (accountId != null && !accountId.startsWith("anon_")) {
-                    val namedReauthed = reAuthenticateNamedAccount(accountId)
-                    if (!namedReauthed) signOut(accountId)
-                } else if (accountId != null) {
-                    signOut(accountId)
-                }
+                val accountId = getActiveAccountId() ?: return
+                signOut(accountId)
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
             Timber.d("IdentityManager: onRefreshFailed cancelled — likely SyncWorker replaced, ignoring")
