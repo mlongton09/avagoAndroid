@@ -35,6 +35,12 @@ class SyncWorker @AssistedInject constructor(
                     // the server again and extend the rate-limit window further.
                     Timber.w("SyncWorker: rate-limited — backoff gate set, not retrying")
                     Result.success()
+                } else if (error is NetworkException && error.code == 403) {
+                    // 403 is a permanent auth failure for this account — retrying
+                    // will never succeed. Let the sign-in flow re-queue sync with
+                    // the correct account via ExistingWorkPolicy.REPLACE.
+                    Timber.w("SyncWorker: account access denied (403) — not retrying")
+                    Result.success()
                 } else {
                     Timber.e(error, "SyncWorker: sync failed")
                     Result.retry()

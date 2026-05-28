@@ -315,7 +315,17 @@ class AvagoServiceClient @Inject constructor(
             parameter("limit", limit)
         }
         if (!response.status.isSuccess()) {
-            throw NetworkException(response.status.value, "syncPull $entityType HTTP ${response.status.value}")
+            val stale = if (response.status.value == 403) {
+                runCatching {
+                    val body = response.bodyAsText()
+                    body.contains("\"stale_permissions\":true")
+                }.getOrDefault(false)
+            } else false
+            throw NetworkException(
+                response.status.value,
+                "syncPull $entityType HTTP ${response.status.value}",
+                stalePermissions = stale,
+            )
         }
         response.body()
     }
@@ -1767,5 +1777,6 @@ class NetworkException(
     val code: Int,
     override val message: String,
     val retryAfterSeconds: Long? = null,
+    val stalePermissions: Boolean = false,
 ) : Exception(message)
 class UnauthorizedException : Exception("Unauthorized")

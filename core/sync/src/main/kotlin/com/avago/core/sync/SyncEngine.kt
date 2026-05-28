@@ -5,6 +5,7 @@ import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.AvagoDatabase
 import com.avago.core.data.db.entity.AssetEntity
+import com.avago.core.data.db.entity.ConfigEntity
 import com.avago.core.data.db.entity.CycleCountEntity
 import com.avago.core.data.db.entity.CycleCountLineEntity
 import com.avago.core.data.db.entity.DocEntity
@@ -50,7 +51,10 @@ import com.avago.core.network.model.SyncPushResponse
 import com.avago.core.ui.AvagoToast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.Instant
@@ -130,6 +134,11 @@ class SyncEngine @Inject constructor(
     private val _state = MutableStateFlow<SyncState>(SyncState.Idle)
     val state: StateFlow<SyncState> = _state.asStateFlow()
 
+    // Emits the account_id when a non-stale 403 is received — the account is permanently
+    // inaccessible. Mirrors iOS forceReprovision() triggered from AvagoServiceClient+Sync.
+    private val _accountGoneEvents = kotlinx.coroutines.flow.MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val accountGoneEvents: kotlinx.coroutines.flow.SharedFlow<String> = _accountGoneEvents
+
     init {
         // Observe connectivity: when the path recovers after a failure, trigger a sync.
         // Mirrors iOS SyncEngine.setupPathMonitor → lastSyncFailed guard.
@@ -188,7 +197,7 @@ class SyncEngine @Inject constructor(
     private val priorityPullTypes = listOf(
         "asset", "log", "log_cost_line",
         "work_order", "wo_assignment", "wo_checklist_item", "wo_comment", "wo_template",
-        "tech_profile", "location",
+        "tech_profile", "location", "config",
     )
 
     // Secondary entities are pulled after the gate opens; the UI is already populated by then.
@@ -282,6 +291,30 @@ class SyncEngine @Inject constructor(
         // Also clear any rate-limit backoff so the next sign-in can sync immediately.
         setRateLimitedUntil(0L)
         Timber.d("[SyncEngine] resetAllWatermarks: cleared watermarks and rate-limit backoff for $accountId")
+    }
+
+    /**
+     * Self-healing fallback for empty config tables — mirrors iOS forceConfigResyncIfMissing().
+     * Call from any UI screen whose config-backed picker finds zero rows. Resets the config
+     * watermark and triggers a one-shot sync so pickers repopulate without a full reinstall.
+     * Guard prevents multiple calls from racing within the same app launch.
+     */
+    private val configResyncGuard = AtomicBoolean(false)
+
+    suspend fun forceConfigResyncIfMissing() {
+        if (!configResyncGuard.compareAndSet(false, true)) return
+        val accountId = identity.getActiveAccountId() ?: run {
+            configResyncGuard.set(false)
+            return
+        }
+        val db = dbFactory.get(accountId)
+        if (db.configDao().count() > 0) {
+            configResyncGuard.set(false)
+            return
+        }
+        Timber.w("[SyncEngine] Config table is empty — resetting watermark and re-pulling")
+        db.syncMetadataDao().resetWatermark("config")
+        sync()
     }
 
     /** Clear any rate-limit backoff so the next sync runs immediately. Call on sign-in. */
@@ -430,56 +463,67 @@ class SyncEngine @Inject constructor(
         // Pull phase
         // -----------------------------------------------------------------------
         _state.value = SyncState.Pulling
-        var pulledCount = 0
+        val pulledCount = AtomicLong(0L)
 
-        // Returns a SyncResult.Failed to abort the outer function, or null to continue.
+        // Pulls all entity types concurrently (mirrors iOS pullDataEntitiesInParallel).
+        // supervisorScope lets each entity pull fail independently; fatal errors (403/429)
+        // are collected and returned after all tasks finish rather than aborting mid-flight.
         suspend fun pullGroup(types: List<String>): SyncResult.Failed? {
-            for (entityType in types) {
-                try {
-                    var lastSeq = db.syncMetadataDao().getWatermark(entityType) ?: 0L
-                    if (lastSeq == 0L) {
-                        db.syncMetadataDao().upsert(SyncMetadataEntity(entityType, 0L, 0L))
-                    }
-
-                    var hasMore = true
-                    while (hasMore) {
-                        val response = withRetry<SyncPullResponse> { client.syncPull(accountId, entityType, lastSeq) }
-                        Timber.d("[SyncEngine] Pull $entityType: ${response.items.size} item(s), hasMore=${response.has_more}, maxSeq=${response.max_seq}")
-
-                        db.withTransaction {
-                            for (item in response.items) {
-                                upsertPulledItem(accountId, entityType, item)
-                                pulledCount++
+            val fatalError = java.util.concurrent.atomic.AtomicReference<SyncResult.Failed?>(null)
+            supervisorScope {
+                types.map { entityType ->
+                    async {
+                        try {
+                            var lastSeq = db.syncMetadataDao().getWatermark(entityType) ?: 0L
+                            if (lastSeq == 0L) {
+                                db.syncMetadataDao().upsert(SyncMetadataEntity(entityType, 0L, 0L))
                             }
-                            db.syncMetadataDao().updateWatermark(entityType, response.max_seq)
+
+                            var hasMore = true
+                            while (hasMore) {
+                                val response = withRetry<SyncPullResponse> { client.syncPull(accountId, entityType, lastSeq) }
+                                Timber.d("[SyncEngine] Pull $entityType: ${response.items.size} item(s), hasMore=${response.has_more}, maxSeq=${response.max_seq}")
+
+                                db.withTransaction {
+                                    for (item in response.items) {
+                                        upsertPulledItem(accountId, entityType, item)
+                                        pulledCount.incrementAndGet()
+                                    }
+                                    db.syncMetadataDao().updateWatermark(entityType, response.max_seq)
+                                }
+                                lastSeq = response.max_seq
+                                hasMore = response.has_more && response.items.isNotEmpty()
+                            }
+                        } catch (e: NetworkException) {
+                            if (e.code == 403) {
+                                if (e.stalePermissions) {
+                                    Timber.w("[SyncEngine] Pull $entityType got 403 stale-permissions — refreshing cache")
+                                    val curAccountId = identity.getActiveAccountId()
+                                    if (curAccountId != null) client.notifyPermissionsStale(curAccountId)
+                                } else {
+                                    Timber.w("[SyncEngine] Pull $entityType got 403 — account gone, signalling re-auth")
+                                    val curAccountId = identity.getActiveAccountId()
+                                    if (curAccountId != null) _accountGoneEvents.tryEmit(curAccountId)
+                                }
+                                fatalError.compareAndSet(null, SyncResult.Failed(e))
+                            } else if (e.code == 429) {
+                                val waitSec = e.retryAfterSeconds ?: 900L
+                                val until = System.currentTimeMillis() + waitSec * 1_000L
+                                setRateLimitedUntil(until)
+                                Timber.w("[SyncEngine] Pull $entityType got 429 — backing off ${waitSec}s")
+                                _state.value = SyncState.Error("Rate limited")
+                                lastSyncFailed.set(true)
+                                fatalError.compareAndSet(null, SyncResult.Failed(e))
+                            } else {
+                                Timber.e(e, "[SyncEngine] Pull $entityType failed (HTTP ${e.code}) — continuing")
+                            }
+                        } catch (e: Exception) {
+                            Timber.e(e, "[SyncEngine] Pull $entityType failed — continuing")
                         }
-                        lastSeq = response.max_seq
-                        hasMore = response.has_more && response.items.isNotEmpty()
                     }
-                } catch (e: NetworkException) {
-                    if (e.code == 403) {
-                        // 403 means the current token doesn't have access to this account.
-                        // Do NOT re-auth — that creates a flood loop and won't help if
-                        // stale_permissions=false. The bearer cache fix (clearBearerTokenCache)
-                        // is the correct remedy; here we just abort cleanly.
-                        Timber.w("[SyncEngine] Pull $entityType got 403 — aborting sync")
-                        return SyncResult.Failed(e)
-                    }
-                    if (e.code == 429) {
-                        val waitSec = e.retryAfterSeconds ?: 900L
-                        val until = System.currentTimeMillis() + waitSec * 1_000L
-                        setRateLimitedUntil(until)
-                        Timber.w("[SyncEngine] Pull $entityType got 429 — backing off ${waitSec}s")
-                        _state.value = SyncState.Error("Rate limited")
-                        lastSyncFailed.set(true)
-                        return SyncResult.Failed(e)
-                    }
-                    Timber.e(e, "[SyncEngine] Pull $entityType failed (HTTP ${e.code}) — continuing")
-                } catch (e: Exception) {
-                    Timber.e(e, "[SyncEngine] Pull $entityType failed — continuing")
-                }
+                }.awaitAll()
             }
-            return null
+            return fatalError.get()
         }
 
         // Pull asset/WO/log/location entities first so the landing screens show data immediately.
@@ -528,8 +572,9 @@ class SyncEngine @Inject constructor(
             val (table, pkCol, jsonPkKey) = versionInfo
             val entityId = item.str(jsonPkKey)
             if (entityId != null) {
+                var localVersion = 0L
                 try {
-                    val localVersion = queryLocalServerVersion(db, table, pkCol, entityId)
+                    localVersion = queryLocalServerVersion(db, table, pkCol, entityId)
                     if (incomingVersion > 0L && incomingVersion <= localVersion) {
                         Timber.v("[SyncEngine] Skip pull $entityType $entityId — v$incomingVersion <= local v$localVersion")
                         return
@@ -542,6 +587,13 @@ class SyncEngine @Inject constructor(
                             return
                         }
                     } catch (_: Exception) { /* proceed */ }
+                }
+                // Soft-delete guard: if the server record is already deleted and we have no
+                // local row, skip — no point inserting a ghost deleted row.
+                // Mirrors iOS SyncEngine soft-delete-aware path.
+                if (item.str("deleted_at") != null && localVersion == 0L) {
+                    Timber.v("[SyncEngine] Skip pull $entityType $entityId — soft-deleted, not local")
+                    return
                 }
             }
         }
@@ -1451,6 +1503,22 @@ class SyncEngine @Inject constructor(
                             deletedAt = isoToMs(item.str("deleted_at")),
                             serverVersion = item.lng("server_version") ?: 0L,
                             seq = item.lng("seq"),
+                        )
+                    )
+                }
+
+                "config" -> {
+                    val now = System.currentTimeMillis()
+                    db.configDao().upsert(
+                        ConfigEntity(
+                            configId = item.str("config_id") ?: return,
+                            accountId = item.str("account_id"),
+                            scope = item.str("scope") ?: "",
+                            key = item.str("key") ?: return,
+                            value = item.str("value") ?: "",
+                            version = item.lng("version") ?: 0L,
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
                         )
                     )
                 }

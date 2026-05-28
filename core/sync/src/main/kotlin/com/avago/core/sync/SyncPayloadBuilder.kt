@@ -251,7 +251,7 @@ class SyncPayloadBuilder @Inject constructor(
                         put("inventory_id", e.inventoryId)
                         put("account_id", e.accountId)
                         put("part_id", e.partId)
-                        e.locationId?.let { put("location", it) }
+                        e.locationId?.let { put("location_id", it) }
                         e.binId?.let { put("bin_id", it) }
                         put("quantity_on_hand", e.quantityOnHand)
                         put("status", e.status)

@@ -50,10 +50,14 @@ class SignInViewModel @Inject constructor(
         viewModelScope.launch {
             _state.value = SignInState.Loading
             try {
-                val provider = OAuthProvider.newBuilder("google.com").build()
-                val authResult = FirebaseAuth.getInstance()
-                    .startActivityForSignInWithProvider(context, provider)
-                    .await()
+                val auth = FirebaseAuth.getInstance()
+                // Resume an interrupted OAuth flow (Activity was destroyed while Chrome Custom Tab
+                // was open — Firebase stored the PKCE state but it gets lost on Activity recreation).
+                val authResult = auth.pendingAuthResult?.await()
+                    ?: auth.startActivityForSignInWithProvider(
+                        context,
+                        OAuthProvider.newBuilder("google.com").build(),
+                    ).await()
                 val idToken = authResult.user?.getIdToken(false)?.await()?.token
                     ?: throw Exception(appContext.getString(R.string.auth_error_token_unavailable))
                 identityManager.signInWithFirebase(context, idToken, "google")

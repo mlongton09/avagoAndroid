@@ -108,7 +108,8 @@ private fun titleForRoute(route: String?): String = when {
     route.startsWith("assets")                -> "Assets"
     route.startsWith("workorders")            -> "Work Orders"
     route.startsWith("inventory")             -> "Inventory"
-    route == "reports"                        -> "Reports"
+    route == "reports" || route == "reports/cost" -> "Reports"
+    route == "category_report"               -> "By Category"
     route.startsWith("chat") ||
         route.startsWith("thread")            -> "Chat"
     route.startsWith("settings")             -> "Settings"
@@ -485,9 +486,9 @@ fun SideMenuContent(
 
         NavigationDrawerItem(
             label = { Text("By Category") },
-            selected = currentRoute?.startsWith("reports") == true && currentRoute != "reports/cost",
+            selected = currentRoute == "category_report",
             icon = { Icon(Icons.AutoMirrored.Filled.Label, contentDescription = null) },
-            onClick = { onNavigate("reports") },
+            onClick = { onNavigate("category_report") },
             modifier = Modifier.padding(horizontal = 8.dp),
         )
 

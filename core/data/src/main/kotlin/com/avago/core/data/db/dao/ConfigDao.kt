@@ -33,6 +33,9 @@ interface ConfigDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(entities: List<ConfigEntity>)
 
+    @Query("SELECT COUNT(*) FROM configs")
+    suspend fun count(): Int
+
     @Query("DELETE FROM configs WHERE config_id = :id")
     suspend fun deleteById(id: String)
 }

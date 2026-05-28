@@ -66,6 +66,9 @@ private val KNOWN_ATTRIBUTE_KEYS = setOf(
     "name", "make", "model", "year", "color", "license_plate", "vin",
     "purchase_date", "purchase_price", "notes",
     "street_address", "city", "state", "zip_code", "country", "fleet_number",
+    "latitude", "longitude",
+    "floor_unit_ranges", "floor_suite_ranges", "bay_ranges",
+    "wheel_config",
 )
 
 @HiltViewModel
@@ -171,6 +174,16 @@ class AddEditAssetViewModel @Inject constructor(
     fun onPostalCodeChanged(value: String) { _form.value = _form.value.copy(postalCode = value) }
     fun onCountryChanged(value: String) { _form.value = _form.value.copy(country = value) }
     fun onFleetNumberChanged(value: String) { _form.value = _form.value.copy(fleetNumber = value) }
+
+    fun onWheelConfigChanged(json: String) {
+        val updated = _form.value.customAttributes.toMutableMap().also { it["wheel_config"] = json }
+        _form.value = _form.value.copy(customAttributes = updated)
+    }
+
+    fun onFloorMapChanged(attributeKey: String, json: String) {
+        val updated = _form.value.customAttributes.toMutableMap().also { it[attributeKey] = json }
+        _form.value = _form.value.copy(customAttributes = updated)
+    }
 
     fun onCustomAttributeChanged(key: String, value: String) {
         val updated = _form.value.customAttributes.toMutableMap().also { it[key] = value }

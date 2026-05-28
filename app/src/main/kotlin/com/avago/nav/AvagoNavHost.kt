@@ -26,7 +26,9 @@ import com.avago.feature.docs.nav.docsNavGraph
 import com.avago.feature.inventory.nav.inventoryNavGraph
 import com.avago.feature.log.nav.LogRoute
 import com.avago.feature.log.nav.logNavGraph
+import com.avago.feature.assets.ui.GlobalCategoryReportScreen
 import com.avago.feature.reports.ReportsScreen
+import com.avago.feature.reports.ui.CostReportScreen
 import com.avago.feature.schedule.nav.scheduleNavGraph
 import com.avago.feature.settings.nav.settingsNavGraph
 import com.avago.feature.workorders.nav.workOrderNavGraph
@@ -143,6 +145,12 @@ fun AvagoNavHost(
             // ── Reports ───────────────────────────────────────────────────────────
             composable("reports") {
                 ReportsScreen()
+            }
+            composable("reports/cost") {
+                CostReportScreen(onBack = { navController.popBackStack() })
+            }
+            composable("category_report") {
+                GlobalCategoryReportScreen(onBack = { navController.popBackStack() })
             }
 
             // ── Schedule ──────────────────────────────────────────────────────────

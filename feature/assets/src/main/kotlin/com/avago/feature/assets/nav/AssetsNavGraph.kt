@@ -191,6 +191,9 @@ fun NavGraphBuilder.assetsNavGraph(
                 onSaved = { navController.popBackStack() },
                 onOpenTypePicker = { navController.navigate(AssetsRoute.TYPE_PICKER) },
                 navController = navController,
+                onOpenWheelConfig = {
+                    navController.navigate(AssetsRoute.wheelConfigBuilder(assetId ?: "new"))
+                },
             )
         }
 
@@ -387,7 +390,17 @@ fun NavGraphBuilder.assetsNavGraph(
             val assetId = requireNotNull(back.arguments?.getString("assetId"))
             WheelConfigBuilderScreen(
                 assetId = assetId,
-                onSave = { navController.popBackStack() },
+                onSave = { config ->
+                    // Serialize config and pass back to the previous screen (add/edit or detail)
+                    val axlesJson = config.axles.joinToString(",") { axle ->
+                        "{\"role\":\"${axle.role.name}\",\"tireType\":\"${axle.tireType.name}\"}"
+                    }
+                    val json = "{\"category\":\"${config.category.name}\",\"axles\":[$axlesJson],\"totalWheels\":${config.totalWheels}}"
+                    navController.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.set("wheel_config", json)
+                    navController.popBackStack()
+                },
                 onBack = { navController.popBackStack() },
             )
         }

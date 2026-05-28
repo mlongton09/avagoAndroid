@@ -123,6 +123,7 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
         observeSignOutForWatermarkReset()
         observeSignInForRateLimitClear()
         observePermissionsStaleness()
+        observeAccountGone()
         observeAppForeground()
 
         Trace.endSection() // AvagoApplication.initCoroutines
@@ -177,6 +178,18 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
         appScope.launch {
             identityManager.signInEvents.collect {
                 syncEngine.clearRateLimitBackoff()
+            }
+        }
+    }
+
+    private fun observeAccountGone() {
+        appScope.launch {
+            // Mirrors iOS forceReprovision(): when sync gets a non-stale 403 the account
+            // is permanently inaccessible. Sign out so the user is returned to sign-in.
+            syncEngine.accountGoneEvents.collect { accountId ->
+                Timber.w("AvagoApplication: account $accountId gone (non-stale 403) — signing out")
+                runCatching { identityManager.signOut(accountId) }
+                    .onFailure { Timber.e(it, "AvagoApplication: sign-out after 403 failed") }
             }
         }
     }

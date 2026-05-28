@@ -72,8 +72,8 @@ interface SyncQueueDao {
     @Query("SELECT 1 FROM sync_queue WHERE entity_type = :entityType AND entity_id = :entityId AND sync_status IN ('pending', 'in_flight', 'error') LIMIT 1")
     suspend fun hasPendingPush(entityType: String, entityId: String): Int?
 
-    @Query("SELECT * FROM sync_queue WHERE queue_id = :queueId AND sync_status IN ('pending', 'error')")
-    suspend fun getPendingByQueueId(queueId: String): SyncQueueEntity?
+    @Query("SELECT * FROM sync_queue WHERE entity_type = :entityType AND entity_id = :entityId AND sync_status IN ('pending', 'error') LIMIT 1")
+    suspend fun getPendingByEntity(entityType: String, entityId: String): SyncQueueEntity?
 
     /**
      * Enqueue with iOS-compatible dedup logic:
@@ -87,18 +87,21 @@ interface SyncQueueDao {
      */
     @Transaction
     suspend fun enqueueWithDedup(entity: SyncQueueEntity) {
-        val existing = getPendingByQueueId(entity.queueId)
+        val existing = getPendingByEntity(entity.entityType, entity.entityId)
         when {
             existing?.operation == "insert" && entity.operation == "delete" -> {
-                // Cancel: asset was created locally but never synced; deleting it is a no-op
+                // Cancel: entity was created locally but never synced; deleting it is a no-op
                 softDelete(existing.queueId)
             }
             existing?.operation == "insert" && entity.operation == "update" -> {
                 // Merge: keep "insert" so the server creates it, but use the latest payload
-                upsert(entity.copy(operation = "insert"))
+                upsert(entity.copy(queueId = existing.queueId, operation = "insert"))
+            }
+            existing != null -> {
+                // Replace: reuse the same queue_id so there is always one row per entity
+                upsert(entity.copy(queueId = existing.queueId))
             }
             else -> {
-                // Default: replace with the latest operation + payload
                 upsert(entity)
             }
         }

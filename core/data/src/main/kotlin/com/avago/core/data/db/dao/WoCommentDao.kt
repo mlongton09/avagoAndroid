@@ -17,11 +17,11 @@ interface WoCommentDao {
     @Query("SELECT * FROM wo_comments WHERE comment_id = :id")
     suspend fun getById(id: String): WoCommentEntity?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun upsert(entity: WoCommentEntity)
 
     @Transaction
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun upsertAll(entities: List<WoCommentEntity>)
 
     @Query("UPDATE wo_comments SET deleted_at = :now, updated_at = :now WHERE comment_id = :id")
