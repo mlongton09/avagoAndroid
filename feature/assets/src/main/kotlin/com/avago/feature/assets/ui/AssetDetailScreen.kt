@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
@@ -52,6 +54,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TabPosition
+import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -71,6 +75,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -204,7 +209,30 @@ fun AssetDetailScreen(
                     },
                     colors = TopAppBarDefaults.topAppBarColors(),
                 )
-                PrimaryTabRow(selectedTabIndex = pagerState.currentPage) {
+                PrimaryTabRow(
+                    selectedTabIndex = pagerState.currentPage,
+                    indicator = { tabPositions ->
+                        // Live-track the swipe using currentPageOffsetFraction so the indicator
+                        // follows the user's finger — mirrors iOS AVTabStrip content animation.
+                        val fraction = pagerState.currentPageOffsetFraction
+                        val currentIndex = pagerState.currentPage
+                        val targetIndex = when {
+                            fraction > 0f -> (currentIndex + 1).coerceAtMost(tabPositions.lastIndex)
+                            fraction < 0f -> (currentIndex - 1).coerceAtLeast(0)
+                            else -> currentIndex
+                        }
+                        val currentPos = tabPositions[currentIndex]
+                        val targetPos = tabPositions[targetIndex]
+                        val absFraction = kotlin.math.abs(fraction)
+                        val indicatorLeft = lerp(currentPos.left, targetPos.left, absFraction)
+                        val indicatorRight = lerp(currentPos.right, targetPos.right, absFraction)
+                        TabRowDefaults.PrimaryIndicator(
+                            modifier = Modifier.wrapContentSize(Alignment.BottomStart)
+                                .offset(x = indicatorLeft)
+                                .width(indicatorRight - indicatorLeft),
+                        )
+                    },
+                ) {
                     ASSET_DETAIL_TABS.forEachIndexed { index, title ->
                         Tab(
                             selected = pagerState.currentPage == index,

@@ -12,12 +12,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material3.IconButton
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.runtime.remember
 import androidx.compose.material3.Badge
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -36,12 +41,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.ui.AvagoSearchBar
 import com.avago.core.ui.EmptyState
+import com.avago.core.ui.rememberScrollAwareHeaderState
 import com.avago.feature.workorders.ui.components.WoCard
 import com.avago.feature.workorders.viewmodel.WoHorizon
 import com.avago.feature.workorders.viewmodel.WoListFilter
@@ -75,6 +84,18 @@ fun WorkOrderListScreen(
         WoListFilter.ALL  to stringResource(R.string.wo_scope_all),
     )
 
+    val scrollAwareState = rememberScrollAwareHeaderState()
+    val headerVisible by scrollAwareState.headerVisible
+    val headerProgress by animateFloatAsState(
+        targetValue = if (headerVisible) 1f else 0f,
+        animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
+        label = "wo_header_progress",
+    )
+    // Filter row (~56dp) + search bar (~52dp) = 108dp total
+    val headerHeightDp = 108.dp
+    val density = LocalDensity.current
+    val headerHeightPx = with(density) { headerHeightDp.toPx() }
+
     Scaffold(
         modifier = modifier,
         contentWindowInsets = WindowInsets(0),
@@ -91,14 +112,94 @@ fun WorkOrderListScreen(
             }
         },
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .padding(innerPadding)
-                .fillMaxSize(),
+                .fillMaxSize()
+                .nestedScroll(scrollAwareState),
         ) {
-            // ── Filter bar — matches iOS Now/Next/Later + Mine/All row ────────────
-            Surface(color = MaterialTheme.colorScheme.surface) {
+            // ── Scrollable content ────────────────────────────────────────────
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = viewModel::refresh,
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                if (buckets.isEmpty()) {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Spacer(modifier = Modifier.height(with(density) { (headerHeightPx * headerProgress).toDp() }))
+                        EmptyState(
+                            message = stringResource(R.string.wo_empty),
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        contentPadding = PaddingValues(
+                            top = with(density) { (headerHeightPx * headerProgress).toDp() },
+                            start = 16.dp,
+                            end = 16.dp,
+                            bottom = 8.dp,
+                        ),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        syncError?.let { msg ->
+                            item(key = "sync_error") {
+                                Surface(
+                                    onClick = viewModel::refresh,
+                                    color = MaterialTheme.colorScheme.errorContainer,
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            text = msg,
+                                            modifier = Modifier.weight(1f),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onErrorContainer,
+                                        )
+                                        Text(
+                                            text = stringResource(R.string.wo_list_retry),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onErrorContainer,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        buckets.forEach { bucket ->
+                            stickyHeader(key = "header_${bucket.label}") {
+                                BucketHeader(
+                                    label = bucket.label,
+                                    count = bucket.items.size,
+                                )
+                            }
+                            items(bucket.items, key = { it.woId }) { wo ->
+                                WoCard(
+                                    wo = wo,
+                                    onClick = { onWoClick(wo.woId) },
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── Floating filter + search header — slides up on scroll down ────
+            Surface(
+                color = MaterialTheme.colorScheme.surface,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer {
+                        translationY = -headerHeightPx * (1f - headerProgress)
+                        alpha = headerProgress
+                    },
+            ) {
                 Column {
+                    // Now / Next / Later + Mine / All + Calendar + Dispatch
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -106,7 +207,6 @@ fun WorkOrderListScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        // Now / Next / Later — fills remaining width
                         SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1f)) {
                             horizonOptions.forEachIndexed { index, (h, label) ->
                                 SegmentedButton(
@@ -120,7 +220,6 @@ fun WorkOrderListScreen(
                                 )
                             }
                         }
-                        // Mine / All — fixed 110 dp to match iOS scope toggle
                         SingleChoiceSegmentedButtonRow(modifier = Modifier.width(110.dp)) {
                             scopeOptions.forEachIndexed { index, (s, label) ->
                                 SegmentedButton(
@@ -142,73 +241,11 @@ fun WorkOrderListScreen(
                         }
                     }
                     HorizontalDivider()
-                }
-            }
-
-            // Search bar
-            AvagoSearchBar(
-                query = searchQuery,
-                onQueryChange = viewModel::onSearchQueryChanged,
-                placeholder = stringResource(R.string.wo_search_placeholder),
-            )
-
-            syncError?.let { msg ->
-                Surface(
-                    onClick = viewModel::refresh,
-                    color = MaterialTheme.colorScheme.errorContainer,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = msg,
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                        )
-                        Text(
-                            text = stringResource(R.string.wo_list_retry),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                        )
-                    }
-                }
-            }
-
-            // Bucketed list with pull-to-refresh
-            PullToRefreshBox(
-                isRefreshing = isRefreshing,
-                onRefresh = viewModel::refresh,
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                if (buckets.isEmpty()) {
-                    EmptyState(
-                        message = stringResource(R.string.wo_empty),
-                        modifier = Modifier.fillMaxSize(),
+                    AvagoSearchBar(
+                        query = searchQuery,
+                        onQueryChange = viewModel::onSearchQueryChanged,
+                        placeholder = stringResource(R.string.wo_search_placeholder),
                     )
-                } else {
-                    LazyColumn(
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        modifier = Modifier.fillMaxSize(),
-                    ) {
-                        buckets.forEach { bucket ->
-                            stickyHeader(key = "header_${bucket.label}") {
-                                BucketHeader(
-                                    label = bucket.label,
-                                    count = bucket.items.size,
-                                )
-                            }
-                            items(bucket.items, key = { it.woId }) { wo ->
-                                WoCard(
-                                    wo = wo,
-                                    onClick = { onWoClick(wo.woId) },
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                            }
-                        }
-                    }
                 }
             }
         }

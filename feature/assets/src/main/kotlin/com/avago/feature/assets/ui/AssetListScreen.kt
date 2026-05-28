@@ -1,6 +1,9 @@
 package com.avago.feature.assets.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -45,6 +48,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -56,6 +62,7 @@ import com.avago.core.data.db.entity.AssetEntity
 import com.avago.core.ui.AvagoSearchBar
 import com.avago.core.ui.EmptyState
 import com.avago.core.ui.QuoteBanner
+import com.avago.core.ui.rememberScrollAwareHeaderState
 import com.avago.feature.assets.R
 import com.avago.feature.assets.model.AssetTypes
 import com.avago.feature.assets.viewmodel.AssetListViewModel
@@ -83,6 +90,18 @@ fun AssetListScreen(
 
     var showFilterMenu by remember { mutableStateOf(false) }
 
+    val scrollAwareState = rememberScrollAwareHeaderState()
+    val headerVisible by scrollAwareState.headerVisible
+    val headerProgress by animateFloatAsState(
+        targetValue = if (headerVisible) 1f else 0f,
+        animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
+        label = "asset_header_progress",
+    )
+    // Search row: 36dp bar + 8dp top + 8dp bottom = 52dp total
+    val searchRowHeightDp = 52.dp
+    val density = LocalDensity.current
+    val searchRowHeightPx = with(density) { searchRowHeightDp.toPx() }
+
     Scaffold(
         contentWindowInsets = WindowInsets(0),
         floatingActionButton = {
@@ -98,16 +117,135 @@ fun AssetListScreen(
             }
         },
     ) { paddingValues ->
-        PullToRefreshBox(
-            isRefreshing = isRefreshing,
-            onRefresh = { viewModel.refresh() },
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues),
+                .padding(paddingValues)
+                .nestedScroll(scrollAwareState),
         ) {
-            Column(modifier = Modifier.fillMaxSize()) {
+            // Build type-grouped sectioned list matching iOS section order
+            val typeOrder = AssetTypes.all.map { it.key }
+            val grouped = assets.groupBy { it.assetType ?: "other" }
+            val sectionedItems: List<Any> = buildList {
+                for (typeKey in typeOrder) {
+                    val items = grouped[typeKey] ?: continue
+                    add(typeKey)
+                    addAll(items.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name }))
+                }
+                for ((typeKey, items) in grouped) {
+                    if (typeKey !in typeOrder) {
+                        add(typeKey)
+                        addAll(items.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name }))
+                    }
+                }
+            }
 
-                // Search bar + filter button in one row (matches iOS header layout)
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = { viewModel.refresh() },
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                if (assets.isEmpty()) {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        // Reserve space for the header even when empty
+                        Spacer(modifier = Modifier.height(with(density) { (searchRowHeightPx * headerProgress).toDp() }))
+                        EmptyState(
+                            message = stringResource(R.string.assets_empty),
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        contentPadding = PaddingValues(
+                            top = with(density) { (searchRowHeightPx * headerProgress).toDp() },
+                            bottom = 80.dp,
+                        ),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        // FRE banner as first item so it scrolls with the list
+                        if (showOnboarding) {
+                            item(key = "onboarding_banner") {
+                                OnboardingBanner(
+                                    onAddAsset = onAddAsset,
+                                    onDismiss = { onboardingViewModel.dismiss() },
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                )
+                            }
+                        }
+
+                        // Sync error banner
+                        syncError?.let { msg ->
+                            item(key = "sync_error") {
+                                Surface(
+                                    onClick = { viewModel.refresh() },
+                                    color = MaterialTheme.colorScheme.errorContainer,
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            text = msg,
+                                            modifier = Modifier.weight(1f),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onErrorContainer,
+                                        )
+                                        Text(
+                                            text = stringResource(R.string.asset_detail_retry),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onErrorContainer,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        items(
+                            items = sectionedItems,
+                            key = { item ->
+                                when (item) {
+                                    is String -> "header_$item"
+                                    is AssetEntity -> item.assetId
+                                    else -> item.hashCode()
+                                }
+                            },
+                        ) { item ->
+                            when (item) {
+                                is String -> AssetSectionHeader(typeKey = item)
+                                is AssetEntity -> {
+                                    AssetRow(
+                                        asset = item,
+                                        onClick = { onAssetClick(item.assetId) },
+                                        onLongClick = { onAssetLongPress(item.assetId) },
+                                    )
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(start = 72.dp),
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                    )
+                                }
+                            }
+                        }
+
+                        if (!showOnboarding) {
+                            item(key = "quote_banner") {
+                                QuoteBanner(modifier = Modifier.padding(16.dp))
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Floating search + filter header — slides up and fades out on scroll down
+            Surface(
+                color = MaterialTheme.colorScheme.surface,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer {
+                        translationY = -searchRowHeightPx * (1f - headerProgress)
+                        alpha = headerProgress
+                    },
+            ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -179,104 +317,6 @@ fun AssetListScreen(
                                         showFilterMenu = false
                                     },
                                 )
-                            }
-                        }
-                    }
-                }
-
-                // FRE banner
-                AnimatedVisibility(
-                    visible = showOnboarding,
-                    enter = slideInVertically(initialOffsetY = { -it }),
-                ) {
-                    OnboardingBanner(
-                        onAddAsset = onAddAsset,
-                        onDismiss = { onboardingViewModel.dismiss() },
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    )
-                }
-
-                syncError?.let { msg ->
-                    Surface(
-                        onClick = { viewModel.refresh() },
-                        color = MaterialTheme.colorScheme.errorContainer,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = msg,
-                                modifier = Modifier.weight(1f),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                            )
-                            Text(
-                                text = stringResource(R.string.asset_detail_retry),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                            )
-                        }
-                    }
-                }
-
-                if (assets.isEmpty()) {
-                    EmptyState(
-                        message = stringResource(R.string.assets_empty),
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                } else {
-                    // Build type-grouped sectioned list matching iOS section order
-                    val typeOrder = AssetTypes.all.map { it.key }
-                    val grouped = assets.groupBy { it.assetType ?: "other" }
-                    val sectionedItems: List<Any> = buildList {
-                        for (typeKey in typeOrder) {
-                            val items = grouped[typeKey] ?: continue
-                            add(typeKey)
-                            addAll(items.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name }))
-                        }
-                        for ((typeKey, items) in grouped) {
-                            if (typeKey !in typeOrder) {
-                                add(typeKey)
-                                addAll(items.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name }))
-                            }
-                        }
-                    }
-
-                    LazyColumn(
-                        contentPadding = PaddingValues(bottom = 80.dp),
-                        modifier = Modifier.fillMaxSize(),
-                    ) {
-                        items(
-                            items = sectionedItems,
-                            key = { item ->
-                                when (item) {
-                                    is String -> "header_$item"
-                                    is AssetEntity -> item.assetId
-                                    else -> item.hashCode()
-                                }
-                            },
-                        ) { item ->
-                            when (item) {
-                                is String -> AssetSectionHeader(typeKey = item)
-                                is AssetEntity -> {
-                                    AssetRow(
-                                        asset = item,
-                                        onClick = { onAssetClick(item.assetId) },
-                                        onLongClick = { onAssetLongPress(item.assetId) },
-                                    )
-                                    HorizontalDivider(
-                                        modifier = Modifier.padding(start = 72.dp),
-                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                                    )
-                                }
-                            }
-                        }
-
-                        if (!showOnboarding) {
-                            item(key = "quote_banner") {
-                                QuoteBanner(modifier = Modifier.padding(16.dp))
                             }
                         }
                     }
