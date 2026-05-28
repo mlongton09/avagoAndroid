@@ -1,4 +1,4 @@
-package com.avago.feature.assets.ui
+﻿package com.avago.feature.assets.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -40,7 +40,7 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -128,7 +128,7 @@ fun WheelConfigBuilderScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = {
                     Text(
                         when (step) {

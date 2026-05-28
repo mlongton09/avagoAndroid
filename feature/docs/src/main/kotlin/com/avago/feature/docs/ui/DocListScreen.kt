@@ -1,4 +1,4 @@
-package com.avago.feature.docs.ui
+﻿package com.avago.feature.docs.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -26,7 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -61,7 +61,7 @@ fun DocListScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text(stringResource(R.string.docs_title)) })
+            CenterAlignedTopAppBar(title = { Text(stringResource(R.string.docs_title)) })
         },
         floatingActionButton = {
             FloatingActionButton(

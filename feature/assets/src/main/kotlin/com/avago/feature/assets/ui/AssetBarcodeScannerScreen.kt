@@ -1,4 +1,4 @@
-package com.avago.feature.assets.ui
+﻿package com.avago.feature.assets.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -29,7 +29,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -124,7 +124,7 @@ fun AssetBarcodeScannerScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = { Text(stringResource(R.string.barcode_scanner_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {

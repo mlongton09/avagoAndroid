@@ -1,4 +1,4 @@
-package com.avago.nav
+﻿package com.avago.nav
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -48,7 +48,7 @@ import androidx.compose.material3.FabPosition
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
@@ -104,18 +104,23 @@ private val bottomNavItems = listOf(
 // ---------------------------------------------------------------------------
 
 private fun titleForRoute(route: String?): String = when {
-    route == null                              -> "Avago"
-    route.startsWith("assets")                -> "Assets"
-    route.startsWith("workorders")            -> "Work Orders"
-    route.startsWith("inventory")             -> "Inventory"
-    route == "reports" || route == "reports/cost" -> "Reports"
-    route == "category_report"               -> "By Category"
+    route == null                                -> "Avago"
+    route.startsWith("workorders/dispatch")      -> "Dispatch"
+    route.startsWith("workorders/calendar")      -> "Calendar"
+    route.startsWith("workorders/available")     -> "Available Jobs"
+    route.startsWith("workorders/tech_profile")  -> "My Tech Profile"
+    route.startsWith("workorders")               -> "Work Orders"
+    route.startsWith("assets")                   -> "Assets"
+    route.startsWith("inventory")                -> "Inventory"
+    route == "reports/cost"                      -> "Cost Report"
+    route == "reports"                           -> "Reports"
+    route == "category_report"                   -> "By Category"
     route.startsWith("chat") ||
-        route.startsWith("thread")            -> "Chat"
-    route.startsWith("settings")             -> "Settings"
-    route.startsWith("docs")                  -> "Docs"
-    route.startsWith("schedule")              -> "Schedule"
-    else                                       -> "Avago"
+        route.startsWith("thread")               -> "Chat"
+    route.startsWith("settings")                 -> "Settings"
+    route.startsWith("docs")                     -> "Docs"
+    route.startsWith("schedule")                 -> "Schedule"
+    else                                         -> "Avago"
 }
 
 // ---------------------------------------------------------------------------
@@ -176,7 +181,7 @@ fun MainScaffold(
             floatingActionButtonPosition = FabPosition.Start,
             topBar = {
                 if (!isAuthDestination) {
-                    TopAppBar(
+                    CenterAlignedTopAppBar(
                         title = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(

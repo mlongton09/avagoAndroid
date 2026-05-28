@@ -95,8 +95,8 @@
     <string name="wo_transition_cancel">Cancel WO</string>
 
     <!-- WO Create / Edit -->
-    <string name="wo_create_title">New Work Order</string>
-    <string name="wo_edit_title">Edit Work Order</string>
+    <string name="wo_create_title">Work Order</string>
+    <string name="wo_edit_title">Work Order</string>
     <string name="wo_field_title">Title</string>
     <string name="wo_field_title_required">Title is required</string>
     <string name="wo_field_description">Description</string>
@@ -118,7 +118,7 @@
     <string name="wo_cancel">Cancel</string>
 
     <!-- Dispatch Board -->
-    <string name="dispatch_board_title">Dispatch Board</string>
+    <string name="dispatch_board_title">Dispatch</string>
     <string name="dispatch_board_empty_column">No work orders</string>
     <string name="dispatch_board_drag_hint">Drag a card to change status</string>
     <string name="dispatch_board_disabled">Dispatch Board is not available for your account</string>
@@ -241,7 +241,7 @@
     <string name="wo_create_remove_checklist_step">Remove step</string>
 
     <!-- Tech Profile screen -->
-    <string name="tech_profile_title">Technician Profile</string>
+    <string name="tech_profile_title">My Tech Profile</string>
     <string name="tech_profile_back">Back</string>
     <string name="tech_profile_unknown_name">Unknown</string>
     <string name="tech_profile_stat_open_wos">Open WOs</string>

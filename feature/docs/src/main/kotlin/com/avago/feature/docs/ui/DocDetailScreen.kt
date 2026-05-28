@@ -1,4 +1,4 @@
-package com.avago.feature.docs.ui
+﻿package com.avago.feature.docs.ui
 
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -31,7 +31,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -106,7 +106,7 @@ fun DocDetailScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = { Text(doc?.name ?: "") },
                 colors = TopAppBarDefaults.topAppBarColors(),
                 navigationIcon = {

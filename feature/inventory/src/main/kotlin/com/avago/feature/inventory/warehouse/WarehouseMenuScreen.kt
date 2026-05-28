@@ -1,4 +1,4 @@
-package com.avago.feature.inventory.warehouse
+﻿package com.avago.feature.inventory.warehouse
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,7 +19,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -36,7 +36,7 @@ fun WarehouseMenuScreen(
 ) {
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text(stringResource(R.string.warehouse_menu_title)) })
+            CenterAlignedTopAppBar(title = { Text(stringResource(R.string.warehouse_menu_title)) })
         },
     ) { padding ->
         LazyColumn(

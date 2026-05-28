@@ -1,4 +1,4 @@
-package com.avago.feature.assets.ui
+﻿package com.avago.feature.assets.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -53,7 +53,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.TabPosition
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TopAppBarDefaults
@@ -169,7 +169,7 @@ fun AssetDetailScreen(
     Scaffold(
         topBar = {
             Column {
-                TopAppBar(
+                CenterAlignedTopAppBar(
                     title = { Text(asset?.name ?: stringResource(R.string.asset_detail_title)) },
                     navigationIcon = {
                         IconButton(onClick = onBack) {

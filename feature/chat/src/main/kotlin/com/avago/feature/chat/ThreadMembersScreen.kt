@@ -1,4 +1,4 @@
-package com.avago.feature.chat
+﻿package com.avago.feature.chat
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -39,7 +39,7 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -282,7 +282,7 @@ fun ThreadMembersScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = { Text(uiState.groupName ?: "Members") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {

@@ -1,4 +1,4 @@
-package com.avago.feature.inventory.parts
+﻿package com.avago.feature.inventory.parts
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -23,7 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -68,7 +68,7 @@ fun PartDetailScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = { Text(state.part?.name ?: stringResource(R.string.part_detail_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {

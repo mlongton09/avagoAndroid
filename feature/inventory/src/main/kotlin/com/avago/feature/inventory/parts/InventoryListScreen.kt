@@ -1,4 +1,4 @@
-package com.avago.feature.inventory.parts
+﻿package com.avago.feature.inventory.parts
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,7 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -60,7 +60,7 @@ fun InventoryListScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text(stringResource(R.string.inventory_title)) })
+            CenterAlignedTopAppBar(title = { Text(stringResource(R.string.inventory_title)) })
         },
         floatingActionButton = {
             FloatingActionButton(

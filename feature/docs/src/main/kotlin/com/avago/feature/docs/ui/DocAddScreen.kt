@@ -1,4 +1,4 @@
-package com.avago.feature.docs.ui
+﻿package com.avago.feature.docs.ui
 
 import android.app.Activity
 import android.net.Uri
@@ -43,7 +43,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -118,7 +118,7 @@ fun DocAddScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = { Text(topBarTitle) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {

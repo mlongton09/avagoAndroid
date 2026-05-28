@@ -1,4 +1,4 @@
-package com.avago.feature.workorders.ui
+﻿package com.avago.feature.workorders.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -23,7 +23,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -71,7 +71,7 @@ fun DispatchBoardScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(title = { Text(stringResource(R.string.dispatch_board_title)) })
+            CenterAlignedTopAppBar(title = { Text(stringResource(R.string.dispatch_board_title)) })
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->

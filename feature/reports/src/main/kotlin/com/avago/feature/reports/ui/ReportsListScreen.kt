@@ -1,4 +1,4 @@
-package com.avago.feature.reports.ui
+﻿package com.avago.feature.reports.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -22,7 +22,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -77,7 +77,7 @@ fun ReportsListScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Reports") })
+            CenterAlignedTopAppBar(title = { Text("Reports") })
         },
     ) { padding ->
         Column(

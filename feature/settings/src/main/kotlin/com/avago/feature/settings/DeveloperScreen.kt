@@ -1,4 +1,4 @@
-package com.avago.feature.settings
+﻿package com.avago.feature.settings
 
 import android.content.Context
 import androidx.compose.foundation.clickable
@@ -26,7 +26,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -131,7 +131,7 @@ fun DeveloperScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = { Text("Developer") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {

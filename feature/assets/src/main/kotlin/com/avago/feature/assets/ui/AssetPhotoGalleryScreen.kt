@@ -1,4 +1,4 @@
-package com.avago.feature.assets.ui
+﻿package com.avago.feature.assets.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -22,7 +22,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -180,7 +180,7 @@ fun AssetPhotoGalleryScreen(
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.TopStart),
         ) {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = {
                     if (photoUrls.isNotEmpty()) {
                         Text(
