@@ -88,12 +88,12 @@ class AccountPreferencesSync @Inject constructor(
         val accountId = identityManager.activeAccountId.value ?: return false
         return when (val result = serviceClient.updateMyPreferences(accountId, patch)) {
             is NetworkResult.Success -> {
-                val r = result.data
+                // Server returns Unit — apply patch values directly to local state.
                 _prefs.value = _prefs.value.copy(
-                    distanceUnit = r.distance_unit ?: _prefs.value.distanceUnit,
-                    currency = r.currency ?: _prefs.value.currency,
-                    locale = r.locale ?: _prefs.value.locale,
-                    disableQuotes = r.disable_quotes ?: _prefs.value.disableQuotes,
+                    distanceUnit = patch.distance_unit ?: _prefs.value.distanceUnit,
+                    currency = patch.currency ?: _prefs.value.currency,
+                    locale = patch.locale ?: _prefs.value.locale,
+                    disableQuotes = patch.disable_quotes ?: _prefs.value.disableQuotes,
                     enableHumanInLoop = patch.enable_human_in_loop ?: _prefs.value.enableHumanInLoop,
                     fuelVolumeUnit = patch.fuel_volume_unit ?: _prefs.value.fuelVolumeUnit,
                 )
