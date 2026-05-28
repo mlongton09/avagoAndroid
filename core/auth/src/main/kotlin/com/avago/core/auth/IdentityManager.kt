@@ -214,15 +214,31 @@ class IdentityManager @Inject constructor(
             runCatching { migrationService.get().migrateAnonymousToAuthenticated(accountId) }
                 .onFailure { Timber.w(it, "IdentityManager: migrateAnonymousToAuthenticated failed") }
             registerPushTokenAsync()
-            fetchMyAccountsAsync()
-            enqueueSyncWork()
+
+            // Sequential: validate role from members list (mirrors iOS fetchAndStoreUserProfile)
             val capturedUserId = user?.user_id
             if (capturedUserId != null) {
-                @Suppress("OPT_IN_USAGE")
-                GlobalScope.launch(Dispatchers.IO) {
-                    validateRoleFromMembersList(accountId, capturedUserId)
-                }
+                runCatching { validateRoleFromMembersList(accountId, capturedUserId) }
+                    .onFailure { Timber.w(it, "IdentityManager: validateRoleFromMembersList failed") }
             }
+
+            // Sequential: fetch all accounts (mirrors iOS fetchAndStoreAllAccounts)
+            runCatching {
+                val result = client.getAllAccounts()
+                if (result is NetworkResult.Success) {
+                    result.data.forEach { acct ->
+                        accountManifest.addIfMissing(
+                            AccountRecord(accountId = acct.account_id, accountName = acct.name, role = acct.role)
+                        )
+                    }
+                    _accountsChanged.tryEmit(Unit)
+                    Timber.d("IdentityManager: fetched ${result.data.size} account(s) post sign-in")
+                }
+            }.onFailure { Timber.w(it, "IdentityManager: post sign-in account fetch failed") }
+
+            // Enqueue sync AFTER all sequential calls complete, so the sync starts with
+            // full account/role info already written — mirrors iOS pattern.
+            enqueueSyncWork()
         }
 
     // ---------------------------------------------------------------------------
@@ -561,7 +577,7 @@ class IdentityManager @Inject constructor(
         val cls = syncWorkerClass ?: return
         val request = OneTimeWorkRequest.Builder(cls).build()
         WorkManager.getInstance(appContext)
-            .enqueueUniqueWork("sync-after-signin", ExistingWorkPolicy.REPLACE, request)
+            .enqueueUniqueWork("avago_sync", ExistingWorkPolicy.REPLACE, request)
         Timber.d("IdentityManager: enqueued post-signin sync")
     }
 

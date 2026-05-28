@@ -107,7 +107,6 @@ class AvagoApplication : Application(), Configuration.Provider {
 
         identityManager.registerSyncWorker(SyncWorker::class.java)
         schedulePeriodicSync()
-        observeAccountChangesForSync()
         observeConnectivityForSync()
         observeSignOutForWatermarkReset()
         observePermissionsStaleness()
@@ -131,25 +130,6 @@ class AvagoApplication : Application(), Configuration.Provider {
             request,
         )
         Timber.d("AvagoApplication: periodic sync scheduled")
-    }
-
-    /**
-     * Mirror iOS AppBootstrapCoordinators: when the active account changes (sign-in,
-     * provision, or account switch), immediately kick off a full sync so data is
-     * available without waiting for the next periodic or foreground sync.
-     */
-    private fun observeAccountChangesForSync() {
-        appScope.launch {
-            identityManager.activeAccountId
-                .scan(Pair<String?, String?>(null, null)) { acc, current -> Pair(acc.second, current) }
-                .distinctUntilChanged()
-                .collect { (previous, current) ->
-                    if (current != null && current != previous) {
-                        Timber.d("AvagoApplication: account changed to $current — triggering immediate sync")
-                        triggerImmediateSync()
-                    }
-                }
-        }
     }
 
     private fun observeConnectivityForSync() {
@@ -213,7 +193,7 @@ class AvagoApplication : Application(), Configuration.Provider {
                     )
                     .build()
                 WorkManager.getInstance(this@AvagoApplication).enqueueUniqueWork(
-                    "avago_foreground_sync",
+                    "avago_sync",
                     ExistingWorkPolicy.KEEP,
                     request,
                 )
@@ -257,8 +237,8 @@ class AvagoApplication : Application(), Configuration.Provider {
             )
             .build()
         WorkManager.getInstance(this).enqueueUniqueWork(
-            "avago_sync_immediate",
-            ExistingWorkPolicy.REPLACE,
+            "avago_sync",
+            ExistingWorkPolicy.KEEP,
             request,
         )
     }
