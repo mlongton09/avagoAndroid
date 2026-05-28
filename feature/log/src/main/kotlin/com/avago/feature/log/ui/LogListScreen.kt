@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -35,13 +36,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.svg.SvgDecoder
 import com.avago.core.data.db.entity.LogEntity
 import com.avago.core.ui.ScoutFAB
 import com.avago.core.ui.ScoutViewModel
@@ -178,52 +184,51 @@ private fun LogListRow(
 ) {
     val dateFormatter = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
     val currencyFormat = remember { NumberFormat.getCurrencyInstance() }
+    val isPending = log.serverVersion == 0L && log.seq == null
 
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .heightIn(min = 54.dp)
+            .padding(start = 14.dp, end = 16.dp, top = 7.dp, bottom = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CategoryBadge(categoryId = log.category)
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(10.dp))
 
+        // Title + optional pending tag — fills available space
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = log.title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
-            log.category?.let { category ->
+            if (isPending) {
                 Text(
-                    text = category,
+                    text = "Pending",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.tertiary,
                 )
             }
+        }
+
+        Spacer(Modifier.width(8.dp))
+
+        // Right metadata: date on top, cost below (matches iOS date + odometer layout)
+        Column(horizontalAlignment = Alignment.End) {
             Text(
                 text = dateFormatter.format(Date(log.entryDate)),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        }
-
-        Column(horizontalAlignment = Alignment.End) {
             val displayCost = log.cost
             if (displayCost != null && displayCost > 0) {
                 Text(
                     text = currencyFormat.format(displayCost),
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                )
-            }
-            if (log.serverVersion == 0L && log.seq == null) {
-                Text(
-                    text = "Pending",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.tertiary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -237,6 +242,7 @@ private fun CategoryBadge(
 ) {
     val iconName = categoryIconName(categoryId)
     val bgColor = categoryBadgeColor(iconName)
+    val context = LocalContext.current
 
     Box(
         modifier = modifier
@@ -246,9 +252,13 @@ private fun CategoryBadge(
         contentAlignment = Alignment.Center,
     ) {
         AsyncImage(
-            model = "file:///android_asset/icons/$iconName.svg",
+            model = ImageRequest.Builder(context)
+                .data("file:///android_asset/icons/$iconName.svg")
+                .decoderFactory(SvgDecoder.Factory())
+                .build(),
             contentDescription = categoryId,
             contentScale = ContentScale.Fit,
+            colorFilter = ColorFilter.tint(Color.White, BlendMode.SrcIn),
             modifier = Modifier.size(20.dp),
         )
     }
