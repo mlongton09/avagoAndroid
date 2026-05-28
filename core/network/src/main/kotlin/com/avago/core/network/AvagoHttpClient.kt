@@ -18,9 +18,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.long
 import timber.log.Timber
 import com.avago.core.network.model.RefreshRequest
 import com.avago.core.network.model.AuthResponse
@@ -91,30 +88,14 @@ object AvagoHttpClient {
         install(Auth) {
             bearer {
                 loadTokens {
-                    val access = tokenProvider.accessToken()
-                    if (access.isBlank() || isTokenNearExpiry(access)) {
-                        val refresh = tokenProvider.refreshToken()
-                        if (refresh.isNotBlank()) {
-                            val unauthClient = createUnauthenticatedClient(isDebug)
-                            try {
-                                val response = unauthClient.post("$baseUrl/auth/refresh") {
-                                    contentType(ContentType.Application.Json)
-                                    setBody(RefreshRequest(refresh_token = refresh, device_id = tokenProvider.deviceId()))
-                                }.body<AuthResponse>()
-                                tokenStorage.storeTokens(response.access_token, response.refresh_token)
-                                return@loadTokens BearerTokens(
-                                    accessToken = response.access_token,
-                                    refreshToken = response.refresh_token,
-                                )
-                            } catch (e: Exception) {
-                                Timber.w(e, "Proactive token refresh failed, proceeding with existing token")
-                            } finally {
-                                unauthClient.close()
-                            }
-                        }
-                    }
+                    // Return the cached tokens as-is. If the token is expired the
+                    // request will receive a 401 and Ktor will call refreshTokens,
+                    // which is serialized — only one refresh fires even with many
+                    // parallel requests. Proactive refresh here was a thundering-herd
+                    // source: every concurrent request fired POST /auth/refresh
+                    // simultaneously, exhausting the server rate-limit bucket.
                     BearerTokens(
-                        accessToken = access,
+                        accessToken = tokenProvider.accessToken(),
                         refreshToken = tokenProvider.refreshToken(),
                     )
                 }
@@ -143,22 +124,6 @@ object AvagoHttpClient {
                     }
                 }
             }
-        }
-    }
-
-    private fun isTokenNearExpiry(token: String): Boolean {
-        return try {
-            val payload = token.split(".").getOrNull(1) ?: return true
-            val decoded = String(android.util.Base64.decode(
-                payload.replace('-', '+').replace('_', '/'),
-                android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING
-            ))
-            val exp = kotlinx.serialization.json.Json.parseToJsonElement(decoded)
-                .jsonObject["exp"]?.jsonPrimitive?.long ?: return true
-            val nowSeconds = System.currentTimeMillis() / 1000
-            (exp - nowSeconds) < 60L
-        } catch (_: Exception) {
-            true
         }
     }
 
