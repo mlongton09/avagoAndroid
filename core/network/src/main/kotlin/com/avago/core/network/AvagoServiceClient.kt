@@ -64,8 +64,9 @@ import com.avago.core.network.model.PurchaseOrderResponse
 import com.avago.core.network.model.ReactMessageRequest
 import com.avago.core.network.model.RefreshRequest
 import com.avago.core.network.model.ScoutEntityDto
-import com.avago.core.network.model.ScoutQueryRequest
-import com.avago.core.network.model.ScoutQueryResponse
+import com.avago.core.network.model.ScoutExtractRequest
+import com.avago.core.network.model.ScoutExtractResponse
+import com.avago.core.network.model.ScoutScreenContext
 import com.avago.core.network.model.SendMessageRequest
 import com.avago.core.network.model.SignInRequest
 import com.avago.core.network.model.SyncPullResponse
@@ -74,6 +75,8 @@ import com.avago.core.network.model.SyncPushResponse
 import com.avago.core.network.model.UserResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.plugins.auth.Auth
+import io.ktor.client.plugins.plugin
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
@@ -82,6 +85,7 @@ import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.ByteArrayContent
@@ -103,6 +107,47 @@ class AvagoServiceClient @Inject constructor(
 
     fun notifyPermissionsStale(accountId: String) {
         _permissionsStaleEvents.tryEmit(accountId)
+    }
+
+    /**
+     * Clears Ktor's cached bearer token so the next request re-invokes [loadTokens]
+     * and picks up the newly stored account credentials. Must be called after
+     * switching the active account (e.g. after sign-in or account switch) so
+     * subsequent calls don't reuse the previous session's cached token.
+     */
+    fun clearBearerTokenCache() {
+        // In Ktor 3.x, client.plugin(Auth) returns ClientPluginInstance<AuthConfig>.
+        // providers lives on AuthConfig (via .config), not on the instance directly.
+        // BearerAuthProvider.clearToken() is Kotlin-internal — reached via JVM reflection.
+        try {
+            val pluginInstance = client.plugin(Auth)
+
+            // Ktor 3.x: navigate pluginInstance -> config (AuthConfig) -> providers
+            // Ktor 2.x fallback: providers directly on the plugin instance
+            val configHolder: Any = try {
+                val getter = pluginInstance.javaClass.getMethod("getConfig")
+                getter.invoke(pluginInstance) ?: pluginInstance
+            } catch (_: NoSuchMethodException) {
+                pluginInstance
+            }
+
+            val providersField = generateSequence(configHolder.javaClass) { it.superclass }
+                .flatMap { it.declaredFields.asSequence() }
+                .firstOrNull { it.name == "providers" } ?: return
+            providersField.isAccessible = true
+            val providers = providersField.get(configHolder) as? List<*> ?: return
+
+            for (provider in providers) {
+                provider ?: continue
+                val clearMethod = generateSequence(provider.javaClass) { it.superclass }
+                    .flatMap { it.declaredMethods.asSequence() }
+                    .firstOrNull { it.name == "clearToken" } ?: continue
+                clearMethod.isAccessible = true
+                clearMethod.invoke(provider)
+            }
+        } catch (e: Exception) {
+            Timber.w(e, "AvagoServiceClient: failed to clear bearer token cache")
+        }
     }
 
     suspend fun provision(deviceId: String): AuthResponse =
@@ -947,8 +992,8 @@ class AvagoServiceClient @Inject constructor(
      * [ScoutQueryResponse] that tells the client which screen to open
      * and which form fields to pre-fill.
      *
-     * @param accountId      The active account.
-     * @param query          Free-text or transcribed voice input.
+     * @param accountId      The active account — injected into screen_context.account_id.
+     * @param query          Free-text or transcribed voice input (maps to transcript).
      * @param recentEntities MRU list of entities the user recently viewed.
      * @param currentScreen  Nav route of the currently visible screen.
      */
@@ -957,14 +1002,17 @@ class AvagoServiceClient @Inject constructor(
         query: String,
         recentEntities: List<ScoutEntityDto> = emptyList(),
         currentScreen: String? = null,
-    ): NetworkResult<ScoutQueryResponse> =
+    ): NetworkResult<ScoutExtractResponse> =
         safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/ai/scout") {
+            client.post("$baseUrl/ai/extract") {
                 setBody(
-                    ScoutQueryRequest(
-                        query = query,
-                        recent_entities = recentEntities,
-                        current_screen = currentScreen,
+                    ScoutExtractRequest(
+                        transcript = query,
+                        screen_context = ScoutScreenContext(
+                            account_id = accountId,
+                            recent_entities = recentEntities,
+                            current_screen = currentScreen,
+                        ),
                     )
                 )
             }.body()
@@ -1202,6 +1250,16 @@ class AvagoServiceClient @Inject constructor(
         safeNetworkCall {
             val response: HttpResponse =
                 client.delete("$baseUrl/chat/messages/$messageId/pin")
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
+        }
+
+    /** POST /chat/messages/{messageId}/report — report message to admins. */
+    suspend fun reportMessage(threadId: String, messageId: String): NetworkResult<Unit> =
+        safeNetworkCall {
+            val response: HttpResponse =
+                client.post("$baseUrl/chat/messages/$messageId/report")
             if (!response.status.isSuccess()) {
                 throw NetworkException(response.status.value, response.status.description)
             }
@@ -1688,13 +1746,26 @@ class AvagoServiceClient @Inject constructor(
                 throw UnauthorizedException()
             }
             Timber.e(e, "HTTP $code from service")
-            throw NetworkException(code, e.response.status.description)
+            val bodyText = runCatching { e.response.bodyAsText() }.getOrNull() ?: ""
+            val retryAfter = parseRetryAfterSeconds(bodyText)
+            val message = bodyText.ifBlank { e.response.status.description }.ifBlank { "HTTP $code" }
+            throw NetworkException(code, message, retryAfter)
         } catch (e: Exception) {
             Timber.e(e, "Network call failed")
             throw NetworkException(-1, e.message ?: "Unknown error")
         }
     }
+
+    // Parses "Wait for Xs" out of server 429 bodies. Returns null if not present.
+    private fun parseRetryAfterSeconds(body: String): Long? {
+        val match = Regex("""Wait for (\d+)s""").find(body) ?: return null
+        return match.groupValues[1].toLongOrNull()
+    }
 }
 
-class NetworkException(val code: Int, override val message: String) : Exception(message)
+class NetworkException(
+    val code: Int,
+    override val message: String,
+    val retryAfterSeconds: Long? = null,
+) : Exception(message)
 class UnauthorizedException : Exception("Unauthorized")

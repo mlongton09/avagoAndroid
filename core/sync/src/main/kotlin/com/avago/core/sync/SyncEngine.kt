@@ -450,8 +450,11 @@ class SyncEngine @Inject constructor(
                     }
                 } catch (e: NetworkException) {
                     if (e.code == 403) {
-                        Timber.w("[SyncEngine] Pull $entityType got 403 — aborting sync, triggering re-auth")
-                        identity.onRefreshFailed()
+                        // 403 means the current token doesn't have access to this account.
+                        // Do NOT re-auth — that creates a flood loop and won't help if
+                        // stale_permissions=false. The bearer cache fix (clearBearerTokenCache)
+                        // is the correct remedy; here we just abort cleanly.
+                        Timber.w("[SyncEngine] Pull $entityType got 403 — aborting sync")
                         return SyncResult.Failed(e)
                     }
                     if (e.code == 429) {
