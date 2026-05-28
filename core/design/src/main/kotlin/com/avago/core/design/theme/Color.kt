@@ -32,6 +32,10 @@ val LightAccentGreen  = Color(0xFF1A7F37)  // accentGreen light
 val LightAccentRed    = Color(0xFFD1242F)  // accentRed light
 val LightAccentOrange = Color(0xFF9A6700)  // accentOrange light
 
+// ── Outline variant — used for low-priority WO bar, subtle separators ───────
+val DarkOutlineVariant  = Color(0xFF4D5561)  // darker gray (iOS systemGray dark)
+val LightOutlineVariant = Color(0xFFB8C1CA)  // lighter gray (iOS systemGray light)
+
 // ── Primary container tokens (FAB, chips) ───────────────────────────────────
 val DarkPrimaryContainer   = Color(0xFF1C2D40)  // dark blue-tinted surface
 val DarkOnPrimaryContainer = Color(0xFF539BF5)

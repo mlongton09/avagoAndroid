@@ -10,6 +10,11 @@ import com.avago.core.reports.model.CompletionRateData
 import com.avago.core.reports.model.CompletionRatePoint
 import com.avago.core.reports.model.CostByPerformedByRow
 import com.avago.core.reports.model.CostByVendorRow
+import com.avago.core.reports.model.CostCategoryBreakdown
+import com.avago.core.reports.model.CostGroupMode
+import com.avago.core.reports.model.CostGroupRow
+import com.avago.core.reports.model.CostPeriodSpec
+import com.avago.core.reports.model.CostReportData
 import com.avago.core.reports.model.EffortAccuracyRow
 import com.avago.core.reports.model.FixedAssetRow
 import com.avago.core.reports.model.InspectionRateData
@@ -602,6 +607,122 @@ class ReportAggregator @Inject constructor(
                 )
             }.sortedByDescending { it.lifetimeCost }
         }
+
+    // ─── Cost Report ─────────────────────────────────────────────────────────
+
+    suspend fun costReport(
+        accountId: String,
+        periods: List<CostPeriodSpec>,
+        mode: CostGroupMode,
+    ): CostReportData = withContext(Dispatchers.IO) {
+        val db = dbFactory.get(accountId)
+        val allLogs = db.logDao().observeAll(accountId).first()
+        val assets = db.assetDao().observeAll(accountId).first()
+        val assetMap = assets.associateBy { it.assetId }
+
+        val categoryColors = mutableMapOf<String, Int>()
+        var nextColor = 0
+        fun colorFor(cat: String) = categoryColors.getOrPut(cat) { nextColor++ % 8 }
+
+        fun periodCost(logs: List<LogEntity>, p: CostPeriodSpec) =
+            logs.filter { it.entryDate in p.startMs..p.endMs }.sumOf { it.cost ?: 0.0 }
+
+        fun categoryBreakdowns(logs: List<LogEntity>): List<CostCategoryBreakdown> =
+            logs.groupBy { it.category ?: "Uncategorized" }
+                .entries
+                .sortedByDescending { (_, list) -> list.sumOf { it.cost ?: 0.0 } }
+                .map { (cat, catLogs) ->
+                    CostCategoryBreakdown(
+                        category = cat,
+                        costs = periods.map { p -> periodCost(catLogs, p) },
+                        colorIndex = colorFor(cat),
+                    )
+                }
+
+        // Logs that fall within any of the 3 periods
+        val windowLogs = allLogs.filter { log ->
+            periods.any { p -> log.entryDate in p.startMs..p.endMs }
+        }
+
+        val rows: List<CostGroupRow> = when (mode) {
+            CostGroupMode.ALL -> listOf(
+                CostGroupRow(
+                    key = "total",
+                    label = "Total Cost",
+                    periodCosts = periods.map { p -> periodCost(windowLogs, p) },
+                    lifetimeCost = allLogs.sumOf { it.cost ?: 0.0 },
+                    categories = categoryBreakdowns(windowLogs),
+                )
+            )
+            CostGroupMode.BY_ASSET -> {
+                windowLogs.map { it.assetId }.distinct().map { assetId ->
+                    val assetLogs = windowLogs.filter { it.assetId == assetId }
+                    CostGroupRow(
+                        key = assetId,
+                        label = assetMap[assetId]?.name ?: assetId,
+                        periodCosts = periods.map { p -> periodCost(assetLogs, p) },
+                        lifetimeCost = allLogs.filter { it.assetId == assetId }.sumOf { it.cost ?: 0.0 },
+                        categories = categoryBreakdowns(assetLogs),
+                    )
+                }.sortedByDescending { it.periodCosts.lastOrNull() ?: 0.0 }
+            }
+            CostGroupMode.BY_TYPE -> {
+                windowLogs.map { assetMap[it.assetId]?.assetType ?: "Unknown" }.distinct().map { assetType ->
+                    val typeLogs = windowLogs.filter { (assetMap[it.assetId]?.assetType ?: "Unknown") == assetType }
+                    CostGroupRow(
+                        key = assetType,
+                        label = assetType,
+                        periodCosts = periods.map { p -> periodCost(typeLogs, p) },
+                        lifetimeCost = allLogs.filter { (assetMap[it.assetId]?.assetType ?: "Unknown") == assetType }.sumOf { it.cost ?: 0.0 },
+                        categories = categoryBreakdowns(typeLogs),
+                    )
+                }.sortedByDescending { it.periodCosts.lastOrNull() ?: 0.0 }
+            }
+            CostGroupMode.TCO -> {
+                assets.map { asset ->
+                    val assetLogs = allLogs.filter { it.assetId == asset.assetId }
+                    val lifetime = assetLogs.sumOf { it.cost ?: 0.0 }
+                    CostGroupRow(
+                        key = asset.assetId,
+                        label = asset.name,
+                        periodCosts = listOf(0.0, 0.0, lifetime),
+                        lifetimeCost = lifetime,
+                        categories = assetLogs
+                            .groupBy { it.category ?: "Uncategorized" }
+                            .entries
+                            .sortedByDescending { (_, list) -> list.sumOf { it.cost ?: 0.0 } }
+                            .map { (cat, catLogs) ->
+                                CostCategoryBreakdown(
+                                    category = cat,
+                                    costs = listOf(0.0, 0.0, catLogs.sumOf { it.cost ?: 0.0 }),
+                                    colorIndex = colorFor(cat),
+                                )
+                            },
+                    )
+                }.sortedByDescending { it.lifetimeCost }
+            }
+        }
+
+        // Inventory point-in-time value
+        val inventory = db.inventoryDao().observeAll(accountId).first()
+        val parts = db.partDao().observeAll(accountId).first()
+        val partMap = parts.associateBy { it.partId }
+        val invByCategory = inventory
+            .groupBy { partMap[it.partId]?.category ?: "Uncategorized" }
+            .mapValues { (_, items) ->
+                items.sumOf { inv -> inv.quantityOnHand * (partMap[inv.partId]?.cost ?: 0.0) }
+            }
+            .entries
+            .sortedByDescending { it.value }
+            .map { it.toPair() }
+
+        CostReportData(
+            periods = periods,
+            rows = rows,
+            inventoryValue = invByCategory.sumOf { it.second },
+            inventoryByCategory = invByCategory,
+        )
+    }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
 

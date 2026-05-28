@@ -1,5 +1,6 @@
 package com.avago.feature.chat
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,9 +18,9 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.NotificationsOff
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.Badge
 import androidx.compose.material3.IconButton
@@ -28,13 +29,15 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -50,6 +53,7 @@ import com.avago.feature.chat.ui.iconEmoji
 import com.avago.feature.chat.ui.lastMessagePreviewText
 import com.avago.feature.chat.ui.relativeTimestamp
 import com.avago.feature.chat.viewmodel.ChatListViewModel
+import com.avago.core.ui.AvagoSearchBar
 import com.avago.feature.chat.viewmodel.ThreadFilter
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -90,25 +94,13 @@ fun ChatListScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    OutlinedTextField(
-                        value = uiState.searchQuery,
-                        onValueChange = viewModel::setSearchQuery,
-                        placeholder = { Text("filter by person or asset name") },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                        trailingIcon = {
-                            if (uiState.searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Clear search")
-                                }
-                            }
-                        },
+                    AvagoSearchBar(
+                        query = uiState.searchQuery,
+                        onQueryChange = viewModel::setSearchQuery,
+                        placeholder = "Filter by person or asset name",
                         modifier = Modifier
                             .weight(1f)
                             .padding(start = 12.dp, top = 8.dp, bottom = 8.dp),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                        ),
                     )
                     IconButton(
                         onClick = onMentions,
@@ -163,10 +155,61 @@ fun ChatListScreen(
                             )
                         }
                         items(uiState.threads, key = { it.threadId }) { thread ->
-                            ThreadRow(
-                                thread = thread,
-                                onClick = { onThreadClick(thread.threadId) },
+                            val swipeState = rememberSwipeToDismissBoxState(
+                                confirmValueChange = { value ->
+                                    when (value) {
+                                        SwipeToDismissBoxValue.StartToEnd -> {
+                                            viewModel.setFavorite(thread.threadId, !thread.isFavorite)
+                                            false // don't dismiss, just toggle
+                                        }
+                                        SwipeToDismissBoxValue.EndToStart -> {
+                                            viewModel.muteThread(thread.threadId, 8)
+                                            false
+                                        }
+                                        else -> false
+                                    }
+                                },
                             )
+                            SwipeToDismissBox(
+                                state = swipeState,
+                                backgroundContent = {
+                                    val dir = swipeState.targetValue
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(
+                                                if (dir == SwipeToDismissBoxValue.StartToEnd)
+                                                    MaterialTheme.colorScheme.primaryContainer
+                                                else
+                                                    MaterialTheme.colorScheme.secondaryContainer
+                                            )
+                                            .padding(horizontal = 20.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = if (dir == SwipeToDismissBoxValue.StartToEnd)
+                                            Arrangement.Start else Arrangement.End,
+                                    ) {
+                                        if (dir == SwipeToDismissBoxValue.StartToEnd) {
+                                            Icon(
+                                                Icons.Default.Star,
+                                                contentDescription = if (thread.isFavorite) "Unfavorite" else "Favorite",
+                                                tint = if (thread.isFavorite) MaterialTheme.colorScheme.primary
+                                                       else MaterialTheme.colorScheme.onPrimaryContainer,
+                                            )
+                                        } else {
+                                            Icon(
+                                                Icons.Default.NotificationsOff,
+                                                contentDescription = "Mute 8 hours",
+                                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            )
+                                        }
+                                    }
+                                },
+                            ) {
+                                ThreadRow(
+                                    thread = thread,
+                                    onClick = { onThreadClick(thread.threadId) },
+                                )
+                            }
                         }
                     }
                 }
@@ -217,10 +260,11 @@ private fun MentionsShortcutRow(
         )
 
         if (unreadMentionCount > 0) {
-            Badge {
-                Text(
-                    text = if (unreadMentionCount > 99) "99+" else unreadMentionCount.toString(),
-                )
+            Badge(
+                containerColor = MaterialTheme.colorScheme.error,
+                contentColor = MaterialTheme.colorScheme.onError,
+            ) {
+                Text(text = if (unreadMentionCount > 99) "99+" else unreadMentionCount.toString())
             }
         }
     }
@@ -290,10 +334,11 @@ private fun ThreadRow(
                 )
 
                 if (hasUnread) {
-                    Badge {
-                        Text(
-                            text = if (thread.unreadCount > 99) "99+" else thread.unreadCount.toString(),
-                        )
+                    Badge(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError,
+                    ) {
+                        Text(text = if (thread.unreadCount > 99) "99+" else thread.unreadCount.toString())
                     }
                 }
             }

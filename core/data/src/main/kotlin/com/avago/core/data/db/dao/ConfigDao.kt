@@ -23,6 +23,9 @@ interface ConfigDao {
     @Query("SELECT * FROM configs WHERE scope = :scope AND key = :key LIMIT 1")
     fun observeByKey(scope: String, key: String): Flow<ConfigEntity?>
 
+    @Query("SELECT * FROM configs WHERE scope = :scope AND key LIKE :keyPattern ORDER BY version DESC")
+    suspend fun getByPattern(scope: String, keyPattern: String): List<ConfigEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: ConfigEntity)
 

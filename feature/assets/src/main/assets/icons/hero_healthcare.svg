@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="#fff">
+  <!--
+    Hospital building. Wide rectangular block. A bold medical cross (+) cutout
+    punched out of the centre of the building face. Entry doors at base.
+    Roof cap band. fill-rule=evenodd for cross and door holes.
+  -->
+  <path fill-rule="evenodd" d="
+    M 8,28
+    L 92,28
+    L 92,94
+    L 8,94
+    Z
+
+    M 4,24
+    L 96,24
+    L 96,30
+    L 4,30
+    Z
+
+    M 38,38
+    L 62,38
+    L 62,50
+    L 38,50
+    Z
+    M 44,34
+    L 56,34
+    L 56,58
+    L 44,58
+    Z
+
+    M 34,76
+    L 48,76
+    L 48,94
+    L 34,94
+    Z
+    M 52,76
+    L 66,76
+    L 66,94
+    L 52,94
+    Z
+  "/>
+</svg>

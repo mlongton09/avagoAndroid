@@ -3,6 +3,7 @@ package com.avago.feature.inventory.parts
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
+import com.avago.core.data.FormFillRouter
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.model.InventoryReceiveRequest
 import com.avago.core.network.model.InventoryUseRequest
@@ -28,6 +29,7 @@ data class ReceiveUseUiState(
 class ReceiveUseViewModel @Inject constructor(
     private val serviceClient: AvagoServiceClient,
     private val identityManager: IdentityManager,
+    private val formFillRouter: FormFillRouter,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ReceiveUseUiState())
@@ -35,6 +37,29 @@ class ReceiveUseViewModel @Inject constructor(
 
     fun setQuantity(q: String) { _state.value = _state.value.copy(quantity = q, error = null) }
     fun setNotes(n: String) { _state.value = _state.value.copy(notes = n) }
+
+    fun registerFormFill(screenId: String) {
+        formFillRouter.register(screenId) { fields -> applyScoutFields(fields) }
+    }
+
+    fun unregisterFormFill(screenId: String) {
+        formFillRouter.unregister(screenId)
+    }
+
+    private fun applyScoutFields(fields: Map<String, String?>): List<String> {
+        val touched = mutableListOf<String>()
+        _state.value = _state.value.let { s ->
+            var updated = s
+            (fields["quantity"] ?: fields["qty"])?.toDoubleOrNull()?.let {
+                updated = updated.copy(quantity = it.toString()); touched.add("quantity")
+            }
+            fields["notes"]?.trim()?.let {
+                updated = updated.copy(notes = it); touched.add("notes")
+            }
+            updated
+        }
+        return touched
+    }
 
     fun submit(inventoryId: String, mode: ReceiveUseMode) {
         val qty = _state.value.quantity.toDoubleOrNull() ?: run {

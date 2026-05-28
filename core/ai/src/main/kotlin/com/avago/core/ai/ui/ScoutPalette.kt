@@ -10,7 +10,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -77,17 +78,27 @@ fun ScoutPaletteSheet(
 
     // Handle state transitions once per result.
     LaunchedEffect(state) {
-        val s = state as? ScoutViewModel.ScoutState.Result ?: return@LaunchedEffect
-        val card = s.response.actionCard
-        val target = s.response.targetScreen
-        if (card != null && !card.isExpired && target != null) {
-            pendingNavTarget = target
-            pendingNavFields = s.response.fields
-            actionCardToConfirm = card
-        } else {
-            if (target != null) onNavigate(target, s.response.fields)
-            onDismiss()
-            viewModel.reset()
+        when (val s = state) {
+            is ScoutViewModel.ScoutState.Result -> {
+                val card = s.response.actionCard
+                val target = s.response.targetScreen
+                if (card != null && !card.isExpired) {
+                    pendingNavTarget = target
+                    // Inject skill name so executeAction can dispatch it.
+                    pendingNavFields = s.response.fields + mapOf("_skill" to card.skillName)
+                    actionCardToConfirm = card
+                } else {
+                    if (target != null) onNavigate(target, s.response.fields)
+                    onDismiss()
+                    viewModel.reset()
+                }
+            }
+            is ScoutViewModel.ScoutState.Executed -> {
+                // HITL-off: executor already committed, just dismiss.
+                onDismiss()
+                viewModel.reset()
+            }
+            else -> Unit
         }
     }
 
@@ -117,8 +128,12 @@ fun ScoutPaletteSheet(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        pendingNavTarget?.let { target ->
+                        val target = pendingNavTarget
+                        if (target != null) {
                             onNavigate(target, pendingNavFields)
+                        } else {
+                            // Action-only skill (e.g. work-order-action): execute directly.
+                            viewModel.executeAction(pendingNavFields)
                         }
                         actionCardToConfirm = null
                         pendingNavTarget = null
@@ -166,7 +181,7 @@ fun ScoutPaletteSheet(
                         },
                         enabled = input.isNotBlank() && state !is ScoutViewModel.ScoutState.Loading,
                     ) {
-                        Icon(Icons.Default.Send, contentDescription = "Send")
+                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
                     }
                 },
                 singleLine = true,
@@ -215,9 +230,18 @@ fun ScoutPaletteSheet(
                         leadingContent = {
                             Icon(Icons.Default.AutoAwesome, contentDescription = null)
                         },
+                        trailingContent = if (skill.state_changing) ({
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = "State-changing action",
+                                tint = MaterialTheme.colorScheme.error,
+                            )
+                        }) else null,
                         modifier = Modifier.clickable {
-                            input = ""
-                            viewModel.query(skill.name ?: skill.skill_id)
+                            // Populate the composer with the first example phrasing so
+                            // the user can review/edit before sending — mirrors iOS chip
+                            // behaviour where tapping sets draftText without auto-sending.
+                            input = skill.example_phrasings.firstOrNull() ?: skill.name ?: skill.skill_id
                         },
                     )
                 }
@@ -229,9 +253,11 @@ fun ScoutPaletteSheet(
 }
 
 private val FALLBACK_SKILLS = listOf(
-    "Log service",
-    "Create work order",
-    "Add parts pickup",
-    "Find part",
-    "Show overdue",
-).map { AiSkillResponse(skill_id = it, name = it) }
+    AiSkillResponse(skill_id = "log-entry-create",      name = "Log service",       description = "Log a service entry",       example_phrasings = listOf("Oil change on F-150 today \$90")),
+    AiSkillResponse(skill_id = "fuel-log",              name = "Log fuel",          description = "Record a fuel fill-up",     example_phrasings = listOf("Filled up truck 12.3 gal \$54")),
+    AiSkillResponse(skill_id = "inspection-from-voice", name = "Log inspection",    description = "Record an inspection",      example_phrasings = listOf("Daily inspection on excavator, all good")),
+    AiSkillResponse(skill_id = "work-order-create",     name = "Create work order", description = "Open a new work order",     example_phrasings = listOf("Create a WO to inspect rear brake pads")),
+    AiSkillResponse(skill_id = "work-order-assign",     name = "Assign work order", description = "Assign a WO to someone",   example_phrasings = listOf("Assign WO-42 to Sarah"), state_changing = true),
+    AiSkillResponse(skill_id = "asset-create",          name = "Add asset",         description = "Register a new asset",     example_phrasings = listOf("Add a 2019 Ford F-350 named Site Truck")),
+    AiSkillResponse(skill_id = "chat-qa",               name = "Ask a question",    description = "Query your fleet data",    example_phrasings = listOf("What’s overdue this week?")),
+)

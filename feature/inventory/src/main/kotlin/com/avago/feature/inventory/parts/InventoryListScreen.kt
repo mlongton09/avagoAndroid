@@ -25,7 +25,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -40,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.avago.core.ui.AvagoSearchBar
 import com.avago.core.ui.EmptyState
 import com.avago.feature.inventory.R
 
@@ -80,14 +80,10 @@ fun InventoryListScreen(
                 .padding(padding),
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                OutlinedTextField(
-                    value = state.searchQuery,
-                    onValueChange = viewModel::setSearchQuery,
-                    placeholder = { Text(stringResource(R.string.inventory_search_hint)) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    singleLine = true,
+                AvagoSearchBar(
+                    query = state.searchQuery,
+                    onQueryChange = viewModel::setSearchQuery,
+                    placeholder = stringResource(R.string.inventory_search_hint),
                 )
 
                 // Summary statistics bar

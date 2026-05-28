@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.feature.inventory.R
+import com.avago.feature.inventory.ui.LocationPickerSheet
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,6 +57,7 @@ fun AddEditPartScreen(
     viewModel: AddEditPartViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var showLocationPicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.isSaved) {
         if (state.isSaved) onSaved()
@@ -63,6 +65,17 @@ fun AddEditPartScreen(
 
     LaunchedEffect(pendingCategory) {
         if (pendingCategory != null) viewModel.setCategory(pendingCategory)
+    }
+
+    if (showLocationPicker) {
+        LocationPickerSheet(
+            onLocationPicked = { location ->
+                if (location != null) viewModel.setLocation(location.locationId, location.name)
+                else viewModel.setLocation("", "")
+                showLocationPicker = false
+            },
+            onDismiss = { showLocationPicker = false },
+        )
     }
 
     Scaffold(
@@ -140,6 +153,38 @@ fun AddEditPartScreen(
                         )
                         Text(
                             text = state.category.ifBlank { stringResource(R.string.inventory_category_picker_none) },
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            // Location
+            OutlinedCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showLocationPicker = true },
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column {
+                        Text(
+                            text = "Location",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = state.locationName.ifBlank { "None" },
                             style = MaterialTheme.typography.bodyLarge,
                         )
                     }

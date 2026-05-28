@@ -1,5 +1,6 @@
 package com.avago.feature.schedule.ui
 
+import android.app.DatePickerDialog
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -40,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -49,6 +51,9 @@ import com.avago.feature.schedule.R
 import com.avago.feature.schedule.util.ScheduleFrequencyPreset
 import com.avago.feature.schedule.viewmodel.AddEditScheduleViewModel
 import com.avago.feature.schedule.viewmodel.ScheduleTypeSelection
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.TimeZone
 
 private val METER_TYPES = listOf("odometer", "km", "hours", "cycles")
 
@@ -70,12 +75,18 @@ fun AddEditScheduleScreen(
     val meterType by viewModel.meterType.collectAsStateWithLifecycle()
     val meterInterval by viewModel.meterInterval.collectAsStateWithLifecycle()
     val meterCurrent by viewModel.meterCurrent.collectAsStateWithLifecycle()
+    val endType by viewModel.endType.collectAsStateWithLifecycle()
+    val endDate by viewModel.endDate.collectAsStateWithLifecycle()
+    val endCount by viewModel.endCount.collectAsStateWithLifecycle()
+    val timezone by viewModel.timezone.collectAsStateWithLifecycle()
+    val notes by viewModel.notes.collectAsStateWithLifecycle()
     val titleError by viewModel.titleError.collectAsStateWithLifecycle()
     val assetError by viewModel.assetError.collectAsStateWithLifecycle()
     val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
     val savedSuccessfully by viewModel.savedSuccessfully.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
 
+    val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(savedSuccessfully) {
@@ -91,6 +102,8 @@ fun AddEditScheduleScreen(
 
     var showFrequencyMenu by remember { mutableStateOf(false) }
     var showMeterTypeMenu by remember { mutableStateOf(false) }
+    var showTimezoneMenu by remember { mutableStateOf(false) }
+    val endTypes = listOf("never" to "Never", "date" to "On Date", "count" to "After Count")
 
     val isEdit = scheduleId != null
 
@@ -278,6 +291,100 @@ fun AddEditScheduleScreen(
                     singleLine = true,
                 )
             }
+
+            // ── Timezone ──────────────────────────────────────────────────────
+            if (scheduleType == ScheduleTypeSelection.BY_DATE) {
+                OutlinedTextField(
+                    value = timezone,
+                    onValueChange = {},
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showTimezoneMenu = true },
+                    label = { Text("Timezone") },
+                    enabled = false,
+                    readOnly = true,
+                )
+                DropdownMenu(
+                    expanded = showTimezoneMenu,
+                    onDismissRequest = { showTimezoneMenu = false },
+                ) {
+                    val commonZones = listOf(
+                        "UTC", "America/New_York", "America/Chicago", "America/Denver",
+                        "America/Los_Angeles", "America/Phoenix", "America/Anchorage",
+                        "Pacific/Honolulu", "Europe/London", "Europe/Paris", "Europe/Berlin",
+                        "Asia/Tokyo", "Asia/Shanghai", "Asia/Kolkata", "Australia/Sydney",
+                    )
+                    commonZones.forEach { zoneId ->
+                        DropdownMenuItem(
+                            text = { Text(zoneId) },
+                            onClick = {
+                                viewModel.timezone.value = zoneId
+                                showTimezoneMenu = false
+                            },
+                        )
+                    }
+                }
+
+                // ── End repeat ────────────────────────────────────────────────
+                Text(
+                    text = "End Repeat",
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    endTypes.forEachIndexed { index, (key, label) ->
+                        SegmentedButton(
+                            selected = endType == key,
+                            onClick = { viewModel.endType.value = key },
+                            shape = SegmentedButtonDefaults.itemShape(
+                                index = index,
+                                count = endTypes.size,
+                            ),
+                            label = { Text(label) },
+                        )
+                    }
+                }
+
+                if (endType == "date") {
+                    val displayDate = endDate?.format(DateTimeFormatter.ISO_LOCAL_DATE) ?: "Select date"
+                    OutlinedTextField(
+                        value = displayDate,
+                        onValueChange = {},
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                val today = endDate ?: LocalDate.now()
+                                DatePickerDialog(
+                                    context,
+                                    { _, y, m, d -> viewModel.endDate.value = LocalDate.of(y, m + 1, d) },
+                                    today.year, today.monthValue - 1, today.dayOfMonth,
+                                ).show()
+                            },
+                        label = { Text("End Date") },
+                        enabled = false,
+                        readOnly = true,
+                    )
+                }
+
+                if (endType == "count") {
+                    OutlinedTextField(
+                        value = endCount.toString(),
+                        onValueChange = { viewModel.endCount.value = it.toIntOrNull()?.coerceAtLeast(1) ?: 1 },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Number of Occurrences") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    )
+                }
+            }
+
+            // ── Notes ─────────────────────────────────────────────────────────
+            OutlinedTextField(
+                value = notes,
+                onValueChange = { viewModel.notes.value = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Notes") },
+                maxLines = 4,
+            )
 
             Spacer(modifier = Modifier.height(8.dp))
 

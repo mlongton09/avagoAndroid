@@ -228,7 +228,3 @@ class WorkOrderListViewModel @Inject constructor(
 /** Tuple helper for combining 4 flows — avoids nesting a second combine(). */
 private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
-private operator fun <A, B, C, D> Quad<A, B, C, D>.component1() = first
-private operator fun <A, B, C, D> Quad<A, B, C, D>.component2() = second
-private operator fun <A, B, C, D> Quad<A, B, C, D>.component3() = third
-private operator fun <A, B, C, D> Quad<A, B, C, D>.component4() = fourth

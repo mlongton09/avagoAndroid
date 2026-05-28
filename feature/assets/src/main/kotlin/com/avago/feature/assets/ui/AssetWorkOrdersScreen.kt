@@ -103,8 +103,8 @@ private fun AssetWoRow(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = MaterialTheme.shapes.small,
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(

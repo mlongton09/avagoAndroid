@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="#fff">
+  <!--
+    Motorhome/RV side profile. Long rectangular body nearly full width,
+    rounded cab section at front-left, 3 windows along body, entry door,
+    two wheels with hub cutouts.
+  -->
+  <path fill-rule="evenodd" d="
+    M 4,76
+    L 4,30
+    C 4,27 6,26 8,26
+    L 88,26
+    C 92,26 96,28 96,32
+    L 96,76
+    Z
+
+    M 6,32
+    L 6,42
+    L 22,42
+    L 22,32
+    Z
+
+    M 26,32
+    L 26,42
+    L 42,42
+    L 42,32
+    Z
+
+    M 46,32
+    L 46,42
+    L 62,42
+    L 62,32
+    Z
+
+    M 70,32
+    L 70,56
+    L 88,56
+    L 88,32
+    Z
+
+    M 6,76
+    A 11,11 0 1 0 28,76
+    A 11,11 0 1 0 6,76 Z
+    M 11,76
+    A 6,6 0 1 1 23,76
+    A 6,6 0 1 1 11,76 Z
+
+    M 72,76
+    A 11,11 0 1 0 94,76
+    A 11,11 0 1 0 72,76 Z
+    M 77,76
+    A 6,6 0 1 1 89,76
+    A 6,6 0 1 1 77,76 Z
+  "/>
+</svg>

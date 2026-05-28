@@ -78,6 +78,9 @@ fun SettingsScreen(
     val theme by viewModel.theme.collectAsState()
     val distanceUnit by viewModel.distanceUnit.collectAsState()
     val currency by viewModel.currency.collectAsState()
+    val fuelVolumeUnit by viewModel.fuelVolumeUnit.collectAsState()
+    val disableQuotes by viewModel.disableQuotes.collectAsState()
+    val enableHumanInLoop by viewModel.enableHumanInLoop.collectAsState()
     val activeAccountId by viewModel.activeAccountId.collectAsState()
 
     // Notification permission — re-check on every recomposition so state is fresh
@@ -188,6 +191,35 @@ fun SettingsScreen(
             CurrencyRow(
                 current = currency,
                 onClick = { showCurrencyDialog = true },
+            )
+        }
+        item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
+        item {
+            FuelVolumeUnitRow(
+                selected = fuelVolumeUnit,
+                onSelect = viewModel::setFuelVolumeUnit,
+            )
+        }
+        item { SectionDivider() }
+
+        // ── AI ────────────────────────────────────────────────────────────────
+        item {
+            SectionHeader(text = stringResource(R.string.settings_ai))
+        }
+        item {
+            SwitchRow(
+                label = stringResource(R.string.settings_human_in_loop),
+                description = stringResource(R.string.settings_human_in_loop_desc),
+                checked = enableHumanInLoop,
+                onCheckedChange = viewModel::setEnableHumanInLoop,
+            )
+        }
+        item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
+        item {
+            SwitchRow(
+                label = stringResource(R.string.settings_disable_quotes),
+                checked = disableQuotes,
+                onCheckedChange = viewModel::setDisableQuotes,
             )
         }
         item { SectionDivider() }
@@ -329,8 +361,21 @@ fun SettingsScreen(
         }
         item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
         item {
+            val termsUrl = stringResource(R.string.settings_terms_of_service_url)
             NavigationRow(
-                label = "About",
+                label = stringResource(R.string.settings_terms_of_service),
+                leadingIcon = { Icon(Icons.Default.OpenInBrowser, contentDescription = null) },
+                onClick = {
+                    context.startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse(termsUrl)),
+                    )
+                },
+            )
+        }
+        item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
+        item {
+            NavigationRow(
+                label = stringResource(R.string.about_title),
                 leadingIcon = { Icon(Icons.Default.OpenInBrowser, contentDescription = null) },
                 onClick = onNavigateToAbout,
             )
@@ -548,6 +593,49 @@ private fun DistanceUnitRow(
                 )
             }
         },
+    )
+}
+
+@Composable
+private fun FuelVolumeUnitRow(
+    selected: String,
+    onSelect: (String) -> Unit,
+) {
+    ListItem(
+        headlineContent = { Text(stringResource(R.string.settings_fuel_volume_unit)) },
+        trailingContent = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = selected == "gallon",
+                    onClick = { onSelect("gallon") },
+                    label = { Text("gal") },
+                )
+                FilterChip(
+                    selected = selected == "liter",
+                    onClick = { onSelect("liter") },
+                    label = { Text("L") },
+                )
+            }
+        },
+    )
+}
+
+@Composable
+private fun SwitchRow(
+    label: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    description: String? = null,
+) {
+    ListItem(
+        headlineContent = { Text(label) },
+        supportingContent = if (description != null) {
+            { Text(description, style = MaterialTheme.typography.bodySmall) }
+        } else null,
+        trailingContent = {
+            Switch(checked = checked, onCheckedChange = onCheckedChange)
+        },
+        modifier = Modifier.clickable(role = Role.Switch) { onCheckedChange(!checked) },
     )
 }
 

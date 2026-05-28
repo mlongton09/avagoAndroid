@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.avago.core.network.NetworkException
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import timber.log.Timber
@@ -27,8 +28,17 @@ class SyncWorker @AssistedInject constructor(
                 Result.success()
             }
             is SyncResult.Failed -> {
-                Timber.e(result.error, "SyncWorker: sync failed")
-                Result.retry()
+                val error = result.error
+                if (error is NetworkException && error.code == 429) {
+                    // Backoff gate is already set in SyncEngine; returning success
+                    // stops WorkManager from scheduling another retry that would hit
+                    // the server again and extend the rate-limit window further.
+                    Timber.w("SyncWorker: rate-limited — backoff gate set, not retrying")
+                    Result.success()
+                } else {
+                    Timber.e(error, "SyncWorker: sync failed")
+                    Result.retry()
+                }
             }
         }
     }

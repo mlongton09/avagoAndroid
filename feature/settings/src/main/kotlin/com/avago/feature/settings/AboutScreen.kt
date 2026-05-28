@@ -2,11 +2,17 @@ package com.avago.feature.settings
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
@@ -23,11 +29,16 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import com.avago.core.design.R as DesignR
 import com.avago.feature.settings.R
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,21 +67,37 @@ fun AboutScreen(
         LazyColumn(modifier = Modifier.padding(padding)) {
 
             item {
-                ListItem(
-                    headlineContent = {
-                        Text(
-                            text = "Avago",
-                            style = MaterialTheme.typography.titleLarge,
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 24.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFF5399FA)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            painter = painterResource(DesignR.drawable.ic_app_logo),
+                            contentDescription = "Avago",
+                            tint = Color.White,
+                            modifier = Modifier.size(44.dp),
                         )
-                    },
-                    supportingContent = {
-                        Text(
-                            text = "Version $versionName",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    },
-                )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Avago",
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                    Text(
+                        text = "Version $versionName",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
 
             item { SectionDivider() }

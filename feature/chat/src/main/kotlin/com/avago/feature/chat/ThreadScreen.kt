@@ -43,6 +43,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -58,12 +59,14 @@ import com.avago.core.data.db.entity.ChatMessageEntity
 import com.avago.feature.chat.ui.MessageActionSheet
 import com.avago.feature.chat.ui.MessageBubble
 import com.avago.feature.chat.ui.MessageComposer
+import com.avago.feature.chat.ui.SystemMessageBubble
 import com.avago.feature.chat.ui.PinnedMessageBanner
 import com.avago.feature.chat.ui.SubjectSummaryCard
 import com.avago.feature.chat.ui.TypingIndicator
 import com.avago.feature.chat.ui.displayTitle
 import com.avago.feature.chat.viewmodel.ThreadViewModel
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -97,6 +100,32 @@ fun ThreadScreen(
     // Body pending broadcast confirmation (set when threadType is "broadcast" or "team").
     var pendingBroadcastBody by remember { mutableStateOf<String?>(null) }
 
+    // Incrementing this key forces MessageComposer to recreate with the restored draft text.
+    var composerRevision by remember { mutableIntStateOf(0) }
+
+    // Resume-draft dialog: shown when a saved draft is recovered from DataStore on cold start.
+    if (uiState.resumeDraft != null) {
+        AlertDialog(
+            onDismissRequest = { viewModel.discardResumeDraft() },
+            title = { Text("Resume draft?") },
+            text = { Text("You have an unsent draft for this thread.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.acceptResumeDraft()
+                    composerRevision++
+                }) { Text("Continue") }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.discardResumeDraft() }) { Text("Discard") }
+            },
+        )
+    }
+
+    // Acknowledge most recent message when it arrives (matches iOS behavior).
+    LaunchedEffect(uiState.messages.lastOrNull()?.messageId) {
+        uiState.messages.lastOrNull()?.let { viewModel.acknowledgeMessage(it.messageId) }
+    }
+
     // Scroll to bottom when new messages arrive and user is near bottom.
     val isAtBottom by remember {
         derivedStateOf {
@@ -114,8 +143,11 @@ fun ThreadScreen(
     }
 
     // Pagination: trigger load-more when scrolled to the very top.
+    // drop(1) skips the initial emission at index=0 so we don't fire a spurious
+    // load-more the moment the screen opens before the user has scrolled.
     LaunchedEffect(listState) {
         snapshotFlow { listState.firstVisibleItemIndex }
+            .drop(1)
             .distinctUntilChanged()
             .filter { it == 0 }
             .collect { viewModel.loadMoreMessages() }
@@ -174,9 +206,11 @@ fun ThreadScreen(
                         }
                     },
                 )
+                androidx.compose.runtime.key(composerRevision) {
                 MessageComposer(
                     editingMessage = uiState.editingMessage,
                     members = uiState.roster,
+                    initialText = uiState.draft,
                     onSend = { body ->
                         if (uiState.editingMessage != null) {
                             viewModel.submitEdit(body)
@@ -190,7 +224,15 @@ fun ThreadScreen(
                         }
                     },
                     onCancelEdit = viewModel::cancelEditing,
+                    onTyping = viewModel::onUserTyped,
+                    onTextChanged = viewModel::saveDraft,
+                    replyingToMessage = uiState.replyingToMessage,
+                    onCancelReply = viewModel::cancelReply,
+                    linkPreview = uiState.linkPreview,
+                    onUrlDetected = viewModel::setDetectedUrl,
+                    onDismissLinkPreview = viewModel::dismissLinkPreview,
                 )
+                } // key(composerRevision)
             }
         },
     ) { innerPadding ->
@@ -279,7 +321,9 @@ fun ThreadScreen(
                             is ChatMessageEntity -> {
                                 val msgIndex = messages.indexOf(item)
                                 val prevMsg = messages.getOrNull(msgIndex - 1)
+                                val nextMsg = messages.getOrNull(msgIndex + 1)
                                 val isGroupStart = prevMsg == null || prevMsg.senderId != item.senderId
+                                val isGroupEnd = nextMsg == null || nextMsg.senderId != item.senderId
 
                                 // Unread divider
                                 val unreadCount = uiState.thread?.unreadCount ?: 0
@@ -291,16 +335,26 @@ fun ThreadScreen(
                                     UnreadDivider()
                                 }
 
-                                MessageBubble(
-                                    message = item,
-                                    myUserId = uiState.myUserId,
-                                    isGroupStart = isGroupStart,
-                                    modifier = Modifier.padding(
-                                        horizontal = 8.dp,
-                                        vertical = if (isGroupStart) 4.dp else 1.dp,
-                                    ),
-                                    onLongPress = { actionSheetMessage = it },
-                                )
+                                if (item.isSystem) {
+                                    SystemMessageBubble(
+                                        message = item,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    )
+                                } else {
+                                    MessageBubble(
+                                        message = item,
+                                        myUserId = uiState.myUserId,
+                                        isGroupStart = isGroupStart,
+                                        isGroupEnd = isGroupEnd,
+                                        modifier = Modifier.padding(
+                                            horizontal = 8.dp,
+                                            vertical = if (isGroupStart) 4.dp else 1.dp,
+                                        ),
+                                        onLongPress = { actionSheetMessage = it },
+                                        onOpenSubthread = if (item.replyCount > 0) { msg -> onOpenSubthread(msg.messageId) } else null,
+                                        onReply = { msg -> viewModel.startReply(msg) },
+                                    )
+                                }
                             }
                         }
                     }
@@ -344,16 +398,20 @@ fun ThreadScreen(
 
     // Message action bottom sheet
     actionSheetMessage?.let { msg ->
+        val role = uiState.userRole
         MessageActionSheet(
             message = msg,
             myUserId = uiState.myUserId,
+            isAdminOrRoot = role == "admin" || role == "root",
             onDismiss = { actionSheetMessage = null },
             onEdit = { viewModel.startEditing(msg) },
             onDelete = { viewModel.deleteMessage(msg.messageId) },
             onReact = { emoji -> viewModel.reactToMessage(msg.messageId, emoji) },
+            onReply = { viewModel.startReply(msg) },
             onReplyInThread = { onOpenSubthread(msg.messageId) },
             onPin = { viewModel.pinMessage(msg.messageId) },
             onUnpin = { viewModel.unpinMessage(msg.messageId) },
+            onReport = { viewModel.reportMessage(msg.messageId) },
         )
     }
 
@@ -387,11 +445,12 @@ fun ThreadScreen(
 private fun Long.toDateLabel(): String {
     val cal = java.util.Calendar.getInstance().apply { timeInMillis = this@toDateLabel }
     val today = java.util.Calendar.getInstance()
+    val yesterday = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DAY_OF_YEAR, -1) }
     return when {
         cal.get(java.util.Calendar.DAY_OF_YEAR) == today.get(java.util.Calendar.DAY_OF_YEAR) &&
             cal.get(java.util.Calendar.YEAR) == today.get(java.util.Calendar.YEAR) -> "Today"
-        cal.get(java.util.Calendar.DAY_OF_YEAR) == today.get(java.util.Calendar.DAY_OF_YEAR) - 1 &&
-            cal.get(java.util.Calendar.YEAR) == today.get(java.util.Calendar.YEAR) -> "Yesterday"
+        cal.get(java.util.Calendar.DAY_OF_YEAR) == yesterday.get(java.util.Calendar.DAY_OF_YEAR) &&
+            cal.get(java.util.Calendar.YEAR) == yesterday.get(java.util.Calendar.YEAR) -> "Yesterday"
         else -> java.text.SimpleDateFormat("MMM d", java.util.Locale.getDefault()).format(cal.time)
     }
 }

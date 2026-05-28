@@ -29,4 +29,8 @@ class MainViewModel @Inject constructor(
      */
     val activeAccountId: StateFlow<String?> = identityManager.activeAccountId
         .stateIn(viewModelScope, SharingStarted.Eagerly, identityManager.getActiveAccountId())
+
+    /** True when the active account is an anonymous/guest session. */
+    val activeAccountIsAnonymous: StateFlow<Boolean> = identityManager.activeAccountIsAnonymous
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 }

@@ -8,6 +8,7 @@ import kotlinx.serialization.json.JsonElement
 data class ChatMessageAuthorResponse(
     val id: String? = null,
     val display_name: String? = null,
+    val avatar_url: String? = null,
 )
 
 @Serializable
@@ -16,6 +17,14 @@ data class ChatLinkPreviewResponse(
     val title: String? = null,
     val description: String? = null,
     val image_url: String? = null,
+    val site_name: String? = null,
+)
+
+@Serializable
+data class ChatMentionRequest(
+    val kind: String,         // "user" | "all" | "here"
+    val user_id: String? = null,
+    val display_name: String? = null,
 )
 
 @Serializable
@@ -25,10 +34,33 @@ data class ChatMessageResponse(
     val author_id: String? = null,
     val author: ChatMessageAuthorResponse? = null,
     val body_md: String,
+    val body_html: String? = null,
     val edited_at: String? = null,
     val link_preview: ChatLinkPreviewResponse? = null,
+    // Single attachment (legacy) — prefer image_urls when both present
     val photo_url: String? = null,
-    val reactions: String? = null,
+    // Multi-image support — matches iOS image_urls array
+    val image_urls: List<String> = emptyList(),
+    // Mention arrays — parallel: mentioned_user_ids[i] corresponds to mention_kinds[i]
+    val mentioned_user_ids: List<String> = emptyList(),
+    val mention_kinds: List<String> = emptyList(),
+    // System messages (e.g. "member_added", "thread_renamed")
+    val is_system: Boolean = false,
+    val system_kind: String? = null,
+    val system_payload: String? = null, // raw JSON string
+    // Subthread reply counts — shown as "N replies" preview beneath messages
+    val reply_count: Int = 0,
+    val latest_reply_at: String? = null,
+    // Delivery/read tracking (counts only — no per-user lists on wire)
+    val delivered_by_count: Int = 0,
+    val read_by_count: Int = 0,
+    val read_by_total: Int = 0,
+    // Reaction counts {"👍": 3} and viewer's own reactions ["👍"]
+    val reaction_counts: Map<String, Int> = emptyMap(),
+    val my_reactions: List<String> = emptyList(),
+    // Needs-reply flag and idempotency key
+    val needs_reply: Boolean = false,
+    val client_ref: String? = null,
     val server_version: Long = 0,
     val created_at: String,
     val updated_at: String,
@@ -76,6 +108,14 @@ data class ChatThreadsEnvelope(
 data class SendMessageRequest(
     val body: String,
     val photo_url: String? = null,
+    val image_urls: List<String>? = null,
+    val mentions: List<ChatMentionRequest>? = null,
+    val client_ref: String? = null,
+    val needs_reply: Boolean? = null,
+    val parent_message_id: String? = null,
+    val subthread_root_message_id: String? = null,
+    val quick_reply_kind: String? = null,
+    val link_preview: ChatLinkPreviewResponse? = null,
 )
 
 @Serializable
@@ -150,6 +190,9 @@ data class ChatPrefsResponse(
     val wo_push_enabled: Boolean = true,
     val team_room_push_enabled: Boolean = true,
     val reaction_to_you_push_enabled: Boolean = true,
+    val quiet_hours_start: String? = null,
+    val quiet_hours_end: String? = null,
+    val quiet_hours_timezone: String? = null,
 )
 
 @Serializable
@@ -162,6 +205,9 @@ data class ChatPrefsRequest(
     val wo_push_enabled: Boolean? = null,
     val team_room_push_enabled: Boolean? = null,
     val reaction_to_you_push_enabled: Boolean? = null,
+    val quiet_hours_start: String? = null,
+    val quiet_hours_end: String? = null,
+    val quiet_hours_timezone: String? = null,
 )
 
 @Serializable

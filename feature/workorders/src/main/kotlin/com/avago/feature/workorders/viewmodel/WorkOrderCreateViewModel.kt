@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
+import com.avago.core.data.FormFillRouter
 import com.avago.core.data.db.entity.WoChecklistItemEntity
 import com.avago.core.data.db.entity.WoTemplateEntity
 import com.avago.core.data.db.entity.WorkOrderEntity
@@ -23,6 +24,8 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.text.SimpleDateFormat
+import java.util.Locale
 import java.util.TimeZone
 import java.util.UUID
 import javax.inject.Inject
@@ -45,6 +48,7 @@ class WorkOrderCreateViewModel @Inject constructor(
     private val repository: WorkOrderRepository,
     private val identityManager: IdentityManager,
     private val serviceClient: AvagoServiceClient,
+    private val formFillRouter: FormFillRouter,
 ) : ViewModel() {
 
     /** null = create mode; non-null = edit mode */
@@ -134,6 +138,58 @@ class WorkOrderCreateViewModel @Inject constructor(
                     }
             }
         }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Scout form-fill (HITL-on path)
+    // ---------------------------------------------------------------------------
+
+    init {
+        // Register with FormFillRouter so Scout can pre-fill this form when the
+        // user's HITL setting is ON.  Create mode uses "add_wo"; edit mode "edit_wo".
+        val screenId = if (editingWoId == null) "add_wo" else "edit_wo"
+        formFillRouter.register(screenId) { fields -> applyScoutFields(fields) }
+    }
+
+    override fun onCleared() {
+        val screenId = if (editingWoId == null) "add_wo" else "edit_wo"
+        formFillRouter.unregister(screenId)
+        super.onCleared()
+    }
+
+    fun applyScoutFields(fields: Map<String, String?>): List<String> {
+        val touched = mutableListOf<String>()
+        fields["title"]?.trim()?.takeIf { it.isNotEmpty() }?.let {
+            title.value = it; touched.add("title")
+        }
+        fields["description"]?.trim()?.let {
+            description.value = it; touched.add("description")
+        }
+        fields["asset_id"]?.let {
+            assetId.value = it; touched.add("asset")
+        }
+        fields["due_date"]?.let { ds ->
+            parseDateMs(ds)?.let { ms -> dueDateMs.value = ms; touched.add("due date") }
+        }
+        fields["priority"]?.lowercase()?.let { p ->
+            priority.value = WoPriority.fromKey(p); touched.add("priority")
+        }
+        fields["estimated_effort_minutes"]?.toDoubleOrNull()?.let { mins ->
+            estimatedHours.value = (mins / 60.0).toString(); touched.add("estimated effort")
+        }
+        fields["assigned_to"]?.takeIf { it.isNotBlank() }?.let { name ->
+            assignedTechIds.value = listOf(name); touched.add("assigned to")
+        }
+        return touched
+    }
+
+    private val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+    private val ymdFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+
+    private fun parseDateMs(v: String): Long? = try {
+        isoFormat.parse(v)?.time
+    } catch (_: Exception) {
+        try { ymdFormat.parse(v)?.time } catch (_: Exception) { null }
     }
 
     // ---------------------------------------------------------------------------

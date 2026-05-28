@@ -125,6 +125,34 @@ class ChatListViewModel @Inject constructor(
         }
     }
 
+    fun setFavorite(threadId: String, favorite: Boolean) {
+        viewModelScope.launch {
+            repository.setFavorite(threadId, favorite).onFailure { e ->
+                Timber.e(e, "setFavorite failed for threadId=$threadId")
+            }
+        }
+    }
+
+    /**
+     * Mute [threadId] for [hours] hours (0 = unmute).
+     * hours: 1, 8, 24 match iOS options; 0 = unmute.
+     */
+    fun muteThread(threadId: String, hours: Int) {
+        viewModelScope.launch {
+            val until = if (hours > 0) System.currentTimeMillis() + hours * 3_600_000L else null
+            repository.muteThread(threadId, muted = hours > 0, untilEpochMs = until)
+                .onFailure { e -> Timber.e(e, "muteThread failed for threadId=$threadId") }
+        }
+    }
+
+    fun leaveThread(threadId: String) {
+        viewModelScope.launch {
+            repository.leaveThread(threadId).onFailure { e ->
+                Timber.e(e, "leaveThread failed for threadId=$threadId")
+            }
+        }
+    }
+
     companion object {
         // Defines display order when ALL filter is active — mirrors iOS chat list ordering.
         private val TYPE_ORDER = mapOf(

@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -130,6 +131,23 @@ class UserPreferencesRepository @Inject constructor(
 
     suspend fun setEnableHumanInLoop(value: Boolean) {
         dataStore.edit { prefs -> prefs[ENABLE_HUMAN_IN_LOOP_KEY] = value }
+    }
+
+    /**
+     * Returns the saved draft body for a specific thread, or empty string if none.
+     * Used to restore the composer on cold start (matches iOS UserDefaults draft persistence).
+     */
+    suspend fun getChatDraft(threadId: String): String {
+        return dataStore.data.map { prefs ->
+            prefs[stringPreferencesKey("chat_draft_$threadId")] ?: ""
+        }.first()
+    }
+
+    /** Persists the current composer draft for [threadId]. Pass empty string to clear. */
+    suspend fun setChatDraft(threadId: String, text: String) {
+        dataStore.edit { prefs ->
+            prefs[stringPreferencesKey("chat_draft_$threadId")] = text
+        }
     }
 
     // ── Keys ──────────────────────────────────────────────────────────────────

@@ -16,7 +16,7 @@ class ScoutViewModel @Inject constructor(
     suspend fun query(prompt: String): String {
         val accountId = identity.activeAccountId.value ?: return "No active account."
         return when (val result = client.scoutQuery(accountId = accountId, query = prompt)) {
-            is NetworkResult.Success -> result.data.message ?: "No response."
+            is NetworkResult.Success -> result.data.skill_name
             is NetworkResult.Error -> "Error: ${result.message}"
             is NetworkResult.Unauthorized -> "Session expired. Please sign in again."
         }

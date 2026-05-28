@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
+import com.avago.core.data.FormFillRouter
 import com.avago.core.data.db.entity.BinEntity
 import com.avago.core.data.db.entity.LocationEntity
 import com.avago.core.data.db.entity.PartEntity
@@ -57,6 +58,7 @@ class WarehouseReceiveViewModel @Inject constructor(
     private val dbFactory: DatabaseFactory,
     private val serviceClient: AvagoServiceClient,
     private val identityManager: IdentityManager,
+    private val formFillRouter: FormFillRouter,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(WarehouseReceiveUiState())
@@ -64,6 +66,25 @@ class WarehouseReceiveViewModel @Inject constructor(
 
     init {
         loadParts()
+        formFillRouter.register("receive_inventory") { fields -> applyScoutFields(fields) }
+    }
+
+    override fun onCleared() {
+        formFillRouter.unregister("receive_inventory")
+        super.onCleared()
+    }
+
+    fun applyScoutFields(fields: Map<String, String?>): List<String> {
+        val touched = mutableListOf<String>()
+        _state.value = _state.value.let { s ->
+            var updated = s
+            (fields["quantity"] ?: fields["qty"])?.toDoubleOrNull()?.let {
+                updated = updated.copy(quantity = it.toString()); touched.add("quantity")
+            }
+            fields["notes"]?.trim()?.let { updated = updated.copy(notes = it); touched.add("notes") }
+            updated
+        }
+        return touched
     }
 
     private fun loadParts() {
@@ -139,6 +160,7 @@ class WarehouseIssueViewModel @Inject constructor(
     private val dbFactory: DatabaseFactory,
     private val serviceClient: AvagoServiceClient,
     private val identityManager: IdentityManager,
+    private val formFillRouter: FormFillRouter,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(WarehouseIssueUiState())
@@ -146,6 +168,28 @@ class WarehouseIssueViewModel @Inject constructor(
 
     init {
         loadParts()
+        formFillRouter.register("use_inventory") { fields -> applyScoutFields(fields) }
+    }
+
+    override fun onCleared() {
+        formFillRouter.unregister("use_inventory")
+        super.onCleared()
+    }
+
+    fun applyScoutFields(fields: Map<String, String?>): List<String> {
+        val touched = mutableListOf<String>()
+        _state.value = _state.value.let { s ->
+            var updated = s
+            (fields["quantity"] ?: fields["qty"])?.toDoubleOrNull()?.let {
+                updated = updated.copy(quantity = it.toString()); touched.add("quantity")
+            }
+            (fields["work_order_id"] ?: fields["wo_id"])?.trim()?.takeIf { it.isNotEmpty() }?.let {
+                updated = updated.copy(workOrderId = it); touched.add("work order")
+            }
+            fields["notes"]?.trim()?.let { updated = updated.copy(notes = it); touched.add("notes") }
+            updated
+        }
+        return touched
     }
 
     private fun loadParts() {

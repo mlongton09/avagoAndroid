@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="#fff">
+  <!--
+    Motorcycle side profile — clean icon style. Two large wheels (r=15) with
+    ring tread and hub cutouts. Prominent tank/seat hump. Clear front fork
+    and handlebars. Engine block visible between wheels.
+    fill-rule=evenodd: hub circles become holes inside wheel rings.
+  -->
+  <path fill-rule="evenodd" d="
+    M 11,68 A 15,15 0 1 0 41,68 A 15,15 0 1 0 11,68 Z
+    M 20,68 A 6,6   0 1 1 32,68 A 6,6   0 1 1 20,68 Z
+
+    M 59,68 A 15,15 0 1 0 89,68 A 15,15 0 1 0 59,68 Z
+    M 68,68 A 6,6   0 1 1 80,68 A 6,6   0 1 1 68,68 Z
+
+    M 26,53
+    L 20,44
+    L 22,36
+    L 30,30
+    C 36,26 42,24 50,24
+    C 56,24 62,28 64,34
+    L 68,34
+    L 74,38
+    L 76,44
+    L 76,53
+    L 62,53
+    L 58,46
+    L 42,46
+    L 38,53
+    Z
+
+    M 64,34
+    L 68,24
+    L 78,22
+    L 80,22
+    L 82,26
+    L 76,28
+    L 74,38
+    Z
+  "/>
+</svg>

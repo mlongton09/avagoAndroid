@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="#fff">
+  <!--
+    Classic house. Rectangular body, large isoceles triangle roof with overhang,
+    chimney, centered front door (tall rect cutout), two symmetrical windows (cutouts).
+    fill-rule=evenodd creates the holes.
+  -->
+  <path fill-rule="evenodd" d="
+    M 14,52
+    L 14,94
+    L 86,94
+    L 86,52
+    Z
+
+    M 42,68
+    L 42,94
+    L 58,94
+    L 58,68
+    Z
+
+    M 18,58
+    L 18,70
+    L 34,70
+    L 34,58
+    Z
+
+    M 66,58
+    L 66,70
+    L 82,70
+    L 82,58
+    Z
+
+    M 4,54
+    L 50,18
+    L 96,54
+    Z
+
+    M 62,18
+    L 62,38
+    L 70,38
+    L 70,18
+    Z
+  "/>
+</svg>

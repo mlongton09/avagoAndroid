@@ -22,9 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -34,7 +32,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -56,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.data.db.entity.AssetEntity
+import com.avago.core.ui.AvagoSearchBar
 import com.avago.core.ui.EmptyState
 import com.avago.core.ui.QuoteBanner
 import com.avago.feature.assets.R
@@ -113,24 +111,16 @@ fun AssetListScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 4.dp),
+                        .padding(end = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { viewModel.onSearchQueryChanged(it) },
-                        placeholder = { Text(stringResource(R.string.assets_search_placeholder)) },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                        trailingIcon = {
-                            if (searchQuery.isNotBlank()) {
-                                IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
-                                    Icon(Icons.Default.Clear, contentDescription = null)
-                                }
-                            }
-                        },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
+                    AvagoSearchBar(
+                        query = searchQuery,
+                        onQueryChange = { viewModel.onSearchQueryChanged(it) },
+                        placeholder = stringResource(R.string.assets_search_placeholder),
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
                     )
 
                     // Filter button — icon when inactive, pill with × when active
@@ -142,14 +132,14 @@ fun AssetListScreen(
                                 .replaceFirstChar { it.uppercase() }
                             Surface(
                                 onClick = { viewModel.onFilterTypeChanged(null) },
-                                shape = RoundedCornerShape(14.dp),
-                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                shape = RoundedCornerShape(50),
+                                color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.padding(start = 8.dp),
                             ) {
                                 Text(
                                     text = "$label  ×",
                                     style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    color = MaterialTheme.colorScheme.onPrimary,
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                                 )
                             }
@@ -310,7 +300,7 @@ private fun AssetSectionHeader(typeKey: String) {
     ) {
         Text(
             text = label.uppercase(),
-            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+            style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
@@ -354,7 +344,7 @@ private fun AssetRow(
             if (subtitle.isNotBlank()) {
                 Text(
                     text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

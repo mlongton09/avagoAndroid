@@ -37,6 +37,20 @@ data class ChatOutboxEntity(
     @ColumnInfo(name = "parent_message_id")
     val parentMessageId: String?,
 
+    @ColumnInfo(name = "client_ref")
+    val clientRef: String? = null,
+
+    /** JSON array of image URLs e.g. ["https://…jpg"]. */
+    @ColumnInfo(name = "image_urls")
+    val imageUrls: String? = null,
+
+    /** JSON array of serialised ChatMentionRequest objects. */
+    @ColumnInfo(name = "mentions")
+    val mentions: String? = null,
+
+    @ColumnInfo(name = "needs_reply", defaultValue = "0")
+    val needsReply: Boolean = false,
+
     @ColumnInfo(name = "status")
     val status: String,
 

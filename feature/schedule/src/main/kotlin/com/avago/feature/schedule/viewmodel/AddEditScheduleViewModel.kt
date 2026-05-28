@@ -112,6 +112,10 @@ class AddEditScheduleViewModel @Inject constructor(
                     endDate.value = RruleHelper.epochMsToLocalDate(existing.endDate)
                 }
 
+                // Restore timezone and notes
+                timezone.value = existing.timezone ?: java.util.TimeZone.getDefault().id
+                notes.value = existing.notes ?: ""
+
                 // nextDueAt doubles as the start date for date-based schedules
                 if (existing.nextDueAt != null) {
                     RruleHelper.epochMsToLocalDate(existing.nextDueAt)?.let {
@@ -198,6 +202,8 @@ class AddEditScheduleViewModel @Inject constructor(
                     nextDueAt = if (scheduleType.value == ScheduleTypeSelection.BY_DATE)
                         startEpochMs else null,
                     isActive = true,
+                    timezone = timezone.value.ifBlank { null },
+                    notes = notes.value.trim().ifBlank { null },
                     createdAt = now,
                     updatedAt = now,
                     deletedAt = null,

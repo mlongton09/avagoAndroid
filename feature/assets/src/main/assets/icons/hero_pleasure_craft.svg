@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="#fff">
+  <!--
+    Motorboat side profile. Pointed bow at left, flat stern at right.
+    Deep V-hull shape. Deck line above hull. Console/windshield amidships.
+    Outboard motor suggestion at stern.
+  -->
+  <path d="
+    M 6,66
+    L 14,52
+    L 26,46
+    L 82,46
+    L 96,54
+    L 96,66
+    Z
+  "/>
+
+  <path d="
+    M 34,46
+    L 38,36
+    L 58,36
+    L 62,46
+    Z
+  "/>
+
+  <path d="
+    M 6,66
+    L 96,66
+    L 96,70
+    L 6,70
+    Z
+  "/>
+
+  <path d="
+    M 88,50
+    L 98,50
+    L 98,66
+    L 88,66
+    Z
+  "/>
+
+  <path d="
+    M 94,42
+    L 100,42
+    L 100,52
+    L 94,52
+    Z
+  "/>
+</svg>

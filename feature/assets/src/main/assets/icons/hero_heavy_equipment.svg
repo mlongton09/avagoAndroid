@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="#fff">
+  <!--
+    Excavator. Wide track unit at bottom, upper rotating house on tracks,
+    cab with window cutout, long boom arm extending upper-right, stick arm,
+    bucket at end.
+  -->
+  <path fill-rule="evenodd" d="
+    M 4,72
+    C 4,82 8,86 16,86
+    L 70,86
+    C 78,86 82,82 82,72
+    C 82,66 78,64 70,64
+    L 16,64
+    C 8,64 4,66 4,72 Z
+
+    M 14,56
+    L 14,66
+    L 70,66
+    L 70,56
+    Z
+
+    M 16,38
+    L 16,58
+    L 50,58
+    L 50,38
+    Z
+    M 22,42
+    L 22,52
+    L 44,52
+    L 44,42
+    Z
+
+    M 48,44
+    L 56,28
+    L 92,14
+    L 96,22
+    L 64,34
+    L 62,44
+    Z
+
+    M 86,20
+    L 94,30
+    L 100,56
+    L 90,58
+    L 84,34
+    Z
+
+    M 90,56
+    L 100,54
+    L 100,70
+    L 86,72
+    Z
+  "/>
+</svg>

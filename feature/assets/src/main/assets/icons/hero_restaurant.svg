@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="#fff">
+  <!--
+    Restaurant: bold fork-and-knife icon, universally readable.
+    Fork on left: tines at top, handle below. Knife on right: blade tapers at top.
+    Both centered in the viewbox, thick and legible even at small sizes.
+  -->
+  <path d="
+    M 26,10
+    L 30,10
+    L 30,28
+    L 34,28
+    L 34,10
+    L 38,10
+    L 38,28
+    L 36,36
+    L 32,38
+    L 28,36
+    L 26,28
+    Z
+  "/>
+
+  <rect x="29" y="38" width="6" height="52" rx="2"/>
+
+  <path d="
+    M 62,10
+    L 68,10
+    C 74,10 78,16 78,26
+    L 78,42
+    L 65,42
+    L 65,90
+    C 65,91 64,92 63,92
+    C 62,92 61,91 61,90
+    L 61,10
+    Z
+  "/>
+</svg>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Avago app logo (wrench silhouette) — mirrors iOS AppIconImage.imageset.
+     Rendered as a template image: callers should apply a tint to match the theme. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M102.15,85.5L61.2,44.55c4.05,-10.35 1.8,-22.5 -6.75,-31.05c-9,-9 -22.5,-10.8 -33.3,-5.85L40.5,27L27,40.5L7.2,21.15C2.25,31.95 4.05,45.45 13.05,54.45c8.55,8.55 20.7,10.8 31.05,6.75L85.5,102.15c1.8,1.8 4.5,1.8 6.3,0l10.35,-10.35C104.4,89.55 104.4,87.3 102.15,85.5Z" />
+</vector>

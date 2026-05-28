@@ -19,6 +19,13 @@
     <string name="settings_language">Language</string>
     <string name="settings_distance_unit">Distance unit</string>
     <string name="settings_currency">Currency</string>
+    <string name="settings_fuel_volume_unit">Fuel volume unit</string>
+    <string name="settings_ai">AI</string>
+    <string name="settings_human_in_loop">Human-in-the-Loop</string>
+    <string name="settings_human_in_loop_desc">Review AI suggestions before saving</string>
+    <string name="settings_disable_quotes">Disable daily quotes</string>
+    <string name="settings_terms_of_service">Terms of service</string>
+    <string name="settings_terms_of_service_url">https://avagomate.com/terms</string>
     <string name="settings_notifications">Push notifications</string>
     <string name="settings_notifications_denied">Tap to enable in system settings</string>
     <string name="settings_account">Account</string>

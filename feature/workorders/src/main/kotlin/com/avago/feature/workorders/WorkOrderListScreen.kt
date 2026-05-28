@@ -14,7 +14,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.Badge
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -22,7 +21,6 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -36,10 +34,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.avago.core.ui.AvagoSearchBar
 import com.avago.core.ui.EmptyState
 import com.avago.feature.workorders.ui.components.WoCard
 import com.avago.feature.workorders.viewmodel.WoHorizon
@@ -137,17 +135,10 @@ fun WorkOrderListScreen(
             }
 
             // Search bar
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = viewModel::onSearchQueryChanged,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                placeholder = { Text(stringResource(R.string.wo_search_placeholder)) },
-                leadingIcon = {
-                    Icon(Icons.Default.Search, contentDescription = null)
-                },
-                singleLine = true,
+            AvagoSearchBar(
+                query = searchQuery,
+                onQueryChange = viewModel::onSearchQueryChanged,
+                placeholder = stringResource(R.string.wo_search_placeholder),
             )
 
             syncError?.let { msg ->
@@ -231,9 +222,9 @@ private fun BucketHeader(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                text = label,
-                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.onBackground,
+                text = label.uppercase(),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Badge(
                 containerColor = MaterialTheme.colorScheme.secondaryContainer,

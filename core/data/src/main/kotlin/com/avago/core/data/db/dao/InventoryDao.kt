@@ -17,6 +17,9 @@ interface InventoryDao {
     @Query("SELECT * FROM inventory WHERE inventory_id = :id")
     suspend fun getById(id: String): InventoryEntity?
 
+    @Query("SELECT * FROM inventory WHERE part_id = :partId AND deleted_at IS NULL LIMIT 10")
+    suspend fun getByPartId(partId: String): List<InventoryEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: InventoryEntity)
 

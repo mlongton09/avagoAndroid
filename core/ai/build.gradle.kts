@@ -24,6 +24,7 @@ android {
 dependencies {
     implementation(project(":core:network"))
     implementation(project(":core:auth"))
+    implementation(project(":core:data"))
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
@@ -39,4 +40,10 @@ dependencies {
     implementation(libs.hilt.nav.compose)
     implementation(libs.coroutines.android)
     implementation(libs.timber)
+
+    testImplementation(libs.junit5)
+    testRuntimeOnly(libs.junit5.engine)
+    testImplementation(libs.mockk)
+    testImplementation(libs.coroutines.test)
+    testImplementation(libs.turbine)
 }

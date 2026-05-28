@@ -48,7 +48,7 @@ fun PinnedMessageBanner(
                 imageVector = Icons.Default.PushPin,
                 contentDescription = null,
                 modifier = Modifier.size(16.dp),
-                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                tint = MaterialTheme.colorScheme.tertiary,
             )
             Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f)) {

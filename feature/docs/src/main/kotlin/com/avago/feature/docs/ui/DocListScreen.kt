@@ -151,7 +151,7 @@ private fun DocCard(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        shape = RoundedCornerShape(12.dp),
+        shape = MaterialTheme.shapes.small,
     ) {
         Row(
             modifier = Modifier

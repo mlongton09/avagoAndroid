@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
+import com.avago.core.network.NetworkException
 import com.avago.feature.auth.R
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
@@ -60,6 +61,17 @@ class SignInViewModel @Inject constructor(
             } catch (e: FirebaseNetworkException) {
                 Timber.w(e, "Sign-in network error")
                 _state.value = SignInState.Error(appContext.getString(R.string.auth_error_network))
+            } catch (e: NetworkException) {
+                Timber.e(e, "Sign-in error")
+                val msg = if (e.code == 429) {
+                    val waitSec = e.retryAfterSeconds
+                    if (waitSec != null) "Too many requests — please wait ${waitSec}s and try again."
+                    else "Too many requests — please wait a moment and try again."
+                } else {
+                    e.message?.takeIf { it.isNotBlank() }
+                        ?: appContext.getString(R.string.auth_error_sign_in_failed)
+                }
+                _state.value = SignInState.Error(msg)
             } catch (e: Exception) {
                 Timber.e(e, "Sign-in error")
                 _state.value = SignInState.Error(e.message ?: appContext.getString(R.string.auth_error_sign_in_failed))
@@ -100,6 +112,17 @@ class SignInViewModel @Inject constructor(
                 _state.value = SignInState.Error(appContext.getString(R.string.auth_error_wrong_password))
             } catch (_: FirebaseAuthInvalidUserException) {
                 _state.value = SignInState.Error(appContext.getString(R.string.auth_error_user_not_found))
+            } catch (e: NetworkException) {
+                Timber.e(e, "Email sign-in error")
+                val msg = if (e.code == 429) {
+                    val waitSec = e.retryAfterSeconds
+                    if (waitSec != null) "Too many requests — please wait ${waitSec}s and try again."
+                    else "Too many requests — please wait a moment and try again."
+                } else {
+                    e.message?.takeIf { it.isNotBlank() }
+                        ?: appContext.getString(R.string.auth_error_sign_in_failed)
+                }
+                _state.value = SignInState.Error(msg)
             } catch (e: Exception) {
                 Timber.e(e, "Email sign-in error")
                 _state.value = SignInState.Error(e.message ?: appContext.getString(R.string.auth_error_sign_in_failed))

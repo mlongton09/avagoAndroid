@@ -32,6 +32,7 @@ private val DarkColorScheme = darkColorScheme(
     onSurfaceVariant = DarkOnSurfaceVariant,
     surfaceContainer = DarkSurfaceContainer,
     outline = DarkOutline,
+    outlineVariant = DarkOutlineVariant,
 )
 
 private val LightColorScheme = lightColorScheme(
@@ -55,6 +56,7 @@ private val LightColorScheme = lightColorScheme(
     onSurfaceVariant = LightOnSurfaceVariant,
     surfaceContainer = LightSurfaceContainer,
     outline = LightOutline,
+    outlineVariant = LightOutlineVariant,
 )
 
 @Composable
@@ -75,6 +77,7 @@ fun AvagoTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = AvagoTypography,
+        shapes = AvagoShapes,
         content = content,
     )
 }

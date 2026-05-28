@@ -4,6 +4,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
+import com.avago.feature.reports.ui.CostReportScreen
 import com.avago.feature.reports.ui.FinancialReportsScreen
 import com.avago.feature.reports.ui.MaintenanceReportsScreen
 import com.avago.feature.reports.ui.ReportsListScreen
@@ -12,6 +13,7 @@ import com.avago.feature.reports.ui.WorkOrderReportsScreen
 
 sealed class ReportsRoute(val route: String) {
     data object List : ReportsRoute("reports/list")
+    data object CostReport : ReportsRoute("reports/cost")
     data object WorkOrderReports : ReportsRoute("reports/work-orders")
     data object MaintenanceReports : ReportsRoute("reports/maintenance")
     data object FinancialReports : ReportsRoute("reports/financial")
@@ -30,6 +32,10 @@ fun NavGraphBuilder.reportsNavGraph(navController: NavHostController) {
                 onNavigateToFinancial = { navController.navigate(ReportsRoute.FinancialReports.route) },
                 onNavigateToSystem = { navController.navigate(ReportsRoute.SystemReports.route) },
             )
+        }
+
+        composable(ReportsRoute.CostReport.route) {
+            CostReportScreen(onBack = { navController.popBackStack() })
         }
 
         composable(ReportsRoute.WorkOrderReports.route) {

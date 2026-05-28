@@ -105,7 +105,6 @@ fun NavGraphBuilder.chatNavGraph(navController: NavHostController) {
         ChatSettingsScreen(
             threadId = threadId,
             onBack = { navController.popBackStack() },
-            onNotificationPrefs = { navController.navigate(ChatRoute.ChatNotificationPrefs.route) },
         )
     }
 

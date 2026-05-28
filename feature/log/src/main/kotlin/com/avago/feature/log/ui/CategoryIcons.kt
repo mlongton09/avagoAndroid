@@ -319,3 +319,62 @@ fun categoryIconName(categoryId: String?): String =
 
 fun categoryBadgeColor(iconName: String): Color =
     Color(iconNameToColor[iconName] ?: 0xFF8E8E93L)
+
+// ---------------------------------------------------------------------------
+// Section group mapping — matches iOS CategoryPickerViewController sections
+// ---------------------------------------------------------------------------
+
+private val COMMON_ICON_NAMES = setOf("cat_service", "cat_repair", "cat_inspection", "cat_fuel_system")
+
+private val iconNameToGroup: Map<String, String> = mapOf(
+    "cat_service" to "COMMON", "cat_repair" to "COMMON",
+    "cat_inspection" to "COMMON",
+    "cat_oil" to "ENGINE", "cat_engine" to "ENGINE",
+    "cat_exhaust" to "ENGINE", "cat_turbo" to "ENGINE", "cat_injector" to "ENGINE",
+    "cat_filters" to "FILTERS",
+    "cat_tires" to "TIRES & WHEELS",
+    "cat_brakes" to "BRAKES",
+    "cat_drivetrain" to "DRIVETRAIN", "cat_gearbox" to "DRIVETRAIN",
+    "cat_fluid" to "FLUIDS",
+    "cat_battery" to "ELECTRICAL", "cat_electric" to "ELECTRICAL",
+    "cat_evse" to "ELECTRICAL",
+    "cat_safety" to "SAFETY",
+    "cat_mechanical" to "MECHANICAL", "cat_suspension" to "MECHANICAL",
+    "cat_hydraulics" to "MECHANICAL", "cat_undercarriage" to "MECHANICAL",
+    "cat_hvac" to "HVAC & CLIMATE",
+    "cat_wash" to "BODY & EXTERIOR", "cat_cleaning" to "BODY & EXTERIOR",
+    "cat_window" to "BODY & EXTERIOR", "cat_wipers" to "BODY & EXTERIOR",
+    "cat_exterior" to "BODY & EXTERIOR",
+    "cat_structure" to "STRUCTURE",
+    "cat_plumbing" to "PLUMBING",
+    "cat_compliance" to "COMPLIANCE",
+    "cat_equipment" to "EQUIPMENT",
+    "cat_waste" to "ENVIRONMENTAL",
+    "cat_hull" to "MARINE", "cat_bilge" to "MARINE",
+    "cat_mooring" to "MARINE", "cat_seacock" to "MARINE",
+    "cat_navigation" to "NAVIGATION",
+    "cat_appliances" to "APPLIANCES",
+    "cat_elevator" to "ELEVATOR",
+    "cat_it_systems" to "IT SYSTEMS",
+    "cat_medical_equipment" to "MEDICAL",
+    "cat_solar" to "SOLAR",
+    "cat_cable" to "ELECTRICAL",
+    "cat_landscaping" to "GROUNDS",
+    "cat_pool" to "POOL & SPA",
+    "cat_common_areas" to "COMMON AREAS",
+    "cat_door" to "DOORS",
+    "cat_kitchen_equipment" to "KITCHEN",
+    "cat_fuel_tank" to "FUEL SYSTEM", "cat_fuel_system" to "FUEL SYSTEM",
+    "cat_winch" to "MECHANICAL",
+    "cat_lighting" to "ELECTRICAL",
+    "cat_anchoring" to "MARINE",
+    "cat_blades" to "MECHANICAL",
+    "cat_paint" to "BODY & EXTERIOR",
+    "cat_flooring" to "STRUCTURE",
+)
+
+/** Returns the display section name for a category ID (e.g. "ENGINE", "BRAKES"). */
+fun categoryGroup(categoryId: String?): String {
+    val icon = categoryIconName(categoryId)
+    return iconNameToGroup[icon] ?: "OTHER"
+}

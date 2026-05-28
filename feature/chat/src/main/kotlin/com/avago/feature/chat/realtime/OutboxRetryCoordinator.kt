@@ -125,7 +125,6 @@ class OutboxRetryCoordinator @Inject constructor(
                 linkPreviewImageUrl = null,
                 linkPreviewUrl = null,
                 photoUrl = null,
-                reactions = null,
                 outboxStatus = "sending",
                 serverVersion = 0,
                 deletedAt = null,
@@ -144,6 +143,7 @@ class OutboxRetryCoordinator @Inject constructor(
                         accountId = accountId,
                         senderId = serverMsg.author_id ?: serverMsg.author?.id ?: "",
                         senderName = serverMsg.author?.display_name,
+                        senderAvatarUrl = serverMsg.author?.avatar_url,
                         bodyMd = serverMsg.body_md,
                         bodyPreview = serverMsg.body_md.take(120),
                         editedAt = serverMsg.edited_at?.toEpochMillisOrNull(),
@@ -151,13 +151,29 @@ class OutboxRetryCoordinator @Inject constructor(
                         linkPreviewDescription = serverMsg.link_preview?.description,
                         linkPreviewImageUrl = serverMsg.link_preview?.image_url,
                         linkPreviewUrl = serverMsg.link_preview?.url,
+                        linkPreviewSiteName = serverMsg.link_preview?.site_name,
                         photoUrl = serverMsg.photo_url,
-                        reactions = serverMsg.reactions,
+                        isSystem = serverMsg.is_system,
+                        systemKind = serverMsg.system_kind,
+                        systemPayload = serverMsg.system_payload,
+                        replyCount = serverMsg.reply_count,
+                        latestReplyAt = serverMsg.latest_reply_at?.toEpochMillisOrNull(),
+                        deliveredByCount = serverMsg.delivered_by_count,
+                        readByCount = serverMsg.read_by_count,
+                        readByTotal = serverMsg.read_by_total,
+                        reactionCounts = serverMsg.reaction_counts.takeIf { it.isNotEmpty() }
+                            ?.entries?.joinToString(",", "{", "}") { (k, v) -> "\"$k\":$v" },
+                        myReactions = serverMsg.my_reactions.takeIf { it.isNotEmpty() }
+                            ?.joinToString(",", "[", "]") { "\"$it\"" },
+                        needsReply = serverMsg.needs_reply,
+                        clientRef = serverMsg.client_ref,
                         outboxStatus = null,
                         serverVersion = serverMsg.server_version,
                         deletedAt = null,
                         createdAt = serverMsg.created_at.toEpochMillisOrNull() ?: now,
                         updatedAt = serverMsg.updated_at.toEpochMillisOrNull() ?: now,
+                        parentMessageId = serverMsg.parent_message_id,
+                        isPinned = serverMsg.is_pinned,
                     )
                 )
                 if (serverMsg.message_id != messageId) {
@@ -200,7 +216,7 @@ class OutboxRetryCoordinator @Inject constructor(
                         )
                     )
                     if (serverMsg.message_id != msg.messageId) {
-                        db.chatMessageDao().updateOutboxStatus(msg.messageId, null)
+                        db.chatMessageDao().deleteById(msg.messageId)
                     }
                     Timber.d("OutboxRetry: succeeded for ${msg.messageId} on attempt $attempt")
                     return

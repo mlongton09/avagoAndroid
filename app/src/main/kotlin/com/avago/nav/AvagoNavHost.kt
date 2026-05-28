@@ -54,17 +54,20 @@ fun AvagoNavHost(
 ) {
     val conflicts by conflictViewModel.conflicts.collectAsStateWithLifecycle()
     val activeAccountId by mainViewModel.activeAccountId.collectAsStateWithLifecycle()
+    val activeAccountIsAnonymous by mainViewModel.activeAccountIsAnonymous.collectAsStateWithLifecycle()
 
     // ── Bootstrap: skip sign-in for returning users ───────────────────────────
     // When the active account is set (restored from disk by initOnLaunch) and the
     // current destination is still inside the auth graph, navigate to the main app.
-    LaunchedEffect(activeAccountId) {
+    // Anonymous accounts are intentionally excluded — they allow the auth screen to
+    // remain visible so the user can complete a real sign-in.
+    LaunchedEffect(activeAccountId, activeAccountIsAnonymous) {
         val currentRoute = navController.currentBackStackEntry?.destination?.route
         val inAuthGraph = currentRoute == null ||
             currentRoute == AuthRoute.GRAPH ||
             currentRoute == AuthRoute.SignIn ||
             currentRoute == AuthRoute.EmailSignIn
-        if (activeAccountId != null && inAuthGraph) {
+        if (activeAccountId != null && !activeAccountIsAnonymous && inAuthGraph) {
             navController.navigate("assets_graph") {
                 popUpTo(AuthRoute.GRAPH) { inclusive = true }
             }

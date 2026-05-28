@@ -82,6 +82,13 @@ interface ChatMessageDao {
 
     @Query(
         "SELECT * FROM chat_messages " +
+            "WHERE thread_id = :threadId AND deleted_at IS NULL " +
+            "ORDER BY created_at DESC LIMIT 1"
+    )
+    suspend fun getLastMessage(threadId: String): ChatMessageEntity?
+
+    @Query(
+        "SELECT * FROM chat_messages " +
             "WHERE body_md LIKE '%@' || :username || '%' AND deleted_at IS NULL " +
             "ORDER BY created_at DESC"
     )

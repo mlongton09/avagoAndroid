@@ -1,8 +1,9 @@
 package com.avago.feature.chat.ui
 
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -12,38 +13,48 @@ import androidx.compose.ui.unit.dp
 import com.avago.core.data.db.entity.ChatMessageEntity
 
 /**
- * Full-width system message cell for automated WO status changes (not user messages).
- *
- * messageType "system" messages have bodyMd like "WO-1234 was assigned to Alice".
- * Rendered as a centered italic gray line with an icon prefix based on content:
- *   "assigned"           → 👤
- *   "closed"/"resolved"  → ✅
- *   "opened"/"reopened"  → 🔧
- *   "log"/"logged"       → 📋
- *   default              → ℹ️
+ * Centered system message with a rounded pill container.
+ * Background tint varies by system_kind to match iOS:
+ *   closed/resolved  → secondary (green) at 0.18 alpha
+ *   opened/reopened  → primary (blue)    at 0.15 alpha
+ *   log/logged       → primary (blue)    at 0.15 alpha
+ *   default          → surfaceVariant
  */
 @Composable
 fun SystemMessageBubble(message: ChatMessageEntity, modifier: Modifier = Modifier) {
     val body = message.bodyMd.trim()
+    val kind = message.systemKind ?: body.lowercase()
+
     val icon = when {
-        body.contains("assigned", ignoreCase = true) -> "👤"
-        body.contains("closed", ignoreCase = true) ||
-            body.contains("resolved", ignoreCase = true) -> "✅"
-        body.contains("opened", ignoreCase = true) ||
-            body.contains("reopened", ignoreCase = true) -> "🔧"
-        body.contains("log", ignoreCase = true) ||
-            body.contains("logged", ignoreCase = true) -> "📋"
+        kind.contains("assign") -> "👤"
+        kind.contains("clos") || kind.contains("resolv") -> "✅"
+        kind.contains("open") || kind.contains("reopen") -> "🔧"
+        kind.contains("log") -> "📋"
         else -> "ℹ️"
     }
 
-    Text(
-        text = "$icon $body",
-        style = MaterialTheme.typography.labelSmall,
-        fontStyle = FontStyle.Italic,
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
-        textAlign = TextAlign.Center,
+    val bgColor = when {
+        kind.contains("clos") || kind.contains("resolv") ->
+            MaterialTheme.colorScheme.secondary.copy(alpha = 0.18f)
+        kind.contains("open") || kind.contains("reopen") || kind.contains("log") ->
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+        else -> MaterialTheme.colorScheme.surfaceVariant
+    }
+
+    Surface(
+        shape = MaterialTheme.shapes.small,
+        color = bgColor,
         modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-    )
+            .wrapContentWidth()
+            .padding(horizontal = 28.dp, vertical = 2.dp),
+    ) {
+        Text(
+            text = "$icon $body",
+            style = MaterialTheme.typography.labelSmall,
+            fontStyle = FontStyle.Italic,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+        )
+    }
 }

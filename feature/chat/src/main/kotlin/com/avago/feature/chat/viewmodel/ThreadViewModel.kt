@@ -7,10 +7,14 @@ import com.avago.core.auth.IdentityManager
 import com.avago.core.data.db.entity.ChatAccountRosterEntity
 import com.avago.core.data.db.entity.ChatMessageEntity
 import com.avago.core.data.db.entity.ChatThreadEntity
+import com.avago.core.data.repository.UserPreferencesRepository
+import com.avago.core.network.model.LinkPreviewResponse
 import com.avago.feature.chat.data.ChatRepository
 import com.avago.feature.chat.realtime.ChatRealtimeClient
 import com.avago.feature.chat.realtime.OutboxRetryCoordinator
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -28,18 +32,16 @@ data class ThreadUiState(
     val isLoadingMore: Boolean = false,
     val hasMore: Boolean = true,
     val isTypingRemote: Boolean = false,
-    /** If non-null, the composer is in edit mode for this message. */
     val editingMessage: ChatMessageEntity? = null,
-    /** The currently pinned message for this thread, if any. */
     val pinnedMessage: ChatMessageEntity? = null,
-    /** One-shot error message to show in a snackbar; null when no error. */
     val errorMessage: String? = null,
-    /** Account roster for @mention autocomplete. */
     val roster: List<ChatAccountRosterEntity> = emptyList(),
-    /** Names of remote users currently typing in this thread. */
     val typingUserNames: List<String> = emptyList(),
-    /** Saved draft text for this thread. */
     val draft: String = "",
+    val resumeDraft: String? = null,
+    val replyingToMessage: ChatMessageEntity? = null,
+    val userRole: String? = null,
+    val linkPreview: LinkPreviewResponse? = null,
 )
 
 @HiltViewModel
@@ -49,6 +51,7 @@ class ThreadViewModel @Inject constructor(
     private val identity: IdentityManager,
     private val realtimeClient: ChatRealtimeClient,
     private val outbox: OutboxRetryCoordinator,
+    private val userPrefs: UserPreferencesRepository,
 ) : ViewModel() {
 
     val threadId: String = requireNotNull(savedStateHandle["threadId"])
@@ -65,8 +68,11 @@ class ThreadViewModel @Inject constructor(
     private val _typingUserNames = MutableStateFlow<List<String>>(emptyList())
     private val _draft = MutableStateFlow("")
     private val _isSending = MutableStateFlow(false)
+    private val _resumeDraft = MutableStateFlow<String?>(null)
+    private val _replyingToMessage = MutableStateFlow<ChatMessageEntity?>(null)
+    private val _userRole = MutableStateFlow<String?>(null)
+    private val _linkPreview = MutableStateFlow<LinkPreviewResponse?>(null)
 
-    // combine supports vararg flows; the array overload handles 11 sources safely.
     val uiState: StateFlow<ThreadUiState> = combine(
         listOf(
             _thread,
@@ -80,6 +86,10 @@ class ThreadViewModel @Inject constructor(
             _roster,
             _typingUserNames,
             _draft,
+            _resumeDraft,
+            _replyingToMessage,
+            _userRole,
+            _linkPreview,
         )
     ) { values ->
         @Suppress("UNCHECKED_CAST")
@@ -96,6 +106,10 @@ class ThreadViewModel @Inject constructor(
             roster = values[8] as List<ChatAccountRosterEntity>,
             typingUserNames = values[9] as List<String>,
             draft = values[10] as String,
+            resumeDraft = values[11] as? String,
+            replyingToMessage = values[12] as? ChatMessageEntity,
+            userRole = values[13] as? String,
+            linkPreview = values[14] as? LinkPreviewResponse,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -110,7 +124,7 @@ class ThreadViewModel @Inject constructor(
         observeRoster()
         viewModelScope.launch {
             repository.syncMessages(threadId)
-            val lastMessage = _messages.value.lastOrNull()
+            val lastMessage = repository.getLastMessage(threadId)
             if (lastMessage != null) {
                 repository.markThreadRead(threadId, lastMessage.messageId)
                 repository.markAllMentionsReadForThread(threadId)
@@ -120,6 +134,7 @@ class ThreadViewModel @Inject constructor(
         connectRealtime()
         val accountId = identity.activeAccountId.value
         if (accountId != null) outbox.startRetrying(accountId)
+        loadSavedDraft()
     }
 
     private fun observeThread() {
@@ -151,14 +166,17 @@ class ThreadViewModel @Inject constructor(
         viewModelScope.launch {
             repository.observeRoster(accountId)
                 .catch { e -> Timber.e(e, "observeRoster error") }
-                .collect { _roster.value = it }
+                .collect { roster ->
+                    _roster.value = roster
+                    val userId = identity.activeUserId.value
+                    _userRole.value = roster.firstOrNull { it.userId == userId }?.role
+                }
         }
     }
 
     private fun connectRealtime() {
         val accountId = identity.activeAccountId.value ?: return
         realtimeClient.connect(accountId)
-        // Observe typing events scoped to this thread.
         viewModelScope.launch {
             realtimeClient.typingChangedFlow.collect { event ->
                 if (event.threadId == threadId) {
@@ -169,6 +187,86 @@ class ThreadViewModel @Inject constructor(
         }
     }
 
+    private fun loadSavedDraft() {
+        viewModelScope.launch {
+            val saved = runCatching { userPrefs.getChatDraft(threadId) }.getOrDefault("")
+            if (saved.isNotBlank()) {
+                _resumeDraft.value = saved
+            }
+        }
+    }
+
+    // ── Typing indicator ──────────────────────────────────────────────────────
+
+    private var typingStopJob: Job? = null
+
+    fun onUserTyped() {
+        realtimeClient.sendTyping(threadId, true)
+        typingStopJob?.cancel()
+        typingStopJob = viewModelScope.launch {
+            delay(3_000)
+            realtimeClient.sendTyping(threadId, false)
+        }
+    }
+
+    // ── Draft ─────────────────────────────────────────────────────────────────
+
+    private var draftSaveJob: Job? = null
+
+    fun acceptResumeDraft(): String {
+        val text = _resumeDraft.value ?: ""
+        _draft.value = text
+        _resumeDraft.value = null
+        return text
+    }
+
+    fun discardResumeDraft() {
+        _resumeDraft.value = null
+        viewModelScope.launch { runCatching { userPrefs.setChatDraft(threadId, "") } }
+    }
+
+    fun saveDraft(text: String) {
+        _draft.value = text
+        draftSaveJob?.cancel()
+        draftSaveJob = viewModelScope.launch {
+            delay(500)
+            runCatching { userPrefs.setChatDraft(threadId, text) }
+        }
+    }
+
+    // ── Link preview ─────────────────────────────────────────────────────────
+
+    private var linkPreviewJob: Job? = null
+
+    fun setDetectedUrl(url: String?) {
+        linkPreviewJob?.cancel()
+        if (url.isNullOrBlank()) {
+            _linkPreview.value = null
+            return
+        }
+        linkPreviewJob = viewModelScope.launch {
+            delay(600)
+            _linkPreview.value = runCatching { repository.fetchLinkPreview(url) }.getOrNull()
+        }
+    }
+
+    fun dismissLinkPreview() {
+        linkPreviewJob?.cancel()
+        _linkPreview.value = null
+    }
+
+    // ── Inline reply ──────────────────────────────────────────────────────────
+
+    fun startReply(message: ChatMessageEntity) {
+        _replyingToMessage.value = message
+    }
+
+    fun cancelReply() {
+        _replyingToMessage.value = null
+    }
+
+    // ── Message actions ───────────────────────────────────────────────────────
+
     fun sendMessage(body: String) {
         val trimmed = body.trim()
         if (trimmed.isEmpty()) return
@@ -178,6 +276,9 @@ class ThreadViewModel @Inject constructor(
             _isSending.value = true
             try {
                 outbox.send(accountId = accountId, threadId = threadId, body = trimmed)
+                _replyingToMessage.value = null
+                _linkPreview.value = null
+                saveDraft("")
             } catch (e: Exception) {
                 Timber.e(e, "sendMessage failed")
             } finally {
@@ -220,12 +321,34 @@ class ThreadViewModel @Inject constructor(
         _errorMessage.value = null
     }
 
+    fun reportMessage(messageId: String) {
+        viewModelScope.launch {
+            repository.reportMessage(threadId, messageId).onFailure { e ->
+                Timber.e(e, "reportMessage failed")
+                _errorMessage.value = "Failed to report message"
+            }
+        }
+    }
+
     fun reactToMessage(messageId: String, emoji: String) {
         viewModelScope.launch {
-            val ok = repository.reactToMessage(threadId, messageId, emoji)
-            if (!ok) {
-                Timber.w("reactToMessage failed: threadId=$threadId messageId=$messageId emoji=$emoji")
-                _errorMessage.value = "Failed to add reaction"
+            repository.toggleReaction(threadId, messageId, emoji)
+        }
+    }
+
+    fun acknowledgeMessage(messageId: String) {
+        viewModelScope.launch {
+            repository.acknowledgeMessage(messageId)
+        }
+    }
+
+    fun renameGroup(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            repository.renameGroup(threadId, trimmed).onFailure { e ->
+                Timber.e(e, "renameGroup failed")
+                _errorMessage.value = "Failed to rename group"
             }
         }
     }
@@ -266,13 +389,9 @@ class ThreadViewModel @Inject constructor(
         }
     }
 
-    fun saveDraft(text: String) {
-        _draft.value = text
-    }
-
     override fun onCleared() {
         super.onCleared()
-        // Do NOT disconnect the singleton ChatRealtimeClient here — it's account-scoped
-        // and must stay alive across thread navigation. It disconnects only on sign-out.
+        typingStopJob?.cancel()
+        realtimeClient.sendTyping(threadId, false)
     }
 }

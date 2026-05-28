@@ -3,6 +3,7 @@ package com.avago.feature.assets.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
+import com.avago.core.data.FormFillRouter
 import com.avago.core.data.db.entity.AssetEntity
 import com.avago.core.data.repository.AssetRepository
 import com.avago.core.network.AvagoServiceClient
@@ -72,7 +73,40 @@ class AddEditAssetViewModel @Inject constructor(
     private val repository: AssetRepository,
     private val identityManager: IdentityManager,
     private val serviceClient: AvagoServiceClient,
+    private val formFillRouter: FormFillRouter,
 ) : ViewModel() {
+
+    init {
+        formFillRouter.register("add_asset") { fields -> applyScoutFields(fields) }
+    }
+
+    override fun onCleared() {
+        formFillRouter.unregister("add_asset")
+        super.onCleared()
+    }
+
+    fun applyScoutFields(fields: Map<String, String?>): List<String> {
+        val touched = mutableListOf<String>()
+        val current = _form.value
+        var updated = current
+        fields["name"]?.trim()?.takeIf { it.isNotEmpty() }?.let {
+            updated = updated.copy(name = it); touched.add("name")
+        }
+        fields["make"]?.trim()?.let {
+            updated = updated.copy(make = it); touched.add("make")
+        }
+        fields["model"]?.trim()?.let {
+            updated = updated.copy(model = it); touched.add("model")
+        }
+        fields["year"]?.trim()?.takeIf { it.isNotEmpty() }?.let {
+            updated = updated.copy(year = it); touched.add("year")
+        }
+        fields["asset_type"]?.trim()?.takeIf { it.isNotEmpty() }?.let {
+            updated = updated.copy(assetType = it); touched.add("type")
+        }
+        if (updated !== current) _form.value = updated
+        return touched
+    }
 
     private val _form = MutableStateFlow(AssetFormState())
     val form: StateFlow<AssetFormState> = _form.asStateFlow()

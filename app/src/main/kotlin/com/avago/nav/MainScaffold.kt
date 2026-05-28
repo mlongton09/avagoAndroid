@@ -95,8 +95,8 @@ data class BottomNavItem(
 
 private val bottomNavItems = listOf(
     BottomNavItem("Assets",      Icons.AutoMirrored.Filled.MenuBook, "assets_graph"),
-    BottomNavItem("Work Orders", Icons.Default.CalendarToday,    "workorders_graph"),
-    BottomNavItem("Chat",        Icons.AutoMirrored.Filled.Chat, "chat"),
+    BottomNavItem("Work Orders", Icons.Default.CalendarToday,        "workorders_graph"),
+    BottomNavItem("Chat",        Icons.AutoMirrored.Filled.Chat,     "chat"),
 )
 
 // ---------------------------------------------------------------------------
@@ -260,9 +260,8 @@ fun MainScaffold(
             visible = scoutPaletteVisible,
             onDismiss = { scoutPaletteVisible = false },
             onNavigate = { targetScreen, fields ->
-                navController.currentBackStackEntry
-                    ?.savedStateHandle
-                    ?.set("scout_fields", HashMap(fields))
+                scoutViewModel.dispatchFormFill(targetScreen, fields)
+                scoutPaletteVisible = false
                 navController.navigate(targetScreen) { launchSingleTop = true }
             },
             viewModel = scoutViewModel,
@@ -286,7 +285,10 @@ fun MainScaffold(
 
 @Composable
 fun BottomNavBar(navController: NavHostController) {
-    NavigationBar {
+    NavigationBar(
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
+    ) {
         val backStack by navController.currentBackStackEntryAsState()
         val currentRoute = backStack?.destination?.route
 
@@ -303,7 +305,7 @@ fun BottomNavBar(navController: NavHostController) {
                     }
                 },
                 icon = { Icon(item.icon, contentDescription = item.label) },
-                label = { Text(item.label) },
+                label = null,
             )
         }
     }
@@ -475,15 +477,15 @@ fun SideMenuContent(
 
         NavigationDrawerItem(
             label = { Text("Cost Report") },
-            selected = currentRoute == "reports",
+            selected = currentRoute == "reports/cost",
             icon = { Icon(Icons.Default.BarChart, contentDescription = null) },
-            onClick = { onNavigate("reports") },
+            onClick = { onNavigate("reports/cost") },
             modifier = Modifier.padding(horizontal = 8.dp),
         )
 
         NavigationDrawerItem(
             label = { Text("By Category") },
-            selected = false,
+            selected = currentRoute?.startsWith("reports") == true && currentRoute != "reports/cost",
             icon = { Icon(Icons.AutoMirrored.Filled.Label, contentDescription = null) },
             onClick = { onNavigate("reports") },
             modifier = Modifier.padding(horizontal = 8.dp),
@@ -499,7 +501,7 @@ fun SideMenuContent(
             selected = currentRoute?.startsWith("inventory") == true &&
                 currentRoute?.startsWith("inventory/purchase-orders") == false,
             icon = { Icon(Icons.Default.Inventory2, contentDescription = null) },
-            onClick = { onNavigate("inventory_graph") },
+            onClick = { onNavigate(InventoryRoute.List.route) },
             modifier = Modifier.padding(horizontal = 8.dp),
         )
 

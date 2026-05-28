@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="#fff">
+  <!--
+    Factory/warehouse. Low, very wide main building with sawtooth roofline.
+    Two tall smokestacks at right. Large rolling loading door cutout at front.
+    fill-rule=evenodd for the loading door hole.
+  -->
+  <path fill-rule="evenodd" d="
+    M 4,44
+    L 16,54
+    L 16,44
+    L 28,54
+    L 28,44
+    L 40,54
+    L 40,44
+    L 52,54
+    L 52,44
+    L 64,54
+    L 72,54
+    L 72,94
+    L 4,94
+    Z
+
+    M 18,70
+    L 18,94
+    L 50,94
+    L 50,70
+    Z
+  "/>
+
+  <path d="
+    M 72,14
+    L 82,14
+    L 82,94
+    L 72,94
+    Z
+  "/>
+
+  <path d="
+    M 86,22
+    L 96,22
+    L 96,94
+    L 86,94
+    Z
+  "/>
+
+  <ellipse cx="77" cy="10" rx="6" ry="4"/>
+  <ellipse cx="91" cy="18" rx="6" ry="4"/>
+</svg>

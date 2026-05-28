@@ -1,5 +1,6 @@
 package com.avago.feature.chat.ui
 
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
@@ -16,7 +18,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.TextFormat
@@ -34,10 +38,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import com.avago.core.data.db.entity.ChatAccountRosterEntity
 import com.avago.core.data.db.entity.ChatMessageEntity
+import com.avago.core.network.model.LinkPreviewResponse
+import java.io.File
 
 /**
  * Pinned composer bar at the bottom of ThreadScreen.
@@ -46,10 +56,13 @@ import com.avago.core.data.db.entity.ChatMessageEntity
  *  - BasicTextField with placeholder
  *  - Send button (enabled when text is non-blank)
  *  - Edit mode: shows an "Editing" banner and cancel button
+ *  - Reply mode: shows quoted message above the field ([replyingToMessage])
  *  - @ mention detection with @all/@here support
  *  - Image picker button (left of text field)
- *  - Formatting toolbar toggle (bold, italic, code)
- *  - Detected URL banner shown above the composer
+ *  - Camera capture button
+ *  - Formatting toolbar toggle (bold, italic, code, link, list)
+ *  - Link preview card fetched from ViewModel ([linkPreview])
+ *  - Typing callback ([onTyping]) fired on each keystroke
  *  - imePadding() so the bar stays above the software keyboard
  */
 @Composable
@@ -59,28 +72,50 @@ fun MessageComposer(
     onSend: (String) -> Unit,
     onCancelEdit: () -> Unit,
     modifier: Modifier = Modifier,
+    initialText: String = "",
     onImageSelected: ((String) -> Unit)? = null,
+    onTyping: (() -> Unit)? = null,
+    onTextChanged: ((String) -> Unit)? = null,
+    replyingToMessage: ChatMessageEntity? = null,
+    onCancelReply: () -> Unit = {},
+    linkPreview: LinkPreviewResponse? = null,
+    onUrlDetected: ((String?) -> Unit)? = null,
+    onDismissLinkPreview: (() -> Unit)? = null,
 ) {
-    var fieldValue by remember { mutableStateOf(TextFieldValue("")) }
+    var fieldValue by remember { mutableStateOf(TextFieldValue(initialText)) }
     var mentionQuery by remember { mutableStateOf<String?>(null) }
     var showFormatting by remember { mutableStateOf(false) }
-    var detectedUrl by remember { mutableStateOf<String?>(null) }
 
+    val context = LocalContext.current
+
+    // Gallery picker
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
     ) { uri ->
         uri?.let { onImageSelected?.invoke(it.toString()) }
     }
 
-    // When editingMessage changes, populate the field with the existing body.
-    val editingId = editingMessage?.messageId
-    remember(editingId) {
-        if (editingMessage != null) {
-            fieldValue = TextFieldValue(editingMessage.bodyMd)
-        }
+    // Camera capture
+    var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture(),
+    ) { success ->
+        if (success) cameraImageUri?.let { onImageSelected?.invoke(it.toString()) }
     }
 
-    // Detect @-mention query from cursor position.
+    fun launchCamera() {
+        val file = File(context.cacheDir, "chat_capture_${System.currentTimeMillis()}.jpg")
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+        cameraImageUri = uri
+        cameraLauncher.launch(uri)
+    }
+
+    // When editingMessage changes, populate field with existing body.
+    val editingId = editingMessage?.messageId
+    remember(editingId) {
+        if (editingMessage != null) fieldValue = TextFieldValue(editingMessage.bodyMd)
+    }
+
     fun detectMentionQuery(text: String, cursor: Int): String? {
         var i = cursor - 1
         val sb = StringBuilder()
@@ -103,40 +138,20 @@ fun MessageComposer(
             )
         }
 
-        // Detected URL banner (conditional)
-        detectedUrl?.let { url ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "🔗 ${url.take(40)}${if (url.length > 40) "…" else ""}",
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.weight(1f),
-                )
-                IconButton(
-                    onClick = { detectedUrl = null },
-                    modifier = Modifier.size(20.dp),
-                ) {
-                    Icon(
-                        Icons.Default.Close,
-                        contentDescription = "Dismiss",
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
-            }
+        // Link preview card (from ViewModel fetch)
+        if (linkPreview != null) {
+            ComposerLinkPreviewCard(
+                preview = linkPreview,
+                onDismiss = { onDismissLinkPreview?.invoke() },
+            )
         }
 
-        // Mention autocomplete popup — shown above the composer
+        // Mention autocomplete
         mentionQuery?.let { query ->
             MentionAutocomplete(
                 query = query,
                 members = members,
                 onSelect = { user ->
-                    // Replace @query with @displayName
                     val text = fieldValue.text
                     val cursor = fieldValue.selection.end
                     val atIdx = text.lastIndexOf('@', cursor - 1)
@@ -153,7 +168,6 @@ fun MessageComposer(
                     mentionQuery = null
                 },
                 onSelectSpecial = { special ->
-                    // Insert "@all " or "@here " replacing the @query
                     val text = fieldValue.text
                     val cursor = fieldValue.selection.end
                     val atIdx = text.lastIndexOf('@', cursor - 1)
@@ -174,6 +188,51 @@ fun MessageComposer(
         }
 
         HorizontalDivider()
+
+        // Reply quote banner
+        if (replyingToMessage != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.secondaryContainer)
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.Reply,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.secondary,
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Replying to ${replyingToMessage.senderName ?: "message"}",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
+                    Text(
+                        text = replyingToMessage.bodyMd.take(80),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                IconButton(
+                    onClick = onCancelReply,
+                    modifier = Modifier.size(28.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Cancel reply",
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
+                }
+            }
+        }
 
         // Edit mode banner
         if (editingMessage != null) {
@@ -210,10 +269,10 @@ fun MessageComposer(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Image picker button
+            // Gallery image picker
             IconButton(
                 onClick = {
                     imagePickerLauncher.launch(
@@ -228,10 +287,17 @@ fun MessageComposer(
                 )
             }
 
-            // Formatting toggle button
-            IconButton(
-                onClick = { showFormatting = !showFormatting },
-            ) {
+            // Camera capture
+            IconButton(onClick = { launchCamera() }) {
+                Icon(
+                    imageVector = Icons.Default.CameraAlt,
+                    contentDescription = "Take photo",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            // Formatting toggle
+            IconButton(onClick = { showFormatting = !showFormatting }) {
                 Icon(
                     imageVector = Icons.Default.TextFormat,
                     contentDescription = "Toggle formatting",
@@ -263,9 +329,12 @@ fun MessageComposer(
                     onValueChange = { newVal ->
                         fieldValue = newVal
                         mentionQuery = detectMentionQuery(newVal.text, newVal.selection.end)
+                        onTyping?.invoke()
+                        onTextChanged?.invoke(newVal.text)
+                        // Notify ViewModel of URL for link preview fetching
                         val urlRegex = Regex("https?://[^\\s]+")
                         val foundUrl = urlRegex.find(newVal.text)?.value
-                        detectedUrl = if (foundUrl != newVal.text.trim()) foundUrl else null
+                        onUrlDetected?.invoke(if (foundUrl != newVal.text.trim()) foundUrl else null)
                     },
                     textStyle = MaterialTheme.typography.bodyMedium.copy(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -287,7 +356,7 @@ fun MessageComposer(
                         onSend(text)
                         fieldValue = TextFieldValue("")
                         mentionQuery = null
-                        detectedUrl = null
+                        onUrlDetected?.invoke(null)
                     }
                 },
                 enabled = fieldValue.text.isNotBlank(),
@@ -301,6 +370,62 @@ fun MessageComposer(
                         MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
                 )
             }
+        }
+    }
+}
+
+/** Compact link preview card shown above the composer while typing a URL. */
+@Composable
+private fun ComposerLinkPreviewCard(
+    preview: LinkPreviewResponse,
+    onDismiss: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            preview.site_name?.takeIf { it.isNotBlank() }?.let { site ->
+                Text(
+                    text = site.uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            preview.title?.takeIf { it.isNotBlank() }?.let { title ->
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            preview.description?.takeIf { it.isNotBlank() }?.let { desc ->
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = desc,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        IconButton(
+            onClick = onDismiss,
+            modifier = Modifier.size(28.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "Dismiss preview",
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

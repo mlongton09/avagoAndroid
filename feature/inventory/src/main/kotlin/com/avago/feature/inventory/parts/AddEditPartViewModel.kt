@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
+import com.avago.core.data.FormFillRouter
 import com.avago.core.data.db.entity.InventoryEntity
 import com.avago.core.data.db.entity.PartEntity
 import com.avago.core.data.db.entity.SyncQueueEntity
@@ -32,6 +33,7 @@ data class AddEditPartUiState(
     val maxQty: String = "",
     val safetyStock: String = "",
     val locationId: String = "",
+    val locationName: String = "",
     val binId: String = "",
     val barcode: String = "",
     val manufacturer: String = "",
@@ -52,9 +54,49 @@ class AddEditPartViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val dbFactory: DatabaseFactory,
     private val identityManager: IdentityManager,
+    private val formFillRouter: FormFillRouter,
 ) : ViewModel() {
 
     private val partId: String? = savedStateHandle["partId"]
+
+    init {
+        formFillRouter.register("add_part") { fields -> applyScoutFields(fields) }
+    }
+
+    override fun onCleared() {
+        formFillRouter.unregister("add_part")
+        super.onCleared()
+    }
+
+    fun applyScoutFields(fields: Map<String, String?>): List<String> {
+        val touched = mutableListOf<String>()
+        _state.value = _state.value.let { s ->
+            var updated = s
+            fields["name"]?.trim()?.takeIf { it.isNotEmpty() }?.let {
+                updated = updated.copy(name = it); touched.add("name")
+            }
+            fields["sku"]?.trim()?.takeIf { it.isNotEmpty() }?.let {
+                updated = updated.copy(sku = it); touched.add("SKU")
+            }
+            fields["description"]?.trim()?.let {
+                updated = updated.copy(description = it); touched.add("description")
+            }
+            (fields["unit_cost"] ?: fields["cost"])?.toDoubleOrNull()?.let {
+                updated = updated.copy(unitCost = it.toString()); touched.add("unit cost")
+            }
+            fields["manufacturer"]?.trim()?.takeIf { it.isNotEmpty() }?.let {
+                updated = updated.copy(manufacturer = it); touched.add("manufacturer")
+            }
+            (fields["reorder_quantity"] ?: fields["reorder_point"])?.toDoubleOrNull()?.let {
+                updated = updated.copy(reorderQty = it.toString()); touched.add("reorder qty")
+            }
+            fields["notes"]?.trim()?.let {
+                updated = updated.copy(notes = it); touched.add("notes")
+            }
+            updated
+        }
+        return touched
+    }
 
     private val _state = MutableStateFlow(AddEditPartUiState())
     val state: StateFlow<AddEditPartUiState> = _state.asStateFlow()
@@ -70,11 +112,17 @@ class AddEditPartViewModel @Inject constructor(
                 _state.value = _state.value.copy(isLoading = false)
                 return@launch
             }
-            val part = dbFactory.get(accountId).partDao().getById(id)
+            val db = dbFactory.get(accountId)
+            val part = db.partDao().getById(id)
             if (part != null) {
                 // Prefer dedicated columns; fall back to legacy attributes JSON for migrated rows.
                 val attrs = if (part.manufacturer == null && part.status == null)
                     parseAttributes(part.attributes) else emptyMap()
+                val primaryInventory = db.inventoryDao().getByPartId(id).firstOrNull()
+                val locId = primaryInventory?.locationId ?: ""
+                val locName = if (locId.isNotBlank()) {
+                    db.locationDao().getById(locId)?.name ?: ""
+                } else ""
                 _state.value = _state.value.copy(
                     name = part.name,
                     sku = part.sku ?: "",
@@ -86,6 +134,8 @@ class AddEditPartViewModel @Inject constructor(
                     maxQty = "",
                     safetyStock = "",
                     barcode = "",
+                    locationId = locId,
+                    locationName = locName,
                     manufacturer = part.manufacturer ?: attrs["manufacturer"] ?: "",
                     uom = part.unitOfMeasure ?: "each",
                     reorderQty = part.reorderQuantity?.toString() ?: "",
@@ -122,6 +172,7 @@ class AddEditPartViewModel @Inject constructor(
     fun setName(v: String) { _state.value = _state.value.copy(name = v, nameError = null) }
     fun setSku(v: String) { _state.value = _state.value.copy(sku = v) }
     fun setCategory(v: String) { _state.value = _state.value.copy(category = v) }
+    fun setLocation(id: String, name: String) { _state.value = _state.value.copy(locationId = id, locationName = name) }
     fun setDescription(v: String) { _state.value = _state.value.copy(description = v) }
     fun setUnitCost(v: String) { _state.value = _state.value.copy(unitCost = v) }
     fun setCurrency(v: String) { _state.value = _state.value.copy(currency = v) }
@@ -180,6 +231,29 @@ class AddEditPartViewModel @Inject constructor(
                 )
                 val db = dbFactory.get(accountId)
                 db.partDao().upsert(part)
+
+                // If editing and location changed, update the primary inventory record
+                if (partId != null && s.locationId.isNotBlank()) {
+                    val existing = db.inventoryDao().getByPartId(id).firstOrNull()
+                    if (existing != null && existing.locationId != s.locationId) {
+                        db.inventoryDao().upsert(existing.copy(locationId = s.locationId, updatedAt = now))
+                        db.syncQueueDao().enqueueWithDedup(
+                            SyncQueueEntity(
+                                queueId = "inventory_${existing.inventoryId}",
+                                entityType = "inventory",
+                                entityId = existing.inventoryId,
+                                operation = "update",
+                                serverVersion = existing.serverVersion,
+                                payload = null,
+                                syncStatus = "pending",
+                                attempts = 0L,
+                                lastError = null,
+                                createdAt = now,
+                                updatedAt = now,
+                            ),
+                        )
+                    }
+                }
 
                 // If creating a new part and an initial quantity was provided, create an inventory record
                 if (partId == null && s.initialQty.isNotBlank()) {

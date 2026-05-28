@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
+import com.avago.core.data.FormFillRouter
 import com.avago.core.data.db.entity.LogCostLineEntity
 import com.avago.core.data.db.entity.LogEntity
 import com.avago.core.data.db.entity.PhotoEntity
@@ -46,6 +47,7 @@ data class AddEditLogFormState(
     val entryId: String = UUID.randomUUID().toString(),
     val assetId: String? = null,
     val assetName: String? = null,
+    val assetType: String? = null,
 
     // Core fields
     val title: String = "",
@@ -77,7 +79,14 @@ data class AddEditLogFormState(
     // Available categories from config
     val availableCategories: List<String> = emptyList(),
 
-    // Inspection field definitions loaded from ConfigEntity (scope="system", key="inspection_fields")
+    // Inspection subtype (e.g. "Base", "Full") and mode ("Basic"/"Full")
+    val inspectionSubtype: String? = null,
+    val inspectionMode: String? = null,
+    val inspectionConfigId: String? = null,
+    val inspectionConfigVersion: Long = 0L,
+    val availableInspectionSubtypes: List<String> = emptyList(),
+
+    // Inspection field definitions loaded from ConfigEntity (scope="Inspection", key="{assetType}_{subtype}")
     // Populated by loadInspectionFields(); empty until the asset type is known.
     val inspectionFields: List<InspectionFieldDef> = emptyList(),
 
@@ -110,7 +119,44 @@ class AddEditLogViewModel @Inject constructor(
     private val identity: IdentityManager,
     private val syncEngine: SyncEngine,
     private val userPrefsRepository: UserPreferencesRepository,
+    private val formFillRouter: FormFillRouter,
 ) : ViewModel() {
+
+    init {
+        formFillRouter.register("add_log_entry") { fields -> applyScoutFields(fields) }
+    }
+
+    override fun onCleared() {
+        formFillRouter.unregister("add_log_entry")
+        super.onCleared()
+    }
+
+    fun applyScoutFields(fields: Map<String, String?>): List<String> {
+        val touched = mutableListOf<String>()
+        _form.update { state ->
+            var s = state
+            fields["title"]?.trim()?.takeIf { it.isNotEmpty() }?.let {
+                s = s.copy(title = it); touched.add("title")
+            }
+            fields["asset_id"]?.let {
+                s = s.copy(assetId = it); touched.add("asset")
+            }
+            fields["category"]?.trim()?.takeIf { it.isNotEmpty() }?.let {
+                s = s.copy(category = it); touched.add("category")
+            }
+            fields["cost"]?.toDoubleOrNull()?.let {
+                s = s.copy(totalCost = it.toString()); touched.add("cost")
+            }
+            (fields["meter"] ?: fields["odometer"])?.trim()?.takeIf { it.isNotEmpty() }?.let {
+                s = s.copy(meterReading = it); touched.add("meter")
+            }
+            fields["notes"]?.trim()?.let {
+                s = s.copy(notes = it); touched.add("notes")
+            }
+            s
+        }
+        return touched
+    }
 
     private val _form = MutableStateFlow(AddEditLogFormState())
     val form: StateFlow<AddEditLogFormState> = _form.asStateFlow()
@@ -135,8 +181,9 @@ class AddEditLogViewModel @Inject constructor(
                 originalCreatedAt = entity.createdAt
                 originalServerVersion = entity.serverVersion
 
-                // Parse inspection answers from data JSON
                 val inspectionAnswers = parseJsonMap(entity.data)
+                val inspectionSubtype = entity.data?.let { parseJsonField(it, "inspection_subtype") }
+                val inspectionMode = entity.data?.let { parseJsonField(it, "inspection_mode") }
 
                 // One-shot read of cost lines for this entry
                 val drafts = db.logCostLineDao().observeAll(accountId)
@@ -183,6 +230,10 @@ class AddEditLogViewModel @Inject constructor(
                         totalCost = entity.cost?.toString() ?: "",
                         pendingCostLines = drafts,
                         inspectionAnswers = inspectionAnswers,
+                        inspectionSubtype = inspectionSubtype,
+                        inspectionMode = inspectionMode,
+                        inspectionConfigId = entity.configId,
+                        inspectionConfigVersion = entity.configVersion ?: 0L,
                         isLoadingExisting = false,
                     )
                 }
@@ -208,24 +259,95 @@ class AddEditLogViewModel @Inject constructor(
     }
 
     /**
-     * Loads inspection field definitions from ConfigEntity.
-     * The config key "inspection_fields" stores a JSON array of [InspectionFieldDef].
-     * Falls back to the asset-type-specific key "inspection_fields_{assetType}" when available.
+     * Loads available inspection subtypes for the given asset type.
+     * Queries configs with scope="Inspection" and key like "{assetType}_%".
+     * Extracts the subtype portion from the key.
      */
-    fun loadInspectionFields(assetType: String? = null) {
+    fun loadInspectionSubtypes(assetType: String? = null) {
         val accountId = identity.getActiveAccountId() ?: return
+        val type = (assetType ?: _form.value.assetType)?.takeIf { it.isNotBlank() } ?: "light_vehicle"
         viewModelScope.launch {
             try {
                 val db = dbFactory.get(accountId)
-                // Try asset-type-specific config first, then fall back to global key
-                val specificKey = if (!assetType.isNullOrBlank()) "inspection_fields_$assetType" else null
-                val config = specificKey?.let { db.configDao().getByKey("system", it) }
+                val configs = db.configDao().getByPattern("Inspection", "${type}_%")
+                val subtypes = configs.mapNotNull { config ->
+                    val key = config.key
+                    val prefix = "${type}_"
+                    if (key.startsWith(prefix)) key.removePrefix(prefix) else null
+                }.distinct()
+                _form.update { it.copy(availableInspectionSubtypes = subtypes) }
+                // Auto-load "Base" subtype if available and none selected
+                if (_form.value.inspectionSubtype == null) {
+                    val defaultSubtype = when {
+                        subtypes.contains("Base") -> "Base"
+                        subtypes.isNotEmpty() -> subtypes.first()
+                        else -> null
+                    }
+                    defaultSubtype?.let { setInspectionSubtype(it, "Basic", type) }
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "[AddEditLogViewModel] loadInspectionSubtypes failed for assetType=$assetType")
+            }
+        }
+    }
+
+    fun setInspectionSubtype(subtype: String, mode: String?, assetType: String? = null) {
+        val accountId = identity.getActiveAccountId() ?: return
+        val type = (assetType ?: _form.value.assetType)?.takeIf { it.isNotBlank() } ?: "light_vehicle"
+        viewModelScope.launch {
+            try {
+                val db = dbFactory.get(accountId)
+                val config = db.configDao().getByPattern("Inspection", "${type}_$subtype")
+                    .maxByOrNull { it.version }
+                    ?: db.configDao().getByPattern("Inspection", "light_vehicle_$subtype")
+                        .maxByOrNull { it.version }
+                val fields = parseInspectionFields(config?.value)
+                _form.update {
+                    it.copy(
+                        inspectionSubtype = subtype,
+                        inspectionMode = mode,
+                        inspectionConfigId = config?.configId,
+                        inspectionConfigVersion = config?.version ?: 0L,
+                        inspectionFields = fields,
+                    )
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "[AddEditLogViewModel] setInspectionSubtype failed for subtype=$subtype")
+            }
+        }
+    }
+
+    /**
+     * Loads inspection field definitions from ConfigEntity.
+     * Scope="Inspection", key="{assetType}_{subtype}". Falls back to scope="system",
+     * key="inspection_fields_{assetType}" for backwards compatibility.
+     */
+    fun loadInspectionFields(assetType: String? = null) {
+        val accountId = identity.getActiveAccountId() ?: return
+        val subtype = _form.value.inspectionSubtype ?: "Base"
+        val type = (assetType ?: _form.value.assetType)?.takeIf { it.isNotBlank() } ?: "light_vehicle"
+        viewModelScope.launch {
+            try {
+                val db = dbFactory.get(accountId)
+                // Try Inspection scope (iOS-style) first
+                val config = db.configDao().getByPattern("Inspection", "${type}_$subtype")
+                    .maxByOrNull { it.version }
+                    ?: db.configDao().getByKey("system", "inspection_fields_$type")
                     ?: db.configDao().getByKey("system", "inspection_fields")
                 val fields = parseInspectionFields(config?.value)
-                _form.update { it.copy(inspectionFields = fields) }
+                if (config != null && config.scope == "Inspection") {
+                    _form.update {
+                        it.copy(
+                            inspectionFields = fields,
+                            inspectionConfigId = config.configId,
+                            inspectionConfigVersion = config.version,
+                        )
+                    }
+                } else {
+                    _form.update { it.copy(inspectionFields = fields) }
+                }
             } catch (e: Exception) {
                 Timber.e(e, "[AddEditLogViewModel] loadInspectionFields failed")
-                // Leave inspectionFields as empty list; UI handles the empty-state gracefully
             }
         }
     }
@@ -301,7 +423,7 @@ class AddEditLogViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val asset = dbFactory.get(accountId).assetDao().getById(assetId)
-                _form.update { it.copy(meterType = asset?.meterType) }
+                _form.update { it.copy(meterType = asset?.meterType, assetType = asset?.assetType) }
             } catch (e: Exception) {
                 Timber.e(e, "[AddEditLogViewModel] onAssetSelected: failed to load asset meterType")
             }
@@ -451,8 +573,13 @@ class AddEditLogViewModel @Inject constructor(
                 val now = System.currentTimeMillis()
                 val entryId = current.entryId
 
-                // Build the data JSON for log_type and inspection answers
-                val dataJson = buildDataJson(current.logType, current.inspectionAnswers)
+                val dataJson = buildDataJson(
+                    logType = current.logType,
+                    inspectionAnswers = current.inspectionAnswers,
+                    inspectionSubtype = current.inspectionSubtype,
+                    inspectionMode = current.inspectionMode,
+                    inspectionFields = current.inspectionFields,
+                )
 
                 val costMode = if (current.costMode == CostMode.ITEMIZED) "itemized" else "total"
                 val cost = when (current.costMode) {
@@ -498,8 +625,8 @@ class AddEditLogViewModel @Inject constructor(
                     currency = preferredCurrency,
                     baseAmount = if (preferredCurrency == "USD") cost else null,
                     exchangeRateUsed = if (preferredCurrency == "USD") 1.0 else null,
-                    configId = null,
-                    configVersion = null,
+                    configId = current.inspectionConfigId,
+                    configVersion = current.inspectionConfigVersion.takeIf { it > 0 },
                     serviceId = null,
                     costMisc = null,
                     parentId = null,
@@ -622,14 +749,36 @@ class AddEditLogViewModel @Inject constructor(
     // JSON helpers (no external dep — plain string building)
     // ---------------------------------------------------------------------------
 
-    private fun buildDataJson(logType: String, inspectionAnswers: Map<String, String>): String? {
+    private fun buildDataJson(
+        logType: String,
+        inspectionAnswers: Map<String, String>,
+        inspectionSubtype: String? = null,
+        inspectionMode: String? = null,
+        inspectionFields: List<InspectionFieldDef> = emptyList(),
+    ): String? {
         val parts = mutableListOf<String>()
         parts += "\"log_type\":\"$logType\""
+        if (!inspectionSubtype.isNullOrBlank()) {
+            parts += "\"inspection_subtype\":\"${inspectionSubtype.replace("\"", "\\\"")}\""
+        }
+        if (!inspectionMode.isNullOrBlank()) {
+            parts += "\"inspection_mode\":\"${inspectionMode.replace("\"", "\\\"")}\""
+        }
         inspectionAnswers.forEach { (k, v) ->
             val escaped = v.replace("\\", "\\\\").replace("\"", "\\\"")
             parts += "\"$k\":\"$escaped\""
         }
-        return if (parts.isEmpty()) null else "{${parts.joinToString(",")}}"
+        // Embed a stripped config snapshot so read mode can render without the configs table.
+        // Only embed when we have actual inspection fields (mirrors iOS AVRenderableConfigSnapshot).
+        if (logType == "inspection" && inspectionFields.isNotEmpty()) {
+            val fieldJsons = inspectionFields.joinToString(",") { field ->
+                val optStr = if (field.options.isEmpty()) "" else
+                    ",\"options\":[${field.options.joinToString(",") { "\"${it.replace("\"", "\\\"")}\"" }}]"
+                "{\"key\":\"${field.key}\",\"label\":\"${field.label.replace("\"", "\\\"")}\",\"type\":\"${field.type}\"$optStr}"
+            }
+            parts += "\"configSnapshot\":{\"fields\":[$fieldJsons]}"
+        }
+        return if (parts.size <= 1 && inspectionAnswers.isEmpty()) null else "{${parts.joinToString(",")}}"
     }
 
     private fun parseJsonField(json: String, key: String): String? {
