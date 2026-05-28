@@ -14,6 +14,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material3.IconButton
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.Badge
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -49,6 +52,8 @@ import com.avago.feature.workorders.viewmodel.WorkOrderListViewModel
 fun WorkOrderListScreen(
     onWoClick: (woId: String) -> Unit,
     onCreateWo: () -> Unit,
+    onOpenCalendar: () -> Unit = {},
+    onOpenDispatchBoard: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: WorkOrderListViewModel = hiltViewModel(),
 ) {
@@ -128,6 +133,12 @@ fun WorkOrderListScreen(
                                     label = { Text(label) },
                                 )
                             }
+                        }
+                        IconButton(onClick = onOpenCalendar) {
+                            Icon(Icons.Default.CalendarToday, contentDescription = stringResource(R.string.wo_calendar_title))
+                        }
+                        IconButton(onClick = onOpenDispatchBoard) {
+                            Icon(Icons.Default.Dashboard, contentDescription = stringResource(R.string.dispatch_board_title))
                         }
                     }
                     HorizontalDivider()

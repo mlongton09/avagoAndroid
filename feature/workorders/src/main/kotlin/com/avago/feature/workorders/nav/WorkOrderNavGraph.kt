@@ -70,6 +70,12 @@ fun NavGraphBuilder.workOrderNavGraph(
                 onCreateWo = {
                     navController.navigate(WorkOrderRoute.createEdit())
                 },
+                onOpenCalendar = {
+                    navController.navigate(WorkOrderRoute.CALENDAR)
+                },
+                onOpenDispatchBoard = {
+                    navController.navigate(WorkOrderRoute.DISPATCH_BOARD)
+                },
             )
         }
 

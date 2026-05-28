@@ -19,6 +19,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -26,6 +27,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -33,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.feature.inventory.R
+import com.avago.feature.inventory.ui.LocationPickerSheet
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,6 +46,29 @@ fun WarehouseMoveScreen(
     viewModel: WarehouseMoveViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+
+    var showFromLocationPicker by remember { mutableStateOf(false) }
+    var showToLocationPicker by remember { mutableStateOf(false) }
+
+    if (showFromLocationPicker) {
+        LocationPickerSheet(
+            onLocationPicked = { location ->
+                if (location != null) viewModel.setFromLocationId(location.locationId)
+                showFromLocationPicker = false
+            },
+            onDismiss = { showFromLocationPicker = false },
+        )
+    }
+
+    if (showToLocationPicker) {
+        LocationPickerSheet(
+            onLocationPicked = { location ->
+                if (location != null) viewModel.setToLocationId(location.locationId)
+                showToLocationPicker = false
+            },
+            onDismiss = { showToLocationPicker = false },
+        )
+    }
 
     LaunchedEffect(state.isDone) {
         if (state.isDone) onBack()
@@ -98,13 +126,15 @@ fun WarehouseMoveScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             )
 
-            OutlinedTextField(
-                value = state.fromLocationId,
-                onValueChange = viewModel::setFromLocationId,
-                label = { Text(stringResource(R.string.warehouse_from_location)) },
+            OutlinedButton(
+                onClick = { showFromLocationPicker = true },
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-            )
+            ) {
+                Text(
+                    if (state.fromLocationId.isNotBlank()) state.fromLocationId
+                    else stringResource(R.string.warehouse_from_location),
+                )
+            }
 
             OutlinedTextField(
                 value = state.fromBinId,
@@ -114,13 +144,15 @@ fun WarehouseMoveScreen(
                 singleLine = true,
             )
 
-            OutlinedTextField(
-                value = state.toLocationId,
-                onValueChange = viewModel::setToLocationId,
-                label = { Text(stringResource(R.string.warehouse_to_location)) },
+            OutlinedButton(
+                onClick = { showToLocationPicker = true },
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-            )
+            ) {
+                Text(
+                    if (state.toLocationId.isNotBlank()) state.toLocationId
+                    else stringResource(R.string.warehouse_to_location),
+                )
+            }
 
             OutlinedTextField(
                 value = state.toBinId,
