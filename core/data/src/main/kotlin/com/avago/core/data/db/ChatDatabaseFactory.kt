@@ -20,7 +20,7 @@ private val MIGRATION_2_3 = object : Migration(2, 3) {
     }
 }
 
-private val MIGRATION_4_5 = object : Migration(4, 5) {
+private val CHAT_MIGRATION_4_5 = object : Migration(4, 5) {
     override fun migrate(database: SupportSQLiteDatabase) {
         database.execSQL("ALTER TABLE chat_messages ADD COLUMN server_version INTEGER NOT NULL DEFAULT 0")
         database.execSQL("ALTER TABLE chat_messages ADD COLUMN parent_message_id TEXT")
@@ -70,7 +70,7 @@ class ChatDatabaseFactory @Inject constructor(
             val dir = File(ctx.filesDir, "accounts/$accountId").apply { mkdirs() }
             Room.databaseBuilder(ctx, ChatDatabase::class.java, File(dir, "chat.db").path)
                 .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, CHAT_MIGRATION_4_5)
                 .fallbackToDestructiveMigration(dropAllTables = true)
                 .build()
         }
