@@ -26,6 +26,7 @@ data class ChatListUiState(
     val unreadOnly: Boolean = false,
     val isRefreshing: Boolean = false,
     val unreadMentionCount: Int = 0,
+    val syncError: String? = null,
 )
 
 @HiltViewModel
@@ -41,14 +42,17 @@ class ChatListViewModel @Inject constructor(
     private val _unreadOnly = MutableStateFlow(false)
     private val _allThreads = MutableStateFlow<List<ChatThreadEntity>>(emptyList())
     private val _unreadMentionCount = MutableStateFlow(0)
+    private val _syncError = MutableStateFlow<String?>(null)
 
     val uiState: StateFlow<ChatListUiState> = combine(
         _allThreads,
         _filter,
         _searchQuery,
         _unreadOnly,
-        combine(_isRefreshing, _unreadMentionCount) { refreshing, mentionCount -> refreshing to mentionCount },
-    ) { threads, filter, query, unreadOnly, (refreshing, mentionCount) ->
+        combine(_isRefreshing, _unreadMentionCount, _syncError) { refreshing, mentionCount, error ->
+            Triple(refreshing, mentionCount, error)
+        },
+    ) { threads, filter, query, unreadOnly, (refreshing, mentionCount, syncError) ->
         val filtered = threads
             .filter { it.matchesFilter(filter) }
             .filter { query.isBlank() || it.matchesSearch(query) }
@@ -72,6 +76,7 @@ class ChatListViewModel @Inject constructor(
             unreadOnly = unreadOnly,
             isRefreshing = refreshing,
             unreadMentionCount = mentionCount,
+            syncError = syncError,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -89,9 +94,15 @@ class ChatListViewModel @Inject constructor(
 
     private fun observeThreads() {
         viewModelScope.launch {
+            if (identity.activeAccountId.value == null) {
+                Timber.w("ChatListViewModel: observeThreads called with null accountId — DB observation skipped")
+            }
             repository.observeThreads()
                 .catch { e -> Timber.e(e, "observeThreads error") }
-                .collect { _allThreads.value = it }
+                .collect { threads ->
+                    Timber.d("ChatListViewModel: observeThreads emitted ${threads.size} threads")
+                    _allThreads.value = threads
+                }
         }
     }
 
@@ -116,11 +127,15 @@ class ChatListViewModel @Inject constructor(
     }
 
     fun refresh() {
+        _syncError.value = null
         viewModelScope.launch {
             _isRefreshing.value = true
-            repository.syncThreads().onFailure { e ->
-                Timber.e(e, "syncThreads failed")
-            }
+            repository.syncThreads()
+                .onSuccess { Timber.d("ChatListViewModel: syncThreads succeeded") }
+                .onFailure { e ->
+                    Timber.e(e, "ChatListViewModel: syncThreads failed")
+                    _syncError.value = e.message
+                }
             _isRefreshing.value = false
         }
     }

@@ -137,11 +137,20 @@ fun ChatListScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(
-                            text = "No conversations yet",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                        )
+                        if (uiState.syncError != null) {
+                            Text(
+                                text = "Sync failed: ${uiState.syncError}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(horizontal = 24.dp),
+                            )
+                        } else if (!uiState.isRefreshing) {
+                            Text(
+                                text = "No conversations yet",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                            )
+                        }
                     }
                 } else {
                     LazyColumn(
