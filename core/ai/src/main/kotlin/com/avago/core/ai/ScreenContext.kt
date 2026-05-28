@@ -27,3 +27,21 @@ data class ScreenContext(
         @SerialName("app_version") val appVersion: String? = null,
     )
 }
+
+/** One row in the recent-entities ring. */
+@Serializable
+data class RecentEntity(
+    @SerialName("kind") val kind: String,
+    @SerialName("id") val id: String,
+    @SerialName("label") val label: String? = null,
+)
+
+/** Server response from POST /accounts/:id/ai/scout. */
+@Serializable
+data class ScoutResponse(
+    val targetScreen: String? = null,
+    val skillName: String? = null,
+    val fields: Map<String, String?> = emptyMap(),
+    val envelopeId: String,
+    val actionCard: ActionCard? = null,
+)
