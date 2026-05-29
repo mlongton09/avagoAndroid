@@ -136,12 +136,16 @@ fun MainScaffold(
     onAddAccount: () -> Unit = {},
     navController: NavHostController = rememberNavController(),
     scoutViewModel: ScoutViewModel = hiltViewModel(),
+    navFlagsViewModel: NavFlagsViewModel = hiltViewModel(),
 ) {
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
     var scoutPaletteVisible by remember { mutableStateOf(false) }
     var voiceSheetVisible by remember { mutableStateOf(false) }
+
+    val chatEnabled by navFlagsViewModel.chatEnabled.collectAsState()
+    val workOrdersEnabled by navFlagsViewModel.workOrdersEnabled.collectAsState()
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -215,7 +219,11 @@ fun MainScaffold(
             },
             bottomBar = {
                 if (!isAuthDestination) {
-                    BottomNavBar(navController = navController)
+                    BottomNavBar(
+                        navController = navController,
+                        workOrdersEnabled = workOrdersEnabled,
+                        chatEnabled = chatEnabled,
+                    )
                 }
             },
             floatingActionButton = {
@@ -290,7 +298,11 @@ fun MainScaffold(
 // ---------------------------------------------------------------------------
 
 @Composable
-fun BottomNavBar(navController: NavHostController) {
+fun BottomNavBar(
+    navController: NavHostController,
+    workOrdersEnabled: Boolean = true,
+    chatEnabled: Boolean = true,
+) {
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.surface,
         tonalElevation = 0.dp,
@@ -298,7 +310,15 @@ fun BottomNavBar(navController: NavHostController) {
         val backStack by navController.currentBackStackEntryAsState()
         val currentRoute = backStack?.destination?.route
 
-        bottomNavItems.forEach { item ->
+        val visibleItems = bottomNavItems.filter { item ->
+            when (item.route) {
+                "workorders_graph" -> workOrdersEnabled
+                "chat"            -> chatEnabled
+                else              -> true
+            }
+        }
+
+        visibleItems.forEach { item ->
             NavigationBarItem(
                 selected = currentRoute == item.route || currentRoute?.startsWith("${item.route}/") == true,
                 onClick = {

@@ -56,6 +56,15 @@ class FeatureFlags @Inject constructor(
     /** Whether cycle count floor mode is enabled. */
     val cycleCountFloorEnabled: Boolean get() = getFlag("feature.cycle_count_floor_enabled", default = false)
 
+    /** Whether the Chat tab is visible. Fail-open (default true). */
+    val chatEnabled: Boolean get() = getFlag("chat_enabled", default = true)
+
+    /** Whether the Work Orders tab is visible. Fail-open (default true). */
+    val workOrdersEnabled: Boolean get() = getFlag("work_orders_enabled", default = true)
+
+    /** Whether Purchase Orders are visible in Inventory. Fail-open (default true). */
+    val purchaseOrdersEnabled: Boolean get() = getFlag("purchase_orders_enabled", default = true)
+
     // ---------------------------------------------------------------------------
     // Integer limit flags
     // ---------------------------------------------------------------------------
@@ -69,6 +78,10 @@ class FeatureFlags @Inject constructor(
     // ---------------------------------------------------------------------------
     // Reactive observation
     // ---------------------------------------------------------------------------
+
+    fun observeChatEnabled(): Flow<Boolean> = observeFlag("chat_enabled", default = true)
+    fun observeWorkOrdersEnabled(): Flow<Boolean> = observeFlag("work_orders_enabled", default = true)
+    fun observePurchaseOrdersEnabled(): Flow<Boolean> = observeFlag("purchase_orders_enabled", default = true)
 
     /**
      * Observe a boolean flag as a [Flow]. Re-emits whenever the DB row changes

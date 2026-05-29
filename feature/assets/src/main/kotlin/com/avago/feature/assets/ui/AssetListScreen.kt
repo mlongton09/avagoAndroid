@@ -87,6 +87,7 @@ fun AssetListScreen(
     val presentTypes by viewModel.presentTypes.collectAsStateWithLifecycle()
     val syncError by viewModel.syncError.collectAsStateWithLifecycle()
     val showOnboarding by onboardingViewModel.showBanner.collectAsStateWithLifecycle()
+    val showQuotes by onboardingViewModel.showQuotes.collectAsStateWithLifecycle()
     val canCreateAsset by viewModel.canCreateAsset.collectAsStateWithLifecycle()
 
     var showFilterMenu by remember { mutableStateOf(false) }
@@ -230,7 +231,7 @@ fun AssetListScreen(
                             }
                         }
 
-                        if (!showOnboarding) {
+                        if (!showOnboarding && showQuotes) {
                             item(key = "quote_banner") {
                                 QuoteBanner(modifier = Modifier.padding(16.dp))
                             }

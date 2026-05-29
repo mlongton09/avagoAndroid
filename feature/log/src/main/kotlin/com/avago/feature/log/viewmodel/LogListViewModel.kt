@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.LogEntity
+import com.avago.core.data.repository.UserPreferencesRepository
 import com.avago.core.sync.SyncEngine
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -27,6 +28,7 @@ class LogListViewModel @Inject constructor(
     private val dbFactory: DatabaseFactory,
     private val identity: IdentityManager,
     private val syncEngine: SyncEngine,
+    private val userPrefsRepository: UserPreferencesRepository,
 ) : ViewModel() {
 
     val assetId = MutableStateFlow<String?>(null)
@@ -34,6 +36,9 @@ class LogListViewModel @Inject constructor(
     private val _isRefreshing = MutableStateFlow(false)
 
     val isRefreshing: StateFlow<Boolean> = _isRefreshing
+
+    val currencyCode: StateFlow<String> = userPrefsRepository.currencyFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "USD")
 
     val logs: StateFlow<List<LogEntity>> = combine(
         identity.activeAccountId.filterNotNull(),

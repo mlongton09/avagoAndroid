@@ -75,6 +75,7 @@ fun LogListScreen(
     val categories by viewModel.availableCategories.collectAsState()
     val categoryFilter by viewModel.categoryFilter.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val currencyCode by viewModel.currencyCode.collectAsState()
 
     val grouped = logs.groupBy { log ->
         Calendar.getInstance().apply { timeInMillis = log.entryDate }.get(Calendar.YEAR)
@@ -134,6 +135,7 @@ fun LogListScreen(
                                     log = log,
                                     onClick = { onLogClick(log.entryId) },
                                     onCategoryClick = { viewModel.setFilter(log.category) },
+                                    currencyCode = currencyCode,
                                 )
                             }
                         }
@@ -195,10 +197,10 @@ private fun LogListRow(
     log: LogEntity,
     onClick: () -> Unit,
     onCategoryClick: () -> Unit,
+    currencyCode: String = "USD",
     modifier: Modifier = Modifier,
 ) {
     val dateFormatter = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
-    val currencyFormat = remember { NumberFormat.getCurrencyInstance() }
     val isPending = log.serverVersion == 0L && log.seq == null
 
     Row(
@@ -241,7 +243,7 @@ private fun LogListRow(
             val displayCost = log.cost
             if (displayCost != null && displayCost > 0) {
                 Text(
-                    text = currencyFormat.format(displayCost),
+                    text = com.avago.core.data.Formatters.formatCurrency(displayCost, currencyCode),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

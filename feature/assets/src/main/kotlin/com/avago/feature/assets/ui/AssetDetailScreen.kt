@@ -130,6 +130,7 @@ fun AssetDetailScreen(
     val categoryFilter by viewModel.categoryFilter.collectAsStateWithLifecycle()
     val photos by viewModel.photos.collectAsStateWithLifecycle()
     val documents by viewModel.documents.collectAsStateWithLifecycle()
+    val currencyCode by viewModel.currencyCode.collectAsStateWithLifecycle()
 
     var showOverflowMenu by remember { mutableStateOf(false) }
     val pagerState = rememberPagerState { ASSET_DETAIL_TABS.size }
@@ -367,7 +368,7 @@ private fun LogTab(
                     }
                 }
                 items(items = group.entries, key = { it.entryId }) { entry ->
-                    LogEntryRow(entry = entry, onClick = { onLogEntryClick(entry.entryId) })
+                    LogEntryRow(entry = entry, onClick = { onLogEntryClick(entry.entryId) }, currencyCode = currencyCode)
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 }
             }
@@ -711,6 +712,7 @@ private fun CategoryFilterRow(
 private fun LogEntryRow(
     entry: LogEntity,
     onClick: () -> Unit,
+    currencyCode: String = "USD",
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -742,7 +744,7 @@ private fun LogEntryRow(
         }
         entry.cost?.takeIf { it > 0.0 }?.let { cost ->
             Text(
-                text = formatCurrency(cost),
+                text = formatCurrency(cost, currencyCode),
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -1195,8 +1197,8 @@ private fun sinceService(epochMs: Long): String {
     }
 }
 
-private fun formatCurrency(amount: Double): String = try {
-    NumberFormat.getCurrencyInstance(Locale.getDefault()).format(amount)
+private fun formatCurrency(amount: Double, currencyCode: String = "USD"): String = try {
+    com.avago.core.data.Formatters.formatCurrency(amount, currencyCode)
 } catch (_: Exception) {
     "%.2f".format(amount)
 }

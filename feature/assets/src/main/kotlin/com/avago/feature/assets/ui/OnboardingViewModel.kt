@@ -110,6 +110,15 @@ class OnboardingViewModel @Inject constructor(
         initialValue = false,
     )
 
+    /** True when the motivational quote banner should be visible (disable_quotes == false). */
+    val showQuotes: StateFlow<Boolean> = userPreferencesRepository.disableQuotesFlow
+        .map { disabled -> !disabled }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = true,
+        )
+
     /** Stores fre_dismissed = true and hides the banner permanently. */
     fun dismiss() {
         viewModelScope.launch {

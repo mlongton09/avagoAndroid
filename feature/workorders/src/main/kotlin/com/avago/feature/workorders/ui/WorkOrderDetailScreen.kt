@@ -849,13 +849,6 @@ private fun formatDate(ms: Long): String {
     return date.format(DateTimeFormatter.ofPattern("MMM d, yyyy"))
 }
 
-private fun formatCurrency(amount: Double, currencyCode: String?): String {
-    return try {
-        val currency = Currency.getInstance(currencyCode ?: "USD")
-        val fmt = NumberFormat.getCurrencyInstance(Locale.US)
-        fmt.currency = currency
-        fmt.format(amount)
-    } catch (_: Exception) {
-        String.format("%.2f", amount)
-    }
-}
+private fun formatCurrency(amount: Double, currencyCode: String?): String =
+    try { com.avago.core.data.Formatters.formatCurrency(amount, currencyCode) }
+    catch (_: Exception) { "%.2f".format(amount) }

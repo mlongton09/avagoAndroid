@@ -3,6 +3,7 @@ package com.avago.core.data
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.time.Instant
+import java.util.Currency
 import java.util.Locale
 import java.util.TimeZone
 
@@ -73,6 +74,19 @@ object Formatters {
                     .parse(iso)?.time
             } catch (_: Exception) { null }
         }
+    }
+
+    /**
+     * Format [amount] using the given ISO [currencyCode] (e.g. "USD", "EUR").
+     * Falls back to the system locale currency if the code is null/blank or unrecognised.
+     * Mirrors iOS CurrencyManager.format(_:currencyCode:).
+     */
+    fun formatCurrency(amount: Double, currencyCode: String?): String {
+        val fmt = NumberFormat.getCurrencyInstance(Locale.getDefault())
+        if (!currencyCode.isNullOrBlank()) {
+            runCatching { fmt.currency = Currency.getInstance(currencyCode.uppercase()) }
+        }
+        return fmt.format(amount)
     }
 
     /**

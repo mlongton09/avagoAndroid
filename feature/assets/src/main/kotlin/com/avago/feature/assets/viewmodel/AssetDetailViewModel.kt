@@ -10,6 +10,7 @@ import com.avago.core.data.db.entity.DocEntity
 import com.avago.core.data.db.entity.LogEntity
 import com.avago.core.data.db.entity.PhotoEntity
 import com.avago.core.data.repository.AssetRepository
+import com.avago.core.data.repository.UserPreferencesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,6 +42,7 @@ class AssetDetailViewModel @Inject constructor(
     private val repository: AssetRepository,
     private val dbFactory: DatabaseFactory,
     private val identityManager: IdentityManager,
+    private val userPrefsRepository: UserPreferencesRepository,
 ) : ViewModel() {
 
     private val assetId: String = checkNotNull(savedStateHandle["assetId"]) {
@@ -49,6 +51,9 @@ class AssetDetailViewModel @Inject constructor(
 
     private val _categoryFilter = MutableStateFlow<String?>(null)
     val categoryFilter: StateFlow<String?> = _categoryFilter.asStateFlow()
+
+    val currencyCode: StateFlow<String> = userPrefsRepository.currencyFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "USD")
 
     private val accountId: StateFlow<String?> = identityManager.activeAccountId
         .stateIn(
