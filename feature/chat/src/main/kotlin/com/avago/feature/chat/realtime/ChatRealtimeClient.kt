@@ -4,6 +4,7 @@ import com.avago.core.auth.IdentityManager
 import com.avago.core.network.model.ChatMessageResponse
 import com.avago.core.sync.ApplicationScope
 import com.avago.core.sync.ConnectivityMonitor
+import com.avago.core.sync.SyncEngine
 import com.avago.feature.chat.data.ChatRepository
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
@@ -49,6 +50,7 @@ class ChatRealtimeClient @Inject constructor(
     @ApplicationScope private val scope: CoroutineScope,
     private val backgroundSync: BackgroundSyncCoordinator,
     private val connectivityMonitor: ConnectivityMonitor,
+    private val syncEngine: SyncEngine,
 ) {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
@@ -114,6 +116,17 @@ class ChatRealtimeClient @Inject constructor(
                     connectivityMonitor.networkStatus.filter { it }.first()
                     backoffMs = 1_000L // reset backoff on fresh network arrival
                     Timber.d("ChatWS: network available — reconnecting")
+                }
+
+                // Respect the server-side rate-limit window before opening the WS handshake.
+                // The WS upgrade goes through the same Cloudflare WAF as REST calls and will
+                // get a 429 (-1011) response if fired inside the window, producing ping-failure
+                // spam. Mirrors iOS ChatRealtimeClient.connect() rate-limit check.
+                val rateLimitMs = syncEngine.rateLimitedMsRemaining
+                if (rateLimitMs > 0) {
+                    Timber.w("ChatWS: rate-limited — waiting ${rateLimitMs}ms before connecting")
+                    delay(rateLimitMs)
+                    backoffMs = 1_000L
                 }
 
                 val token = identity.getAccessToken(accountId)

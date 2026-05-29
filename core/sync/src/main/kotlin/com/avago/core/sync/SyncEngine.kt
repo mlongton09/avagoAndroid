@@ -131,6 +131,10 @@ class SyncEngine @Inject constructor(
         rateLimitPrefs.edit().putLong("rate_limited_until_ms", epochMs).apply()
     }
 
+    /** Milliseconds remaining in the active rate-limit window, or 0 if not limited. */
+    val rateLimitedMsRemaining: Long
+        get() = maxOf(0L, rateLimitedUntilMs.get() - System.currentTimeMillis())
+
     private val _state = MutableStateFlow<SyncState>(SyncState.Idle)
     val state: StateFlow<SyncState> = _state.asStateFlow()
 
