@@ -6,6 +6,8 @@ import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.AssetEntity
 import com.avago.core.data.repository.AssetRepository
+import com.avago.core.permissions.Permissions
+import com.avago.core.permissions.PermissionsManager
 import com.avago.core.sync.SyncEngine
 import com.avago.feature.assets.model.AssetTypes
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -33,6 +35,7 @@ class AssetListViewModel @Inject constructor(
     private val identityManager: IdentityManager,
     private val syncEngine: SyncEngine,
     private val dbFactory: DatabaseFactory,
+    private val permissionsManager: PermissionsManager,
 ) : ViewModel() {
 
     private val _searchQuery = MutableStateFlow("")
@@ -43,6 +46,9 @@ class AssetListViewModel @Inject constructor(
 
     private val _syncError = MutableStateFlow<String?>(null)
     val syncError: StateFlow<String?> = _syncError.asStateFlow()
+
+    val canCreateAsset: StateFlow<Boolean> = permissionsManager.observeCan(Permissions.ASSETS_CREATE)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), permissionsManager.can(Permissions.ASSETS_CREATE))
 
     private val _filterType = MutableStateFlow<String?>(null)
     val filterType: StateFlow<String?> = _filterType.asStateFlow()

@@ -87,4 +87,7 @@ object Permissions {
     // AI / Scout
     const val AI_SCOUT = "ai.scout"
     const val AI_EXTRACT = "ai.extract"
+
+    // Dispatch
+    const val DISPATCH_MANAGE_ASSIGNMENTS = "dispatch.manage_assignments"
 }

@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.db.entity.WorkOrderEntity
+import com.avago.core.permissions.Permissions
+import com.avago.core.permissions.PermissionsManager
 import com.avago.core.sync.SyncEngine
 import com.avago.feature.workorders.repository.WorkOrderRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -37,6 +39,7 @@ class WorkOrderListViewModel @Inject constructor(
     private val repository: WorkOrderRepository,
     private val identityManager: IdentityManager,
     private val syncEngine: SyncEngine,
+    private val permissionsManager: PermissionsManager,
 ) : ViewModel() {
 
     private val _searchQuery = MutableStateFlow("")
@@ -61,6 +64,16 @@ class WorkOrderListViewModel @Inject constructor(
 
     private val _syncError = MutableStateFlow<String?>(null)
     val syncError: StateFlow<String?> = _syncError.asStateFlow()
+
+    val canCreateWo: StateFlow<Boolean> = permissionsManager.observeCan(Permissions.WO_CREATE)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), permissionsManager.can(Permissions.WO_CREATE))
+
+    /** True for dispatcher-tier roles (root/admin/manager/dispatcher) — mirrors iOS canSeeAllScope. */
+    val canSeeAllScope: StateFlow<Boolean> = permissionsManager.observeCan(Permissions.WO_ASSIGN)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), permissionsManager.can(Permissions.WO_ASSIGN))
+
+    val canOpenDispatch: StateFlow<Boolean> = permissionsManager.observeCan(Permissions.DISPATCH_MANAGE_ASSIGNMENTS)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), permissionsManager.can(Permissions.DISPATCH_MANAGE_ASSIGNMENTS))
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val _allWos: StateFlow<List<WorkOrderEntity>> =

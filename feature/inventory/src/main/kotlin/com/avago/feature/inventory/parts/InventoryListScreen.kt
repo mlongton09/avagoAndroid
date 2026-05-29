@@ -57,18 +57,21 @@ fun InventoryListScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+    val canCreatePart by viewModel.canCreatePart.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(title = { Text(stringResource(R.string.inventory_title)) })
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = onAddPart,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.White,
-            ) {
-                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.inventory_add_part))
+            if (canCreatePart) {
+                FloatingActionButton(
+                    onClick = onAddPart,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.White,
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.inventory_add_part))
+                }
             }
         },
     ) { padding ->

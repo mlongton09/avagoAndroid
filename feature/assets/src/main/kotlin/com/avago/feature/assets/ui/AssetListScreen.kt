@@ -87,6 +87,7 @@ fun AssetListScreen(
     val presentTypes by viewModel.presentTypes.collectAsStateWithLifecycle()
     val syncError by viewModel.syncError.collectAsStateWithLifecycle()
     val showOnboarding by onboardingViewModel.showBanner.collectAsStateWithLifecycle()
+    val canCreateAsset by viewModel.canCreateAsset.collectAsStateWithLifecycle()
 
     var showFilterMenu by remember { mutableStateOf(false) }
 
@@ -105,15 +106,17 @@ fun AssetListScreen(
     Scaffold(
         contentWindowInsets = WindowInsets(0),
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = onAddAsset,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.White,
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = stringResource(R.string.assets_add_content_description),
-                )
+            if (canCreateAsset) {
+                FloatingActionButton(
+                    onClick = onAddAsset,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.White,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = stringResource(R.string.assets_add_content_description),
+                    )
+                }
             }
         },
     ) { paddingValues ->

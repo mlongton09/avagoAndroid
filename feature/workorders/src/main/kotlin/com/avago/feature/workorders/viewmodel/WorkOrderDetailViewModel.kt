@@ -11,6 +11,8 @@ import com.avago.core.data.db.entity.WorkOrderEntity
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
 import com.avago.core.network.model.BudgetPillResponse
+import com.avago.core.permissions.Permissions
+import com.avago.core.permissions.PermissionsManager
 import com.avago.core.sync.SyncEngine
 import com.avago.feature.workorders.model.WoStatus
 import com.avago.feature.workorders.repository.WorkOrderRepository
@@ -39,6 +41,7 @@ class WorkOrderDetailViewModel @Inject constructor(
     private val identityManager: IdentityManager,
     private val syncEngine: SyncEngine,
     private val serviceClient: AvagoServiceClient,
+    private val permissionsManager: PermissionsManager,
 ) : ViewModel() {
 
     private val woId: String = requireNotNull(savedStateHandle["woId"]) {
@@ -57,6 +60,15 @@ class WorkOrderDetailViewModel @Inject constructor(
                 .catch { e -> Timber.e(e, "[WoDetailVM] wo flow error"); emit(null) }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val canEdit: StateFlow<Boolean> = permissionsManager.observeCan(Permissions.WO_ASSIGN)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), permissionsManager.can(Permissions.WO_ASSIGN))
+
+    val canApprove: StateFlow<Boolean> = permissionsManager.observeCan(Permissions.WO_APPROVE)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), permissionsManager.can(Permissions.WO_APPROVE))
+
+    val canDelete: StateFlow<Boolean> = permissionsManager.observeCan(Permissions.WO_DELETE)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), permissionsManager.can(Permissions.WO_DELETE))
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val assignments: StateFlow<List<WoAssignmentEntity>> = _accountId

@@ -7,6 +7,8 @@ import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.InventoryEntity
 import com.avago.core.data.db.entity.PartEntity
 import com.avago.core.data.db.entity.StockingLevelEntity
+import com.avago.core.permissions.Permissions
+import com.avago.core.permissions.PermissionsManager
 import com.avago.core.sync.SyncEngine
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -17,6 +19,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -55,10 +58,14 @@ class InventoryListViewModel @Inject constructor(
     private val dbFactory: DatabaseFactory,
     private val identityManager: IdentityManager,
     private val syncEngine: SyncEngine,
+    private val permissionsManager: PermissionsManager,
 ) : ViewModel() {
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
+    val canCreatePart: StateFlow<Boolean> = permissionsManager.observeCan(Permissions.INVENTORY_CREATE)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), permissionsManager.can(Permissions.INVENTORY_CREATE))
 
     val searchQuery = MutableStateFlow("")
     val selectedCategory = MutableStateFlow<String?>(null)

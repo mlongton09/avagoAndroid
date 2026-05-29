@@ -105,6 +105,9 @@ fun WorkOrderDetailScreen(
     val isEditingHeader by viewModel.isEditingHeader.collectAsStateWithLifecycle()
     val editTitle by viewModel.editTitle.collectAsStateWithLifecycle()
     val editDescription by viewModel.editDescription.collectAsStateWithLifecycle()
+    val canEdit by viewModel.canEdit.collectAsStateWithLifecycle()
+    val canApprove by viewModel.canApprove.collectAsStateWithLifecycle()
+    val canDelete by viewModel.canDelete.collectAsStateWithLifecycle()
 
     var showOverflowMenu by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -245,14 +248,16 @@ fun WorkOrderDetailScreen(
                             expanded = showOverflowMenu,
                             onDismissRequest = { showOverflowMenu = false },
                         ) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.wo_detail_edit)) },
-                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
-                                onClick = {
-                                    showOverflowMenu = false
-                                    onEdit(woId)
-                                },
-                            )
+                            if (canEdit) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.wo_detail_edit)) },
+                                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        onEdit(woId)
+                                    },
+                                )
+                            }
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.wo_detail_reschedule)) },
                                 onClick = {
@@ -260,25 +265,27 @@ fun WorkOrderDetailScreen(
                                     showRescheduleSheet = true
                                 },
                             )
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        stringResource(R.string.wo_detail_delete),
-                                        color = MaterialTheme.colorScheme.error,
-                                    )
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        Icons.Default.Delete,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.error,
-                                    )
-                                },
-                                onClick = {
-                                    showOverflowMenu = false
-                                    showDeleteDialog = true
-                                },
-                            )
+                            if (canDelete) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            stringResource(R.string.wo_detail_delete),
+                                            color = MaterialTheme.colorScheme.error,
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.error,
+                                        )
+                                    },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        showDeleteDialog = true
+                                    },
+                                )
+                            }
                         }
                     }
                 },
@@ -315,11 +322,13 @@ fun WorkOrderDetailScreen(
                     .padding(bottom = 16.dp),
             ) {
                 // ── Approval banner ──
-                ApprovalBanner(
-                    approvalState = currentWo.approvalState,
-                    onApprove = { viewModel.approveWorkOrder() },
-                    onReject = { viewModel.rejectWorkOrder() },
-                )
+                if (canApprove) {
+                    ApprovalBanner(
+                        approvalState = currentWo.approvalState,
+                        onApprove = { viewModel.approveWorkOrder() },
+                        onReject = { viewModel.rejectWorkOrder() },
+                    )
+                }
 
                 Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                     Spacer(modifier = Modifier.height(16.dp))
@@ -331,6 +340,7 @@ fun WorkOrderDetailScreen(
                         isEditing = isEditingHeader,
                         editTitle = editTitle,
                         editDescription = editDescription,
+                        canEdit = canEdit,
                         onEditTitleChanged = { viewModel.onEditTitleChanged(it) },
                         onEditDescriptionChanged = { viewModel.onEditDescriptionChanged(it) },
                         onStartEditing = { viewModel.startEditingHeader() },
@@ -347,7 +357,7 @@ fun WorkOrderDetailScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         WoStatusChip(status = status)
-                        if (transitions.isNotEmpty()) {
+                        if (transitions.isNotEmpty() && canEdit) {
                             Box {
                                 Button(onClick = { showTransitionMenu = true }) {
                                     Text(stringResource(R.string.wo_detail_transition_btn))
@@ -423,14 +433,14 @@ fun WorkOrderDetailScreen(
                     // ── Assignments ──
                     DetailSection(
                         title = stringResource(R.string.wo_detail_section_assignments),
-                        action = {
+                        action = if (canEdit) ({
                             IconButton(
                                 onClick = { showTechPicker = true },
                                 modifier = Modifier.size(32.dp),
                             ) {
                                 Icon(Icons.Default.Add, contentDescription = stringResource(R.string.wo_detail_add_assignee))
                             }
-                        },
+                        }) else null,
                     ) {
                         if (assignments.isEmpty()) {
                             Text(
@@ -532,15 +542,16 @@ fun WorkOrderDetailScreen(
                     DetailSection(title = stringResource(R.string.wo_detail_section_dispatcher)) {
                         OutlinedTextField(
                             value = dispatcherNotesDraft,
-                            onValueChange = { dispatcherNotesDraft = it },
+                            onValueChange = { if (canEdit) dispatcherNotesDraft = it },
                             modifier = Modifier.fillMaxWidth(),
                             placeholder = { Text(stringResource(R.string.wo_detail_dispatcher_placeholder)) },
                             minLines = 2,
                             maxLines = 5,
+                            readOnly = !canEdit,
                             // Auto-save on focus lost would require a FocusRequester — handled on change with a
                             // debounce in a production build; for now, save on every change.
                         )
-                        if (dispatcherNotesDraft != (currentWo.dispatcherNotes ?: "")) {
+                        if (canEdit && dispatcherNotesDraft != (currentWo.dispatcherNotes ?: "")) {
                             TextButton(
                                 onClick = { viewModel.saveDispatcherNotes(dispatcherNotesDraft) },
                                 modifier = Modifier.align(Alignment.End),
@@ -667,6 +678,7 @@ private fun HeaderCard(
     isEditing: Boolean,
     editTitle: String,
     editDescription: String,
+    canEdit: Boolean,
     onEditTitleChanged: (String) -> Unit,
     onEditDescriptionChanged: (String) -> Unit,
     onStartEditing: () -> Unit,
@@ -714,14 +726,16 @@ private fun HeaderCard(
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                         modifier = Modifier.weight(1f),
                     )
-                    IconButton(
-                        onClick = onStartEditing,
-                        modifier = Modifier.size(32.dp),
-                    ) {
-                        Icon(
-                            Icons.Default.Edit,
-                            contentDescription = "Edit title and description",
-                        )
+                    if (canEdit) {
+                        IconButton(
+                            onClick = onStartEditing,
+                            modifier = Modifier.size(32.dp),
+                        ) {
+                            Icon(
+                                Icons.Default.Edit,
+                                contentDescription = "Edit title and description",
+                            )
+                        }
                     }
                 }
                 if (!description.isNullOrBlank()) {

@@ -72,6 +72,9 @@ fun WorkOrderListScreen(
     val horizon by viewModel.horizon.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val syncError by viewModel.syncError.collectAsStateWithLifecycle()
+    val canCreateWo by viewModel.canCreateWo.collectAsStateWithLifecycle()
+    val canSeeAllScope by viewModel.canSeeAllScope.collectAsStateWithLifecycle()
+    val canOpenDispatch by viewModel.canOpenDispatch.collectAsStateWithLifecycle()
 
     val horizonOptions = listOf(
         WoHorizon.NOW  to stringResource(R.string.wo_horizon_now),
@@ -100,15 +103,17 @@ fun WorkOrderListScreen(
         modifier = modifier,
         contentWindowInsets = WindowInsets(0),
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = onCreateWo,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.White,
-            ) {
-                Icon(
-                    Icons.Default.Add,
-                    contentDescription = stringResource(R.string.wo_create_fab_description),
-                )
+            if (canCreateWo) {
+                FloatingActionButton(
+                    onClick = onCreateWo,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.White,
+                ) {
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = stringResource(R.string.wo_create_fab_description),
+                    )
+                }
             }
         },
     ) { innerPadding ->
@@ -220,24 +225,28 @@ fun WorkOrderListScreen(
                                 )
                             }
                         }
-                        SingleChoiceSegmentedButtonRow(modifier = Modifier.width(110.dp)) {
-                            scopeOptions.forEachIndexed { index, (s, label) ->
-                                SegmentedButton(
-                                    selected = filter == s,
-                                    onClick = { viewModel.onScopeChanged(s) },
-                                    shape = SegmentedButtonDefaults.itemShape(
-                                        index = index,
-                                        count = scopeOptions.size,
-                                    ),
-                                    label = { Text(label) },
-                                )
+                        if (canSeeAllScope) {
+                            SingleChoiceSegmentedButtonRow(modifier = Modifier.width(110.dp)) {
+                                scopeOptions.forEachIndexed { index, (s, label) ->
+                                    SegmentedButton(
+                                        selected = filter == s,
+                                        onClick = { viewModel.onScopeChanged(s) },
+                                        shape = SegmentedButtonDefaults.itemShape(
+                                            index = index,
+                                            count = scopeOptions.size,
+                                        ),
+                                        label = { Text(label) },
+                                    )
+                                }
                             }
                         }
                         IconButton(onClick = onOpenCalendar) {
                             Icon(Icons.Default.CalendarToday, contentDescription = stringResource(R.string.wo_calendar_title))
                         }
-                        IconButton(onClick = onOpenDispatchBoard) {
-                            Icon(Icons.Default.Dashboard, contentDescription = stringResource(R.string.dispatch_board_title))
+                        if (canOpenDispatch) {
+                            IconButton(onClick = onOpenDispatchBoard) {
+                                Icon(Icons.Default.Dashboard, contentDescription = stringResource(R.string.dispatch_board_title))
+                            }
                         }
                     }
                     HorizontalDivider()
