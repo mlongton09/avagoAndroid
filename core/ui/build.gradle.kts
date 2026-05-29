@@ -33,6 +33,9 @@ dependencies {
     implementation(libs.coroutines.android)
     implementation(libs.timber)
 
+    implementation(libs.coil.compose)
+    implementation(libs.coil.svg)
+
     implementation(project(":core:data"))
     implementation(project(":core:auth"))
 }

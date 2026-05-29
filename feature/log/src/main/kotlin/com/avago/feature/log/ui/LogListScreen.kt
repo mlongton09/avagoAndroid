@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -35,19 +34,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import coil3.compose.AsyncImage
-import coil3.request.ImageRequest
-import coil3.svg.SvgDecoder
 import com.avago.core.data.db.entity.LogEntity
+import com.avago.core.ui.CategoryBadge
 import com.avago.core.ui.ScoutFAB
 import com.avago.core.ui.ScoutViewModel
 import com.avago.feature.log.viewmodel.LogListViewModel
@@ -252,33 +245,3 @@ private fun LogListRow(
     }
 }
 
-@Composable
-private fun CategoryBadge(
-    categoryId: String?,
-    modifier: Modifier = Modifier,
-    onClick: (() -> Unit)? = null,
-) {
-    val iconName = categoryIconName(categoryId)
-    val bgColor = categoryBadgeColor(iconName)
-    val context = LocalContext.current
-
-    Box(
-        modifier = modifier
-            .size(40.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(bgColor)
-            .then(if (onClick != null) Modifier.clickable { onClick.invoke() } else Modifier),
-        contentAlignment = Alignment.Center,
-    ) {
-        AsyncImage(
-            model = ImageRequest.Builder(context)
-                .data("file:///android_asset/icons/$iconName.svg")
-                .decoderFactory(SvgDecoder.Factory())
-                .build(),
-            contentDescription = categoryId,
-            contentScale = ContentScale.Fit,
-            colorFilter = ColorFilter.tint(Color.White, BlendMode.SrcIn),
-            modifier = Modifier.size(20.dp),
-        )
-    }
-}

@@ -90,6 +90,7 @@ import com.avago.core.data.db.entity.AssetEntity
 import com.avago.core.data.db.entity.DocEntity
 import com.avago.core.data.db.entity.LogEntity
 import com.avago.core.data.db.entity.PhotoEntity
+import com.avago.core.ui.CategoryBadge
 import com.avago.core.ui.EmptyState
 import com.avago.feature.assets.R
 import com.avago.feature.assets.model.AssetTypes
@@ -702,6 +703,7 @@ private fun LogEntryRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        CategoryBadge(categoryId = entry.category)
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = entry.title,
