@@ -54,9 +54,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.TabPosition
-import androidx.compose.material3.TabRowDefaults
-import androidx.compose.material3.tabIndicatorOffset
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -213,11 +210,6 @@ fun AssetDetailScreen(
                 )
                 PrimaryTabRow(
                     selectedTabIndex = pagerState.currentPage,
-                    indicator = {
-                        TabRowDefaults.PrimaryIndicator(
-                            modifier = Modifier.tabIndicatorOffset(pagerState.currentPage),
-                        )
-                    },
                 ) {
                     ASSET_DETAIL_TABS.forEachIndexed { index, title ->
                         Tab(
