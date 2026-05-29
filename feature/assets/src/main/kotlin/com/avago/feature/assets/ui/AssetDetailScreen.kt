@@ -212,25 +212,9 @@ fun AssetDetailScreen(
                 )
                 PrimaryTabRow(
                     selectedTabIndex = pagerState.currentPage,
-                    indicator = { tabPositions ->
-                        // Live-track the swipe using currentPageOffsetFraction so the indicator
-                        // follows the user's finger — mirrors iOS AVTabStrip content animation.
-                        val fraction = pagerState.currentPageOffsetFraction
-                        val currentIndex = pagerState.currentPage
-                        val targetIndex = when {
-                            fraction > 0f -> (currentIndex + 1).coerceAtMost(tabPositions.lastIndex)
-                            fraction < 0f -> (currentIndex - 1).coerceAtLeast(0)
-                            else -> currentIndex
-                        }
-                        val currentPos = tabPositions[currentIndex]
-                        val targetPos = tabPositions[targetIndex]
-                        val absFraction = kotlin.math.abs(fraction)
-                        val indicatorLeft = lerp(currentPos.left, targetPos.left, absFraction)
-                        val indicatorRight = lerp(currentPos.right, targetPos.right, absFraction)
+                    indicator = {
                         TabRowDefaults.PrimaryIndicator(
-                            modifier = Modifier.wrapContentSize(Alignment.BottomStart)
-                                .offset(x = indicatorLeft)
-                                .width(indicatorRight - indicatorLeft),
+                            modifier = Modifier.tabIndicatorOffset(pagerState.currentPage),
                         )
                     },
                 ) {
