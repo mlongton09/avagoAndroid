@@ -56,6 +56,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.TabPosition
 import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.tabIndicatorOffset
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -293,6 +294,7 @@ fun AssetDetailScreen(
                         categoryFilter = categoryFilter,
                         onCategoryFilterChanged = { viewModel.onCategoryFilterChanged(it) },
                         onLogEntryClick = onLogEntryClick,
+                        currencyCode = currencyCode,
                     )
                     1 -> DocumentsTab(documents = documents)
                     2 -> WorkOrdersTab(onOpenWorkOrders = onOpenWorkOrders)
@@ -311,6 +313,7 @@ private fun LogTab(
     categoryFilter: String?,
     onCategoryFilterChanged: (String?) -> Unit,
     onLogEntryClick: (entryId: String) -> Unit,
+    currencyCode: String = "USD",
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
