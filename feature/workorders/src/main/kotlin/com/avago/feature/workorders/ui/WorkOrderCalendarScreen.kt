@@ -1,7 +1,6 @@
-﻿package com.avago.feature.workorders.ui
+package com.avago.feature.workorders.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,36 +20,41 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.NavigateBefore
 import androidx.compose.material.icons.automirrored.filled.NavigateNext
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.avago.core.data.db.entity.WorkOrderEntity
 import com.avago.core.ui.EmptyState
 import com.avago.feature.workorders.R
 import com.avago.feature.workorders.ui.components.WoCard
 import com.avago.feature.workorders.viewmodel.WorkOrderCalendarViewModel
 import java.time.DayOfWeek
+import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
@@ -67,6 +71,8 @@ fun WorkOrderCalendarScreen(
     val selectedDate by viewModel.selectedDate.collectAsStateWithLifecycle()
     val displayMonth by viewModel.displayMonth.collectAsStateWithLifecycle()
     val selectedDayWos by viewModel.selectedDayWos.collectAsStateWithLifecycle()
+    val canSeeAllScope by viewModel.canSeeAllScope.collectAsStateWithLifecycle()
+    val showAll by viewModel.showAll.collectAsStateWithLifecycle()
 
     Scaffold(
         modifier = modifier,
@@ -86,21 +92,52 @@ fun WorkOrderCalendarScreen(
                 .padding(innerPadding)
                 .fillMaxSize(),
         ) {
+            // Mine / All scope toggle (dispatcher tier only)
+            if (canSeeAllScope) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    FilterChip(
+                        selected = !showAll,
+                        onClick = { if (showAll) viewModel.toggleScope() },
+                        label = { Text("Mine") },
+                    )
+                    FilterChip(
+                        selected = showAll,
+                        onClick = { if (!showAll) viewModel.toggleScope() },
+                        label = { Text("All") },
+                    )
+                }
+            }
+
             // Month navigation
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp),
+                    .padding(horizontal = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = { viewModel.navigateMonth(-1) }) {
                     Icon(Icons.AutoMirrored.Filled.NavigateBefore, contentDescription = stringResource(R.string.wo_calendar_prev_month))
                 }
-                Text(
-                    text = displayMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy")),
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = displayMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy")),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                    )
+                    if (displayMonth.withDayOfMonth(1) != LocalDate.now().withDayOfMonth(1)) {
+                        TextButton(
+                            onClick = { viewModel.navigateToToday() },
+                            modifier = Modifier.height(28.dp),
+                        ) {
+                            Text("Today", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
                 IconButton(onClick = { viewModel.navigateMonth(1) }) {
                     Icon(Icons.AutoMirrored.Filled.NavigateNext, contentDescription = stringResource(R.string.wo_calendar_next_month))
                 }
@@ -147,9 +184,13 @@ fun WorkOrderCalendarScreen(
                     if (date == null) {
                         Box(modifier = Modifier.aspectRatio(1f))
                     } else {
-                        val hasWos = wosByDate.containsKey(date)
+                        val wosOnDay = wosByDate[date] ?: emptyList()
+                        val hasWos = wosOnDay.isNotEmpty()
                         val isSelected = date == selectedDate
                         val isToday = date == LocalDate.now()
+
+                        // Dot color = worst status on this day (mirrors iOS pill coloring)
+                        val dotColor = wosStatusDotColor(wosOnDay, date)
 
                         Box(
                             modifier = Modifier
@@ -160,7 +201,7 @@ fun WorkOrderCalendarScreen(
                                     when {
                                         isSelected -> MaterialTheme.colorScheme.primary
                                         isToday -> MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                                        else -> androidx.compose.ui.graphics.Color.Transparent
+                                        else -> Color.Transparent
                                     }
                                 )
                                 .clickable { viewModel.selectDate(date) },
@@ -181,10 +222,8 @@ fun WorkOrderCalendarScreen(
                                             .size(4.dp)
                                             .clip(CircleShape)
                                             .background(
-                                                if (isSelected)
-                                                    MaterialTheme.colorScheme.onPrimary
-                                                else
-                                                    MaterialTheme.colorScheme.primary
+                                                if (isSelected) MaterialTheme.colorScheme.onPrimary
+                                                else dotColor
                                             ),
                                     )
                                 }
@@ -221,5 +260,25 @@ fun WorkOrderCalendarScreen(
                 }
             }
         }
+    }
+}
+
+/** Picks the dot color based on the worst-case status among WOs on a day. */
+@Composable
+private fun wosStatusDotColor(wos: List<WorkOrderEntity>, date: LocalDate): Color {
+    val nowMs = System.currentTimeMillis()
+    val zone = ZoneId.systemDefault()
+    val dateMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
+    val isOverdue = wos.any { wo ->
+        wo.dueDate != null &&
+            wo.dueDate < nowMs &&
+            wo.status !in listOf("complete", "cancelled")
+    }
+    return when {
+        isOverdue -> MaterialTheme.colorScheme.error
+        wos.any { it.status == "in_progress" } -> MaterialTheme.colorScheme.secondary
+        wos.any { it.status == "complete" } && wos.all { it.status == "complete" } ->
+            MaterialTheme.colorScheme.outline
+        else -> MaterialTheme.colorScheme.primary
     }
 }

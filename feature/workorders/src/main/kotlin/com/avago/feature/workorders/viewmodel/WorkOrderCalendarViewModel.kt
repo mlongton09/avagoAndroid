@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.db.entity.WorkOrderEntity
+import com.avago.core.permissions.Permissions
+import com.avago.core.permissions.PermissionsManager
 import com.avago.core.sync.SyncEngine
 import com.avago.feature.workorders.repository.WorkOrderRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -30,10 +32,19 @@ class WorkOrderCalendarViewModel @Inject constructor(
     private val repository: WorkOrderRepository,
     private val identityManager: IdentityManager,
     private val syncEngine: SyncEngine,
+    private val permissionsManager: PermissionsManager,
 ) : ViewModel() {
 
     val selectedDate = MutableStateFlow<LocalDate>(LocalDate.now())
     val displayMonth = MutableStateFlow<LocalDate>(LocalDate.now().withDayOfMonth(1))
+
+    val canSeeAllScope: StateFlow<Boolean> = permissionsManager.observeCan(Permissions.WO_ASSIGN)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), permissionsManager.can(Permissions.WO_ASSIGN))
+
+    private val _showAll = MutableStateFlow(false)
+    val showAll: StateFlow<Boolean> = _showAll.asStateFlow()
+
+    fun toggleScope() { _showAll.value = !_showAll.value }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val wosByDate: StateFlow<Map<LocalDate, List<WorkOrderEntity>>> =
@@ -43,12 +54,17 @@ class WorkOrderCalendarViewModel @Inject constructor(
                 else repository.observeAll(accountId)
                     .catch { e -> Timber.e(e, "[CalendarVM] flow error"); emit(emptyList()) }
             }
-            .map { wos ->
+            .combine(_showAll) { wos, showAll ->
+                val myUserId = identityManager.getActiveUserId()
                 val zone = ZoneId.systemDefault()
-                wos.filter { it.dueDate != null && it.status !in listOf("cancelled") }
-                    .groupBy { wo ->
-                        Instant.ofEpochMilli(wo.dueDate ?: error("unreachable")).atZone(zone).toLocalDate()
-                    }
+                wos.filter { wo ->
+                    wo.dueDate != null &&
+                        wo.status !in listOf("cancelled") &&
+                        (showAll || myUserId == null ||
+                            wo.assignedTo == myUserId || wo.createdBy == myUserId)
+                }.groupBy { wo ->
+                    Instant.ofEpochMilli(wo.dueDate ?: error("unreachable")).atZone(zone).toLocalDate()
+                }
             }
             .stateIn(
                 scope = viewModelScope,
@@ -72,6 +88,12 @@ class WorkOrderCalendarViewModel @Inject constructor(
 
     fun navigateMonth(delta: Int) {
         displayMonth.value = displayMonth.value.plusMonths(delta.toLong())
+    }
+
+    fun navigateToToday() {
+        val today = LocalDate.now()
+        displayMonth.value = today.withDayOfMonth(1)
+        selectedDate.value = today
     }
 
     /**
