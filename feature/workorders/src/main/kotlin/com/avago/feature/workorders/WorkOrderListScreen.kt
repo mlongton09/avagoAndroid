@@ -73,7 +73,6 @@ fun WorkOrderListScreen(
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val syncError by viewModel.syncError.collectAsStateWithLifecycle()
     val canCreateWo by viewModel.canCreateWo.collectAsStateWithLifecycle()
-    val canSeeAllScope by viewModel.canSeeAllScope.collectAsStateWithLifecycle()
     val canOpenDispatch by viewModel.canOpenDispatch.collectAsStateWithLifecycle()
 
     val horizonOptions = listOf(
@@ -225,19 +224,17 @@ fun WorkOrderListScreen(
                                 )
                             }
                         }
-                        if (canSeeAllScope) {
-                            SingleChoiceSegmentedButtonRow(modifier = Modifier.width(110.dp)) {
-                                scopeOptions.forEachIndexed { index, (s, label) ->
-                                    SegmentedButton(
-                                        selected = filter == s,
-                                        onClick = { viewModel.onScopeChanged(s) },
-                                        shape = SegmentedButtonDefaults.itemShape(
-                                            index = index,
-                                            count = scopeOptions.size,
-                                        ),
-                                        label = { Text(label) },
-                                    )
-                                }
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.width(110.dp)) {
+                            scopeOptions.forEachIndexed { index, (s, label) ->
+                                SegmentedButton(
+                                    selected = filter == s,
+                                    onClick = { viewModel.onScopeChanged(s) },
+                                    shape = SegmentedButtonDefaults.itemShape(
+                                        index = index,
+                                        count = scopeOptions.size,
+                                    ),
+                                    label = { Text(label) },
+                                )
                             }
                         }
                         IconButton(onClick = onOpenCalendar) {
