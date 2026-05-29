@@ -7,6 +7,7 @@ import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.LogCostLineEntity
 import com.avago.core.data.db.entity.LogEntity
 import com.avago.core.data.db.entity.PhotoEntity
+import com.avago.core.data.repository.UserPreferencesRepository
 import com.avago.core.sync.SyncEngine
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -42,7 +43,14 @@ class LogDetailViewModel @Inject constructor(
     private val dbFactory: DatabaseFactory,
     private val identity: IdentityManager,
     private val syncEngine: SyncEngine,
+    private val userPrefsRepository: UserPreferencesRepository,
 ) : ViewModel() {
+
+    val currencyCode: StateFlow<String> = userPrefsRepository.currencyFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "USD")
+
+    val distanceUnit: StateFlow<String> = userPrefsRepository.distanceUnitFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "mi")
 
     private val _entryId = MutableStateFlow<String?>(null)
 

@@ -64,6 +64,13 @@ data class AddEditLogFormState(
     val meterReading: String = "",
     /** Derived from the selected asset's meterType field. */
     val meterType: String? = null,
+    /** Mirrors iOS AVDefaultsKeyDefaultOdometerUnit — "mi" or "km". */
+    val distanceUnit: String = "mi",
+
+    // Fuel (shown when category is "fuel")
+    val fuelVolume: String = "",
+    /** "gallon" or "liter" — mirrors iOS AVDefaultsKeyFuelVolumeUnit. */
+    val fuelVolumeUnit: String = "gallon",
 
     // Cost
     val costMode: CostMode = CostMode.TOTAL,
@@ -105,9 +112,9 @@ data class AddEditLogFormState(
     val costLineCount: Int get() = pendingCostLines.size
     val isEdit: Boolean get() = savedEntryId == null && isLoadingExisting // simple heuristic
 
-    /** Human-readable meter label based on asset meterType. */
+    /** Human-readable meter label based on asset meterType and user distance unit preference. */
     val meterLabel: String get() = when (meterType?.lowercase()) {
-        "odometer", "miles", "mi" -> "Odometer (mi)"
+        "odometer", "miles", "mi", "km" -> "Odometer ($distanceUnit)"
         "hours", "hour", "hr" -> "Hours"
         else -> "Meter"
     }
@@ -124,6 +131,11 @@ class AddEditLogViewModel @Inject constructor(
 
     init {
         formFillRouter.register("add_log_entry") { fields -> applyScoutFields(fields) }
+        viewModelScope.launch {
+            val distanceUnit = userPrefsRepository.distanceUnitFlow.first()
+            val fuelUnit = userPrefsRepository.fuelVolumeUnitFlow.first()
+            _form.update { it.copy(distanceUnit = distanceUnit, fuelVolumeUnit = fuelUnit) }
+        }
     }
 
     override fun onCleared() {
@@ -213,6 +225,12 @@ class AddEditLogViewModel @Inject constructor(
                 val asset = entity.assetId.let { db.assetDao().getById(it) }
                 val meterType = asset?.meterType
 
+                // Restore fuel attributes from entity.attributes JSON
+                val savedFuelVolume = entity.attributes?.let { parseJsonField(it, "fuel_volume") } ?: ""
+                val savedFuelUnit = entity.attributes?.let { parseJsonField(it, "fuel_volume_unit") }
+                    ?: userPrefsRepository.fuelVolumeUnitFlow.first()
+                val savedDistanceUnit = userPrefsRepository.distanceUnitFlow.first()
+
                 _form.update { state ->
                     state.copy(
                         entryId = entity.entryId,
@@ -226,6 +244,9 @@ class AddEditLogViewModel @Inject constructor(
                         performedByName = entity.performedBy,
                         meterReading = entity.odometerValue?.toString() ?: "",
                         meterType = meterType,
+                        distanceUnit = savedDistanceUnit,
+                        fuelVolume = savedFuelVolume,
+                        fuelVolumeUnit = savedFuelUnit,
                         costMode = if (entity.costMode == "itemized") CostMode.ITEMIZED else CostMode.TOTAL,
                         totalCost = entity.cost?.toString() ?: "",
                         pendingCostLines = drafts,
@@ -442,6 +463,8 @@ class AddEditLogViewModel @Inject constructor(
     fun onEntryDateChanged(value: Long) = _form.update { it.copy(entryDate = value) }
     fun onNotesChanged(value: String) = _form.update { it.copy(notes = value) }
     fun onMeterReadingChanged(value: String) = _form.update { it.copy(meterReading = value) }
+    fun onFuelVolumeChanged(value: String) = _form.update { it.copy(fuelVolume = value) }
+    fun onFuelVolumeUnitChanged(unit: String) = _form.update { it.copy(fuelVolumeUnit = unit) }
     fun onTotalCostChanged(value: String) = _form.update { it.copy(totalCost = value) }
     fun onCostModeChanged(mode: CostMode) = _form.update { it.copy(costMode = mode) }
 
@@ -603,7 +626,7 @@ class AddEditLogViewModel @Inject constructor(
                     performedByUserId = current.performedByUserId,
                     notes = current.notes.trim().ifBlank { null },
                     data = dataJson,
-                    attributes = null,
+                    attributes = buildAttributesJson(current),
                     costMode = costMode,
                     costItems = if (current.costMode == CostMode.ITEMIZED) {
                         current.pendingCostLines
@@ -779,6 +802,14 @@ class AddEditLogViewModel @Inject constructor(
             parts += "\"configSnapshot\":{\"fields\":[$fieldJsons]}"
         }
         return if (parts.size <= 1 && inspectionAnswers.isEmpty()) null else "{${parts.joinToString(",")}}"
+    }
+
+    private fun buildAttributesJson(form: AddEditLogFormState): String? {
+        val isFuel = form.category?.lowercase()?.contains("fuel") == true
+        if (!isFuel || form.fuelVolume.isBlank()) return null
+        val vol = form.fuelVolume.replace("\"", "\\\"")
+        val unit = form.fuelVolumeUnit.replace("\"", "\\\"")
+        return "{\"fuel_volume\":\"$vol\",\"fuel_volume_unit\":\"$unit\"}"
     }
 
     private fun parseJsonField(json: String, key: String): String? {

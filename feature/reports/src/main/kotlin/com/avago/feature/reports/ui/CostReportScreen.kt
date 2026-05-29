@@ -85,6 +85,7 @@ fun CostReportScreen(
     val expandedKeys by viewModel.expandedKeys.collectAsStateWithLifecycle()
     val expandedInventory by viewModel.expandedInventory.collectAsStateWithLifecycle()
     val data by viewModel.reportData.collectAsStateWithLifecycle()
+    val currencyCode by viewModel.currencyCode.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -136,6 +137,7 @@ fun CostReportScreen(
                 CostBarChart(
                     data = data,
                     groupMode = groupMode,
+                    currencyCode = currencyCode,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(180.dp)
@@ -253,6 +255,7 @@ fun CostReportScreen(
                     row = row,
                     isExpanded = isExpanded,
                     isTco = groupMode == CostGroupMode.TCO,
+                    currencyCode = currencyCode,
                     onToggle = { viewModel.toggleExpanded(row.key) },
                 )
                 AnimatedVisibility(visible = isExpanded) {
@@ -264,6 +267,7 @@ fun CostReportScreen(
                                 colorIndex = cat.colorIndex,
                                 isTco = groupMode == CostGroupMode.TCO,
                                 indent = true,
+                                currencyCode = currencyCode,
                             )
                         }
                     }
@@ -277,6 +281,7 @@ fun CostReportScreen(
                     CostInventoryGroupRow(
                         value = reportData.inventoryValue,
                         isExpanded = expandedInventory,
+                        currencyCode = currencyCode,
                         onToggle = { viewModel.toggleInventory() },
                     )
                     AnimatedVisibility(visible = expandedInventory) {
@@ -287,6 +292,7 @@ fun CostReportScreen(
                                     value = value,
                                     colorIndex = idx % 8,
                                     indent = true,
+                                    currencyCode = currencyCode,
                                 )
                             }
                         }
@@ -306,6 +312,7 @@ fun CostReportScreen(
 private fun CostBarChart(
     data: CostReportData?,
     groupMode: CostGroupMode,
+    currencyCode: String,
     modifier: Modifier = Modifier,
 ) {
     val surfaceColor = MaterialTheme.colorScheme.onSurface
@@ -375,7 +382,7 @@ private fun CostBarChart(
                 // Value label above bar
                 if (value > 0) {
                     canvas.nativeCanvas.drawText(
-                        shortDollar(value),
+                        shortAmount(value, currencyCode),
                         x + barW / 2,
                         (baselineY - barH - 4f).coerceAtLeast(16f),
                         android.graphics.Paint().apply {
@@ -402,11 +409,14 @@ private fun CostBarChart(
     }
 }
 
-private fun shortDollar(v: Double): String {
+private fun shortAmount(v: Double, currencyCode: String): String {
+    val symbol = runCatching {
+        java.util.Currency.getInstance(currencyCode.uppercase()).symbol
+    }.getOrDefault("$")
     return when {
-        v >= 1_000_000 -> "$%.1fM".format(v / 1_000_000)
-        v >= 1_000 -> "$%.0fk".format(v / 1_000)
-        else -> "$%.0f".format(v)
+        v >= 1_000_000 -> "$symbol%.1fM".format(v / 1_000_000)
+        v >= 1_000 -> "$symbol%.0fk".format(v / 1_000)
+        else -> "$symbol%.0f".format(v)
     }
 }
 
@@ -443,6 +453,7 @@ private fun CostGroupRowItem(
     row: CostGroupRow,
     isExpanded: Boolean,
     isTco: Boolean,
+    currencyCode: String,
     onToggle: () -> Unit,
 ) {
     Row(
@@ -471,7 +482,7 @@ private fun CostGroupRowItem(
             Spacer(Modifier.width(COL_WIDTH))
             Spacer(Modifier.width(COL_WIDTH))
             Text(
-                text = if (row.lifetimeCost > 0) shortDollar(row.lifetimeCost) else "–",
+                text = if (row.lifetimeCost > 0) shortAmount(row.lifetimeCost, currencyCode) else "–",
                 modifier = Modifier.width(COL_WIDTH),
                 textAlign = TextAlign.End,
                 style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
@@ -481,7 +492,7 @@ private fun CostGroupRowItem(
         } else {
             row.periodCosts.forEach { v ->
                 Text(
-                    text = if (v > 0) shortDollar(v) else "–",
+                    text = if (v > 0) shortAmount(v, currencyCode) else "–",
                     modifier = Modifier.width(COL_WIDTH),
                     textAlign = TextAlign.End,
                     style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
@@ -502,6 +513,7 @@ private fun CostCategoryRowItem(
     colorIndex: Int,
     isTco: Boolean,
     indent: Boolean,
+    currencyCode: String,
 ) {
     val dotColor = CATEGORY_COLORS[colorIndex % CATEGORY_COLORS.size]
     Row(
@@ -536,7 +548,7 @@ private fun CostCategoryRowItem(
             Spacer(Modifier.width(COL_WIDTH))
             val v = costs.getOrElse(2) { 0.0 }
             Text(
-                text = if (v > 0) shortDollar(v) else "–",
+                text = if (v > 0) shortAmount(v, currencyCode) else "–",
                 modifier = Modifier.width(COL_WIDTH),
                 textAlign = TextAlign.End,
                 style = MaterialTheme.typography.bodySmall,
@@ -546,7 +558,7 @@ private fun CostCategoryRowItem(
         } else {
             costs.forEach { v ->
                 Text(
-                    text = if (v > 0) shortDollar(v) else "–",
+                    text = if (v > 0) shortAmount(v, currencyCode) else "–",
                     modifier = Modifier.width(COL_WIDTH),
                     textAlign = TextAlign.End,
                     style = MaterialTheme.typography.bodySmall,
@@ -564,6 +576,7 @@ private fun CostCategoryRowItem(
 private fun CostInventoryGroupRow(
     value: Double,
     isExpanded: Boolean,
+    currencyCode: String,
     onToggle: () -> Unit,
 ) {
     Row(
@@ -601,7 +614,7 @@ private fun CostInventoryGroupRow(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
-            text = if (value > 0) shortDollar(value) else "–",
+            text = if (value > 0) shortAmount(value, currencyCode) else "–",
             modifier = Modifier.width(COL_WIDTH),
             textAlign = TextAlign.End,
             style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
@@ -619,6 +632,7 @@ private fun CostInventoryCategoryRow(
     value: Double,
     colorIndex: Int,
     indent: Boolean,
+    currencyCode: String,
 ) {
     val dotColor = CATEGORY_COLORS[colorIndex % CATEGORY_COLORS.size]
     Row(
@@ -652,7 +666,7 @@ private fun CostInventoryCategoryRow(
         Text(text = "–", modifier = Modifier.width(COL_WIDTH), textAlign = TextAlign.End,
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(
-            text = if (value > 0) shortDollar(value) else "–",
+            text = if (value > 0) shortAmount(value, currencyCode) else "–",
             modifier = Modifier.width(COL_WIDTH),
             textAlign = TextAlign.End,
             style = MaterialTheme.typography.bodySmall,

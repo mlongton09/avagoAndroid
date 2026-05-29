@@ -80,6 +80,8 @@ fun LogDetailScreen(
     }
 
     val state by viewModel.uiState.collectAsState()
+    val currencyCode by viewModel.currencyCode.collectAsState()
+    val distanceUnit by viewModel.distanceUnit.collectAsState()
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.isDeleted) {
@@ -145,7 +147,11 @@ fun LogDetailScreen(
             else -> {
                 val log = state.log!!
                 val dateFormatter = remember { SimpleDateFormat("MMMM d, yyyy", Locale.getDefault()) }
-                val currencyFormat = remember { NumberFormat.getCurrencyInstance() }
+                val currencyFormat = remember(currencyCode) {
+                    val fmt = NumberFormat.getCurrencyInstance(Locale.getDefault())
+                    runCatching { fmt.currency = java.util.Currency.getInstance(currencyCode.uppercase()) }
+                    fmt
+                }
 
                 // Parse inspection fields from log data JSON
                 val logType = remember(log.data) { parseJsonField(log.data, "log_type") ?: "service" }
@@ -191,10 +197,24 @@ fun LogDetailScreen(
                         log.odometerValue?.let { meter ->
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                text = "Meter: ${"%.1f".format(meter)}",
+                                text = "Meter: ${"%.1f".format(meter)} $distanceUnit",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                        }
+                        // Fuel volume (stored in attributes JSON for fuel-category entries)
+                        log.attributes?.let { attrs ->
+                            val fuelVolume = parseFuelVolume(attrs)
+                            val fuelUnit = parseFuelUnit(attrs)
+                            if (fuelVolume != null) {
+                                Spacer(Modifier.height(4.dp))
+                                val unitLabel = if (fuelUnit == "liter") "L" else "gal"
+                                Text(
+                                    text = "Fuel: ${"%.2f".format(fuelVolume)} $unitLabel",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     }
 
@@ -592,6 +612,12 @@ private fun parseJsonField(json: String?, key: String): String? {
     val pattern = Regex("\"$key\"\\s*:\\s*\"([^\"]*)\"")
     return pattern.find(json)?.groupValues?.get(1)
 }
+
+private fun parseFuelVolume(attributes: String): Double? =
+    parseJsonField(attributes, "fuel_volume")?.toDoubleOrNull()
+
+private fun parseFuelUnit(attributes: String): String =
+    parseJsonField(attributes, "fuel_volume_unit") ?: "gallon"
 
 private fun parseJsonMap(json: String?): Map<String, String> {
     if (json.isNullOrBlank()) return emptyMap()

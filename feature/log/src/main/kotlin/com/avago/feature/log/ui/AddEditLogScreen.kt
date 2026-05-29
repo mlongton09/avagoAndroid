@@ -546,6 +546,42 @@ fun AddEditLogScreen(
 
             HorizontalDivider()
 
+            // --------------- Fuel volume (shown for fuel-category entries) ---------------
+            if (form.category?.lowercase()?.contains("fuel") == true) {
+                FormSection {
+                    Text(
+                        text = "Fuel Volume",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        OutlinedTextField(
+                            value = form.fuelVolume,
+                            onValueChange = { viewModel.onFuelVolumeChanged(it) },
+                            label = { Text("Volume (optional)") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        )
+                        SingleChoiceSegmentedButtonRow {
+                            listOf("gallon", "liter").forEachIndexed { idx, unit ->
+                                SegmentedButton(
+                                    selected = form.fuelVolumeUnit == unit,
+                                    onClick = { viewModel.onFuelVolumeUnitChanged(unit) },
+                                    shape = SegmentedButtonDefaults.itemShape(index = idx, count = 2),
+                                    label = { Text(if (unit == "gallon") "gal" else "L") },
+                                )
+                            }
+                        }
+                    }
+                }
+                HorizontalDivider()
+            }
+
             // --------------- Notes (with markdown preview toggle) ---------------
             FormSection {
                 Row(verticalAlignment = Alignment.CenterVertically) {

@@ -3,6 +3,7 @@ package com.avago.feature.reports.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
+import com.avago.core.data.repository.UserPreferencesRepository
 import com.avago.core.reports.ReportAggregator
 import com.avago.core.reports.model.CostGroupMode
 import com.avago.core.reports.model.CostPeriodMode
@@ -34,7 +35,11 @@ import javax.inject.Inject
 class CostReportViewModel @Inject constructor(
     private val aggregator: ReportAggregator,
     private val identity: IdentityManager,
+    private val userPrefsRepository: UserPreferencesRepository,
 ) : ViewModel() {
+
+    val currencyCode: StateFlow<String> = userPrefsRepository.currencyFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "USD")
 
     private val _groupMode = MutableStateFlow(CostGroupMode.ALL)
     val groupMode: StateFlow<CostGroupMode> = _groupMode.asStateFlow()
