@@ -270,9 +270,8 @@ private fun wosStatusDotColor(wos: List<WorkOrderEntity>, date: LocalDate): Colo
     val zone = ZoneId.systemDefault()
     val dateMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
     val isOverdue = wos.any { wo ->
-        wo.dueDate != null &&
-            wo.dueDate < nowMs &&
-            wo.status !in listOf("complete", "cancelled")
+        val due = wo.dueDate
+        due != null && due < nowMs && wo.status !in listOf("complete", "cancelled")
     }
     return when {
         isOverdue -> MaterialTheme.colorScheme.error
