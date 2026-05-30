@@ -20,7 +20,9 @@ import com.avago.core.network.model.LinkPreviewResponse
 import com.avago.core.network.model.UserResponse
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromJsonElement
@@ -622,10 +624,11 @@ class ChatRepository @Inject constructor(
     // Mentions inbox
     // ---------------------------------------------------------------------------
 
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     fun observeUnreadMentionCount(): Flow<Int> {
-        val accountId = identity.activeAccountId.value ?: return emptyFlow()
-        return flow {
-            emitAll(chatDbFactory.get(accountId).chatMentionDao().observeUnreadCount(accountId))
+        return identity.activeAccountId.flatMapLatest { accountId ->
+            if (accountId == null) flowOf(0)
+            else chatDbFactory.get(accountId).chatMentionDao().observeUnreadCount(accountId)
         }
     }
 

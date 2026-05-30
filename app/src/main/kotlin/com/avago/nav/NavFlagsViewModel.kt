@@ -3,6 +3,7 @@ package com.avago.nav
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.data.FeatureFlags
+import com.avago.feature.chat.data.ChatRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -12,6 +13,7 @@ import javax.inject.Inject
 @HiltViewModel
 class NavFlagsViewModel @Inject constructor(
     private val featureFlags: FeatureFlags,
+    chatRepository: ChatRepository,
 ) : ViewModel() {
 
     val chatEnabled: StateFlow<Boolean> = featureFlags.observeChatEnabled()
@@ -22,4 +24,12 @@ class NavFlagsViewModel @Inject constructor(
 
     val purchaseOrdersEnabled: StateFlow<Boolean> = featureFlags.observePurchaseOrdersEnabled()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), featureFlags.purchaseOrdersEnabled)
+
+    /**
+     * Unread @-mention count for the chat tab pill. Matches iOS
+     * ChatTabRootViewController.refreshBadge which shows only mentions
+     * (not aggregate unread) on the tab bar icon.
+     */
+    val unreadChatMentionCount: StateFlow<Int> = chatRepository.observeUnreadMentionCount()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 }

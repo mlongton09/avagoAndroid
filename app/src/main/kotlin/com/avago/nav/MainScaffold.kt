@@ -48,6 +48,8 @@ import androidx.compose.material3.FabPosition
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
@@ -146,6 +148,7 @@ fun MainScaffold(
 
     val chatEnabled by navFlagsViewModel.chatEnabled.collectAsState()
     val workOrdersEnabled by navFlagsViewModel.workOrdersEnabled.collectAsState()
+    val unreadChatMentionCount by navFlagsViewModel.unreadChatMentionCount.collectAsState()
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -223,6 +226,7 @@ fun MainScaffold(
                         navController = navController,
                         workOrdersEnabled = workOrdersEnabled,
                         chatEnabled = chatEnabled,
+                        unreadChatMentionCount = unreadChatMentionCount,
                     )
                 }
             },
@@ -302,6 +306,7 @@ fun BottomNavBar(
     navController: NavHostController,
     workOrdersEnabled: Boolean = true,
     chatEnabled: Boolean = true,
+    unreadChatMentionCount: Int = 0,
 ) {
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.surface,
@@ -330,7 +335,22 @@ fun BottomNavBar(
                         restoreState = true
                     }
                 },
-                icon = { Icon(item.icon, contentDescription = item.label) },
+                icon = {
+                    if (item.route == "chat" && unreadChatMentionCount > 0) {
+                        BadgedBox(
+                            badge = {
+                                Badge {
+                                    val label = if (unreadChatMentionCount > 99) "99+" else unreadChatMentionCount.toString()
+                                    Text(label)
+                                }
+                            },
+                        ) {
+                            Icon(item.icon, contentDescription = item.label)
+                        }
+                    } else {
+                        Icon(item.icon, contentDescription = item.label)
+                    }
+                },
                 label = null,
             )
         }
