@@ -29,6 +29,52 @@ import javax.inject.Inject
 import javax.inject.Provider
 import javax.inject.Singleton
 
+/**
+ * Owns user identity, authentication tokens, and the active account.
+ *
+ * ─────────────────────────────────────────────────────────────────────
+ * Sign-in contract (mirrors iOS IdentityManager.swift)
+ * ─────────────────────────────────────────────────────────────────────
+ * The sequence in [signInWithFirebase] is brittle and order-sensitive.
+ * Each step exists because a prior bug required it:
+ *
+ *   1. POST /auth/firebase → receive access + refresh tokens.
+ *   2. tokenStore.storeTokens(...)  — persist to encrypted prefs.
+ *   3. client.clearBearerTokenCache() — REQUIRED. Ktor's bearer
+ *      AuthProvider caches the most-recent token in memory; without
+ *      this, the first post-sign-in request reuses the prior session's
+ *      token (often anonymous or another account's), causing 403s and
+ *      "Farmer mark not found" symptoms. See AvagoServiceClient
+ *      .clearBearerTokenCache for the public-API implementation —
+ *      NEVER use reflection here (lint guard #2).
+ *   4. fetchAndStoreAllAccounts() — GET /accounts. This MUST hit the
+ *      server's write pool (enforced server-side by lint in
+ *      avagosvc/.github/workflows/deploy.yml) because read replicas
+ *      can lag by hundreds of ms and miss memberships that were
+ *      created seconds ago during onboarding.
+ *   5. For each returned account, AccountManifest.upsertFromServer(...)
+ *      — preserves client-side fields (displayName, email) and
+ *      overwrites server-authoritative fields (accountName, role,
+ *      userId). Pure insert would clobber "Farmer mark" → "Unknown"
+ *      on re-sign-in. See AccountManifest.upsertFromServer kdoc.
+ *   6. Emit _signInEvents — AvagoApplication observes this to start
+ *      ChatRealtimeClient and trigger initial sync.
+ *
+ * Sign-out contract:
+ *   1. tokenStore.clearTokens(accountId)
+ *   2. client.clearBearerTokenCache()  — again, REQUIRED.
+ *   3. AccountManifest.remove(accountId)
+ *   4. Emit _signOutEvents — AvagoApplication observes and disconnects
+ *      the chat WebSocket.
+ *
+ * ─────────────────────────────────────────────────────────────────────
+ * Hilt injection note
+ * ─────────────────────────────────────────────────────────────────────
+ * AvagoServiceClient is injected via Provider<> (not direct) to break
+ * the cycle: IdentityManager → AvagoServiceClient → HttpClient →
+ * TokenProvider (SecureTokenStore). Provider<> defers the .get() until
+ * after Hilt has finished constructing the graph.
+ */
 @Singleton
 class IdentityManager @Inject constructor(
     @ApplicationContext private val appContext: Context,

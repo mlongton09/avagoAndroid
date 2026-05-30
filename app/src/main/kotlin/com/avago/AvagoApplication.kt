@@ -47,6 +47,53 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 @HiltAndroidApp
+/**
+ * Application entry point. Owns the lifecycle of every cross-cutting
+ * singleton — sign-in, sync, chat WebSocket, background workers.
+ *
+ * ─────────────────────────────────────────────────────────────────────
+ * CRITICAL: @Inject lateinit var fields MUST be wrapped in Lazy<T>
+ * ─────────────────────────────────────────────────────────────────────
+ * Hilt constructs every non-Lazy `@Inject lateinit var` eagerly inside
+ * `super.onCreate()` on the MAIN THREAD. Heavy types like the Ktor
+ * HTTP client (ContentNegotiation does reflective classloading on
+ * <clinit>), Room database, and OkHttp can block the main thread for
+ * several seconds the first time they're touched — long enough to
+ * trigger a cold-start ANR ("App not responding").
+ *
+ * Fix: every field below uses dagger.Lazy<T> so construction is
+ * deferred until the first .get() call (which we always make from a
+ * background coroutine). The single exception is `workerFactory`,
+ * which is needed synchronously by `workManagerConfiguration` and is
+ * itself a lightweight Hilt-generated factory.
+ *
+ * Enforced by .github/workflows/lint.yml (guard #1). If you add a new
+ * @Inject field here, make it Lazy<T> or add it to the lint allowlist
+ * with a justification.
+ *
+ * ─────────────────────────────────────────────────────────────────────
+ * Lifecycle wiring (mirrors iOS AppBootstrapCoordinator)
+ * ─────────────────────────────────────────────────────────────────────
+ * On cold start, in onCreate() background coroutine:
+ *   1. Eagerly touch identityManager — loads tokens from SecureTokenStore
+ *      and emits identityReadyFlow.
+ *   2. Once an identity is ready, connect ChatRealtimeClient (account WS).
+ *      ChatRealtimeClient lifecycle is OWNED HERE — never call
+ *      connect()/disconnect() from a ViewModel (lint guard #3).
+ *   3. registerSyncWorker on a background dispatcher to avoid blocking
+ *      main thread on WorkManager schema migration.
+ *
+ * On sign-in (identity.signInEvents):
+ *   - Re-connect chat WS for the newly active account.
+ *   - SyncEngine kicks the initial pull via its own observer.
+ *
+ * On sign-out (identity.signOutEvents):
+ *   - chatRealtime.disconnect() to drop the old account's socket.
+ *
+ * On ProcessLifecycleOwner foreground (onStart):
+ *   - Re-connect chat WS if needed (the socket may have been killed
+ *     while in background).
+ */
 class AvagoApplication : Application(), Configuration.Provider, SingletonImageLoader.Factory {
 
     override fun newImageLoader(context: Context): ImageLoader =

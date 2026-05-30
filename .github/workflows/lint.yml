@@ -1,0 +1,151 @@
+# ──────────────────────────────────────────────────────────────────────────
+# Lint workflow — fast, no-Gradle regression guards
+#
+# These checks exist to prevent specific historical bugs from recurring.
+# Each check has a code comment explaining the bug it guards against.
+# Keep this workflow cheap — it should run on every PR in <30s.
+# ──────────────────────────────────────────────────────────────────────────
+name: Lint
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      # ──────────────────────────────────────────────────────────────────
+      # Guard #1: Cold-start ANR (commit 181fe60)
+      #
+      # AvagoApplication is the Hilt entry point. Any field declared as
+      # `@Inject lateinit var x: T` is constructed eagerly inside
+      # super.onCreate() on the MAIN THREAD. Heavy types (Ktor client,
+      # Room DB, OkHttp, etc.) do classloading + reflection on first
+      # touch and blocked the main thread > 5s, producing a cold-start
+      # ANR ("App not responding").
+      #
+      # Fix contract: every @Inject lateinit var in AvagoApplication.kt
+      # MUST be wrapped in dagger.Lazy<T> so construction is deferred
+      # until the first .get() call (which happens off the main thread).
+      #
+      # Allowlist: workerFactory is required synchronously by
+      # workManagerConfiguration getter and is itself lightweight.
+      # ──────────────────────────────────────────────────────────────────
+      - name: Lint — AvagoApplication injects must be Lazy<T>
+        run: |
+          set -euo pipefail
+          FILE="app/src/main/kotlin/com/avago/AvagoApplication.kt"
+          if [ ! -f "$FILE" ]; then
+            echo "ERROR: $FILE not found"
+            exit 1
+          fi
+          # Allowlist: field names that may be eagerly injected.
+          ALLOWLIST="workerFactory"
+          violations=$(grep -nE '^\s*@Inject\s+lateinit\s+var\s+\w+\s*:' "$FILE" \
+            | grep -vE ':\s*Lazy<' \
+            | grep -vE "@Inject\s+lateinit\s+var\s+($ALLOWLIST)\s*:" \
+            || true)
+          if [ -n "$violations" ]; then
+            echo "ERROR: AvagoApplication.kt @Inject fields must use dagger.Lazy<T>."
+            echo "       See guard #1 comment in .github/workflows/lint.yml for why."
+            echo "       Violations:"
+            echo "$violations"
+            exit 1
+          fi
+          echo "OK: AvagoApplication.kt injects are all Lazy<T> (or allowlisted)."
+
+      # ──────────────────────────────────────────────────────────────────
+      # Guard #2: Ktor bearer cache reflection (commit a058e32)
+      #
+      # Ktor 3.0 removed the `private val tokensHolder` field that the
+      # previous reflection-based clearBearerTokenCache() relied on.
+      # The reflection silently caught NoSuchFieldException and returned
+      # successfully — so sign-out / account-switch left the OLD bearer
+      # token cached in Ktor's AuthProvider, causing 403s and the
+      # "Farmer mark" account to be invisible after switching identities.
+      #
+      # Fix contract: use the PUBLIC API
+      #   client.authProviders.filterIsInstance<BearerAuthProvider>()
+      #     .forEach { it.clearToken() }
+      # Never use reflection on Ktor internals.
+      # ──────────────────────────────────────────────────────────────────
+      - name: Lint — no reflection on Ktor BearerAuthProvider
+        run: |
+          set -euo pipefail
+          violations=$(grep -rEn 'BearerAuthProvider|tokensHolder' \
+            --include='*.kt' \
+            core/network/src/main \
+            core/auth/src/main \
+            2>/dev/null \
+            | grep -E '\.javaClass|getDeclaredField|getDeclaredMethod|isAccessible\s*=\s*true' \
+            || true)
+          if [ -n "$violations" ]; then
+            echo "ERROR: Ktor bearer cache must use public authProviders API, not reflection."
+            echo "       See guard #2 comment in .github/workflows/lint.yml."
+            echo "$violations"
+            exit 1
+          fi
+          echo "OK: no reflection on Ktor bearer internals."
+
+      # ──────────────────────────────────────────────────────────────────
+      # Guard #3: ChatRealtimeClient lifecycle ownership (commit 5884896)
+      #
+      # The WebSocket must be started by AvagoApplication (mirroring
+      # iOS AppBootstrapCoordinator.startChatServices). If a ViewModel
+      # calls connect(), the socket lifetime becomes tied to that
+      # screen and push notifications stop working when the user
+      # navigates away from chat. ViewModels may only OBSERVE state
+      # from ChatRealtimeClient, never connect()/disconnect().
+      # ──────────────────────────────────────────────────────────────────
+      - name: Lint — ChatRealtimeClient.connect()/disconnect() only from AvagoApplication
+        run: |
+          set -euo pipefail
+          violations=$(grep -rEn 'chatRealtime\w*\.(connect|disconnect)\s*\(' \
+            --include='*.kt' \
+            feature core \
+            2>/dev/null || true)
+          if [ -n "$violations" ]; then
+            echo "ERROR: ChatRealtimeClient.connect()/disconnect() may only be called"
+            echo "       from app/AvagoApplication.kt. ViewModels must only observe."
+            echo "       See guard #3 comment in .github/workflows/lint.yml."
+            echo "$violations"
+            exit 1
+          fi
+          echo "OK: ChatRealtimeClient lifecycle is owned by AvagoApplication."
+
+      # ──────────────────────────────────────────────────────────────────
+      # Guard #4: Chat system_payload must be JsonElement? (commit 1190932)
+      #
+      # The server returns chat message `system_payload` as an arbitrary
+      # JSON object (e.g. `{"actor":"...","target":"..."}`). Declaring
+      # the Kotlin field as `String?` causes kotlinx.serialization to
+      # throw `Expected JsonPrimitive, but had JsonObject` on every chat
+      # sync, breaking the entire chat feature with no obvious UI
+      # symptom (silent in logs unless you read logcat).
+      #
+      # Contract: ChatModels.kt `system_payload` MUST be `JsonElement?`.
+      # The repository serialises it to a JSON string when persisting to
+      # the TEXT column. iOS uses `[String: Any]`; TypeScript uses
+      # `Record<string, unknown>` — same contract across platforms.
+      # ──────────────────────────────────────────────────────────────────
+      - name: Lint — ChatModels.system_payload must be JsonElement?
+        run: |
+          set -euo pipefail
+          FILE="core/network/src/main/kotlin/com/avago/core/network/model/ChatModels.kt"
+          if [ ! -f "$FILE" ]; then
+            echo "ERROR: $FILE not found"
+            exit 1
+          fi
+          if ! grep -qE 'val\s+system_payload\s*:\s*JsonElement\?' "$FILE"; then
+            echo "ERROR: ChatModels.kt 'system_payload' field must be declared as 'JsonElement?'."
+            echo "       See guard #4 comment in .github/workflows/lint.yml."
+            grep -nE 'val\s+system_payload\s*:' "$FILE" || true
+            exit 1
+          fi
+          echo "OK: ChatModels.system_payload is JsonElement?."

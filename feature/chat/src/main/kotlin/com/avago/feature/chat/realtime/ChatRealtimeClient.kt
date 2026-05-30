@@ -38,9 +38,27 @@ data class TypingChangedEvent(val threadId: String, val typingUserIds: List<Stri
  * Singleton WebSocket connection to the account-level chat realtime endpoint.
  *
  * Connects to `wss://api.avagomate.com/accounts/{accountId}/chat/ws?token={jwt}`.
- * Automatically manages connection lifecycle: connects on sign-in, disconnects on sign-out.
- * Dispatches server-pushed events to [ChatRepository] (for DB writes) and [typingChangedFlow]
- * (for ViewModels to observe).
+ * Dispatches server-pushed events to [ChatRepository] (for DB writes) and
+ * [typingChangedFlow] (for ViewModels to observe).
+ *
+ * ─────────────────────────────────────────────────────────────────────
+ * LIFECYCLE OWNERSHIP — read before calling connect()/disconnect()
+ * ─────────────────────────────────────────────────────────────────────
+ * The lifecycle of this socket is owned by [com.avago.AvagoApplication]
+ * (mirroring iOS AppBootstrapCoordinator.startChatServices). Only
+ * AvagoApplication may call [connect] and [disconnect]; ViewModels and
+ * UI screens MUST NOT call them — they may only observe state.
+ *
+ * Why: previously ThreadViewModel and ChatListViewModel were calling
+ * connect()/disconnect() in their init/onCleared. The socket's lifetime
+ * was then tied to whether the user was on a chat screen, so push
+ * notifications stopped arriving the moment the user navigated away.
+ * The "chat feels like polling, not push" bug was this. Centralising
+ * ownership in AvagoApplication keeps the socket alive whenever an
+ * identity is signed in and the app process is alive.
+ *
+ * Enforced by .github/workflows/lint.yml (guard #3): any call to
+ * chatRealtime.connect()/disconnect() outside of app/ fails CI.
  */
 @Singleton
 class ChatRealtimeClient @Inject constructor(

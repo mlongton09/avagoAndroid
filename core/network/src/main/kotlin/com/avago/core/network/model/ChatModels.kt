@@ -47,7 +47,18 @@ data class ChatMessageResponse(
     // System messages (e.g. "member_added", "thread_renamed")
     val is_system: Boolean = false,
     val system_kind: String? = null,
-    val system_payload: JsonElement? = null, // arbitrary JSON object/value, stored as raw JSON string in DB
+    // ─────────────────────────────────────────────────────────────────────
+    // CONTRACT: must remain `JsonElement?`, NOT `String?`.
+    // The server returns this as an arbitrary JSON object/array/primitive.
+    // Declaring it as `String?` triggers
+    //   JsonDecodingException: Expected JsonPrimitive, but had JsonObject
+    // on every chat sync (commit 1190932). iOS uses `[String: Any]` and
+    // TypeScript uses `Record<string, unknown>` — the cross-platform
+    // contract is "arbitrary JSON value, opaque to the client".
+    // Stored in the DB as a serialised JSON string (see ChatRepository).
+    // Locked in by .github/workflows/lint.yml (guard #4).
+    // ─────────────────────────────────────────────────────────────────────
+    val system_payload: JsonElement? = null,
     // Subthread reply counts — shown as "N replies" preview beneath messages
     val reply_count: Int = 0,
     val latest_reply_at: String? = null,

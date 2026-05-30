@@ -624,6 +624,22 @@ class ChatRepository @Inject constructor(
     // Mentions inbox
     // ---------------------------------------------------------------------------
 
+    /**
+     * Observes the count of unread @-mentions for the *currently active*
+     * account, reacting to account switches.
+     *
+     * Implementation note: we reactively `flatMapLatest` over
+     * `identity.activeAccountId` rather than capturing `.value` at call
+     * time. If you capture `.value`, the returned Flow is bound to the
+     * account that was active *when this function was called* — switching
+     * accounts will leave the badge stuck on the wrong account's count
+     * forever, because the cold flow is re-subscribed only when the UI is
+     * recomposed (which the account switch alone won't trigger).
+     *
+     * General rule for this repo: always derive per-account Flows by
+     * flatMapping over `identity.activeAccountId`, never by reading
+     * `.value` once.
+     */
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     fun observeUnreadMentionCount(): Flow<Int> {
         return identity.activeAccountId.flatMapLatest { accountId ->
