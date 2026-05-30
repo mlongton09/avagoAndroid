@@ -648,18 +648,35 @@ private fun NotificationsRow(
     granted: Boolean,
     context: Context,
 ) {
+    // Android 13+ requires the notification permission to be managed in System
+    // Settings — apps cannot toggle it programmatically. So our in-app Switch is
+    // purely informational (always disabled when granted) and tapping the row
+    // always opens the per-app system notification settings so the user has a
+    // path to turn notifications off (or back on if denied).
+    val openSystemNotificationSettings = {
+        val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+            putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+        }
+        runCatching { context.startActivity(intent) }.onFailure {
+            // Fallback for OEMs that don't honour ACTION_APP_NOTIFICATION_SETTINGS.
+            val fallback = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.fromParts("package", context.packageName, null)
+            }
+            runCatching { context.startActivity(fallback) }
+        }
+    }
     ListItem(
         headlineContent = { Text(stringResource(R.string.settings_notifications)) },
-        supportingContent = if (!granted) {
-            {
-                Text(
-                    text = stringResource(R.string.settings_notifications_denied),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-        } else {
-            null
+        supportingContent = {
+            Text(
+                text = stringResource(
+                    if (granted) R.string.settings_notifications_granted_hint
+                    else R.string.settings_notifications_denied
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = if (granted) MaterialTheme.colorScheme.onSurfaceVariant
+                else MaterialTheme.colorScheme.error,
+            )
         },
         leadingContent = {
             Icon(
@@ -670,30 +687,13 @@ private fun NotificationsRow(
             )
         },
         trailingContent = {
-            if (granted) {
-                Switch(
-                    checked = true,
-                    onCheckedChange = null, // permission is system-controlled
-                    enabled = false,
-                )
-            } else {
-                Icon(
-                    Icons.Default.ChevronRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            Icon(
+                Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         },
-        modifier = if (!granted) {
-            Modifier.clickable(role = Role.Button) {
-                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                    data = Uri.fromParts("package", context.packageName, null)
-                }
-                context.startActivity(intent)
-            }
-        } else {
-            Modifier
-        },
+        modifier = Modifier.clickable(role = Role.Button) { openSystemNotificationSettings() },
     )
 }
 

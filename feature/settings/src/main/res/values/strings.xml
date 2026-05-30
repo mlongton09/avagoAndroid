@@ -28,6 +28,7 @@
     <string name="settings_terms_of_service_url">https://avagomate.com/terms</string>
     <string name="settings_notifications">Push notifications</string>
     <string name="settings_notifications_denied">Tap to enable in system settings</string>
+    <string name="settings_notifications_granted_hint">Tap to manage in system settings</string>
     <string name="settings_account">Account</string>
     <string name="settings_account_id">Account ID</string>
     <string name="settings_no_account">Not signed in</string>
