@@ -76,6 +76,8 @@ import com.avago.core.network.model.UserResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.auth.Auth
+import io.ktor.client.plugins.auth.authProviders
+import io.ktor.client.plugins.auth.providers.BearerAuthProvider
 import io.ktor.client.plugins.plugin
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
@@ -114,37 +116,19 @@ class AvagoServiceClient @Inject constructor(
      * and picks up the newly stored account credentials. Must be called after
      * switching the active account (e.g. after sign-in or account switch) so
      * subsequent calls don't reuse the previous session's cached token.
+     *
+     * Ktor 3.0 exposes Auth.providers and BearerAuthProvider.clearToken() as
+     * public API — no reflection required. The prior reflection-based
+     * implementation silently failed on Ktor 3.x (no exception, but the
+     * cached anonymous token kept being sent post sign-in, producing 403s
+     * on the newly-active account's sync/pull because the server saw the
+     * anonymous user, which has no membership on that account).
      */
     fun clearBearerTokenCache() {
-        // In Ktor 3.x, client.plugin(Auth) returns ClientPluginInstance<AuthConfig>.
-        // providers lives on AuthConfig (via .config), not on the instance directly.
-        // BearerAuthProvider.clearToken() is Kotlin-internal — reached via JVM reflection.
         try {
-            val pluginInstance = client.plugin(Auth)
-
-            // Ktor 3.x: navigate pluginInstance -> config (AuthConfig) -> providers
-            // Ktor 2.x fallback: providers directly on the plugin instance
-            val configHolder: Any = try {
-                val getter = pluginInstance.javaClass.getMethod("getConfig")
-                getter.invoke(pluginInstance) ?: pluginInstance
-            } catch (_: NoSuchMethodException) {
-                pluginInstance
-            }
-
-            val providersField = generateSequence(configHolder.javaClass) { it.superclass }
-                .flatMap { it.declaredFields.asSequence() }
-                .firstOrNull { it.name == "providers" } ?: return
-            providersField.isAccessible = true
-            val providers = providersField.get(configHolder) as? List<*> ?: return
-
-            for (provider in providers) {
-                provider ?: continue
-                val clearMethod = generateSequence(provider.javaClass) { it.superclass }
-                    .flatMap { it.declaredMethods.asSequence() }
-                    .firstOrNull { it.name == "clearToken" } ?: continue
-                clearMethod.isAccessible = true
-                clearMethod.invoke(provider)
-            }
+            client.authProviders
+                .filterIsInstance<BearerAuthProvider>()
+                .forEach { it.clearToken() }
         } catch (e: Exception) {
             Timber.w(e, "AvagoServiceClient: failed to clear bearer token cache")
         }
