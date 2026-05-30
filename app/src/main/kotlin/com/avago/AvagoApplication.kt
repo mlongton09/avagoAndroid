@@ -32,6 +32,7 @@ import com.avago.core.sync.SyncWorker
 import com.avago.core.sync.TechLocationService
 import com.avago.feature.chat.realtime.BackgroundSyncCoordinator
 import com.avago.feature.chat.realtime.OutboxRetryCoordinator
+import dagger.Lazy
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -55,19 +56,33 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
 
 
     @Inject lateinit var workerFactory: HiltWorkerFactory
-    @Inject lateinit var identityManager: IdentityManager
-    @Inject lateinit var crashDiagnostics: CrashDiagnostics
-    @Inject lateinit var serviceClient: AvagoServiceClient
-    @Inject lateinit var configSeeder: ConfigSeeder
-    @Inject lateinit var connectivityMonitor: ConnectivityMonitor
-    @Inject lateinit var syncEngine: SyncEngine
-    @Inject lateinit var syncGate: SyncGate
-    @Inject lateinit var exchangeRateService: ExchangeRateService
-    @Inject lateinit var techLocationService: TechLocationService
-    @Inject lateinit var outboxRetryCoordinator: OutboxRetryCoordinator
-    @Inject lateinit var photoCacheSweeper: PhotoCacheSweeper
-    @Inject lateinit var deltaApplier: DeltaPushApplier
-    @Inject lateinit var chatBackgroundSync: BackgroundSyncCoordinator
+    @Inject lateinit var identityManagerLazy: Lazy<IdentityManager>
+    @Inject lateinit var crashDiagnosticsLazy: Lazy<CrashDiagnostics>
+    @Inject lateinit var serviceClientLazy: Lazy<AvagoServiceClient>
+    @Inject lateinit var configSeederLazy: Lazy<ConfigSeeder>
+    @Inject lateinit var connectivityMonitorLazy: Lazy<ConnectivityMonitor>
+    @Inject lateinit var syncEngineLazy: Lazy<SyncEngine>
+    @Inject lateinit var syncGateLazy: Lazy<SyncGate>
+    @Inject lateinit var exchangeRateServiceLazy: Lazy<ExchangeRateService>
+    @Inject lateinit var techLocationServiceLazy: Lazy<TechLocationService>
+    @Inject lateinit var outboxRetryCoordinatorLazy: Lazy<OutboxRetryCoordinator>
+    @Inject lateinit var photoCacheSweeperLazy: Lazy<PhotoCacheSweeper>
+    @Inject lateinit var deltaApplierLazy: Lazy<DeltaPushApplier>
+    @Inject lateinit var chatBackgroundSyncLazy: Lazy<BackgroundSyncCoordinator>
+
+    private val identityManager get() = identityManagerLazy.get()
+    private val crashDiagnostics get() = crashDiagnosticsLazy.get()
+    private val serviceClient get() = serviceClientLazy.get()
+    private val configSeeder get() = configSeederLazy.get()
+    private val connectivityMonitor get() = connectivityMonitorLazy.get()
+    private val syncEngine get() = syncEngineLazy.get()
+    private val syncGate get() = syncGateLazy.get()
+    private val exchangeRateService get() = exchangeRateServiceLazy.get()
+    private val techLocationService get() = techLocationServiceLazy.get()
+    private val outboxRetryCoordinator get() = outboxRetryCoordinatorLazy.get()
+    private val photoCacheSweeper get() = photoCacheSweeperLazy.get()
+    private val deltaApplier get() = deltaApplierLazy.get()
+    private val chatBackgroundSync get() = chatBackgroundSyncLazy.get()
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -83,6 +98,7 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
                 Trace.beginSection("IdentityManager.initOnLaunch")
                 identityManager.initOnLaunch()
                 Trace.endSection()
+                identityManager.registerSyncWorker(SyncWorker::class.java)
                 crashDiagnostics.setUserContext()
                 val accountId = identityManager.getActiveAccountId()
                 if (accountId != null) {
@@ -117,7 +133,6 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
             }
         }
 
-        identityManager.registerSyncWorker(SyncWorker::class.java)
         schedulePeriodicSync()
         observeConnectivityForSync()
         observeSignOutForWatermarkReset()
@@ -125,7 +140,6 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
         observePermissionsStaleness()
         observeAccountGone()
         observeAppForeground()
-
         Trace.endSection() // AvagoApplication.initCoroutines
         Trace.endSection() // AvagoApplication.onCreate
     }
