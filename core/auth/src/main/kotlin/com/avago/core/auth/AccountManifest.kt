@@ -54,6 +54,41 @@ class AccountManifest @Inject constructor(
         }
     }
 
+    /**
+     * Upsert from a server response: if the record exists, overwrite the
+     * server-authoritative fields (accountName, role, userId) but preserve
+     * locally-known fields (displayName, email, memberships). If it doesn't
+     * exist, insert as-is.
+     *
+     * Mirrors iOS fetchAndStoreAllAccounts (lines 1324-1337 of IdentityManager.swift)
+     * which starts from any existing record and only overwrites fields the
+     * server returned. Critical for fixing stale "Unknown" entries — a prior
+     * write that didn't include accountName must be upgradable when the
+     * server provides one.
+     */
+    suspend fun upsertFromServer(account: AccountRecord) = withContext(Dispatchers.IO) {
+        lock.write {
+            val current = load(appContext).toMutableList()
+            val idx = current.indexOfFirst { it.accountId == account.accountId }
+            if (idx >= 0) {
+                val existing = current[idx]
+                current[idx] = existing.copy(
+                    userId = account.userId ?: existing.userId,
+                    accountName = account.accountName ?: existing.accountName,
+                    role = account.role ?: existing.role,
+                    // memberships/displayName/email left intact unless server
+                    // explicitly supplied non-empty replacements
+                    displayName = account.displayName?.takeIf { it.isNotBlank() } ?: existing.displayName,
+                    email = account.email?.takeIf { it.isNotBlank() } ?: existing.email,
+                    memberships = account.memberships.ifEmpty { existing.memberships },
+                )
+            } else {
+                current.add(account)
+            }
+            save(appContext, current)
+        }
+    }
+
     suspend fun remove(accountId: String) = withContext(Dispatchers.IO) {
         lock.write { remove(appContext, accountId) }
     }

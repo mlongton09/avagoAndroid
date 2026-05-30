@@ -199,7 +199,7 @@ class IdentityManager @Inject constructor(
             // records alone).
             response.accounts.filter { it.account_id != accountId }.forEach { acct ->
                 Timber.d("IdentityManager: adding secondary account ${acct.account_id} (${acct.name}) to manifest")
-                accountManifest.addIfMissing(
+            accountManifest.upsertFromServer(
                     AccountRecord(
                         accountId = acct.account_id,
                         userId = user?.user_id,
@@ -246,13 +246,21 @@ class IdentityManager @Inject constructor(
                     .onFailure { Timber.w(it, "IdentityManager: validateRoleFromMembersList failed") }
             }
 
-            // Sequential: fetch all accounts (mirrors iOS fetchAndStoreAllAccounts)
+            // Sequential: fetch all accounts (mirrors iOS fetchAndStoreAllAccounts).
+            // Use upsertFromServer (not addIfMissing) so a pre-existing record
+            // with accountName=null gets upgraded with the server's name —
+            // this is how iOS keeps "Farmer mark" visible after sign-in.
             runCatching {
                 val result = client.getAllAccounts()
                 if (result is NetworkResult.Success) {
                     result.data.forEach { acct ->
-                        accountManifest.addIfMissing(
-                            AccountRecord(accountId = acct.account_id, accountName = acct.name, role = acct.role)
+                        accountManifest.upsertFromServer(
+                            AccountRecord(
+                                accountId = acct.account_id,
+                                userId = user?.user_id,
+                                accountName = acct.name,
+                                role = acct.role,
+                            )
                         )
                     }
                     _accountsChanged.tryEmit(Unit)
@@ -439,7 +447,7 @@ class IdentityManager @Inject constructor(
                     // attribute the response to the wrong user.
                     val canonicalUserId = runCatching { client.getMe() }.getOrNull()?.user_id
                     result.data.forEach { acct ->
-                        accountManifest.addIfMissing(
+                        accountManifest.upsertFromServer(
                             AccountRecord(
                                 accountId = acct.account_id,
                                 userId = canonicalUserId,
