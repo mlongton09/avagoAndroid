@@ -501,13 +501,16 @@ class SyncEngine @Inject constructor(
                         } catch (e: NetworkException) {
                             if (e.code == 403) {
                                 if (e.stalePermissions) {
-                                    Timber.w("[SyncEngine] Pull $entityType got 403 stale-permissions — refreshing cache")
-                                    val curAccountId = identity.getActiveAccountId()
-                                    if (curAccountId != null) client.notifyPermissionsStale(curAccountId)
+                                    Timber.w("[SyncEngine] Pull $entityType for $accountId got 403 stale-permissions — refreshing cache")
+                                    client.notifyPermissionsStale(accountId)
                                 } else {
-                                    Timber.w("[SyncEngine] Pull $entityType got 403 — account gone, signalling re-auth")
-                                    val curAccountId = identity.getActiveAccountId()
-                                    if (curAccountId != null) _accountGoneEvents.tryEmit(curAccountId)
+                                    // Emit the account_id whose pull just 403'd — NOT the
+                                    // active account. A stale account in the manifest
+                                    // (from a previous user / revoked membership) would
+                                    // otherwise sign out whichever account happens to be
+                                    // active, blowing away the live session.
+                                    Timber.w("[SyncEngine] Pull $entityType for $accountId got 403 — account gone, signalling re-auth")
+                                    _accountGoneEvents.tryEmit(accountId)
                                 }
                                 fatalError.compareAndSet(null, SyncResult.Failed(e))
                             } else if (e.code == 429) {
