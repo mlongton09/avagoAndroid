@@ -31,6 +31,7 @@ import com.avago.core.sync.SyncGate
 import com.avago.core.sync.SyncWorker
 import com.avago.core.sync.TechLocationService
 import com.avago.feature.chat.realtime.BackgroundSyncCoordinator
+import com.avago.feature.chat.realtime.ChatRealtimeClient
 import com.avago.feature.chat.realtime.OutboxRetryCoordinator
 import dagger.Lazy
 import dagger.hilt.android.HiltAndroidApp
@@ -69,6 +70,7 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
     @Inject lateinit var photoCacheSweeperLazy: Lazy<PhotoCacheSweeper>
     @Inject lateinit var deltaApplierLazy: Lazy<DeltaPushApplier>
     @Inject lateinit var chatBackgroundSyncLazy: Lazy<BackgroundSyncCoordinator>
+    @Inject lateinit var chatRealtimeLazy: Lazy<ChatRealtimeClient>
 
     private val identityManager get() = identityManagerLazy.get()
     private val crashDiagnostics get() = crashDiagnosticsLazy.get()
@@ -83,6 +85,7 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
     private val photoCacheSweeper get() = photoCacheSweeperLazy.get()
     private val deltaApplier get() = deltaApplierLazy.get()
     private val chatBackgroundSync get() = chatBackgroundSyncLazy.get()
+    private val chatRealtime get() = chatRealtimeLazy.get()
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -105,6 +108,10 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
                     Trace.beginSection("ConfigSeeder.seedIfNeeded")
                     configSeeder.seedIfNeeded(accountId)
                     Trace.endSection()
+                    // Open chat WebSocket so messages arrive as push events instead of
+                    // 15-minute periodic delta polls. Mirrors iOS AppBootstrapCoordinator.startChatServices.
+                    runCatching { chatRealtime.connect(accountId) }
+                        .onFailure { Timber.e(it, "AvagoApplication: chat realtime connect failed") }
                 } else {
                     Timber.w("AvagoApplication: no active account after init, skipping seed")
                 }
@@ -181,6 +188,8 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
     private fun observeSignOutForWatermarkReset() {
         appScope.launch {
             identityManager.signOutEvents.collect { accountId ->
+                runCatching { chatRealtime.disconnect() }
+                    .onFailure { Timber.e(it, "AvagoApplication: chat realtime disconnect failed") }
                 runCatching { syncEngine.resetAllWatermarks(accountId) }
                     .onFailure { Timber.e(it, "AvagoApplication: failed to reset watermarks for $accountId") }
                 syncGate.reset()
@@ -190,8 +199,10 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
 
     private fun observeSignInForRateLimitClear() {
         appScope.launch {
-            identityManager.signInEvents.collect {
+            identityManager.signInEvents.collect { accountId ->
                 syncEngine.clearRateLimitBackoff()
+                runCatching { chatRealtime.connect(accountId) }
+                    .onFailure { Timber.e(it, "AvagoApplication: chat realtime connect on sign-in failed") }
             }
         }
     }
@@ -247,6 +258,16 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
                 )
                 techLocationService.startMonitoring()
                 outboxRetryCoordinator.startPeriodicFlush()
+                // Ensure the chat WebSocket is connected on foreground (idempotent; no-op
+                // if already connected for the active account). Mirrors iOS
+                // AppBootstrapCoordinator.handleAppForeground.
+                appScope.launch {
+                    val activeId = identityManager.getActiveAccountId()
+                    if (activeId != null) {
+                        runCatching { chatRealtime.connect(activeId) }
+                            .onFailure { Timber.e(it, "AvagoApplication: chat realtime reconnect on foreground failed") }
+                    }
+                }
                 // Catch up on chat messages that arrived while backgrounded (mirrors iOS
                 // AppBootstrapCoordinator.handleAppForeground → BackgroundSyncCoordinator.runDelta).
                 // WebSocket onOpen already calls runDelta on reconnect; this covers the case
