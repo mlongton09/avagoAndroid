@@ -193,30 +193,42 @@ class IdentityManager @Inject constructor(
                 accountName = accountSummary?.name,
             )
             AccountManifest.addOrUpdate(context, record)
-            // Add any other accounts from the sign-in response that aren't already stored
+            // Add any other accounts from the sign-in response that aren't already stored.
+            // Stamp the canonical user_id so reconcileNamed can scope cleanup to
+            // records belonging to THIS user (and leave other users / anonymous
+            // records alone).
             response.accounts.filter { it.account_id != accountId }.forEach { acct ->
                 Timber.d("IdentityManager: adding secondary account ${acct.account_id} (${acct.name}) to manifest")
                 accountManifest.addIfMissing(
-                    AccountRecord(accountId = acct.account_id, accountName = acct.name, role = acct.role)
+                    AccountRecord(
+                        accountId = acct.account_id,
+                        userId = user?.user_id,
+                        accountName = acct.name,
+                        role = acct.role,
+                    )
                 )
             }
             // Reconcile the manifest against the server's authoritative account
-            // list for this user. Stale entries from a previous session (e.g.
-            // accounts the previous user belonged to, or memberships that have
-            // since been revoked) must be removed BEFORE sync workers fan out,
-            // or each stale account's sync/pull 403 will fire observeAccountGone
-            // and sign the user back out. See iOS commit 34005dd for the
-            // equivalent fix on iOS.
-            val serverAccountIds = response.accounts.map { it.account_id }.toSet()
-            val staleAccountIds = accountManifest.reconcileNamed(
-                serverAccountIds = serverAccountIds,
-                activeAccountId = accountId,
-            )
-            staleAccountIds.forEach { staleId ->
-                runCatching { tokenStore.clearTokens(staleId) }
-                    .onFailure { Timber.w(it, "IdentityManager: failed to clear tokens for stale $staleId") }
-                runCatching { databaseFactory.deleteDatabase(staleId) }
-                    .onFailure { Timber.w(it, "IdentityManager: failed to delete DB for stale $staleId") }
+            // list for THIS user. Stale entries from a previous session (e.g.
+            // memberships that have since been revoked) must be removed BEFORE
+            // sync workers fan out, or each stale account's sync/pull 403 will
+            // fire observeAccountGone. Scoped by user_id (mirrors iOS) so a
+            // parallel /accounts call returning someone else's data (stale
+            // bearer token race) doesn't wipe this user's accounts.
+            val canonicalUserId = user?.user_id
+            if (canonicalUserId != null) {
+                val serverAccountIds = response.accounts.map { it.account_id }.toSet()
+                val staleAccountIds = accountManifest.reconcileNamed(
+                    forUserId = canonicalUserId,
+                    serverAccountIds = serverAccountIds,
+                    activeAccountId = accountId,
+                )
+                staleAccountIds.forEach { staleId ->
+                    runCatching { tokenStore.clearTokens(staleId) }
+                        .onFailure { Timber.w(it, "IdentityManager: failed to clear tokens for stale $staleId") }
+                    runCatching { databaseFactory.deleteDatabase(staleId) }
+                        .onFailure { Timber.w(it, "IdentityManager: failed to delete DB for stale $staleId") }
+                }
             }
             setActiveAccount(accountId, user?.user_id, isAnonymous = false)
             _accountsChanged.tryEmit(Unit)
@@ -421,29 +433,41 @@ class IdentityManager @Inject constructor(
                 val result = client.getAllAccounts()
                 if (result is NetworkResult.Success) {
                     Timber.d("IdentityManager: fetchMyAccounts returned ${result.data.size} account(s): ${result.data.map { "${it.account_id}=${it.name}" }}")
+                    // Determine the user_id this response belongs to. Prefer the
+                    // fresh /me lookup so a stale token race (where the bearer
+                    // cache is still pointing at the previous identity) doesn't
+                    // attribute the response to the wrong user.
+                    val canonicalUserId = runCatching { client.getMe() }.getOrNull()?.user_id
                     result.data.forEach { acct ->
                         accountManifest.addIfMissing(
                             AccountRecord(
                                 accountId = acct.account_id,
+                                userId = canonicalUserId,
                                 accountName = acct.name,
                                 role = acct.role,
                             )
                         )
                     }
-                    // Reconcile against the server's authoritative list. Stale
-                    // entries (memberships revoked, or leftovers from a prior
-                    // user on this device) get pruned so sync workers don't
-                    // 403 on them and trip observeAccountGone.
-                    val serverIds = result.data.map { it.account_id }.toSet()
-                    val staleIds = accountManifest.reconcileNamed(
-                        serverAccountIds = serverIds,
-                        activeAccountId = _activeAccountId.value,
-                    )
-                    staleIds.forEach { staleId ->
-                        runCatching { tokenStore.clearTokens(staleId) }
-                            .onFailure { Timber.w(it, "IdentityManager: failed to clear tokens for stale $staleId") }
-                        runCatching { databaseFactory.deleteDatabase(staleId) }
-                            .onFailure { Timber.w(it, "IdentityManager: failed to delete DB for stale $staleId") }
+                    if (canonicalUserId != null) {
+                        // Reconcile, scoped by user_id (mirrors iOS) — only drop
+                        // entries belonging to THIS user that aren't in the
+                        // server's authoritative list. Records owned by other
+                        // users (multi-account device) and anonymous records
+                        // are preserved.
+                        val serverIds = result.data.map { it.account_id }.toSet()
+                        val staleIds = accountManifest.reconcileNamed(
+                            forUserId = canonicalUserId,
+                            serverAccountIds = serverIds,
+                            activeAccountId = _activeAccountId.value,
+                        )
+                        staleIds.forEach { staleId ->
+                            runCatching { tokenStore.clearTokens(staleId) }
+                                .onFailure { Timber.w(it, "IdentityManager: failed to clear tokens for stale $staleId") }
+                            runCatching { databaseFactory.deleteDatabase(staleId) }
+                                .onFailure { Timber.w(it, "IdentityManager: failed to delete DB for stale $staleId") }
+                        }
+                    } else {
+                        Timber.w("IdentityManager: fetchMyAccounts skipped reconcile — could not resolve user_id from /me")
                     }
                     _accountsChanged.tryEmit(Unit)
                     Timber.d("IdentityManager: prefetched ${result.data.size} account(s); manifest now has ${accountManifest.allAccounts().size}")

@@ -63,35 +63,56 @@ class AccountManifest @Inject constructor(
     }
 
     /**
-     * Reconcile the manifest against the server-authoritative set of account IDs.
+     * Reconcile the manifest against the server-authoritative set of account IDs
+     * **for the given user**.
      *
-     * Removes any non-anonymous account whose id isn't in [serverAccountIds] and
-     * isn't the [activeAccountId] (we never yank the live session out from under
-     * the user — sign-out is the caller's job if the active account is stale).
+     * Drops any record where `userId == forUserId` and the accountId isn't in
+     * [serverAccountIds]. Records belonging to a *different* user (or with no
+     * userId set — anonymous-only) and the [activeAccountId] are preserved.
      *
-     * Anonymous accounts are preserved unconditionally — they were never on the
-     * server, so the server can't tell us about them.
+     * Scoping by userId mirrors iOS AccountManifest.reconcileNamedAccounts and
+     * is critical when a parallel /accounts call uses a stale bearer token: we
+     * must NOT delete the freshly signed-in user's accounts just because the
+     * stale-token response listed someone else's account.
      *
      * Returns the list of accountIds that were removed so the caller can clear
      * their tokens / databases.
      */
     suspend fun reconcileNamed(
+        forUserId: String,
         serverAccountIds: Set<String>,
         activeAccountId: String?,
     ): List<String> = withContext(Dispatchers.IO) {
         lock.write {
             val current = load(appContext)
             val (keep, drop) = current.partition { record ->
-                record.isAnonymous ||
-                    record.accountId == activeAccountId ||
-                    record.accountId in serverAccountIds
+                // Preserve:
+                //  • anonymous records (server doesn't know about them)
+                //  • the currently active account (don't yank live session)
+                //  • records the server confirmed for this user
+                //  • records belonging to a *different* known user_id
+                // Drop:
+                //  • records owned by [forUserId] that the server didn't list
+                //  • orphan records with userId == null and not anonymous
+                //    (legacy entries from before reconcile was user-scoped —
+                //    e.g. an "Unknown" account left behind by a stale-token
+                //    /accounts response)
+                if (record.isAnonymous) return@partition true
+                if (record.accountId == activeAccountId) return@partition true
+                if (record.accountId in serverAccountIds) return@partition true
+                val owner = record.userId
+                when {
+                    owner == null -> false
+                    owner == forUserId -> false
+                    else -> true
+                }
             }
             if (drop.isEmpty()) {
                 emptyList()
             } else {
                 save(appContext, keep)
                 Timber.i(
-                    "AccountManifest: reconcile dropped ${drop.size} stale account(s): " +
+                    "AccountManifest: reconcile (user=$forUserId) dropped ${drop.size} stale account(s): " +
                         drop.joinToString { it.accountId }
                 )
                 drop.map { it.accountId }
