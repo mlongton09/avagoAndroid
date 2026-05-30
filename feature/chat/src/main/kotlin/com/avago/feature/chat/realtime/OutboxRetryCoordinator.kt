@@ -155,7 +155,7 @@ class OutboxRetryCoordinator @Inject constructor(
                         photoUrl = serverMsg.photo_url,
                         isSystem = serverMsg.is_system,
                         systemKind = serverMsg.system_kind,
-                        systemPayload = serverMsg.system_payload,
+                        systemPayload = serverMsg.system_payload?.toString(),
                         replyCount = serverMsg.reply_count,
                         latestReplyAt = serverMsg.latest_reply_at?.toEpochMillisOrNull(),
                         deliveredByCount = serverMsg.delivered_by_count,

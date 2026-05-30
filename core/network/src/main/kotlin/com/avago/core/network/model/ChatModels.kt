@@ -47,7 +47,7 @@ data class ChatMessageResponse(
     // System messages (e.g. "member_added", "thread_renamed")
     val is_system: Boolean = false,
     val system_kind: String? = null,
-    val system_payload: String? = null, // raw JSON string
+    val system_payload: JsonElement? = null, // arbitrary JSON object/value, stored as raw JSON string in DB
     // Subthread reply counts — shown as "N replies" preview beneath messages
     val reply_count: Int = 0,
     val latest_reply_at: String? = null,

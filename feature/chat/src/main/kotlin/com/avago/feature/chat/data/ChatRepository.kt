@@ -908,7 +908,7 @@ class ChatRepository @Inject constructor(
             mentionKinds = buildJsonStringArray(mention_kinds),
             isSystem = is_system,
             systemKind = system_kind,
-            systemPayload = system_payload,
+            systemPayload = system_payload?.toString(),
             replyCount = reply_count,
             latestReplyAt = latest_reply_at?.let {
                 runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull()
