@@ -62,6 +62,43 @@ class AccountManifest @Inject constructor(
         lock.write { save(appContext, emptyList()) }
     }
 
+    /**
+     * Reconcile the manifest against the server-authoritative set of account IDs.
+     *
+     * Removes any non-anonymous account whose id isn't in [serverAccountIds] and
+     * isn't the [activeAccountId] (we never yank the live session out from under
+     * the user — sign-out is the caller's job if the active account is stale).
+     *
+     * Anonymous accounts are preserved unconditionally — they were never on the
+     * server, so the server can't tell us about them.
+     *
+     * Returns the list of accountIds that were removed so the caller can clear
+     * their tokens / databases.
+     */
+    suspend fun reconcileNamed(
+        serverAccountIds: Set<String>,
+        activeAccountId: String?,
+    ): List<String> = withContext(Dispatchers.IO) {
+        lock.write {
+            val current = load(appContext)
+            val (keep, drop) = current.partition { record ->
+                record.isAnonymous ||
+                    record.accountId == activeAccountId ||
+                    record.accountId in serverAccountIds
+            }
+            if (drop.isEmpty()) {
+                emptyList()
+            } else {
+                save(appContext, keep)
+                Timber.i(
+                    "AccountManifest: reconcile dropped ${drop.size} stale account(s): " +
+                        drop.joinToString { it.accountId }
+                )
+                drop.map { it.accountId }
+            }
+        }
+    }
+
     fun deduplicateAnonymousAccounts(activeAccountId: String) {
         lock.write {
             val current = load(appContext)
