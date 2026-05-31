@@ -147,6 +147,7 @@ class ChatRepository @Inject constructor(
             is NetworkResult.Success -> {
                 val db = chatDbFactory.get(accountId)
                 db.chatMessageDao().upsertAll(result.data.messages.map { it.toEntity(accountId) })
+                writeMentionsIfPresent(accountId, result.data.messages)
                 result.data.messages.size >= limit
             }
             is NetworkResult.Error -> {
@@ -173,6 +174,7 @@ class ChatRepository @Inject constructor(
             is NetworkResult.Success -> {
                 val db = chatDbFactory.get(accountId)
                 db.chatMessageDao().upsertAll(result.data.messages.map { it.toEntity(accountId) })
+                writeMentionsIfPresent(accountId, result.data.messages)
             }
             is NetworkResult.Error -> Timber.w("syncMessages failed: ${result.message}")
             is NetworkResult.Unauthorized -> Timber.w("syncMessages: unauthorized")
@@ -251,6 +253,7 @@ class ChatRepository @Inject constructor(
             is NetworkResult.Success -> {
                 val db = chatDbFactory.get(accountId)
                 db.chatMessageDao().upsertAll(result.data.messages.map { it.toEntity(accountId) })
+                writeMentionsIfPresent(accountId, result.data.messages)
             }
             is NetworkResult.Error -> Timber.w("syncReplies failed: ${result.message}")
             is NetworkResult.Unauthorized -> Timber.w("syncReplies: unauthorized")
@@ -262,6 +265,7 @@ class ChatRepository @Inject constructor(
         return when (val result = client.sendReply(threadId, parentMessageId, body)) {
             is NetworkResult.Success -> {
                 chatDbFactory.get(accountId).chatMessageDao().upsert(result.data.toEntity(accountId))
+                writeMentionsIfPresent(accountId, listOf(result.data))
                 true
             }
             else -> false
@@ -309,31 +313,10 @@ class ChatRepository @Inject constructor(
     /** Upsert a message received via WebSocket realtime event or delta sync. */
     suspend fun handleRealtimeMessage(msg: ChatMessageResponse) {
         val accountId = identity.activeAccountId.value ?: return
-        val myUserId = identity.getActiveUserId()
         val db = chatDbFactory.get(accountId)
         val now = System.currentTimeMillis()
         db.chatMessageDao().upsert(msg.toEntity(accountId))
-        // Mirror iOS ChatStore.upsertMessage: write a mention record whenever the current
-        // user appears in mentioned_user_ids (and didn't send the message themselves).
-        if (myUserId != null
-            && msg.mentioned_user_ids.contains(myUserId)
-            && msg.author_id != myUserId
-            && msg.author?.id != myUserId
-        ) {
-            db.chatMentionDao().upsert(
-                ChatMentionEntity(
-                    mentionId = msg.message_id,
-                    threadId = msg.thread_id,
-                    messageId = msg.message_id,
-                    accountId = accountId,
-                    mentionedBy = msg.author_id ?: msg.author?.id,
-                    isRead = false,
-                    createdAt = runCatching {
-                        java.time.Instant.parse(msg.created_at).toEpochMilli()
-                    }.getOrDefault(now),
-                )
-            )
-        }
+        writeMentionsIfPresent(accountId, listOf(msg))
         db.chatThreadDao().getById(msg.thread_id)?.let { thread ->
             db.chatThreadDao().upsert(
                 thread.copy(
@@ -344,6 +327,52 @@ class ChatRepository @Inject constructor(
                     updatedAt = now,
                 )
             )
+        }
+    }
+
+    /**
+     * Writes a `mentions_of_me` row for any message in [messages] where the
+     * current user appears in `mentioned_user_ids` and is not the author.
+     *
+     * Mirrors iOS [ChatStore.upsertMessage] (Data/Chat/ChatStore.swift lines
+     * 54-69) which performs this side-effect on EVERY message upsert path
+     * (REST pull, delta sync, WebSocket realtime). Without this, the chat-tab
+     * unread @-mention badge stays at 0 until the user happens to be online
+     * with the WebSocket connected when a mention arrives — REST-pulled
+     * mentions (the common case for a freshly-launched app or after a
+     * background-sync delta) never reach `mentions_of_me`, so the pill
+     * silently fails to appear.
+     *
+     * Use this from ANY code path that upserts a [ChatMessageResponse] into
+     * the local DB. Idempotent — the mention row uses messageId as the
+     * primary key with `OnConflictStrategy.REPLACE`, so calling it for
+     * messages that already have a mention row is safe (and preserves
+     * `isRead` only via the REPLACE → consumer must call markRead before
+     * re-syncing if they care about preserving read state; in practice the
+     * server's authoritative read state is delivered via separate APIs).
+     */
+    private suspend fun writeMentionsIfPresent(accountId: String, messages: List<ChatMessageResponse>) {
+        val myUserId = identity.getActiveUserId() ?: return
+        val db = chatDbFactory.get(accountId)
+        val now = System.currentTimeMillis()
+        messages.forEach { msg ->
+            val isMentioned = msg.mentioned_user_ids.contains(myUserId)
+            val isOwnMessage = msg.author_id == myUserId || msg.author?.id == myUserId
+            if (isMentioned && !isOwnMessage) {
+                db.chatMentionDao().upsert(
+                    ChatMentionEntity(
+                        mentionId = msg.message_id,
+                        threadId = msg.thread_id,
+                        messageId = msg.message_id,
+                        accountId = accountId,
+                        mentionedBy = msg.author_id ?: msg.author?.id,
+                        isRead = false,
+                        createdAt = runCatching {
+                            java.time.Instant.parse(msg.created_at).toEpochMilli()
+                        }.getOrDefault(now),
+                    )
+                )
+            }
         }
     }
 
