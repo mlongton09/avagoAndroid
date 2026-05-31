@@ -80,6 +80,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        // Forward any thread_id extra (set by AvagoFcmService's tap
+        // PendingIntent) to MainViewModel so AvagoNavHost can navigate
+        // to the relevant chat thread after sign-in is restored.
+        forwardChatDeepLink(intent)
+
         // Trigger a full sync every time the activity resumes (foreground).
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.RESUMED) {
@@ -129,9 +134,26 @@ class MainActivity : ComponentActivity() {
                         syncState = syncState,
                         isOffline = isOffline,
                         toast = mainViewModel.toast,
+                        pendingNavRoute = mainViewModel.pendingNavRoute,
                     )
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        // The activity is launched singleTop by AvagoFcmService — a second
+        // notification tap arrives here instead of onCreate, so we need
+        // to re-forward the deep link.
+        forwardChatDeepLink(intent)
+    }
+
+    private fun forwardChatDeepLink(intent: android.content.Intent?) {
+        val threadId = intent?.getStringExtra("thread_id") ?: return
+        if (threadId.isBlank()) return
+        Timber.i("MainActivity: deep-link to chat thread $threadId")
+        mainViewModel.openChatThread(threadId)
     }
 }

@@ -139,12 +139,22 @@ fun MainScaffold(
     navController: NavHostController = rememberNavController(),
     scoutViewModel: ScoutViewModel = hiltViewModel(),
     navFlagsViewModel: NavFlagsViewModel = hiltViewModel(),
+    pendingNavRoute: kotlinx.coroutines.flow.Flow<String>? = null,
 ) {
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
     var scoutPaletteVisible by remember { mutableStateOf(false) }
     var voiceSheetVisible by remember { mutableStateOf(false) }
+
+    // Consume push-notification deep links: when AvagoFcmService taps
+    // arrive, MainViewModel posts a route on this flow, and we navigate
+    // through the same NavController used by the rest of the app.
+    androidx.compose.runtime.LaunchedEffect(pendingNavRoute, navController) {
+        pendingNavRoute?.collect { route ->
+            navController.navigate(route) { launchSingleTop = true }
+        }
+    }
 
     val chatEnabled by navFlagsViewModel.chatEnabled.collectAsState()
     val workOrdersEnabled by navFlagsViewModel.workOrdersEnabled.collectAsState()
