@@ -1154,7 +1154,7 @@ class AvagoServiceClient @Inject constructor(
     ): NetworkResult<ChatMessageResponse> =
         safeNetworkCall {
             client.post("$baseUrl/chat/threads/$threadId/messages") {
-                setBody(SendMessageRequest(body = body, photo_url = photoUrl))
+                setBody(SendMessageRequest(body_md = body, photo_url = photoUrl))
             }.body<SendMessageEnvelope>().message
         }
 
@@ -1165,7 +1165,7 @@ class AvagoServiceClient @Inject constructor(
     ): NetworkResult<ChatMessageResponse> =
         safeNetworkCall {
             client.put("$baseUrl/chat/messages/$messageId") {
-                setBody(EditMessageRequest(body = body))
+                setBody(EditMessageRequest(body_md = body))
             }.body<SendMessageEnvelope>().message
         }
 
@@ -1176,7 +1176,7 @@ class AvagoServiceClient @Inject constructor(
     ): NetworkResult<ChatMessageResponse> =
         safeNetworkCall {
             client.patch("$baseUrl/chat/messages/$messageId") {
-                setBody(EditMessageRequest(body = body))
+                setBody(EditMessageRequest(body_md = body))
             }.body()
         }
 
@@ -1223,7 +1223,7 @@ class AvagoServiceClient @Inject constructor(
     ): NetworkResult<ChatMessageResponse> =
         safeNetworkCall {
             client.post("$baseUrl/chat/threads/$threadId/messages/$messageId/replies") {
-                setBody(SendMessageRequest(body = body))
+                setBody(SendMessageRequest(body_md = body))
             }.body<SendMessageEnvelope>().message
         }
 

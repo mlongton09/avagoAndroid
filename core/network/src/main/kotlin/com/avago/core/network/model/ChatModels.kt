@@ -117,7 +117,7 @@ data class ChatThreadsEnvelope(
 
 @Serializable
 data class SendMessageRequest(
-    val body: String,
+    val body_md: String,
     val photo_url: String? = null,
     val image_urls: List<String>? = null,
     val mentions: List<ChatMentionRequest>? = null,
@@ -131,7 +131,7 @@ data class SendMessageRequest(
 
 @Serializable
 data class EditMessageRequest(
-    val body: String,
+    val body_md: String,
 )
 
 @Serializable
