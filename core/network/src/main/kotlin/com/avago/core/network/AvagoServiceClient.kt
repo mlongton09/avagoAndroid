@@ -41,6 +41,7 @@ import com.avago.core.network.model.ChatRosterEnvelope
 import com.avago.core.network.model.ChatSyncResponse
 import com.avago.core.network.model.ChatThreadResponse
 import com.avago.core.network.model.ChatThreadsEnvelope
+import com.avago.core.network.model.TeamThreadEnvelope
 import com.avago.core.network.model.LinkPreviewResponse
 import com.avago.core.network.model.CreateCycleCountRequest
 import com.avago.core.network.model.CreateGrnRequest
@@ -1345,12 +1346,13 @@ class AvagoServiceClient @Inject constructor(
             }.body()
         }
 
-    /** GET /chat/threads/team — get the team/general thread. */
+    /** GET /chat/threads/team — get the team/general thread. Server returns
+     *  `{thread: {...}, messages: {...}}`; we only need the thread metadata. */
     suspend fun getTeamThread(accountId: String): NetworkResult<ChatThreadResponse> =
         safeNetworkCall {
             client.get("$baseUrl/chat/threads/team") {
                 parameter("account_id", accountId)
-            }.body()
+            }.body<TeamThreadEnvelope>().thread
         }
 
     /** PUT /chat/threads/{threadId}/read — mark thread read. */

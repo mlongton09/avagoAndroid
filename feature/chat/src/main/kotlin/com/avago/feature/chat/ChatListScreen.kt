@@ -42,6 +42,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -294,7 +295,13 @@ fun ChatListScreen(
                         item(key = "team_shortcut") {
                             TeamRoomShortcutRow(
                                 onClick = {
-                                    uiState.teamThreadId?.let(onThreadClick) ?: viewModel.loadTeamThread()
+                                    val tid = uiState.teamThreadId
+                                    if (tid != null) {
+                                        onThreadClick(tid)
+                                    } else {
+                                        // Lazy-load then navigate when ready.
+                                        viewModel.openTeamThread(onThreadClick)
+                                    }
                                 },
                             )
                         }
@@ -446,20 +453,23 @@ private fun ThreadRowWithSwipe(
     onSectionMenu: () -> Unit,
 ) {
     val swipeState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            when (value) {
-                SwipeToDismissBoxValue.StartToEnd -> {
-                    viewModel.setFavorite(thread.threadId, !thread.isFavorite)
-                    false // don't dismiss, just toggle
-                }
-                SwipeToDismissBoxValue.EndToStart -> {
-                    viewModel.muteThread(thread.threadId, 8)
-                    false
-                }
-                else -> false
-            }
-        },
+        // Always reject the dismiss — actions fire from LaunchedEffect below so we
+        // can reliably snap the row back to Settled.
+        confirmValueChange = { false },
     )
+    LaunchedEffect(swipeState.currentValue) {
+        when (swipeState.currentValue) {
+            SwipeToDismissBoxValue.StartToEnd -> {
+                viewModel.setFavorite(thread.threadId, !thread.isFavorite)
+                swipeState.reset()
+            }
+            SwipeToDismissBoxValue.EndToStart -> {
+                viewModel.muteThread(thread.threadId, 8)
+                swipeState.reset()
+            }
+            SwipeToDismissBoxValue.Settled -> Unit
+        }
+    }
     SwipeToDismissBox(
         state = swipeState,
         backgroundContent = {

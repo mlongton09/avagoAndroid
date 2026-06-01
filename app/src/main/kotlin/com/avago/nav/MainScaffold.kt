@@ -102,7 +102,6 @@ data class BottomNavItem(
 private val bottomNavItems = listOf(
     BottomNavItem("Assets",      Icons.AutoMirrored.Filled.MenuBook, "assets_graph",      "assets.view"),
     BottomNavItem("Work Orders", Icons.Default.CalendarToday,        "workorders_graph",  "work_orders.view"),
-    BottomNavItem("Inventory",   Icons.Default.Inventory2,           InventoryRoute.List.route, "inventory.view"),
     BottomNavItem("Scout",       Icons.Default.AutoAwesome,          "scout/history",     "scout.view"),
     BottomNavItem("Chat",        Icons.AutoMirrored.Filled.Chat,     "chat",              "chat.view"),
 )

@@ -120,6 +120,11 @@ data class ChatThreadsEnvelope(
 )
 
 @Serializable
+data class TeamThreadEnvelope(
+    val thread: ChatThreadResponse,
+)
+
+@Serializable
 data class SendMessageRequest(
     val body_md: String,
     val photo_url: String? = null,

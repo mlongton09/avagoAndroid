@@ -266,6 +266,20 @@ class ChatListViewModel @Inject constructor(
         }
     }
 
+    /** Fetch the team thread if needed, then invoke [onReady] with its id. */
+    fun openTeamThread(onReady: (String) -> Unit) {
+        _teamThreadId.value?.let { onReady(it); return }
+        val accountId = identity.activeAccountId.value ?: return
+        viewModelScope.launch {
+            repository.getTeamThread(accountId)
+                .onSuccess {
+                    _teamThreadId.value = it.thread_id
+                    onReady(it.thread_id)
+                }
+                .onFailure { e -> Timber.w(e, "openTeamThread failed") }
+        }
+    }
+
     fun setFavorite(threadId: String, favorite: Boolean) {
         viewModelScope.launch {
             repository.setFavorite(threadId, favorite).onFailure { e ->
