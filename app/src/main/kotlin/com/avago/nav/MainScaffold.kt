@@ -159,6 +159,7 @@ fun MainScaffold(
     val chatEnabled by navFlagsViewModel.chatEnabled.collectAsState()
     val workOrdersEnabled by navFlagsViewModel.workOrdersEnabled.collectAsState()
     val unreadChatMentionCount by navFlagsViewModel.unreadChatMentionCount.collectAsState()
+    val upcomingMineWorkOrderCount by navFlagsViewModel.upcomingMineWorkOrderCount.collectAsState()
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -237,6 +238,7 @@ fun MainScaffold(
                         workOrdersEnabled = workOrdersEnabled,
                         chatEnabled = chatEnabled,
                         unreadChatMentionCount = unreadChatMentionCount,
+                        upcomingMineWorkOrderCount = upcomingMineWorkOrderCount,
                     )
                 }
             },
@@ -317,6 +319,7 @@ fun BottomNavBar(
     workOrdersEnabled: Boolean = true,
     chatEnabled: Boolean = true,
     unreadChatMentionCount: Int = 0,
+    upcomingMineWorkOrderCount: Int = 0,
 ) {
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.surface,
@@ -334,6 +337,11 @@ fun BottomNavBar(
         }
 
         visibleItems.forEach { item ->
+            val badgeCount = when (item.route) {
+                "chat"             -> unreadChatMentionCount
+                "workorders_graph" -> upcomingMineWorkOrderCount
+                else               -> 0
+            }
             NavigationBarItem(
                 selected = currentRoute == item.route || currentRoute?.startsWith("${item.route}/") == true,
                 onClick = {
@@ -346,11 +354,11 @@ fun BottomNavBar(
                     }
                 },
                 icon = {
-                    if (item.route == "chat" && unreadChatMentionCount > 0) {
+                    if (badgeCount > 0) {
                         BadgedBox(
                             badge = {
                                 Badge {
-                                    val label = if (unreadChatMentionCount > 99) "99+" else unreadChatMentionCount.toString()
+                                    val label = if (badgeCount > 99) "99+" else badgeCount.toString()
                                     Text(label)
                                 }
                             },

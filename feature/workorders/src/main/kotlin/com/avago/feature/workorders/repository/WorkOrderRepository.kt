@@ -27,6 +27,20 @@ class WorkOrderRepository @Inject constructor(
     suspend fun observeAll(accountId: String): Flow<List<WorkOrderEntity>> =
         dbFactory.get(accountId).workOrderDao().observeAll(accountId)
 
+    /**
+     * Reactive count of "upcoming + mine + now" work orders, used by the
+     * bottom-nav Work Orders badge (matches iOS MainTabBarController
+     * `refreshWoBadge`). The 7-day upper bound is recomputed by the caller
+     * on a ticker so the badge stays accurate as time advances.
+     */
+    suspend fun observeUpcomingMineCount(
+        accountId: String,
+        userId: String,
+        upperBoundMillis: Long,
+    ): Flow<Int> =
+        dbFactory.get(accountId).workOrderDao()
+            .observeUpcomingMineCount(accountId, userId, upperBoundMillis)
+
     suspend fun getById(accountId: String, woId: String): WorkOrderEntity? =
         dbFactory.get(accountId).workOrderDao().getById(woId)
 

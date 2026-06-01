@@ -35,4 +35,30 @@ interface WorkOrderDao {
 
     @Query("SELECT * FROM work_orders WHERE asset_id = :assetId AND deleted_at IS NULL ORDER BY created_at DESC")
     fun observeByAsset(assetId: String): Flow<List<WorkOrderEntity>>
+
+    /**
+     * Count of "upcoming + mine + now" work orders — drives the bottom-nav
+     * Work Orders badge. Mirrors iOS `UnifiedWorkOrdersRepository.upcoming(
+     * horizon: .now, scope: .mine)`:
+     *   - assigned to me
+     *   - not soft-deleted
+     *   - not in a terminal status (complete / cancelled)
+     *   - recurring_parent rows excluded (their instances surface separately)
+     *   - due_date is NULL OR ≤ `upperBoundMillis` (today + 7d) — i.e. overdue
+     *     or due in the next week
+     */
+    @Query("""
+        SELECT COUNT(*) FROM work_orders
+        WHERE account_id = :accountId
+          AND deleted_at IS NULL
+          AND assigned_to = :userId
+          AND status NOT IN ('complete', 'cancelled')
+          AND (wo_kind IS NULL OR wo_kind != 'recurring_parent')
+          AND (due_date IS NULL OR due_date <= :upperBoundMillis)
+    """)
+    fun observeUpcomingMineCount(
+        accountId: String,
+        userId: String,
+        upperBoundMillis: Long,
+    ): Flow<Int>
 }
