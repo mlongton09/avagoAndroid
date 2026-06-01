@@ -243,8 +243,10 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
             identityManager.signOutEvents.collect { accountId ->
                 runCatching { chatRealtime.disconnect() }
                     .onFailure { Timber.e(it, "AvagoApplication: chat realtime disconnect failed") }
-                runCatching { syncEngine.resetAllWatermarks(accountId) }
-                    .onFailure { Timber.e(it, "AvagoApplication: failed to reset watermarks for $accountId") }
+                // Note: per-account Room DB watermarks are wiped by
+                // IdentityManager.signOut → DatabaseFactory.deleteDatabase, so we
+                // skip syncEngine.resetAllWatermarks here to avoid a race writing
+                // to a database that's being closed/deleted.
                 syncGate.reset()
             }
         }
