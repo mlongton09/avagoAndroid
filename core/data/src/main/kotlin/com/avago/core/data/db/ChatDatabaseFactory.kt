@@ -126,6 +126,15 @@ private val CHAT_MIGRATION_5_6 = object : Migration(5, 6) {
     }
 }
 
+private val CHAT_MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("ALTER TABLE chat_messages ADD COLUMN audio_url TEXT")
+        database.execSQL("ALTER TABLE chat_messages ADD COLUMN attachment_url TEXT")
+        database.execSQL("ALTER TABLE chat_messages ADD COLUMN attachment_name TEXT")
+        database.execSQL("ALTER TABLE chat_messages ADD COLUMN attachment_size INTEGER")
+    }
+}
+
 @Singleton
 class ChatDatabaseFactory @Inject constructor(
     @ApplicationContext private val ctx: Context,
@@ -138,7 +147,13 @@ class ChatDatabaseFactory @Inject constructor(
             val dir = File(ctx.filesDir, "accounts/$accountId").apply { mkdirs() }
             Room.databaseBuilder(ctx, ChatDatabase::class.java, File(dir, "chat.db").path)
                 .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, CHAT_MIGRATION_4_5, CHAT_MIGRATION_5_6)
+                .addMigrations(
+                    MIGRATION_2_3,
+                    MIGRATION_3_4,
+                    CHAT_MIGRATION_4_5,
+                    CHAT_MIGRATION_5_6,
+                    CHAT_MIGRATION_6_7,
+                )
                 .fallbackToDestructiveMigration(dropAllTables = true)
                 .build()
         }

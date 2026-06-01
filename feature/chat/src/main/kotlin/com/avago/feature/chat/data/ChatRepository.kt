@@ -1,5 +1,6 @@
 package com.avago.feature.chat.data
 
+import android.webkit.MimeTypeMap
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.db.ChatDatabaseFactory
 import com.avago.core.data.db.entity.ChatAccountRosterEntity
@@ -31,6 +32,8 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import timber.log.Timber
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -719,6 +722,14 @@ class ChatRepository @Inject constructor(
         }
     }
 
+    suspend fun getTeamThread(accountId: String): Result<ChatThreadResponse> {
+        return when (val r = client.getTeamThread(accountId)) {
+            is NetworkResult.Success -> Result.success(r.data)
+            is NetworkResult.Error -> Result.failure(Exception(r.message))
+            is NetworkResult.Unauthorized -> Result.failure(Exception("Unauthorized"))
+        }
+    }
+
     // ---------------------------------------------------------------------------
     // Outbox — persistent send queue
     // ---------------------------------------------------------------------------
@@ -743,6 +754,55 @@ class ChatRepository @Inject constructor(
             )
         )
         return localId
+    }
+
+    suspend fun uploadAndSendMedia(
+        threadId: String,
+        bytes: ByteArray,
+        contentType: String,
+        fileName: String? = null,
+        needsReply: Boolean = false,
+    ): Result<Unit> {
+        val accountId = identity.activeAccountId.value
+            ?: return Result.failure(Exception("No active account"))
+        val db = chatDbFactory.get(accountId)
+        val safeContentType = contentType.ifBlank { "application/octet-stream" }
+        val resolvedFileName = fileName?.takeIf { it.isNotBlank() } ?: defaultUploadFileName(safeContentType)
+
+        val presignedMedia = when (val presign = client.presignChatMedia(safeContentType, bytes.size.toLong())) {
+            is NetworkResult.Success -> presign.data
+            is NetworkResult.Error -> return Result.failure(Exception(presign.message))
+            is NetworkResult.Unauthorized -> return Result.failure(Exception("Unauthorized"))
+        }
+
+        when (val upload = client.uploadChatMedia(presignedMedia.upload_url, bytes, safeContentType)) {
+            is NetworkResult.Success -> Unit
+            is NetworkResult.Error -> return Result.failure(Exception(upload.message))
+            is NetworkResult.Unauthorized -> return Result.failure(Exception("Unauthorized"))
+        }
+
+        return when (
+            val sendResult = client.sendMessage(
+                threadId = threadId,
+                body = "",
+                imageUrls = listOf(presignedMedia.media_url),
+                needsReply = needsReply.takeIf { it },
+            )
+        ) {
+            is NetworkResult.Success -> {
+                val entity = sendResult.data.toEntity(accountId).withUploadedMedia(
+                    mediaUrl = presignedMedia.media_url,
+                    contentType = safeContentType,
+                    fileName = resolvedFileName,
+                    size = bytes.size.toLong(),
+                )
+                db.chatMessageDao().upsert(entity)
+                writeMentionsIfPresent(accountId, listOf(sendResult.data))
+                Result.success(Unit)
+            }
+            is NetworkResult.Error -> Result.failure(Exception(sendResult.message))
+            is NetworkResult.Unauthorized -> Result.failure(Exception("Unauthorized"))
+        }
     }
 
     suspend fun markOutboxSent(localId: String) {
@@ -933,6 +993,13 @@ class ChatRepository @Inject constructor(
 
     private fun ChatMessageResponse.toEntity(accountId: String): ChatMessageEntity {
         val now = System.currentTimeMillis()
+        val discoveredMedia = extractMediaFields(
+            imageUrls = image_urls,
+            responseAudioUrl = audio_url,
+            responseAttachmentUrl = attachment_url,
+            responseAttachmentName = attachment_name,
+            responseAttachmentSize = attachment_size,
+        )
         return ChatMessageEntity(
             messageId = message_id,
             threadId = thread_id,
@@ -951,7 +1018,11 @@ class ChatRepository @Inject constructor(
             linkPreviewUrl = link_preview?.url,
             linkPreviewSiteName = link_preview?.site_name,
             photoUrl = photo_url,
-            imageUrls = buildJsonStringArray(image_urls),
+            imageUrls = buildJsonStringArray(discoveredMedia.imageUrls),
+            audioUrl = discoveredMedia.audioUrl,
+            attachmentUrl = discoveredMedia.attachmentUrl,
+            attachmentName = discoveredMedia.attachmentName,
+            attachmentSize = discoveredMedia.attachmentSize,
             mentionedUserIds = buildJsonStringArray(mentioned_user_ids),
             mentionKinds = buildJsonStringArray(mention_kinds),
             isSystem = is_system,
@@ -976,6 +1047,108 @@ class ChatRepository @Inject constructor(
             parentMessageId = parent_message_id,
             isPinned = is_pinned,
         )
+    }
+
+    private data class MediaFields(
+        val imageUrls: List<String>,
+        val audioUrl: String?,
+        val attachmentUrl: String?,
+        val attachmentName: String?,
+        val attachmentSize: Long?,
+    )
+
+    private fun extractMediaFields(
+        imageUrls: List<String>,
+        responseAudioUrl: String?,
+        responseAttachmentUrl: String?,
+        responseAttachmentName: String?,
+        responseAttachmentSize: Long?,
+    ): MediaFields {
+        var audioUrl = responseAudioUrl?.takeIf { it.isNotBlank() }
+        var attachmentUrl = responseAttachmentUrl?.takeIf { it.isNotBlank() }
+        var attachmentName = responseAttachmentName?.takeIf { it.isNotBlank() }
+        var attachmentSize = responseAttachmentSize
+        val normalizedImages = mutableListOf<String>()
+
+        imageUrls.filter { it.isNotBlank() }.forEach { url ->
+            val extension = urlExtension(url)
+            when {
+                audioUrl == null && extension in AUDIO_EXTENSIONS -> audioUrl = url
+                attachmentUrl == null && extension !in IMAGE_EXTENSIONS && extension !in AUDIO_EXTENSIONS -> {
+                    attachmentUrl = url
+                    if (attachmentName == null) attachmentName = fileNameFromUrl(url)
+                }
+                else -> normalizedImages += url
+            }
+        }
+
+        if (attachmentUrl != null && attachmentName == null) {
+            attachmentName = fileNameFromUrl(attachmentUrl!!)
+        }
+
+        return MediaFields(
+            imageUrls = normalizedImages,
+            audioUrl = audioUrl,
+            attachmentUrl = attachmentUrl,
+            attachmentName = attachmentName,
+            attachmentSize = attachmentSize,
+        )
+    }
+
+    private fun ChatMessageEntity.withUploadedMedia(
+        mediaUrl: String,
+        contentType: String,
+        fileName: String,
+        size: Long,
+    ): ChatMessageEntity {
+        return when {
+            isAudioMedia(mediaUrl, contentType, fileName) -> copy(
+                audioUrl = audioUrl ?: mediaUrl,
+                imageUrls = null,
+            )
+            isImageMedia(mediaUrl, contentType, fileName) -> copy(
+                imageUrls = buildJsonStringArray(listOf(mediaUrl)),
+                audioUrl = null,
+                attachmentUrl = null,
+                attachmentName = null,
+                attachmentSize = null,
+            )
+            else -> copy(
+                imageUrls = null,
+                attachmentUrl = attachmentUrl ?: mediaUrl,
+                attachmentName = attachmentName ?: fileName,
+                attachmentSize = attachmentSize ?: size,
+            )
+        }
+    }
+
+    private fun defaultUploadFileName(contentType: String): String {
+        val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(contentType)
+            ?.takeIf { it.isNotBlank() }
+            ?: "bin"
+        return "chat_upload_${System.currentTimeMillis()}.$extension"
+    }
+
+    private fun isImageMedia(url: String, contentType: String, fileName: String?): Boolean =
+        contentType.startsWith("image/") || urlExtension(fileName ?: url) in IMAGE_EXTENSIONS
+
+    private fun isAudioMedia(url: String, contentType: String, fileName: String?): Boolean =
+        contentType.startsWith("audio/") || urlExtension(fileName ?: url) in AUDIO_EXTENSIONS
+
+    private fun fileNameFromUrl(url: String): String? {
+        val raw = url.substringAfterLast('/').substringBefore('?').substringBefore('#')
+        if (raw.isBlank()) return null
+        return runCatching {
+            URLDecoder.decode(raw, StandardCharsets.UTF_8.name())
+        }.getOrDefault(raw)
+    }
+
+    private fun urlExtension(url: String): String =
+        url.substringAfterLast('.').substringBefore('?').substringBefore('#').lowercase()
+
+    companion object {
+        private val AUDIO_EXTENSIONS = setOf("m4a", "mp3", "aac", "wav", "ogg", "opus", "flac")
+        private val IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "gif", "webp", "heic", "bmp")
     }
 
 }

@@ -53,6 +53,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -72,12 +73,10 @@ import com.avago.feature.workorders.ui.sheets.RepeatsSheet
 import com.avago.feature.workorders.ui.sheets.TechPickerSheet
 import com.avago.feature.workorders.viewmodel.AuditEntry
 import com.avago.feature.workorders.viewmodel.WorkOrderDetailViewModel
-import java.text.NumberFormat
+import com.avago.core.network.model.BudgetPillResponse
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.util.Currency
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,11 +87,13 @@ fun WorkOrderDetailScreen(
     onTechClick: (techId: String) -> Unit = {},
     onAddPart: () -> Unit = {},
     onManageCostLines: () -> Unit = {},
+    onCaptureSignature: () -> Unit = {},
     onOpenChat: ((threadId: String) -> Unit)? = null,
     onLogWork: ((assetId: String?) -> Unit)? = null,
     modifier: Modifier = Modifier,
     viewModel: WorkOrderDetailViewModel = hiltViewModel(),
 ) {
+    val context = LocalContext.current
     val wo by viewModel.workOrder.collectAsStateWithLifecycle()
     val assignments by viewModel.assignments.collectAsStateWithLifecycle()
     val checklistItems by viewModel.checklistItems.collectAsStateWithLifecycle()
@@ -108,6 +109,7 @@ fun WorkOrderDetailScreen(
     val canEdit by viewModel.canEdit.collectAsStateWithLifecycle()
     val canApprove by viewModel.canApprove.collectAsStateWithLifecycle()
     val canDelete by viewModel.canDelete.collectAsStateWithLifecycle()
+    val budgetPill by viewModel.budgetPill.collectAsStateWithLifecycle()
 
     var showOverflowMenu by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -263,6 +265,20 @@ fun WorkOrderDetailScreen(
                                 onClick = {
                                     showOverflowMenu = false
                                     showRescheduleSheet = true
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.wo_export_pdf)) },
+                                onClick = {
+                                    showOverflowMenu = false
+                                    viewModel.exportPdf(context)
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.wo_detail_capture_signature)) },
+                                onClick = {
+                                    showOverflowMenu = false
+                                    onCaptureSignature()
                                 },
                             )
                             if (canDelete) {
@@ -538,6 +554,11 @@ fun WorkOrderDetailScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
+                    BudgetPillCard(budgetPill = budgetPill)
+                    if (budgetPill != null) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+
                     // ── Dispatcher notes ──
                     DetailSection(title = stringResource(R.string.wo_detail_section_dispatcher)) {
                         OutlinedTextField(
@@ -627,6 +648,25 @@ fun WorkOrderDetailScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun BudgetPillCard(budgetPill: BudgetPillResponse?) {
+    if (budgetPill == null) return
+    DetailSection(title = stringResource(R.string.wo_budget_pill_title)) {
+        LabeledRow(
+            stringResource(R.string.wo_budget_labor),
+            formatCurrency(budgetPill.labor_cost, budgetPill.currency),
+        )
+        LabeledRow(
+            stringResource(R.string.wo_budget_parts),
+            formatCurrency(budgetPill.parts_cost, budgetPill.currency),
+        )
+        LabeledRow(
+            stringResource(R.string.wo_budget_total),
+            formatCurrency(budgetPill.total_cost, budgetPill.currency),
+        )
     }
 }
 

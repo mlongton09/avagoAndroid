@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -90,6 +91,7 @@ fun AssetListScreen(
     val showOnboarding by onboardingViewModel.showBanner.collectAsStateWithLifecycle()
     val showQuotes by onboardingViewModel.showQuotes.collectAsStateWithLifecycle()
     val canCreateAsset by viewModel.canCreateAsset.collectAsStateWithLifecycle()
+    val openWoCounts by viewModel.openWoCounts.collectAsStateWithLifecycle()
 
     var showFilterMenu by remember { mutableStateOf(false) }
 
@@ -221,6 +223,7 @@ fun AssetListScreen(
                                 is AssetEntity -> {
                                     AssetRow(
                                         asset = item,
+                                        openWoCount = openWoCounts[item.assetId] ?: 0,
                                         onClick = { onAssetClick(item.assetId) },
                                         onLongClick = { onAssetLongPress(item.assetId) },
                                     )
@@ -355,6 +358,7 @@ private fun AssetSectionHeader(typeKey: String) {
 @Composable
 private fun AssetRow(
     asset: AssetEntity,
+    openWoCount: Int = 0,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -367,11 +371,30 @@ private fun AssetRow(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AssetAvatar(
-            initial = asset.avatarInitial ?: asset.name.firstOrNull()?.uppercaseChar()?.toString() ?: "A",
-            assetType = asset.assetType,
-            size = 40,
-        )
+        Box {
+            AssetAvatar(
+                initial = asset.avatarInitial ?: asset.name.firstOrNull()?.uppercaseChar()?.toString() ?: "A",
+                assetType = asset.assetType,
+                size = 40,
+            )
+            if (openWoCount > 0) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = 6.dp, y = (-4).dp)
+                        .size(18.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.error),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = if (openWoCount > 99) "99+" else openWoCount.toString(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onError,
+                    )
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.width(12.dp))
 

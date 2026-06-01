@@ -5,6 +5,7 @@ import com.avago.core.data.db.ChatDatabaseFactory
 import com.avago.core.data.db.entity.ChatMessageEntity
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
+import com.avago.core.network.model.ChatMessageResponse
 import com.avago.core.sync.ApplicationScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -13,6 +14,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import timber.log.Timber
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
@@ -104,10 +108,21 @@ class OutboxRetryCoordinator @Inject constructor(
      * to deliver it to the server. On failure, marks it `"failed"` for retry.
      * Returns the locally-generated [messageId].
      */
-    suspend fun send(accountId: String, threadId: String, body: String): String {
+    suspend fun send(
+        accountId: String,
+        threadId: String,
+        body: String,
+        imageUrls: List<String>? = null,
+        needsReply: Boolean = false,
+        audioUrl: String? = null,
+        attachmentUrl: String? = null,
+        attachmentName: String? = null,
+        attachmentSize: Long? = null,
+    ): String {
         val messageId = UUID.randomUUID().toString()
         val senderId = identity.activeUserId.value ?: ""
         val now = System.currentTimeMillis()
+        val normalizedImageUrls = imageUrls.orEmpty().filter { it.isNotBlank() }
 
         val db = chatDbFactory.get(accountId)
         db.chatMessageDao().upsert(
@@ -125,6 +140,12 @@ class OutboxRetryCoordinator @Inject constructor(
                 linkPreviewImageUrl = null,
                 linkPreviewUrl = null,
                 photoUrl = null,
+                imageUrls = buildJsonStringArray(normalizedImageUrls),
+                audioUrl = audioUrl,
+                attachmentUrl = attachmentUrl,
+                attachmentName = attachmentName,
+                attachmentSize = attachmentSize,
+                needsReply = needsReply,
                 outboxStatus = "sending",
                 serverVersion = 0,
                 deletedAt = null,
@@ -133,9 +154,22 @@ class OutboxRetryCoordinator @Inject constructor(
             )
         )
 
-        when (val result = client.sendMessage(threadId, body)) {
+        when (
+            val result = client.sendMessage(
+                threadId = threadId,
+                body = body,
+                imageUrls = buildServerImageUrls(normalizedImageUrls, audioUrl, attachmentUrl).takeIf { it.isNotEmpty() },
+                needsReply = needsReply.takeIf { it },
+            )
+        ) {
             is NetworkResult.Success -> {
-                val serverMsg = result.data
+                val serverMsg = result.data.withFallbackMedia(
+                    imageUrls = normalizedImageUrls,
+                    audioUrl = audioUrl,
+                    attachmentUrl = attachmentUrl,
+                    attachmentName = attachmentName,
+                    attachmentSize = attachmentSize,
+                )
                 db.chatMessageDao().upsert(
                     ChatMessageEntity(
                         messageId = serverMsg.message_id,
@@ -153,6 +187,11 @@ class OutboxRetryCoordinator @Inject constructor(
                         linkPreviewUrl = serverMsg.link_preview?.url,
                         linkPreviewSiteName = serverMsg.link_preview?.site_name,
                         photoUrl = serverMsg.photo_url,
+                        imageUrls = buildJsonStringArray(serverMsg.image_urls),
+                        audioUrl = serverMsg.audio_url,
+                        attachmentUrl = serverMsg.attachment_url,
+                        attachmentName = serverMsg.attachment_name,
+                        attachmentSize = serverMsg.attachment_size,
                         isSystem = serverMsg.is_system,
                         systemKind = serverMsg.system_kind,
                         systemPayload = serverMsg.system_payload?.toString(),
@@ -197,15 +236,37 @@ class OutboxRetryCoordinator @Inject constructor(
         var backoffMs = 2_000L
         val db = chatDbFactory.get(accountId)
         db.chatMessageDao().updateOutboxStatus(msg.messageId, "sending")
+        val localImageUrls = Json.decodeFromString<List<String>>(msg.imageUrls ?: "[]")
+        val payloadImageUrls = buildServerImageUrls(localImageUrls, msg.audioUrl, msg.attachmentUrl)
 
         repeat(5) { attempt ->
-            when (val result = client.sendMessage(msg.threadId, msg.bodyMd)) {
+            when (
+                val result = client.sendMessage(
+                    threadId = msg.threadId,
+                    body = msg.bodyMd,
+                    imageUrls = payloadImageUrls.takeIf { it.isNotEmpty() },
+                    needsReply = msg.needsReply.takeIf { it },
+                )
+            ) {
                 is NetworkResult.Success -> {
-                    val serverMsg = result.data
+                    val serverMsg = result.data.withFallbackMedia(
+                        imageUrls = localImageUrls,
+                        audioUrl = msg.audioUrl,
+                        attachmentUrl = msg.attachmentUrl,
+                        attachmentName = msg.attachmentName,
+                        attachmentSize = msg.attachmentSize,
+                    )
                     db.chatMessageDao().upsert(
                         msg.copy(
                             messageId = serverMsg.message_id,
                             senderId = serverMsg.author_id ?: serverMsg.author?.id ?: msg.senderId,
+                            senderAvatarUrl = serverMsg.author?.avatar_url,
+                            photoUrl = serverMsg.photo_url,
+                            imageUrls = buildJsonStringArray(serverMsg.image_urls),
+                            audioUrl = serverMsg.audio_url,
+                            attachmentUrl = serverMsg.attachment_url,
+                            attachmentName = serverMsg.attachment_name,
+                            attachmentSize = serverMsg.attachment_size,
                             senderName = serverMsg.author?.display_name,
                             bodyMd = serverMsg.body_md,
                             bodyPreview = serverMsg.body_md.take(120),
@@ -238,6 +299,42 @@ class OutboxRetryCoordinator @Inject constructor(
 
         db.chatMessageDao().updateOutboxStatus(msg.messageId, "failed")
         Timber.e("OutboxRetry: giving up on ${msg.messageId} after 5 attempts")
+    }
+
+    private fun buildJsonStringArray(values: List<String>): String? =
+        values.takeIf { it.isNotEmpty() }?.let(Json::encodeToString)
+
+    private fun buildServerImageUrls(
+        imageUrls: List<String>,
+        audioUrl: String?,
+        attachmentUrl: String?,
+    ): List<String> = buildList {
+        addAll(imageUrls)
+        audioUrl?.takeIf { it.isNotBlank() }?.let(::add)
+        attachmentUrl?.takeIf { it.isNotBlank() }?.let(::add)
+    }
+
+    private fun ChatMessageResponse.withFallbackMedia(
+        imageUrls: List<String>,
+        audioUrl: String?,
+        attachmentUrl: String?,
+        attachmentName: String?,
+        attachmentSize: Long?,
+    ): ChatMessageResponse = copy(
+        image_urls = if (this.image_urls.isNotEmpty()) this.image_urls.filter(::isImageUrl) else imageUrls,
+        audio_url = this.audio_url ?: audioUrl,
+        attachment_url = this.attachment_url ?: attachmentUrl,
+        attachment_name = this.attachment_name ?: attachmentName ?: attachmentUrl?.substringAfterLast('/'),
+        attachment_size = this.attachment_size ?: attachmentSize,
+    )
+
+    private fun isImageUrl(url: String): Boolean = urlExtension(url) in IMAGE_EXTENSIONS
+
+    private fun urlExtension(url: String): String =
+        url.substringAfterLast('.').substringBefore('?').substringBefore('#').lowercase()
+
+    companion object {
+        private val IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "gif", "webp", "heic", "bmp")
     }
 }
 

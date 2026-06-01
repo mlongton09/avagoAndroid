@@ -1,8 +1,16 @@
 package com.avago.feature.workorders.viewmodel
 
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
+import android.graphics.Paint
+import android.graphics.Typeface
+import android.graphics.pdf.PdfDocument
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.core.content.FileProvider
+import com.avago.core.data.Formatters
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.db.entity.WoAssignmentEntity
 import com.avago.core.data.db.entity.WoChecklistItemEntity
@@ -18,6 +26,7 @@ import com.avago.feature.workorders.model.WoStatus
 import com.avago.feature.workorders.repository.WorkOrderRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -28,7 +37,9 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import timber.log.Timber
+import java.io.File
 import java.util.UUID
 import javax.inject.Inject
 
@@ -524,6 +535,37 @@ class WorkOrderDetailViewModel @Inject constructor(
         }
     }
 
+    fun exportPdf(context: Context) {
+        val currentWo = workOrder.value ?: return
+        val currentAssignments = assignments.value
+        viewModelScope.launch {
+            try {
+                val file = withContext(Dispatchers.IO) {
+                    createWorkOrderPdf(context, currentWo, currentAssignments)
+                }
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "application/pdf"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                val chooser = Intent.createChooser(
+                    shareIntent,
+                    context.getString(com.avago.feature.workorders.R.string.wo_pdf_share_chooser),
+                ).apply {
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    if (context !is Activity) {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                }
+                context.startActivity(chooser)
+            } catch (e: Exception) {
+                Timber.e(e, "[WoDetailVM] exportPdf failed")
+                _error.value = "Failed to export PDF"
+            }
+        }
+    }
+
     // ---------------------------------------------------------------------------
     // Recurrence
     // ---------------------------------------------------------------------------
@@ -609,4 +651,112 @@ class WorkOrderDetailViewModel @Inject constructor(
         resolveWorkOrderThread()
         loadBudgetPill()
     }
+}
+
+private fun createWorkOrderPdf(
+    context: Context,
+    workOrder: WorkOrderEntity,
+    assignments: List<WoAssignmentEntity>,
+): File {
+    val document = PdfDocument()
+    val pageInfo = PdfDocument.PageInfo.Builder(612, 792, 1).create()
+    val page = document.startPage(pageInfo)
+    val canvas = page.canvas
+    val width = pageInfo.pageWidth.toFloat()
+    val margin = 40f
+    val contentWidth = width - (margin * 2)
+
+    val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textSize = 22f
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+    }
+    val sectionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textSize = 14f
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+    }
+    val bodyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textSize = 12f
+    }
+    val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textSize = 12f
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+    }
+
+    var y = 60f
+    y = drawWrappedPdfText(canvas, workOrder.title, margin, y, contentWidth, titlePaint) + 16f
+    workOrder.description?.takeIf { it.isNotBlank() }?.let { description ->
+        y = drawWrappedPdfText(canvas, description, margin, y, contentWidth, bodyPaint) + 18f
+    }
+
+    val detailRows = listOf(
+        "Status" to (workOrder.status?.replace('_', ' ')?.replaceFirstChar { it.uppercase() } ?: "—"),
+        "Priority" to (workOrder.priority?.replaceFirstChar { it.uppercase() } ?: "—"),
+        "Due Date" to (workOrder.dueDate?.let { java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault()).toLocalDate().toString() } ?: "—"),
+        "Total Cost" to (workOrder.totalCost?.let { Formatters.formatCurrency(it, workOrder.currency) } ?: "—"),
+    )
+    detailRows.forEach { (label, value) ->
+        canvas.drawText("$label:", margin, y, labelPaint)
+        y = drawWrappedPdfText(canvas, value, margin + 110f, y, contentWidth - 110f, bodyPaint)
+        y += 16f
+    }
+
+    canvas.drawText("Assignments", margin, y, sectionPaint)
+    y += 18f
+    if (assignments.isEmpty()) {
+        y = drawWrappedPdfText(canvas, "Unassigned", margin, y, contentWidth, bodyPaint) + 8f
+    } else {
+        assignments.forEach { assignment ->
+            y = drawWrappedPdfText(
+                canvas,
+                "• ${assignment.technicianId}",
+                margin,
+                y,
+                contentWidth,
+                bodyPaint,
+            ) + 6f
+        }
+    }
+
+    document.finishPage(page)
+    val file = File(context.cacheDir, "wo_${workOrder.woId}.pdf")
+    file.outputStream().use(document::writeTo)
+    document.close()
+    return file
+}
+
+private fun drawWrappedPdfText(
+    canvas: android.graphics.Canvas,
+    text: String,
+    x: Float,
+    y: Float,
+    maxWidth: Float,
+    paint: Paint,
+): Float {
+    var currentY = y
+    text.split('\n').forEach { paragraph ->
+        var remaining = paragraph.trim()
+        if (remaining.isEmpty()) {
+            currentY += paint.textSize + 4f
+        } else {
+            while (remaining.isNotEmpty()) {
+                val count = paint.breakText(remaining, true, maxWidth, null)
+                var line = remaining.take(count).trimEnd()
+                val nextIndex = (if (count < remaining.length) {
+                    val lastSpace = line.lastIndexOf(' ')
+                    if (lastSpace > 0) {
+                        line = line.take(lastSpace)
+                        lastSpace
+                    } else {
+                        count
+                    }
+                } else {
+                    count
+                }).coerceAtLeast(1)
+                canvas.drawText(line, x, currentY, paint)
+                currentY += paint.textSize + 4f
+                remaining = remaining.drop(nextIndex).trimStart()
+            }
+        }
+    }
+    return currentY
 }

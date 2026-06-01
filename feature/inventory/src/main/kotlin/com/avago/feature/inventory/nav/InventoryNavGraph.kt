@@ -14,6 +14,8 @@ import com.avago.feature.inventory.parts.InventoryCategoryPickerScreen
 import com.avago.feature.inventory.parts.InventoryListScreen
 import com.avago.feature.inventory.parts.InventoryPickerScreen
 import com.avago.feature.inventory.parts.PartDetailScreen
+import com.avago.feature.inventory.parts.StockingLevelsScreen
+import com.avago.feature.inventory.purchaseorders.GrnListScreen
 import com.avago.feature.inventory.purchaseorders.PurchaseOrderDetailScreen
 import com.avago.feature.inventory.purchaseorders.PurchaseOrderListScreen
 import com.avago.feature.inventory.purchaseorders.PurchaseOrderCreateScreen
@@ -41,6 +43,8 @@ sealed class InventoryRoute(val route: String) {
     object WarehouseIssue : InventoryRoute("inventory/warehouse/issue")
     object WarehouseMove : InventoryRoute("inventory/warehouse/move")
     object WarehouseReorder : InventoryRoute("inventory/warehouse/reorder")
+    object GrnList : InventoryRoute("inventory/grns")
+    object StockingLevels : InventoryRoute("inventory/stocking-levels")
     object CycleCountList : InventoryRoute("inventory/cycle-counts")
 
     object PartDetail : InventoryRoute("inventory/parts/{partId}") {
@@ -216,6 +220,8 @@ fun NavGraphBuilder.inventoryNavGraph(navController: NavHostController) {
                 onIssue = { navController.navigate(InventoryRoute.WarehouseIssue.route) },
                 onMove = { navController.navigate(InventoryRoute.WarehouseMove.route) },
                 onReorder = { navController.navigate(InventoryRoute.WarehouseReorder.route) },
+                onGrnList = { navController.navigate(InventoryRoute.GrnList.route) },
+                onStockingLevels = { navController.navigate(InventoryRoute.StockingLevels.route) },
             )
         }
         composable(InventoryRoute.WarehouseReceive.route) {
@@ -231,6 +237,17 @@ fun NavGraphBuilder.inventoryNavGraph(navController: NavHostController) {
             WarehouseReorderScreen(
                 onBack = { navController.popBackStack() },
                 onCreatePo = { navController.navigate(InventoryRoute.CreateEditPurchaseOrder.build()) },
+            )
+        }
+        composable(InventoryRoute.GrnList.route) {
+            GrnListScreen(
+                onBack = { navController.popBackStack() },
+                onGrnClick = { },
+            )
+        }
+        composable(InventoryRoute.StockingLevels.route) {
+            StockingLevelsScreen(
+                onBack = { navController.popBackStack() },
             )
         }
 

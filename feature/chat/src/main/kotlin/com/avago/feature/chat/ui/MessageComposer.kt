@@ -1,6 +1,8 @@
 package com.avago.feature.chat.ui
 
+import android.content.Intent
 import android.net.Uri
+import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -20,9 +22,12 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.TextFormat
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -39,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
@@ -74,6 +80,8 @@ fun MessageComposer(
     modifier: Modifier = Modifier,
     initialText: String = "",
     onImageSelected: ((String) -> Unit)? = null,
+    onFileSelected: ((Uri) -> Unit)? = null,
+    onVoiceResult: ((String) -> Unit)? = null,
     onTyping: (() -> Unit)? = null,
     onTextChanged: ((String) -> Unit)? = null,
     replyingToMessage: ChatMessageEntity? = null,
@@ -81,6 +89,8 @@ fun MessageComposer(
     linkPreview: LinkPreviewResponse? = null,
     onUrlDetected: ((String?) -> Unit)? = null,
     onDismissLinkPreview: (() -> Unit)? = null,
+    needsReply: Boolean = false,
+    onNeedsReplyToggle: (() -> Unit)? = null,
 ) {
     var fieldValue by remember { mutableStateOf(TextFieldValue(initialText)) }
     var mentionQuery by remember { mutableStateOf<String?>(null) }
@@ -93,6 +103,30 @@ fun MessageComposer(
         contract = ActivityResultContracts.PickVisualMedia(),
     ) { uri ->
         uri?.let { onImageSelected?.invoke(it.toString()) }
+    }
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        uri?.let { onFileSelected?.invoke(it) }
+    }
+    val speechLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        val transcript = result.data
+            ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            ?.firstOrNull()
+            ?.trim()
+            .orEmpty()
+        if (transcript.isNotBlank()) {
+            val updated = fieldValue.insertAtCursor(transcript)
+            fieldValue = updated
+            mentionQuery = detectMentionQuery(updated.text, updated.selection.end)
+            onTyping?.invoke()
+            onTextChanged?.invoke(updated.text)
+            val foundUrl = Regex("https?://[^\\s]+").find(updated.text)?.value
+            onUrlDetected?.invoke(if (foundUrl != updated.text.trim()) foundUrl else null)
+            onVoiceResult?.invoke(transcript)
+        }
     }
 
     // Camera capture
@@ -114,19 +148,6 @@ fun MessageComposer(
     val editingId = editingMessage?.messageId
     remember(editingId) {
         if (editingMessage != null) fieldValue = TextFieldValue(editingMessage.bodyMd)
-    }
-
-    fun detectMentionQuery(text: String, cursor: Int): String? {
-        var i = cursor - 1
-        val sb = StringBuilder()
-        while (i >= 0) {
-            val ch = text[i]
-            if (ch == '@') return sb.toString()
-            if (ch == ' ' || ch == '\n') return null
-            sb.insert(0, ch)
-            i--
-        }
-        return null
     }
 
     Column(modifier = modifier.imePadding()) {
@@ -296,6 +317,36 @@ fun MessageComposer(
                 )
             }
 
+            IconButton(onClick = { filePickerLauncher.launch(arrayOf("*/*")) }) {
+                Icon(
+                    imageVector = Icons.Default.AttachFile,
+                    contentDescription = "Attach file",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            IconButton(
+                onClick = {
+                    runCatching {
+                        speechLauncher.launch(
+                            Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                putExtra(
+                                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
+                                )
+                                putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak now")
+                            },
+                        )
+                    }
+                },
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Mic,
+                    contentDescription = "Voice dictation",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
             // Formatting toggle
             IconButton(onClick = { showFormatting = !showFormatting }) {
                 Icon(
@@ -348,6 +399,18 @@ fun MessageComposer(
 
             Spacer(modifier = Modifier.width(8.dp))
 
+            IconButton(
+                onClick = { onNeedsReplyToggle?.invoke() },
+                enabled = onNeedsReplyToggle != null,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Flag,
+                    contentDescription = "Needs reply",
+                    tint = if (needsReply) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
             // Send button
             IconButton(
                 onClick = {
@@ -372,6 +435,31 @@ fun MessageComposer(
             }
         }
     }
+}
+
+private fun TextFieldValue.insertAtCursor(insertedText: String): TextFieldValue {
+    val start = selection.start.coerceAtLeast(0)
+    val end = selection.end.coerceAtLeast(start)
+    val updatedText = buildString {
+        append(text.substring(0, start))
+        append(insertedText)
+        append(text.substring(end))
+    }
+    val newCursor = start + insertedText.length
+    return copy(text = updatedText, selection = TextRange(newCursor))
+}
+
+private fun detectMentionQuery(text: String, cursor: Int): String? {
+    var i = cursor - 1
+    val sb = StringBuilder()
+    while (i >= 0) {
+        val ch = text[i]
+        if (ch == '@') return sb.toString()
+        if (ch == ' ' || ch == '\n') return null
+        sb.insert(0, ch)
+        i--
+    }
+    return null
 }
 
 /** Compact link preview card shown above the composer while typing a URL. */

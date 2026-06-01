@@ -114,6 +114,12 @@ class AddEditAssetViewModel @Inject constructor(
     private val _form = MutableStateFlow(AssetFormState())
     val form: StateFlow<AssetFormState> = _form.asStateFlow()
 
+    private val _isVinDecoding = MutableStateFlow(false)
+    val isVinDecoding: StateFlow<Boolean> = _isVinDecoding.asStateFlow()
+
+    private val _vinDecodeError = MutableStateFlow<String?>(null)
+    val vinDecodeError: StateFlow<String?> = _vinDecodeError.asStateFlow()
+
     /** Non-null when editing an existing asset. */
     private var editingAssetId: String? = null
 
@@ -193,6 +199,42 @@ class AddEditAssetViewModel @Inject constructor(
     /** Called when a VIN barcode is scanned externally. */
     fun onVinScanned(scanned: String) {
         _form.value = _form.value.copy(vinSerial = scanned)
+    }
+
+    fun decodeVin() {
+        val vin = _form.value.vinSerial.trim()
+        if (vin.isBlank()) return
+        _isVinDecoding.value = true
+        _vinDecodeError.value = null
+        viewModelScope.launch {
+            try {
+                val accountId = identityManager.getActiveAccountId()
+                if (accountId == null) {
+                    _vinDecodeError.value = "No active account"
+                    return@launch
+                }
+                when (val result = serviceClient.decodeVin(accountId, vin)) {
+                    is NetworkResult.Success -> {
+                        val decoded = result.data
+                        var updated = _form.value
+                        decoded.make?.takeIf { it.isNotBlank() }?.let { updated = updated.copy(make = it) }
+                        decoded.model?.takeIf { it.isNotBlank() }?.let { updated = updated.copy(model = it) }
+                        if (decoded.year != null) updated = updated.copy(year = decoded.year.toString())
+                        _form.value = updated
+                    }
+                    is NetworkResult.Error -> _vinDecodeError.value = result.message
+                    is NetworkResult.Unauthorized -> _vinDecodeError.value = "Unauthorized"
+                }
+            } catch (e: Exception) {
+                _vinDecodeError.value = e.message ?: "VIN decode failed"
+            } finally {
+                _isVinDecoding.value = false
+            }
+        }
+    }
+
+    fun clearVinDecodeError() {
+        _vinDecodeError.value = null
     }
 
     // ---------------------------------------------------------------------------

@@ -33,6 +33,8 @@ fun WarehouseMenuScreen(
     onIssue: () -> Unit,
     onMove: () -> Unit,
     onReorder: () -> Unit,
+    onGrnList: () -> Unit,
+    onStockingLevels: () -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -70,6 +72,20 @@ fun WarehouseMenuScreen(
                     title = stringResource(R.string.warehouse_reorder_card),
                     description = stringResource(R.string.warehouse_reorder_desc),
                     onClick = onReorder,
+                )
+            }
+            item {
+                WarehouseActionCard(
+                    title = stringResource(R.string.warehouse_grn_history_card),
+                    description = stringResource(R.string.warehouse_grn_history_desc),
+                    onClick = onGrnList,
+                )
+            }
+            item {
+                WarehouseActionCard(
+                    title = stringResource(R.string.warehouse_stocking_levels_card),
+                    description = stringResource(R.string.warehouse_stocking_levels_desc),
+                    onClick = onStockingLevels,
                 )
             }
         }

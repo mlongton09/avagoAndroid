@@ -26,9 +26,6 @@ import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
 
-/** Statuses that count as "open" for the work-order pill on each asset row (mirrors iOS). */
-private val OPEN_WO_STATUSES = setOf("open", "assigned", "in_progress", "on_hold", "pending_parts")
-
 @HiltViewModel
 class AssetListViewModel @Inject constructor(
     private val repository: AssetRepository,
@@ -119,21 +116,18 @@ class AssetListViewModel @Inject constructor(
      * AssetsListViewController that drives the pill badge on each asset cell.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val openWoCountsByAsset: StateFlow<Map<String, Int>> = identityManager.activeAccountId
+    val openWoCounts: StateFlow<Map<String, Int>> = identityManager.activeAccountId
         .flatMapLatest { accountId ->
             if (accountId == null) {
                 flowOf(emptyMap())
             } else {
                 try {
-                    dbFactory.get(accountId).workOrderDao().observeAll(accountId)
-                        .map { wos ->
-                            wos
-                                .filter { it.status in OPEN_WO_STATUSES && it.assetId != null }
-                                .groupBy { it.assetId!! }
-                                .mapValues { (_, list) -> list.size }
+                    dbFactory.get(accountId).workOrderDao().observeOpenCountsByAccount(accountId)
+                        .map { counts ->
+                            counts.associate { it.assetId to it.count }
                         }
                         .catch { e ->
-                            Timber.e(e, "[AssetListViewModel] openWoCountsByAsset flow error")
+                            Timber.e(e, "[AssetListViewModel] openWoCounts flow error")
                             emit(emptyMap())
                         }
                 } catch (e: Exception) {
@@ -143,7 +137,7 @@ class AssetListViewModel @Inject constructor(
             }
         }
         .catch { e ->
-            Timber.e(e, "[AssetListViewModel] openWoCountsByAsset outer flow error")
+            Timber.e(e, "[AssetListViewModel] openWoCounts outer flow error")
             emit(emptyMap())
         }
         .stateIn(

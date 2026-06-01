@@ -34,6 +34,7 @@ import com.avago.feature.assets.ui.CostReportScreen
 import com.avago.feature.assets.ui.WheelConfigBuilderScreen
 import com.avago.feature.assets.ui.WheelConfigScreen
 import com.avago.feature.assets.ui.WheelDataInputScreen
+import com.avago.feature.assets.viewmodel.WheelSaveViewModel
 
 /**
  * Type-safe route constants for the assets feature.
@@ -162,7 +163,7 @@ fun NavGraphBuilder.assetsNavGraph(
                     navController.navigate(AssetsRoute.notesFullScreen(assetId, "asset", initialText))
                 },
                 onOpenWheelConfig = {
-                    navController.navigate(AssetsRoute.wheelConfigBuilder(assetId))
+                    navController.navigate(AssetsRoute.wheelConfig(assetId))
                 },
                 onOpenWheelDataInput = {
                     navController.navigate(AssetsRoute.wheelDataInput(assetId))
@@ -377,8 +378,13 @@ fun NavGraphBuilder.assetsNavGraph(
             route = AssetsRoute.WHEEL_CONFIG,
             arguments = listOf(navArgument("assetId") { type = NavType.StringType }),
         ) {
+            val viewModel: WheelSaveViewModel = hiltViewModel()
             WheelConfigScreen(
-                onSave = { _, _, _, _, _ -> navController.popBackStack() },
+                onSave = { position, tireSize, rimSize, brand, notes ->
+                    viewModel.saveWheelConfig(position, tireSize, rimSize, brand, notes) {
+                        navController.popBackStack()
+                    }
+                },
                 onBack = { navController.popBackStack() },
             )
         }
@@ -409,8 +415,19 @@ fun NavGraphBuilder.assetsNavGraph(
             route = AssetsRoute.WHEEL_DATA_INPUT,
             arguments = listOf(navArgument("assetId") { type = NavType.StringType }),
         ) {
+            val viewModel: WheelSaveViewModel = hiltViewModel()
             WheelDataInputScreen(
-                onSave = { _, _, _, _, _ -> navController.popBackStack() },
+                onSave = { treadDepthMm, tirePressurePsi, lastInspectionMs, nextInspectionMs, condition ->
+                    viewModel.saveWheelData(
+                        treadDepthMm = treadDepthMm,
+                        tirePressurePsi = tirePressurePsi,
+                        lastInspectionMs = lastInspectionMs,
+                        nextInspectionMs = nextInspectionMs,
+                        condition = condition,
+                    ) {
+                        navController.popBackStack()
+                    }
+                },
                 onBack = { navController.popBackStack() },
             )
         }

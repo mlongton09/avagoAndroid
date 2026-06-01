@@ -50,6 +50,15 @@
         <receiver
             android:name=".push.QuickReplyReceiver"
             android:exported="false" />
+        <receiver
+            android:name=".push.MarkReadReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".push.ReactReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".push.MuteReceiver"
+            android:exported="false" />
 
         <!-- Sync foreground service -->
         <service

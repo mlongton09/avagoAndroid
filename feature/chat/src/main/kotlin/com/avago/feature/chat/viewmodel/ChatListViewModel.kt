@@ -27,6 +27,7 @@ data class ChatListUiState(
     val isRefreshing: Boolean = false,
     val unreadMentionCount: Int = 0,
     val syncError: String? = null,
+    val teamThreadId: String? = null,
 )
 
 @HiltViewModel
@@ -43,16 +44,17 @@ class ChatListViewModel @Inject constructor(
     private val _allThreads = MutableStateFlow<List<ChatThreadEntity>>(emptyList())
     private val _unreadMentionCount = MutableStateFlow(0)
     private val _syncError = MutableStateFlow<String?>(null)
+    private val _teamThreadId = MutableStateFlow<String?>(null)
 
     val uiState: StateFlow<ChatListUiState> = combine(
         _allThreads,
         _filter,
         _searchQuery,
         _unreadOnly,
-        combine(_isRefreshing, _unreadMentionCount, _syncError) { refreshing, mentionCount, error ->
-            Triple(refreshing, mentionCount, error)
+        combine(_isRefreshing, _unreadMentionCount, _syncError, _teamThreadId) { refreshing, mentionCount, error, teamThreadId ->
+            Quadruple(refreshing, mentionCount, error, teamThreadId)
         },
-    ) { threads, filter, query, unreadOnly, (refreshing, mentionCount, syncError) ->
+    ) { threads, filter, query, unreadOnly, (refreshing, mentionCount, syncError, teamThreadId) ->
         val filtered = threads
             .filter { it.matchesFilter(filter) }
             .filter { query.isBlank() || it.matchesSearch(query) }
@@ -77,6 +79,7 @@ class ChatListViewModel @Inject constructor(
             isRefreshing = refreshing,
             unreadMentionCount = mentionCount,
             syncError = syncError,
+            teamThreadId = teamThreadId,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -88,6 +91,7 @@ class ChatListViewModel @Inject constructor(
         observeThreads()
         observeUnreadMentionCount()
         refresh()
+        loadTeamThread()
         // Sync roster (GET /chat/me/roster) on load — mirrors iOS AppBootstrapCoordinator.startChatServices().
         viewModelScope.launch {
             repository.syncRoster()
@@ -145,6 +149,15 @@ class ChatListViewModel @Inject constructor(
         }
     }
 
+    fun loadTeamThread() {
+        val accountId = identity.activeAccountId.value ?: return
+        viewModelScope.launch {
+            repository.getTeamThread(accountId)
+                .onSuccess { _teamThreadId.value = it.thread_id }
+                .onFailure { e -> Timber.w(e, "loadTeamThread failed") }
+        }
+    }
+
     fun setFavorite(threadId: String, favorite: Boolean) {
         viewModelScope.launch {
             repository.setFavorite(threadId, favorite).onFailure { e ->
@@ -183,6 +196,13 @@ class ChatListViewModel @Inject constructor(
             "wo" to 4,
         )
     }
+
+    private data class Quadruple<A, B, C, D>(
+        val first: A,
+        val second: B,
+        val third: C,
+        val fourth: D,
+    )
 
     private fun ChatThreadEntity.matchesFilter(filter: ThreadFilter): Boolean = when (filter) {
         ThreadFilter.ALL -> true

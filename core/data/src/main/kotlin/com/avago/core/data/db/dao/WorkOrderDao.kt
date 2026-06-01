@@ -1,5 +1,6 @@
 package com.avago.core.data.db.dao
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -7,6 +8,11 @@ import androidx.room.Query
 import androidx.room.Transaction
 import com.avago.core.data.db.entity.WorkOrderEntity
 import kotlinx.coroutines.flow.Flow
+
+data class AssetWoCount(
+    @ColumnInfo(name = "asset_id") val assetId: String,
+    @ColumnInfo(name = "count") val count: Int,
+)
 
 @Dao
 interface WorkOrderDao {
@@ -35,6 +41,17 @@ interface WorkOrderDao {
 
     @Query("SELECT * FROM work_orders WHERE asset_id = :assetId AND deleted_at IS NULL ORDER BY created_at DESC")
     fun observeByAsset(assetId: String): Flow<List<WorkOrderEntity>>
+
+    @Query("""
+        SELECT asset_id, COUNT(*) as count
+        FROM work_orders
+        WHERE account_id = :accountId
+          AND deleted_at IS NULL
+          AND status NOT IN ('complete', 'cancelled')
+          AND asset_id IS NOT NULL
+        GROUP BY asset_id
+    """)
+    fun observeOpenCountsByAccount(accountId: String): Flow<List<AssetWoCount>>
 
     /**
      * Count of "upcoming + mine + now" work orders — drives the bottom-nav

@@ -1,5 +1,11 @@
 package com.avago.feature.assets.viewmodel
 
+import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.pdf.PdfDocument
+import android.net.Uri
+import androidx.core.content.FileProvider
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -9,10 +15,12 @@ import com.avago.core.data.db.entity.AssetEntity
 import com.avago.core.data.db.entity.DocEntity
 import com.avago.core.data.db.entity.LogEntity
 import com.avago.core.data.db.entity.PhotoEntity
+import com.avago.core.data.db.entity.SyncQueueEntity
 import com.avago.core.data.repository.AssetRepository
 import com.avago.core.data.repository.UserPreferencesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -23,8 +31,16 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import timber.log.Timber
+import java.io.File
+import java.io.FileOutputStream
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
@@ -223,6 +239,12 @@ class AssetDetailViewModel @Inject constructor(
             initialValue = null,
         )
 
+    private val _showMeterDialog = MutableStateFlow(false)
+    val showMeterDialog: StateFlow<Boolean> = _showMeterDialog.asStateFlow()
+
+    private val _isSavingMeter = MutableStateFlow(false)
+    val isSavingMeter: StateFlow<Boolean> = _isSavingMeter.asStateFlow()
+
     /**
      * Photos attached to this asset, ordered by sort_order ascending.
      */
@@ -284,6 +306,138 @@ class AssetDetailViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = emptyList(),
         )
+
+    fun onAddMeterReadingTapped() {
+        _showMeterDialog.value = true
+    }
+
+    fun onDismissMeterDialog() {
+        _showMeterDialog.value = false
+    }
+
+    fun saveMeterReading(value: Double) {
+        viewModelScope.launch {
+            val acctId = accountId.value ?: return@launch
+            _isSavingMeter.value = true
+            try {
+                val now = System.currentTimeMillis()
+                val db = dbFactory.get(acctId)
+                val entry = LogEntity(
+                    entryId = UUID.randomUUID().toString(),
+                    assetId = assetId,
+                    accountId = acctId,
+                    title = "Meter Reading",
+                    entryDate = now,
+                    odometerValue = value,
+                    category = "meter",
+                    cost = null,
+                    performedBy = null,
+                    performedByUserId = null,
+                    notes = null,
+                    data = null,
+                    attributes = null,
+                    costMode = null,
+                    costItems = null,
+                    costLabor = null,
+                    costTax = null,
+                    currency = null,
+                    baseAmount = null,
+                    exchangeRateUsed = null,
+                    configId = null,
+                    configVersion = null,
+                    serviceId = null,
+                    costMisc = null,
+                    parentId = null,
+                    createdAt = now,
+                    updatedAt = now,
+                    deletedAt = null,
+                    serverVersion = 0L,
+                    seq = null,
+                )
+                db.logDao().upsert(entry)
+                db.syncQueueDao().enqueueWithDedup(
+                    SyncQueueEntity(
+                        queueId = "log_${entry.entryId}",
+                        entityType = "log",
+                        entityId = entry.entryId,
+                        operation = "insert",
+                        serverVersion = 0L,
+                        payload = null,
+                        syncStatus = "pending",
+                        attempts = 0L,
+                        lastError = null,
+                        createdAt = now,
+                        updatedAt = now,
+                    ),
+                )
+                _showMeterDialog.value = false
+            } finally {
+                _isSavingMeter.value = false
+            }
+        }
+    }
+
+    suspend fun generatePdf(context: Context): Uri? = withContext(Dispatchers.IO) {
+        val currentAsset = asset.value ?: return@withContext null
+        val logs = _allLogs.value
+        val document = PdfDocument()
+        return@withContext try {
+            val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create()
+            val page = document.startPage(pageInfo)
+            val canvas: Canvas = page.canvas
+            val titlePaint = Paint().apply {
+                textSize = 18f
+                isFakeBoldText = true
+            }
+            val sectionPaint = Paint().apply {
+                textSize = 14f
+                isFakeBoldText = true
+            }
+            val bodyPaint = Paint().apply { textSize = 12f }
+            val smallPaint = Paint().apply {
+                textSize = 10f
+                color = 0xFF666666.toInt()
+            }
+            var y = 50f
+            canvas.drawText("Maintenance Report: ${currentAsset.name}", 40f, y, titlePaint)
+            y += 30f
+            val makeModelYear = listOfNotNull(
+                currentAsset.year?.toString(),
+                currentAsset.make,
+                currentAsset.model,
+            ).joinToString(" ")
+            if (makeModelYear.isNotBlank()) {
+                canvas.drawText(makeModelYear, 40f, y, bodyPaint)
+                y += 20f
+            }
+            val generatedAt = SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date())
+            canvas.drawText("Generated: $generatedAt", 40f, y, smallPaint)
+            y += 30f
+            canvas.drawText("Service History (${logs.size} entries)", 40f, y, sectionPaint)
+            y += 20f
+            val dateFormatter = SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
+            logs.sortedByDescending { it.entryDate }.forEach { log ->
+                if (y > 780f) return@forEach
+                canvas.drawText("• ${log.title} — ${dateFormatter.format(Date(log.entryDate))}", 40f, y, bodyPaint)
+                y += 16f
+                val cost = log.cost
+                if (cost != null && cost > 0) {
+                    canvas.drawText("  Cost: $${"%.2f".format(cost)}", 40f, y, smallPaint)
+                    y += 14f
+                }
+            }
+            document.finishPage(page)
+            val dir = File(context.filesDir, "pdf_reports").also { it.mkdirs() }
+            val file = File(dir, "maintenance_report_${currentAsset.assetId}.pdf")
+            FileOutputStream(file).use { document.writeTo(it) }
+            FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+        } catch (e: Exception) {
+            Timber.e(e, "PDF generation failed")
+            null
+        } finally {
+            document.close()
+        }
+    }
 
     fun onCategoryFilterChanged(category: String?) {
         _categoryFilter.value = category

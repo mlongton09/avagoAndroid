@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -22,15 +23,22 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -40,6 +48,8 @@ import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.PartEntity
 import com.avago.core.data.db.entity.StockingLevelEntity
+import com.avago.core.network.AvagoServiceClient
+import com.avago.feature.inventory.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,6 +60,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 // ---------------------------------------------------------------------------
@@ -70,10 +81,13 @@ data class ReorderItem(
 class WarehouseReorderViewModel @Inject constructor(
     private val dbFactory: DatabaseFactory,
     private val identityManager: IdentityManager,
+    private val serviceClient: AvagoServiceClient,
 ) : ViewModel() {
 
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    private val _regenerateState = MutableStateFlow<String?>(null)
+    val regenerateState: StateFlow<String?> = _regenerateState.asStateFlow()
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val reorderItems: StateFlow<List<ReorderItem>> = identityManager.activeAccountId
@@ -110,6 +124,21 @@ class WarehouseReorderViewModel @Inject constructor(
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    suspend fun triggerReorder() {
+        val accountId = identityManager.getActiveAccountId() ?: return
+        _regenerateState.value = null
+        try {
+            serviceClient.regenerateReorderSuggestions(accountId)
+            _regenerateState.value = "success"
+        } catch (e: Exception) {
+            _regenerateState.value = e.message ?: e.javaClass.simpleName
+        }
+    }
+
+    fun clearRegenerateState() {
+        _regenerateState.value = null
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -125,6 +154,26 @@ fun WarehouseReorderScreen(
 ) {
     val reorderItems by viewModel.reorderItems.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val regenerateState by viewModel.regenerateState.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(regenerateState) {
+        when (val state = regenerateState) {
+            null -> Unit
+            "success" -> {
+                snackbarHostState.showSnackbar(context.getString(R.string.warehouse_reorder_trigger_success))
+                viewModel.clearRegenerateState()
+            }
+            else -> {
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.warehouse_reorder_trigger_error, state),
+                )
+                viewModel.clearRegenerateState()
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -138,8 +187,17 @@ fun WarehouseReorderScreen(
                         )
                     }
                 },
+                actions = {
+                    IconButton(onClick = { scope.launch { viewModel.triggerReorder() } }) {
+                        Icon(
+                            imageVector = Icons.Default.Email,
+                            contentDescription = "Send Reorder Email",
+                        )
+                    }
+                }
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onCreatePo,

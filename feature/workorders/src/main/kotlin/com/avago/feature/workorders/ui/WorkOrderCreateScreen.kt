@@ -17,6 +17,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -70,6 +72,9 @@ fun WorkOrderCreateScreen(
 ) {
     val title by viewModel.title.collectAsStateWithLifecycle()
     val description by viewModel.description.collectAsStateWithLifecycle()
+    val vin by viewModel.vin.collectAsStateWithLifecycle()
+    val vinDecodeResult by viewModel.vinDecodeResult.collectAsStateWithLifecycle()
+    val isDecodingVin by viewModel.isDecodingVin.collectAsStateWithLifecycle()
     val assetName by viewModel.assetName.collectAsStateWithLifecycle()
     val dueDateMs by viewModel.dueDateMs.collectAsStateWithLifecycle()
     val priority by viewModel.priority.collectAsStateWithLifecycle()
@@ -102,6 +107,7 @@ fun WorkOrderCreateScreen(
     var showTechPicker by remember { mutableStateOf(false) }
     var showRepeatsSheet by remember { mutableStateOf(false) }
     var repeatsRrule by remember { mutableStateOf<String?>(null) }
+    var showVinSection by remember { mutableStateOf(false) }
 
     if (showRepeatsSheet) {
         RepeatsSheet(
@@ -211,6 +217,78 @@ fun WorkOrderCreateScreen(
                 supportingText = titleError?.let { { Text(it) } },
                 singleLine = true,
             )
+
+            LaunchedEffect(vin, vinDecodeResult) {
+                if (vin.isNotBlank() || vinDecodeResult != null) {
+                    showVinSection = true
+                }
+            }
+
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.wo_vin_label)) },
+                supportingContent = { Text(stringResource(R.string.wo_vin_placeholder)) },
+                trailingContent = {
+                    Icon(
+                        imageVector = if (showVinSection) Icons.Default.Close else Icons.Default.Add,
+                        contentDescription = null,
+                    )
+                },
+                modifier = Modifier.clickable { showVinSection = !showVinSection },
+            )
+
+            if (showVinSection) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    OutlinedTextField(
+                        value = vin,
+                        onValueChange = { viewModel.vin.value = it },
+                        modifier = Modifier.weight(1f),
+                        label = { Text(stringResource(R.string.wo_vin_label)) },
+                        placeholder = { Text(stringResource(R.string.wo_vin_placeholder)) },
+                        singleLine = true,
+                    )
+                    OutlinedButton(
+                        onClick = viewModel::decodeVin,
+                        enabled = vin.isNotBlank() && !isDecodingVin,
+                    ) {
+                        Text(
+                            if (isDecodingVin) {
+                                stringResource(R.string.wo_vin_decoding)
+                            } else {
+                                stringResource(R.string.wo_vin_decode_btn)
+                            }
+                        )
+                    }
+                }
+
+                vinDecodeResult?.let { result ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            result.year?.let {
+                                Text("${stringResource(R.string.wo_vin_year)}: $it", style = MaterialTheme.typography.bodySmall)
+                            }
+                            result.make?.takeIf { it.isNotBlank() }?.let {
+                                Text("${stringResource(R.string.wo_vin_make)}: $it", style = MaterialTheme.typography.bodySmall)
+                            }
+                            result.model?.takeIf { it.isNotBlank() }?.let {
+                                Text("${stringResource(R.string.wo_vin_model)}: $it", style = MaterialTheme.typography.bodySmall)
+                            }
+                            result.engine?.takeIf { it.isNotBlank() }?.let {
+                                Text("Engine: $it", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                }
+            }
 
             // Description
             OutlinedTextField(

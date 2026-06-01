@@ -1,6 +1,8 @@
 package com.avago.feature.chat.ui
 
+import android.content.Context
 import android.content.Intent
+import android.media.MediaPlayer
 import android.net.Uri
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -28,15 +30,21 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -69,6 +77,7 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.coroutines.delay
 import timber.log.Timber
 import kotlin.math.roundToInt
 
@@ -327,6 +336,21 @@ private fun BubbleBody(
                 detectTapGestures(onLongPress = { onLongPress(message) })
             },
     ) {
+        if (!message.audioUrl.isNullOrBlank()) {
+            AudioBubble(audioUrl = message.audioUrl!!, isOwn = isOwn)
+            if (message.bodyMd.isNotBlank()) Spacer(modifier = Modifier.height(6.dp))
+        }
+
+        if (!message.attachmentUrl.isNullOrBlank()) {
+            FileBubble(
+                url = message.attachmentUrl!!,
+                name = message.attachmentName,
+                size = message.attachmentSize,
+                context = context,
+            )
+            if (message.bodyMd.isNotBlank()) Spacer(modifier = Modifier.height(6.dp))
+        }
+
         // Multi-image grid
         if (images.isNotEmpty()) {
             ImageGrid(images = images)
@@ -365,6 +389,116 @@ private fun BubbleBody(
                 message = message,
                 modifier = Modifier.widthIn(max = 260.dp),
             )
+        }
+    }
+}
+
+@Composable
+private fun AudioBubble(audioUrl: String, isOwn: Boolean) {
+        var isPlaying by remember(audioUrl) { mutableStateOf(false) }
+        var isPrepared by remember(audioUrl) { mutableStateOf(false) }
+        var elapsed by remember(audioUrl) { mutableIntStateOf(0) }
+        val mediaPlayer = remember(audioUrl) { MediaPlayer() }
+        val contentColor = if (isOwn) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+
+        DisposableEffect(mediaPlayer) {
+            mediaPlayer.setOnCompletionListener {
+                isPlaying = false
+                elapsed = 0
+            }
+            onDispose {
+                runCatching { mediaPlayer.release() }
+            }
+        }
+
+        LaunchedEffect(isPlaying, mediaPlayer) {
+            while (isPlaying) {
+                elapsed = runCatching { mediaPlayer.currentPosition / 1000 }.getOrDefault(elapsed)
+                delay(500)
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .clip(MaterialTheme.shapes.medium)
+                .background(contentColor.copy(alpha = 0.12f))
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(
+                imageVector = if (isPlaying) Icons.Default.Stop else Icons.Default.PlayArrow,
+                contentDescription = if (isPlaying) "Pause audio" else "Play audio",
+                tint = contentColor,
+                modifier = Modifier
+                    .size(22.dp)
+                    .clickable {
+                        runCatching {
+                            if (isPlaying) {
+                                mediaPlayer.pause()
+                                isPlaying = false
+                            } else if (isPrepared) {
+                                mediaPlayer.start()
+                                isPlaying = true
+                            } else {
+                                mediaPlayer.reset()
+                                mediaPlayer.setDataSource(audioUrl)
+                                mediaPlayer.setOnPreparedListener {
+                                    isPrepared = true
+                                    it.start()
+                                    isPlaying = true
+                                }
+                                mediaPlayer.prepareAsync()
+                            }
+                        }.onFailure { Timber.w(it, "AudioBubble: failed to toggle playback") }
+                    },
+            )
+            Text(
+                text = formatDuration(elapsed),
+                style = MaterialTheme.typography.bodySmall,
+                color = contentColor,
+            )
+        }
+}
+
+@Composable
+private fun FileBubble(url: String, name: String?, size: Long?, context: Context) {
+        Row(
+            modifier = Modifier
+                .clip(MaterialTheme.shapes.medium)
+                .clickable {
+                    runCatching {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            },
+                        )
+                }
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.16f))
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Default.AttachFile,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Column {
+                Text(
+                    text = name ?: "Attachment",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Medium,
+                )
+                if (size != null) {
+                    Text(
+                        text = formatFileSize(size),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
     }
 }
@@ -560,6 +694,18 @@ private fun senderInitials(name: String?): String {
     } else {
         name.take(2).uppercase()
     }
+}
+
+private fun formatDuration(totalSeconds: Int): String {
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return "%d:%02d".format(minutes, seconds)
+}
+
+private fun formatFileSize(bytes: Long): String = when {
+    bytes >= 1_048_576L -> String.format("%.1f MB", bytes / 1_048_576f)
+    bytes >= 1024L -> String.format("%.1f KB", bytes / 1024f)
+    else -> "$bytes B"
 }
 
 private val reactionJson = Json { ignoreUnknownKeys = true; isLenient = true }

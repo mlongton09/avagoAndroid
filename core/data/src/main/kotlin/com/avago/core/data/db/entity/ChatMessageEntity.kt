@@ -33,6 +33,10 @@ data class ChatMessageEntity(
     @ColumnInfo(name = "photo_url") val photoUrl: String?,
     /** JSON array of image URLs e.g. ["https://…jpg","https://…png"]. */
     @ColumnInfo(name = "image_urls") val imageUrls: String? = null,
+    @ColumnInfo(name = "audio_url") val audioUrl: String? = null,
+    @ColumnInfo(name = "attachment_url") val attachmentUrl: String? = null,
+    @ColumnInfo(name = "attachment_name") val attachmentName: String? = null,
+    @ColumnInfo(name = "attachment_size") val attachmentSize: Long? = null,
     /** JSON array of mentioned user IDs, parallel to mention_kinds. */
     @ColumnInfo(name = "mentioned_user_ids") val mentionedUserIds: String? = null,
     /** JSON array of mention kinds: "user" | "all" | "here", parallel to mentioned_user_ids. */

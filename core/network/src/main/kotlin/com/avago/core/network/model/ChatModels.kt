@@ -41,6 +41,10 @@ data class ChatMessageResponse(
     val photo_url: String? = null,
     // Multi-image support — matches iOS image_urls array
     val image_urls: List<String> = emptyList(),
+    val audio_url: String? = null,
+    val attachment_url: String? = null,
+    val attachment_name: String? = null,
+    val attachment_size: Long? = null,
     // Mention arrays — parallel: mentioned_user_ids[i] corresponds to mention_kinds[i]
     val mentioned_user_ids: List<String> = emptyList(),
     val mention_kinds: List<String> = emptyList(),

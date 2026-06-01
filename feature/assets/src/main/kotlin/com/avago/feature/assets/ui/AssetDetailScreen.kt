@@ -1,5 +1,7 @@
 ﻿package com.avago.feature.assets.ui
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,6 +17,7 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -47,12 +50,16 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.animation.AnimatedVisibility
@@ -67,6 +74,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -79,8 +87,10 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -130,10 +140,14 @@ fun AssetDetailScreen(
     val photos by viewModel.photos.collectAsStateWithLifecycle()
     val documents by viewModel.documents.collectAsStateWithLifecycle()
     val currencyCode by viewModel.currencyCode.collectAsStateWithLifecycle()
+    val latestMeterReading by viewModel.latestMeterReading.collectAsStateWithLifecycle()
+    val showMeterDialog by viewModel.showMeterDialog.collectAsStateWithLifecycle()
+    val isSavingMeter by viewModel.isSavingMeter.collectAsStateWithLifecycle()
 
     var showOverflowMenu by remember { mutableStateOf(false) }
     val pagerState = rememberPagerState { ASSET_DETAIL_TABS.size }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     // Collapsing header — mirrors iOS AssetDetailViewController collapse behavior:
     // scroll down past threshold → snap-collapse with 250ms animation;
@@ -202,7 +216,20 @@ fun AssetDetailScreen(
                                     leadingIcon = {
                                         Icon(Icons.Default.PictureAsPdf, contentDescription = null)
                                     },
-                                    onClick = { showOverflowMenu = false },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        scope.launch {
+                                            val uri = viewModel.generatePdf(context)
+                                            if (uri != null) {
+                                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                                    type = "application/pdf"
+                                                    putExtra(Intent.EXTRA_STREAM, uri)
+                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                }
+                                                context.startActivity(Intent.createChooser(intent, "Share Maintenance Report"))
+                                            }
+                                        }
+                                    },
                                 )
                             }
                         }
@@ -282,10 +309,19 @@ fun AssetDetailScreen(
             ) { page ->
                 when (page) {
                     0 -> LogTab(
+                        asset = safeAsset,
                         logsByYear = logsByYear,
+                        latestMeterReading = latestMeterReading,
+                        showMeterDialog = showMeterDialog,
+                        isSavingMeter = isSavingMeter,
                         availableCategories = availableCategories,
                         categoryFilter = categoryFilter,
                         onCategoryFilterChanged = { viewModel.onCategoryFilterChanged(it) },
+                        onAddMeterReading = { viewModel.onAddMeterReadingTapped() },
+                        onDismissMeterDialog = { viewModel.onDismissMeterDialog() },
+                        onSaveMeterReading = { viewModel.saveMeterReading(it) },
+                        onOpenWheelConfig = onOpenWheelConfig,
+                        onOpenWheelDataInput = onOpenWheelDataInput,
                         onLogEntryClick = onLogEntryClick,
                         currencyCode = currencyCode,
                     )
@@ -301,10 +337,19 @@ fun AssetDetailScreen(
 
 @Composable
 private fun LogTab(
+    asset: AssetEntity,
     logsByYear: List<LogsByYear>,
+    latestMeterReading: Double?,
+    showMeterDialog: Boolean,
+    isSavingMeter: Boolean,
     availableCategories: List<String>,
     categoryFilter: String?,
     onCategoryFilterChanged: (String?) -> Unit,
+    onAddMeterReading: () -> Unit,
+    onDismissMeterDialog: () -> Unit,
+    onSaveMeterReading: (Double) -> Unit,
+    onOpenWheelConfig: () -> Unit,
+    onOpenWheelDataInput: () -> Unit,
     onLogEntryClick: (entryId: String) -> Unit,
     currencyCode: String = "USD",
 ) {
@@ -312,6 +357,27 @@ private fun LogTab(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 88.dp),
     ) {
+        if (!asset.meterType.isNullOrBlank()) {
+            item(key = "meter_card") {
+                MeterCard(
+                    meterType = asset.meterType,
+                    latestMeterReading = latestMeterReading,
+                    onAddReading = onAddMeterReading,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+        }
+
+        if (isWheelAsset(asset.assetType)) {
+            item(key = "wheel_data_card") {
+                WheelDataCard(
+                    onConfigClick = onOpenWheelConfig,
+                    onDataClick = onOpenWheelDataInput,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+        }
+
         if (availableCategories.isNotEmpty()) {
             item(key = "category_filter") {
                 CategoryFilterRow(
@@ -334,7 +400,7 @@ private fun LogTab(
             }
         } else {
             logsByYear.forEach { group ->
-                stickyHeader(key = "year_${group.year}") {
+                item(key = "year_${group.year}") {
                     Surface(
                         color = MaterialTheme.colorScheme.surfaceVariant,
                         modifier = Modifier.fillMaxWidth(),
@@ -353,6 +419,16 @@ private fun LogTab(
                 }
             }
         }
+
+    }
+
+    if (showMeterDialog) {
+        MeterReadingDialog(
+            meterType = asset.meterType,
+            isSaving = isSavingMeter,
+            onDismiss = onDismissMeterDialog,
+            onConfirm = onSaveMeterReading,
+        )
     }
 }
 
@@ -928,6 +1004,86 @@ private fun WheelDataCard(
     }
 }
 
+@Composable
+private fun MeterCard(
+    meterType: String?,
+    latestMeterReading: Double?,
+    onAddReading: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = meterLabelFor(meterType),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = formatMeterReading(latestMeterReading, meterType),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+            OutlinedButton(onClick = onAddReading) {
+                Text("Add Reading")
+            }
+        }
+    }
+}
+
+@Composable
+private fun MeterReadingDialog(
+    meterType: String?,
+    isSaving: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (Double) -> Unit,
+) {
+    var value by rememberSaveable { mutableStateOf("") }
+    val parsedValue = value.toDoubleOrNull()
+    AlertDialog(
+        onDismissRequest = { if (!isSaving) onDismiss() },
+        title = { Text(meterLabelFor(meterType)) },
+        text = {
+            OutlinedTextField(
+                value = value,
+                onValueChange = { value = it },
+                label = { Text("Reading") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { parsedValue?.let(onConfirm) },
+                enabled = parsedValue != null && !isSaving,
+            ) {
+                if (isSaving) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                } else {
+                    Text("Save")
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isSaving) {
+                Text("Cancel")
+            }
+        },
+    )
+}
+
 // ---------------------------------------------------------------------------
 // New cards: Hierarchy, Location, Details (custom attributes), Documents
 // ---------------------------------------------------------------------------
@@ -1037,16 +1193,18 @@ private fun LocationCard(
     asset: AssetEntity,
     modifier: Modifier = Modifier,
 ) {
-    // Prefer dedicated entity columns; fall back to attributes map for street_address
-    val street = asset.addressLine1
-        ?: parseAttributes(asset.attributes)["street_address"]
-        ?: return
+    val attributes = parseAttributes(asset.attributes)
+    val street = asset.addressLine1 ?: attributes["street_address"]
+    val latitude = attributes["latitude"]?.toDoubleOrNull()
+    val longitude = attributes["longitude"]?.toDoubleOrNull()
+    if (street == null && (latitude == null || longitude == null)) return
+    val context = LocalContext.current
 
     val line2 = asset.addressLine2
-    val city = asset.city ?: parseAttributes(asset.attributes)["city"]
-    val state = asset.state ?: parseAttributes(asset.attributes)["state"]
-    val zip = asset.postalCode ?: parseAttributes(asset.attributes)["zip_code"]
-    val country = asset.country ?: parseAttributes(asset.attributes)["country"]
+    val city = asset.city ?: attributes["city"]
+    val state = asset.state ?: attributes["state"]
+    val zip = asset.postalCode ?: attributes["zip_code"]
+    val country = asset.country ?: attributes["country"]
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -1069,10 +1227,12 @@ private fun LocationCard(
                     fontWeight = FontWeight.SemiBold,
                 )
             }
-            Text(
-                text = street,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            street?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
             if (!line2.isNullOrBlank()) {
                 Text(
                     text = line2,
@@ -1092,6 +1252,57 @@ private fun LocationCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+            if (latitude != null && longitude != null) {
+                MapCard(
+                    latitude = latitude,
+                    longitude = longitude,
+                    modifier = Modifier.padding(top = 12.dp),
+                    onOpenMaps = {
+                        val intent = Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse("geo:$latitude,$longitude?q=$latitude,$longitude"),
+                        )
+                        context.startActivity(intent)
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MapCard(
+    latitude: Double,
+    longitude: Double,
+    onOpenMaps: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Coordinates",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = "$latitude, $longitude",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            TextButton(onClick = onOpenMaps) {
+                Text("Open in Maps")
             }
         }
     }
@@ -1158,6 +1369,19 @@ fun formatMeterReading(value: Double?, meterType: String?): String {
         else -> formatted
     }
 }
+
+private fun meterLabelFor(meterType: String?): String {
+    val normalized = meterType
+        ?.replace("_", " ")
+        ?.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+        ?: "Meter"
+    return "$normalized Reading"
+}
+
+private fun isWheelAsset(assetType: String?): Boolean =
+    assetType?.contains("vehicle", ignoreCase = true) == true ||
+        assetType?.contains("truck", ignoreCase = true) == true ||
+        assetType?.contains("trailer", ignoreCase = true) == true
 
 private fun formatDate(epochMs: Long): String =
     SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date(epochMs))

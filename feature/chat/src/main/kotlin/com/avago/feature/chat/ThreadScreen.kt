@@ -38,6 +38,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -86,6 +87,15 @@ fun ThreadScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
+
+    DisposableEffect(threadId) {
+        ActiveThreadTracker.activeThreadId = threadId
+        onDispose {
+            if (ActiveThreadTracker.activeThreadId == threadId) {
+                ActiveThreadTracker.activeThreadId = null
+            }
+        }
+    }
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -239,11 +249,15 @@ fun ThreadScreen(
                     onCancelEdit = viewModel::cancelEditing,
                     onTyping = viewModel::onUserTyped,
                     onTextChanged = viewModel::saveDraft,
+                    onFileSelected = viewModel::sendFile,
+                    onVoiceResult = {},
                     replyingToMessage = uiState.replyingToMessage,
                     onCancelReply = viewModel::cancelReply,
                     linkPreview = uiState.linkPreview,
                     onUrlDetected = viewModel::setDetectedUrl,
                     onDismissLinkPreview = viewModel::dismissLinkPreview,
+                    needsReply = uiState.needsReply,
+                    onNeedsReplyToggle = viewModel::toggleNeedsReply,
                 )
                 } // key(composerRevision)
             }

@@ -194,6 +194,14 @@ class WorkOrderRepository @Inject constructor(
     suspend fun observeTemplates(accountId: String): Flow<List<WoTemplateEntity>> =
         dbFactory.get(accountId).woTemplateDao().observeAll(accountId)
 
+    suspend fun upsertTemplate(accountId: String, entity: WoTemplateEntity) {
+        dbFactory.get(accountId).woTemplateDao().upsert(entity)
+    }
+
+    suspend fun deleteTemplate(accountId: String, templateId: String) {
+        dbFactory.get(accountId).woTemplateDao().softDelete(templateId, System.currentTimeMillis())
+    }
+
     // ---------------------------------------------------------------------------
     // Tech Profiles
     // ---------------------------------------------------------------------------

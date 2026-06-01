@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Star
@@ -163,6 +164,11 @@ fun ChatListScreen(
                                 onClick = onMentions,
                             )
                         }
+                        if (uiState.teamThreadId != null) {
+                            item(key = "team_shortcut") {
+                                TeamRoomShortcutRow(onClick = { onThreadClick(uiState.teamThreadId!!) })
+                            }
+                        }
                         // Group threads by type — mirrors iOS ThreadListViewController sections
                         val teamThreads = uiState.threads.filter { it.threadType == "team" }
                         val assetWoThreads = uiState.threads.filter { it.threadType == "wo" || it.threadType == "asset" }
@@ -272,6 +278,31 @@ private fun MentionsShortcutRow(
                 Text(text = if (unreadMentionCount > 99) "99+" else unreadMentionCount.toString())
             }
         }
+    }
+}
+
+@Composable
+private fun TeamRoomShortcutRow(onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Icon(
+            Icons.Default.Groups,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp),
+        )
+        Text(
+            text = "Team Room",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary,
+        )
     }
 }
 

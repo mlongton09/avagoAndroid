@@ -1,5 +1,8 @@
 package com.avago.feature.chat.viewmodel
 
+import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -12,6 +15,7 @@ import com.avago.core.network.model.LinkPreviewResponse
 import com.avago.feature.chat.data.ChatRepository
 import com.avago.feature.chat.realtime.ChatRealtimeClient
 import com.avago.feature.chat.realtime.OutboxRetryCoordinator
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -23,6 +27,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.net.URLConnection
 import javax.inject.Inject
 
 data class ThreadUiState(
@@ -42,6 +47,7 @@ data class ThreadUiState(
     val replyingToMessage: ChatMessageEntity? = null,
     val userRole: String? = null,
     val linkPreview: LinkPreviewResponse? = null,
+    val needsReply: Boolean = false,
 )
 
 @HiltViewModel
@@ -52,6 +58,7 @@ class ThreadViewModel @Inject constructor(
     private val realtimeClient: ChatRealtimeClient,
     private val outbox: OutboxRetryCoordinator,
     private val userPrefs: UserPreferencesRepository,
+    @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
     val threadId: String = requireNotNull(savedStateHandle["threadId"])
@@ -72,6 +79,7 @@ class ThreadViewModel @Inject constructor(
     private val _replyingToMessage = MutableStateFlow<ChatMessageEntity?>(null)
     private val _userRole = MutableStateFlow<String?>(null)
     private val _linkPreview = MutableStateFlow<LinkPreviewResponse?>(null)
+    private val _needsReply = MutableStateFlow(false)
 
     val uiState: StateFlow<ThreadUiState> = combine(
         listOf(
@@ -90,6 +98,7 @@ class ThreadViewModel @Inject constructor(
             _replyingToMessage,
             _userRole,
             _linkPreview,
+            _needsReply,
         )
     ) { values ->
         @Suppress("UNCHECKED_CAST")
@@ -110,6 +119,7 @@ class ThreadViewModel @Inject constructor(
             replyingToMessage = values[12] as? ChatMessageEntity,
             userRole = values[13] as? String,
             linkPreview = values[14] as? LinkPreviewResponse,
+            needsReply = values[15] as Boolean,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -272,12 +282,19 @@ class ThreadViewModel @Inject constructor(
         if (trimmed.isEmpty()) return
         if (_isSending.value) return
         val accountId = identity.activeAccountId.value ?: return
+        val needsReply = _needsReply.value
         viewModelScope.launch {
             _isSending.value = true
             try {
-                outbox.send(accountId = accountId, threadId = threadId, body = trimmed)
+                outbox.send(
+                    accountId = accountId,
+                    threadId = threadId,
+                    body = trimmed,
+                    needsReply = needsReply,
+                )
                 _replyingToMessage.value = null
                 _linkPreview.value = null
+                _needsReply.value = false
                 saveDraft("")
             } catch (e: Exception) {
                 Timber.e(e, "sendMessage failed")
@@ -285,6 +302,61 @@ class ThreadViewModel @Inject constructor(
                 _isSending.value = false
             }
         }
+    }
+
+    fun toggleNeedsReply() {
+        _needsReply.value = !_needsReply.value
+    }
+
+    fun sendFile(uri: Uri) {
+        sendMedia(uri)
+    }
+
+    fun sendAudio(uri: Uri) {
+        sendMedia(uri)
+    }
+
+    private fun sendMedia(uri: Uri) {
+        val fileName = resolveFileName(uri)
+        val mimeType = context.contentResolver.getType(uri)
+            ?: fileName?.let { URLConnection.guessContentTypeFromName(it) }
+            ?: "application/octet-stream"
+        viewModelScope.launch {
+            runCatching {
+                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    ?: error("Unable to read file")
+                repository.uploadAndSendMedia(
+                    threadId = threadId,
+                    bytes = bytes,
+                    contentType = mimeType,
+                    fileName = fileName,
+                    needsReply = _needsReply.value,
+                ).getOrThrow()
+            }.onSuccess {
+                _linkPreview.value = null
+                _needsReply.value = false
+            }.onFailure { e ->
+                Timber.e(e, "sendMedia failed")
+                _errorMessage.value = e.message ?: "Failed to send attachment"
+            }
+        }
+    }
+
+    private fun resolveFileName(uri: Uri): String? {
+        val cursor = context.contentResolver.query(
+            uri,
+            arrayOf(OpenableColumns.DISPLAY_NAME),
+            null,
+            null,
+            null,
+        ) ?: return uri.lastPathSegment?.substringAfterLast('/')
+        cursor.use {
+            if (it.moveToFirst()) {
+                val index = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (index >= 0) return it.getString(index)
+            }
+        }
+        return uri.lastPathSegment?.substringAfterLast('/')
     }
 
     fun startEditing(message: ChatMessageEntity) {

@@ -145,6 +145,8 @@ fun AddEditAssetScreen(
     val form by viewModel.form.collectAsStateWithLifecycle()
     val geocodeResult by viewModel.geocodeResult.collectAsStateWithLifecycle()
     val isGeocodeLookupInProgress by viewModel.isGeocodeLookupInProgress.collectAsStateWithLifecycle()
+    val isVinDecoding by viewModel.isVinDecoding.collectAsStateWithLifecycle()
+    val vinDecodeError by viewModel.vinDecodeError.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var showDatePicker by remember { mutableStateOf(false) }
     var addressExpanded by remember { mutableStateOf(false) }
@@ -167,6 +169,13 @@ fun AddEditAssetScreen(
             }
             snackbarHostState.showSnackbar(message)
             viewModel.clearGeocodeResult()
+        }
+    }
+
+    LaunchedEffect(vinDecodeError) {
+        vinDecodeError?.let { error ->
+            snackbarHostState.showSnackbar(error)
+            viewModel.clearVinDecodeError()
         }
     }
 
@@ -318,24 +327,46 @@ fun AddEditAssetScreen(
 
             // VIN / Serial with barcode scan button
             item {
-                OutlinedTextField(
-                    value = form.vinSerial,
-                    onValueChange = { viewModel.onVinSerialChanged(it) },
-                    label = { Text(stringResource(R.string.asset_field_vin)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    trailingIcon = if (onScanVin != null) {
-                        {
-                            IconButton(onClick = { onScanVin() }) {
-                                Icon(
-                                    imageVector = Icons.Default.CropFree,
-                                    contentDescription = "Scan VIN barcode",
-                                )
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.Bottom,
+                ) {
+                    OutlinedTextField(
+                        value = form.vinSerial,
+                        onValueChange = { viewModel.onVinSerialChanged(it) },
+                        label = { Text(stringResource(R.string.asset_field_vin)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+                        modifier = Modifier.weight(1f),
+                        trailingIcon = if (onScanVin != null) {
+                            {
+                                IconButton(onClick = { onScanVin() }) {
+                                    Icon(
+                                        imageVector = Icons.Default.CropFree,
+                                        contentDescription = "Scan VIN barcode",
+                                    )
+                                }
                             }
+                        } else null,
+                    )
+                    if (isVinDecoding) {
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .padding(bottom = 12.dp)
+                                .size(24.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        FilledTonalButton(
+                            onClick = { viewModel.decodeVin() },
+                            enabled = form.vinSerial.isNotBlank(),
+                            modifier = Modifier.padding(bottom = 4.dp),
+                        ) {
+                            Text("Decode VIN")
                         }
-                    } else null,
-                )
+                    }
+                }
             }
 
             // Fleet Number

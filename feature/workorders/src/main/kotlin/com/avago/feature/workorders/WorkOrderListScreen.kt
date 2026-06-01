@@ -35,6 +35,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -63,6 +64,7 @@ fun WorkOrderListScreen(
     onCreateWo: () -> Unit,
     onOpenCalendar: () -> Unit = {},
     onOpenDispatchBoard: () -> Unit = {},
+    onOpenTemplates: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: WorkOrderListViewModel = hiltViewModel(),
 ) {
@@ -93,8 +95,8 @@ fun WorkOrderListScreen(
         animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
         label = "wo_header_progress",
     )
-    // Filter row (~56dp) + search bar (~52dp) = 108dp total
-    val headerHeightDp = 108.dp
+    // Filter row (~56dp) + search bar (~52dp) + templates action (~40dp).
+    val headerHeightDp = 148.dp
     val density = LocalDensity.current
     val headerHeightPx = with(density) { headerHeightDp.toPx() }
 
@@ -252,6 +254,16 @@ fun WorkOrderListScreen(
                         onQueryChange = viewModel::onSearchQueryChanged,
                         placeholder = stringResource(R.string.wo_search_placeholder),
                     )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        TextButton(onClick = onOpenTemplates) {
+                            Text(stringResource(R.string.wo_templates_title))
+                        }
+                    }
                 }
             }
         }

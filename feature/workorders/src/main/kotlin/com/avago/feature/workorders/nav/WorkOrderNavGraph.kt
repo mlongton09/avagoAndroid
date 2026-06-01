@@ -13,7 +13,9 @@ import com.avago.feature.workorders.ui.CostLinesEditorScreen
 import com.avago.feature.workorders.ui.DispatchBoardScreen
 import com.avago.feature.workorders.ui.GLAccountPickerScreen
 import com.avago.feature.workorders.ui.JobPickerScreen
+import com.avago.feature.workorders.ui.SignatureCaptureScreen
 import com.avago.feature.workorders.ui.TechProfileScreen
+import com.avago.feature.workorders.ui.WoTemplateListScreen
 import com.avago.feature.workorders.ui.WorkOrderCalendarScreen
 import com.avago.feature.workorders.ui.WorkOrderCreateScreen
 import com.avago.feature.workorders.ui.WorkOrderDetailScreen
@@ -31,6 +33,8 @@ object WorkOrderRoute {
     const val AVAILABLE_JOBS = "workorders/available_jobs"
     const val TECH_PROFILE = "workorders/tech/{techId}"
     const val JOB_PICKER = "workorders/job_picker"
+    const val SIGNATURE_CAPTURE = "workorders/signature/{woId}"
+    const val TEMPLATE_LIST = "workorders/templates"
     const val COST_LINES_EDITOR = "workorders/cost_lines/{woId}"
     const val GL_ACCOUNT_PICKER = "workorders/gl_account_picker"
     const val ASSET_GROUP_PICKER = "workorders/asset_group_picker"
@@ -40,6 +44,7 @@ object WorkOrderRoute {
         if (woId != null) "workorders/create_edit?woId=$woId"
         else "workorders/create_edit?woId="
     fun techProfile(techId: String) = "workorders/tech/$techId"
+    fun signatureCapture(woId: String) = "workorders/signature/$woId"
     fun costLinesEditor(woId: String) = "workorders/cost_lines/$woId"
 }
 
@@ -76,6 +81,9 @@ fun NavGraphBuilder.workOrderNavGraph(
                 onOpenDispatchBoard = {
                     navController.navigate(WorkOrderRoute.DISPATCH_BOARD)
                 },
+                onOpenTemplates = {
+                    navController.navigate(WorkOrderRoute.TEMPLATE_LIST)
+                },
             )
         }
 
@@ -92,6 +100,7 @@ fun NavGraphBuilder.workOrderNavGraph(
                 onTechClick = { techId -> navController.navigate(WorkOrderRoute.techProfile(techId)) },
                 onAddPart = { onNavigateToInventoryPicker(WorkOrderRoute.detail(woId)) },
                 onManageCostLines = { navController.navigate(WorkOrderRoute.costLinesEditor(woId)) },
+                onCaptureSignature = { navController.navigate(WorkOrderRoute.signatureCapture(woId)) },
                 onLogWork = onNavigateToLogWork,
             )
         }
@@ -189,6 +198,24 @@ fun NavGraphBuilder.workOrderNavGraph(
                         ?.set("selected_job_id", jobId)
                     navController.popBackStack()
                 },
+            )
+        }
+
+        composable(
+            route = WorkOrderRoute.SIGNATURE_CAPTURE,
+            arguments = listOf(navArgument("woId") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val woId = requireNotNull(backStackEntry.arguments?.getString("woId"))
+            SignatureCaptureScreen(
+                woId = woId,
+                onBack = { navController.popBackStack() },
+                onSaved = { navController.popBackStack() },
+            )
+        }
+
+        composable(WorkOrderRoute.TEMPLATE_LIST) {
+            WoTemplateListScreen(
+                onBack = { navController.popBackStack() },
             )
         }
 

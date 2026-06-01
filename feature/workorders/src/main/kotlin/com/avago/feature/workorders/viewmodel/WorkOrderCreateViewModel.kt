@@ -10,6 +10,7 @@ import com.avago.core.data.db.entity.WoTemplateEntity
 import com.avago.core.data.db.entity.WorkOrderEntity
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
+import com.avago.core.network.model.VinDecodeResponse
 import com.avago.feature.workorders.model.WoPriority
 import com.avago.feature.workorders.repository.WorkOrderRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -59,6 +60,7 @@ class WorkOrderCreateViewModel @Inject constructor(
     // ---------------------------------------------------------------------------
 
     val title = MutableStateFlow("")
+    val vin = MutableStateFlow("")
     val description = MutableStateFlow("")
     val category = MutableStateFlow<String?>(null)
     val assetId = MutableStateFlow<String?>(null)
@@ -89,6 +91,12 @@ class WorkOrderCreateViewModel @Inject constructor(
 
     private val _savedSuccessfully = MutableStateFlow(false)
     val savedSuccessfully: StateFlow<Boolean> = _savedSuccessfully.asStateFlow()
+
+    private val _vinDecodeResult = MutableStateFlow<VinDecodeResponse?>(null)
+    val vinDecodeResult: StateFlow<VinDecodeResponse?> = _vinDecodeResult.asStateFlow()
+
+    private val _isDecodingVin = MutableStateFlow(false)
+    val isDecodingVin: StateFlow<Boolean> = _isDecodingVin.asStateFlow()
 
     // ---------------------------------------------------------------------------
     // Templates
@@ -276,6 +284,40 @@ class WorkOrderCreateViewModel @Inject constructor(
             } catch (e: Exception) {
                 // Effort hint is not critical — silently ignore failures
                 Timber.d(e, "[WoCreateVM] fetchEffortHint failed, ignoring")
+            }
+        }
+    }
+
+    fun decodeVin() {
+        val vinValue = vin.value.trim()
+        if (vinValue.isBlank()) return
+        val accountId = identityManager.getActiveAccountId() ?: return
+        viewModelScope.launch {
+            _isDecodingVin.value = true
+            try {
+                when (val result = serviceClient.decodeVin(accountId, vinValue)) {
+                    is NetworkResult.Success -> {
+                        _vinDecodeResult.value = result.data
+                        if (title.value.isBlank()) {
+                            val generatedTitle = listOfNotNull(
+                                result.data.year?.toString(),
+                                result.data.make?.takeIf { it.isNotBlank() },
+                                result.data.model?.takeIf { it.isNotBlank() },
+                            ).joinToString(" ")
+                            if (generatedTitle.isNotBlank()) {
+                                title.value = generatedTitle
+                            }
+                        }
+                    }
+                    else -> {
+                        _vinDecodeResult.value = null
+                    }
+                }
+            } catch (e: Exception) {
+                _vinDecodeResult.value = null
+                Timber.d(e, "[WoCreateVM] decodeVin failed")
+            } finally {
+                _isDecodingVin.value = false
             }
         }
     }

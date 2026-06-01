@@ -1151,10 +1151,19 @@ class AvagoServiceClient @Inject constructor(
         threadId: String,
         body: String,
         photoUrl: String? = null,
+        imageUrls: List<String>? = null,
+        needsReply: Boolean? = null,
     ): NetworkResult<ChatMessageResponse> =
         safeNetworkCall {
             client.post("$baseUrl/chat/threads/$threadId/messages") {
-                setBody(SendMessageRequest(body_md = body, photo_url = photoUrl))
+                setBody(
+                    SendMessageRequest(
+                        body_md = body,
+                        photo_url = photoUrl,
+                        image_urls = imageUrls,
+                        needs_reply = needsReply,
+                    )
+                )
             }.body<SendMessageEnvelope>().message
         }
 

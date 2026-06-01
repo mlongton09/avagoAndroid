@@ -15,6 +15,7 @@ import com.avago.MainActivity
 import com.avago.core.auth.IdentityManager
 import com.avago.core.sync.DeltaPushApplier
 import com.avago.core.sync.SyncWorker
+import com.avago.feature.chat.ActiveThreadTracker
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import dagger.hilt.android.AndroidEntryPoint
@@ -111,6 +112,7 @@ class AvagoFcmService : FirebaseMessagingService() {
         }
         val senderName = data["sender_name"] ?: "Someone"
         val body = data["body"] ?: "Sent a message"
+        val messageId = data["message_id"]
         val accountId = data["account_id"] ?: run {
             Timber.w("FCM: chat_message missing account_id — falling back to sync nudge")
             enqueueSyncWork()
@@ -119,6 +121,11 @@ class AvagoFcmService : FirebaseMessagingService() {
         // sender_avatar_url reserved for future use when loading bitmaps asynchronously
         @Suppress("UNUSED_VARIABLE")
         val senderAvatarUrl = data["sender_avatar_url"]
+
+        if (ActiveThreadTracker.activeThreadId == threadId) {
+            enqueueSyncWork()
+            return
+        }
 
         val notificationManager = getSystemService(NotificationManager::class.java)
 
@@ -180,6 +187,62 @@ class AvagoFcmService : FirebaseMessagingService() {
             replyPendingIntent,
         ).addRemoteInput(remoteInput).build()
 
+        val markReadIntent = Intent(this, MarkReadReceiver::class.java).apply {
+            putExtra("thread_id", threadId)
+            putExtra("account_id", accountId)
+            putExtra("notification_id", threadId.hashCode())
+        }
+        val markReadPendingIntent = PendingIntent.getBroadcast(
+            this,
+            threadId.hashCode() + 2,
+            markReadIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val markReadAction = NotificationCompat.Action.Builder(
+            android.R.drawable.ic_menu_view,
+            "Mark Read",
+            markReadPendingIntent,
+        ).build()
+
+        val reactAction = if (messageId != null) {
+            val reactIntent = Intent(this, ReactReceiver::class.java).apply {
+                putExtra("thread_id", threadId)
+                putExtra("account_id", accountId)
+                putExtra("message_id", messageId)
+                putExtra("notification_id", threadId.hashCode())
+            }
+            val reactPendingIntent = PendingIntent.getBroadcast(
+                this,
+                threadId.hashCode() + 3,
+                reactIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            NotificationCompat.Action.Builder(
+                android.R.drawable.ic_menu_add,
+                "👍",
+                reactPendingIntent,
+            ).build()
+        } else {
+            null
+        }
+
+        val muteIntent = Intent(this, MuteReceiver::class.java).apply {
+            putExtra("thread_id", threadId)
+            putExtra("account_id", accountId)
+            putExtra("notification_id", threadId.hashCode())
+        }
+        val mutePendingIntent = PendingIntent.getBroadcast(
+            this,
+            threadId.hashCode() + 4,
+            muteIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val muteAction = NotificationCompat.Action.Builder(
+            android.R.drawable.ic_lock_silent_mode,
+            "Mute 8h",
+            mutePendingIntent,
+        ).build()
+
         // Person for MessagingStyle.
         val person = Person.Builder()
             .setName(senderName)
@@ -195,6 +258,9 @@ class AvagoFcmService : FirebaseMessagingService() {
             .setStyle(messagingStyle)
             .setContentIntent(openPendingIntent)
             .addAction(replyAction)
+            .addAction(markReadAction)
+            .apply { if (reactAction != null) addAction(reactAction) }
+            .addAction(muteAction)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)

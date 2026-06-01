@@ -169,6 +169,29 @@
     <string name="grn_submit">Submit GRN</string>
     <string name="grn_submitting">Submitting…</string>
 
+    <!-- GRN list -->
+    <string name="grn_list_title">GRNs</string>
+    <string name="grn_list_empty">No goods receipts found</string>
+    <string name="grn_po_label">PO</string>
+    <string name="grn_received_date_label2">Received</string>
+
+    <!-- Stocking levels -->
+    <string name="stocking_levels_title">Stocking Levels</string>
+    <string name="stocking_levels_empty">No stocking levels configured</string>
+    <string name="stocking_level_min_qty">Min</string>
+    <string name="stocking_level_max_qty">Max</string>
+    <string name="stocking_level_reorder_qty">Reorder</string>
+    <string name="stocking_level_safety_stock">Safety</string>
+    <string name="stocking_levels_search_hint">Search parts…</string>
+
+    <!-- Warehouse additional -->
+    <string name="warehouse_grn_history_card">GRN History</string>
+    <string name="warehouse_grn_history_desc">View all goods receipts</string>
+    <string name="warehouse_stocking_levels_card">Stocking Levels</string>
+    <string name="warehouse_stocking_levels_desc">View min/max/reorder levels per part</string>
+    <string name="warehouse_reorder_trigger_success">Reorder notifications sent</string>
+    <string name="warehouse_reorder_trigger_error">Failed to send reorder: %1$s</string>
+
     <!-- Warehouse -->
     <string name="warehouse_menu_title">Warehouse</string>
     <string name="warehouse_receive_title">Receive Parts</string>

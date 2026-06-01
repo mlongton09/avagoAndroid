@@ -217,6 +217,7 @@
 
     <!-- WO Detail — hardcoded labels -->
     <string name="wo_detail_reschedule">Reschedule</string>
+    <string name="wo_detail_capture_signature">Capture Signature</string>
     <string name="wo_detail_section_details">Details</string>
     <string name="wo_detail_asset_label">Asset</string>
     <string name="wo_detail_priority_label">Priority</string>
@@ -252,5 +253,40 @@
 
     <!-- Dispatch Board — snackbar -->
     <string name="dispatch_rebalance_coming_soon">Auto-rebalance coming soon</string>
+
+    <!-- Signature Capture -->
+    <string name="signature_capture_title">Signature</string>
+    <string name="signature_capture_hint">Sign above</string>
+    <string name="signature_capture_clear">Clear</string>
+    <string name="signature_capture_save">Save Signature</string>
+
+    <!-- Budget Pill -->
+    <string name="wo_budget_pill_title">Budget Summary</string>
+    <string name="wo_budget_labor">Labor</string>
+    <string name="wo_budget_parts">Parts</string>
+    <string name="wo_budget_total">Total</string>
+
+    <!-- PDF Export -->
+    <string name="wo_export_pdf">Export PDF</string>
+    <string name="wo_pdf_share_chooser">Share Work Order</string>
+
+    <!-- VIN Decode -->
+    <string name="wo_vin_label">VIN (optional)</string>
+    <string name="wo_vin_placeholder">Enter VIN to autofill</string>
+    <string name="wo_vin_decode_btn">Decode VIN</string>
+    <string name="wo_vin_decoding">Decoding…</string>
+    <string name="wo_vin_year">Year</string>
+    <string name="wo_vin_make">Make</string>
+    <string name="wo_vin_model">Model</string>
+
+    <!-- Template Management -->
+    <string name="wo_templates_title">Templates</string>
+    <string name="wo_templates_empty">No templates. Tap + to create one.</string>
+    <string name="wo_templates_add_title">New Template</string>
+    <string name="wo_templates_field_title">Template Name</string>
+    <string name="wo_templates_field_description">Description</string>
+    <string name="wo_templates_save">Save</string>
+    <string name="wo_templates_cancel">Cancel</string>
+    <string name="wo_templates_delete">Delete</string>
 
 </resources>
