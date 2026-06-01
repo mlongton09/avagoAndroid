@@ -20,6 +20,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.avago.app.MainViewModel
 import com.avago.core.auth.IdentityManager
+import com.avago.core.auth.PermissionStore
 import com.avago.core.data.repository.UserPreferencesRepository
 import com.avago.core.design.theme.AvagoTheme
 import com.avago.core.push.NotificationPermissionHelper
@@ -39,6 +40,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var syncGate: SyncGate
     @Inject lateinit var userPreferencesRepository: UserPreferencesRepository
     @Inject lateinit var identityManager: IdentityManager
+    @Inject lateinit var permissionStore: PermissionStore
 
     private val mainViewModel: MainViewModel by viewModels()
 
@@ -139,6 +141,7 @@ class MainActivity : ComponentActivity() {
                         syncReady = syncReady,
                         toast = mainViewModel.toast,
                         pendingNavRoute = mainViewModel.pendingNavRoute,
+                        permissionStore = permissionStore,
                     )
                 }
             }

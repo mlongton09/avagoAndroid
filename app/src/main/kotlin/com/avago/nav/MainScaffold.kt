@@ -76,6 +76,7 @@ import androidx.navigation.compose.rememberNavController
 import com.avago.core.ai.ScoutViewModel
 import com.avago.core.ai.ui.ScoutPaletteSheet
 import com.avago.core.ai.ui.VoiceInputSheet
+import com.avago.core.auth.PermissionStore
 import com.avago.core.push.SyncStatusBanner
 import com.avago.core.sync.SyncState
 import com.avago.core.ui.AvagoToast
@@ -95,12 +96,15 @@ data class BottomNavItem(
     val label: String,
     val icon: ImageVector,
     val route: String,
+    val permission: String,
 )
 
 private val bottomNavItems = listOf(
-    BottomNavItem("Assets",      Icons.AutoMirrored.Filled.MenuBook, "assets_graph"),
-    BottomNavItem("Work Orders", Icons.Default.CalendarToday,        "workorders_graph"),
-    BottomNavItem("Chat",        Icons.AutoMirrored.Filled.Chat,     "chat"),
+    BottomNavItem("Assets",      Icons.AutoMirrored.Filled.MenuBook, "assets_graph",      "assets.view"),
+    BottomNavItem("Work Orders", Icons.Default.CalendarToday,        "workorders_graph",  "work_orders.view"),
+    BottomNavItem("Inventory",   Icons.Default.Inventory2,           InventoryRoute.List.route, "inventory.view"),
+    BottomNavItem("Scout",       Icons.Default.AutoAwesome,          "scout/history",     "scout.view"),
+    BottomNavItem("Chat",        Icons.AutoMirrored.Filled.Chat,     "chat",              "chat.view"),
 )
 
 // ---------------------------------------------------------------------------
@@ -144,6 +148,7 @@ fun MainScaffold(
     scoutViewModel: ScoutViewModel = hiltViewModel(),
     navFlagsViewModel: NavFlagsViewModel = hiltViewModel(),
     pendingNavRoute: kotlinx.coroutines.flow.Flow<String>? = null,
+    permissionStore: PermissionStore,
 ) {
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -164,6 +169,9 @@ fun MainScaffold(
     val workOrdersEnabled by navFlagsViewModel.workOrdersEnabled.collectAsState()
     val unreadChatMentionCount by navFlagsViewModel.unreadChatMentionCount.collectAsState()
     val upcomingMineWorkOrderCount by navFlagsViewModel.upcomingMineWorkOrderCount.collectAsState()
+    val permissions by permissionStore.permissions.collectAsState()
+    val isRoot by permissionStore.isRoot.collectAsState()
+    fun can(permission: String) = isRoot || permissions.contains(permission)
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -195,6 +203,7 @@ fun MainScaffold(
                         navController.navigate(AuthRoute.GRAPH) { launchSingleTop = true }
                     },
                     navController = navController,
+                    canNavigate = ::can,
                 )
             }
         },
@@ -243,11 +252,12 @@ fun MainScaffold(
                         chatEnabled = chatEnabled,
                         unreadChatMentionCount = unreadChatMentionCount,
                         upcomingMineWorkOrderCount = upcomingMineWorkOrderCount,
+                        canNavigate = ::can,
                     )
                 }
             },
             floatingActionButton = {
-                if (!isAuthDestination) {
+                if (!isAuthDestination && can("scout.view")) {
                     FloatingActionButton(
                         onClick = {},
                         modifier = Modifier.pointerInput(Unit) {
@@ -333,6 +343,7 @@ fun BottomNavBar(
     chatEnabled: Boolean = true,
     unreadChatMentionCount: Int = 0,
     upcomingMineWorkOrderCount: Int = 0,
+    canNavigate: (String) -> Boolean = { true },
 ) {
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.surface,
@@ -343,9 +354,9 @@ fun BottomNavBar(
 
         val visibleItems = bottomNavItems.filter { item ->
             when (item.route) {
-                "workorders_graph" -> workOrdersEnabled
-                "chat"            -> chatEnabled
-                else              -> true
+                "workorders_graph" -> workOrdersEnabled && canNavigate(item.permission)
+                "chat"            -> chatEnabled && canNavigate(item.permission)
+                else              -> canNavigate(item.permission)
             }
         }
 
@@ -400,6 +411,7 @@ fun SideMenuContent(
     onSignOut: (String) -> Unit,
     onSignIn: () -> Unit = {},
     navController: NavHostController,
+    canNavigate: (String) -> Boolean = { true },
 ) {
     val accounts by viewModel.accounts.collectAsState()
     val activeId  by viewModel.activeAccountId.collectAsState()
@@ -570,40 +582,44 @@ fun SideMenuContent(
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-        // ── SCOUT ────────────────────────────────────────────────────────────
-        DrawerSectionHeader("SCOUT")
+        if (canNavigate("scout.view")) {
+            // ── SCOUT ────────────────────────────────────────────────────────────
+            DrawerSectionHeader("SCOUT")
 
-        NavigationDrawerItem(
-            label = { Text("Scout History") },
-            selected = currentRoute == "scout/history",
-            icon = { Icon(Icons.Default.History, contentDescription = null) },
-            onClick = { onNavigate("scout/history") },
-            modifier = Modifier.padding(horizontal = 8.dp),
-        )
+            NavigationDrawerItem(
+                label = { Text("Scout History") },
+                selected = currentRoute == "scout/history",
+                icon = { Icon(Icons.Default.History, contentDescription = null) },
+                onClick = { onNavigate("scout/history") },
+                modifier = Modifier.padding(horizontal = 8.dp),
+            )
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+        }
 
-        // ── INVENTORY ────────────────────────────────────────────────────────
-        DrawerSectionHeader("INVENTORY")
+        if (canNavigate("inventory.view")) {
+            // ── INVENTORY ────────────────────────────────────────────────────────
+            DrawerSectionHeader("INVENTORY")
 
-        NavigationDrawerItem(
-            label = { Text("Inventory") },
-            selected = currentRoute?.startsWith("inventory") == true &&
-                currentRoute?.startsWith("inventory/purchase-orders") == false,
-            icon = { Icon(Icons.Default.Inventory2, contentDescription = null) },
-            onClick = { onNavigate(InventoryRoute.List.route) },
-            modifier = Modifier.padding(horizontal = 8.dp),
-        )
+            NavigationDrawerItem(
+                label = { Text("Inventory") },
+                selected = currentRoute?.startsWith("inventory") == true &&
+                    currentRoute?.startsWith("inventory/purchase-orders") == false,
+                icon = { Icon(Icons.Default.Inventory2, contentDescription = null) },
+                onClick = { onNavigate(InventoryRoute.List.route) },
+                modifier = Modifier.padding(horizontal = 8.dp),
+            )
 
-        NavigationDrawerItem(
-            label = { Text("Purchase Orders") },
-            selected = currentRoute?.startsWith("inventory/purchase-orders") == true,
-            icon = { Icon(Icons.Default.ShoppingCart, contentDescription = null) },
-            onClick = { onNavigate(InventoryRoute.PurchaseOrderList.route) },
-            modifier = Modifier.padding(horizontal = 8.dp),
-        )
+            NavigationDrawerItem(
+                label = { Text("Purchase Orders") },
+                selected = currentRoute?.startsWith("inventory/purchase-orders") == true,
+                icon = { Icon(Icons.Default.ShoppingCart, contentDescription = null) },
+                onClick = { onNavigate(InventoryRoute.PurchaseOrderList.route) },
+                modifier = Modifier.padding(horizontal = 8.dp),
+            )
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+        }
 
         // ── Settings ─────────────────────────────────────────────────────────
         NavigationDrawerItem(

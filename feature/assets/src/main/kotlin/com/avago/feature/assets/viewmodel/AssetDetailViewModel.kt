@@ -18,6 +18,8 @@ import com.avago.core.data.db.entity.PhotoEntity
 import com.avago.core.data.db.entity.SyncQueueEntity
 import com.avago.core.data.repository.AssetRepository
 import com.avago.core.data.repository.UserPreferencesRepository
+import com.avago.core.permissions.Permissions
+import com.avago.core.permissions.PermissionsManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -59,6 +61,7 @@ class AssetDetailViewModel @Inject constructor(
     private val dbFactory: DatabaseFactory,
     private val identityManager: IdentityManager,
     private val userPrefsRepository: UserPreferencesRepository,
+    private val permissionsManager: PermissionsManager,
 ) : ViewModel() {
 
     private val assetId: String = checkNotNull(savedStateHandle["assetId"]) {
@@ -67,6 +70,9 @@ class AssetDetailViewModel @Inject constructor(
 
     private val _categoryFilter = MutableStateFlow<String?>(null)
     val categoryFilter: StateFlow<String?> = _categoryFilter.asStateFlow()
+
+    val canEditAsset: StateFlow<Boolean> = permissionsManager.observeCan(Permissions.ASSETS_EDIT)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), permissionsManager.can(Permissions.ASSETS_EDIT))
 
     val currencyCode: StateFlow<String> = userPrefsRepository.currencyFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "USD")

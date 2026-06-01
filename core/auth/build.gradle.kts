@@ -25,6 +25,7 @@ dependencies {
 
     implementation(libs.security.crypto)
     implementation(libs.serialization.json)
+    implementation(libs.datastore.preferences)
 
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)

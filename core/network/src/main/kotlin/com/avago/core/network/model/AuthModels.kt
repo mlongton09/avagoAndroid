@@ -84,6 +84,18 @@ data class RolePermissionResponse(
 )
 
 @Serializable
+data class RolePermissionsSyncEnvelope(
+    val data: RolePermissionsSyncData = RolePermissionsSyncData(),
+)
+
+@Serializable
+data class RolePermissionsSyncData(
+    val matrix: Map<String, Map<String, Boolean>> = emptyMap(),
+    val labels: Map<String, String> = emptyMap(),
+    val updated_at: String? = null,
+)
+
+@Serializable
 data class InvitationStatusResponse(
     val email: String,
     val status: String,

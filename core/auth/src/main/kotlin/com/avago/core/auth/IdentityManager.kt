@@ -91,6 +91,7 @@ class IdentityManager @Inject constructor(
     private val migrationService: Provider<AccountMigrationService>,
     // Provider<> breaks the cycle: CrashDiagnostics → StateFlow<String?> → IdentityManager
     private val crashDiagnosticsProvider: Provider<CrashDiagnostics>,
+    private val permissionStore: Provider<PermissionStore>,
 ) : RefreshFailedHandler {
 
     private val refreshMutex = Mutex()
@@ -167,6 +168,8 @@ class IdentityManager @Inject constructor(
             if (accounts.isNotEmpty()) {
                 val last = accounts.last()
                 setActiveAccount(last.accountId, last.userId, isAnonymous = last.isAnonymous)
+                permissionStore.get().activate(last.accountId, last.role, last.role == "root" || last.memberships.any { it.accountId == last.accountId && it.isRoot })
+                permissionStore.get().refresh(last.accountId, last.role)
                 crashDiagnosticsProvider.get().setUserContext()
                 accountManifest.deduplicateAnonymousAccounts(last.accountId)
                 Timber.d("IdentityManager: restored account ${last.accountId}")
@@ -198,6 +201,7 @@ class IdentityManager @Inject constructor(
         val record = AccountRecord(accountId = accountId, isAnonymous = true)
         AccountManifest.addOrUpdate(context, record)
         setActiveAccount(accountId, isAnonymous = true)
+        permissionStore.get().activate(accountId, null, isRoot = false)
 
         Timber.d("IdentityManager: provisioned as $accountId")
         registerPushTokenAsync()
@@ -293,6 +297,7 @@ class IdentityManager @Inject constructor(
                 }
             }
             setActiveAccount(accountId, user?.user_id, isAnonymous = false)
+            refreshPermissionStoreForActiveAccount()
             _accountsChanged.tryEmit(Unit)
             crashDiagnosticsProvider.get().setUserContext()
 
@@ -373,6 +378,7 @@ class IdentityManager @Inject constructor(
             )
         )
         setActiveAccount(accountId, user?.user_id, isAnonymous = false)
+        refreshPermissionStoreForActiveAccount()
         _accountsChanged.tryEmit(Unit)
         crashDiagnosticsProvider.get().setUserContext()
         registerPushTokenAsync()
@@ -469,6 +475,7 @@ class IdentityManager @Inject constructor(
             Timber.w("IdentityManager: switch-account server call failed, using cached tokens")
         }
         setActiveAccount(accountId)
+        refreshPermissionStoreForActiveAccount()
         _accountSwitchEvents.emit(accountId)
         Timber.d("IdentityManager: switched to $accountId")
     }
@@ -490,6 +497,7 @@ class IdentityManager @Inject constructor(
     suspend fun addAccount(record: AccountRecord) = withContext(Dispatchers.IO) {
         AccountManifest.addOrUpdate(appContext, record)
         setActiveAccount(record.accountId)
+        refreshPermissionStoreForActiveAccount()
         _accountsChanged.tryEmit(Unit)
         Timber.d("IdentityManager: addAccount ${record.accountId}")
     }
@@ -501,6 +509,7 @@ class IdentityManager @Inject constructor(
     /** Sign out of [accountId], removing its tokens, manifest entry, and local database. */
     suspend fun signOut(context: Context, accountId: String) = withContext(Dispatchers.IO) {
         _signOutEvents.emit(accountId)
+        permissionStore.get().clear(accountId)
         tokenStore.clearTokens(accountId)
         AccountManifest.remove(context, accountId)
         try { databaseFactory.deleteDatabase(accountId) } catch (e: Exception) {
@@ -509,7 +518,10 @@ class IdentityManager @Inject constructor(
         _accountsChanged.tryEmit(Unit)
         if (_activeAccountId.value == accountId) {
             val remaining = AccountManifest.load(context)
-            setActiveAccount(remaining.lastOrNull()?.accountId)
+            val next = remaining.lastOrNull()
+            setActiveAccount(next?.accountId, next?.userId, isAnonymous = next?.isAnonymous ?: false)
+            val nextIsRoot = next?.let { it.role == "root" || it.memberships.any { membership -> membership.accountId == it.accountId && membership.isRoot } } == true
+            permissionStore.get().activate(next?.accountId, next?.role, nextIsRoot)
         }
         // Clear cached bearer token so the next session's sign-in starts fresh.
         client.clearBearerTokenCache()
@@ -533,6 +545,7 @@ class IdentityManager @Inject constructor(
         tokenStore.clearAllTokens()
         AccountManifest.save(appContext, emptyList())
         _accountsChanged.tryEmit(Unit)
+        permissionStore.get().activate(null, null, isRoot = false)
         setActiveAccount(null)
         Timber.d("IdentityManager: signed out of all accounts")
     }
@@ -672,6 +685,16 @@ class IdentityManager @Inject constructor(
     fun setDevRoleOverride(role: String?) {
         if (role != null && !hasRootOnCurrentAccount()) return
         _devRoleOverride.value = role
+        @Suppress("OPT_IN_USAGE")
+        GlobalScope.launch(Dispatchers.IO) { refreshPermissionStoreForActiveAccount() }
+    }
+
+    private suspend fun refreshPermissionStoreForActiveAccount() {
+        val accountId = _activeAccountId.value
+        val role = getEffectiveRole()
+        val isRoot = role == "root" || hasRootOnCurrentAccount()
+        permissionStore.get().activate(accountId, role, isRoot)
+        permissionStore.get().refresh(accountId, role)
     }
 
     fun getEffectiveRole(): String? {
@@ -697,6 +720,7 @@ class IdentityManager @Inject constructor(
                 Timber.w(e, "Failed to delete DB for $accountId")
             }
         }
+        permissionStore.get().activate(null, null, isRoot = false)
         _activeAccountId.value = null
         _activeUserId.value = null
         tokenStore.activeAccountId = null

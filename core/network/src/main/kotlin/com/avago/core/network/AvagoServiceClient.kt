@@ -20,6 +20,8 @@ import com.avago.core.network.model.PhotoResponse
 import com.avago.core.network.model.PhotoUploadUrlResponse
 import com.avago.core.network.model.RentalResponse
 import com.avago.core.network.model.RolePermissionResponse
+import com.avago.core.network.model.RolePermissionsSyncData
+import com.avago.core.network.model.RolePermissionsSyncEnvelope
 import com.avago.core.network.model.UpdatePreferencesRequest
 import com.avago.core.network.model.UserPreferencesResponse
 import com.avago.core.network.model.VinDecodeResponse
@@ -293,6 +295,14 @@ class AvagoServiceClient @Inject constructor(
     suspend fun getRolePermissions(accountId: String): NetworkResult<List<RolePermissionResponse>> =
         safeNetworkCall {
             client.get("$baseUrl/accounts/$accountId/admin/role-permissions").body()
+        }
+
+    /** Mirrors iOS: GET /accounts/:id/sync/pull?entity_type=role_permissions. */
+    suspend fun pullRolePermissions(accountId: String): NetworkResult<RolePermissionsSyncData> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/sync/pull") {
+                parameter("entity_type", "role_permissions")
+            }.body<RolePermissionsSyncEnvelope>().data
         }
 
     /** GET /accounts/{accountId}/dispatch-config — fetch dispatch board configuration. */

@@ -32,6 +32,7 @@ object Permissions {
     // Inventory
     const val INVENTORY_VIEW = "inventory.view"
     const val INVENTORY_CREATE = "inventory.create"
+    const val INVENTORY_CREATE_PART = "inventory.create_part"
     const val INVENTORY_EDIT = "inventory.edit"
     const val INVENTORY_DELETE = "inventory.delete"
     const val INVENTORY_RECEIVE = "inventory.receive"

@@ -143,6 +143,7 @@ fun AssetDetailScreen(
     val latestMeterReading by viewModel.latestMeterReading.collectAsStateWithLifecycle()
     val showMeterDialog by viewModel.showMeterDialog.collectAsStateWithLifecycle()
     val isSavingMeter by viewModel.isSavingMeter.collectAsStateWithLifecycle()
+    val canEditAsset by viewModel.canEditAsset.collectAsStateWithLifecycle()
 
     var showOverflowMenu by remember { mutableStateOf(false) }
     val pagerState = rememberPagerState { ASSET_DETAIL_TABS.size }
@@ -194,11 +195,13 @@ fun AssetDetailScreen(
                         }
                     },
                     actions = {
-                        IconButton(onClick = onEdit) {
-                            Icon(
-                                imageVector = Icons.Default.Edit,
-                                contentDescription = stringResource(R.string.asset_detail_edit),
-                            )
+                        if (canEditAsset) {
+                            IconButton(onClick = onEdit) {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = stringResource(R.string.asset_detail_edit),
+                                )
+                            }
                         }
                         Box {
                             IconButton(onClick = { showOverflowMenu = true }) {

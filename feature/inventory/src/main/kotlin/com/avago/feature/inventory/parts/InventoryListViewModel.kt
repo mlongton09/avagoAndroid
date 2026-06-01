@@ -64,8 +64,8 @@ class InventoryListViewModel @Inject constructor(
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
-    val canCreatePart: StateFlow<Boolean> = permissionsManager.observeCan(Permissions.INVENTORY_CREATE)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), permissionsManager.can(Permissions.INVENTORY_CREATE))
+    val canCreatePart: StateFlow<Boolean> = permissionsManager.observeCan(Permissions.INVENTORY_CREATE_PART)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), permissionsManager.can(Permissions.INVENTORY_CREATE_PART))
 
     val searchQuery = MutableStateFlow("")
     val selectedCategory = MutableStateFlow<String?>(null)
