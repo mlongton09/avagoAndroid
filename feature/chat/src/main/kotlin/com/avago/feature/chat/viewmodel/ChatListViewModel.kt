@@ -4,23 +4,37 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.db.entity.ChatThreadEntity
+import com.avago.core.network.NetworkResult
+import com.avago.core.network.model.ChatPrefsRequest
+import com.avago.core.network.model.CustomSection
 import com.avago.feature.chat.data.ChatRepository
 import com.avago.feature.chat.realtime.ChatRealtimeClient
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import timber.log.Timber
+import java.util.UUID
 import javax.inject.Inject
 
 enum class ThreadFilter { ALL, DIRECT, WORK_ORDERS, ASSETS }
 
 data class ChatListUiState(
     val threads: List<ChatThreadEntity> = emptyList(),
+    val customSections: List<CustomSection> = emptyList(),
     val filter: ThreadFilter = ThreadFilter.ALL,
     val searchQuery: String = "",
     val unreadOnly: Boolean = false,
@@ -28,6 +42,21 @@ data class ChatListUiState(
     val unreadMentionCount: Int = 0,
     val syncError: String? = null,
     val teamThreadId: String? = null,
+)
+
+private data class ChatListInputs(
+    val threads: List<ChatThreadEntity>,
+    val customSections: List<CustomSection>,
+    val filter: ThreadFilter,
+    val query: String,
+    val unreadOnly: Boolean,
+)
+
+private data class ChatListMeta(
+    val refreshing: Boolean,
+    val mentionCount: Int,
+    val syncError: String?,
+    val teamThreadId: String?,
 )
 
 @HiltViewModel
@@ -42,24 +71,26 @@ class ChatListViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     private val _unreadOnly = MutableStateFlow(false)
     private val _allThreads = MutableStateFlow<List<ChatThreadEntity>>(emptyList())
+    private val _customSections = MutableStateFlow<List<CustomSection>>(emptyList())
+    val customSections: StateFlow<List<CustomSection>> = _customSections.asStateFlow()
+    private var lastPopoutLayout: JsonObject = buildJsonObject { }
     private val _unreadMentionCount = MutableStateFlow(0)
     private val _syncError = MutableStateFlow<String?>(null)
     private val _teamThreadId = MutableStateFlow<String?>(null)
 
     val uiState: StateFlow<ChatListUiState> = combine(
-        _allThreads,
-        _filter,
-        _searchQuery,
-        _unreadOnly,
-        combine(_isRefreshing, _unreadMentionCount, _syncError, _teamThreadId) { refreshing, mentionCount, error, teamThreadId ->
-            Quadruple(refreshing, mentionCount, error, teamThreadId)
+        combine(_allThreads, _customSections, _filter, _searchQuery, _unreadOnly) { threads, customSections, filter, query, unreadOnly ->
+            ChatListInputs(threads, customSections, filter, query, unreadOnly)
         },
-    ) { threads, filter, query, unreadOnly, (refreshing, mentionCount, syncError, teamThreadId) ->
-        val filtered = threads
-            .filter { it.matchesFilter(filter) }
-            .filter { query.isBlank() || it.matchesSearch(query) }
-            .filter { !unreadOnly || it.unreadCount > 0 }
-        val sorted = if (filter == ThreadFilter.ALL) {
+        combine(_isRefreshing, _unreadMentionCount, _syncError, _teamThreadId) { refreshing, mentionCount, error, teamThreadId ->
+            ChatListMeta(refreshing, mentionCount, error, teamThreadId)
+        },
+    ) { inputs, meta ->
+        val filtered = inputs.threads
+            .filter { it.matchesFilter(inputs.filter) }
+            .filter { inputs.query.isBlank() || it.matchesSearch(inputs.query) }
+            .filter { !inputs.unreadOnly || it.unreadCount > 0 }
+        val sorted = if (inputs.filter == ThreadFilter.ALL) {
             filtered.sortedWith(
                 compareBy<ChatThreadEntity> { TYPE_ORDER[it.threadType] ?: 99 }
                     .thenByDescending { it.isFavorite }
@@ -73,13 +104,14 @@ class ChatListViewModel @Inject constructor(
         }
         ChatListUiState(
             threads = sorted,
-            filter = filter,
-            searchQuery = query,
-            unreadOnly = unreadOnly,
-            isRefreshing = refreshing,
-            unreadMentionCount = mentionCount,
-            syncError = syncError,
-            teamThreadId = teamThreadId,
+            customSections = inputs.customSections,
+            filter = inputs.filter,
+            searchQuery = inputs.query,
+            unreadOnly = inputs.unreadOnly,
+            isRefreshing = meta.refreshing,
+            unreadMentionCount = meta.mentionCount,
+            syncError = meta.syncError,
+            teamThreadId = meta.teamThreadId,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -91,6 +123,7 @@ class ChatListViewModel @Inject constructor(
         observeThreads()
         observeUnreadMentionCount()
         refresh()
+        loadChatPrefs()
         loadTeamThread()
         // Sync roster (GET /chat/me/roster) on load — mirrors iOS AppBootstrapCoordinator.startChatServices().
         viewModelScope.launch {
@@ -133,6 +166,81 @@ class ChatListViewModel @Inject constructor(
 
     fun setUnreadOnly(value: Boolean) {
         _unreadOnly.value = value
+    }
+
+    private fun loadChatPrefs() {
+        viewModelScope.launch {
+            when (val result = repository.getChatPrefs()) {
+                is NetworkResult.Success -> {
+                    val layout = result.data.popout_layout?.jsonObjectOrNull() ?: buildJsonObject { }
+                    lastPopoutLayout = layout
+                    _customSections.value = layout["custom_sections"]
+                        ?.jsonArrayOrNull()
+                        ?.mapNotNull { it.jsonObjectOrNull()?.toCustomSection() }
+                        ?: emptyList()
+                }
+                is NetworkResult.Error -> Timber.w("loadChatPrefs failed: ${result.message}")
+                is NetworkResult.Unauthorized -> Timber.w("loadChatPrefs unauthorized")
+            }
+        }
+    }
+
+    fun createCustomSection(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        saveCustomSections(
+            _customSections.value + CustomSection(
+                id = UUID.randomUUID().toString(),
+                name = trimmed,
+            )
+        )
+    }
+
+    fun renameCustomSection(sectionId: String, name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        saveCustomSections(
+            _customSections.value.map { section ->
+                if (section.id == sectionId) section.copy(name = trimmed) else section
+            }
+        )
+    }
+
+    fun deleteCustomSection(sectionId: String) {
+        saveCustomSections(_customSections.value.filterNot { it.id == sectionId })
+    }
+
+    fun toggleThreadInSection(threadId: String, sectionId: String) {
+        val updated = _customSections.value.map { section ->
+            if (section.id != sectionId) section
+            else if (threadId in section.threadIds) {
+                section.copy(threadIds = section.threadIds.filterNot { it == threadId })
+            } else {
+                section.copy(threadIds = section.threadIds + threadId)
+            }
+        }
+        saveCustomSections(updated)
+    }
+
+    private fun saveCustomSections(sections: List<CustomSection>) {
+        viewModelScope.launch {
+            val mergedLayout = JsonObject(
+                lastPopoutLayout.toMutableMap().apply {
+                    put("custom_sections", sections.toJsonArray())
+                }
+            )
+            when (val result = repository.updateChatPrefs(ChatPrefsRequest(popout_layout = mergedLayout))) {
+                is NetworkResult.Success -> {
+                    lastPopoutLayout = mergedLayout
+                    _customSections.value = sections
+                }
+                is NetworkResult.Error -> {
+                    Timber.w("saveCustomSections failed: ${result.message}")
+                    _syncError.value = result.message
+                }
+                is NetworkResult.Unauthorized -> _syncError.value = "Unauthorized"
+            }
+        }
     }
 
     fun refresh() {
@@ -197,13 +305,6 @@ class ChatListViewModel @Inject constructor(
         )
     }
 
-    private data class Quadruple<A, B, C, D>(
-        val first: A,
-        val second: B,
-        val third: C,
-        val fourth: D,
-    )
-
     private fun ChatThreadEntity.matchesFilter(filter: ThreadFilter): Boolean = when (filter) {
         ThreadFilter.ALL -> true
         ThreadFilter.DIRECT -> threadType == "direct" || threadType == "group"
@@ -217,5 +318,33 @@ class ChatListViewModel @Inject constructor(
             subjectSummary?.lowercase()?.contains(q) == true ||
             lastMessagePreview?.lowercase()?.contains(q) == true ||
             threadType.lowercase().contains(q)
+    }
+
+    private fun kotlinx.serialization.json.JsonElement.jsonObjectOrNull(): JsonObject? =
+        this as? JsonObject
+
+    private fun kotlinx.serialization.json.JsonElement.jsonArrayOrNull(): JsonArray? =
+        this as? JsonArray
+
+    private fun JsonObject.toCustomSection(): CustomSection? {
+        val id = this["id"]?.jsonPrimitive?.content ?: return null
+        val name = this["name"]?.jsonPrimitive?.content ?: return null
+        val threadIds = this["thread_ids"]?.jsonArrayOrNull()
+            ?.mapNotNull { it.jsonPrimitive.content }
+            ?: emptyList()
+        return CustomSection(id = id, name = name, threadIds = threadIds)
+    }
+
+    private fun List<CustomSection>.toJsonArray(): JsonArray = buildJsonArray {
+        forEach { section ->
+            add(buildJsonObject {
+                put("id", JsonPrimitive(section.id))
+                put("name", JsonPrimitive(section.name))
+                put(
+                    "thread_ids",
+                    buildJsonArray { section.threadIds.forEach { add(JsonPrimitive(it)) } },
+                )
+            })
+        }
     }
 }

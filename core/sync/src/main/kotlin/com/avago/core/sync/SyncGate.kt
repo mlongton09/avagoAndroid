@@ -1,5 +1,6 @@
 package com.avago.core.sync
 
+import com.avago.core.data.DatabaseFactory
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -9,7 +10,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class SyncGate @Inject constructor() {
+class SyncGate @Inject constructor(
+    private val dbFactory: DatabaseFactory,
+) {
     private val _isOpen = MutableStateFlow(false)
     val isOpen: StateFlow<Boolean> = _isOpen.asStateFlow()
 
@@ -18,6 +21,17 @@ class SyncGate @Inject constructor() {
 
     /** Called on sign-out to reset for the next account. */
     fun reset() { _isOpen.value = false }
+
+    /** Restore the persisted first-sync gate for a previously synced account. */
+    suspend fun restore(accountId: String?) {
+        if (accountId == null) {
+            reset()
+            return
+        }
+        _isOpen.value = runCatching {
+            (dbFactory.get(accountId).syncMetadataDao().getWatermark(FIRST_SYNC_KEY) ?: 0L) > 0L
+        }.getOrDefault(false)
+    }
 
     /**
      * Suspends until the gate is open. Call from any DAO/repository write path
@@ -28,4 +42,8 @@ class SyncGate @Inject constructor() {
     }
 
     val isOpenNow: Boolean get() = _isOpen.value
+
+    private companion object {
+        const val FIRST_SYNC_KEY = "__delta_push_armed__"
+    }
 }

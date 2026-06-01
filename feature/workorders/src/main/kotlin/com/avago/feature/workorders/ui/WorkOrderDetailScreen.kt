@@ -1,5 +1,7 @@
 ﻿package com.avago.feature.workorders.ui
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +23,7 @@ import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.AlertDialog
@@ -40,6 +43,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -57,6 +61,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.feature.workorders.R
@@ -73,6 +78,7 @@ import com.avago.feature.workorders.ui.sheets.RepeatsSheet
 import com.avago.feature.workorders.ui.sheets.TechPickerSheet
 import com.avago.feature.workorders.viewmodel.AuditEntry
 import com.avago.feature.workorders.viewmodel.WorkOrderDetailViewModel
+import com.avago.feature.workorders.viewmodel.WorkOrderMapPreview
 import com.avago.core.network.model.BudgetPillResponse
 import java.time.Instant
 import java.time.ZoneId
@@ -110,6 +116,7 @@ fun WorkOrderDetailScreen(
     val canApprove by viewModel.canApprove.collectAsStateWithLifecycle()
     val canDelete by viewModel.canDelete.collectAsStateWithLifecycle()
     val budgetPill by viewModel.budgetPill.collectAsStateWithLifecycle()
+    val mapPreview by viewModel.mapPreview.collectAsStateWithLifecycle()
 
     var showOverflowMenu by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -417,6 +424,22 @@ fun WorkOrderDetailScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
+                    mapPreview?.let { preview ->
+                        WorkOrderMapCard(
+                            preview = preview,
+                            onOpenMaps = {
+                                val encodedAddress = Uri.encode(preview.address)
+                                val uri = if (preview.latitude != null && preview.longitude != null) {
+                                    Uri.parse("geo:${preview.latitude},${preview.longitude}?q=${preview.latitude},${preview.longitude}($encodedAddress)")
+                                } else {
+                                    Uri.parse("geo:0,0?q=$encodedAddress")
+                                }
+                                context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                            },
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+
                     // ── Recurrence card ──
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -667,6 +690,77 @@ private fun BudgetPillCard(budgetPill: BudgetPillResponse?) {
             stringResource(R.string.wo_budget_total),
             formatCurrency(budgetPill.total_cost, budgetPill.currency),
         )
+    }
+}
+
+@Composable
+private fun WorkOrderMapCard(
+    preview: WorkOrderMapPreview,
+    onOpenMaps: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 8.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.LocationOn,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = "Location",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            Text(
+                text = preview.address,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Surface(
+                modifier = Modifier
+                    .padding(top = 12.dp)
+                    .fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surface,
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Map preview",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        preview.latitude?.let { lat ->
+                            val lon = preview.longitude
+                            if (lon != null) {
+                                Text(
+                                    text = "$lat, $lon",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                    TextButton(onClick = onOpenMaps) {
+                        Text("Open in Maps")
+                    }
+                }
+            }
+        }
     }
 }
 

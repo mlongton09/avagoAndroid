@@ -31,6 +31,7 @@ import com.avago.feature.reports.ui.CostReportScreen
 import com.avago.feature.schedule.nav.scheduleNavGraph
 import com.avago.feature.settings.nav.settingsNavGraph
 import com.avago.feature.workorders.nav.workOrderNavGraph
+import com.avago.core.ai.ui.ScoutHistoryScreen
 
 /**
  * App-level [NavHost].
@@ -148,6 +149,9 @@ fun AvagoNavHost(
             composable("category_report") {
                 GlobalCategoryReportScreen(onBack = { navController.popBackStack() })
             }
+            composable("scout/history") {
+                ScoutHistoryScreen(onBack = { navController.popBackStack() })
+            }
 
             // ── Schedule ──────────────────────────────────────────────────────────
             scheduleNavGraph(
@@ -176,8 +180,11 @@ fun AvagoNavHost(
         conflicts.firstOrNull()?.let { conflict ->
             SyncConflictSheet(
                 conflict = conflict,
+                conflictCount = conflicts.size,
                 onKeepLocal = { conflictViewModel.keepLocal(conflict) },
                 onUseServer = { conflictViewModel.acceptServer(conflict) },
+                onKeepAllLocal = { conflictViewModel.keepAllLocal() },
+                onUseServerAll = { conflictViewModel.acceptAllServer() },
                 onDismiss = { conflictViewModel.dismiss(conflict) },
             )
         }

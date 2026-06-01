@@ -27,6 +27,14 @@ class SyncConflictViewModel @Inject constructor(
         viewModelScope.launch { coordinator.acceptServer(conflict) }
     }
 
+    fun keepAllLocal() {
+        viewModelScope.launch { coordinator.keepAllLocal() }
+    }
+
+    fun acceptAllServer() {
+        viewModelScope.launch { coordinator.acceptAllServer() }
+    }
+
     fun dismiss(conflict: SyncConflict) {
         coordinator.removeConflict(conflict.queueId)
     }

@@ -21,12 +21,39 @@ import kotlinx.serialization.json.Json
 import timber.log.Timber
 import com.avago.core.network.model.RefreshRequest
 import com.avago.core.network.model.AuthResponse
+import kotlinx.coroutines.runBlocking
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 
 interface TokenProvider {
     suspend fun accessToken(): String
     suspend fun refreshToken(): String
     suspend fun deviceId(): String
 }
+
+private fun synthetic429(request: okhttp3.Request, message: String): Response =
+    Response.Builder()
+        .request(request)
+        .protocol(okhttp3.Protocol.HTTP_1_1)
+        .code(429)
+        .message("Too Many Requests")
+        .body(message.toResponseBody("text/plain".toMediaType()))
+        .build()
+
+private fun retryAfterSeconds(value: String?): Long? {
+    value ?: return null
+    value.toLongOrNull()?.let { return it }
+    return runCatching {
+        val instant = ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant()
+        ((instant.toEpochMilli() - System.currentTimeMillis()) / 1000L).coerceAtLeast(0L)
+    }.getOrNull()
+}
+
+private fun parseWaitForSeconds(value: String): Long? =
+    Regex("""Wait for (\d+)s""").find(value)?.groupValues?.getOrNull(1)?.toLongOrNull()
 
 interface TokenStorage {
     suspend fun storeTokens(accessToken: String, refreshToken: String)
@@ -55,6 +82,7 @@ object AvagoHttpClient {
         tokenStorage: TokenStorage,
         isDebug: Boolean = false,
         refreshFailedHandler: RefreshFailedHandler? = null,
+        rateLimitBackoffStore: RateLimitBackoffStore? = null,
     ): HttpClient = HttpClient(OkHttp) {
         // Throw ResponseException for any non-2xx before body deserialization (mirrors iOS status-before-parse)
         expectSuccess = true
@@ -69,6 +97,37 @@ object AvagoHttpClient {
             socketTimeoutMillis = 60_000L
         }
 
+        rateLimitBackoffStore?.let { store ->
+            engine {
+                addInterceptor { chain ->
+                    val request = chain.request()
+                    val endpoint = request.url.encodedPath
+                    if (!endpoint.startsWith("/auth/")) {
+                        val now = System.currentTimeMillis()
+                        val nextAllowed = runBlocking { store.nextAllowedAtMs(endpoint) }
+                        if (nextAllowed > now) {
+                            val wait = ((nextAllowed - now) / 1000L).coerceAtLeast(1L)
+                            return@addInterceptor synthetic429(request, "Rate limited. Wait for ${wait}s")
+                        }
+                    }
+
+                    val response = chain.proceed(request)
+                    if (response.code == 429 && !endpoint.startsWith("/auth/")) {
+                        val waitSeconds = retryAfterSeconds(response.header("Retry-After"))
+                            ?: parseWaitForSeconds(response.peekBody(1024).string())
+                            ?: 900L
+                        runBlocking {
+                            store.setNextAllowedAtMs(
+                                endpoint,
+                                System.currentTimeMillis() + waitSeconds * 1_000L,
+                            )
+                        }
+                    }
+                    response
+                }
+            }
+        }
+
         install(DefaultRequest) {
             contentType(ContentType.Application.Json)
             headers.append("Accept", ContentType.Application.Json.toString())
@@ -81,6 +140,7 @@ object AvagoHttpClient {
                     override fun log(message: String) {
                         Timber.tag("AvagoHttp").d(message)
                     }
+
                 }
             }
         }

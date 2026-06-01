@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.automirrored.filled.MenuBook
@@ -51,6 +52,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
@@ -117,6 +119,7 @@ private fun titleForRoute(route: String?): String = when {
     route == "reports/cost"                      -> "Cost Report"
     route == "reports"                           -> "Reports"
     route == "category_report"                   -> "By Category"
+    route == "scout/history"                     -> "Scout History"
     route.startsWith("chat") ||
         route.startsWith("thread")               -> "Chat"
     route.startsWith("settings")                 -> "Settings"
@@ -134,6 +137,7 @@ private fun titleForRoute(route: String?): String = when {
 fun MainScaffold(
     syncState: SyncState,
     isOffline: Boolean = false,
+    syncReady: Boolean = true,
     toast: AvagoToast,
     onAddAccount: () -> Unit = {},
     navController: NavHostController = rememberNavController(),
@@ -273,7 +277,16 @@ fun MainScaffold(
                     OfflineBanner(isOffline = isOffline)
                 }
                 Box(modifier = Modifier.weight(1f)) {
-                    AvagoNavHost(navController = navController)
+                    if (!isAuthDestination && !syncReady) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    } else {
+                        AvagoNavHost(navController = navController)
+                    }
                     if (!isAuthDestination) {
                         SyncStatusBanner(
                             syncState = syncState,
@@ -552,6 +565,19 @@ fun SideMenuContent(
             selected = currentRoute == "category_report",
             icon = { Icon(Icons.AutoMirrored.Filled.Label, contentDescription = null) },
             onClick = { onNavigate("category_report") },
+            modifier = Modifier.padding(horizontal = 8.dp),
+        )
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+        // ── SCOUT ────────────────────────────────────────────────────────────
+        DrawerSectionHeader("SCOUT")
+
+        NavigationDrawerItem(
+            label = { Text("Scout History") },
+            selected = currentRoute == "scout/history",
+            icon = { Icon(Icons.Default.History, contentDescription = null) },
+            onClick = { onNavigate("scout/history") },
             modifier = Modifier.padding(horizontal = 8.dp),
         )
 

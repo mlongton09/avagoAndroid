@@ -6,6 +6,7 @@ import androidx.room.RoomDatabase
 import com.avago.core.data.db.AvagoDatabase
 import com.avago.core.data.db.MIGRATION_4_5
 import com.avago.core.data.db.MIGRATION_5_6
+import com.avago.core.data.db.MIGRATION_9_10
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
@@ -33,7 +34,7 @@ class DatabaseFactory(
             dbFile.absolutePath,
         )
             .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
-            .addMigrations(MIGRATION_4_5, MIGRATION_5_6)
+            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_9_10)
             .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
     }

@@ -18,6 +18,19 @@ data class SignInRequest(
 )
 
 @Serializable
+data class UpgradeRequest(
+    val provider: String,
+    val oauth_token: String,
+)
+
+@Serializable
+data class UpgradeDeviceRequest(
+    val device_id: String,
+    val provider: String,
+    val oauth_token: String,
+)
+
+@Serializable
 data class RefreshRequest(
     val refresh_token: String,
     val device_id: String,

@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Notifications
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Policy
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
@@ -70,6 +72,7 @@ fun SettingsScreen(
     onNavigateToDeveloper: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {},
     onNavigateToTechProfile: () -> Unit = {},
+    onNavigateToSyncConflicts: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val versionName = remember(context) {
@@ -81,6 +84,7 @@ fun SettingsScreen(
     val fuelVolumeUnit by viewModel.fuelVolumeUnit.collectAsState()
     val disableQuotes by viewModel.disableQuotes.collectAsState()
     val enableHumanInLoop by viewModel.enableHumanInLoop.collectAsState()
+    val forceOffline by viewModel.forceOffline.collectAsState()
     val activeAccountId by viewModel.activeAccountId.collectAsState()
 
     // Notification permission — re-check on every recomposition so state is fresh
@@ -140,18 +144,27 @@ fun SettingsScreen(
     }
 
     if (showDeleteDialog) {
-        ConfirmDialog(
-            title = stringResource(R.string.settings_delete_account),
-            body = stringResource(R.string.settings_delete_account_body),
-            confirmLabel = stringResource(R.string.delete),
-            confirmColors = ButtonDefaults.textButtonColors(
-                contentColor = MaterialTheme.colorScheme.error,
-            ),
-            onConfirm = {
-                viewModel.deleteAccount()
-                showDeleteDialog = false
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text(stringResource(R.string.settings_delete_account)) },
+            text = {
+                Text("Soft delete revokes this device/account access. Hard delete removes the account from the server immediately.")
             },
-            onDismiss = { showDeleteDialog = false },
+            confirmButton = {
+                TextButton(
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    onClick = {
+                        viewModel.deleteAccount(hard = true)
+                        showDeleteDialog = false
+                    },
+                ) { Text("Hard Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    viewModel.deleteAccount(hard = false)
+                    showDeleteDialog = false
+                }) { Text("Soft Delete") }
+            },
         )
     }
 
@@ -224,6 +237,20 @@ fun SettingsScreen(
         }
         item { SectionDivider() }
 
+        // ── Offline ────────────────────────────────────────────────────────────
+        item {
+            SectionHeader(text = "Offline")
+        }
+        item {
+            SwitchRow(
+                label = "Force offline mode",
+                description = "Blocks network requests and uses cached local data only.",
+                checked = forceOffline,
+                onCheckedChange = viewModel::setForceOffline,
+            )
+        }
+        item { SectionDivider() }
+
         // ── Notifications ────────────────────────────────────────────────────
         item {
             SectionHeader(text = stringResource(R.string.settings_notifications))
@@ -274,6 +301,14 @@ fun SettingsScreen(
                 label = stringResource(R.string.settings_invite_team_member),
                 leadingIcon = { Icon(Icons.Default.PersonAdd, contentDescription = null) },
                 onClick = onNavigateToInvite,
+            )
+        }
+        item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
+        item {
+            NavigationRow(
+                label = "Sync Conflicts",
+                leadingIcon = { Icon(Icons.Default.Error, contentDescription = null) },
+                onClick = onNavigateToSyncConflicts,
             )
         }
         item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
@@ -382,15 +417,17 @@ fun SettingsScreen(
         }
         // ── Developer ─────────────────────────────────────────────────────────
         item { SectionDivider() }
-        item {
-            SectionHeader(text = "Developer")
-        }
-        item {
-            NavigationRow(
-                label = "Developer Options",
-                leadingIcon = { Icon(Icons.Default.BugReport, contentDescription = null) },
-                onClick = onNavigateToDeveloper,
-            )
+        if (BuildConfig.DEBUG) {
+            item {
+                SectionHeader(text = "Developer")
+            }
+            item {
+                NavigationRow(
+                    label = "Developer Options",
+                    leadingIcon = { Icon(Icons.Default.BugReport, contentDescription = null) },
+                    onClick = onNavigateToDeveloper,
+                )
+            }
         }
 
         item {

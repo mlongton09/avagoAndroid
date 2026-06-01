@@ -58,6 +58,7 @@ import com.avago.core.reports.model.CostGroupMode
 import com.avago.core.reports.model.CostGroupRow
 import com.avago.core.reports.model.CostPeriodMode
 import com.avago.core.reports.model.CostReportData
+import com.avago.feature.reports.ui.components.ExportButtons
 import com.avago.feature.reports.viewmodel.CostReportViewModel
 
 private val CATEGORY_COLORS = listOf(
@@ -72,6 +73,9 @@ private val CATEGORY_COLORS = listOf(
 )
 
 private val COL_WIDTH: Dp = 68.dp
+
+private fun formatMoney(value: Double, currencyCode: String): String =
+    "$currencyCode %.2f".format(value)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -235,6 +239,40 @@ fun CostReportScreen(
             }
 
             val reportData = data!!
+
+            item {
+                val headers = if (groupMode == CostGroupMode.TCO) {
+                    listOf("Name", "Lifetime Cost")
+                } else {
+                    listOf("Name") + reportData.periods.map { it.label } + "Lifetime Cost"
+                }
+                val rows = reportData.rows.map { row ->
+                    if (groupMode == CostGroupMode.TCO) {
+                        listOf(row.label, formatMoney(row.lifetimeCost, currencyCode))
+                    } else {
+                        listOf(row.label) +
+                            reportData.periods.indices.map { i ->
+                                formatMoney(row.periodCosts.getOrElse(i) { 0.0 }, currencyCode)
+                            } +
+                            formatMoney(row.lifetimeCost, currencyCode)
+                    }
+                } + if (groupMode == CostGroupMode.ALL && reportData.inventoryValue > 0) {
+                    listOf(
+                        listOf("Inventory Value") +
+                            reportData.periods.map { "" } +
+                            formatMoney(reportData.inventoryValue, currencyCode)
+                    )
+                } else {
+                    emptyList()
+                }
+                ExportButtons(
+                    title = "Cost Report",
+                    headers = headers,
+                    rows = rows,
+                    range = viewModel.exportRange(reportData),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
 
             // ── Column header row ─────────────────────────────────────────────
             item {

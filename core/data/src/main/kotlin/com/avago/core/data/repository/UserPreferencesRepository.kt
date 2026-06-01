@@ -16,7 +16,7 @@ private val Context.userPreferencesDataStore by preferencesDataStore(name = "use
 
 /**
  * Persists user-facing preferences (theme, distance unit, fuel unit, currency,
- * language, disable_quotes, enable_human_in_loop) via Jetpack DataStore.
+ * language, disable_quotes, enable_human_in_loop, force_offline) via Jetpack DataStore.
  *
  * All flows emit the current value immediately and on every subsequent change,
  * making them safe to collect inside [androidx.lifecycle.ViewModel.viewModelScope].
@@ -91,6 +91,11 @@ class UserPreferencesRepository @Inject constructor(
         prefs[ENABLE_HUMAN_IN_LOOP_KEY] ?: true
     }
 
+    /** Forces service clients to read only cached/local data and block network calls. */
+    val forceOfflineFlow: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[FORCE_OFFLINE_KEY] ?: false
+    }
+
     // ── Mutators ──────────────────────────────────────────────────────────────
 
     suspend fun setTheme(value: String) {
@@ -133,6 +138,14 @@ class UserPreferencesRepository @Inject constructor(
         dataStore.edit { prefs -> prefs[ENABLE_HUMAN_IN_LOOP_KEY] = value }
     }
 
+    suspend fun setForceOffline(value: Boolean) {
+        dataStore.edit { prefs -> prefs[FORCE_OFFLINE_KEY] = value }
+        context.getSharedPreferences(RUNTIME_FLAGS_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(FORCE_OFFLINE_PREF_KEY, value)
+            .apply()
+    }
+
     /**
      * Returns the saved draft body for a specific thread, or empty string if none.
      * Used to restore the composer on cold start (matches iOS UserDefaults draft persistence).
@@ -162,6 +175,9 @@ class UserPreferencesRepository @Inject constructor(
         val FRE_COMPLETED_KEY = booleanPreferencesKey("fre_completed")
         val FUEL_VOLUME_UNIT_KEY = stringPreferencesKey("fuel_volume_unit")
         val DISABLE_QUOTES_KEY = booleanPreferencesKey("disable_quotes")
+        const val RUNTIME_FLAGS_PREFS = "avago_runtime_flags"
+        const val FORCE_OFFLINE_PREF_KEY = "force_offline"
         val ENABLE_HUMAN_IN_LOOP_KEY = booleanPreferencesKey("enable_human_in_loop")
+        val FORCE_OFFLINE_KEY = booleanPreferencesKey(FORCE_OFFLINE_PREF_KEY)
     }
 }

@@ -7,9 +7,6 @@ import com.avago.core.network.NetworkResult
 import com.avago.core.network.model.AiSkillResponse
 import com.avago.core.network.model.ScoutEntityDto
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -90,49 +87,23 @@ class AiExtractor @Inject constructor(
             )
         ) {
             is NetworkResult.Success -> {
-                val data = r.data
-                // Flatten the payload JSON object into Map<String, String?>.
-                // The model output is a flat (or near-flat) key/value object for
-                // form-fill skills. Nested objects are serialized to JSON strings
-                // so callers can inspect them without a separate parse step.
-                val fields: Map<String, String?> = when (val p = data.payload) {
-                    is JsonObject -> p.entries.associate { (k, v) ->
-                        k to when {
-                            v == JsonNull -> null
-                            v is JsonPrimitive -> v.content
-                            else -> v.toString()
-                        }
-                    }
-                    else -> emptyMap()
-                }
-                // target_screen may live inside the payload (form-fill skills),
-                // so check there after checking the action_card for action skills.
-                val targetScreen = fields["target_screen"]
-                Result.success(
-                    ScoutResponse(
-                        targetScreen = targetScreen,
-                        skillName = data.skill_name,
-                        fields = fields - "target_screen",
-                        envelopeId = data.request_id,
-                        actionCard = data.action_card?.let { ac ->
-                            ActionCard(
-                                title = ac.title,
-                                summary = ac.summary,
-                                skillName = ac.skill_name,
-                                dangerous = ac.dangerous,
-                                expiresAt = ac.expires_at,
-                            )
-                        },
-                    )
-                )
+                Result.success(r.data.toDomain())
             }
             is NetworkResult.Error -> {
                 Timber.w("scoutQuery HTTP ${r.code}: ${r.message}")
-                Result.failure(Exception(r.message))
+                if (r.code == 429) {
+                    Result.failure(ScoutRateLimitException(retryAfterSeconds = parseRetryAfterSeconds(r.message)))
+                } else {
+                    Result.failure(ScoutNetworkException(r.code, r.message))
+                }
             }
             is NetworkResult.Unauthorized -> Result.failure(Exception("Unauthorized"))
         }
+
     }
+
+    private fun parseRetryAfterSeconds(message: String): Long? =
+        Regex("""(\d+)""").find(message)?.groupValues?.get(1)?.toLongOrNull()
 
     /**
      * Fetch the list of available AI skills for the active account.
@@ -161,3 +132,6 @@ class AiExtractor @Inject constructor(
         }
     }
 }
+
+class ScoutRateLimitException(val retryAfterSeconds: Long? = null) : Exception("Scout is rate-limited")
+class ScoutNetworkException(val code: Int, override val message: String) : Exception(message)

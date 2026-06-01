@@ -34,6 +34,7 @@ dependencies {
     implementation(libs.ktor.json)
     implementation(libs.ktor.auth)
     implementation(libs.ktor.logging)
+    implementation(libs.datastore.preferences)
 
     // Serialization
     implementation(libs.serialization.json)

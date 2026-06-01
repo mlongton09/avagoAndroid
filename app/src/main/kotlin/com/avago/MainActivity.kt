@@ -24,6 +24,7 @@ import com.avago.core.data.repository.UserPreferencesRepository
 import com.avago.core.design.theme.AvagoTheme
 import com.avago.core.push.NotificationPermissionHelper
 import com.avago.core.sync.SyncEngine
+import com.avago.core.sync.SyncGate
 import com.avago.nav.MainScaffold
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.first
@@ -35,6 +36,7 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
 
     @Inject lateinit var syncEngine: SyncEngine
+    @Inject lateinit var syncGate: SyncGate
     @Inject lateinit var userPreferencesRepository: UserPreferencesRepository
     @Inject lateinit var identityManager: IdentityManager
 
@@ -128,11 +130,13 @@ class MainActivity : ComponentActivity() {
             AvagoTheme(darkTheme = isDark) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val syncState by syncEngine.state.collectAsState()
+                    val syncReady by syncGate.isOpen.collectAsState()
                     val isOffline by mainViewModel.isOffline.collectAsState()
 
                     MainScaffold(
                         syncState = syncState,
                         isOffline = isOffline,
+                        syncReady = syncReady,
                         toast = mainViewModel.toast,
                         pendingNavRoute = mainViewModel.pendingNavRoute,
                     )

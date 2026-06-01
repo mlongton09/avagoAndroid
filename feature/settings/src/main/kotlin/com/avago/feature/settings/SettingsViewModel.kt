@@ -3,10 +3,12 @@ package com.avago.feature.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
+import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.repository.UserPreferencesRepository
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
 import com.avago.core.network.model.UpdatePreferencesRequest
+import com.avago.core.sync.SyncEngine
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -33,6 +35,8 @@ class SettingsViewModel @Inject constructor(
     private val prefs: UserPreferencesRepository,
     private val identity: IdentityManager,
     private val serviceClient: AvagoServiceClient,
+    private val databaseFactory: DatabaseFactory,
+    private val syncEngine: SyncEngine,
 ) : ViewModel() {
 
     // ── Preference state ──────────────────────────────────────────────────────
@@ -84,6 +88,12 @@ class SettingsViewModel @Inject constructor(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = true,
+    )
+
+    val forceOffline: StateFlow<Boolean> = prefs.forceOfflineFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = false,
     )
 
     // ── Identity state ────────────────────────────────────────────────────────
@@ -164,6 +174,10 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setForceOffline(value: Boolean) {
+        viewModelScope.launch { prefs.setForceOffline(value) }
+    }
+
     fun signOut() {
         viewModelScope.launch {
             val id = activeAccountId.value ?: return@launch
@@ -175,15 +189,36 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun deleteAccount() {
+    fun deleteAccount(hard: Boolean) {
         viewModelScope.launch {
             val id = activeAccountId.value ?: return@launch
             try {
-                // Stub: full delete-account API call deferred.
-                Timber.w("SettingsViewModel: deleteAccount requested for $id — stub, signing out only")
-                identity.signOut(id)
+                when (val result = serviceClient.deleteAccount(id, hard = hard)) {
+                    is NetworkResult.Success -> identity.signOut(id)
+                    is NetworkResult.Error -> Timber.w("SettingsViewModel: deleteAccount failed (${result.code}) — ${result.message}")
+                    NetworkResult.Unauthorized -> Timber.w("SettingsViewModel: deleteAccount unauthorized")
+                }
             } catch (e: Exception) {
                 Timber.e(e, "SettingsViewModel: deleteAccount failed for $id")
+            }
+        }
+    }
+
+    fun deleteCustomerContent() {
+        viewModelScope.launch {
+            val id = activeAccountId.value ?: return@launch
+            try {
+                when (val result = serviceClient.deleteCustomerContent(id)) {
+                    is NetworkResult.Success -> {
+                        runCatching { databaseFactory.deleteDatabase(id) }
+                            .onFailure { Timber.w(it, "SettingsViewModel: local customer-content wipe failed for $id") }
+                        syncEngine.sync()
+                    }
+                    is NetworkResult.Error -> Timber.w("SettingsViewModel: deleteCustomerContent failed (${result.code}) — ${result.message}")
+                    NetworkResult.Unauthorized -> Timber.w("SettingsViewModel: deleteCustomerContent unauthorized")
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "SettingsViewModel: deleteCustomerContent failed for $id")
             }
         }
     }

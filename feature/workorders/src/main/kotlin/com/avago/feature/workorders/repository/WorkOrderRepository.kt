@@ -2,6 +2,7 @@ package com.avago.feature.workorders.repository
 
 import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.LogCostLineEntity
+import com.avago.core.data.db.entity.LocationEntity
 import com.avago.core.data.db.entity.SyncQueueEntity
 import com.avago.core.data.db.entity.TechProfileEntity
 import com.avago.core.data.db.entity.WoAssignmentEntity
@@ -24,8 +25,9 @@ class WorkOrderRepository @Inject constructor(
     // Work Orders
     // ---------------------------------------------------------------------------
 
-    suspend fun observeAll(accountId: String): Flow<List<WorkOrderEntity>> =
-        dbFactory.get(accountId).workOrderDao().observeAll(accountId)
+    suspend fun observeAll(accountId: String): Flow<List<WorkOrderEntity>> {
+        return dbFactory.get(accountId).workOrderDao().observeAll(accountId)
+    }
 
     /**
      * Reactive count of "upcoming + mine + now" work orders, used by the
@@ -41,8 +43,13 @@ class WorkOrderRepository @Inject constructor(
         dbFactory.get(accountId).workOrderDao()
             .observeUpcomingMineCount(accountId, userId, upperBoundMillis)
 
-    suspend fun getById(accountId: String, woId: String): WorkOrderEntity? =
-        dbFactory.get(accountId).workOrderDao().getById(woId)
+    suspend fun getById(accountId: String, woId: String): WorkOrderEntity? {
+        return dbFactory.get(accountId).workOrderDao().getById(woId)
+    }
+
+    suspend fun getLocationById(accountId: String, locationId: String): LocationEntity? {
+        return dbFactory.get(accountId).locationDao().getById(locationId)
+    }
 
     suspend fun upsert(accountId: String, entity: WorkOrderEntity) {
         val db = dbFactory.get(accountId)
@@ -75,8 +82,9 @@ class WorkOrderRepository @Inject constructor(
     // Assignments
     // ---------------------------------------------------------------------------
 
-    suspend fun observeAssignments(accountId: String): Flow<List<WoAssignmentEntity>> =
-        dbFactory.get(accountId).woAssignmentDao().observeAll(accountId)
+    suspend fun observeAssignments(accountId: String): Flow<List<WoAssignmentEntity>> {
+        return dbFactory.get(accountId).woAssignmentDao().observeAll(accountId)
+    }
 
     suspend fun observeAssignmentsForWo(
         accountId: String,
@@ -159,8 +167,9 @@ class WorkOrderRepository @Inject constructor(
     // Cost Lines
     // ---------------------------------------------------------------------------
 
-    suspend fun observeCostLinesForWo(accountId: String, woId: String): Flow<List<LogCostLineEntity>> =
-        dbFactory.get(accountId).logCostLineDao().observeForWo(accountId, woId)
+    suspend fun observeCostLinesForWo(accountId: String, woId: String): Flow<List<LogCostLineEntity>> {
+        return dbFactory.get(accountId).logCostLineDao().observeForWo(accountId, woId)
+    }
 
     suspend fun upsertCostLine(accountId: String, entity: LogCostLineEntity) {
         val db = dbFactory.get(accountId)
@@ -191,8 +200,9 @@ class WorkOrderRepository @Inject constructor(
     // Templates
     // ---------------------------------------------------------------------------
 
-    suspend fun observeTemplates(accountId: String): Flow<List<WoTemplateEntity>> =
-        dbFactory.get(accountId).woTemplateDao().observeAll(accountId)
+    suspend fun observeTemplates(accountId: String): Flow<List<WoTemplateEntity>> {
+        return dbFactory.get(accountId).woTemplateDao().observeAll(accountId)
+    }
 
     suspend fun upsertTemplate(accountId: String, entity: WoTemplateEntity) {
         dbFactory.get(accountId).woTemplateDao().upsert(entity)
@@ -206,8 +216,9 @@ class WorkOrderRepository @Inject constructor(
     // Tech Profiles
     // ---------------------------------------------------------------------------
 
-    suspend fun observeTechProfiles(accountId: String): Flow<List<TechProfileEntity>> =
-        dbFactory.get(accountId).techProfileDao().observeAll(accountId)
+    suspend fun observeTechProfiles(accountId: String): Flow<List<TechProfileEntity>> {
+        return dbFactory.get(accountId).techProfileDao().observeAll(accountId)
+    }
 
     // ---------------------------------------------------------------------------
     // Sync helpers

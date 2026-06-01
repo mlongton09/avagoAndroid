@@ -26,8 +26,11 @@ import com.avago.core.sync.SyncConflict
 @Composable
 fun SyncConflictSheet(
     conflict: SyncConflict,
+    conflictCount: Int = 1,
     onKeepLocal: () -> Unit,
     onUseServer: () -> Unit,
+    onKeepAllLocal: () -> Unit = {},
+    onUseServerAll: () -> Unit = {},
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -43,7 +46,7 @@ fun SyncConflictSheet(
                 .padding(bottom = 32.dp),
         ) {
             Text(
-                text = "Sync Conflict",
+                text = if (conflictCount == 1) "Sync Conflict" else "$conflictCount Sync Conflicts",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(vertical = 12.dp),
@@ -99,6 +102,25 @@ fun SyncConflictSheet(
                     ),
                 ) {
                     Text("Use Server Version")
+                }
+
+                if (conflictCount > 1) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            onClick = onKeepAllLocal,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text("Keep All Mine")
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Button(
+                            onClick = onUseServerAll,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text("Use Server For All")
+                        }
+                    }
                 }
             }
         }

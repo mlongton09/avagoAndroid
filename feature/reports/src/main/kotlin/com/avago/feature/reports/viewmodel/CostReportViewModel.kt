@@ -9,6 +9,7 @@ import com.avago.core.reports.model.CostGroupMode
 import com.avago.core.reports.model.CostPeriodMode
 import com.avago.core.reports.model.CostPeriodSpec
 import com.avago.core.reports.model.CostReportData
+import com.avago.core.reports.model.ReportRange
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -23,6 +24,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.Month
 import kotlinx.datetime.TimeZone
@@ -106,6 +108,15 @@ class CostReportViewModel @Inject constructor(
     }
 
     fun canNavigateNext(): Boolean = _periodOffset.value > 0
+
+    fun exportRange(data: CostReportData): ReportRange {
+        val periods = data.periods
+        if (periods.isEmpty()) return ReportRange.last12Months()
+        return ReportRange(
+            start = Instant.fromEpochMilliseconds(periods.first().startMs),
+            end = Instant.fromEpochMilliseconds(periods.last().endMs),
+        )
+    }
 
     private fun computePeriods(mode: CostPeriodMode, offset: Int): List<CostPeriodSpec> {
         val tz = TimeZone.currentSystemDefault()

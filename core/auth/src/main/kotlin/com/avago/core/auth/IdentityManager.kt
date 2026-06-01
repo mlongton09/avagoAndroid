@@ -6,6 +6,8 @@ import com.avago.core.data.DatabaseFactory
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
 import com.avago.core.network.RefreshFailedHandler
+import com.avago.core.network.NetworkException
+import com.avago.core.network.UnauthorizedException
 import com.avago.core.network.model.DeviceUpdateRequest
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequest
@@ -116,6 +118,10 @@ class IdentityManager @Inject constructor(
     private val _accountsChanged = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
     val accountsChanged: SharedFlow<Unit> = _accountsChanged.asSharedFlow()
 
+    /** Emits the new active account ID after an account switch. */
+    private val _accountSwitchEvents = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val accountSwitchEvents: SharedFlow<String> = _accountSwitchEvents.asSharedFlow()
+
     private val _activeUserId = MutableStateFlow<String?>(null)
     val activeUserId: StateFlow<String?> = _activeUserId.asStateFlow()
 
@@ -203,6 +209,16 @@ class IdentityManager @Inject constructor(
 
     suspend fun signInWithFirebase(context: Context, firebaseToken: String, provider: String = "firebase") =
         withContext(Dispatchers.IO) {
+            if (_activeAccountIsAnonymous.value && _activeAccountId.value != null) {
+                try {
+                    upgradeAnonymousToNamed(firebaseToken, provider)
+                    return@withContext
+                } catch (e: NetworkException) {
+                    if (e.code != 409) throw e
+                    Timber.i("IdentityManager: anonymous upgrade target already exists; falling back to sign-in")
+                }
+            }
+
             val deviceId = tokenStore.getOrCreateDeviceId()
             val response = client.signIn(firebaseToken, deviceId, provider)
             val accountId = requireNotNull(response.account_id) {
@@ -321,6 +337,50 @@ class IdentityManager @Inject constructor(
             enqueueSyncWork()
         }
 
+    private suspend fun upgradeAnonymousToNamed(firebaseToken: String, provider: String) {
+        val accountId = requireNotNull(_activeAccountId.value)
+        try {
+            client.upgradeAnonymous(firebaseToken, provider)
+        } catch (e: UnauthorizedException) {
+            val deviceId = tokenStore.getDeviceId(accountId) ?: tokenStore.getOrCreateDeviceId()
+            val response = client.upgradeAnonymousDevice(deviceId, firebaseToken, provider)
+            tokenStore.storeTokens(accountId, response.access_token, response.refresh_token)
+            response.device_id?.let { tokenStore.storeDeviceId(accountId, it) }
+            client.clearBearerTokenCache()
+        }
+
+        val user = runCatching { client.getMe() }.getOrNull()
+        val accountsResult = runCatching { client.getAllAccounts() }.getOrNull()
+        val accountSummary = (accountsResult as? NetworkResult.Success)
+            ?.data
+            ?.find { it.account_id == accountId }
+        val role = user?.role ?: accountSummary?.role
+        val memberships = if (role != null) {
+            listOf(AccountMembership(accountId = accountId, role = role, isRoot = role == "root"))
+        } else {
+            emptyList()
+        }
+        accountManifest.upsertFromServer(
+            AccountRecord(
+                accountId = accountId,
+                userId = user?.user_id,
+                displayName = user?.display_name,
+                email = user?.email,
+                role = role,
+                memberships = memberships,
+                accountName = accountSummary?.name,
+                isAnonymous = false,
+            )
+        )
+        setActiveAccount(accountId, user?.user_id, isAnonymous = false)
+        _accountsChanged.tryEmit(Unit)
+        crashDiagnosticsProvider.get().setUserContext()
+        registerPushTokenAsync()
+        _signInEvents.emit(accountId)
+        enqueueSyncWork()
+        Timber.d("IdentityManager: upgraded anonymous account $accountId to named")
+    }
+
     // ---------------------------------------------------------------------------
     // Silent re-authentication
     // ---------------------------------------------------------------------------
@@ -409,6 +469,7 @@ class IdentityManager @Inject constructor(
             Timber.w("IdentityManager: switch-account server call failed, using cached tokens")
         }
         setActiveAccount(accountId)
+        _accountSwitchEvents.emit(accountId)
         Timber.d("IdentityManager: switched to $accountId")
     }
 

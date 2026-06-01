@@ -15,6 +15,8 @@ import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
 import com.avago.core.network.model.ChatMemberResponse
 import com.avago.core.network.model.ChatMessageResponse
+import com.avago.core.network.model.ChatPrefsRequest
+import com.avago.core.network.model.ChatPrefsResponse
 import com.avago.core.network.model.ChatRosterEntry
 import com.avago.core.network.model.ChatThreadResponse
 import com.avago.core.network.model.LinkPreviewResponse
@@ -92,6 +94,12 @@ class ChatRepository @Inject constructor(
             }
         }
     }
+
+    suspend fun getChatPrefs(): NetworkResult<ChatPrefsResponse> =
+        client.getChatPrefs()
+
+    suspend fun updateChatPrefs(request: ChatPrefsRequest): NetworkResult<Unit> =
+        client.updateChatPrefs(request)
 
     suspend fun createThread(
         type: String,

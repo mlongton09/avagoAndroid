@@ -19,6 +19,7 @@ import com.avago.core.data.db.entity.WorkOrderEntity
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
 import com.avago.core.network.model.BudgetPillResponse
+import com.avago.core.network.model.GeocodeRequest
 import com.avago.core.permissions.Permissions
 import com.avago.core.permissions.PermissionsManager
 import com.avago.core.sync.SyncEngine
@@ -33,6 +34,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -42,8 +44,15 @@ import timber.log.Timber
 import java.io.File
 import java.util.UUID
 import javax.inject.Inject
-
+import org.json.JSONObject
+ 
 data class AuditEntry(val description: String, val createdAt: String)
+
+data class WorkOrderMapPreview(
+    val address: String,
+    val latitude: Double?,
+    val longitude: Double?,
+)
 
 @HiltViewModel
 class WorkOrderDetailViewModel @Inject constructor(
@@ -69,6 +78,14 @@ class WorkOrderDetailViewModel @Inject constructor(
             else repository.observeAll(accountId)
                 .map { list -> list.firstOrNull { it.woId == woId } }
                 .catch { e -> Timber.e(e, "[WoDetailVM] wo flow error"); emit(null) }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val mapPreview: StateFlow<WorkOrderMapPreview?> = workOrder
+        .flatMapLatest { wo ->
+            if (wo == null) flowOf<WorkOrderMapPreview?>(null)
+            else flow<WorkOrderMapPreview?> { emit(buildMapPreview(wo)) }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
@@ -256,11 +273,69 @@ class WorkOrderDetailViewModel @Inject constructor(
                     is NetworkResult.Success -> _chatThreadId.value = result.data.thread_id
                     else -> { /* leave null */ }
                 }
+
             } catch (e: Exception) {
                 Timber.e(e, "[WoDetailVM] resolveWorkOrderThread failed")
             }
         }
     }
+
+    private suspend fun buildMapPreview(wo: WorkOrderEntity): WorkOrderMapPreview? {
+        val accountId = _accountId.value ?: return null
+        val attrs = parseAttributes(wo.attributes)
+        val location = wo.locationId?.let { repository.getLocationById(accountId, it) }
+
+        val addressLine = firstNonBlank(
+            location?.address,
+            attrs["address_line1"],
+            attrs["street_address"],
+            attrs["address"],
+            attrs["formatted_address"],
+        )
+        val city = firstNonBlank(location?.city, attrs["city"])
+        val state = firstNonBlank(location?.state, attrs["state"])
+        val postalCode = firstNonBlank(location?.postalCode, attrs["postal_code"], attrs["zip_code"], attrs["zip"])
+        val country = firstNonBlank(location?.country, attrs["country"])
+        val address = listOfNotNull(addressLine, city, state, postalCode, country)
+            .filter { it.isNotBlank() }
+            .joinToString(", ")
+
+        var lat = location?.latitude ?: firstNonBlank(attrs["lat"], attrs["latitude"])?.toDoubleOrNull()
+        var lon = location?.longitude ?: firstNonBlank(attrs["lon"], attrs["lng"], attrs["longitude"])?.toDoubleOrNull()
+
+        if ((lat == null || lon == null) && address.isNotBlank()) {
+            when (val result = serviceClient.geocodeAddress(
+                accountId = accountId,
+                request = GeocodeRequest(
+                    address_line1 = addressLine ?: address,
+                    city = city,
+                    state = state,
+                    postal_code = postalCode,
+                    country = country,
+                ),
+            )) {
+                is NetworkResult.Success -> {
+                    lat = result.data.lat
+                    lon = result.data.lon
+                }
+                else -> Unit
+            }
+        }
+
+        return if (address.isBlank() && (lat == null || lon == null)) null
+        else WorkOrderMapPreview(address = address.ifBlank { "$lat, $lon" }, latitude = lat, longitude = lon)
+    }
+
+    private fun parseAttributes(raw: String?): Map<String, String> {
+        if (raw.isNullOrBlank()) return emptyMap()
+        return runCatching {
+            val obj = JSONObject(raw)
+            obj.keys().asSequence().associateWith { key -> obj.optString(key) }
+        }.getOrDefault(emptyMap())
+    }
+
+    private fun firstNonBlank(vararg values: String?): String? =
+        values.firstOrNull { !it.isNullOrBlank() }?.trim()
 
     // ---------------------------------------------------------------------------
     // Status transition

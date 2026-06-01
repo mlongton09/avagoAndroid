@@ -1,7 +1,9 @@
 package com.avago.feature.chat
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,21 +26,27 @@ import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.Badge
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -49,6 +57,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.data.db.entity.ChatThreadEntity
+import com.avago.core.network.model.CustomSection
 import com.avago.feature.chat.ui.displayTitle
 import com.avago.feature.chat.ui.iconEmoji
 import com.avago.feature.chat.ui.lastMessagePreviewText
@@ -57,7 +66,7 @@ import com.avago.feature.chat.viewmodel.ChatListViewModel
 import com.avago.core.ui.AvagoSearchBar
 import com.avago.feature.chat.viewmodel.ThreadFilter
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ChatListScreen(
     onThreadClick: (threadId: String) -> Unit,
@@ -67,6 +76,12 @@ fun ChatListScreen(
     viewModel: ChatListViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var showNewSectionDialog by rememberSaveable { mutableStateOf(false) }
+    var newSectionName by rememberSaveable { mutableStateOf("") }
+    var sectionMenuThread by remember { mutableStateOf<ChatThreadEntity?>(null) }
+    var sectionMenuSection by remember { mutableStateOf<CustomSection?>(null) }
+    var renameSection by remember { mutableStateOf<CustomSection?>(null) }
+    var renameSectionName by rememberSaveable { mutableStateOf("") }
 
     val filterLabels = listOf(
         ThreadFilter.ALL to "All",
@@ -74,6 +89,117 @@ fun ChatListScreen(
         ThreadFilter.WORK_ORDERS to "Work Orders",
         ThreadFilter.ASSETS to "Assets",
     )
+
+    if (showNewSectionDialog) {
+        AlertDialog(
+            onDismissRequest = { showNewSectionDialog = false },
+            title = { Text("New Section") },
+            text = {
+                OutlinedTextField(
+                    value = newSectionName,
+                    onValueChange = { newSectionName = it },
+                    label = { Text("Section name") },
+                    singleLine = true,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.createCustomSection(newSectionName)
+                        newSectionName = ""
+                        showNewSectionDialog = false
+                    },
+                ) { Text("Create") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNewSectionDialog = false }) { Text("Cancel") }
+            },
+        )
+    }
+
+    sectionMenuThread?.let { thread ->
+        AlertDialog(
+            onDismissRequest = { sectionMenuThread = null },
+            title = { Text("Move to Section") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (uiState.customSections.isEmpty()) {
+                        Text("No sections — create one with +")
+                    } else {
+                        uiState.customSections.forEach { section ->
+                            val isInSection = thread.threadId in section.threadIds
+                            TextButton(
+                                onClick = {
+                                    viewModel.toggleThreadInSection(thread.threadId, section.id)
+                                    sectionMenuThread = null
+                                },
+                            ) {
+                                Text(if (isInSection) "Remove from ${section.name}" else "Add to ${section.name}")
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { sectionMenuThread = null }) { Text("Close") }
+            },
+        )
+    }
+
+    sectionMenuSection?.let { section ->
+        AlertDialog(
+            onDismissRequest = { sectionMenuSection = null },
+            title = { Text(section.name) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(
+                        onClick = {
+                            renameSection = section
+                            renameSectionName = section.name
+                            sectionMenuSection = null
+                        },
+                    ) { Text("Rename") }
+                    TextButton(
+                        onClick = {
+                            viewModel.deleteCustomSection(section.id)
+                            sectionMenuSection = null
+                        },
+                    ) { Text("Delete") }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { sectionMenuSection = null }) { Text("Cancel") }
+            },
+        )
+    }
+
+    renameSection?.let { section ->
+        AlertDialog(
+            onDismissRequest = { renameSection = null },
+            title = { Text("Rename Section") },
+            text = {
+                OutlinedTextField(
+                    value = renameSectionName,
+                    onValueChange = { renameSectionName = it },
+                    label = { Text("Section name") },
+                    singleLine = true,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.renameCustomSection(section.id, renameSectionName)
+                        renameSection = null
+                    },
+                ) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = { renameSection = null }) { Text("Cancel") }
+            },
+        )
+    }
 
     Scaffold(
         modifier = modifier,
@@ -130,66 +256,64 @@ fun ChatListScreen(
                             label = { Text("Unread") },
                         )
                     }
+                    item {
+                        FilterChip(
+                            selected = false,
+                            onClick = { showNewSectionDialog = true },
+                            label = { Text("+ New Section") },
+                        )
+                    }
                 }
 
-                // Thread list
-                if (uiState.threads.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (uiState.syncError != null) {
-                            Text(
-                                text = "Sync failed: ${uiState.syncError}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.padding(horizontal = 24.dp),
-                            )
-                        } else if (!uiState.isRefreshing) {
-                            Text(
-                                text = "No conversations yet",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                            )
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 80.dp),
+                ) {
+                    if (uiState.syncError != null && uiState.threads.isEmpty()) {
+                        item(key = "sync_error") {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(24.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = "Sync failed: ${uiState.syncError}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            }
                         }
                     }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(bottom = 80.dp),
-                    ) {
                         item(key = "mentions_shortcut") {
                             MentionsShortcutRow(
                                 unreadMentionCount = uiState.unreadMentionCount,
                                 onClick = onMentions,
                             )
                         }
-                        if (uiState.teamThreadId != null) {
-                            item(key = "team_shortcut") {
-                                TeamRoomShortcutRow(onClick = { onThreadClick(uiState.teamThreadId!!) })
-                            }
+                        item(key = "team_shortcut") {
+                            TeamRoomShortcutRow(
+                                onClick = {
+                                    uiState.teamThreadId?.let(onThreadClick) ?: viewModel.loadTeamThread()
+                                },
+                            )
                         }
-                        // Group threads by type — mirrors iOS ThreadListViewController sections
-                        val teamThreads = uiState.threads.filter { it.threadType == "team" }
-                        val assetWoThreads = uiState.threads.filter { it.threadType == "wo" || it.threadType == "asset" }
-                        val directThreads = uiState.threads.filter { it.threadType == "direct" }
-                        val groupThreads = uiState.threads.filter { it.threadType == "group" }
-                        val otherThreads = uiState.threads.filter {
-                            it.threadType !in setOf("team", "wo", "asset", "direct", "group")
+                        // Group threads by type and custom sections — mirrors iOS ThreadListViewController sections.
+                        val assignedToCustom = uiState.customSections.flatMap { it.threadIds }.toSet()
+                        val defaultThreads = uiState.threads.filter { it.threadId !in assignedToCustom }
+                        val assetWoThreads = defaultThreads.filter {
+                            (it.threadType == "wo" || it.threadType == "asset") && it.isFavorite
                         }
-
-                        // Team threads — no section header (top special rows, like iOS)
-                        items(teamThreads, key = { it.threadId }) { thread ->
-                            ThreadRowWithSwipe(thread, viewModel, onThreadClick)
-                        }
+                        val directThreads = defaultThreads.filter { it.threadType == "direct" && it.isFavorite }
+                        val groupThreads = defaultThreads.filter { it.threadType == "group" && it.isFavorite }
 
                         // "Work Orders & Assets" section
                         if (assetWoThreads.isNotEmpty()) {
                             stickyHeader(key = "header_assets") {
-                                SectionHeader("Work Orders & Assets")
+                                SectionHeader("Favorite Assets")
                             }
                             items(assetWoThreads, key = { it.threadId }) { thread ->
-                                ThreadRowWithSwipe(thread, viewModel, onThreadClick)
+                                ThreadRowWithSwipe(thread, viewModel, onThreadClick) { sectionMenuThread = thread }
                             }
                         }
 
@@ -199,7 +323,7 @@ fun ChatListScreen(
                                 SectionHeader("Direct Messages")
                             }
                             items(directThreads, key = { it.threadId }) { thread ->
-                                ThreadRowWithSwipe(thread, viewModel, onThreadClick)
+                                ThreadRowWithSwipe(thread, viewModel, onThreadClick) { sectionMenuThread = thread }
                             }
                         }
 
@@ -209,21 +333,24 @@ fun ChatListScreen(
                                 SectionHeader("Group Chats")
                             }
                             items(groupThreads, key = { it.threadId }) { thread ->
-                                ThreadRowWithSwipe(thread, viewModel, onThreadClick)
+                                ThreadRowWithSwipe(thread, viewModel, onThreadClick) { sectionMenuThread = thread }
                             }
                         }
 
-                        // "Other" section
-                        if (otherThreads.isNotEmpty()) {
-                            stickyHeader(key = "header_other") {
-                                SectionHeader("Other")
+                        uiState.customSections.forEach { section ->
+                            val sectionThreads = section.threadsFrom(uiState.threads)
+                            stickyHeader(key = "header_custom_${section.id}") {
+                                SectionHeader(
+                                    title = section.name,
+                                    onLongClick = { sectionMenuSection = section },
+                                )
                             }
-                            items(otherThreads, key = { it.threadId }) { thread ->
-                                ThreadRowWithSwipe(thread, viewModel, onThreadClick)
+                            items(sectionThreads, key = { it.threadId }) { thread ->
+                                ThreadRowWithSwipe(thread, viewModel, onThreadClick) { sectionMenuThread = thread }
                             }
                         }
+
                     }
-                }
             }
         }
         // New-conversation FAB
@@ -316,6 +443,7 @@ private fun ThreadRowWithSwipe(
     thread: ChatThreadEntity,
     viewModel: ChatListViewModel,
     onThreadClick: (threadId: String) -> Unit,
+    onSectionMenu: () -> Unit,
 ) {
     val swipeState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
@@ -370,18 +498,29 @@ private fun ThreadRowWithSwipe(
         ThreadRow(
             thread = thread,
             onClick = { onThreadClick(thread.threadId) },
+            onLongClick = onSectionMenu,
         )
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun SectionHeader(title: String, modifier: Modifier = Modifier) {
+private fun SectionHeader(
+    title: String,
+    modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
+) {
+    val headerModifier = if (onLongClick == null) {
+        modifier
+    } else {
+        modifier.combinedClickable(onClick = {}, onLongClick = onLongClick)
+    }
     Text(
         text = title.uppercase(),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
         fontWeight = FontWeight.SemiBold,
-        modifier = modifier
+        modifier = headerModifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 16.dp, vertical = 6.dp),
@@ -392,6 +531,7 @@ private fun SectionHeader(title: String, modifier: Modifier = Modifier) {
 private fun ThreadRow(
     thread: ChatThreadEntity,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val hasUnread = thread.unreadCount > 0
@@ -399,7 +539,10 @@ private fun ThreadRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+            )
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -459,7 +602,13 @@ private fun ThreadRow(
                         Text(text = if (thread.unreadCount > 99) "99+" else thread.unreadCount.toString())
                     }
                 }
+
             }
         }
     }
+}
+
+private fun CustomSection.threadsFrom(threads: List<ChatThreadEntity>): List<ChatThreadEntity> {
+    val byId = threads.associateBy { it.threadId }
+    return threadIds.mapNotNull { byId[it] }.filter { it.isFavorite }
 }

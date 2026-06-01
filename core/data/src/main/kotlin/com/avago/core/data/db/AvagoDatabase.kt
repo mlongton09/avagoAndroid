@@ -35,6 +35,8 @@ import com.avago.core.data.db.dao.RolePermissionDefaultsDao
 import com.avago.core.data.db.dao.RoleLabelCacheDao
 import com.avago.core.data.db.dao.ScheduleDao
 import com.avago.core.data.db.dao.ServiceDao
+import com.avago.core.data.db.dao.ScoutHistoryDao
+import com.avago.core.data.db.dao.ScoutPendingDao
 import com.avago.core.data.db.dao.StockingLevelDao
 import com.avago.core.data.db.dao.SyncMetadataDao
 import com.avago.core.data.db.dao.SyncQueueDao
@@ -79,6 +81,8 @@ import com.avago.core.data.db.entity.PurchaseOrderEntity
 import com.avago.core.data.db.entity.RolePermissionDefaultsEntity
 import com.avago.core.data.db.entity.RoleLabelCacheEntity
 import com.avago.core.data.db.entity.ScheduleEntity
+import com.avago.core.data.db.entity.ScoutHistoryEntity
+import com.avago.core.data.db.entity.ScoutPendingEntity
 import com.avago.core.data.db.entity.ServiceEntity
 import com.avago.core.data.db.entity.StockingLevelEntity
 import com.avago.core.data.db.entity.SyncMetadataEntity
@@ -142,8 +146,10 @@ import com.avago.core.data.db.entity.WorkOrderEntity
         AssetLocationHistoryEntity::class,
         RoleLabelCacheEntity::class,
         EventEntity::class,
+        ScoutPendingEntity::class,
+        ScoutHistoryEntity::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -194,4 +200,6 @@ abstract class AvagoDatabase : RoomDatabase() {
     abstract fun assetLocationHistoryDao(): AssetLocationHistoryDao
     abstract fun roleLabelCacheDao(): RoleLabelCacheDao
     abstract fun eventDao(): EventDao
+    abstract fun scoutPendingDao(): ScoutPendingDao
+    abstract fun scoutHistoryDao(): ScoutHistoryDao
 }

@@ -32,6 +32,7 @@ class ScoutViewModel @Inject constructor(
     private val executor: ScoutSkillExecutor,
     private val prefs: UserPreferencesRepository,
     private val formFillRouter: FormFillRouter,
+    private val scoutRepository: ScoutRepository,
 ) : ViewModel() {
 
     sealed class ScoutState {
@@ -52,6 +53,12 @@ class ScoutViewModel @Inject constructor(
 
         /** Server returned an error. */
         data class Error(val message: String) : ScoutState()
+
+        /** Request was stored locally and will be drained by WorkManager. */
+        data class Queued(val message: String = "Queued. Scout will send this when you're back online.") : ScoutState()
+
+        /** Server throttle window; UI shows a cooldown banner. */
+        data class Throttled(val untilEpochMillis: Long) : ScoutState()
     }
 
     private val _state = MutableStateFlow<ScoutState>(ScoutState.Idle)
@@ -80,11 +87,17 @@ class ScoutViewModel @Inject constructor(
         if (trimmed.isEmpty()) return
 
         viewModelScope.launch {
-            _state.value = ScoutState.Loading
             val ctx = contextHost.currentContext()
+            if (!scoutRepository.isOnline()) {
+                scoutRepository.enqueue(trimmed, ctx)
+                _state.value = ScoutState.Queued()
+                return@launch
+            }
+            _state.value = ScoutState.Loading
             val result = extractor.nlSearch(trimmed, ctx)
             _state.value = result.fold(
                 onSuccess = { response ->
+                    scoutRepository.recordHistory(trimmed, response)
                     val hitlEnabled = prefs.enableHumanInLoopFlow.first()
                     // Only try direct execution when HITL is off AND the server
                     // didn't send an action card (action cards always need explicit
@@ -98,7 +111,14 @@ class ScoutViewModel @Inject constructor(
                     }
                     ScoutState.Result(response)
                 },
-                onFailure = { ScoutState.Error(it.message ?: "Unknown error") },
+                onFailure = {
+                    if (it is ScoutRateLimitException) {
+                        val retry = it.retryAfterSeconds ?: 60L
+                        ScoutState.Throttled(System.currentTimeMillis() + retry * 1000L)
+                    } else {
+                        ScoutState.Error(it.message ?: "Unknown error")
+                    }
+                },
             )
         }
     }
@@ -129,5 +149,9 @@ class ScoutViewModel @Inject constructor(
     /** Reset to [ScoutState.Idle] — call after navigation is completed. */
     fun reset() {
         _state.value = ScoutState.Idle
+    }
+
+    fun scheduleDrain() {
+        scoutRepository.scheduleDrain()
     }
 }

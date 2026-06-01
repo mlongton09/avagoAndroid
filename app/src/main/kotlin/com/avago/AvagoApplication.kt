@@ -22,6 +22,7 @@ import com.avago.core.auth.IdentityManager
 import com.avago.core.data.CrashDiagnostics
 import com.avago.core.data.ExchangeRateService
 import com.avago.core.network.AvagoServiceClient
+import com.avago.core.ai.ScoutRepository
 import com.avago.core.seed.ConfigSeeder
 import com.avago.core.sync.ConnectivityMonitor
 import com.avago.core.sync.DeltaPushApplier
@@ -118,6 +119,7 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
     @Inject lateinit var deltaApplierLazy: Lazy<DeltaPushApplier>
     @Inject lateinit var chatBackgroundSyncLazy: Lazy<BackgroundSyncCoordinator>
     @Inject lateinit var chatRealtimeLazy: Lazy<ChatRealtimeClient>
+    @Inject lateinit var scoutRepositoryLazy: Lazy<ScoutRepository>
 
     private val identityManager get() = identityManagerLazy.get()
     private val crashDiagnostics get() = crashDiagnosticsLazy.get()
@@ -133,6 +135,7 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
     private val deltaApplier get() = deltaApplierLazy.get()
     private val chatBackgroundSync get() = chatBackgroundSyncLazy.get()
     private val chatRealtime get() = chatRealtimeLazy.get()
+    private val scoutRepository get() = scoutRepositoryLazy.get()
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -155,6 +158,7 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
                     Trace.beginSection("ConfigSeeder.seedIfNeeded")
                     configSeeder.seedIfNeeded(accountId)
                     Trace.endSection()
+                    syncGate.restore(accountId)
                     // Open chat WebSocket so messages arrive as push events instead of
                     // 15-minute periodic delta polls. Mirrors iOS AppBootstrapCoordinator.startChatServices.
                     runCatching { chatRealtime.connect(accountId) }
@@ -190,6 +194,7 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
         schedulePeriodicSync()
         observeConnectivityForSync()
         observeSignOutForWatermarkReset()
+        observeAccountSwitchForSyncGate()
         observeSignInForRateLimitClear()
         observePermissionsStaleness()
         observeAccountGone()
@@ -225,6 +230,7 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
                         Timber.d("AvagoApplication: connectivity restored — triggering immediate sync")
                         syncEngine.handleConnectivityLost() // resets any stale in-flight items
                         triggerImmediateSync()
+                        scoutRepository.scheduleDrain()
                     } else if (!current) {
                         syncEngine.handleConnectivityLost()
                     }
@@ -240,6 +246,16 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
                 runCatching { syncEngine.resetAllWatermarks(accountId) }
                     .onFailure { Timber.e(it, "AvagoApplication: failed to reset watermarks for $accountId") }
                 syncGate.reset()
+            }
+        }
+    }
+
+    private fun observeAccountSwitchForSyncGate() {
+        appScope.launch {
+            identityManager.accountSwitchEvents.collect { accountId ->
+                syncGate.reset()
+                runCatching { triggerImmediateSync() }
+                    .onFailure { Timber.e(it, "AvagoApplication: failed to sync after account switch to $accountId") }
             }
         }
     }

@@ -1,6 +1,5 @@
 ﻿package com.avago.feature.settings
 
-import android.content.Context
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -42,11 +41,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
+import com.avago.core.data.ClientFeatureFlag
+import com.avago.core.data.FeatureFlags
 import com.avago.core.sync.SyncEngine
 import com.avago.feature.settings.BuildConfig
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
@@ -59,6 +63,7 @@ import javax.inject.Inject
 class DeveloperViewModel @Inject constructor(
     private val identityManager: IdentityManager,
     private val syncEngine: SyncEngine,
+    private val featureFlags: FeatureFlags,
 ) : ViewModel() {
 
     val activeAccountId: StateFlow<String?> = identityManager.activeAccountId
@@ -77,8 +82,25 @@ class DeveloperViewModel @Inject constructor(
 
     val navigateToSignIn = MutableStateFlow(false)
 
+    val featureFlagRows: StateFlow<List<FeatureFlagRowState>> =
+        combine(
+            featureFlags.clientBooleanFlags.map { flag ->
+                featureFlags.observeFlag(flag.key, flag.defaultValue)
+            }
+        ) { values ->
+            featureFlags.clientBooleanFlags.mapIndexed { index, flag ->
+                FeatureFlagRowState(flag, values[index])
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     fun setRoleOverride(role: String?) {
         identityManager.setDevRoleOverride(role)
+    }
+
+    fun setFeatureFlag(key: String, enabled: Boolean) {
+        viewModelScope.launch {
+            featureFlags.setBooleanFlag(key, enabled)
+        }
     }
 
     fun wipeAllData() {
@@ -104,6 +126,11 @@ class DeveloperViewModel @Inject constructor(
     }
 }
 
+data class FeatureFlagRowState(
+    val flag: ClientFeatureFlag,
+    val enabled: Boolean,
+)
+
 // ---------------------------------------------------------------------------
 // Screen
 // ---------------------------------------------------------------------------
@@ -119,6 +146,7 @@ fun DeveloperScreen(
     val userId by viewModel.activeUserId.collectAsStateWithLifecycle()
     val devRoleOverride by viewModel.devRoleOverride.collectAsStateWithLifecycle()
     val canOverride by viewModel.canOverride.collectAsStateWithLifecycle()
+    val featureFlagRows by viewModel.featureFlagRows.collectAsStateWithLifecycle()
     var showWipeConfirm by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -169,14 +197,18 @@ fun DeveloperScreen(
             item { HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp)) }
 
             // ── Role Override ─────────────────────────────────────────────────
-            if (canOverride) {
+            if (BuildConfig.DEBUG && canOverride) {
                 item { DevSectionHeader("Role Override") }
                 item {
-                    val roleOptions = listOf("None (actual)", "admin", "technician", "viewer")
+                    val roleOptions = listOf("None (actual)", "root", "admin", "manager", "dispatcher", "technician", "operator", "reader")
                     val selectedIndex = when (devRoleOverride) {
-                        "admin" -> 1
-                        "technician" -> 2
-                        "viewer" -> 3
+                        "root" -> 1
+                        "admin" -> 2
+                        "manager" -> 3
+                        "dispatcher" -> 4
+                        "technician" -> 5
+                        "operator" -> 6
+                        "reader" -> 7
                         else -> 0
                     }
                     ListItem(
@@ -188,9 +220,13 @@ fun DeveloperScreen(
                                         onClick = {
                                             viewModel.setRoleOverride(
                                                 when (index) {
-                                                    1 -> "admin"
-                                                    2 -> "technician"
-                                                    3 -> "viewer"
+                                                    1 -> "root"
+                                                    2 -> "admin"
+                                                    3 -> "manager"
+                                                    4 -> "dispatcher"
+                                                    5 -> "technician"
+                                                    6 -> "operator"
+                                                    7 -> "reader"
                                                     else -> null
                                                 }
                                             )
@@ -208,24 +244,20 @@ fun DeveloperScreen(
             }
 
             // ── Feature Flags ─────────────────────────────────────────────────
-            item { DevSectionHeader("Feature Flags") }
-            item {
-                FeatureToggle(
-                    label = "Unified WO View",
-                    prefKey = "ff_unified_wo",
-                    defaultValue = true,
-                    context = context,
-                )
+            if (BuildConfig.DEBUG) {
+                item { DevSectionHeader("Feature Flags") }
+                featureFlagRows.forEach { row ->
+                    item(row.flag.key) {
+                        FeatureFlagRow(
+                            row = row,
+                            onCheckedChange = { enabled ->
+                                viewModel.setFeatureFlag(row.flag.key, enabled)
+                            },
+                        )
+                    }
+                }
+                item { HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp)) }
             }
-            item {
-                FeatureToggle(
-                    label = "AI Scout",
-                    prefKey = "ff_scout",
-                    defaultValue = true,
-                    context = context,
-                )
-            }
-            item { HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp)) }
 
             // ── Actions ───────────────────────────────────────────────────────
             item { DevSectionHeader("Actions") }
@@ -319,28 +351,24 @@ private fun InfoRow(label: String, value: String) {
 }
 
 @Composable
-private fun FeatureToggle(
-    label: String,
-    prefKey: String,
-    defaultValue: Boolean,
-    context: Context,
+private fun FeatureFlagRow(
+    row: FeatureFlagRowState,
+    onCheckedChange: (Boolean) -> Unit,
 ) {
-    val prefs = remember {
-        context.getSharedPreferences("avago_feature_flags", Context.MODE_PRIVATE)
-    }
-    var checked by remember { mutableStateOf(prefs.getBoolean(prefKey, defaultValue)) }
-
     ListItem(
-        headlineContent = { Text(label) },
+        headlineContent = { Text(row.flag.displayName) },
+        supportingContent = {
+            Text(row.flag.key, style = MaterialTheme.typography.bodySmall)
+        },
         trailingContent = {
             Switch(
-                checked = checked,
-                onCheckedChange = { newValue ->
-                    checked = newValue
-                    prefs.edit().putBoolean(prefKey, newValue).apply()
-                },
+                checked = row.enabled,
+                onCheckedChange = onCheckedChange,
             )
         },
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Switch) { onCheckedChange(!row.enabled) },
     )
 }
 

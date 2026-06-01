@@ -3,6 +3,7 @@ package com.avago.core.network.di
 import com.avago.core.network.AvagoHttpClient
 import com.avago.core.network.BuildConfig
 import com.avago.core.network.RefreshFailedHandler
+import com.avago.core.network.RateLimitBackoffStore
 import com.avago.core.network.TokenProvider
 import com.avago.core.network.TokenStorage
 import dagger.Module
@@ -30,11 +31,13 @@ object NetworkModule {
         tokenStorage: TokenStorage,
         @Named("baseUrl") baseUrl: String,
         refreshFailedHandler: RefreshFailedHandler,
+        rateLimitBackoffStore: RateLimitBackoffStore,
     ): HttpClient = AvagoHttpClient.create(
         baseUrl = baseUrl,
         tokenProvider = tokenProvider,
         tokenStorage = tokenStorage,
         isDebug = BuildConfig.DEBUG,
         refreshFailedHandler = refreshFailedHandler,
+        rateLimitBackoffStore = rateLimitBackoffStore,
     )
 }

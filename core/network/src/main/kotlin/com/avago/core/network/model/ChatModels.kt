@@ -203,6 +203,13 @@ data class ChatSyncOp(
 )
 
 @Serializable
+data class CustomSection(
+    val id: String,
+    val name: String,
+    @SerialName("thread_ids") val threadIds: List<String> = emptyList(),
+)
+
+@Serializable
 data class ChatPrefsResponse(
     val notification_sound: Boolean = true,
     val show_previews: Boolean = true,
@@ -215,6 +222,7 @@ data class ChatPrefsResponse(
     val quiet_hours_start: String? = null,
     val quiet_hours_end: String? = null,
     val quiet_hours_timezone: String? = null,
+    val popout_layout: JsonElement? = null,
 )
 
 @Serializable
@@ -230,6 +238,7 @@ data class ChatPrefsRequest(
     val quiet_hours_start: String? = null,
     val quiet_hours_end: String? = null,
     val quiet_hours_timezone: String? = null,
+    val popout_layout: JsonElement? = null,
 )
 
 @Serializable

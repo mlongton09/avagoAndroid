@@ -28,6 +28,9 @@ dependencies {
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
+    implementation(libs.hilt.work)
+    ksp(libs.hilt.compiler.androidx)
+    implementation(libs.work.runtime)
 
     implementation(libs.serialization.json)
 
@@ -37,6 +40,7 @@ dependencies {
     implementation(libs.compose.icons)
 
     implementation(libs.lifecycle.viewmodel.compose)
+    implementation(libs.lifecycle.runtime.compose)
     implementation(libs.hilt.nav.compose)
     implementation(libs.coroutines.android)
     implementation(libs.timber)

@@ -2,6 +2,7 @@ package com.avago.core.ai.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -11,6 +12,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
@@ -22,6 +26,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -31,10 +36,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.avago.core.ai.ActionCard
+import com.avago.core.ai.ScoutResponse
 import com.avago.core.ai.ScoutViewModel
 import com.avago.core.network.model.AiSkillResponse
 
@@ -75,6 +82,8 @@ fun ScoutPaletteSheet(
     var actionCardToConfirm by remember { mutableStateOf<ActionCard?>(null) }
     var pendingNavTarget by remember { mutableStateOf<String?>(null) }
     var pendingNavFields by remember { mutableStateOf<Map<String, String?>>(emptyMap()) }
+    var formReadyResponse by remember { mutableStateOf<ScoutResponse?>(null) }
+    var countdownNow by remember { mutableStateOf(System.currentTimeMillis()) }
 
     // Handle state transitions once per result.
     LaunchedEffect(state) {
@@ -88,9 +97,9 @@ fun ScoutPaletteSheet(
                     pendingNavFields = s.response.fields + mapOf("_skill" to card.skillName)
                     actionCardToConfirm = card
                 } else {
-                    if (target != null) onNavigate(target, s.response.fields)
-                    onDismiss()
-                    viewModel.reset()
+                    if (target != null) {
+                        formReadyResponse = s.response
+                    }
                 }
             }
             is ScoutViewModel.ScoutState.Executed -> {
@@ -99,6 +108,13 @@ fun ScoutPaletteSheet(
                 viewModel.reset()
             }
             else -> Unit
+        }
+    }
+
+    LaunchedEffect(state) {
+        while (state is ScoutViewModel.ScoutState.Throttled) {
+            countdownNow = System.currentTimeMillis()
+            kotlinx.coroutines.delay(1_000)
         }
     }
 
@@ -167,6 +183,23 @@ fun ScoutPaletteSheet(
             Text("Scout", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
 
+            formReadyResponse?.let { response ->
+                FormReadyBanner(
+                    onOpen = {
+                        val target = response.targetScreen
+                        if (target != null) onNavigate(target, response.fields)
+                        formReadyResponse = null
+                        onDismiss()
+                        viewModel.reset()
+                    },
+                    onDismiss = {
+                        formReadyResponse = null
+                        viewModel.reset()
+                    },
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+
             // Free-text composer. Typing "/" activates slash-menu filtering.
             OutlinedTextField(
                 value = input,
@@ -179,7 +212,9 @@ fun ScoutPaletteSheet(
                             viewModel.query(input)
                             input = ""
                         },
-                        enabled = input.isNotBlank() && state !is ScoutViewModel.ScoutState.Loading,
+                        enabled = input.isNotBlank() &&
+                            state !is ScoutViewModel.ScoutState.Loading &&
+                            state !is ScoutViewModel.ScoutState.Throttled,
                     ) {
                         Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
                     }
@@ -200,6 +235,19 @@ fun ScoutPaletteSheet(
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(bottom = 8.dp),
+                    )
+                }
+                is ScoutViewModel.ScoutState.Queued -> {
+                    Text(
+                        text = s.message,
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    )
+                }
+                is ScoutViewModel.ScoutState.Throttled -> {
+                    ThrottleBanner(
+                        remainingSeconds = ((s.untilEpochMillis - countdownNow).coerceAtLeast(0L) / 1000L),
                     )
                 }
                 else -> Unit
@@ -248,6 +296,57 @@ fun ScoutPaletteSheet(
             }
 
             Spacer(Modifier.height(12.dp))
+        }
+    }
+}
+
+@Composable
+private fun FormReadyBanner(
+    onOpen: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.primaryContainer,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onOpen),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+        ) {
+            Icon(Icons.Default.CheckCircle, contentDescription = null)
+            Spacer(Modifier.padding(horizontal = 4.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Form ready", style = MaterialTheme.typography.labelLarge)
+                Text("Tap to review the filled values.", style = MaterialTheme.typography.bodySmall)
+            }
+            IconButton(onClick = onDismiss) {
+                Icon(Icons.Default.Close, contentDescription = "Dismiss form-ready notice")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThrottleBanner(remainingSeconds: Long) {
+    Surface(
+        color = MaterialTheme.colorScheme.errorContainer,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+        ) {
+            Icon(Icons.Default.Schedule, contentDescription = null)
+            Spacer(Modifier.padding(horizontal = 4.dp))
+            Text(
+                text = "Scout is cooling down. Try again in ${remainingSeconds}s.",
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
     }
 }

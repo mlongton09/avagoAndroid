@@ -4,6 +4,7 @@ import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import androidx.navigation.navigation
+import com.avago.feature.settings.BuildConfig
 import com.avago.feature.settings.AboutScreen
 import com.avago.feature.settings.DeveloperScreen
 import com.avago.feature.settings.LegalTextScreen
@@ -13,6 +14,7 @@ import com.avago.feature.settings.LicensesScreen
 import com.avago.feature.settings.MembersListScreen
 import com.avago.feature.settings.MyTechProfileScreen
 import com.avago.feature.settings.SettingsScreen
+import com.avago.feature.settings.SyncConflictsScreen
 
 /**
  * Route constants for the settings nested graph.
@@ -26,6 +28,7 @@ object SettingsRoute {
     const val Developer = "settings/developer"
     const val About = "settings/about"
     const val TechProfile = "settings/tech_profile"
+    const val SyncConflicts = "settings/sync_conflicts"
     const val PrivacyPolicy = "settings/legal/privacy"
     const val TermsOfService = "settings/legal/terms"
 }
@@ -51,6 +54,7 @@ fun NavGraphBuilder.settingsNavGraph(navController: NavController) {
                 onNavigateToDeveloper  = { navController.navigate(SettingsRoute.Developer) },
                 onNavigateToAbout      = { navController.navigate(SettingsRoute.About) },
                 onNavigateToTechProfile = { navController.navigate(SettingsRoute.TechProfile) },
+                onNavigateToSyncConflicts = { navController.navigate(SettingsRoute.SyncConflicts) },
             )
         }
 
@@ -66,8 +70,10 @@ fun NavGraphBuilder.settingsNavGraph(navController: NavController) {
             InviteUsersScreen(onBack = { navController.popBackStack() })
         }
 
-        composable(SettingsRoute.Developer) {
-            DeveloperScreen(onBack = { navController.popBackStack() })
+        if (BuildConfig.DEBUG) {
+            composable(SettingsRoute.Developer) {
+                DeveloperScreen(onBack = { navController.popBackStack() })
+            }
         }
 
         composable(SettingsRoute.About) {
@@ -95,6 +101,10 @@ fun NavGraphBuilder.settingsNavGraph(navController: NavController) {
 
         composable(SettingsRoute.TechProfile) {
             MyTechProfileScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(SettingsRoute.SyncConflicts) {
+            SyncConflictsScreen(onBack = { navController.popBackStack() })
         }
     }
 }

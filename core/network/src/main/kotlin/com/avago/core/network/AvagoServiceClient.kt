@@ -1,5 +1,6 @@
 package com.avago.core.network
 
+import android.content.Context
 import com.avago.core.network.model.AccountResponse
 import com.avago.core.network.model.AccountsEnvelope
 import com.avago.core.network.model.MembersEnvelope
@@ -69,6 +70,8 @@ import com.avago.core.network.model.ScoutExtractResponse
 import com.avago.core.network.model.ScoutScreenContext
 import com.avago.core.network.model.SendMessageRequest
 import com.avago.core.network.model.SignInRequest
+import com.avago.core.network.model.UpgradeDeviceRequest
+import com.avago.core.network.model.UpgradeRequest
 import com.avago.core.network.model.SyncPullResponse
 import com.avago.core.network.model.SyncPushRequest
 import com.avago.core.network.model.SyncPushResponse
@@ -94,6 +97,7 @@ import io.ktor.http.content.ByteArrayContent
 import io.ktor.http.isSuccess
 import kotlinx.serialization.json.JsonObject
 import timber.log.Timber
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
@@ -102,9 +106,13 @@ import javax.inject.Singleton
 class AvagoServiceClient @Inject constructor(
     private val client: HttpClient,
     @Named("baseUrl") private val baseUrl: String,
+    @ApplicationContext private val context: Context,
 ) {
 
     private val _permissionsStaleEvents = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    private val runtimeFlags by lazy {
+        context.getSharedPreferences(RUNTIME_FLAGS_PREFS, Context.MODE_PRIVATE)
+    }
     val permissionsStaleEvents: SharedFlow<String> = _permissionsStaleEvents.asSharedFlow()
 
     fun notifyPermissionsStale(accountId: String) {
@@ -142,6 +150,26 @@ class AvagoServiceClient @Inject constructor(
     suspend fun signIn(firebaseToken: String, deviceId: String, provider: String = "firebase"): AuthResponse =
         safeCall { client.post("$baseUrl/auth/signin") {
             setBody(SignInRequest(provider = provider, oauth_token = firebaseToken, device_id = deviceId))
+        }.body() }
+
+    suspend fun upgradeAnonymous(firebaseToken: String, provider: String = "firebase") {
+        safeCall<Unit> {
+            val response: HttpResponse = client.post("$baseUrl/auth/upgrade") {
+                setBody(UpgradeRequest(provider = provider, oauth_token = firebaseToken))
+            }
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
+        }
+    }
+
+    suspend fun upgradeAnonymousDevice(
+        deviceId: String,
+        firebaseToken: String,
+        provider: String = "firebase",
+    ): AuthResponse =
+        safeCall { client.post("$baseUrl/auth/upgrade-device") {
+            setBody(UpgradeDeviceRequest(device_id = deviceId, provider = provider, oauth_token = firebaseToken))
         }.body() }
 
     suspend fun refreshTokens(refreshToken: String, deviceId: String): AuthResponse =
@@ -196,10 +224,12 @@ class AvagoServiceClient @Inject constructor(
             }.body()
         }
 
-    /** DELETE /accounts/{accountId} — soft-delete an account. */
-    suspend fun deleteAccount(accountId: String): NetworkResult<Unit> =
+    /** DELETE /accounts/{accountId}?hard=true|false — soft/hard account deletion. */
+    suspend fun deleteAccount(accountId: String, hard: Boolean = false): NetworkResult<Unit> =
         safeNetworkCall {
-            val response: HttpResponse = client.delete("$baseUrl/accounts/$accountId")
+            val response: HttpResponse = client.delete("$baseUrl/accounts/$accountId") {
+                if (hard) parameter("hard", "true")
+            }
             if (!response.status.isSuccess()) {
                 throw NetworkException(response.status.value, response.status.description)
             }
@@ -1545,6 +1575,7 @@ class AvagoServiceClient @Inject constructor(
         bytes: ByteArray,
         contentType: String,
     ): NetworkResult<Unit> {
+        if (isForceOffline()) return NetworkResult.Error(OFFLINE_MODE_CODE, OFFLINE_MODE_MESSAGE)
         val uploadClient = AvagoHttpClient.createUnauthenticatedClient()
         return try {
             val ct = ContentType.parse(contentType)
@@ -1689,6 +1720,7 @@ class AvagoServiceClient @Inject constructor(
      * including an Authorization header would cause S3 to reject the request.
      */
     suspend fun uploadPhotoBinary(uploadUrl: String, bytes: ByteArray): NetworkResult<Unit> {
+        if (isForceOffline()) return NetworkResult.Error(OFFLINE_MODE_CODE, OFFLINE_MODE_MESSAGE)
         val uploadClient = AvagoHttpClient.createUnauthenticatedClient()
         return try {
             val response: HttpResponse = uploadClient.put(uploadUrl) {
@@ -1718,16 +1750,23 @@ class AvagoServiceClient @Inject constructor(
      */
     private suspend inline fun <reified T> safeNetworkCall(crossinline block: suspend () -> T): NetworkResult<T> =
         try {
+            ensureOnlineMode()
             NetworkResult.Success(withRetry("AvagoServiceClient") { block() })
         } catch (e: UnauthorizedException) {
             NetworkResult.Unauthorized
+        } catch (e: NetworkException) {
+            NetworkResult.Error(e.code, e.message)
         } catch (e: io.ktor.client.plugins.ResponseException) {
             val code = e.response.status.value
             if (code == HttpStatusCode.Unauthorized.value) {
                 NetworkResult.Unauthorized
             } else {
                 Timber.e(e, "HTTP $code from service")
-                NetworkResult.Error(code, e.response.status.description)
+                val bodyText = runCatching { e.response.bodyAsText() }.getOrNull() ?: ""
+                NetworkResult.Error(
+                    code,
+                    bodyText.ifBlank { e.response.status.description },
+                )
             }
         } catch (e: Exception) {
             Timber.e(e, "Network call failed")
@@ -1740,6 +1779,7 @@ class AvagoServiceClient @Inject constructor(
 
     private suspend inline fun <reified T> safeCall(crossinline block: suspend () -> T): T {
         return try {
+            ensureOnlineMode()
             withRetry("AvagoServiceClient") { block() }
         } catch (e: NetworkException) {
             throw e
@@ -1759,6 +1799,12 @@ class AvagoServiceClient @Inject constructor(
         }
     }
 
+    private fun ensureOnlineMode() {
+        if (isForceOffline()) throw NetworkException(OFFLINE_MODE_CODE, OFFLINE_MODE_MESSAGE)
+    }
+
+    private fun isForceOffline(): Boolean = runtimeFlags.getBoolean(FORCE_OFFLINE_PREF_KEY, false)
+
     // Parses "Wait for Xs" out of server 429 bodies. Returns null if not present.
     private fun parseRetryAfterSeconds(body: String): Long? {
         val match = Regex("""Wait for (\d+)s""").find(body) ?: return null
@@ -1773,3 +1819,8 @@ class NetworkException(
     val stalePermissions: Boolean = false,
 ) : Exception(message)
 class UnauthorizedException : Exception("Unauthorized")
+
+private const val RUNTIME_FLAGS_PREFS = "avago_runtime_flags"
+private const val FORCE_OFFLINE_PREF_KEY = "force_offline"
+private const val OFFLINE_MODE_CODE = 0
+private const val OFFLINE_MODE_MESSAGE = "Offline mode is enabled"
