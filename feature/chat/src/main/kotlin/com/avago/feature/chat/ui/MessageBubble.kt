@@ -463,41 +463,43 @@ private fun AudioBubble(audioUrl: String, isOwn: Boolean) {
 
 @Composable
 private fun FileBubble(url: String, name: String?, size: Long?, context: Context) {
-        Row(
-            modifier = Modifier
-                .clip(MaterialTheme.shapes.medium)
-                .clickable {
-                    runCatching {
-                        context.startActivity(
-                            Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            },
-                        )
-                }
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.16f))
-                .padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Default.AttachFile,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-            )
-            Column {
-                Text(
-                    text = name ?: "Attachment",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Medium,
-                )
-                if (size != null) {
-                    Text(
-                        text = formatFileSize(size),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    Row(
+        modifier = Modifier
+            .clip(MaterialTheme.shapes.medium)
+            .clickable {
+                runCatching {
+                    context.startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        },
                     )
+                }.onFailure {
+                    Timber.w(it, "FileBubble: failed to open attachment")
                 }
+            }
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.16f))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Default.AttachFile,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+        )
+        Column {
+            Text(
+                text = name ?: "Attachment",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Medium,
+            )
+            if (size != null) {
+                Text(
+                    text = formatFileSize(size),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
