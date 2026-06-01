@@ -46,7 +46,6 @@ import com.avago.core.data.FeatureFlags
 import com.avago.core.sync.SyncEngine
 import com.avago.feature.settings.BuildConfig
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -113,12 +112,6 @@ class DeveloperViewModel @Inject constructor(
 
     fun clearSyncCache() {
         Timber.w("[DeveloperVM] clearSyncCache requested — stub (no public API yet)")
-    }
-
-    fun setFeatureFlag(key: String, enabled: Boolean) {
-        viewModelScope.launch {
-            featureFlags.setBooleanFlag(key, enabled)
-        }
     }
 
     fun forceFullSync() {
