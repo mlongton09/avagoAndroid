@@ -15,6 +15,12 @@ import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 
+data class ClientFeatureFlag(
+    val key: String,
+    val displayName: String,
+    val defaultValue: Boolean,
+)
+
 /**
  * Central feature-flag registry backed by the per-account config DB table.
  *
@@ -65,6 +71,18 @@ class FeatureFlags @Inject constructor(
     /** Whether Purchase Orders are visible in Inventory. Fail-open (default true). */
     val purchaseOrdersEnabled: Boolean get() = getFlag("purchase_orders_enabled", default = true)
 
+    val clientBooleanFlags: List<ClientFeatureFlag> = listOf(
+        ClientFeatureFlag("feature.scout_enabled", "AI Scout", false),
+        ClientFeatureFlag("feature.inspection_enabled", "Inspection checklist", false),
+        ClientFeatureFlag("feature.dispatch_enabled", "Dispatch board", true),
+        ClientFeatureFlag("feature.multi_account_enabled", "Multi-account switching", true),
+        ClientFeatureFlag("feature.label_printing_enabled", "Label printing", false),
+        ClientFeatureFlag("feature.cycle_count_floor_enabled", "Cycle count floor mode", false),
+        ClientFeatureFlag("chat_enabled", "Chat tab", true),
+        ClientFeatureFlag("work_orders_enabled", "Work Orders tab", true),
+        ClientFeatureFlag("purchase_orders_enabled", "Purchase Orders", true),
+    )
+
     // ---------------------------------------------------------------------------
     // Integer limit flags
     // ---------------------------------------------------------------------------
@@ -101,6 +119,24 @@ class FeatureFlags @Inject constructor(
                         .map { entity -> entity?.value?.toBooleanStrictOrNull() ?: default }
                 }
             }
+    }
+
+    suspend fun setBooleanFlag(key: String, enabled: Boolean) {
+        val accountId = activeAccountId.value ?: return
+        val scope = scopeForKey(key)
+        val now = System.currentTimeMillis()
+        databaseFactory.get(accountId).configDao().upsert(
+            ConfigEntity(
+                    configId = "$accountId:$scope:$key",
+                    accountId = accountId,
+                    scope = scope,
+                    key = key,
+                    value = enabled.toString(),
+                    version = now,
+                    createdAt = now,
+                    updatedAt = now,
+                )
+        )
     }
 
     // ---------------------------------------------------------------------------

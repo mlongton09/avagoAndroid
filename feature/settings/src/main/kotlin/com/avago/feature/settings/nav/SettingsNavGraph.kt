@@ -4,6 +4,7 @@ import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import androidx.navigation.navigation
+import com.avago.feature.settings.BuildConfig
 import com.avago.feature.settings.AboutScreen
 import com.avago.feature.settings.DeveloperScreen
 import com.avago.feature.settings.LegalTextScreen
@@ -66,8 +67,10 @@ fun NavGraphBuilder.settingsNavGraph(navController: NavController) {
             InviteUsersScreen(onBack = { navController.popBackStack() })
         }
 
-        composable(SettingsRoute.Developer) {
-            DeveloperScreen(onBack = { navController.popBackStack() })
+        if (BuildConfig.DEBUG) {
+            composable(SettingsRoute.Developer) {
+                DeveloperScreen(onBack = { navController.popBackStack() })
+            }
         }
 
         composable(SettingsRoute.About) {

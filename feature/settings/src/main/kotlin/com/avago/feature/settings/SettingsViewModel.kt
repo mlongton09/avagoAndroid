@@ -86,6 +86,12 @@ class SettingsViewModel @Inject constructor(
         initialValue = true,
     )
 
+    val forceOffline: StateFlow<Boolean> = prefs.forceOfflineFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = false,
+    )
+
     // ── Identity state ────────────────────────────────────────────────────────
 
     /** Mirrors IdentityManager — null when no account is active. */
@@ -162,6 +168,10 @@ class SettingsViewModel @Inject constructor(
             prefs.setEnableHumanInLoop(value)
             syncPreferences(UpdatePreferencesRequest(enable_human_in_loop = value))
         }
+    }
+
+    fun setForceOffline(value: Boolean) {
+        viewModelScope.launch { prefs.setForceOffline(value) }
     }
 
     fun signOut() {

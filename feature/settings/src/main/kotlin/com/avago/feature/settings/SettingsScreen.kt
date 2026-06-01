@@ -81,6 +81,7 @@ fun SettingsScreen(
     val fuelVolumeUnit by viewModel.fuelVolumeUnit.collectAsState()
     val disableQuotes by viewModel.disableQuotes.collectAsState()
     val enableHumanInLoop by viewModel.enableHumanInLoop.collectAsState()
+    val forceOffline by viewModel.forceOffline.collectAsState()
     val activeAccountId by viewModel.activeAccountId.collectAsState()
 
     // Notification permission — re-check on every recomposition so state is fresh
@@ -220,6 +221,20 @@ fun SettingsScreen(
                 label = stringResource(R.string.settings_disable_quotes),
                 checked = disableQuotes,
                 onCheckedChange = viewModel::setDisableQuotes,
+            )
+        }
+        item { SectionDivider() }
+
+        // ── Offline ────────────────────────────────────────────────────────────
+        item {
+            SectionHeader(text = "Offline")
+        }
+        item {
+            SwitchRow(
+                label = "Force offline mode",
+                description = "Blocks network requests and uses cached local data only.",
+                checked = forceOffline,
+                onCheckedChange = viewModel::setForceOffline,
             )
         }
         item { SectionDivider() }
@@ -382,15 +397,17 @@ fun SettingsScreen(
         }
         // ── Developer ─────────────────────────────────────────────────────────
         item { SectionDivider() }
-        item {
-            SectionHeader(text = "Developer")
-        }
-        item {
-            NavigationRow(
-                label = "Developer Options",
-                leadingIcon = { Icon(Icons.Default.BugReport, contentDescription = null) },
-                onClick = onNavigateToDeveloper,
-            )
+        if (BuildConfig.DEBUG) {
+            item {
+                SectionHeader(text = "Developer")
+            }
+            item {
+                NavigationRow(
+                    label = "Developer Options",
+                    leadingIcon = { Icon(Icons.Default.BugReport, contentDescription = null) },
+                    onClick = onNavigateToDeveloper,
+                )
+            }
         }
 
         item {

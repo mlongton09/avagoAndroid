@@ -1,5 +1,6 @@
 package com.avago.core.network
 
+import android.content.Context
 import com.avago.core.network.model.AccountResponse
 import com.avago.core.network.model.AccountsEnvelope
 import com.avago.core.network.model.MembersEnvelope
@@ -94,6 +95,7 @@ import io.ktor.http.content.ByteArrayContent
 import io.ktor.http.isSuccess
 import kotlinx.serialization.json.JsonObject
 import timber.log.Timber
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
@@ -102,9 +104,13 @@ import javax.inject.Singleton
 class AvagoServiceClient @Inject constructor(
     private val client: HttpClient,
     @Named("baseUrl") private val baseUrl: String,
+    @ApplicationContext private val context: Context,
 ) {
 
     private val _permissionsStaleEvents = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    private val runtimeFlags by lazy {
+        context.getSharedPreferences(RUNTIME_FLAGS_PREFS, Context.MODE_PRIVATE)
+    }
     val permissionsStaleEvents: SharedFlow<String> = _permissionsStaleEvents.asSharedFlow()
 
     fun notifyPermissionsStale(accountId: String) {
@@ -1545,6 +1551,7 @@ class AvagoServiceClient @Inject constructor(
         bytes: ByteArray,
         contentType: String,
     ): NetworkResult<Unit> {
+        if (isForceOffline()) return NetworkResult.Error(OFFLINE_MODE_CODE, OFFLINE_MODE_MESSAGE)
         val uploadClient = AvagoHttpClient.createUnauthenticatedClient()
         return try {
             val ct = ContentType.parse(contentType)
@@ -1689,6 +1696,7 @@ class AvagoServiceClient @Inject constructor(
      * including an Authorization header would cause S3 to reject the request.
      */
     suspend fun uploadPhotoBinary(uploadUrl: String, bytes: ByteArray): NetworkResult<Unit> {
+        if (isForceOffline()) return NetworkResult.Error(OFFLINE_MODE_CODE, OFFLINE_MODE_MESSAGE)
         val uploadClient = AvagoHttpClient.createUnauthenticatedClient()
         return try {
             val response: HttpResponse = uploadClient.put(uploadUrl) {
@@ -1718,9 +1726,12 @@ class AvagoServiceClient @Inject constructor(
      */
     private suspend inline fun <reified T> safeNetworkCall(crossinline block: suspend () -> T): NetworkResult<T> =
         try {
+            ensureOnlineMode()
             NetworkResult.Success(withRetry("AvagoServiceClient") { block() })
         } catch (e: UnauthorizedException) {
             NetworkResult.Unauthorized
+        } catch (e: NetworkException) {
+            NetworkResult.Error(e.code, e.message)
         } catch (e: io.ktor.client.plugins.ResponseException) {
             val code = e.response.status.value
             if (code == HttpStatusCode.Unauthorized.value) {
@@ -1740,6 +1751,7 @@ class AvagoServiceClient @Inject constructor(
 
     private suspend inline fun <reified T> safeCall(crossinline block: suspend () -> T): T {
         return try {
+            ensureOnlineMode()
             withRetry("AvagoServiceClient") { block() }
         } catch (e: NetworkException) {
             throw e
@@ -1759,6 +1771,12 @@ class AvagoServiceClient @Inject constructor(
         }
     }
 
+    private fun ensureOnlineMode() {
+        if (isForceOffline()) throw NetworkException(OFFLINE_MODE_CODE, OFFLINE_MODE_MESSAGE)
+    }
+
+    private fun isForceOffline(): Boolean = runtimeFlags.getBoolean(FORCE_OFFLINE_PREF_KEY, false)
+
     // Parses "Wait for Xs" out of server 429 bodies. Returns null if not present.
     private fun parseRetryAfterSeconds(body: String): Long? {
         val match = Regex("""Wait for (\d+)s""").find(body) ?: return null
@@ -1773,3 +1791,8 @@ class NetworkException(
     val stalePermissions: Boolean = false,
 ) : Exception(message)
 class UnauthorizedException : Exception("Unauthorized")
+
+private const val RUNTIME_FLAGS_PREFS = "avago_runtime_flags"
+private const val FORCE_OFFLINE_PREF_KEY = "force_offline"
+private const val OFFLINE_MODE_CODE = 0
+private const val OFFLINE_MODE_MESSAGE = "Offline mode is enabled"
