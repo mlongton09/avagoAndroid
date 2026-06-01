@@ -1,4 +1,4 @@
-﻿package com.avago.feature.settings
+package com.avago.feature.settings
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxSize
@@ -48,6 +48,7 @@ import com.avago.feature.settings.BuildConfig
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
@@ -112,6 +113,12 @@ class DeveloperViewModel @Inject constructor(
 
     fun clearSyncCache() {
         Timber.w("[DeveloperVM] clearSyncCache requested — stub (no public API yet)")
+    }
+
+    fun setFeatureFlag(key: String, enabled: Boolean) {
+        viewModelScope.launch {
+            featureFlags.setBooleanFlag(key, enabled)
+        }
     }
 
     fun forceFullSync() {
@@ -371,7 +378,6 @@ private fun FeatureFlagRow(
             .clickable(role = Role.Switch) { onCheckedChange(!row.enabled) },
     )
 }
-
 @Composable
 private fun ActionRow(
     label: String,
