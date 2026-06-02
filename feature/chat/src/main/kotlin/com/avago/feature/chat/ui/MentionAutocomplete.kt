@@ -80,8 +80,8 @@ fun MentionAutocomplete(
             items(filtered, key = { it.userId }) { user ->
                 Text(
                     text = user.displayName ?: user.email ?: user.userId,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
+                    // iOS MentionAutocompletePopover: bodyFont (17 reg) → bodyLarge.
+                    style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onSelect(user) }
@@ -106,13 +106,15 @@ private fun SpecialMentionItem(
     ) {
         Text(
             text = "🔔 $handle",
-            style = MaterialTheme.typography.bodyMedium,
+            // iOS MentionAutocompletePopover: bodyFont (17 reg) → bodyLarge.
+            style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.primary,
         )
         Text(
             text = description,
-            style = MaterialTheme.typography.labelSmall,
+            // iOS detail uses smallFont (13 reg) → bodyMedium.
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }

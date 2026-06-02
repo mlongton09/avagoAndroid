@@ -174,8 +174,8 @@ fun MessageBubble(
                     message.senderName?.let { name ->
                         Text(
                             text = name,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
+                            // iOS MessageCell.authorLabel: smallBoldFont (13 semi) → labelLarge.
+                            style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.padding(start = 4.dp, bottom = 2.dp),
                         )
@@ -209,8 +209,8 @@ fun MessageBubble(
                     val label = if (message.replyCount == 1) "1 reply" else "${message.replyCount} replies"
                     Text(
                         text = label,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
+                        // iOS threadReplyButton: captionBoldFont (12 semi) → labelMedium.
+                        style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier
                             .padding(start = 4.dp, top = 2.dp)
@@ -229,9 +229,9 @@ fun MessageBubble(
                 ) {
                     Text(
                         text = message.createdAt.toMessageTimestamp(),
-                        style = MaterialTheme.typography.labelSmall,
+                        // iOS MessageCell.timestampLabel: captionFont (12 reg) → bodySmall.
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                        fontSize = 10.sp,
                     )
                     if (isOwn) {
                         Spacer(modifier = Modifier.size(4.dp))
@@ -277,7 +277,8 @@ private fun NeedsReplyPill(modifier: Modifier = Modifier) {
     ) {
         Text(
             text = "🔴 Needs acknowledgement",
-            style = MaterialTheme.typography.labelSmall,
+            // iOS needsReplyPill: captionBoldFont (12 semi) → labelMedium.
+            style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onTertiary,
         )
     }
@@ -361,7 +362,8 @@ private fun BubbleBody(
         if (bodyText.isNotBlank()) {
             MarkdownText(
                 text = bodyText,
-                style = MaterialTheme.typography.bodyMedium,
+                // iOS MessageCell.bodyLabel: bodyFont (17 reg) → bodyLarge.
+                style = MaterialTheme.typography.bodyLarge,
                 color = textColor,
                 onUrlClick = { url ->
                     try {

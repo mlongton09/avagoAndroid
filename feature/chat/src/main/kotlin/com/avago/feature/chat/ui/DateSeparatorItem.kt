@@ -31,7 +31,8 @@ fun DateSeparatorItem(label: String, modifier: Modifier = Modifier) {
         )
         Text(
             text = label,
-            style = MaterialTheme.typography.labelSmall,
+            // iOS DateSeparatorCell: systemFont(ofSize: 12, weight: .semibold) → labelMedium.
+            style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
         )
         HorizontalDivider(

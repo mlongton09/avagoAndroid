@@ -26,6 +26,10 @@ dependencies {
     implementation(project(":core:sync"))
     implementation(project(":core:network"))
     implementation(project(":core:auth"))
+    // Asset glyph + color mapping for asset-type thread rows (iOS parity:
+    // ThreadRowCell renders asset threads with the same colored-circle avatar
+    // the assets list uses).
+    implementation(project(":feature:assets"))
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)

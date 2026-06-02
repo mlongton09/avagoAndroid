@@ -18,16 +18,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Groups
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.Badge
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
@@ -50,7 +49,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -60,6 +61,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.data.db.entity.ChatThreadEntity
 import com.avago.core.network.model.CustomSection
+import com.avago.feature.assets.model.AssetTypes
+import com.avago.feature.chat.ui.assetTypeKey
 import com.avago.feature.chat.ui.displayTitle
 import com.avago.feature.chat.ui.iconEmoji
 import com.avago.feature.chat.ui.lastMessagePreviewText
@@ -218,26 +221,17 @@ fun ChatListScreen(
             modifier = Modifier.fillMaxSize(),
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Search + notifications row — mirrors iOS: search bar with bell shortcut
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    AvagoSearchBar(
-                        query = uiState.searchQuery,
-                        onQueryChange = viewModel::setSearchQuery,
-                        placeholder = "Filter by person or asset name",
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(start = 12.dp, top = 8.dp, bottom = 8.dp),
-                    )
-                    IconButton(
-                        onClick = onMentions,
-                        modifier = Modifier.padding(end = 4.dp),
-                    ) {
-                        Icon(Icons.Default.Notifications, contentDescription = "Mentions")
-                    }
-                }
+                // Search bar — mirrors iOS ThreadListViewController which has no
+                // bell shortcut in the search row (Mentions is exposed as the
+                // first row of the list via MentionsShortcutRow below).
+                AvagoSearchBar(
+                    query = uiState.searchQuery,
+                    onQueryChange = viewModel::setSearchQuery,
+                    placeholder = "Filter by person or asset name",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+                )
 
                 // Filter chips — All / Direct / Work Orders / Assets + Unread toggle
                 LazyRow(
@@ -400,8 +394,9 @@ private fun MentionsShortcutRow(
 
         Text(
             text = "Mentions",
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Bold,
+            // iOS MentionsShortcutCell uses bodyBoldFont (17pt semibold) →
+            // titleLarge in AvagoTypography.
+            style = MaterialTheme.typography.titleLarge,
             modifier = Modifier.weight(1f),
         )
 
@@ -434,8 +429,8 @@ private fun TeamRoomShortcutRow(onClick: () -> Unit) {
         )
         Text(
             text = "Team Room",
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
+            // iOS TeamRoomCell uses bodyBoldFont (17pt semibold) → titleLarge.
+            style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.primary,
         )
     }
@@ -557,12 +552,32 @@ private fun ThreadRow(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Icon
-        Text(
-            text = thread.iconEmoji() ?: "💬",
-            fontSize = 24.sp,
-            modifier = Modifier.size(36.dp),
-        )
+        // Icon — asset threads get the colored AvatarView treatment from iOS
+        // (ThreadRowCell renders the same colored circle + asset glyph used in
+        // the Assets list). Every other thread type uses an emoji.
+        val assetKey = thread.assetTypeKey()
+        if (assetKey != null) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color(android.graphics.Color.parseColor(AssetTypes.colorHexFor(assetKey)))),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(AssetTypes.iconResFor(assetKey)),
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+        } else {
+            Text(
+                text = thread.iconEmoji() ?: "💬",
+                fontSize = 24.sp,
+                modifier = Modifier.size(36.dp),
+            )
+        }
 
         Spacer(modifier = Modifier.width(12.dp))
 
@@ -575,15 +590,19 @@ private fun ThreadRow(
             ) {
                 Text(
                     text = thread.displayTitle(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = if (hasUnread) FontWeight.Bold else FontWeight.Normal,
+                    // iOS ThreadRowCell: bodyBoldFont (17 semi) when unread,
+                    // bodyFont (17 reg) otherwise. titleLarge in AvagoTypography
+                    // is the 17/semibold slot; bodyLarge is the 17/regular slot.
+                    style = if (hasUnread) MaterialTheme.typography.titleLarge
+                            else MaterialTheme.typography.bodyLarge,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
                 )
                 Text(
                     text = thread.relativeTimestamp(),
-                    style = MaterialTheme.typography.labelSmall,
+                    // iOS uses smallFont (13 reg) → bodyMedium.
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                     modifier = Modifier.padding(start = 8.dp),
                 )
@@ -596,7 +615,8 @@ private fun ThreadRow(
             ) {
                 Text(
                     text = thread.lastMessagePreviewText().ifBlank { "—" },
-                    style = MaterialTheme.typography.bodySmall,
+                    // iOS previewLabel uses smallFont (13 reg) → bodyMedium.
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(
                         alpha = if (hasUnread) 0.87f else 0.55f,
                     ),

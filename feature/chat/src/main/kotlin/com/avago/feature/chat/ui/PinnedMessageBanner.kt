@@ -50,12 +50,14 @@ fun PinnedMessageBanner(
             Column(Modifier.weight(1f)) {
                 Text(
                     text = "Pinned message",
-                    style = MaterialTheme.typography.labelSmall,
+                    // iOS PinnedMessageCell.label: smallBoldFont (13 semi) → labelLarge.
+                    style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
                 Text(
                     text = message.bodyMd.take(80),
-                    style = MaterialTheme.typography.bodySmall,
+                    // iOS preview text smallFont (13 reg) → bodyMedium.
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

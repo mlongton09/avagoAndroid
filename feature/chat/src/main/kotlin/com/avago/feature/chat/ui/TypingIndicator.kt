@@ -100,7 +100,9 @@ fun TypingIndicator(
             Spacer(modifier = Modifier.width(6.dp))
             Text(
                 text = labelText,
-                style = MaterialTheme.typography.labelSmall,
+                // iOS TypingIndicatorView: italicSystemFont(ofSize: 13) → bodyMedium italic.
+                style = MaterialTheme.typography.bodyMedium,
+                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             )
         }

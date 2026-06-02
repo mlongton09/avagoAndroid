@@ -50,7 +50,8 @@ fun SystemMessageBubble(message: ChatMessageEntity, modifier: Modifier = Modifie
     ) {
         Text(
             text = "$icon $body",
-            style = MaterialTheme.typography.labelSmall,
+            // iOS SystemMessageCell.body: italicSystemFont(ofSize: 13) → bodyMedium italic.
+            style = MaterialTheme.typography.bodyMedium,
             fontStyle = FontStyle.Italic,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
             textAlign = TextAlign.Center,

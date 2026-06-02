@@ -371,13 +371,30 @@ fun MessageComposer(
                     },
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                     keyboardActions = KeyboardActions(onSend = { attemptSend() }),
-                    textStyle = MaterialTheme.typography.bodyMedium.copy(
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    // iOS MessageComposerView textView/placeholder use bodyFont
+                    // (17 reg) → bodyLarge in AvagoTypography.
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(
+                        color = MaterialTheme.colorScheme.onSurface,
                     ),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    maxLines = 5,
+                    decorationBox = { innerTextField ->
+                        // Placeholder hint (iOS textView.attributedPlaceholder = "Message").
+                        // Without this an empty composer looks like an empty pill and users
+                        // can mistake it for "the composer is missing".
+                        if (fieldValue.text.isEmpty()) {
+                            Text(
+                                text = "Message",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    .copy(alpha = 0.5f),
+                            )
+                        }
+                        innerTextField()
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 20.dp, max = 120.dp)
+                        .heightIn(min = 24.dp, max = 120.dp)
                         .onPreviewKeyEvent { keyEvent ->
                             // Hardware/physical Enter: send, never insert newline (matches iOS).
                             if (keyEvent.type == KeyEventType.KeyDown &&

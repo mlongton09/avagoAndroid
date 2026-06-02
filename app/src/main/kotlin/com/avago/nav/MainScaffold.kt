@@ -180,6 +180,11 @@ fun MainScaffold(
         currentRoute == AuthRoute.SignIn ||
         currentRoute == AuthRoute.EmailSignIn ||
         currentRoute == AuthRoute.GRAPH
+    // iOS parity: the Scout FAB is anchored to the tab bar, which UIKit hides
+    // on pushed detail VCs like ThreadViewController/SubthreadViewController.
+    // On Android we mirror that by suppressing the FAB on chat thread + subthread
+    // routes (anything matching "chat/thread/...").
+    val isChatThreadDestination = currentRoute?.startsWith("chat/thread/") == true
 
     AvagoToastHost(toastManager = toast) {
     ModalNavigationDrawer(
@@ -258,7 +263,7 @@ fun MainScaffold(
                 }
             },
             floatingActionButton = {
-                if (!isAuthDestination && can("scout.view")) {
+                if (!isAuthDestination && !isChatThreadDestination && can("scout.view")) {
                     FloatingActionButton(
                         onClick = {},
                         modifier = Modifier.pointerInput(Unit) {

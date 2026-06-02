@@ -39,12 +39,28 @@ fun ChatThreadEntity.displayTitle(): String {
 
 /**
  * Returns the icon emoji for a thread, mirroring iOS ThreadRowCell.
+ *  - `wo`  → 🔧
+ *  - asset → null (caller renders a colored asset avatar instead)
+ *  - everything else (incl. team, direct, group) → 💬
+ *
+ * iOS treats team rooms and DMs both as the default 💬 bubble; only WO threads
+ * get a dedicated glyph. Returning null for asset signals the row to fall back
+ * to AssetAvatar.
  */
 fun ChatThreadEntity.iconEmoji(): String? = when (threadType) {
-    "team" -> "👥"
-    "asset" -> "🏷️"
+    "asset" -> null
     "wo" -> "🔧"
     else -> "💬"
+}
+
+/**
+ * Returns the asset_type key from subject_summary for asset threads, or null.
+ * Used by ThreadRow to render the iOS colored-circle asset avatar.
+ */
+fun ChatThreadEntity.assetTypeKey(): String? {
+    if (threadType != "asset") return null
+    val summary = subjectSummary?.parseJsonObjectSafely() ?: return null
+    return summary["asset_type"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
 }
 
 /**
