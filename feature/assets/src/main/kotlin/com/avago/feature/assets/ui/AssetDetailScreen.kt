@@ -188,74 +188,96 @@ fun AssetDetailScreen(
 
     Scaffold(
         topBar = {
-            Column {
-                CenterAlignedTopAppBar(
-                    title = { Text(asset?.name ?: stringResource(R.string.asset_detail_title)) },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
+            CenterAlignedTopAppBar(
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    ) {
+                        // Avago app logo — 22dp red rounded tile with white wrench,
+                        // mirrors iOS AssetDetailViewController navLogoView.
+                        Box(
+                            modifier = Modifier
+                                .size(22.dp)
+                                .clip(RoundedCornerShape(5.dp))
+                                .background(Color(0xFFE53935)),
+                            contentAlignment = Alignment.Center,
+                        ) {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = stringResource(R.string.asset_detail_back),
+                                painter = painterResource(com.avago.core.design.R.drawable.ic_app_logo),
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(14.dp),
                             )
                         }
-                    },
-                    actions = {
-                        if (canEditAsset) {
-                            IconButton(onClick = onEdit) {
-                                Icon(
-                                    imageVector = Icons.Default.Edit,
-                                    contentDescription = stringResource(R.string.asset_detail_edit),
-                                )
-                            }
-                        }
-                        Box {
-                            IconButton(onClick = { showOverflowMenu = true }) {
-                                Icon(
-                                    imageVector = Icons.Default.MoreVert,
-                                    contentDescription = stringResource(R.string.asset_detail_overflow_menu),
-                                )
-                            }
-                            DropdownMenu(
-                                expanded = showOverflowMenu,
-                                onDismissRequest = { showOverflowMenu = false },
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.asset_detail_share_pdf)) },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.PictureAsPdf, contentDescription = null)
-                                    },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        scope.launch {
-                                            val uri = viewModel.generatePdf(context)
-                                            if (uri != null) {
-                                                val intent = Intent(Intent.ACTION_SEND).apply {
-                                                    type = "application/pdf"
-                                                    putExtra(Intent.EXTRA_STREAM, uri)
-                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                                }
-                                                context.startActivity(Intent.createChooser(intent, "Share Maintenance Report"))
-                                            }
-                                        }
-                                    },
-                                )
-                            }
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(),
-                )
-                PrimaryTabRow(
-                    selectedTabIndex = pagerState.currentPage,
-                ) {
-                    ASSET_DETAIL_TABS.forEachIndexed { index, title ->
-                        Tab(
-                            selected = pagerState.currentPage == index,
-                            onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
-                            text = { Text(title) },
+                        Text(
+                            text = asset?.name ?: stringResource(R.string.asset_detail_title),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(weight = 1f, fill = false),
+                        )
+                        Text(
+                            text = "Log",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
                         )
                     }
-                }
-            }
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.asset_detail_back),
+                        )
+                    }
+                },
+                actions = {
+                    if (canEditAsset) {
+                        IconButton(onClick = onEdit) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = stringResource(R.string.asset_detail_edit),
+                            )
+                        }
+                    }
+                    Box {
+                        IconButton(onClick = { showOverflowMenu = true }) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = stringResource(R.string.asset_detail_overflow_menu),
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showOverflowMenu,
+                            onDismissRequest = { showOverflowMenu = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.asset_detail_share_pdf)) },
+                                leadingIcon = {
+                                    Icon(Icons.Default.PictureAsPdf, contentDescription = null)
+                                },
+                                onClick = {
+                                    showOverflowMenu = false
+                                    scope.launch {
+                                        val uri = viewModel.generatePdf(context)
+                                        if (uri != null) {
+                                            val intent = Intent(Intent.ACTION_SEND).apply {
+                                                type = "application/pdf"
+                                                putExtra(Intent.EXTRA_STREAM, uri)
+                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            }
+                                            context.startActivity(Intent.createChooser(intent, "Share Maintenance Report"))
+                                        }
+                                    }
+                                },
+                            )
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(),
+            )
         },
         floatingActionButton = {
             // FAB only visible on the Log tab (index 0)
@@ -313,14 +335,19 @@ fun AssetDetailScreen(
                         openWorkOrderCount = openWorkOrderCount,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     )
-                    Text(
-                        text = stringResource(R.string.asset_detail_section_details),
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                }
+            }
+
+            // Tabs sit between the (collapsible) header and the pager — iOS parity.
+            PrimaryTabRow(
+                selectedTabIndex = pagerState.currentPage,
+            ) {
+                ASSET_DETAIL_TABS.forEachIndexed { index, title ->
+                    Tab(
+                        selected = pagerState.currentPage == index,
+                        onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
+                        text = { Text(title) },
                     )
-                    HorizontalDivider()
                 }
             }
 
@@ -608,7 +635,9 @@ private fun AssetDetailHeader(
                     state = photoPager,
                     modifier = Modifier.fillMaxSize(),
                 ) { page ->
-                    val url = photos[page].downloadUrl
+                    val photo = photos[page]
+                    val model: Any? = photo.localPath?.takeIf { it.isNotBlank() }?.let { java.io.File(it) }
+                        ?: photo.downloadUrl
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -618,9 +647,9 @@ private fun AssetDetailHeader(
                                 onLongClick = { onPhotoTap(page) },
                             ),
                     ) {
-                        if (url != null) {
+                        if (model != null) {
                             AsyncImage(
-                                model = url,
+                                model = model,
                                 contentDescription = null,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.fillMaxSize(),
