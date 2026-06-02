@@ -10,10 +10,13 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -75,11 +78,21 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        val splashScreen = installSplashScreen()
-        // Hold the splash screen until IdentityManager.initOnLaunch() has
-        // completed. This prevents a visible flash of the sign-in screen when
-        // an existing session is being restored from disk.
-        splashScreen.setKeepOnScreenCondition { !identityManager.isInitialized.value }
+        // Install the Android 12+ splash screen but DO NOT hold it on an
+        // async condition. Holding the splash via setKeepOnScreenCondition
+        // while enableEdgeToEdge() is in effect can leave MainActivity's
+        // window stuck at mShownAlpha=0.0 after the splash dismisses
+        // (reproducible on emulators and when Studio's debug agent is
+        // attached) — the Compose tree draws but the surface is never
+        // brought to visible state, producing a permanent black screen.
+        //
+        // Instead we let the splash dismiss immediately on first frame and
+        // render an in-app loading overlay (below in setContent) until
+        // IdentityManager.initOnLaunch() has finished restoring any
+        // existing session from disk. This preserves the original UX goal
+        // (no flash of the sign-in screen for returning users) without
+        // triggering the splash-transition rendering bug.
+        installSplashScreen()
 
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -131,18 +144,28 @@ class MainActivity : ComponentActivity() {
 
             AvagoTheme(darkTheme = isDark) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    val syncState by syncEngine.state.collectAsState()
-                    val syncReady by syncGate.isOpen.collectAsState()
-                    val isOffline by mainViewModel.isOffline.collectAsState()
+                    val identityReady by identityManager.isInitialized.collectAsState()
+                    if (!identityReady) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    } else {
+                        val syncState by syncEngine.state.collectAsState()
+                        val syncReady by syncGate.isOpen.collectAsState()
+                        val isOffline by mainViewModel.isOffline.collectAsState()
 
-                    MainScaffold(
-                        syncState = syncState,
-                        isOffline = isOffline,
-                        syncReady = syncReady,
-                        toast = mainViewModel.toast,
-                        pendingNavRoute = mainViewModel.pendingNavRoute,
-                        permissionStore = permissionStore,
-                    )
+                        MainScaffold(
+                            syncState = syncState,
+                            isOffline = isOffline,
+                            syncReady = syncReady,
+                            toast = mainViewModel.toast,
+                            pendingNavRoute = mainViewModel.pendingNavRoute,
+                            permissionStore = permissionStore,
+                        )
+                    }
                 }
             }
         }
