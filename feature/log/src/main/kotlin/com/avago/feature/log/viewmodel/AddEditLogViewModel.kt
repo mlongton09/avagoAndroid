@@ -31,6 +31,9 @@ import javax.inject.Inject
 /** "total" | "itemized" */
 enum class CostMode { TOTAL, ITEMIZED }
 
+/** Typed validation failures shown as alert dialogs — mirrors iOS UIAlertController usage. */
+enum class LogValidationError { TITLE_REQUIRED, NO_ASSET, NO_ACCOUNT }
+
 /**
  * Defines a single category-specific item attribute field shown in the "Item Details" section.
  */
@@ -105,6 +108,7 @@ data class AddEditLogFormState(
     val isSaving: Boolean = false,
     val saveError: String? = null,
     val savedEntryId: String? = null,
+    val validationError: LogValidationError? = null,
 
     val isLoadingExisting: Boolean = false,
 ) {
@@ -455,7 +459,15 @@ class AddEditLogViewModel @Inject constructor(
     fun onTitleChanged(value: String) = _form.update { it.copy(title = value) }
 
     fun onCategoryChanged(value: String?) {
-        _form.update { it.copy(category = value) }
+        // Derive logType from category key — mirrors iOS behaviour where log type
+        // is implicitly set by the category rather than a separate picker.
+        val derivedLogType = when {
+            value?.lowercase()?.contains("fuel") == true -> "fuel"
+            value?.lowercase()?.contains("inspection") == true -> "inspection"
+            value?.lowercase()?.contains("note") == true -> "note"
+            else -> "service"
+        }
+        _form.update { it.copy(category = value, logType = derivedLogType) }
         loadItemAttributeDefs(value)
     }
 
@@ -517,6 +529,10 @@ class AddEditLogViewModel @Inject constructor(
         }
     }
 
+    fun clearValidationError() {
+        _form.update { it.copy(validationError = null) }
+    }
+
     // ---------------------------------------------------------------------------
     // Cost lines
     // ---------------------------------------------------------------------------
@@ -576,15 +592,15 @@ class AddEditLogViewModel @Inject constructor(
         val accountId = identity.getActiveAccountId()
 
         if (accountId == null) {
-            _form.update { it.copy(saveError = "No active account") }
+            _form.update { it.copy(validationError = LogValidationError.NO_ACCOUNT) }
             return
         }
         if (current.assetId == null) {
-            _form.update { it.copy(saveError = "Please select an asset") }
+            _form.update { it.copy(validationError = LogValidationError.NO_ASSET) }
             return
         }
         if (current.title.isBlank()) {
-            _form.update { it.copy(saveError = "Title is required") }
+            _form.update { it.copy(validationError = LogValidationError.TITLE_REQUIRED) }
             return
         }
 
@@ -720,7 +736,7 @@ class AddEditLogViewModel @Inject constructor(
                 onSuccess(entryId)
             } catch (e: Exception) {
                 Timber.e(e, "[AddEditLogViewModel] Save failed")
-                _form.update { it.copy(isSaving = false, saveError = e.message ?: "Save failed") }
+                _form.update { it.copy(isSaving = false, saveError = "save_failed") }
             }
         }
     }

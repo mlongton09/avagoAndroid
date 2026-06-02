@@ -12,4 +12,82 @@
     <string name="maintenance_scanner_part_found">Part found</string>
     <string name="maintenance_scanner_permission_rationale">Camera permission is needed to scan barcodes</string>
     <string name="maintenance_scanner_grant_permission">Grant Permission</string>
+
+    <!-- Log entry form — mirrors iOS log_entry.* string keys -->
+    <string name="log_entry_placeholder_title">Title</string>
+    <string name="log_entry_section_notes">NOTES</string>
+    <string name="log_entry_placeholder_notes">Add notes…</string>
+    <string name="log_entry_section_cost">COST</string>
+    <string name="log_entry_placeholder_cost">—</string>
+    <string name="log_entry_label_performed_by">Performed By</string>
+    <string name="log_entry_placeholder_performed_by">Shop or person</string>
+    <string name="log_entry_section_parts">PARTS</string>
+    <string name="log_entry_section_service_parts">SERVICE PARTS</string>
+    <string name="log_entry_section_attachments">ATTACHMENTS</string>
+    <string name="log_entry_section_item_details">Details</string>
+    <string name="log_entry_section_location">Location</string>
+    <string name="log_entry_action_add_details">add details</string>
+    <string name="log_entry_action_add_attachment">add attachment</string>
+    <string name="log_entry_action_add_parts">add parts</string>
+    <string name="log_entry_action_add_part">Add A Part</string>
+    <string name="log_entry_action_add_from_inventory">Add From Inventory</string>
+    <string name="log_entry_action_add_service_item">Add Log Entry</string>
+    <string name="log_entry_fuel_volume_label">Volume</string>
+    <string name="log_entry_fuel_quick_note_btn">Add Note</string>
+
+    <!-- Inspection type picker — mirrors iOS log_entry.inspection_* keys -->
+    <string name="log_entry_inspection_type_title">Inspection Type</string>
+    <string name="log_entry_inspection_basic">Basic</string>
+    <string name="log_entry_inspection_full">Full</string>
+
+    <!-- Validation alerts — mirrors iOS log_entry.alert_* keys -->
+    <string name="log_entry_alert_title_required_title">Title Required</string>
+    <string name="log_entry_alert_title_required_message">Please enter a title for this entry.</string>
+    <string name="log_entry_alert_save_failed_title">Save Failed</string>
+    <string name="log_entry_alert_save_failed_message">Could not save the entry. Please try again.</string>
+    <string name="log_entry_alert_log_limit_title">Log Limit Reached</string>
+    <string name="log_entry_alert_mark_done_title">Mark Schedule Done?</string>
+    <string name="log_entry_alert_mark_done_confirm">Mark Done</string>
+
+    <!-- No-asset validation -->
+    <string name="log_entry_alert_no_asset_title">Asset Required</string>
+    <string name="log_entry_alert_no_asset_message">Please select an asset for this log entry.</string>
+
+    <!-- Inline UI labels -->
+    <string name="log_entry_label_asset">Asset</string>
+    <string name="log_entry_placeholder_select_asset">Select asset</string>
+    <string name="log_entry_label_category">Category</string>
+    <string name="log_entry_placeholder_select_category">Select category</string>
+    <string name="log_entry_label_date">Date</string>
+    <string name="log_entry_label_cost">Cost</string>
+    <string name="log_entry_label_total_cost">Total cost</string>
+    <string name="log_entry_cost_mode_total">Total</string>
+    <string name="log_entry_cost_mode_itemized">Itemized</string>
+    <string name="log_entry_itemize_label">Itemize parts &amp; labor</string>
+    <string name="log_entry_itemize_tap_hint">Tap to add parts and labor</string>
+    <string name="log_entry_itemize_lines">%1$d line · $%2$.2f total</string>
+    <string name="log_entry_itemize_lines_plural">%1$d lines · $%2$.2f total</string>
+    <string name="log_entry_meter_label_odometer">Odometer (%s)</string>
+    <string name="log_entry_meter_label_hours">Hours</string>
+    <string name="log_entry_meter_label_generic">Meter</string>
+    <string name="log_entry_meter_optional">%s (optional)</string>
+    <string name="log_entry_fuel_unit_gallon">gal</string>
+    <string name="log_entry_fuel_unit_liter">L</string>
+    <string name="log_entry_fuel_volume_optional">Volume (optional)</string>
+    <string name="log_entry_notes_label">Notes</string>
+    <string name="log_entry_notes_preview">Preview</string>
+    <string name="log_entry_notes_edit">Edit</string>
+    <string name="log_entry_notes_empty">No notes</string>
+    <string name="log_entry_photos_label">Photos</string>
+    <string name="log_entry_photo_gallery">Gallery</string>
+    <string name="log_entry_photo_camera">Camera</string>
+    <string name="log_entry_item_details_label">Item Details</string>
+    <string name="log_entry_inspection_checklist_label">Inspection Checklist</string>
+    <string name="log_entry_inspection_select_type">Select Type</string>
+    <string name="log_entry_inspection_change_type">Change</string>
+    <string name="log_entry_inspection_no_fields">No inspection fields configured for this asset type.</string>
+    <string name="log_entry_save_button">Save Log Entry</string>
+    <string name="log_entry_save_changes_button">Save Changes</string>
+    <string name="log_entry_saving">Saving\u2026</string>
 </resources>
+

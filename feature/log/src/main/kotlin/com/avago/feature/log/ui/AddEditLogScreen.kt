@@ -1,5 +1,6 @@
 package com.avago.feature.log.ui
 
+import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -39,13 +40,13 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -75,28 +76,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import com.avago.core.ui.CategoryItem
 import com.avago.core.ui.GlobalCategoryPickerScreen
 import com.avago.core.ui.MarkdownText
+import com.avago.feature.log.R
 import com.avago.feature.log.viewmodel.AddEditLogViewModel
 import com.avago.feature.log.viewmodel.CostMode
 import com.avago.feature.log.viewmodel.ItemAttributeDef
+import com.avago.feature.log.viewmodel.LogValidationError
 import kotlinx.coroutines.launch
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
-private val LOG_TYPES = listOf(
-    "service" to "Service",
-    "inspection" to "Inspection",
-    "note" to "Note",
-    "fuel" to "Fuel",
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -156,10 +156,15 @@ fun AddEditLogScreen(
     val form by viewModel.form.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
-    // Show save errors via snackbar
+    // Map the generic "save_failed" error code to a localised string for the snackbar.
+    val saveFailedMessage = stringResource(R.string.log_entry_alert_save_failed_message)
     LaunchedEffect(form.saveError) {
-        form.saveError?.let { scope.launch { snackbarHostState.showSnackbar(it) } }
+        form.saveError?.let { code ->
+            val message = if (code == "save_failed") saveFailedMessage else code
+            scope.launch { snackbarHostState.showSnackbar(message) }
+        }
     }
 
     // Launchers
@@ -168,12 +173,21 @@ fun AddEditLogScreen(
     ) { uris: List<Uri> ->
         uris.forEach { viewModel.addPhotoUri(it) }
     }
+
+    // Camera capture: create a temp file URI via FileProvider so the camera can write to it.
+    var captureUri by remember { mutableStateOf<Uri?>(null) }
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
-        // Camera URI is handled below via captureUri
+        if (success) captureUri?.let { viewModel.addPhotoUri(it) }
     }
-    var captureUri by remember { mutableStateOf<Uri?>(null) }
+
+    fun launchCamera() {
+        val tmpFile = File.createTempFile("photo_", ".jpg", context.cacheDir)
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", tmpFile)
+        captureUri = uri
+        cameraLauncher.launch(uri)
+    }
 
     // Sheet state for cost lines editor
     val costSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -204,6 +218,40 @@ fun AddEditLogScreen(
     // Notes preview toggle
     var notesPreviewMode by remember { mutableStateOf(false) }
 
+    // ---------------------------------------------------------------------------
+    // Validation error alert dialog — mirrors iOS UIAlertController behaviour
+    // ---------------------------------------------------------------------------
+    val validationError = form.validationError
+    if (validationError != null) {
+        val (title, message) = when (validationError) {
+            LogValidationError.TITLE_REQUIRED -> Pair(
+                stringResource(R.string.log_entry_alert_title_required_title),
+                stringResource(R.string.log_entry_alert_title_required_message),
+            )
+            LogValidationError.NO_ASSET -> Pair(
+                stringResource(R.string.log_entry_alert_no_asset_title),
+                stringResource(R.string.log_entry_alert_no_asset_message),
+            )
+            LogValidationError.NO_ACCOUNT -> Pair(
+                stringResource(R.string.log_entry_alert_save_failed_title),
+                stringResource(R.string.log_entry_alert_save_failed_message),
+            )
+        }
+        AlertDialog(
+            onDismissRequest = { viewModel.clearValidationError() },
+            title = { Text(title) },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.clearValidationError() }) {
+                    Text(stringResource(com.avago.core.ui.R.string.common_done))
+                }
+            },
+        )
+    }
+
+    // ---------------------------------------------------------------------------
+    // Date picker dialog
+    // ---------------------------------------------------------------------------
     if (showDatePicker) {
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
@@ -211,17 +259,21 @@ fun AddEditLogScreen(
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let { viewModel.onEntryDateChanged(it) }
                     showDatePicker = false
-                }) { Text("OK") }
+                }) { Text(stringResource(com.avago.core.ui.R.string.common_done)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text(stringResource(com.avago.core.ui.R.string.common_cancel))
+                }
             },
         ) {
             DatePicker(state = datePickerState)
         }
     }
 
+    // ---------------------------------------------------------------------------
     // Global category picker bottom sheet
+    // ---------------------------------------------------------------------------
     if (showCategoryPicker) {
         GlobalCategoryPickerScreen(
             categories = buildLogCategoryItems(form.availableCategories),
@@ -232,7 +284,9 @@ fun AddEditLogScreen(
         )
     }
 
-    // Inspection subtype picker dialog — matches iOS action sheet (Basic / Full / custom)
+    // ---------------------------------------------------------------------------
+    // Inspection subtype picker dialog — mirrors iOS action sheet (Basic / Full / custom)
+    // ---------------------------------------------------------------------------
     if (showInspectionSubtypePicker) {
         val subtypes = form.availableInspectionSubtypes
         val options: List<Pair<String, String?>> = if (subtypes.isEmpty()) {
@@ -248,13 +302,13 @@ fun AddEditLogScreen(
         }
         AlertDialog(
             onDismissRequest = { showInspectionSubtypePicker = false },
-            title = { Text("Inspection Type") },
+            title = { Text(stringResource(R.string.log_entry_inspection_type_title)) },
             text = {
                 Column {
                     options.forEachIndexed { idx, (subtype, mode) ->
                         val label = when {
-                            mode == "Basic" -> "Basic"
-                            mode == "Full" -> "Full"
+                            mode == "Basic" -> stringResource(R.string.log_entry_inspection_basic)
+                            mode == "Full" -> stringResource(R.string.log_entry_inspection_full)
                             else -> subtype
                         }
                         TextButton(
@@ -276,11 +330,16 @@ fun AddEditLogScreen(
             },
             confirmButton = {},
             dismissButton = {
-                TextButton(onClick = { showInspectionSubtypePicker = false }) { Text("Cancel") }
+                TextButton(onClick = { showInspectionSubtypePicker = false }) {
+                    Text(stringResource(com.avago.core.ui.R.string.common_cancel))
+                }
             },
         )
     }
 
+    // ---------------------------------------------------------------------------
+    // Cost lines editor bottom sheet
+    // ---------------------------------------------------------------------------
     if (showCostSheet) {
         CostLinesEditorSheet(
             costLines = form.pendingCostLines,
@@ -295,10 +354,18 @@ fun AddEditLogScreen(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(if (entryId != null) "Edit Log Entry" else "New Log Entry") },
+                title = {
+                    Text(
+                        if (entryId != null) stringResource(com.avago.core.ui.R.string.nav_edit_entry)
+                        else stringResource(com.avago.core.ui.R.string.nav_new_entry)
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(com.avago.core.ui.R.string.common_cancel),
+                        )
                     }
                 },
             )
@@ -330,8 +397,9 @@ fun AddEditLogScreen(
                 ) {
                     Box(modifier = Modifier.weight(1f)) {
                         FormRow(
-                            label = "Asset",
-                            value = form.assetName ?: form.assetId ?: "Select asset",
+                            label = stringResource(R.string.log_entry_label_asset),
+                            value = form.assetName ?: form.assetId
+                                ?: stringResource(R.string.log_entry_placeholder_select_asset),
                             onClick = onOpenAssetPicker,
                             isPlaceholder = form.assetId == null,
                         )
@@ -339,7 +407,7 @@ fun AddEditLogScreen(
                     IconButton(onClick = onOpenMaintenanceScanner) {
                         Icon(
                             imageVector = Icons.Default.QrCodeScanner,
-                            contentDescription = "Scan asset or part barcode",
+                            contentDescription = stringResource(R.string.maintenance_scanner_title),
                             tint = MaterialTheme.colorScheme.primary,
                         )
                     }
@@ -348,44 +416,16 @@ fun AddEditLogScreen(
 
             HorizontalDivider()
 
-            // --------------- Log type picker ---------------
+            // --------------- Title ---------------
+            // Matches iOS position: large title field at top of content area.
             FormSection {
-                Text(
-                    text = "Log Type",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(6.dp))
-                var typeExpanded by remember { mutableStateOf(false) }
-                ExposedDropdownMenuBox(
-                    expanded = typeExpanded,
-                    onExpandedChange = { typeExpanded = !typeExpanded },
+                OutlinedTextField(
+                    value = form.title,
+                    onValueChange = { viewModel.onTitleChanged(it) },
+                    label = { Text(stringResource(R.string.log_entry_placeholder_title)) },
                     modifier = Modifier.fillMaxWidth(),
-                ) {
-                    OutlinedTextField(
-                        value = LOG_TYPES.firstOrNull { it.first == form.logType }?.second ?: form.logType,
-                        onValueChange = {},
-                        readOnly = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor(MenuAnchorType.PrimaryNotEditable),
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeExpanded) },
-                    )
-                    ExposedDropdownMenu(
-                        expanded = typeExpanded,
-                        onDismissRequest = { typeExpanded = false },
-                    ) {
-                        LOG_TYPES.forEach { (key, label) ->
-                            DropdownMenuItem(
-                                text = { Text(label) },
-                                onClick = {
-                                    viewModel.onLogTypeChanged(key)
-                                    typeExpanded = false
-                                },
-                            )
-                        }
-                    }
-                }
+                    singleLine = true,
+                )
             }
 
             HorizontalDivider()
@@ -393,26 +433,13 @@ fun AddEditLogScreen(
             // --------------- Category picker ---------------
             FormSection {
                 FormRow(
-                    label = "Category",
+                    label = stringResource(R.string.log_entry_label_category),
                     value = form.category?.replace("_", " ")
                         ?.split(" ")
                         ?.joinToString(" ") { it.replaceFirstChar { c -> c.uppercaseChar() } }
-                        ?: "Select category",
+                        ?: stringResource(R.string.log_entry_placeholder_select_category),
                     onClick = { showCategoryPicker = true },
                     isPlaceholder = form.category == null,
-                )
-            }
-
-            HorizontalDivider()
-
-            // --------------- Title ---------------
-            FormSection {
-                OutlinedTextField(
-                    value = form.title,
-                    onValueChange = { viewModel.onTitleChanged(it) },
-                    label = { Text("Title") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
                 )
             }
 
@@ -421,7 +448,7 @@ fun AddEditLogScreen(
             // --------------- Date row ---------------
             FormSection {
                 FormRow(
-                    label = "Date",
+                    label = stringResource(R.string.log_entry_label_date),
                     value = dateFormatter.format(Date(form.entryDate)),
                     onClick = { showDatePicker = true },
                     leadingIcon = {
@@ -437,30 +464,11 @@ fun AddEditLogScreen(
 
             HorizontalDivider()
 
-            // --------------- Performed By ---------------
-            FormSection {
-                FormRow(
-                    label = "Performed By",
-                    value = form.performedByName ?: "Select",
-                    onClick = onOpenPerformedByPicker,
-                    isPlaceholder = form.performedByName == null,
-                    leadingIcon = {
-                        Icon(
-                            Icons.Default.Person,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    },
-                )
-            }
-
-            HorizontalDivider()
-
             // --------------- Cost ---------------
+            // Matches iOS section order: cost before odometer, before Performed By.
             FormSection {
                 Text(
-                    text = "Cost",
+                    text = stringResource(R.string.log_entry_section_cost),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -472,12 +480,12 @@ fun AddEditLogScreen(
                         selected = form.costMode == CostMode.TOTAL,
                         onClick = { viewModel.onCostModeChanged(CostMode.TOTAL) },
                         shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
-                    ) { Text("Total") }
+                    ) { Text(stringResource(R.string.log_entry_cost_mode_total)) }
                     SegmentedButton(
                         selected = form.costMode == CostMode.ITEMIZED,
                         onClick = { viewModel.onCostModeChanged(CostMode.ITEMIZED) },
                         shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-                    ) { Text("Itemized") }
+                    ) { Text(stringResource(R.string.log_entry_cost_mode_itemized)) }
                 }
 
                 Spacer(Modifier.height(10.dp))
@@ -487,7 +495,7 @@ fun AddEditLogScreen(
                         OutlinedTextField(
                             value = form.totalCost,
                             onValueChange = { viewModel.onTotalCostChanged(it) },
-                            label = { Text("Total cost") },
+                            label = { Text(stringResource(R.string.log_entry_label_total_cost)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -495,7 +503,7 @@ fun AddEditLogScreen(
                         )
                     }
                     CostMode.ITEMIZED -> {
-                        // Disclosure button to open cost lines editor
+                        // Disclosure button — mirrors iOS "Itemize parts & labor" card
                         Card(
                             onClick = { showCostSheet = true },
                             modifier = Modifier.fillMaxWidth(),
@@ -511,18 +519,22 @@ fun AddEditLogScreen(
                             ) {
                                 Column(Modifier.weight(1f)) {
                                     Text(
-                                        text = "Itemize parts & labor",
+                                        text = stringResource(R.string.log_entry_itemize_label),
                                         fontWeight = FontWeight.Medium,
                                     )
                                     if (form.costLineCount > 0) {
+                                        val linesLabel = if (form.costLineCount == 1)
+                                            stringResource(R.string.log_entry_itemize_lines, form.costLineCount, form.itemizedTotal)
+                                        else
+                                            stringResource(R.string.log_entry_itemize_lines_plural, form.costLineCount, form.itemizedTotal)
                                         Text(
-                                            text = "${form.costLineCount} line${if (form.costLineCount > 1) "s" else ""} · ${"$%.2f".format(form.itemizedTotal)} total",
+                                            text = linesLabel,
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                     } else {
                                         Text(
-                                            text = "Tap to add parts and labor",
+                                            text = stringResource(R.string.log_entry_itemize_tap_hint),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
@@ -546,7 +558,7 @@ fun AddEditLogScreen(
                 OutlinedTextField(
                     value = form.meterReading,
                     onValueChange = { viewModel.onMeterReadingChanged(it) },
-                    label = { Text("${form.meterLabel} (optional)") },
+                    label = { Text(stringResource(R.string.log_entry_meter_optional, form.meterLabel)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -555,53 +567,42 @@ fun AddEditLogScreen(
 
             HorizontalDivider()
 
-            // --------------- Fuel volume (shown for fuel-category entries) ---------------
-            if (form.category?.lowercase()?.contains("fuel") == true) {
-                FormSection {
-                    Text(
-                        text = "Fuel Volume",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        OutlinedTextField(
-                            value = form.fuelVolume,
-                            onValueChange = { viewModel.onFuelVolumeChanged(it) },
-                            label = { Text("Volume (optional)") },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            // --------------- Performed By ---------------
+            // Matches iOS position: after odometer, before notes.
+            FormSection {
+                FormRow(
+                    label = stringResource(R.string.log_entry_label_performed_by),
+                    value = form.performedByName
+                        ?: stringResource(R.string.log_entry_placeholder_performed_by),
+                    onClick = onOpenPerformedByPicker,
+                    isPlaceholder = form.performedByName == null,
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.Person,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        SingleChoiceSegmentedButtonRow {
-                            listOf("gallon", "liter").forEachIndexed { idx, unit ->
-                                SegmentedButton(
-                                    selected = form.fuelVolumeUnit == unit,
-                                    onClick = { viewModel.onFuelVolumeUnitChanged(unit) },
-                                    shape = SegmentedButtonDefaults.itemShape(index = idx, count = 2),
-                                    label = { Text(if (unit == "gallon") "gal" else "L") },
-                                )
-                            }
-                        }
-                    }
-                }
-                HorizontalDivider()
+                    },
+                )
             }
 
-            // --------------- Notes (with markdown preview toggle) ---------------
+            HorizontalDivider()
+
+            // --------------- Notes ---------------
             FormSection {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "Notes",
+                        text = stringResource(R.string.log_entry_section_notes),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f),
                     )
                     TextButton(onClick = { notesPreviewMode = !notesPreviewMode }) {
-                        Text(if (notesPreviewMode) "Edit" else "Preview")
+                        Text(
+                            if (notesPreviewMode) stringResource(R.string.log_entry_notes_edit)
+                            else stringResource(R.string.log_entry_notes_preview)
+                        )
                     }
                 }
                 Spacer(Modifier.height(4.dp))
@@ -613,7 +614,7 @@ fun AddEditLogScreen(
                     ) {
                         if (form.notes.isBlank()) {
                             Text(
-                                text = "No notes",
+                                text = stringResource(R.string.log_entry_notes_empty),
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
                                 style = MaterialTheme.typography.bodyMedium,
                             )
@@ -628,7 +629,7 @@ fun AddEditLogScreen(
                     OutlinedTextField(
                         value = form.notes,
                         onValueChange = { viewModel.onNotesChanged(it) },
-                        label = { Text("Notes") },
+                        label = { Text(stringResource(R.string.log_entry_placeholder_notes)) },
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 3,
                     )
@@ -637,10 +638,11 @@ fun AddEditLogScreen(
 
             HorizontalDivider()
 
-            // --------------- Photos ---------------
+            // --------------- Photos (Attachments) ---------------
+            // Section mirrors iOS log_entry.section_attachments / log_entry.action_add_attachment.
             FormSection {
                 Text(
-                    text = "Photos",
+                    text = stringResource(R.string.log_entry_photos_label),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -655,7 +657,7 @@ fun AddEditLogScreen(
                             Box {
                                 AsyncImage(
                                     model = uri,
-                                    contentDescription = "Photo",
+                                    contentDescription = stringResource(R.string.log_entry_photos_label),
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier
                                         .size(80.dp)
@@ -669,7 +671,7 @@ fun AddEditLogScreen(
                                 ) {
                                     Icon(
                                         Icons.Default.Close,
-                                        contentDescription = "Remove photo",
+                                    contentDescription = stringResource(com.avago.core.ui.R.string.common_clear),
                                         modifier = Modifier.size(16.dp),
                                     )
                                 }
@@ -686,18 +688,15 @@ fun AddEditLogScreen(
                     ) {
                         Icon(Icons.Default.AddAPhoto, contentDescription = null)
                         Spacer(Modifier.width(6.dp))
-                        Text("Gallery")
+                        Text(stringResource(R.string.log_entry_photo_gallery))
                     }
                     Button(
-                        onClick = {
-                            // System camera intent — full CameraX implementation is future work
-                            galleryLauncher.launch("image/*")
-                        },
+                        onClick = { launchCamera() },
                         colors = ButtonDefaults.outlinedButtonColors(),
                     ) {
                         Icon(Icons.Default.AddAPhoto, contentDescription = null)
                         Spacer(Modifier.width(6.dp))
-                        Text("Camera")
+                        Text(stringResource(R.string.log_entry_photo_camera))
                     }
                 }
             }
@@ -707,7 +706,7 @@ fun AddEditLogScreen(
                 HorizontalDivider()
                 FormSection {
                     Text(
-                        text = "Item Details",
+                        text = stringResource(R.string.log_entry_section_item_details),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.SemiBold,
@@ -721,6 +720,50 @@ fun AddEditLogScreen(
                 }
             }
 
+            // --------------- Fuel volume (shown for fuel-category entries) ---------------
+            // Matches iOS: fuel card appears conditionally after item details.
+            if (form.category?.lowercase()?.contains("fuel") == true) {
+                HorizontalDivider()
+                FormSection {
+                    Text(
+                        text = stringResource(R.string.log_entry_fuel_volume_label),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        OutlinedTextField(
+                            value = form.fuelVolume,
+                            onValueChange = { viewModel.onFuelVolumeChanged(it) },
+                            label = { Text(stringResource(R.string.log_entry_fuel_volume_optional)) },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        )
+                        SingleChoiceSegmentedButtonRow {
+                            listOf("gallon", "liter").forEachIndexed { idx, unit ->
+                                SegmentedButton(
+                                    selected = form.fuelVolumeUnit == unit,
+                                    onClick = { viewModel.onFuelVolumeUnitChanged(unit) },
+                                    shape = SegmentedButtonDefaults.itemShape(index = idx, count = 2),
+                                    label = {
+                                        Text(
+                                            if (unit == "gallon")
+                                                stringResource(R.string.log_entry_fuel_unit_gallon)
+                                            else
+                                                stringResource(R.string.log_entry_fuel_unit_liter)
+                                        )
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // --------------- Inspection form (shown only when logType == "inspection") ---------------
             if (form.logType == "inspection") {
                 HorizontalDivider()
@@ -731,7 +774,7 @@ fun AddEditLogScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Inspection Checklist",
+                                text = stringResource(R.string.log_entry_inspection_checklist_label),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontWeight = FontWeight.SemiBold,
@@ -750,7 +793,12 @@ fun AddEditLogScreen(
                             }
                         }
                         TextButton(onClick = { showInspectionSubtypePicker = true }) {
-                            Text(if (form.inspectionSubtype == null) "Select Type" else "Change")
+                            Text(
+                                if (form.inspectionSubtype == null)
+                                    stringResource(R.string.log_entry_inspection_select_type)
+                                else
+                                    stringResource(R.string.log_entry_inspection_change_type)
+                            )
                         }
                     }
                     Spacer(Modifier.height(8.dp))
@@ -762,7 +810,7 @@ fun AddEditLogScreen(
                         )
                     } else {
                         Text(
-                            text = "No inspection fields configured for this asset type.",
+                            text = stringResource(R.string.log_entry_inspection_no_fields),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                         )
@@ -785,8 +833,13 @@ fun AddEditLogScreen(
                             strokeWidth = 2.dp,
                         )
                         Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.log_entry_saving))
+                    } else {
+                        Text(
+                            if (entryId != null) stringResource(R.string.log_entry_save_changes_button)
+                            else stringResource(R.string.log_entry_save_button)
+                        )
                     }
-                    Text(if (form.isSaving) "Saving…" else if (entryId != null) "Save Changes" else "Save Log Entry")
                 }
             }
 

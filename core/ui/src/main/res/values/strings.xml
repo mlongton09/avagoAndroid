@@ -14,6 +14,16 @@
     <string name="photo_camera">Camera</string>
     <string name="photo_library">Photo Library</string>
 
+    <!-- Common actions — mirrors iOS common.* string keys -->
+    <string name="common_save">Save</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_done">Done</string>
+    <string name="common_clear">Clear</string>
+
+    <!-- Navigation titles — mirrors iOS nav.* string keys -->
+    <string name="nav_new_entry">New Log Entry</string>
+    <string name="nav_edit_entry">Edit Log Entry</string>
+
     <!-- Global category picker -->
     <string name="global_category_picker_title">Select Category</string>
     <string name="global_category_picker_search">Search categories</string>
