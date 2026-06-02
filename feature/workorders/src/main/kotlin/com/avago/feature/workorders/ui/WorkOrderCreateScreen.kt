@@ -1,4 +1,4 @@
-﻿package com.avago.feature.workorders.ui
+package com.avago.feature.workorders.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -153,7 +153,16 @@ fun WorkOrderCreateScreen(
     if (showCategoryPicker) {
         GlobalCategoryPickerScreen(
             title = stringResource(R.string.wo_category),
-            categories = availableCategories.map { CategoryItem(key = it, displayName = it) },
+            categories = availableCategories.map {
+                val iconName = com.avago.core.ui.categoryIconName(it)
+                CategoryItem(
+                    key = it,
+                    displayName = it,
+                    iconAssetName = iconName,
+                    color = com.avago.core.ui.categoryBadgeColor(iconName),
+                    group = com.avago.core.ui.categoryGroup(it),
+                )
+            },
             onSelect = { item ->
                 viewModel.category.value = item.key
                 viewModel.fetchEffortHint(item.key)

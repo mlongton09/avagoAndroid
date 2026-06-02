@@ -94,7 +94,7 @@ object AssetsRoute {
  */
 fun NavGraphBuilder.assetsNavGraph(
     navController: NavHostController,
-    onNavigateToAddLogEntry: (assetId: String) -> Unit = {},
+    onNavigateToAddLogEntry: (assetId: String, categoryKey: String?) -> Unit = { _, _ -> },
     onNavigateToLogDetail: (entryId: String) -> Unit = {},
     onAssetPicked: (assetId: String) -> Unit = {},
     onNavigateToWorkOrder: (woId: String) -> Unit = {},
@@ -151,7 +151,7 @@ fun NavGraphBuilder.assetsNavGraph(
                 assetId = assetId,
                 onBack = { navController.popBackStack() },
                 onEdit = { navController.navigate(AssetsRoute.addEdit(assetId)) },
-                onAddLogEntry = { onNavigateToAddLogEntry(assetId) },
+                onAddLogEntry = { categoryKey -> onNavigateToAddLogEntry(assetId, categoryKey) },
                 onLogEntryClick = { entryId -> onNavigateToLogDetail(entryId) },
                 onOpenPhotoGallery = { index ->
                     navController.navigate(AssetsRoute.photoGallery(assetId, index))

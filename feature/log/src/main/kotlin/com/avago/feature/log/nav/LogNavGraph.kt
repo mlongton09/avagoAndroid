@@ -27,7 +27,7 @@ object LogRoute {
     const val GRAPH = "log_graph"
     const val LIST = "log/list?assetId={assetId}"
     const val DETAIL = "log/detail/{entryId}"
-    const val ADD_EDIT = "log/add_edit?entryId={entryId}&assetId={assetId}"
+    const val ADD_EDIT = "log/add_edit?entryId={entryId}&assetId={assetId}&category={category}"
     const val PERFORMED_BY_PICKER = "log/performed_by_picker"
     const val MAINTENANCE_SCANNER = "log/maintenance-scanner"
 
@@ -36,8 +36,8 @@ object LogRoute {
 
     fun detail(entryId: String) = "log/detail/$entryId"
 
-    fun addEdit(entryId: String? = null, assetId: String? = null) =
-        "log/add_edit?entryId=${entryId ?: ""}&assetId=${assetId ?: ""}"
+    fun addEdit(entryId: String? = null, assetId: String? = null, category: String? = null) =
+        "log/add_edit?entryId=${entryId ?: ""}&assetId=${assetId ?: ""}&category=${category ?: ""}"
 }
 
 /**
@@ -111,11 +111,18 @@ fun NavGraphBuilder.logNavGraph(
                     nullable = true
                     defaultValue = null
                 },
+                navArgument("category") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
             ),
         ) { backStackEntry ->
             val entryId = backStackEntry.arguments?.getString("entryId")
                 ?.takeIf { it.isNotBlank() }
             val preselectedAssetId = backStackEntry.arguments?.getString("assetId")
+                ?.takeIf { it.isNotBlank() }
+            val initialCategory = backStackEntry.arguments?.getString("category")
                 ?.takeIf { it.isNotBlank() }
 
             // Observe results written back from sub-screens via SavedStateHandle
@@ -142,6 +149,7 @@ fun NavGraphBuilder.logNavGraph(
                 preselectedAssetId = preselectedAssetId
                     ?: scannedAssetId.value
                     ?: pickedAssetId.value,
+                initialCategory = initialCategory,
                 performedByUserId = pickedUserId.value,
                 performedByName = pickedUserName.value,
                 scannedPartId = scannedPartId.value,

@@ -1,7 +1,7 @@
 package com.avago.core.ui
 
-import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -35,39 +34,41 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImagePainter
+import coil3.compose.SubcomposeAsyncImage
+import coil3.compose.SubcomposeAsyncImageContent
+import coil3.request.ImageRequest
+import coil3.svg.SvgDecoder
 
 /**
  * A reusable category item for [GlobalCategoryPickerScreen].
  *
- * @param key         Stable identifier (e.g. "oil_change").
- * @param displayName Human-readable label shown in the cell.
- * @param iconRes     Optional drawable resource ID for the leading icon.
- * @param color       Background tint for the icon square (matches iOS category colors).
- * @param group       Section header label (e.g. "ENGINE", "BRAKES"). Null → "Other".
+ * @param key           Stable identifier (e.g. "oil_change").
+ * @param displayName   Human-readable label shown in the cell.
+ * @param iconAssetName Optional SVG asset name from android_asset/icons without extension.
+ * @param color         Background tint for the icon square (matches iOS category colors).
+ * @param group         Section header label (e.g. "ENGINE", "BRAKES"). Null → "Other".
  */
 data class CategoryItem(
     val key: String,
     val displayName: String,
-    @DrawableRes val iconRes: Int? = null,
+    val iconAssetName: String? = null,
     val color: Color? = null,
     val group: String? = null,
 )
 
 /**
  * iOS-matching modal bottom-sheet category picker.
- *
- * When [CategoryItem.group] is set on items, renders a sectioned 2-column grid with
- * uppercase section headers — identical to iOS's `CategoryPickerViewController`.
- * When no groups are set, falls back to a simple list (backwards-compatible).
- *
- * The first section is always "COMMON" (items with group == "COMMON" or group == null),
- * followed by alphabetically-sorted groups.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,7 +89,6 @@ fun GlobalCategoryPickerScreen(
         }
     }
 
-    // Build ordered section map: COMMON first, then alphabetical
     val sections: List<Pair<String, List<CategoryItem>>> = remember(filtered) {
         val grouped = filtered.groupBy { it.group ?: "Other" }
         val common = grouped["COMMON"]
@@ -108,14 +108,12 @@ fun GlobalCategoryPickerScreen(
         sheetState = sheetState,
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
+            modifier = Modifier.fillMaxWidth(),
         ) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(bottom = 12.dp),
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
             )
 
             OutlinedTextField(
@@ -126,7 +124,9 @@ fun GlobalCategoryPickerScreen(
                     Icon(imageVector = Icons.Default.Search, contentDescription = null)
                 },
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -145,10 +145,9 @@ fun GlobalCategoryPickerScreen(
                     )
                 }
             } else if (hasGroups) {
-                // Sectioned 2-column grid matching iOS layout
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(bottom = 24.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
                 ) {
                     sections.forEach { (sectionTitle, items) ->
                         item(key = "header_$sectionTitle") {
@@ -160,9 +159,7 @@ fun GlobalCategoryPickerScreen(
                                 modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
                             )
                         }
-                        // Pair items into rows of 2
-                        val rows = items.chunked(2)
-                        items(rows, key = { row -> "row_${row.first().key}" }) { row ->
+                        items(items.chunked(2), key = { row -> "row_${row.first().key}" }) { row ->
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -174,7 +171,6 @@ fun GlobalCategoryPickerScreen(
                                         modifier = Modifier.weight(1f),
                                     )
                                 }
-                                // If odd item, fill with empty space
                                 if (row.size == 1) {
                                     Spacer(modifier = Modifier.weight(1f))
                                 }
@@ -184,10 +180,9 @@ fun GlobalCategoryPickerScreen(
                     }
                 }
             } else {
-                // Flat list (backwards-compatible)
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(bottom = 24.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
                 ) {
                     items(filtered, key = { it.key }) { item ->
                         CategoryPickerRow(
@@ -201,80 +196,39 @@ fun GlobalCategoryPickerScreen(
     }
 }
 
-/**
- * iOS-matching category cell: 12dp rounded card with 34dp colored icon square + bold name.
- * Matches AVCategoryCell layout: icon box (left) + name label (center).
- */
 @Composable
 private fun CategoryGridCell(
     item: CategoryItem,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val bgColor = item.color ?: MaterialTheme.colorScheme.surfaceVariant
-    val iconBgColor = bgColor.copy(alpha = 1f)
-
-    Box(
+    Row(
         modifier = modifier
             .height(60.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surface)
-            .clickable(onClick = onClick),
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        // iOS cell: 1pt border (surface outline)
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+        CategoryIconTile(
+            item = item,
+            tileSize = 34.dp,
+            cornerRadius = 10.dp,
+            iconSize = 18.dp,
         )
-        Row(
-            modifier = Modifier
-                .matchParentSize()
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surface)
-                .padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // Colored icon box (34 × 34, 8dp corner radius)
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(iconBgColor),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (item.iconRes != null) {
-                    Icon(
-                        painter = painterResource(id = item.iconRes),
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp),
-                    )
-                } else {
-                    // Fallback: first letter of display name
-                    Text(
-                        text = item.displayName.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
-                        color = Color.White,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-            }
 
-            Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(10.dp))
 
-            // Category name
-            Text(
-                text = item.displayName,
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                lineHeight = 14.sp,
-                modifier = Modifier.weight(1f),
-            )
-        }
+        Text(
+            text = item.displayName,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
@@ -291,36 +245,78 @@ private fun CategoryPickerRow(
             .padding(vertical = 14.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        item.color?.let { color ->
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(color),
-                contentAlignment = Alignment.Center,
-            ) {
-                item.iconRes?.let { res ->
-                    Icon(
-                        painter = painterResource(id = res),
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-        } ?: item.iconRes?.let { res ->
-            Icon(
-                painter = painterResource(id = res),
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-        }
+        CategoryIconTile(
+            item = item,
+            tileSize = 28.dp,
+            cornerRadius = 6.dp,
+            iconSize = 16.dp,
+        )
+        Spacer(modifier = Modifier.width(12.dp))
         Text(
             text = item.displayName,
             style = MaterialTheme.typography.bodyLarge,
         )
     }
+}
+
+@Composable
+private fun CategoryIconTile(
+    item: CategoryItem,
+    tileSize: androidx.compose.ui.unit.Dp,
+    cornerRadius: androidx.compose.ui.unit.Dp,
+    iconSize: androidx.compose.ui.unit.Dp,
+) {
+    val bgColor = item.color ?: MaterialTheme.colorScheme.primary
+    Box(
+        modifier = Modifier
+            .size(tileSize)
+            .clip(RoundedCornerShape(cornerRadius))
+            .background(bgColor),
+        contentAlignment = Alignment.Center,
+    ) {
+        val iconName = item.iconAssetName
+        if (iconName.isNullOrBlank()) {
+            CategoryLetterFallback(item.displayName)
+        } else {
+            CategorySvgIcon(
+                iconName = iconName,
+                fallbackText = item.displayName,
+                modifier = Modifier.size(iconSize),
+            )
+        }
+    }
+}
+
+@Composable
+private fun CategorySvgIcon(
+    iconName: String,
+    fallbackText: String,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    SubcomposeAsyncImage(
+        model = ImageRequest.Builder(context)
+            .data("file:///android_asset/icons/$iconName.svg")
+            .decoderFactory(SvgDecoder.Factory())
+            .build(),
+        contentDescription = null,
+        contentScale = ContentScale.Fit,
+        colorFilter = ColorFilter.tint(Color.White, BlendMode.SrcIn),
+        modifier = modifier,
+    ) {
+        when (painter.state) {
+            is AsyncImagePainter.State.Error -> CategoryLetterFallback(fallbackText)
+            else -> SubcomposeAsyncImageContent()
+        }
+    }
+}
+
+@Composable
+private fun CategoryLetterFallback(text: String) {
+    Text(
+        text = text.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
+        color = Color.White,
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.Bold,
+    )
 }

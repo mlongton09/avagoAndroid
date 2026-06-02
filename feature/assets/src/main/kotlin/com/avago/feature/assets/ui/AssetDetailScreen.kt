@@ -1,5 +1,6 @@
 package com.avago.feature.assets.ui
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -112,6 +113,11 @@ import com.avago.core.data.db.entity.DocEntity
 import com.avago.core.data.db.entity.LogEntity
 import com.avago.core.data.db.entity.PhotoEntity
 import com.avago.core.ui.CategoryBadge
+import com.avago.core.ui.CategoryItem
+import com.avago.core.ui.GlobalCategoryPickerScreen
+import com.avago.core.ui.categoryBadgeColor
+import com.avago.core.ui.categoryGroup
+import com.avago.core.ui.categoryIconName
 import com.avago.core.ui.EmptyState
 import com.avago.feature.assets.R
 import com.avago.feature.assets.model.AssetTypes
@@ -131,7 +137,7 @@ fun AssetDetailScreen(
     assetId: String,
     onBack: () -> Unit,
     onEdit: () -> Unit,
-    onAddLogEntry: () -> Unit,
+    onAddLogEntry: (categoryKey: String?) -> Unit,
     onLogEntryClick: (entryId: String) -> Unit,
     onOpenPhotoGallery: (initialIndex: Int) -> Unit = {},
     onOpenWorkOrders: () -> Unit = {},
@@ -159,6 +165,7 @@ fun AssetDetailScreen(
     val canEditAsset by viewModel.canEditAsset.collectAsStateWithLifecycle()
 
     var showOverflowMenu by remember { mutableStateOf(false) }
+    var showAddLogCategoryPicker by remember { mutableStateOf(false) }
     val pagerState = rememberPagerState { ASSET_DETAIL_TABS.size }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -334,7 +341,7 @@ fun AssetDetailScreen(
             // FAB only visible on the Log tab (index 0)
             if (pagerState.currentPage == 0) {
                 FloatingActionButton(
-                    onClick = onAddLogEntry,
+                    onClick = { showAddLogCategoryPicker = true },
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = Color.White,
                 ) {
@@ -448,6 +455,41 @@ fun AssetDetailScreen(
             }
         }
     }
+
+    if (showAddLogCategoryPicker) {
+        GlobalCategoryPickerScreen(
+            categories = availableCategories.map { it.toAssetCategoryItem(context) },
+            onSelect = { item ->
+                showAddLogCategoryPicker = false
+                onAddLogEntry(item.key)
+            },
+            onDismiss = { showAddLogCategoryPicker = false },
+        )
+    }
+}
+
+
+private fun String.toAssetCategoryItem(context: Context): CategoryItem {
+    val iconName = categoryIconName(this)
+    return CategoryItem(
+        key = this,
+        displayName = categoryDisplayName(context, this),
+        iconAssetName = iconName,
+        color = categoryBadgeColor(iconName),
+        group = categoryGroup(this),
+    )
+}
+
+private fun categoryDisplayName(context: Context, id: String): String {
+    val resName = "log_cat_${id.replace("-", "_")}"
+    val resId = context.resources.getIdentifier(resName, "string", context.packageName)
+    if (resId != 0) return context.getString(resId)
+    return id.replace("_", " ")
+        .split(" ")
+        .filter { it.isNotBlank() }
+        .joinToString(" ") { word ->
+            word.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+        }
 }
 
 // ── Tab content ──────────────────────────────────────────────────────────────

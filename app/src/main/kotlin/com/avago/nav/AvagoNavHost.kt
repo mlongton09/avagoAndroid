@@ -98,8 +98,8 @@ fun AvagoNavHost(
             // ── Assets ────────────────────────────────────────────────────────────
             assetsNavGraph(
                 navController = navController,
-                onNavigateToAddLogEntry = { assetId ->
-                    navController.navigate(LogRoute.addEdit(assetId = assetId))
+                onNavigateToAddLogEntry = { assetId, categoryKey ->
+                    navController.navigate(LogRoute.addEdit(assetId = assetId, category = categoryKey))
                 },
                 onNavigateToLogDetail = { entryId ->
                     navController.navigate(LogRoute.detail(entryId))

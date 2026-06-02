@@ -1,4 +1,4 @@
-﻿package com.avago.feature.log.ui
+package com.avago.feature.log.ui
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -103,6 +103,7 @@ private val LOG_TYPES = listOf(
 fun AddEditLogScreen(
     entryId: String? = null,
     preselectedAssetId: String? = null,
+    initialCategory: String? = null,
     /** Result from PerformedByPickerScreen, delivered via SavedStateHandle → nav parameter. */
     performedByUserId: String? = null,
     performedByName: String? = null,
@@ -127,6 +128,14 @@ fun AddEditLogScreen(
     LaunchedEffect(preselectedAssetId) {
         if (preselectedAssetId != null && entryId == null) {
             viewModel.onAssetSelected(preselectedAssetId, null)
+        }
+    }
+
+    // iOS parity: when the user picks a category before opening the form,
+    // pre-fill it once so they don't have to pick it again inside the form.
+    LaunchedEffect(initialCategory) {
+        if (initialCategory != null && entryId == null) {
+            viewModel.onCategoryChanged(initialCategory)
         }
     }
 
@@ -934,13 +943,14 @@ private fun FormRow(
 private fun buildLogCategoryItems(availableCategories: List<String>): List<CategoryItem> {
     val none = CategoryItem(key = "__none__", displayName = "None", group = "COMMON")
     val rest = availableCategories.map { cat ->
-        val iconName = categoryIconName(cat)
+        val iconName = com.avago.core.ui.categoryIconName(cat)
         CategoryItem(
             key = cat,
             displayName = cat.replace("_", " ").split(" ")
                 .joinToString(" ") { it.replaceFirstChar { c -> c.uppercaseChar() } },
-            color = categoryBadgeColor(iconName),
-            group = categoryGroup(cat),
+            iconAssetName = iconName,
+            color = com.avago.core.ui.categoryBadgeColor(iconName),
+            group = com.avago.core.ui.categoryGroup(cat),
         )
     }
     return listOf(none) + rest
