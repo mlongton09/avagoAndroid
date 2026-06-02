@@ -191,7 +191,8 @@ fun MainScaffold(
     // The log list, when launched from a specific asset, is the Android
     // equivalent — suppress the outer chrome so its own custom header sits
     // flush against the photo.
-    val isAssetLogDestination = currentRoute?.startsWith("log/list") == true
+    val isAssetLogDestination = currentRoute?.startsWith("log/list") == true ||
+        currentRoute?.startsWith("assets/detail") == true
 
     AvagoToastHost(toastManager = toast) {
     ModalNavigationDrawer(

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.padding
@@ -428,9 +429,6 @@ fun AssetDetailScreen(
                         latestMeterReading = latestMeterReading,
                         showMeterDialog = showMeterDialog,
                         isSavingMeter = isSavingMeter,
-                        availableCategories = availableCategories,
-                        categoryFilter = categoryFilter,
-                        onCategoryFilterChanged = { viewModel.onCategoryFilterChanged(it) },
                         onAddMeterReading = { viewModel.onAddMeterReadingTapped() },
                         onDismissMeterDialog = { viewModel.onDismissMeterDialog() },
                         onSaveMeterReading = { viewModel.saveMeterReading(it) },
@@ -438,7 +436,6 @@ fun AssetDetailScreen(
                         onOpenWheelDataInput = onOpenWheelDataInput,
                         onLogEntryClick = onLogEntryClick,
                         onCloneLogEntry = { viewModel.cloneLogEntry(it) },
-                        currencyCode = currencyCode,
                     )
                     1 -> DocumentsTab(documents = documents)
                     2 -> WorkOrdersTab(onOpenWorkOrders = onOpenWorkOrders)
@@ -457,9 +454,6 @@ private fun LogTab(
     latestMeterReading: Double?,
     showMeterDialog: Boolean,
     isSavingMeter: Boolean,
-    availableCategories: List<String>,
-    categoryFilter: String?,
-    onCategoryFilterChanged: (String?) -> Unit,
     onAddMeterReading: () -> Unit,
     onDismissMeterDialog: () -> Unit,
     onSaveMeterReading: (Double) -> Unit,
@@ -467,7 +461,6 @@ private fun LogTab(
     onOpenWheelDataInput: () -> Unit,
     onLogEntryClick: (entryId: String) -> Unit,
     onCloneLogEntry: (LogEntity) -> Unit,
-    currencyCode: String = "USD",
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -479,17 +472,6 @@ private fun LogTab(
                     meterType = asset.meterType,
                     latestMeterReading = latestMeterReading,
                     onAddReading = onAddMeterReading,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-            }
-        }
-
-        if (availableCategories.isNotEmpty()) {
-            item(key = "category_filter") {
-                CategoryFilterRow(
-                    categories = availableCategories,
-                    selected = categoryFilter,
-                    onSelect = onCategoryFilterChanged,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             }
@@ -522,9 +504,9 @@ private fun LogTab(
                 items(items = group.entries, key = { it.entryId }) { entry ->
                     LogEntryRow(
                         entry = entry,
+                        meterType = asset.meterType,
                         onClick = { onLogEntryClick(entry.entryId) },
                         onClone = { onCloneLogEntry(entry) },
-                        currencyCode = currencyCode,
                     )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 }
@@ -684,67 +666,56 @@ private fun CategoryFilterRow(
     onSelect: (String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LazyRow(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        item {
-            FilterChip(
-                selected = selected == null,
-                onClick = { onSelect(null) },
-                label = { Text(stringResource(R.string.asset_detail_filter_all)) },
-            )
-        }
-        items(categories) { category ->
-            FilterChip(
-                selected = selected == category,
-                onClick = { onSelect(if (selected == category) null else category) },
-                label = {
-                    Text(category.replace("_", " ").replaceFirstChar { it.uppercase() })
-                },
-            )
-        }
-    }
+    // Retained as dead code in case it's reintroduced; iOS does not show
+    // category filter chips on the asset log screen, so it's no longer rendered.
+    // (Left unused to minimize churn in unrelated callers if any exist.)
+    Unit
 }
 
 @Composable
 private fun LogEntryRow(
     entry: LogEntity,
+    meterType: String?,
     onClick: () -> Unit,
     onClone: () -> Unit,
-    currencyCode: String = "USD",
     modifier: Modifier = Modifier,
 ) {
+    // iOS LogItemTableViewCell parity:
+    // - Title font = AppTheme.bodyFont() → bodyLarge (17sp regular)
+    // - Right meta font = AppTheme.smallFont() → bodyMedium (13sp regular)
+    // - Right top: "<MMM d> | <ago>"
+    // - Right bottom: "<odometer> <unit>" when present (alpha 0.72)
+    // - No cost field on iOS
     var showMenu by remember { mutableStateOf(false) }
     Row(
         modifier = modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .heightIn(min = 50.dp)
+            .padding(horizontal = 16.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         CategoryBadge(categoryId = entry.category)
-        // Title only - category name removed; the icon conveys the category (iOS parity).
         Text(
             text = entry.title,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
+            style = MaterialTheme.typography.bodyLarge,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        // Right meta: "MMM d | <ago>" on top, cost below (iOS date|ago + value layout).
         Column(horizontalAlignment = Alignment.End) {
             Text(
-                text = "${formatShortDate(entry.entryDate)} | ${agoLabel(entry.entryDate)}",
-                style = MaterialTheme.typography.labelSmall,
+                text = "${formatShortDate(entry.entryDate)} \u2002|\u2002 ${agoLabel(entry.entryDate)}",
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            entry.cost?.takeIf { it > 0.0 }?.let { cost ->
+            entry.odometerValue?.takeIf { it > 0.0 }?.let { odo ->
                 Text(
-                    text = formatCurrency(cost, currencyCode),
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.SemiBold,
+                    text = formatOdometerValue(odo, meterType),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                 )
             }
         }
@@ -769,6 +740,16 @@ private fun LogEntryRow(
             }
         }
     }
+}
+
+private fun formatOdometerValue(value: Double, meterType: String?): String {
+    val unit = when (meterType?.lowercase()) {
+        "km", "kilometers" -> "km"
+        "hours", "hrs"     -> "hrs"
+        else               -> "mi"
+    }
+    val n = java.text.NumberFormat.getIntegerInstance().format(value.toLong())
+    return "$n\u202F$unit"
 }
 
 @Composable

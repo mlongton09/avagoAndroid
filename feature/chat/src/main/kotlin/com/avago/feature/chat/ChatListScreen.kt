@@ -34,6 +34,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -532,13 +533,24 @@ private fun ThreadRow(
 ) {
     val hasUnread = thread.unreadCount > 0
 
-    Row(
+    // Opaque background so the swipe-to-favorite Star layer (primaryContainer,
+    // a light blue) only shows while the row is actively swiped — not bleeding
+    // through a transparent row at rest. iOS ThreadRowCell is likewise a solid
+    // bg1() fill for every thread type (asset rows included); only the avatar
+    // circle is colored. The trailing hairline divider mirrors iOS's table
+    // separatorColor() — a very light grey line between rows.
+    Column(
         modifier = modifier
             .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.background)
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick,
-            )
+            ),
+    ) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -626,6 +638,14 @@ private fun ThreadRow(
 
             }
         }
+    }
+        HorizontalDivider(
+            // iOS uses the default UITableView separator: a very light grey line
+            // inset from the leading edge. onSurface @ 0.15 alpha matches the
+            // grey used by DateSeparatorItem elsewhere in chat.
+            modifier = Modifier.padding(start = 16.dp),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
+        )
     }
 }
 
