@@ -43,7 +43,7 @@ object AssetsRoute {
     const val GRAPH = "assets_graph"
     const val LIST = "assets/list"
     const val DETAIL = "assets/detail/{assetId}"
-    const val ADD_EDIT = "assets/add_edit?assetId={assetId}"
+    const val ADD_EDIT = "assets/add_edit?assetId={assetId}&initialAssetType={initialAssetType}"
     const val TYPE_PICKER = "assets/type_picker"
     const val CATEGORY_PICKER = "assets/category_picker"
     const val DOC_TYPE_PICKER = "assets/doc_type_picker"
@@ -66,8 +66,8 @@ object AssetsRoute {
     fun detail(assetId: String) = "assets/detail/$assetId"
     fun workOrders(assetId: String) = "assets/work_orders/$assetId"
     fun rentals(assetId: String) = "assets/rentals/$assetId"
-    fun addEdit(assetId: String? = null) =
-        if (assetId != null) "assets/add_edit?assetId=$assetId" else "assets/add_edit?assetId="
+    fun addEdit(assetId: String? = null, initialAssetType: String? = null) =
+        "assets/add_edit?assetId=${Uri.encode(assetId ?: "")}&initialAssetType=${Uri.encode(initialAssetType ?: "")}"
     fun photoGallery(assetId: String, initialIndex: Int = 0) =
         "assets/gallery/$assetId?initialIndex=$initialIndex"
     fun pdfViewer(pdfUrl: String, title: String = "Document") =
@@ -134,7 +134,7 @@ fun NavGraphBuilder.assetsNavGraph(
                     navController.navigate(AssetsRoute.addEdit(assetId))
                 },
                 onAddAsset = {
-                    navController.navigate(AssetsRoute.addEdit())
+                    navController.navigate(AssetsRoute.TYPE_PICKER)
                 },
                 onScanBarcode = {
                     navController.navigate(AssetsRoute.BARCODE_SCANNER)
@@ -186,12 +186,20 @@ fun NavGraphBuilder.assetsNavGraph(
                     nullable = true
                     defaultValue = null
                 },
+                navArgument("initialAssetType") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
             ),
         ) { backStackEntry ->
             val assetId = backStackEntry.arguments?.getString("assetId")
                 ?.takeIf { it.isNotBlank() }
+            val initialAssetType = backStackEntry.arguments?.getString("initialAssetType")
+                ?.takeIf { it.isNotBlank() }
             AddEditAssetScreen(
                 assetId = assetId,
+                initialAssetType = initialAssetType,
                 onBack = { navController.popBackStack() },
                 onSaved = { navController.popBackStack() },
                 onOpenTypePicker = { navController.navigate(AssetsRoute.TYPE_PICKER) },
@@ -205,11 +213,17 @@ fun NavGraphBuilder.assetsNavGraph(
         composable(AssetsRoute.TYPE_PICKER) {
             AssetTypePickerScreen(
                 onTypeSelected = { typeKey ->
-                    // Return the selected type back to the AddEditAsset screen via SavedStateHandle
-                    navController.previousBackStackEntry
-                        ?.savedStateHandle
-                        ?.set("selected_asset_type", typeKey)
-                    navController.popBackStack()
+                    val previousRoute = navController.previousBackStackEntry?.destination?.route
+                    if (previousRoute?.startsWith("assets/add_edit") == true) {
+                        navController.previousBackStackEntry
+                            ?.savedStateHandle
+                            ?.set("selected_asset_type", typeKey)
+                        navController.popBackStack()
+                    } else {
+                        navController.navigate(AssetsRoute.addEdit(initialAssetType = typeKey)) {
+                            popUpTo(AssetsRoute.TYPE_PICKER) { inclusive = true }
+                        }
+                    }
                 },
                 onBack = { navController.popBackStack() },
             )

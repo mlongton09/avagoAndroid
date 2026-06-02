@@ -1,6 +1,7 @@
 package com.avago.feature.assets.model
 
 import androidx.annotation.DrawableRes
+import androidx.compose.ui.graphics.Color
 import com.avago.feature.assets.R
 
 data class AssetTypeItem(
@@ -11,6 +12,13 @@ data class AssetTypeItem(
     val heroImageName: String? = null,
     /** Background color hex for the asset avatar, matching iOS AvatarView.colorForAssetType(). */
     val colorHex: String = "#2563EB",
+)
+
+data class AssetTypeGroup(
+    val id: String,
+    val titleResId: Int,
+    val color: Color,
+    val types: List<AssetTypeItem>,
 )
 
 object AssetTypes {
@@ -41,6 +49,67 @@ object AssetTypes {
         AssetTypeItem("office",               R.string.asset_type_office,               R.drawable.ic_asset_office,               "hero_office",               "#2868C0"),
         AssetTypeItem("industrial",           R.string.asset_type_industrial,           R.drawable.ic_asset_industrial,           "hero_industrial",           "#C88018"),
         AssetTypeItem("healthcare",           R.string.asset_type_healthcare,           R.drawable.ic_asset_healthcare,           "hero_healthcare",           "#28B8C0"),
+        AssetTypeItem("restaurant",           R.string.asset_type_restaurant,           R.drawable.ic_asset_restaurant,           "hero_restaurant",           "#E85D04"),
+    )
+
+    private val byKey: Map<String, AssetTypeItem> = all.associateBy { it.key }
+
+    val grouped: List<AssetTypeGroup> = listOf(
+        AssetTypeGroup(
+            id = "vehicles",
+            titleResId = R.string.asset_type_group_vehicles,
+            color = Color(0xFF0A84FF),
+            types = itemsFor(
+                "light_vehicle",
+                "motorcycle",
+                "commercial_vehicle",
+                "recreational_vehicle",
+                "heavy_equipment",
+                "trailer",
+            ),
+        ),
+        AssetTypeGroup(
+            id = "real_estate",
+            titleResId = R.string.asset_type_group_real_estate,
+            color = Color(0xFF34C759),
+            types = itemsFor(
+                "residential",
+                "multifamily",
+                "office",
+                "industrial",
+                "healthcare",
+                "restaurant",
+            ),
+        ),
+        AssetTypeGroup(
+            id = "equipment",
+            titleResId = R.string.asset_type_group_equipment,
+            color = Color(0xFFF5A020),
+            types = itemsFor(
+                "lawn_equipment",
+                "generator",
+            ),
+        ),
+        AssetTypeGroup(
+            id = "marine",
+            titleResId = R.string.asset_type_group_marine,
+            color = Color(0xFF0099CC),
+            types = itemsFor(
+                "personal_watercraft",
+                "pleasure_craft",
+                "commercial_vessel",
+            ),
+        ),
+        AssetTypeGroup(
+            id = "powersports",
+            titleResId = R.string.asset_type_group_powersports,
+            color = Color(0xFF0A84FF),
+            types = itemsFor(
+                "atv_utv",
+                "snowmobile",
+                "golf_cart",
+            ),
+        ),
     )
 
     private val keySet = all.map { it.key }.toHashSet()
@@ -63,6 +132,8 @@ object AssetTypes {
         all.firstOrNull { it.key == key }?.colorHex ?: "#2563EB"
 
     fun isKnownType(key: String?): Boolean = key != null && keySet.contains(key)
+
+    private fun itemsFor(vararg keys: String): List<AssetTypeItem> = keys.mapNotNull { byKey[it] }
 }
 
 val AssetColorPalette: List<Long> = listOf(

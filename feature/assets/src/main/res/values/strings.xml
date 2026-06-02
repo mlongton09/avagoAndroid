@@ -71,6 +71,11 @@
 
     <!-- Asset Type Picker -->
     <string name="asset_type_picker_title">Select Asset Type</string>
+    <string name="asset_type_group_vehicles">Vehicles</string>
+    <string name="asset_type_group_real_estate">Real Estate</string>
+    <string name="asset_type_group_equipment">Equipment</string>
+    <string name="asset_type_group_marine">Marine</string>
+    <string name="asset_type_group_powersports">Powersports</string>
 
     <!-- Asset types -->
     <string name="asset_type_vehicle">Vehicle</string>
@@ -99,6 +104,7 @@
     <string name="asset_type_office">Office</string>
     <string name="asset_type_industrial">Industrial</string>
     <string name="asset_type_healthcare">Healthcare</string>
+    <string name="asset_type_restaurant">Restaurant</string>
 
     <!-- Asset Picker -->
     <string name="asset_picker_title">Select Asset</string>

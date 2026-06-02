@@ -1,4 +1,4 @@
-﻿package com.avago.feature.assets.ui
+package com.avago.feature.assets.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -114,6 +114,7 @@ private fun floorUnitLabelFor(assetType: String?): String = when (assetType) {
 @Composable
 fun AddEditAssetScreen(
     assetId: String?,
+    initialAssetType: String? = null,
     onBack: () -> Unit,
     onSaved: () -> Unit,
     onOpenTypePicker: () -> Unit,
@@ -129,6 +130,12 @@ fun AddEditAssetScreen(
     LaunchedEffect(assetId) {
         if (assetId != null) {
             viewModel.loadForEdit(assetId)
+        }
+    }
+
+    LaunchedEffect(assetId, initialAssetType) {
+        if (assetId == null && initialAssetType != null) {
+            viewModel.onAssetTypeChanged(initialAssetType)
         }
     }
 
