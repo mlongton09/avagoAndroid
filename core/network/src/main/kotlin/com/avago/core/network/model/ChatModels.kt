@@ -128,7 +128,7 @@ data class TeamThreadEnvelope(
 data class SendMessageRequest(
     val body_md: String,
     val photo_url: String? = null,
-    val image_urls: List<String>? = null,
+    val image_urls: List<String> = emptyList(),
     val mentions: List<ChatMentionRequest>? = null,
     val client_ref: String? = null,
     val needs_reply: Boolean? = null,

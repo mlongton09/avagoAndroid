@@ -1192,7 +1192,7 @@ class AvagoServiceClient @Inject constructor(
         threadId: String,
         body: String,
         photoUrl: String? = null,
-        imageUrls: List<String>? = null,
+        imageUrls: List<String> = emptyList(),
         needsReply: Boolean? = null,
     ): NetworkResult<ChatMessageResponse> =
         safeNetworkCall {

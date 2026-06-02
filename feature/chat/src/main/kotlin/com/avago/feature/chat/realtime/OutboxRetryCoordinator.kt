@@ -158,7 +158,7 @@ class OutboxRetryCoordinator @Inject constructor(
             val result = client.sendMessage(
                 threadId = threadId,
                 body = body,
-                imageUrls = buildServerImageUrls(normalizedImageUrls, audioUrl, attachmentUrl).takeIf { it.isNotEmpty() },
+                imageUrls = buildServerImageUrls(normalizedImageUrls, audioUrl, attachmentUrl),
                 needsReply = needsReply.takeIf { it },
             )
         ) {
@@ -244,7 +244,7 @@ class OutboxRetryCoordinator @Inject constructor(
                 val result = client.sendMessage(
                     threadId = msg.threadId,
                     body = msg.bodyMd,
-                    imageUrls = payloadImageUrls.takeIf { it.isNotEmpty() },
+                    imageUrls = payloadImageUrls,
                     needsReply = msg.needsReply.takeIf { it },
                 )
             ) {
