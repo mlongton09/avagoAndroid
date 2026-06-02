@@ -275,11 +275,20 @@ class CreateCycleCountViewModel @Inject constructor(
                         scope_value = s.scopeValue.takeIf { it.isNotBlank() },
                     ),
                 )
-                serviceClient.startCycleCount(accountId, count.cycle_count_id)
+                // Always surface the createdCountId — even if start() fails the user can resume from the
+                // draft. If we don't navigate, the draft becomes an invisible leak on the server and a
+                // retry creates another duplicate draft.
+                val startError = runCatching {
+                    serviceClient.startCycleCount(accountId, count.cycle_count_id)
+                }.exceptionOrNull()
+                if (startError != null) {
+                    Timber.w(startError, "CreateCycleCountViewModel: start failed for ${count.cycle_count_id}; surfacing draft for resume")
+                }
                 _state.value = _state.value.copy(
                     isSubmitting = false,
                     isDone = true,
                     createdCountId = count.cycle_count_id,
+                    error = startError?.message,
                 )
             } catch (e: Exception) {
                 Timber.e(e, "CreateCycleCountViewModel: submit failed")

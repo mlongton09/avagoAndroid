@@ -167,7 +167,11 @@ class SignInViewModel @Inject constructor(
                 val idToken = authResult.user?.getIdToken(false)?.await()?.token
                     ?: throw Exception(appContext.getString(R.string.auth_error_token_unavailable))
                 identityManager.signInWithFirebase(appContext, idToken, "firebase")
-                identityManager.updateDisplayName(trimmedDisplayName)
+                // Best-effort: if PUT /users/me fails, the user IS signed in and tokens are persisted —
+                // surfacing an error would leave them at the sign-in screen with a confusing
+                // "user_not_found" on retry. Display name will be picked up by the next /users/me GET.
+                runCatching { identityManager.updateDisplayName(trimmedDisplayName) }
+                    .onFailure { Timber.w(it, "createAccountWithEmail: updateDisplayName failed (best-effort)") }
                 completeSignIn(pendingMigration)
             } catch (e: FirebaseNetworkException) {
                 Timber.w(e, "Email create-account network error")

@@ -70,6 +70,10 @@ object AvagoHttpClient {
         ignoreUnknownKeys = true
         isLenient = true
         encodeDefaults = true
+        // Tripwire: a null-valued field is omitted from the wire rather than serialized as JSON null.
+        // This matches Rust serde defaults (Vec<T>, #[serde(default)], Option<T> with skip_serializing_if).
+        // If a future PATCH endpoint needs explicit-null semantics ("clear this field"), build that
+        // request body as a hand-crafted JsonObject instead of relying on the shared DTO config.
         explicitNulls = false
     }
 

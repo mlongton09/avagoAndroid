@@ -28,13 +28,16 @@ class AccountMigrationService @Inject constructor(
             databaseFactory.get(account.accountId).assetDao().countRealAssets(account.accountId)
         }.onFailure { Timber.w(it, "AccountMigrationService: failed to count anonymous assets") }
             .getOrDefault(0)
+        runCatching { databaseFactory.close(account.accountId) }
         if (assetCount > 0) AnonymousMigrationCandidate(account.accountId, assetCount) else null
     }
 
     suspend fun migrateAnonymousToAuthenticated(sourceAccountId: String, newAccountId: String): Boolean =
         withContext(Dispatchers.IO) {
             val migrated = runCatching {
-                databaseFactory.get(newAccountId)
+                // Force destination Room schema materialization before raw-SQLite reopen — Room is lazy
+                // and won't create the .db file until the first DAO query runs.
+                databaseFactory.get(newAccountId).openHelper.writableDatabase
                 performLocalMigration(sourceAccountId, newAccountId)
             }
                 .onFailure { Timber.w(it, "AccountMigrationService: failed to migrate $sourceAccountId to $newAccountId") }
@@ -90,6 +93,9 @@ class AccountMigrationService @Inject constructor(
 
         val db = SQLiteDatabase.openDatabase(destFile.absolutePath, null, SQLiteDatabase.OPEN_READWRITE)
         return try {
+            // FK off during the bulk copy — INSERT OR IGNORE keeps destination rows on PK collision
+            // so we don't trigger ON DELETE CASCADE that would wipe pre-existing child rows.
+            db.execSQL("PRAGMA foreign_keys = OFF")
             db.beginTransaction()
             db.execSQL("ATTACH DATABASE ? AS source", arrayOf(sourceFile.absolutePath))
             for (table in accountScopedTables(db)) {
@@ -100,6 +106,7 @@ class AccountMigrationService @Inject constructor(
         } finally {
             runCatching { db.endTransaction() }
             runCatching { db.execSQL("DETACH DATABASE source") }
+            runCatching { db.execSQL("PRAGMA foreign_keys = ON") }
             db.close()
         }
     }
@@ -127,7 +134,7 @@ class AccountMigrationService @Inject constructor(
             else "source.${table.quotedIdentifier()}.${column.quotedIdentifier()}"
         }
         db.execSQL(
-            "INSERT OR REPLACE INTO main.${table.quotedIdentifier()} ($insertColumns) " +
+            "INSERT OR IGNORE INTO main.${table.quotedIdentifier()} ($insertColumns) " +
                 "SELECT $selectColumns FROM source.${table.quotedIdentifier()} WHERE ${"account_id".quotedIdentifier()} = ?",
             arrayOf(newAccountId, sourceAccountId),
         )

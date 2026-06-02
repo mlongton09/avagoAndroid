@@ -26,7 +26,9 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -342,9 +344,13 @@ class WorkOrderCreateViewModel @Inject constructor(
                 }
             }.distinct()
             grouped.ifEmpty {
-                root.jsonArray.mapNotNull { it.jsonPrimitive.contentOrNull }
+                when (root) {
+                    is JsonArray -> root.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
+                    else -> emptyList()
+                }
             }
-        }.getOrDefault(emptyList())
+        }.onFailure { Timber.w(it, "parseCategoryLabels: failed to parse config value") }
+            .getOrDefault(emptyList())
     }
 
     fun decodeVin() {
