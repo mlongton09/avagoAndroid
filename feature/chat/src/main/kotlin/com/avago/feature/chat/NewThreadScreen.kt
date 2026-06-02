@@ -122,6 +122,7 @@ fun NewThreadScreen(
     onBack: () -> Unit,
     onThreadCreated: (threadId: String) -> Unit,
     modifier: Modifier = Modifier,
+    initialTab: Int = 0,
     viewModel: NewThreadViewModel = hiltViewModel(),
 ) {
     val members by viewModel.members.collectAsStateWithLifecycle()
@@ -132,7 +133,10 @@ fun NewThreadScreen(
         createdThreadId?.let { onThreadCreated(it) }
     }
 
-    var selectedTab by remember { mutableIntStateOf(0) }
+    // 0 = Direct, 1 = Group. The section "+" headers on the chat list deep-link
+    // straight to the matching tab (Group "+" → Group tab), mirroring iOS where
+    // each section header's + opens that thread type's create flow directly.
+    var selectedTab by remember { mutableIntStateOf(initialTab.coerceIn(0, 1)) }
     val tabs = listOf(
         stringResource(R.string.new_thread_tab_direct),
         stringResource(R.string.new_thread_tab_group),
