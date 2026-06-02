@@ -107,9 +107,6 @@ fun ThreadScreen(
     // Which message has the action sheet open.
     var actionSheetMessage by remember { mutableStateOf<ChatMessageEntity?>(null) }
 
-    // Body pending broadcast confirmation (set when threadType is "broadcast" or "team").
-    var pendingBroadcastBody by remember { mutableStateOf<String?>(null) }
-
     // Incrementing this key forces MessageComposer to recreate with the restored draft text.
     var composerRevision by remember { mutableIntStateOf(0) }
 
@@ -226,12 +223,9 @@ fun ThreadScreen(
                         if (uiState.editingMessage != null) {
                             viewModel.submitEdit(body)
                         } else {
-                            val threadType = uiState.thread?.threadType ?: ""
-                            if (threadType == "broadcast" || threadType == "team") {
-                                pendingBroadcastBody = body
-                            } else {
-                                viewModel.sendMessage(body)
-                            }
+                            // iOS parity: send directly with no broadcast confirmation
+                            // dialog regardless of thread type (broadcast/team).
+                            viewModel.sendMessage(body)
                         }
                     },
                     onCancelEdit = viewModel::cancelEditing,
@@ -416,28 +410,6 @@ fun ThreadScreen(
             onPin = { viewModel.pinMessage(msg.messageId) },
             onUnpin = { viewModel.unpinMessage(msg.messageId) },
             onReport = { viewModel.reportMessage(msg.messageId) },
-        )
-    }
-
-    // Broadcast confirm dialog
-    pendingBroadcastBody?.let { body ->
-        AlertDialog(
-            onDismissRequest = { pendingBroadcastBody = null },
-            title = { Text("Send to everyone?") },
-            text = { Text("This message will be sent to all members of this thread.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.sendMessage(body)
-                        pendingBroadcastBody = null
-                    },
-                ) { Text("Send") }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingBroadcastBody = null }) {
-                    Text("Cancel")
-                }
-            },
         )
     }
 }

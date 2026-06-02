@@ -67,7 +67,10 @@ class ExchangeRateService @Inject constructor(
     suspend fun refresh() {
         withContext(Dispatchers.IO) {
             try {
-                val json = URL("https://v6.exchangerate-api.com/v6/open/latest/USD")
+                // Use the open (no-API-key) endpoint at open.er-api.com — the
+                // older v6.exchangerate-api.com/v6/open/... path 404s without an
+                // API key (logcat: java.io.FileNotFoundException).
+                val json = URL("https://open.er-api.com/v6/latest/USD")
                     .openConnection()
                     .apply {
                         connectTimeout = 8_000
@@ -84,9 +87,13 @@ class ExchangeRateService @Inject constructor(
                     return@withContext
                 }
 
-                val conversionRates = root.optJSONObject("conversion_rates")
+                // open.er-api.com returns the rate map under "rates"; the legacy
+                // v6.exchangerate-api.com paid endpoint used "conversion_rates".
+                // Accept either so a future swap stays compatible.
+                val conversionRates = root.optJSONObject("rates")
+                    ?: root.optJSONObject("conversion_rates")
                 if (conversionRates == null) {
-                    Timber.w("ExchangeRateService: no conversion_rates in response, keeping cached rates")
+                    Timber.w("ExchangeRateService: no rates in response, keeping cached rates")
                     return@withContext
                 }
 
