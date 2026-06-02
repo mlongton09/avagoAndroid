@@ -81,6 +81,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.lerp
@@ -332,7 +333,6 @@ fun AssetDetailScreen(
                     AssetStatsRow(
                         entryCount = entryCount,
                         lastServiceDate = lastServiceDate,
-                        openWorkOrderCount = openWorkOrderCount,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     )
                 }
@@ -346,7 +346,29 @@ fun AssetDetailScreen(
                     Tab(
                         selected = pagerState.currentPage == index,
                         onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
-                        text = { Text(title) },
+                        text = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Text(title)
+                                // Work Orders tab badge — iOS setBadge(at:2,…).
+                                if (index == 2 && openWorkOrderCount > 0) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.error)
+                                            .padding(horizontal = 6.dp, vertical = 1.dp),
+                                    ) {
+                                        Text(
+                                            text = if (openWorkOrderCount > 99) "99+" else openWorkOrderCount.toString(),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onError,
+                                        )
+                                    }
+                                }
+                            }
+                        },
                     )
                 }
             }
@@ -688,6 +710,21 @@ private fun AssetDetailHeader(
                         .fillMaxSize()
                         .background(bgColor),
                 )
+                // Bottom-to-top dark→clear gradient for legibility — iOS bannerGradient
+                // (0.72 alpha at bottom → 0.10 at 55% → clear at top).
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colorStops = arrayOf(
+                                    0.0f to Color.Transparent,
+                                    0.45f to Color.Black.copy(alpha = 0.10f),
+                                    1.0f to Color.Black.copy(alpha = 0.72f),
+                                ),
+                            ),
+                        ),
+                )
                 Icon(
                     painter = painterResource(AssetTypes.iconResFor(asset.assetType)),
                     contentDescription = null,
@@ -785,7 +822,6 @@ private fun rememberParsedColor(hex: String): Color = try {
 private fun AssetStatsRow(
     entryCount: Int,
     lastServiceDate: Long?,
-    openWorkOrderCount: Int,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -820,17 +856,6 @@ private fun AssetStatsRow(
         StatCell(
             label = stringResource(R.string.asset_detail_since_service),
             value = if (lastServiceDate != null) sinceService(lastServiceDate) else "—",
-            modifier = Modifier.weight(1f),
-        )
-        Box(
-            modifier = Modifier
-                .height(28.dp)
-                .width(0.5.dp)
-                .background(MaterialTheme.colorScheme.outlineVariant)
-        )
-        StatCell(
-            label = stringResource(R.string.asset_detail_open_wos),
-            value = openWorkOrderCount.toString(),
             modifier = Modifier.weight(1f),
         )
     }
