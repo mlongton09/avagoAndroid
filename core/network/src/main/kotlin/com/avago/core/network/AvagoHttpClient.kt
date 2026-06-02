@@ -70,6 +70,7 @@ object AvagoHttpClient {
         ignoreUnknownKeys = true
         isLenient = true
         encodeDefaults = true
+        explicitNulls = false
     }
 
     /**
