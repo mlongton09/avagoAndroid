@@ -1,8 +1,6 @@
 package com.avago.feature.chat.ui
 
-import android.content.Intent
 import android.net.Uri
-import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -19,16 +17,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AlternateEmail
 import androidx.compose.material.icons.filled.AttachFile
-import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Flag
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.PriorityHigh
 import androidx.compose.material.icons.filled.TextFormat
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -43,33 +45,38 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.core.content.FileProvider
 import com.avago.core.data.db.entity.ChatAccountRosterEntity
 import com.avago.core.data.db.entity.ChatMessageEntity
 import com.avago.core.network.model.LinkPreviewResponse
-import java.io.File
 
 /**
  * Pinned composer bar at the bottom of ThreadScreen.
  *
- * Features:
- *  - BasicTextField with placeholder
- *  - Send button (enabled when text is non-blank)
- *  - Edit mode: shows an "Editing" banner and cancel button
- *  - Reply mode: shows quoted message above the field ([replyingToMessage])
- *  - @ mention detection with @all/@here support
- *  - Image picker button (left of text field)
- *  - Camera capture button
- *  - Formatting toolbar toggle (bold, italic, code, link, list)
- *  - Link preview card fetched from ViewModel ([linkPreview])
- *  - Typing callback ([onTyping]) fired on each keystroke
- *  - imePadding() so the bar stays above the software keyboard
+ * iOS parity (MessageComposerView.swift):
+ *  - Single "+" button on the left opens a dropdown with: Format, Attach (photos),
+ *    Mention (@), Request Reply (toggle with checkmark). All secondary composer
+ *    actions live in this menu; the toolbar is not a row of flat icons.
+ *  - Pressing Enter sends (KeyboardOptions(imeAction = ImeAction.Send) + hardware
+ *    Enter intercept). Newlines are never inserted into the buffer.
+ *  - Reply quote banner, edit banner, link preview card, mention autocomplete,
+ *    formatting toolbar all retained.
+ *  - imePadding() keeps the bar above the software keyboard.
+ *
+ * Differences from iOS (intentional Android conventions):
+ *  - Visible send icon on the right; Android keyboards don't consistently surface a
+ *    "Send" Return-key label, and users expect a tappable button.
  */
 @Composable
 fun MessageComposer(
@@ -80,8 +87,6 @@ fun MessageComposer(
     modifier: Modifier = Modifier,
     initialText: String = "",
     onImageSelected: ((String) -> Unit)? = null,
-    onFileSelected: ((Uri) -> Unit)? = null,
-    onVoiceResult: ((String) -> Unit)? = null,
     onTyping: (() -> Unit)? = null,
     onTextChanged: ((String) -> Unit)? = null,
     replyingToMessage: ChatMessageEntity? = null,
@@ -95,59 +100,35 @@ fun MessageComposer(
     var fieldValue by remember { mutableStateOf(TextFieldValue(initialText)) }
     var mentionQuery by remember { mutableStateOf<String?>(null) }
     var showFormatting by remember { mutableStateOf(false) }
+    var showPlusMenu by remember { mutableStateOf(false) }
 
-    val context = LocalContext.current
-
-    // Gallery picker
+    // Gallery picker — only attachment surface in iOS-parity composer.
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
-    ) { uri ->
+    ) { uri: Uri? ->
         uri?.let { onImageSelected?.invoke(it.toString()) }
-    }
-    val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument(),
-    ) { uri ->
-        uri?.let { onFileSelected?.invoke(it) }
-    }
-    val speechLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult(),
-    ) { result ->
-        val transcript = result.data
-            ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-            ?.firstOrNull()
-            ?.trim()
-            .orEmpty()
-        if (transcript.isNotBlank()) {
-            val updated = fieldValue.insertAtCursor(transcript)
-            fieldValue = updated
-            mentionQuery = detectMentionQuery(updated.text, updated.selection.end)
-            onTyping?.invoke()
-            onTextChanged?.invoke(updated.text)
-            val foundUrl = Regex("https?://[^\\s]+").find(updated.text)?.value
-            onUrlDetected?.invoke(if (foundUrl != updated.text.trim()) foundUrl else null)
-            onVoiceResult?.invoke(transcript)
-        }
-    }
-
-    // Camera capture
-    var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicture(),
-    ) { success ->
-        if (success) cameraImageUri?.let { onImageSelected?.invoke(it.toString()) }
-    }
-
-    fun launchCamera() {
-        val file = File(context.cacheDir, "chat_capture_${System.currentTimeMillis()}.jpg")
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
-        cameraImageUri = uri
-        cameraLauncher.launch(uri)
     }
 
     // When editingMessage changes, populate field with existing body.
     val editingId = editingMessage?.messageId
     remember(editingId) {
         if (editingMessage != null) fieldValue = TextFieldValue(editingMessage.bodyMd)
+    }
+
+    fun attemptSend() {
+        val text = fieldValue.text.trim()
+        if (text.isNotEmpty()) {
+            onSend(text)
+            fieldValue = TextFieldValue("")
+            mentionQuery = null
+            onUrlDetected?.invoke(null)
+        }
+    }
+
+    fun insertAtSign() {
+        val updated = fieldValue.insertAtCursor("@")
+        fieldValue = updated
+        mentionQuery = detectMentionQuery(updated.text, updated.selection.end)
     }
 
     Column(modifier = modifier.imePadding()) {
@@ -293,73 +274,73 @@ fun MessageComposer(
                 .padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Gallery image picker
-            IconButton(
-                onClick = {
-                    imagePickerLauncher.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            // "+" — opens the secondary-actions menu (Format, Attach, Mention, Request Reply)
+            Box {
+                IconButton(onClick = { showPlusMenu = true }) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "More compose actions",
+                        tint = MaterialTheme.colorScheme.primary,
                     )
-                },
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Image,
-                    contentDescription = "Attach image",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
-            // Camera capture
-            IconButton(onClick = { launchCamera() }) {
-                Icon(
-                    imageVector = Icons.Default.CameraAlt,
-                    contentDescription = "Take photo",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
-            IconButton(onClick = { filePickerLauncher.launch(arrayOf("*/*")) }) {
-                Icon(
-                    imageVector = Icons.Default.AttachFile,
-                    contentDescription = "Attach file",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
-            IconButton(
-                onClick = {
-                    runCatching {
-                        speechLauncher.launch(
-                            Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                                putExtra(
-                                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
-                                )
-                                putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak now")
+                }
+                DropdownMenu(
+                    expanded = showPlusMenu,
+                    onDismissRequest = { showPlusMenu = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(if (showFormatting) "Hide Format" else "Format") },
+                        leadingIcon = {
+                            Icon(Icons.Default.TextFormat, contentDescription = null)
+                        },
+                        trailingIcon = if (showFormatting) {
+                            { Icon(Icons.Default.Check, contentDescription = null) }
+                        } else null,
+                        onClick = {
+                            showFormatting = !showFormatting
+                            showPlusMenu = false
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Attach") },
+                        leadingIcon = {
+                            Icon(Icons.Default.AttachFile, contentDescription = null)
+                        },
+                        onClick = {
+                            showPlusMenu = false
+                            imagePickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Mention") },
+                        leadingIcon = {
+                            Icon(Icons.Default.AlternateEmail, contentDescription = null)
+                        },
+                        onClick = {
+                            showPlusMenu = false
+                            insertAtSign()
+                        },
+                    )
+                    if (onNeedsReplyToggle != null) {
+                        DropdownMenuItem(
+                            text = { Text(if (needsReply) "Cancel Request Reply" else "Request Reply") },
+                            leadingIcon = {
+                                Icon(Icons.Default.PriorityHigh, contentDescription = null)
+                            },
+                            trailingIcon = if (needsReply) {
+                                { Icon(Icons.Default.Check, contentDescription = null) }
+                            } else null,
+                            onClick = {
+                                onNeedsReplyToggle.invoke()
+                                showPlusMenu = false
                             },
                         )
                     }
-                },
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Mic,
-                    contentDescription = "Voice dictation",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                }
             }
 
-            // Formatting toggle
-            IconButton(onClick = { showFormatting = !showFormatting }) {
-                Icon(
-                    imageVector = Icons.Default.TextFormat,
-                    contentDescription = "Toggle formatting",
-                    tint = if (showFormatting)
-                        MaterialTheme.colorScheme.primary
-                    else
-                        MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
-            // Text field
+            // Text field — pressing Enter sends (no newline insertion), matching iOS.
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -371,50 +352,49 @@ fun MessageComposer(
                 BasicTextField(
                     value = fieldValue,
                     onValueChange = { newVal ->
-                        fieldValue = newVal
-                        mentionQuery = detectMentionQuery(newVal.text, newVal.selection.end)
+                        // Strip any embedded newlines defensively (paste/IME quirks); Enter goes through
+                        // onPreviewKeyEvent/KeyboardActions.onSend, not the buffer.
+                        val sanitized = if (newVal.text.contains('\n')) {
+                            val cleaned = newVal.text.replace("\n", "")
+                            newVal.copy(
+                                text = cleaned,
+                                selection = TextRange(cleaned.length.coerceAtMost(newVal.selection.end)),
+                            )
+                        } else newVal
+                        fieldValue = sanitized
+                        mentionQuery = detectMentionQuery(sanitized.text, sanitized.selection.end)
                         onTyping?.invoke()
-                        onTextChanged?.invoke(newVal.text)
-                        // Notify ViewModel of URL for link preview fetching
+                        onTextChanged?.invoke(sanitized.text)
                         val urlRegex = Regex("https?://[^\\s]+")
-                        val foundUrl = urlRegex.find(newVal.text)?.value
-                        onUrlDetected?.invoke(if (foundUrl != newVal.text.trim()) foundUrl else null)
+                        val foundUrl = urlRegex.find(sanitized.text)?.value
+                        onUrlDetected?.invoke(if (foundUrl != sanitized.text.trim()) foundUrl else null)
                     },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                    keyboardActions = KeyboardActions(onSend = { attemptSend() }),
                     textStyle = MaterialTheme.typography.bodyMedium.copy(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     ),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 20.dp, max = 120.dp),
+                        .heightIn(min = 20.dp, max = 120.dp)
+                        .onPreviewKeyEvent { keyEvent ->
+                            // Hardware/physical Enter: send, never insert newline (matches iOS).
+                            if (keyEvent.type == KeyEventType.KeyDown &&
+                                keyEvent.key == Key.Enter &&
+                                !keyEvent.isShiftPressed
+                            ) {
+                                attemptSend()
+                                true
+                            } else false
+                        },
                 )
             }
 
             Spacer(modifier = Modifier.width(8.dp))
 
             IconButton(
-                onClick = { onNeedsReplyToggle?.invoke() },
-                enabled = onNeedsReplyToggle != null,
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Flag,
-                    contentDescription = "Needs reply",
-                    tint = if (needsReply) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
-            // Send button
-            IconButton(
-                onClick = {
-                    val text = fieldValue.text.trim()
-                    if (text.isNotEmpty()) {
-                        onSend(text)
-                        fieldValue = TextFieldValue("")
-                        mentionQuery = null
-                        onUrlDetected?.invoke(null)
-                    }
-                },
+                onClick = { attemptSend() },
                 enabled = fieldValue.text.isNotBlank(),
             ) {
                 Icon(

@@ -20,9 +20,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -35,7 +32,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.DisposableEffect
@@ -221,16 +217,6 @@ fun ThreadScreen(
         },
         bottomBar = {
             Column {
-                QuickReplyBar(
-                    onQuickReply = { reply ->
-                        val threadType = uiState.thread?.threadType ?: ""
-                        if (threadType == "broadcast" || threadType == "team") {
-                            pendingBroadcastBody = reply
-                        } else {
-                            viewModel.sendMessage(reply)
-                        }
-                    },
-                )
                 androidx.compose.runtime.key(composerRevision) {
                 MessageComposer(
                     editingMessage = uiState.editingMessage,
@@ -251,8 +237,6 @@ fun ThreadScreen(
                     onCancelEdit = viewModel::cancelEditing,
                     onTyping = viewModel::onUserTyped,
                     onTextChanged = viewModel::saveDraft,
-                    onFileSelected = viewModel::sendFile,
-                    onVoiceResult = {},
                     replyingToMessage = uiState.replyingToMessage,
                     onCancelReply = viewModel::cancelReply,
                     linkPreview = uiState.linkPreview,
@@ -482,38 +466,7 @@ private fun Long.toDateLabel(todayLabel: String, yesterdayLabel: String): String
     }
 }
 
-/** Quick-reply suggestions bar shown above the composer. */
-private val quickReplies = listOf("👍 OK", "On my way", "Done", "Thanks")
-
-@Composable
-private fun QuickReplyBar(
-    onQuickReply: (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        quickReplies.forEach { reply ->
-            Surface(
-                shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                modifier = Modifier
-                    .wrapContentWidth()
-                    .clickable { onQuickReply(reply) },
-            ) {
-                Text(
-                    text = reply,
-                    style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                )
-            }
-        }
-    }
-}
-
+/** Unread divider shown between read and unread messages. */
 @Composable
 private fun UnreadDivider() {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
