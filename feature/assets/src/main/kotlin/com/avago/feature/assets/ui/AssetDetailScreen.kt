@@ -155,6 +155,7 @@ fun AssetDetailScreen(
     val lastServiceDate by viewModel.lastServiceDate.collectAsStateWithLifecycle()
     val openWorkOrderCount by viewModel.openWorkOrderCount.collectAsStateWithLifecycle()
     val availableCategories by viewModel.availableCategories.collectAsStateWithLifecycle()
+    val recentCategories by viewModel.recentCategories.collectAsStateWithLifecycle()
     val categoryFilter by viewModel.categoryFilter.collectAsStateWithLifecycle()
     val photos by viewModel.photos.collectAsStateWithLifecycle()
     val documents by viewModel.documents.collectAsStateWithLifecycle()
@@ -459,6 +460,7 @@ fun AssetDetailScreen(
     if (showAddLogCategoryPicker) {
         GlobalCategoryPickerScreen(
             categories = availableCategories.map { it.toAssetCategoryItem(context) },
+            recents = recentCategories.map { it.toAssetCategoryItem(context) },
             onSelect = { item ->
                 showAddLogCategoryPicker = false
                 onAddLogEntry(item.key)

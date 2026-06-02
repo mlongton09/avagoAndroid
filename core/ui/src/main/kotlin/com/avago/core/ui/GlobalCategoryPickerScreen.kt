@@ -75,33 +75,48 @@ data class CategoryItem(
 fun GlobalCategoryPickerScreen(
     title: String = stringResource(R.string.global_category_picker_title),
     categories: List<CategoryItem>,
+    recents: List<CategoryItem> = emptyList(),
     onSelect: (CategoryItem) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var query by remember { mutableStateOf("") }
 
-    val filtered = remember(query, categories) {
-        if (query.isBlank()) categories
-        else categories.filter {
-            it.displayName.contains(query, ignoreCase = true) ||
-                it.key.contains(query, ignoreCase = true)
-        }
+    fun CategoryItem.matchesQuery() = displayName.contains(query, ignoreCase = true) ||
+        key.contains(query, ignoreCase = true)
+
+    val filteredRecents = remember(query, recents) {
+        val distinct = recents.distinctBy { it.key }
+        if (query.isBlank()) distinct else distinct.filter { it.matchesQuery() }
     }
 
-    val sections: List<Pair<String, List<CategoryItem>>> = remember(filtered) {
-        val grouped = filtered.groupBy { it.group ?: "Other" }
-        val common = grouped["COMMON"]
-        val rest = (grouped - "COMMON").entries
+    val filtered = remember(query, categories, filteredRecents) {
+        val recentKeys = if (query.isBlank()) filteredRecents.map { it.key }.toSet() else emptySet()
+        val withoutRecentDuplicates = categories.filterNot { it.key in recentKeys }
+        if (query.isBlank()) withoutRecentDuplicates else withoutRecentDuplicates.filter { it.matchesQuery() }
+    }
+
+    val sections: List<Pair<String, List<CategoryItem>>> = remember(filtered, filteredRecents) {
+        val pinnedIds = listOf("service", "repair", "inspection", "fuel_log")
+        val grouped = filtered.groupBy { it.group ?: "OTHER" }
+        val commonItems = grouped["COMMON"].orEmpty()
+        val commonByKey = commonItems.associateBy { it.key }
+        val common = pinnedIds.mapNotNull { commonByKey[it] } + commonItems.filterNot { it.key in pinnedIds }
+        val other = grouped["OTHER"].orEmpty() + grouped["Other"].orEmpty()
+        val rest = grouped
+            .filterKeys { it != "COMMON" && it != "OTHER" && it != "Other" }
+            .entries
             .sortedBy { it.key }
-            .map { it.toPair() }
+            .map { it.key to it.value }
         buildList {
-            if (!common.isNullOrEmpty()) add("COMMON" to common)
+            if (filteredRecents.isNotEmpty()) add("RECENT" to filteredRecents)
+            if (common.isNotEmpty()) add("COMMON" to common)
             addAll(rest)
+            if (other.isNotEmpty()) add("OTHER" to other)
         }
     }
 
-    val hasGroups = categories.any { it.group != null }
+    val hasGroups = categories.any { it.group != null } || recents.isNotEmpty()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -131,7 +146,7 @@ fun GlobalCategoryPickerScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            if (filtered.isEmpty()) {
+            if (filtered.isEmpty() && filteredRecents.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -152,7 +167,7 @@ fun GlobalCategoryPickerScreen(
                     sections.forEach { (sectionTitle, items) ->
                         item(key = "header_$sectionTitle") {
                             Text(
-                                text = sectionTitle.uppercase(),
+                                text = sectionTitle,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 letterSpacing = 0.8.sp,

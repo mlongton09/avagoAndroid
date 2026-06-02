@@ -149,6 +149,22 @@ class AssetDetailViewModel @Inject constructor(
             initialValue = emptyList(),
         )
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val recentCategories: StateFlow<List<String>> = accountId
+        .flatMapLatest { acctId ->
+            if (acctId == null) flowOf(emptyList())
+            else dbFactory.get(acctId).logDao().observeRecentCategories(acctId, assetId)
+                .catch { e ->
+                    Timber.e(e, "[AssetDetailViewModel] recent category flow error")
+                    emit(emptyList())
+                }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList(),
+        )
+
     /**
      * Filtered and year-grouped log entries for the detail screen.
      */

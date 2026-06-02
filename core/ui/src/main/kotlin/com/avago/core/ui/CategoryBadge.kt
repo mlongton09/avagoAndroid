@@ -23,6 +23,7 @@ private const val DEFAULT_ICON = "cat_service"
 
 private val categoryIdToIconName: Map<String, String> = mapOf(
     "service" to "cat_service", "repair" to "cat_repair", "inspection" to "cat_inspection",
+    "fuel_log" to "cat_fuel_system",
     "pm_service" to "cat_service", "storage_prep" to "cat_service", "season_prep" to "cat_service",
     "exercise_log" to "cat_service", "post_use_flush" to "cat_service",
     "spring_commissioning" to "cat_service", "winterization" to "cat_service",
@@ -337,6 +338,7 @@ private val iconNameToGroup: Map<String, String> = mapOf(
 
 /** Returns the display section name for a category ID (e.g. "ENGINE", "BRAKES"). */
 fun categoryGroup(categoryId: String?): String {
+    if (categoryId in setOf("service", "repair", "inspection", "fuel_log")) return "COMMON"
     val icon = categoryIconName(categoryId)
     return iconNameToGroup[icon] ?: "OTHER"
 }

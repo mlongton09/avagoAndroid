@@ -17,6 +17,20 @@ interface LogDao {
     @Query("SELECT * FROM log WHERE log_id = :id")
     suspend fun getById(id: String): LogEntity?
 
+
+    @Query("""
+        SELECT category FROM log
+        WHERE account_id = :accountId
+            AND asset_id = :assetId
+            AND deleted_at IS NULL
+            AND category IS NOT NULL
+            AND category != ''
+        GROUP BY category
+        ORDER BY MAX(log_date) DESC
+        LIMIT 4
+    """)
+    fun observeRecentCategories(accountId: String, assetId: String): Flow<List<String>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: LogEntity)
 
