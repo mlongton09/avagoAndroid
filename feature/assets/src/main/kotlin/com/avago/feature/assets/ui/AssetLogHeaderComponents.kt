@@ -1,8 +1,7 @@
 package com.avago.feature.assets.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -18,23 +18,32 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.avago.core.data.db.entity.AssetEntity
 import com.avago.core.data.db.entity.PhotoEntity
@@ -47,19 +56,24 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Public reusable header that mirrors iOS `AssetDetailHeaderView` — the banner that sits
- * above the log list on the Asset detail / log screen.
+ * Asset header composable — visual + behavioural parity with iOS
+ * `AssetDetailHeaderView` (`AssetDetailViewController.swift` lines 1–560).
  *
- * Photo mode: paged horizontal carousel of asset photos with page dots, plus an info row
- *   below the photo showing the asset name + subtitle on plain bg.
- * Color mode (no photos): asset-type tinted banner with the hero icon as a 40 %-opacity
- *   watermark and the name + subtitle overlaid at the bottom.
+ * Layout, top → bottom, always in this order:
+ *   1. 210 dp banner.
+ *      - Photo mode (any photos): paged horizontal carousel; long-press fires
+ *        [onPhotoLongPress] (350 ms threshold, matching iOS
+ *        `minimumPressDuration = 0.35`); tap fires [onPhotoTap].
+ *      - Color mode (no photos): plain asset-type-tinted background with a
+ *        110 dp hero watermark hanging off the bottom-right corner (clipped by
+ *        the banner). No gradient, no overlaid labels — iOS unhid the gradient
+ *        and overlay labels back in the short-banner era and the current
+ *        `setPhotoMode` keeps them hidden in both modes.
+ *   2. 64 dp info row on plain bg — asset name + subtitle. Shown in BOTH
+ *      modes (iOS `infoRow.isHidden = false` unconditionally).
  *
  * A 36 dp camera button sits at the top-right of the banner in both modes.
- * Long-pressing a photo invokes [onPhotoLongPress] with the page index so callers can
- * surface a per-photo action sheet (delete / share / set as cover).
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AssetDetailHeader(
     asset: AssetEntity,
@@ -76,7 +90,11 @@ fun AssetDetailHeader(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(bannerHeight),
+                .height(bannerHeight)
+                // iOS `bannerView.clipsToBounds = true` — required so the hero
+                // watermark, positioned with +16 dp offsets past the corners,
+                // crops cleanly against the banner edge.
+                .clipToBounds(),
         ) {
             if (photos.isNotEmpty()) {
                 val photoPager = rememberPagerState(pageCount = { photos.size })
@@ -86,15 +104,22 @@ fun AssetDetailHeader(
                 ) { page ->
                     val photo = photos[page]
                     val model: Any? = photo.localPath?.takeIf { it.isNotBlank() }?.let { File(it) }
-                        ?: photo.downloadUrl
+                        ?: photo.downloadUrl?.takeIf { it.isNotBlank() }
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .background(Color.Black)
-                            .combinedClickable(
-                                onClick = { onPhotoTap(page) },
-                                onLongClick = { onPhotoLongPress(page) },
-                            ),
+                            // iOS uses a UILongPressGestureRecognizer with
+                            // minimumPressDuration = 0.35. Compose's
+                            // combinedClickable doesn't expose the timeout —
+                            // detectTapGestures does, via the longPressTimeout
+                            // parameter we pass through pointerInput below.
+                            .pointerInput(page, photos.size) {
+                                detectTapGestures(
+                                    onTap = { onPhotoTap(page) },
+                                    onLongPress = { onPhotoLongPress(page) },
+                                )
+                            },
                     ) {
                         if (model != null) {
                             AsyncImage(
@@ -106,6 +131,8 @@ fun AssetDetailHeader(
                         }
                     }
                 }
+                // Page dots — iOS UIPageControl defaults: 7 pt diameter,
+                // 9 pt spacing, pill background only when more than one page.
                 if (photos.size > 1) {
                     Row(
                         modifier = Modifier
@@ -114,12 +141,12 @@ fun AssetDetailHeader(
                             .clip(RoundedCornerShape(8.dp))
                             .background(Color.Black.copy(alpha = 0.30f))
                             .padding(horizontal = 8.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(9.dp),
                     ) {
                         photos.indices.forEach { i ->
                             Box(
                                 modifier = Modifier
-                                    .size(6.dp)
+                                    .size(7.dp)
                                     .clip(CircleShape)
                                     .background(
                                         if (i == photoPager.currentPage) Color.White
@@ -130,59 +157,36 @@ fun AssetDetailHeader(
                     }
                 }
             } else {
+                // Color mode — tinted background only. iOS keeps
+                // `bannerGradient.isHidden = true` and hides the overlay
+                // name/subtitle labels: the info row below the banner owns
+                // both lines of text in both modes.
                 val bgColor = rememberParsedColor(AssetTypes.colorHexFor(asset.assetType))
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(bgColor),
                 )
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colorStops = arrayOf(
-                                    0.0f to Color.Transparent,
-                                    0.45f to Color.Black.copy(alpha = 0.10f),
-                                    1.0f to Color.Black.copy(alpha = 0.72f),
-                                ),
-                            ),
-                        ),
-                )
+                // Hero watermark — 110 dp, alpha 0.40, hung off the
+                // bottom-right corner with both anchors at +16 dp on iOS.
+                // In Compose: anchor to BottomEnd, then offset by +16 dp on
+                // both axes so the icon extends past the corners and the
+                // banner's clipToBounds crops the overhang.
                 Icon(
                     painter = painterResource(AssetTypes.iconResFor(asset.assetType)),
                     contentDescription = null,
                     tint = Color.White.copy(alpha = 0.40f),
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(end = 16.dp, bottom = 16.dp)
-                        .size(110.dp),
+                        .offset(x = 16.dp, y = 16.dp)
+                        .size(110.dp)
+                        .clip(RectangleShape),
                 )
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(start = 14.dp, end = 134.dp, bottom = 12.dp),
-                ) {
-                    Text(
-                        text = asset.name,
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = Color.White,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    val sub = assetDisplaySubtitle(asset)
-                    if (sub.isNotBlank()) {
-                        Text(
-                            text = sub,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.80f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
             }
 
+            // Camera button — top-right, both modes. iOS uses SF Symbol
+            // `camera` (line camera). Material's outlined PhotoCamera is the
+            // closest stock match; the filled CameraAlt skews much heavier.
             IconButton(
                 onClick = onAddPhoto,
                 modifier = Modifier
@@ -193,7 +197,7 @@ fun AssetDetailHeader(
                     .background(Color.Black.copy(alpha = 0.30f)),
             ) {
                 Icon(
-                    imageVector = Icons.Default.CameraAlt,
+                    imageVector = Icons.Outlined.PhotoCamera,
                     contentDescription = "Add photo",
                     tint = Color.White,
                     modifier = Modifier.size(18.dp),
@@ -201,30 +205,32 @@ fun AssetDetailHeader(
             }
         }
 
-        if (photos.isNotEmpty()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(infoRowHeight)
-                    .padding(horizontal = 14.dp),
-                verticalArrangement = Arrangement.Center,
-            ) {
+        // Info row — name + subtitle on plain bg0, shown in BOTH modes.
+        // iOS `infoRow.isHidden = false` unconditionally.
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(infoRowHeight)
+                .padding(horizontal = 14.dp),
+            verticalArrangement = Arrangement.Center,
+        ) {
+            // iOS `infoRowNameLabel` uses largeTitleFont (~34 pt) with
+            // adjustsFontSizeToFitWidth + minimumScaleFactor 0.75.
+            AutoResizeText(
+                text = asset.name,
+                baseStyle = MaterialTheme.typography.headlineMedium,
+                minScale = 0.75f,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            val sub = assetDisplaySubtitle(asset)
+            if (sub.isNotBlank()) {
                 Text(
-                    text = asset.name,
-                    style = MaterialTheme.typography.headlineMedium,
+                    text = sub,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                val sub = assetDisplaySubtitle(asset)
-                if (sub.isNotBlank()) {
-                    Text(
-                        text = sub,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
             }
         }
     }
@@ -232,9 +238,9 @@ fun AssetDetailHeader(
 }
 
 /**
- * 44 dp three-column stats strip — Entries | Last Service | Since Service — mirrors the
- * iOS AssetDetailHeaderView stats strip. Use `MaterialTheme.colorScheme.surfaceVariant`
- * (≈ iOS bg1) for the background, applied by the caller.
+ * 44 dp three-column stats strip — Entries | Last Service | Since Service.
+ * Mirrors iOS AssetDetailHeaderView stats strip. Background (`bg1` on iOS)
+ * is applied by the caller.
  */
 @Composable
 fun AssetStatsRow(
@@ -299,13 +305,61 @@ fun StatCell(
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
         )
-        Text(
+        // iOS bodyBoldFont() with adjustsFontSizeToFitWidth + minimumScaleFactor 0.7.
+        AutoResizeText(
             text = value,
-            style = MaterialTheme.typography.bodyMedium,
+            baseStyle = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
+            minScale = 0.7f,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
         )
     }
+}
+
+/**
+ * Shrink-to-fit `Text` — Compose 1.7 lacks the upstream `BasicText(autoSize)`
+ * parameter (added in 1.8) so we measure once with `Text.onTextLayout` and
+ * step the font size down until the rendered text fits on one line, bottoming
+ * out at [minScale] × the base style's size. Matches the iOS
+ * `adjustsFontSizeToFitWidth = true, minimumScaleFactor = <scale>` behaviour
+ * used by largeTitleFont/bodyBoldFont in `AssetDetailHeaderView`.
+ */
+@Composable
+internal fun AutoResizeText(
+    text: String,
+    baseStyle: TextStyle,
+    modifier: Modifier = Modifier,
+    fontWeight: FontWeight? = null,
+    color: Color = Color.Unspecified,
+    minScale: Float = 0.7f,
+    textAlign: TextAlign? = null,
+) {
+    val baseSize = baseStyle.fontSize
+    var scale by remember(text) { mutableStateOf(1f) }
+    Text(
+        text = text,
+        modifier = modifier,
+        style = baseStyle,
+        color = color,
+        fontWeight = fontWeight,
+        textAlign = textAlign,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Visible,
+        fontSize = (baseSize.value * scale).sp,
+        onTextLayout = { layout ->
+            if (layout.hasVisualOverflow && scale > minScale) {
+                // Shrink toward minScale in 5% steps. One recomposition per
+                // step is fine — Asset names + stat values are short so we
+                // converge in 1-3 iterations.
+                scale = (scale - 0.05f).coerceAtLeast(minScale)
+            }
+        },
+    )
 }
 
 @Composable

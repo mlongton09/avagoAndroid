@@ -11,6 +11,7 @@ import com.avago.core.data.db.entity.LogEntity
 import com.avago.core.data.db.entity.PhotoEntity
 import com.avago.core.data.repository.AssetRepository
 import com.avago.core.data.repository.UserPreferencesRepository
+import com.avago.core.sync.PhotoDownloader
 import com.avago.core.sync.SyncEngine
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -41,6 +42,7 @@ class LogListViewModel @Inject constructor(
     private val dbFactory: DatabaseFactory,
     private val identity: IdentityManager,
     private val syncEngine: SyncEngine,
+    private val photoDownloader: PhotoDownloader,
     private val userPrefsRepository: UserPreferencesRepository,
     private val assetRepository: AssetRepository,
 ) : ViewModel() {
@@ -151,7 +153,25 @@ class LogListViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     fun setAssetId(id: String?) {
+        val prior = assetId.value
         assetId.value = id
+        // iOS parity: opening the asset detail / log screen triggers
+        // LogPictureDAO.downloadIfNeeded for each attached photo. On Android
+        // we batch-fetch presigned download URLs once when the screen opens
+        // so server-side photos render in the carousel even on devices that
+        // didn't originally capture them. The generic /sync pull only brings
+        // down storage_key — short-lived presigned URLs have to be re-resolved
+        // here per-session.
+        if (id != null && id != prior) {
+            viewModelScope.launch {
+                val acctId = identity.activeAccountId.value ?: return@launch
+                try {
+                    photoDownloader.refreshForEntity(acctId, id)
+                } catch (e: Exception) {
+                    Timber.e(e, "[LogListViewModel] PhotoDownloader.refreshForEntity failed for $id")
+                }
+            }
+        }
     }
 
     fun setFilter(category: String?) {

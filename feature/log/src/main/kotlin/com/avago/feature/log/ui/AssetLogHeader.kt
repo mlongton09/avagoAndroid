@@ -57,6 +57,7 @@ fun AssetLogHeader(
 
     var showPickerSheet by remember { mutableStateOf(false) }
     var longPressedIndex by remember { mutableStateOf<Int?>(null) }
+    var viewerStartIndex by remember { mutableStateOf<Int?>(null) }
     var pendingCaptureUri by remember { mutableStateOf<Uri?>(null) }
 
     val galleryLauncher = rememberLauncherForActivityResult(
@@ -91,7 +92,7 @@ fun AssetLogHeader(
             asset = asset,
             photos = photos,
             onAddPhoto = { showPickerSheet = true },
-            onPhotoTap = { /* future: open full-screen gallery viewer */ },
+            onPhotoTap = { idx -> viewerStartIndex = idx },
             onPhotoLongPress = { idx -> longPressedIndex = idx },
         )
         AssetStatsRow(
@@ -139,6 +140,20 @@ fun AssetLogHeader(
             )
         } else {
             longPressedIndex = null
+        }
+    }
+
+    viewerStartIndex?.let { idx ->
+        if (photos.isEmpty()) {
+            viewerStartIndex = null
+        } else {
+            PhotoViewerDialog(
+                photos = photos,
+                startIndex = idx,
+                onDismiss = { viewerStartIndex = null },
+                onDeletePhoto = onDeletePhoto,
+                onSetCoverPhoto = onSetCoverPhoto,
+            )
         }
     }
 }

@@ -41,6 +41,7 @@ import com.avago.core.network.model.ChatRosterEnvelope
 import com.avago.core.network.model.ChatSyncResponse
 import com.avago.core.network.model.ChatThreadResponse
 import com.avago.core.network.model.ChatThreadsEnvelope
+import com.avago.core.network.model.CreateThreadEnvelope
 import com.avago.core.network.model.TeamThreadEnvelope
 import com.avago.core.network.model.LinkPreviewResponse
 import com.avago.core.network.model.CreateCycleCountRequest
@@ -1437,7 +1438,7 @@ class AvagoServiceClient @Inject constructor(
         safeNetworkCall {
             client.post("$baseUrl/chat/direct") {
                 setBody(mapOf("other_user_id" to otherUserId))
-            }.body()
+            }.body<CreateThreadEnvelope>().thread
         }
 
     /** POST /chat/group — create a group thread. */
@@ -1447,8 +1448,11 @@ class AvagoServiceClient @Inject constructor(
     ): NetworkResult<ChatThreadResponse> =
         safeNetworkCall {
             client.post("$baseUrl/chat/group") {
-                setBody(mapOf("name" to name, "member_ids" to memberIds))
-            }.body()
+                // Server's CreateGroupBody requires `member_user_ids` (no serde
+                // alias / default — a `member_ids` payload 422s). See avagosvc
+                // routes/chat_group.rs.
+                setBody(mapOf("name" to name, "member_user_ids" to memberIds))
+            }.body<CreateThreadEnvelope>().thread
         }
 
     // ---------------------------------------------------------------------------

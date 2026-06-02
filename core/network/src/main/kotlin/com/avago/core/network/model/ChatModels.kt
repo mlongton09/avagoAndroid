@@ -124,6 +124,20 @@ data class TeamThreadEnvelope(
     val thread: ChatThreadResponse,
 )
 
+/**
+ * Response envelope for POST /chat/direct and POST /chat/group. The server
+ * wraps the created thread alongside `members`/`permissions`/`created`
+ * siblings (see avagosvc routes/chat_group.rs create_direct/create_group),
+ * so the body must be unwrapped to `thread` rather than parsed directly as
+ * [ChatThreadResponse] — otherwise the required `thread_id`/`type` fields are
+ * absent at the top level and deserialization fails, silently aborting
+ * thread creation. The extra sibling keys are dropped via ignoreUnknownKeys.
+ */
+@Serializable
+data class CreateThreadEnvelope(
+    val thread: ChatThreadResponse,
+)
+
 @Serializable
 data class SendMessageRequest(
     val body_md: String,

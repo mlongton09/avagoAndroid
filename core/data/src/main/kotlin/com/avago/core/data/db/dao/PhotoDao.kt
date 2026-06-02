@@ -43,4 +43,16 @@ interface PhotoDao {
 
     @Query("UPDATE photos SET local_path = NULL, updated_at = :now WHERE photo_id = :photoId")
     suspend fun clearLocalPath(photoId: String, now: Long)
+
+    /**
+     * Stamp a freshly-fetched presigned download URL for a server-side photo. Used by
+     * [com.avago.core.sync.PhotoDownloader] after a per-entity GET so subsequent renders
+     * can resolve the bytes from the server without re-hitting the metadata endpoint.
+     *
+     * Deliberately does NOT touch [updated_at] — download_url is device-local /
+     * session-local state, mirroring iOS which never writes presigned URLs back through
+     * the sync queue.
+     */
+    @Query("UPDATE photos SET download_url = :downloadUrl WHERE photo_id = :photoId")
+    suspend fun updateDownloadUrl(photoId: String, downloadUrl: String)
 }
