@@ -2,8 +2,10 @@ package com.avago.feature.assets.ui
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -88,7 +90,9 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -297,7 +301,12 @@ fun AssetDetailScreen(
                 exit = shrinkVertically(animationSpec = tween(250)) + fadeOut(tween(150)),
             ) {
                 Column {
-                    AssetDetailHeader(asset = safeAsset, onAddPhoto = { onOpenPhotoGallery(0) })
+                    AssetDetailHeader(
+                        asset = safeAsset,
+                        photos = photos,
+                        onAddPhoto = { onOpenPhotoGallery(0) },
+                        onPhotoTap = { index -> onOpenPhotoGallery(index) },
+                    )
                     AssetStatsRow(
                         entryCount = entryCount,
                         lastServiceDate = lastServiceDate,
@@ -574,85 +583,173 @@ private fun WorkOrdersTab(onOpenWorkOrders: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AssetDetailHeader(
     asset: AssetEntity,
+    photos: List<PhotoEntity>,
     modifier: Modifier = Modifier,
     onAddPhoto: () -> Unit = {},
+    onPhotoTap: (Int) -> Unit = {},
 ) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth(),
-    ) {
-        Row(
+    val bannerHeight = 210.dp
+    val infoRowHeight = 64.dp
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                .height(bannerHeight),
         ) {
-            AssetAvatar(
-                initial = asset.avatarInitial ?: asset.name.firstOrNull()?.uppercaseChar()?.toString() ?: "A",
-                assetType = asset.assetType,
-                size = 64,
-            )
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            if (photos.isNotEmpty()) {
+                // ── Photo mode: paged horizontal scroller of asset photos
+                val photoPager = rememberPagerState(pageCount = { photos.size })
+                HorizontalPager(
+                    state = photoPager,
+                    modifier = Modifier.fillMaxSize(),
+                ) { page ->
+                    val url = photos[page].downloadUrl
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black)
+                            .combinedClickable(
+                                onClick = { onPhotoTap(page) },
+                                onLongClick = { onPhotoTap(page) },
+                            ),
+                    ) {
+                        if (url != null) {
+                            AsyncImage(
+                                model = url,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                    }
+                }
+                if (photos.size > 1) {
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 6.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color.Black.copy(alpha = 0.30f))
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        photos.indices.forEach { i ->
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (i == photoPager.currentPage) Color.White
+                                        else Color.White.copy(alpha = 0.45f),
+                                    ),
+                            )
+                        }
+                    }
+                }
+            } else {
+                // ── Color mode: asset-type tinted bg + hero icon watermark + name overlay
+                val bgColor = rememberParsedColor(AssetTypes.colorHexFor(asset.assetType))
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(bgColor),
+                )
+                Icon(
+                    painter = painterResource(AssetTypes.iconResFor(asset.assetType)),
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.40f),
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 16.dp, bottom = 16.dp)
+                        .size(110.dp),
+                )
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(start = 14.dp, end = 134.dp, bottom = 12.dp),
+                ) {
+                    Text(
+                        text = asset.name,
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    val sub = listOfNotNull(asset.year?.toString(), asset.make, asset.model)
+                        .joinToString(" ")
+                    if (sub.isNotBlank()) {
+                        Text(
+                            text = sub,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.80f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+
+            // ── Camera button — top-right of banner, always visible
+            IconButton(
+                onClick = onAddPhoto,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 12.dp, end = 12.dp)
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.30f)),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CameraAlt,
+                    contentDescription = "Add photo",
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+
+        // ── Info row — photo mode only (name + subtitle below the photo)
+        if (photos.isNotEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(infoRowHeight)
+                    .padding(horizontal = 14.dp),
+                verticalArrangement = Arrangement.Center,
+            ) {
                 Text(
                     text = asset.name,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.headlineMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
-                asset.assetType?.let { assetType ->
-                    val labelResId = AssetTypes.labelResIdFor(assetType)
+                val sub = listOfNotNull(asset.year?.toString(), asset.make, asset.model)
+                    .joinToString(" ")
+                if (sub.isNotBlank()) {
                     Text(
-                        text = if (labelResId != null) stringResource(labelResId)
-                        else assetType.replace("_", " ").replaceFirstChar { it.uppercase() },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
-                val makeModelYear = listOfNotNull(
-                    asset.year?.toString(),
-                    asset.make,
-                    asset.model,
-                ).joinToString(" ")
-                if (makeModelYear.isNotBlank()) {
-                    Text(
-                        text = makeModelYear,
+                        text = sub,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                // Fleet number badge
-                val fleetNumber = parseAttributes(asset.attributes)["fleet_number"]
-                if (!fleetNumber.isNullOrBlank()) {
-                    Text(
-                        text = "Fleet #$fleetNumber",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.secondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
         }
-        IconButton(
-            onClick = onAddPhoto,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(8.dp)
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(Color.Black.copy(alpha = 0.3f)),
-        ) {
-            Icon(
-                imageVector = Icons.Default.CameraAlt,
-                contentDescription = "Add photo",
-                tint = Color.White,
-                modifier = Modifier.size(20.dp),
-            )
-        }
     }
     HorizontalDivider()
+}
+
+@Composable
+private fun rememberParsedColor(hex: String): Color = try {
+    Color(0xFF000000L or hex.removePrefix("#").toLong(16))
+} catch (_: Exception) {
+    MaterialTheme.colorScheme.primary
 }
 
 @Composable

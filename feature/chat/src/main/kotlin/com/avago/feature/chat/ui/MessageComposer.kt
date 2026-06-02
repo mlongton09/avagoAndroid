@@ -22,11 +22,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.AlternateEmail
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PriorityHigh
 import androidx.compose.material.icons.filled.TextFormat
 import androidx.compose.material3.DropdownMenu
@@ -51,15 +52,18 @@ import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import com.avago.core.data.db.entity.ChatAccountRosterEntity
 import com.avago.core.data.db.entity.ChatMessageEntity
 import com.avago.core.network.model.LinkPreviewResponse
+import java.io.File
 
 /**
  * Pinned composer bar at the bottom of ThreadScreen.
@@ -108,6 +112,32 @@ fun MessageComposer(
     ) { uri: Uri? ->
         uri?.let { onImageSelected?.invoke(it.toString()) }
     }
+
+    // Camera capture (iOS CameraCaptureButton parity — primary right-side affordance).
+    val context = LocalContext.current
+    var pendingCaptureUri by remember { mutableStateOf<Uri?>(null) }
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture(),
+    ) { success ->
+        if (success) pendingCaptureUri?.toString()?.let { onImageSelected?.invoke(it) }
+        pendingCaptureUri = null
+    }
+
+    fun launchCamera() {
+        val cacheImages = File(context.cacheDir, "chat_captures").apply { mkdirs() }
+        val outFile = File(cacheImages, "capture_${System.currentTimeMillis()}.jpg")
+        val uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.provider",
+            outFile,
+        )
+        pendingCaptureUri = uri
+        cameraLauncher.launch(uri)
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted -> if (granted) launchCamera() }
 
     // When editingMessage changes, populate field with existing body.
     val editingId = editingMessage?.messageId
@@ -274,13 +304,15 @@ fun MessageComposer(
                 .padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // "+" — opens the secondary-actions menu (Format, Attach, Mention, Request Reply)
+            // "+" — iOS parity (plus.circle.fill, accent blue). Filled blue disc
+            // with white "+" hole; opens the secondary-actions menu.
             Box {
                 IconButton(onClick = { showPlusMenu = true }) {
                     Icon(
-                        imageVector = Icons.Default.Add,
+                        imageVector = Icons.Filled.AddCircle,
                         contentDescription = "More compose actions",
                         tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(26.dp),
                     )
                 }
                 DropdownMenu(
@@ -409,6 +441,24 @@ fun MessageComposer(
             }
 
             Spacer(modifier = Modifier.width(8.dp))
+
+            // Camera (iOS CameraCaptureButton parity — primary capture affordance
+            // to the right of the text field, accent blue, opens system camera).
+            IconButton(
+                onClick = {
+                    val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+                        context, android.Manifest.permission.CAMERA,
+                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                    if (granted) launchCamera()
+                    else cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                },
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.PhotoCamera,
+                    contentDescription = "Take photo",
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
 
             IconButton(
                 onClick = { attemptSend() },
