@@ -8,11 +8,14 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -284,6 +287,7 @@ private fun NeedsReplyPill(modifier: Modifier = Modifier) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun BubbleBody(
     message: ChatMessageEntity,
@@ -292,6 +296,7 @@ private fun BubbleBody(
     hasLinkPreview: Boolean,
     onLongPress: (ChatMessageEntity) -> Unit,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     val bubbleColor = when {
         hasLinkPreview -> Color.Transparent
         isOwn -> MaterialTheme.colorScheme.primary
@@ -332,10 +337,13 @@ private fun BubbleBody(
                     )
                 }
             }
-            .padding(horizontal = 14.dp, vertical = 9.dp)
-            .pointerInput(Unit) {
-                detectTapGestures(onLongPress = { onLongPress(message) })
-            },
+            .combinedClickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = {},
+                onLongClick = { onLongPress(message) },
+            )
+            .padding(horizontal = 14.dp, vertical = 9.dp),
     ) {
         if (!message.audioUrl.isNullOrBlank()) {
             AudioBubble(audioUrl = message.audioUrl!!, isOwn = isOwn)
@@ -372,6 +380,7 @@ private fun BubbleBody(
                         Timber.w(e, "MessageBubble: could not open URL %s", url)
                     }
                 },
+                onLongPress = { onLongPress(message) },
             )
         }
 
