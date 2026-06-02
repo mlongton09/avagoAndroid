@@ -220,8 +220,22 @@ class OutboxRetryCoordinator @Inject constructor(
                 }
             }
             else -> {
-                Timber.w("OutboxRetry: initial send failed for $messageId, marked 'failed'")
-                db.chatMessageDao().updateOutboxStatus(messageId, "failed")
+                // 4xx (non-401, non-408, non-429) is a permanent client error — the same
+                // payload will keep failing forever. Mark "dead" so observeFailedOutbox
+                // stops re-emitting and we don't spam the server. (Pre-fix: a single
+                // poisoned outbox row generated 1700+ 422s by looping failed -> sending
+                // -> failed in the retry observer.)
+                val terminal = result is NetworkResult.Error &&
+                    result.code in 400..499 &&
+                    result.code != 401 && result.code != 408 && result.code != 429
+                if (terminal) {
+                    val err = result as NetworkResult.Error
+                    Timber.e("OutboxRetry: initial send permanent failure ${err.code} for $messageId — body=$body — server=${err.message}")
+                    db.chatMessageDao().updateOutboxStatus(messageId, "dead")
+                } else {
+                    Timber.w("OutboxRetry: initial send failed for $messageId, marked 'failed'")
+                    db.chatMessageDao().updateOutboxStatus(messageId, "failed")
+                }
             }
         }
 
@@ -284,11 +298,25 @@ class OutboxRetryCoordinator @Inject constructor(
                 }
                 is NetworkResult.Unauthorized -> {
                     Timber.w("OutboxRetry: unauthorized, aborting retry for ${msg.messageId}")
-                    db.chatMessageDao().updateOutboxStatus(msg.messageId, "failed")
+                    // 401 means the auth plugin already tried to refresh and failed.
+                    // Mark dead — re-driving from the retry observer would just storm
+                    // the refresh endpoint.
+                    db.chatMessageDao().updateOutboxStatus(msg.messageId, "dead")
                     return
                 }
                 is NetworkResult.Error -> {
-                    Timber.w("OutboxRetry: attempt $attempt failed for ${msg.messageId}")
+                    // Permanent client errors (4xx except 408/429) will never succeed
+                    // with the same payload — stop retrying immediately and log the
+                    // server's error body so we can diagnose the schema mismatch.
+                    if (result.code in 400..499 && result.code != 408 && result.code != 429) {
+                        Timber.e(
+                            "OutboxRetry: permanent failure ${result.code} for ${msg.messageId}" +
+                                " — bodyMd='${msg.bodyMd}' images=$payloadImageUrls server=${result.message}"
+                        )
+                        db.chatMessageDao().updateOutboxStatus(msg.messageId, "dead")
+                        return
+                    }
+                    Timber.w("OutboxRetry: attempt $attempt failed (${result.code}) for ${msg.messageId}: ${result.message}")
                     if (attempt < 4) {
                         delay(backoffMs)
                         backoffMs = minOf(backoffMs * 2, 30_000L)
