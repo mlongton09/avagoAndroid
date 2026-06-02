@@ -40,7 +40,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,7 +62,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.data.db.entity.AssetEntity
 import com.avago.core.ui.AvagoSearchBar
 import com.avago.core.ui.EmptyState
-import com.avago.core.ui.QuoteBanner
 import com.avago.core.ui.rememberScrollAwareHeaderState
 import com.avago.feature.assets.R
 import com.avago.feature.assets.model.AssetTypes
@@ -89,7 +87,6 @@ fun AssetListScreen(
     val presentTypes by viewModel.presentTypes.collectAsStateWithLifecycle()
     val syncError by viewModel.syncError.collectAsStateWithLifecycle()
     val showOnboarding by onboardingViewModel.showBanner.collectAsStateWithLifecycle()
-    val showQuotes by onboardingViewModel.showQuotes.collectAsStateWithLifecycle()
     val canCreateAsset by viewModel.canCreateAsset.collectAsStateWithLifecycle()
     val openWoCounts by viewModel.openWoCounts.collectAsStateWithLifecycle()
 
@@ -147,11 +144,7 @@ fun AssetListScreen(
                 }
             }
 
-            PullToRefreshBox(
-                isRefreshing = isRefreshing,
-                onRefresh = { viewModel.refresh() },
-                modifier = Modifier.fillMaxSize(),
-            ) {
+            Box(modifier = Modifier.fillMaxSize()) {
                 if (assets.isEmpty()) {
                     Column(modifier = Modifier.fillMaxSize()) {
                         // Reserve space for the header even when empty
@@ -169,17 +162,6 @@ fun AssetListScreen(
                         ),
                         modifier = Modifier.fillMaxSize(),
                     ) {
-                        // FRE banner as first item so it scrolls with the list
-                        if (showOnboarding) {
-                            item(key = "onboarding_banner") {
-                                OnboardingBanner(
-                                    onAddAsset = onAddAsset,
-                                    onDismiss = { onboardingViewModel.dismiss() },
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                                )
-                            }
-                        }
-
                         // Sync error banner
                         syncError?.let { msg ->
                             item(key = "sync_error") {
@@ -235,12 +217,13 @@ fun AssetListScreen(
                             }
                         }
 
-                        if (!showOnboarding && showQuotes) {
-                            item(key = "quote_banner") {
-                                QuoteBanner(modifier = Modifier.padding(16.dp))
-                            }
-                        }
                     }
+                }
+                if (showOnboarding) {
+                    FreWelcomeOverlay(
+                        onDismiss = { onboardingViewModel.dismiss() },
+                        modifier = Modifier.align(Alignment.Center),
+                    )
                 }
             }
 
@@ -303,7 +286,14 @@ fun AssetListScreen(
                             onDismissRequest = { showFilterMenu = false },
                         ) {
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.assets_filter_all)) },
+                                text = {
+                                    Text(
+                                        stringResource(
+                                            if (filterType != null) R.string.assets_filter_reset
+                                            else R.string.assets_filter_all,
+                                        ),
+                                    )
+                                },
                                 onClick = {
                                     viewModel.onFilterTypeChanged(null)
                                     showFilterMenu = false
@@ -330,6 +320,61 @@ fun AssetListScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun FreWelcomeOverlay(
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier
+            .padding(24.dp)
+            .fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        tonalElevation = 6.dp,
+        shadowElevation = 8.dp,
+        color = MaterialTheme.colorScheme.surface,
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.fre_welcome_title),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = stringResource(R.string.fre_welcome_body),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                text = stringResource(R.string.fre_settings_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Surface(
+                onClick = onDismiss,
+                shape = RoundedCornerShape(50),
+                color = MaterialTheme.colorScheme.primaryContainer,
+            ) {
+                Text(
+                    text = stringResource(R.string.fre_button),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+                )
+            }
+            Text(
+                text = stringResource(R.string.fre_fab_hint),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
         }
     }
 }

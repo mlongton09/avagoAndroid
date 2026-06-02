@@ -13,7 +13,8 @@
     <string name="settings_appearance">Appearance</string>
     <string name="settings_units">Units</string>
     <string name="settings_theme">Theme</string>
-    <string name="settings_theme_system">System default</string>
+    <string name="settings_theme_system">System</string>
+    <string name="appearance_system">System</string>
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>
     <string name="settings_language">Language</string>
@@ -21,19 +22,32 @@
     <string name="settings_currency">Currency</string>
     <string name="settings_fuel_volume_unit">Fuel volume unit</string>
     <string name="settings_ai">AI</string>
-    <string name="settings_human_in_loop">Human-in-the-Loop</string>
-    <string name="settings_human_in_loop_desc">Review AI suggestions before saving</string>
-    <string name="settings_disable_quotes">Disable daily quotes</string>
-    <string name="settings_terms_of_service">Terms of service</string>
+    <string name="settings_human_in_loop">Review forms before Scout saves</string>
+    <string name="settings_human_in_loop_desc">When enabled, Scout will ask you to review AI suggestions before saving changes.</string>
+    <string name="settings_hitl">Review forms before Scout saves</string>
+    <string name="settings_hitl_footer">When enabled, Scout will ask you to review AI suggestions before saving changes.</string>
+    <string name="settings_disable_quotes">Disable Quotes</string>
+    <string name="settings_terms_of_service">Terms of Use</string>
+    <string name="settings_terms">Terms of Use</string>
     <string name="settings_terms_of_service_url">https://avagomate.com/terms</string>
     <string name="settings_notifications">Push notifications</string>
     <string name="settings_notifications_denied">Tap to enable in system settings</string>
     <string name="settings_notifications_granted_hint">Tap to manage in system settings</string>
     <string name="settings_account">Account</string>
     <string name="settings_account_id">Account ID</string>
+    <string name="account_role_label">Role</string>
     <string name="settings_no_account">Not signed in</string>
+    <string name="role_root">Root</string>
+    <string name="role_admin">Admin</string>
+    <string name="role_manager">Manager</string>
+    <string name="role_dispatcher">Dispatcher</string>
+    <string name="role_technician">Technician</string>
+    <string name="role_operator">Operator</string>
+    <string name="role_reader">Reader</string>
     <string name="settings_members">Members</string>
-    <string name="settings_invite_team_member">Invite Team Member</string>
+    <string name="settings_invite_team_member">Invite Users</string>
+    <string name="invite_title">Invite Users</string>
+    <string name="invite_add_person">+ Add Another Person</string>
     <string name="settings_my_tech_profile">My Tech Profile</string>
     <string name="tech_profile_title">My Tech Profile</string>
     <string name="tech_profile_display_name">Display Name</string>
@@ -58,6 +72,7 @@
 
     <!-- About screen -->
     <string name="about_title">About</string>
+    <string name="about_tagline">Fleet, equipment &amp; property maintenance</string>
     <string name="about_back">Back</string>
     <string name="about_section_legal">Legal</string>
     <string name="about_section_acknowledgements">Acknowledgements</string>

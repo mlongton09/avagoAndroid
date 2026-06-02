@@ -1,4 +1,4 @@
-﻿package com.avago.feature.inventory.cyclecounts
+package com.avago.feature.inventory.cyclecounts
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -39,12 +39,19 @@ import com.avago.feature.inventory.R
 @Composable
 fun CycleCountListScreen(
     onCountClick: (String) -> Unit,
+    onCreateStartedCount: (String) -> Unit = onCountClick,
     viewModel: CycleCountListViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     if (state.showCreateSheet) {
-        CycleCountCreateSheet(onDismiss = viewModel::dismissCreate)
+        CycleCountCreateSheet(
+            onDismiss = viewModel::dismissCreate,
+            onCreatedAndStarted = { countId ->
+                viewModel.dismissCreate()
+                onCreateStartedCount(countId)
+            },
+        )
     }
 
     Scaffold(
@@ -128,8 +135,10 @@ fun CycleCountListScreen(
 
 @Composable
 fun cycleCountStatusLabel(status: String): String = when (status) {
+    "draft", "locked" -> stringResource(R.string.cycle_count_status_draft)
     "in_progress" -> stringResource(R.string.cycle_count_status_in_progress)
-    "locked" -> stringResource(R.string.cycle_count_status_locked)
-    "reconciled" -> stringResource(R.string.cycle_count_status_reconciled)
+    "review", "reconciled" -> stringResource(R.string.cycle_count_status_review)
+    "posted" -> stringResource(R.string.cycle_count_status_posted)
+    "cancelled" -> stringResource(R.string.cycle_count_status_cancelled)
     else -> status
 }

@@ -5,6 +5,7 @@
     <string name="inventory_search_hint">Search parts…</string>
     <string name="inventory_all_categories">All</string>
     <string name="inventory_reorder_needed">Reorder needed</string>
+    <string name="out_of_stock_alert">Out of stock</string>
     <string name="inventory_on_hand">On hand</string>
     <string name="inventory_add_part">Add part</string>
     <string name="inventory_empty">No parts found</string>
@@ -27,9 +28,9 @@
     <string name="part_no_transactions">No transactions yet</string>
 
     <!-- Add / edit part -->
-    <string name="add_part_title">Add Part</string>
+    <string name="add_part_title">New Part</string>
     <string name="edit_part_title">Edit Part</string>
-    <string name="part_name_label">Name *</string>
+    <string name="part_name_label">Part Name</string>
     <string name="part_sku_label">SKU</string>
     <string name="part_description_label">Description</string>
     <string name="part_unit_cost_label">Unit Cost</string>
@@ -45,8 +46,10 @@
     <string name="part_name_required">Name is required</string>
 
     <!-- Receive / Use sheet -->
-    <string name="receive_use_title_receive">Receive Stock</string>
-    <string name="receive_use_title_use">Use Stock</string>
+    <string name="receive_use_title_receive">Receive Parts</string>
+    <string name="receive_stock_title">Receive Parts</string>
+    <string name="receive_use_title_use">Use Parts</string>
+    <string name="use_stock_title">Use Parts</string>
     <string name="receive_use_quantity_label">Quantity</string>
     <string name="receive_use_notes_label">Notes (optional)</string>
     <string name="receive_use_submit">Submit</string>
@@ -83,6 +86,7 @@
 
     <!-- Vendor parts (SKU catalog) -->
     <string name="vendor_parts_title">Parts Catalog</string>
+    <string name="sources_section">Sourced From</string>
     <string name="vendor_parts_empty">No parts linked to this vendor</string>
     <string name="vendor_part_sku">Vendor SKU</string>
     <string name="vendor_part_unit_cost">Unit Cost</string>
@@ -157,7 +161,8 @@
     <string name="po_line_item_number">Item %d</string>
 
     <!-- GRN -->
-    <string name="grn_sheet_title">Goods Receipt</string>
+    <string name="grn_sheet_title">Receive Delivery</string>
+    <string name="grn_title">Receive Delivery</string>
     <string name="grn_number_label">GRN Number</string>
     <string name="grn_received_date_label">Received Date</string>
     <string name="grn_carrier_label">Carrier</string>
@@ -183,12 +188,13 @@
     <string name="stocking_level_reorder_qty">Reorder</string>
     <string name="stocking_level_safety_stock">Safety</string>
     <string name="stocking_levels_search_hint">Search parts…</string>
+    <string name="stocking_level_not_set">Not set</string>
 
     <!-- Warehouse additional -->
     <string name="warehouse_grn_history_card">GRN History</string>
-    <string name="warehouse_grn_history_desc">View all goods receipts</string>
+    <string name="warehouse_grn_history_desc"></string>
     <string name="warehouse_stocking_levels_card">Stocking Levels</string>
-    <string name="warehouse_stocking_levels_desc">View min/max/reorder levels per part</string>
+    <string name="warehouse_stocking_levels_desc"></string>
     <string name="warehouse_reorder_trigger_success">Reorder notifications sent</string>
     <string name="warehouse_reorder_trigger_error">Failed to send reorder: %1$s</string>
 
@@ -198,13 +204,13 @@
     <string name="warehouse_issue_title">Issue Parts</string>
     <string name="warehouse_move_title">Move Parts</string>
     <string name="warehouse_receive_card">Receive</string>
-    <string name="warehouse_receive_desc">Receive incoming parts into stock</string>
+    <string name="warehouse_receive_desc"></string>
     <string name="warehouse_issue_card">Issue</string>
-    <string name="warehouse_issue_desc">Issue parts to a work order or job</string>
+    <string name="warehouse_issue_desc"></string>
     <string name="warehouse_move_card">Move</string>
-    <string name="warehouse_move_desc">Move parts between locations or bins</string>
+    <string name="warehouse_move_desc"></string>
     <string name="warehouse_reorder_card">Reorder</string>
-    <string name="warehouse_reorder_desc">View parts below reorder point and create purchase orders</string>
+    <string name="warehouse_reorder_desc"></string>
     <string name="warehouse_part_label">Part</string>
     <string name="warehouse_part_search">Search parts…</string>
     <string name="warehouse_quantity_label">Quantity</string>
@@ -226,12 +232,23 @@
     <string name="bin_picker_title">Select Bin</string>
     <string name="bin_picker_search">Search bins…</string>
     <string name="bin_picker_none">No bin</string>
+    <string name="bin_scan_prompt">Scan bin barcode</string>
+    <string name="bin_not_assigned">No bin assigned</string>
 
     <!-- Cycle counts -->
     <string name="cycle_count_list_title">Cycle Counts</string>
     <string name="cycle_count_status_in_progress">In Progress</string>
-    <string name="cycle_count_status_locked">Locked</string>
-    <string name="cycle_count_status_reconciled">Reconciled</string>
+    <string name="cycle_count_status_locked">Draft</string>
+    <string name="cycle_count_status_reconciled">Review</string>
+    <string name="cycle_count_status_draft">Draft</string>
+    <string name="cycle_count_status_review">Review</string>
+    <string name="cycle_count_status_posted">Posted</string>
+    <string name="cycle_count_status_cancelled">Cancelled</string>
+    <string name="cc_status_draft">Draft</string>
+    <string name="cc_status_locked">Draft</string>
+    <string name="cc_status_review">Review</string>
+    <string name="cc_status_reconciled">Review</string>
+    <string name="cc_status_posted">Posted</string>
     <string name="cycle_count_empty">No cycle counts</string>
     <string name="cycle_count_create">New Count</string>
     <string name="cycle_count_item_count">%1$d items</string>
@@ -242,7 +259,8 @@
     <string name="cycle_count_counted">Counted</string>
     <string name="cycle_count_variance">Variance</string>
     <string name="cycle_count_start">Start Count</string>
-    <string name="cycle_count_complete">Complete Count</string>
+    <string name="cycle_count_complete">Mark Complete</string>
+    <string name="cc_complete_btn">Mark Complete</string>
     <string name="cycle_count_post">Post Adjustments</string>
     <string name="cycle_count_cancel">Cancel Count</string>
     <string name="cycle_count_no_lines">No items in this count</string>
@@ -254,11 +272,13 @@
     <string name="cycle_count_scope_full">Full</string>
     <string name="cycle_count_scope_zone">Zone</string>
     <string name="cycle_count_scope_category">Category</string>
-    <string name="cycle_count_submit">Create</string>
+    <string name="cycle_count_submit">Create &amp; Start</string>
+    <string name="cc_create_btn">Create &amp; Start</string>
     <string name="cycle_count_submitting">Creating…</string>
 
     <!-- Cycle count floor scan -->
-    <string name="cycle_count_floor_title">Floor Count</string>
+    <string name="cycle_count_floor_title">Count Floor</string>
+    <string name="cc_count_title">Count Floor</string>
     <string name="cycle_count_floor_scan_hint">Point camera at barcode</string>
     <string name="cycle_count_floor_last_scanned">Last scanned:</string>
     <string name="cycle_count_floor_done">Done</string>

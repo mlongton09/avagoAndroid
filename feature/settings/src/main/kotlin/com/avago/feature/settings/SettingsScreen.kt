@@ -20,12 +20,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Policy
@@ -43,7 +40,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -56,8 +52,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.avago.core.push.NotificationPermissionHelper
 import com.avago.feature.settings.R
+
+private const val SHOW_DELETE_ACCOUNT = false
 
 // ---------------------------------------------------------------------------
 // Public entry point
@@ -84,18 +81,8 @@ fun SettingsScreen(
     val fuelVolumeUnit by viewModel.fuelVolumeUnit.collectAsState()
     val disableQuotes by viewModel.disableQuotes.collectAsState()
     val enableHumanInLoop by viewModel.enableHumanInLoop.collectAsState()
-    val forceOffline by viewModel.forceOffline.collectAsState()
     val activeAccountId by viewModel.activeAccountId.collectAsState()
-
-    // Notification permission — re-check on every recomposition so state is fresh
-    // after the user returns from system settings.
-    val notificationsGranted = remember(context) {
-        mutableStateOf(NotificationPermissionHelper.isGranted(context))
-    }
-    // Refresh when screen is first composed (covers returning from system settings).
-    LaunchedEffect(Unit) {
-        notificationsGranted.value = NotificationPermissionHelper.isGranted(context)
-    }
+    val effectiveRole by viewModel.effectiveRole.collectAsState()
 
     // Dialog state
     var showThemeDialog by remember { mutableStateOf(false) }
@@ -143,7 +130,7 @@ fun SettingsScreen(
         )
     }
 
-    if (showDeleteDialog) {
+    if (SHOW_DELETE_ACCOUNT && showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
             title = { Text(stringResource(R.string.settings_delete_account)) },
@@ -237,32 +224,6 @@ fun SettingsScreen(
         }
         item { SectionDivider() }
 
-        // ── Offline ────────────────────────────────────────────────────────────
-        item {
-            SectionHeader(text = "Offline")
-        }
-        item {
-            SwitchRow(
-                label = "Force offline mode",
-                description = "Blocks network requests and uses cached local data only.",
-                checked = forceOffline,
-                onCheckedChange = viewModel::setForceOffline,
-            )
-        }
-        item { SectionDivider() }
-
-        // ── Notifications ────────────────────────────────────────────────────
-        item {
-            SectionHeader(text = stringResource(R.string.settings_notifications))
-        }
-        item {
-            NotificationsRow(
-                granted = notificationsGranted.value,
-                context = context,
-            )
-        }
-        item { SectionDivider() }
-
         // ── Account ───────────────────────────────────────────────────────────
         item {
             SectionHeader(text = stringResource(R.string.settings_account))
@@ -280,6 +241,21 @@ fun SettingsScreen(
             )
         }
         item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
+        effectiveRole?.takeIf { it.isNotBlank() }?.let { role ->
+            item {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.account_role_label)) },
+                    supportingContent = {
+                        Text(
+                            text = roleDisplayName(role),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                )
+            }
+            item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
+        }
         item {
             NavigationRow(
                 label = stringResource(R.string.settings_my_tech_profile),
@@ -334,28 +310,30 @@ fun SettingsScreen(
             )
         }
         item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
-        item {
-            ListItem(
-                headlineContent = {
-                    Text(
-                        text = stringResource(R.string.settings_delete_account),
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                },
-                leadingContent = {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error,
-                    )
-                },
-                modifier = Modifier.clickable(role = Role.Button) { showDeleteDialog = true },
-                colors = ListItemDefaults.colors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
-            )
+        if (SHOW_DELETE_ACCOUNT) {
+            item {
+                ListItem(
+                    headlineContent = {
+                        Text(
+                            text = stringResource(R.string.settings_delete_account),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    },
+                    leadingContent = {
+                        Icon(
+                            Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                    },
+                    modifier = Modifier.clickable(role = Role.Button) { showDeleteDialog = true },
+                    colors = ListItemDefaults.colors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                    ),
+                )
+            }
+            item { SectionDivider() }
         }
-        item { SectionDivider() }
 
         // ── App ───────────────────────────────────────────────────────────────
         item {
@@ -491,7 +469,7 @@ private fun ThemeRow(
     val label = when (current) {
         "dark"  -> "Dark"
         "light" -> "Light"
-        else    -> "System"
+        else    -> stringResource(R.string.settings_theme_system)
     }
     ListItem(
         headlineContent = { Text(stringResource(R.string.settings_theme)) },
@@ -677,66 +655,17 @@ private fun SwitchRow(
 }
 
 // ---------------------------------------------------------------------------
-// Notifications row
-// ---------------------------------------------------------------------------
-
 @Composable
-private fun NotificationsRow(
-    granted: Boolean,
-    context: Context,
-) {
-    // Android 13+ requires the notification permission to be managed in System
-    // Settings — apps cannot toggle it programmatically. So our in-app Switch is
-    // purely informational (always disabled when granted) and tapping the row
-    // always opens the per-app system notification settings so the user has a
-    // path to turn notifications off (or back on if denied).
-    val openSystemNotificationSettings = {
-        val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-            putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-        }
-        runCatching { context.startActivity(intent) }.onFailure {
-            // Fallback for OEMs that don't honour ACTION_APP_NOTIFICATION_SETTINGS.
-            val fallback = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                data = Uri.fromParts("package", context.packageName, null)
-            }
-            runCatching { context.startActivity(fallback) }
-        }
-    }
-    ListItem(
-        headlineContent = { Text(stringResource(R.string.settings_notifications)) },
-        supportingContent = {
-            Text(
-                text = stringResource(
-                    if (granted) R.string.settings_notifications_granted_hint
-                    else R.string.settings_notifications_denied
-                ),
-                style = MaterialTheme.typography.bodySmall,
-                color = if (granted) MaterialTheme.colorScheme.onSurfaceVariant
-                else MaterialTheme.colorScheme.error,
-            )
-        },
-        leadingContent = {
-            Icon(
-                if (granted) Icons.Default.Notifications else Icons.Default.NotificationsOff,
-                contentDescription = null,
-                tint = if (granted) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.error,
-            )
-        },
-        trailingContent = {
-            Icon(
-                Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        },
-        modifier = Modifier.clickable(role = Role.Button) { openSystemNotificationSettings() },
-    )
+private fun roleDisplayName(role: String): String = when (role.lowercase()) {
+    "root" -> stringResource(R.string.role_root)
+    "admin" -> stringResource(R.string.role_admin)
+    "manager" -> stringResource(R.string.role_manager)
+    "dispatcher" -> stringResource(R.string.role_dispatcher)
+    "technician" -> stringResource(R.string.role_technician)
+    "operator" -> stringResource(R.string.role_operator)
+    "reader" -> stringResource(R.string.role_reader)
+    else -> role.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
 }
-
-// ---------------------------------------------------------------------------
-// Dialogs
-// ---------------------------------------------------------------------------
 
 @Composable
 private fun ThemePickerDialog(

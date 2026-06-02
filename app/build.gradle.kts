@@ -126,6 +126,7 @@ dependencies {
     implementation(project(":core:seed"))
     implementation(project(":core:i18n"))
     implementation(project(":core:ai"))
+    implementation(project(":core:permissions"))
     implementation(project(":feature:auth"))
     implementation(project(":feature:assets"))
     implementation(project(":feature:log"))

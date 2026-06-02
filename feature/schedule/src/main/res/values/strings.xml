@@ -4,13 +4,15 @@
     <!-- Schedule List -->
     <string name="schedule_list_title">PM Schedules</string>
     <string name="schedule_list_empty">No schedules found</string>
+    <string name="schedule_empty_due_soon">Nothing due soon</string>
+    <string name="schedule_empty_overdue">No overdue schedules</string>
     <string name="schedule_add_fab_description">Add schedule</string>
     <string name="schedule_search_placeholder">Search schedules…</string>
     <string name="schedule_filter_fab_description">Filter schedules</string>
 
     <!-- Status filters -->
     <string name="schedule_filter_all">All</string>
-    <string name="schedule_filter_due_soon">Due Soon</string>
+    <string name="schedule_filter_due_soon">Due soon</string>
     <string name="schedule_filter_upcoming">Upcoming</string>
     <string name="schedule_filter_overdue">Overdue</string>
 
@@ -18,6 +20,7 @@
     <string name="schedule_type_all">All Types</string>
     <string name="schedule_type_by_date">By Date</string>
     <string name="schedule_type_by_meter">By Meter</string>
+    <string name="schedule_mode_by_asset">By Asset</string>
 
     <!-- Status badges -->
     <string name="schedule_status_overdue">Overdue</string>
@@ -36,6 +39,7 @@
     <string name="schedule_detail_delete_confirm_btn">Delete</string>
     <string name="schedule_detail_cancel_btn">Cancel</string>
     <string name="schedule_detail_add_to_calendar">Add to Calendar</string>
+    <string name="action_complete_service">Complete Service</string>
     <string name="schedule_detail_frequency">Frequency</string>
     <string name="schedule_detail_last_completed">Last Completed</string>
     <string name="schedule_detail_next_due">Next Due</string>
@@ -73,13 +77,17 @@
     <string name="schedule_save">Save</string>
     <string name="schedule_saving">Saving…</string>
     <string name="schedule_cancel">Cancel</string>
+    <string name="schedule_occurrences">After Occurrences</string>
 
     <!-- Frequency options -->
     <string name="freq_daily">Daily</string>
     <string name="freq_weekly">Weekly</string>
+    <string name="repeat_biweekly">Every 2 Weeks</string>
     <string name="freq_monthly">Monthly</string>
     <string name="freq_quarterly">Every 3 Months</string>
+    <string name="repeat_quarterly">Every 3 Months</string>
     <string name="freq_biannual">Every 6 Months</string>
+    <string name="repeat_semiannual">Every 6 Months</string>
     <string name="freq_yearly">Yearly</string>
 
     <!-- Meter types -->
@@ -95,7 +103,7 @@
     <string name="schedule_calendar_next_month">Next month</string>
 
     <!-- Misc -->
-    <string name="schedule_one_time">One-time</string>
+    <string name="schedule_one_time">(one-time)</string>
     <string name="schedule_due_prefix">Due</string>
     <string name="schedule_overdue_prefix">Overdue by</string>
     <string name="schedule_no_asset">No asset</string>

@@ -7,7 +7,7 @@
 
     <!-- Chat list screen -->
     <string name="chat_list_title">Chat</string>
-    <string name="chat_list_empty">No conversations yet</string>
+    <string name="chat_list_empty">No conversations yet.</string>
     <string name="chat_list_new_conversation_fab">New conversation</string>
     <string name="chat_list_mentions_icon">Mentions</string>
 
@@ -16,6 +16,7 @@
     <string name="chat_filter_direct">Direct</string>
     <string name="chat_filter_work_orders">Work Orders</string>
     <string name="chat_filter_assets">Assets</string>
+    <string name="chat_filter_unread">Unread</string>
 
     <!-- Thread screen -->
     <string name="thread_title_fallback">Chat</string>
@@ -27,13 +28,14 @@
     <string name="thread_loading_earlier">Loading…</string>
     <string name="thread_new_messages_pill">New messages ↓</string>
     <string name="thread_unread_divider">New messages</string>
+    <string name="date_today">Today</string>
+    <string name="date_yesterday">Yesterday</string>
 
     <!-- Subthread (reply thread) screen -->
     <string name="subthread_title">Thread</string>
     <string name="subthread_back">Back</string>
 
     <!-- Message composer -->
-    <string name="composer_message_placeholder">Message</string>
     <string name="composer_send">Send</string>
     <string name="composer_editing_banner">Editing message</string>
     <string name="composer_cancel_edit">Cancel edit</string>
@@ -52,11 +54,10 @@
     <string name="message_status_delivered">Delivered</string>
 
     <!-- Pinned message banner -->
-    <string name="pinned_message_label">Pinned message</string>
-    <string name="pinned_message_unpin">Unpin</string>
 
     <!-- New thread / new conversation screen -->
-    <string name="new_thread_title">New Conversation</string>
+    <string name="new_thread_title">New Direct Message</string>
+    <string name="new_thread_title_group">New Group Chat</string>
     <string name="new_thread_back">Back</string>
     <string name="new_thread_tab_direct">Direct Message</string>
     <string name="new_thread_tab_group">Group</string>
@@ -66,9 +67,16 @@
     <string name="new_thread_create_group_fab">Create group</string>
 
     <!-- Thread members screen -->
-    <string name="thread_members_title">Members</string>
+    <string name="thread_members_title">Thread Settings</string>
     <string name="thread_members_back">Back</string>
     <string name="thread_members_empty">No members</string>
+    <string name="thread_members_leave_title">Leave thread?</string>
+    <string name="thread_members_leave_message">You will no longer receive messages from this thread.</string>
+    <string name="thread_members_leave_action">Leave</string>
+    <string name="thread_members_rename_group">Rename group</string>
+    <string name="thread_members_notifications">Notifications</string>
+    <string name="thread_members_add">Add members</string>
+    <string name="thread_members_remove">Remove member</string>
 
     <!-- Thread media gallery screen -->
     <string name="thread_media_title">Media</string>
@@ -76,14 +84,19 @@
     <string name="thread_media_empty">No media shared in this conversation</string>
 
     <!-- Chat settings screen -->
-    <string name="chat_settings_title">Conversation Settings</string>
+    <string name="chat_settings_title">Team Chat</string>
     <string name="chat_settings_back">Back</string>
     <string name="chat_settings_muted_label">Muted</string>
     <string name="chat_settings_muted_subtitle">Silence notifications for this conversation</string>
     <string name="chat_settings_notifications_label">Notifications</string>
     <string name="chat_settings_notifications_subtitle">Push notifications are managed in system settings</string>
-    <string name="chat_settings_leave_label">Leave Conversation</string>
-    <string name="chat_settings_leave_coming_soon">Leave conversation — coming soon</string>
+    <string name="chat_settings_quiet_message">No notifications will be sent during quiet hours.</string>
+    <string name="receipts_title">Receipts</string>
+    <string name="mute_1h">Mute for 1 hour</string>
+    <string name="mute_8h">Mute for 8 hours</string>
+    <string name="mute_24h">Mute for 24 hours</string>
+    <string name="chat_settings_leave_label">Leave thread</string>
+    <string name="chat_settings_leave_coming_soon">Leave thread — coming soon</string>
 
     <!-- Sync conflict bottom sheet -->
     <string name="conflict_sheet_title">Sync Conflicts</string>
@@ -96,4 +109,34 @@
     <!-- Error states -->
     <string name="chat_error_send_failed">Failed to send message</string>
     <string name="chat_error_load_failed">Failed to load messages</string>
+
+    <!-- Chat preferences -->
+    <string name="chat_settings_quiet_hours">Quiet hours</string>
+    <string name="chat_settings_push_notifications">Push notifications</string>
+    <string name="chat_settings_display">Display</string>
+    <string name="chat_settings_cache">Cache</string>
+    <string name="chat_settings_specific_mentions">Specific @mentions</string>
+    <string name="chat_settings_broadcasts">Broadcasts (@all/@here)</string>
+    <string name="chat_settings_wo_messages">WO messages</string>
+    <string name="chat_settings_team_room">Team room</string>
+    <string name="chat_settings_reactions">Reactions to your messages</string>
+    <string name="chat_settings_show_broadcasts_inline">Show broadcasts inline in timeline</string>
+    <string name="chat_settings_quiet_start">Start: %1$s</string>
+    <string name="chat_settings_quiet_end">End: %1$s</string>
+    <string name="chat_settings_quiet_timezone">Timezone: %1$s</string>
+    <string name="chat_settings_off">Off</string>
+    <string name="chat_settings_clear_cache">Clear chat cache</string>
+    <string name="chat_settings_clear_cache_title">Clear chat cache?</string>
+    <string name="chat_settings_clear_cache_message">Local chat history will be re-downloaded on next launch.</string>
+    <string name="chat_settings_cache_cleared">Chat cache cleared</string>
+    <string name="chat_settings_clear">Clear</string>
+    <string name="chat_settings_cancel">Cancel</string>
+    <string name="chat_settings_save">Save</string>
+    <string name="chat_settings_quiet_start_title">Quiet hours start</string>
+    <string name="chat_settings_quiet_end_title">Quiet hours end</string>
+    <string name="chat_settings_timezone">Timezone</string>
+    <string name="chat_settings_pick_timezone">Pick a timezone</string>
+    <string name="thread_notifications_all">All messages</string>
+    <string name="thread_notifications_mentions">Mentions only</string>
+    <string name="thread_notifications_off">Off</string>
 </resources>

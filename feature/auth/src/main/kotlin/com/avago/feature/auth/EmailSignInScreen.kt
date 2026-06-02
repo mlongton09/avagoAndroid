@@ -1,4 +1,4 @@
-﻿package com.avago.feature.auth
+package com.avago.feature.auth
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -25,6 +26,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -56,8 +58,10 @@ fun EmailSignInScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
     var email by remember { mutableStateOf("") }
+    var displayName by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
+    var createAccountMode by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(state) {
@@ -71,10 +75,28 @@ fun EmailSignInScreen(
         }
     }
 
+    val migrationState = state as? SignInState.PendingMigration
+    if (migrationState != null) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(stringResource(R.string.alert_move_data_title)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.movePendingData(migrationState.sourceAccountId, migrationState.targetAccountId)
+                }) { Text(stringResource(R.string.alert_move_data_action)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.startFresh(migrationState.sourceAccountId) }) {
+                    Text(stringResource(R.string.alert_move_data_fresh))
+                }
+            },
+        )
+    }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(stringResource(R.string.email_sign_in_title)) },
+                title = { Text(stringResource(if (createAccountMode) R.string.email_signin_create_account else R.string.email_sign_in_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -95,8 +117,6 @@ fun EmailSignInScreen(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(stringResource(R.string.email_sign_in_welcome), style = MaterialTheme.typography.headlineMedium)
-            Spacer(Modifier.height(32.dp))
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
@@ -112,6 +132,21 @@ fun EmailSignInScreen(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = state !is SignInState.Loading,
             )
+            if (createAccountMode) {
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = displayName,
+                    onValueChange = { displayName = it },
+                    label = { Text(stringResource(R.string.email_signin_display_name)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                    keyboardActions = KeyboardActions(
+                        onNext = { focusManager.moveFocus(FocusDirection.Down) },
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = state !is SignInState.Loading,
+                )
+            }
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
                 value = password,
@@ -126,7 +161,8 @@ fun EmailSignInScreen(
                 keyboardActions = KeyboardActions(
                     onDone = {
                         focusManager.clearFocus()
-                        viewModel.signInWithEmail(email, password)
+                        if (createAccountMode) viewModel.createAccountWithEmail(email, password, displayName)
+                        else viewModel.signInWithEmail(email, password)
                     },
                 ),
                 trailingIcon = {
@@ -142,19 +178,26 @@ fun EmailSignInScreen(
             )
             Spacer(Modifier.height(24.dp))
             Button(
-                onClick = { viewModel.signInWithEmail(email, password) },
-                enabled = email.isNotBlank() && password.isNotBlank() && state !is SignInState.Loading,
+                onClick = {
+                    if (createAccountMode) viewModel.createAccountWithEmail(email, password, displayName)
+                    else viewModel.signInWithEmail(email, password)
+                },
+                enabled = email.isNotBlank() && password.isNotBlank() && (!createAccountMode || displayName.isNotBlank()) && state !is SignInState.Loading,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                if (state is SignInState.Loading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary,
-                    )
+                val loading = state as? SignInState.Loading
+                if (loading != null) {
+                    Text(stringResource(if (loading.isCreating) R.string.spinner_creating else R.string.spinner_preparing))
                 } else {
-                    Text(stringResource(R.string.email_sign_in_button))
+                    Text(stringResource(if (createAccountMode) R.string.email_signin_create_account else R.string.email_sign_in_button))
                 }
+            }
+            Spacer(Modifier.height(12.dp))
+            TextButton(
+                onClick = { createAccountMode = !createAccountMode },
+                enabled = state !is SignInState.Loading,
+            ) {
+                Text(stringResource(if (createAccountMode) R.string.email_signin_have_account else R.string.email_signin_create_account))
             }
         }
     }

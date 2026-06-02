@@ -105,7 +105,10 @@ fun RepeatsSheet(
             listOf(
                 RecurrenceFrequency.DAILY,
                 RecurrenceFrequency.WEEKLY,
+                RecurrenceFrequency.BIWEEKLY,
                 RecurrenceFrequency.MONTHLY,
+                RecurrenceFrequency.QUARTERLY,
+                RecurrenceFrequency.SEMIANNUAL,
                 RecurrenceFrequency.YEARLY,
                 RecurrenceFrequency.CUSTOM,
             ).forEach { freq ->
@@ -113,7 +116,10 @@ fun RepeatsSheet(
                     label = when (freq) {
                         RecurrenceFrequency.DAILY -> stringResource(R.string.repeats_frequency_daily)
                         RecurrenceFrequency.WEEKLY -> stringResource(R.string.repeats_frequency_weekly)
+                        RecurrenceFrequency.BIWEEKLY -> stringResource(R.string.repeat_biweekly)
                         RecurrenceFrequency.MONTHLY -> stringResource(R.string.repeats_frequency_monthly)
+                        RecurrenceFrequency.QUARTERLY -> stringResource(R.string.repeat_quarterly)
+                        RecurrenceFrequency.SEMIANNUAL -> stringResource(R.string.repeat_semiannual)
                         RecurrenceFrequency.YEARLY -> stringResource(R.string.repeats_frequency_yearly)
                         RecurrenceFrequency.CUSTOM -> stringResource(R.string.repeats_frequency_custom)
                     },

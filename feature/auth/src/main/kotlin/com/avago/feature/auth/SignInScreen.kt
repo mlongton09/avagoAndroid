@@ -16,6 +16,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -34,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -60,6 +62,24 @@ fun SignInScreen(
             }
             else -> Unit
         }
+    }
+
+    val migrationState = state as? SignInState.PendingMigration
+    if (migrationState != null) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(stringResource(R.string.alert_move_data_title)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.movePendingData(migrationState.sourceAccountId, migrationState.targetAccountId)
+                }) { Text(stringResource(R.string.alert_move_data_action)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.startFresh(migrationState.sourceAccountId) }) {
+                    Text(stringResource(R.string.alert_move_data_fresh))
+                }
+            },
+        )
     }
 
     Scaffold(
@@ -104,9 +124,8 @@ fun SignInScreen(
                 )
                 Spacer(Modifier.height(8.dp))
 
-                // Tagline
                 Text(
-                    text = "Your maintenance log",
+                    text = stringResource(R.string.sign_in_subtitle),
                     fontSize = 16.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -135,13 +154,12 @@ fun SignInScreen(
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(end = 8.dp),
                         )
-                        Text("Sign in with Google")
+                        Text(stringResource(R.string.sign_in_google))
                     }
                 }
 
                 Spacer(Modifier.height(12.dp))
 
-                // Sign in with Email
                 Button(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -162,21 +180,11 @@ fun SignInScreen(
                                 .padding(end = 8.dp)
                                 .size(18.dp),
                         )
-                        Text("Sign in with Email")
+                        Text(stringResource(R.string.sign_in_email))
                     }
                 }
 
                 Spacer(Modifier.height(20.dp))
-
-                // "— or —"
-                Text(
-                    text = "— or —",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-
-                Spacer(Modifier.height(12.dp))
 
                 // Continue without signing in
                 TextButton(
@@ -184,25 +192,21 @@ fun SignInScreen(
                     enabled = state !is SignInState.Loading,
                 ) {
                     Text(
-                        text = "Continue without signing in",
+                        text = stringResource(R.string.sign_in_continue_anonymous),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
 
-                Spacer(Modifier.height(4.dp))
-
-                // Local data notice
-                Text(
-                    text = "Your data is saved locally on this device.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-
                 if (state is SignInState.Loading) {
                     Spacer(Modifier.height(16.dp))
                     CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = stringResource(R.string.spinner_preparing),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }

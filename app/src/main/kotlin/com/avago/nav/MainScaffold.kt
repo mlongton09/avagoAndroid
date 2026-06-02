@@ -15,13 +15,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.automirrored.filled.MenuBook
@@ -30,6 +30,7 @@ import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.AlertDialog
@@ -68,12 +69,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.avago.R
 import com.avago.core.ai.ScoutViewModel
+import com.avago.core.ai.R as AiR
 import com.avago.core.ai.ui.ScoutPaletteSheet
 import com.avago.core.ai.ui.VoiceInputSheet
 import com.avago.core.auth.PermissionStore
@@ -93,42 +97,40 @@ import kotlinx.coroutines.launch
 // ---------------------------------------------------------------------------
 
 data class BottomNavItem(
-    val label: String,
+    @StringRes val labelRes: Int,
     val icon: ImageVector,
     val route: String,
     val permission: String,
 )
 
 private val bottomNavItems = listOf(
-    BottomNavItem("Assets",      Icons.AutoMirrored.Filled.MenuBook, "assets_graph",      "assets.view"),
-    BottomNavItem("Work Orders", Icons.Default.CalendarToday,        "workorders_graph",  "work_orders.view"),
-    BottomNavItem("Scout",       Icons.Default.AutoAwesome,          "scout/history",     "scout.view"),
-    BottomNavItem("Chat",        Icons.AutoMirrored.Filled.Chat,     "chat",              "chat.view"),
+    BottomNavItem(R.string.nav_assets,      Icons.AutoMirrored.Filled.MenuBook, "assets_graph",      "assets.view"),
+    BottomNavItem(R.string.nav_work_orders, Icons.Default.CalendarToday,        "workorders_graph",  "work_orders.view"),
+    BottomNavItem(R.string.nav_chat,        Icons.AutoMirrored.Filled.Chat,     "chat",              "chat.view"),
 )
 
 // ---------------------------------------------------------------------------
 // Route → display title (matches iOS per-tab title behaviour)
 // ---------------------------------------------------------------------------
 
-private fun titleForRoute(route: String?): String = when {
-    route == null                                -> "Avago"
-    route.startsWith("workorders/dispatch")      -> "Dispatch"
-    route.startsWith("workorders/calendar")      -> "Calendar"
-    route.startsWith("workorders/available")     -> "Available Jobs"
-    route.startsWith("workorders/tech_profile")  -> "My Tech Profile"
-    route.startsWith("workorders")               -> "Work Orders"
-    route.startsWith("assets")                   -> "Assets"
-    route.startsWith("inventory")                -> "Inventory"
-    route == "reports/cost"                      -> "Cost Report"
-    route == "reports"                           -> "Reports"
-    route == "category_report"                   -> "By Category"
-    route == "scout/history"                     -> "Scout History"
+private fun titleForRoute(route: String?): Int = when {
+    route == null                                -> R.string.app_name
+    route.startsWith("workorders/dispatch")      -> R.string.nav_dispatch
+    route.startsWith("workorders/calendar")      -> R.string.nav_calendar
+    route.startsWith("workorders/available")     -> R.string.nav_available_jobs
+    route.startsWith("workorders/tech_profile")  -> R.string.nav_my_tech_profile
+    route.startsWith("workorders")               -> R.string.nav_work_orders
+    route.startsWith("assets")                   -> R.string.nav_assets
+    route == "gallery"                           -> R.string.nav_gallery
+    route.startsWith("inventory")                -> R.string.nav_inventory
+    route == "reports/cost"                      -> R.string.nav_cost_report
+    route == "reports"                           -> R.string.nav_reports
+    route == "category_report"                   -> R.string.nav_by_category
     route.startsWith("chat") ||
-        route.startsWith("thread")               -> "Chat"
-    route.startsWith("settings")                 -> "Settings"
-    route.startsWith("docs")                     -> "Docs"
-    route.startsWith("schedule")                 -> "Schedule"
-    else                                         -> "Avago"
+        route.startsWith("thread")               -> R.string.nav_chat
+    route.startsWith("settings")                 -> R.string.nav_settings
+    route.startsWith("schedule")                 -> R.string.nav_schedule
+    else                                         -> R.string.app_name
 }
 
 // ---------------------------------------------------------------------------
@@ -229,12 +231,12 @@ fun MainScaffold(
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(7.dp))
-                                Text(titleForRoute(currentRoute))
+                                Text(stringResource(titleForRoute(currentRoute)))
                             }
                         },
                         navigationIcon = {
                             IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                                Icon(Icons.Default.Menu, contentDescription = "Open menu")
+                                Icon(Icons.Default.Menu, contentDescription = null)
                             }
                         },
                         colors = TopAppBarDefaults.topAppBarColors(
@@ -270,7 +272,7 @@ fun MainScaffold(
                     ) {
                         Icon(
                             imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = "Scout AI — tap to open, hold for voice",
+                            contentDescription = stringResource(AiR.string.scout_open),
                             modifier = Modifier.size(24.dp),
                         )
                     }
@@ -360,6 +362,7 @@ fun BottomNavBar(
         }
 
         visibleItems.forEach { item ->
+            val itemLabel = stringResource(item.labelRes)
             val badgeCount = when (item.route) {
                 "chat"             -> unreadChatMentionCount
                 "workorders_graph" -> upcomingMineWorkOrderCount
@@ -386,10 +389,10 @@ fun BottomNavBar(
                                 }
                             },
                         ) {
-                            Icon(item.icon, contentDescription = item.label)
+                            Icon(item.icon, contentDescription = itemLabel)
                         }
                     } else {
-                        Icon(item.icon, contentDescription = item.label)
+                        Icon(item.icon, contentDescription = itemLabel)
                     }
                 },
                 label = null,
@@ -424,16 +427,16 @@ fun SideMenuContent(
     if (showAccountSwitcher) {
         AlertDialog(
             onDismissRequest = { showAccountSwitcher = false },
-            title = { Text("Switch Account") },
+            title = { Text(stringResource(R.string.drawer_switch_account)) },
             text = {
                 Column {
                     accounts.forEach { account ->
                         val label = when {
-                            account.isAnonymous -> "Guest"
+                            account.isAnonymous -> stringResource(R.string.drawer_guest)
                             !account.accountName.isNullOrBlank() -> account.accountName!!
                             !account.email.isNullOrBlank() -> account.email!!
                             !account.displayName.isNullOrBlank() -> account.displayName!!
-                            else -> "Unknown Account"
+                            else -> stringResource(R.string.drawer_unknown_account)
                         }
                         val isActive = account.accountId == activeId
                         TextButton(
@@ -444,7 +447,7 @@ fun SideMenuContent(
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Text(
-                                text = if (isActive) "✓ $label" else label,
+                                text = if (isActive) stringResource(R.string.drawer_current_account, label) else label,
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                         }
@@ -457,12 +460,12 @@ fun SideMenuContent(
                         },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("Add Account")
+                        Text(stringResource(R.string.drawer_add_account))
                     }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showAccountSwitcher = false }) { Text("Cancel") }
+                TextButton(onClick = { showAccountSwitcher = false }) { Text(stringResource(R.string.drawer_cancel)) }
             },
         )
     }
@@ -479,15 +482,15 @@ fun SideMenuContent(
                 .padding(horizontal = 20.dp, vertical = 20.dp),
         ) {
             Text(
-                text = "Avago",
+                text = stringResource(R.string.sidemenu_app_name),
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             val subtitle = when {
-                active == null || active.isAnonymous -> "Not signed in"
+                active == null || active.isAnonymous -> stringResource(R.string.drawer_not_signed_in)
                 !active.email.isNullOrBlank() -> active.email!!
                 !active.displayName.isNullOrBlank() -> active.displayName!!
-                else -> "Not signed in"
+                else -> stringResource(R.string.drawer_not_signed_in)
             }
             Text(
                 text = subtitle,
@@ -500,12 +503,12 @@ fun SideMenuContent(
         HorizontalDivider()
 
         // ── ACCOUNT ──────────────────────────────────────────────────────────
-        DrawerSectionHeader("ACCOUNT")
+        DrawerSectionHeader(stringResource(R.string.drawer_header_account))
 
         // Show Sign In when anonymous or not signed in (mirrors iOS SideMenuViewController)
         if (active == null || active.isAnonymous) {
             NavigationDrawerItem(
-                label = { Text("Sign In") },
+                label = { Text(stringResource(R.string.drawer_sign_in)) },
                 selected = false,
                 icon = { Icon(Icons.AutoMirrored.Filled.Login, contentDescription = null) },
                 onClick = onSignIn,
@@ -514,7 +517,7 @@ fun SideMenuContent(
         }
 
         NavigationDrawerItem(
-            label = { Text("Switch Account") },
+            label = { Text(stringResource(R.string.drawer_switch_account)) },
             selected = false,
             icon = { Icon(Icons.Default.ManageAccounts, contentDescription = null) },
             onClick = { showAccountSwitcher = true },
@@ -523,21 +526,20 @@ fun SideMenuContent(
 
         if (active != null && !active.isAnonymous) {
             NavigationDrawerItem(
-                label = { Text("Invite Users") },
+                label = { Text(stringResource(R.string.drawer_invite_users)) },
                 selected = false,
                 icon = { Icon(Icons.Default.PersonAdd, contentDescription = null) },
                 onClick = { onNavigate(SettingsRoute.GRAPH) },
                 modifier = Modifier.padding(horizontal = 8.dp),
             )
 
-            val signOutLabel = "Sign Out of ${
-                when {
+            val signOutAccountLabel = when {
                     !active.accountName.isNullOrBlank() -> active.accountName!!
                     !active.displayName.isNullOrBlank() -> active.displayName!!
                     !active.email.isNullOrBlank() -> active.email!!
-                    else -> "this account"
+                    else -> stringResource(R.string.drawer_this_account)
                 }
-            }"
+            val signOutLabel = stringResource(R.string.drawer_sign_out_of, signOutAccountLabel)
             NavigationDrawerItem(
                 label = { Text(signOutLabel, color = MaterialTheme.colorScheme.error) },
                 selected = false,
@@ -561,10 +563,10 @@ fun SideMenuContent(
         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
         // ── REPORTS ──────────────────────────────────────────────────────────
-        DrawerSectionHeader("REPORTS")
+        DrawerSectionHeader(stringResource(R.string.drawer_header_reports))
 
         NavigationDrawerItem(
-            label = { Text("Cost Report") },
+            label = { Text(stringResource(R.string.nav_cost_report)) },
             selected = currentRoute == "reports/cost",
             icon = { Icon(Icons.Default.BarChart, contentDescription = null) },
             onClick = { onNavigate("reports/cost") },
@@ -572,36 +574,31 @@ fun SideMenuContent(
         )
 
         NavigationDrawerItem(
-            label = { Text("By Category") },
+            label = { Text(stringResource(R.string.nav_by_category)) },
             selected = currentRoute == "category_report",
             icon = { Icon(Icons.AutoMirrored.Filled.Label, contentDescription = null) },
             onClick = { onNavigate("category_report") },
             modifier = Modifier.padding(horizontal = 8.dp),
         )
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-        if (canNavigate("scout.view")) {
-            // ── SCOUT ────────────────────────────────────────────────────────────
-            DrawerSectionHeader("SCOUT")
-
+        if (canNavigate("assets.view")) {
             NavigationDrawerItem(
-                label = { Text("Scout History") },
-                selected = currentRoute == "scout/history",
-                icon = { Icon(Icons.Default.History, contentDescription = null) },
-                onClick = { onNavigate("scout/history") },
+                label = { Text(stringResource(R.string.nav_gallery)) },
+                selected = currentRoute == "gallery",
+                icon = { Icon(Icons.Default.PhotoLibrary, contentDescription = null) },
+                onClick = { onNavigate("gallery") },
                 modifier = Modifier.padding(horizontal = 8.dp),
             )
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
         }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
         if (canNavigate("inventory.view")) {
             // ── INVENTORY ────────────────────────────────────────────────────────
-            DrawerSectionHeader("INVENTORY")
+            DrawerSectionHeader(stringResource(R.string.drawer_header_inventory))
 
             NavigationDrawerItem(
-                label = { Text("Inventory") },
+                label = { Text(stringResource(R.string.nav_inventory)) },
                 selected = currentRoute?.startsWith("inventory") == true &&
                     currentRoute?.startsWith("inventory/purchase-orders") == false,
                 icon = { Icon(Icons.Default.Inventory2, contentDescription = null) },
@@ -610,7 +607,7 @@ fun SideMenuContent(
             )
 
             NavigationDrawerItem(
-                label = { Text("Purchase Orders") },
+                label = { Text(stringResource(R.string.nav_purchase_orders)) },
                 selected = currentRoute?.startsWith("inventory/purchase-orders") == true,
                 icon = { Icon(Icons.Default.ShoppingCart, contentDescription = null) },
                 onClick = { onNavigate(InventoryRoute.PurchaseOrderList.route) },
@@ -622,7 +619,7 @@ fun SideMenuContent(
 
         // ── Settings ─────────────────────────────────────────────────────────
         NavigationDrawerItem(
-            label = { Text("Settings") },
+            label = { Text(stringResource(R.string.nav_settings)) },
             selected = currentRoute?.startsWith("settings") == true,
             icon = { Icon(Icons.Default.Settings, contentDescription = null) },
             onClick = { onNavigate(SettingsRoute.GRAPH) },

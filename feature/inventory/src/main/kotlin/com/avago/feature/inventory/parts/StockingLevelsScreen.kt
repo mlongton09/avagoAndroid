@@ -241,7 +241,7 @@ private fun RowScope.StockValue(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
-            text = value?.let { "%.2f".format(it) } ?: "—",
+            text = value?.let { "%.2f".format(it) } ?: stringResource(R.string.stocking_level_not_set),
             style = MaterialTheme.typography.bodyMedium,
         )
     }

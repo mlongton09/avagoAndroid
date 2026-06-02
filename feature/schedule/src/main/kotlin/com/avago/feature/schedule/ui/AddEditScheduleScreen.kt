@@ -1,4 +1,4 @@
-﻿package com.avago.feature.schedule.ui
+package com.avago.feature.schedule.ui
 
 import android.app.DatePickerDialog
 import androidx.compose.foundation.clickable
@@ -370,7 +370,7 @@ fun AddEditScheduleScreen(
                         value = endCount.toString(),
                         onValueChange = { viewModel.endCount.value = it.toIntOrNull()?.coerceAtLeast(1) ?: 1 },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Number of Occurrences") },
+                        label = { Text(stringResource(R.string.schedule_occurrences)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     )

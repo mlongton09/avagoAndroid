@@ -53,6 +53,7 @@ import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -62,7 +63,6 @@ import com.avago.feature.chat.ui.MessageActionSheet
 import com.avago.feature.chat.ui.MessageBubble
 import com.avago.feature.chat.ui.MessageComposer
 import com.avago.feature.chat.ui.SystemMessageBubble
-import com.avago.feature.chat.ui.PinnedMessageBanner
 import com.avago.feature.chat.ui.SubjectSummaryCard
 import com.avago.feature.chat.ui.TypingIndicator
 import com.avago.feature.chat.ui.displayTitle
@@ -98,6 +98,8 @@ fun ThreadScreen(
     }
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    val todayLabel = stringResource(R.string.date_today)
+    val yesterdayLabel = stringResource(R.string.date_yesterday)
 
     // Surface one-shot errors via Snackbar.
     LaunchedEffect(uiState.errorMessage) {
@@ -183,34 +185,34 @@ fun ThreadScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = uiState.thread?.displayTitle() ?: "Chat",
+                        text = uiState.thread?.displayTitle() ?: stringResource(R.string.thread_title_fallback),
                         maxLines = 1,
                     )
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.thread_back))
                     }
                 },
                 actions = {
                     var showMenu by remember { mutableStateOf(false) }
                     IconButton(onClick = { showMenu = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "More")
+                        Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.thread_more_options))
                     }
                     DropdownMenu(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false },
                     ) {
                         DropdownMenuItem(
-                            text = { Text("Members") },
+                            text = { Text(stringResource(R.string.thread_menu_members)) },
                             onClick = { showMenu = false; onMembers() },
                         )
                         DropdownMenuItem(
-                            text = { Text("Media") },
+                            text = { Text(stringResource(R.string.thread_menu_media)) },
                             onClick = { showMenu = false; onMedia() },
                         )
                         DropdownMenuItem(
-                            text = { Text("Settings") },
+                            text = { Text(stringResource(R.string.thread_menu_settings)) },
                             onClick = { showMenu = false; onSettings() },
                         )
                     }
@@ -279,27 +281,13 @@ fun ThreadScreen(
                     )
                 }
 
-                // Pinned message banner
-                uiState.pinnedMessage?.let { pinned ->
-                    PinnedMessageBanner(
-                        message = pinned,
-                        onTap = {
-                            val idx = uiState.messages.indexOfFirst { it.messageId == pinned.messageId }
-                            if (idx >= 0) {
-                                coroutineScope.launch { listState.animateScrollToItem(idx) }
-                            }
-                        },
-                        onDismiss = { viewModel.unpinMessage(pinned.messageId) },
-                    )
-                }
-
                 // Message list
                 val messages = uiState.messages
-                val messagesWithSeparators = remember(messages) {
+                val messagesWithSeparators = remember(messages, todayLabel, yesterdayLabel) {
                     buildList {
                         var lastDateLabel: String? = null
                         messages.forEach { msg ->
-                            val label = msg.createdAt.toDateLabel()
+                            val label = msg.createdAt.toDateLabel(todayLabel, yesterdayLabel)
                             if (label != lastDateLabel) {
                                 add("date:$label")
                                 lastDateLabel = label
@@ -325,7 +313,7 @@ fun ThreadScreen(
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(
-                                    text = "Loading…",
+                                    text = stringResource(R.string.thread_loading_earlier),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                                 )
@@ -422,7 +410,7 @@ fun ThreadScreen(
                         }
                     },
                 ) {
-                    Text("New messages ↓")
+                    Text(stringResource(R.string.thread_new_messages_pill))
                 }
             }
         }
@@ -472,17 +460,17 @@ fun ThreadScreen(
 
 /**
  * Converts an epoch-millis timestamp to a human-readable date label:
- * "Today", "Yesterday", or "MMM d" (e.g. "Jan 5").
+ * localized "Today", "Yesterday", or "MMM d" (e.g. "Jan 5").
  */
-private fun Long.toDateLabel(): String {
+private fun Long.toDateLabel(todayLabel: String, yesterdayLabel: String): String {
     val cal = java.util.Calendar.getInstance().apply { timeInMillis = this@toDateLabel }
     val today = java.util.Calendar.getInstance()
     val yesterday = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DAY_OF_YEAR, -1) }
     return when {
         cal.get(java.util.Calendar.DAY_OF_YEAR) == today.get(java.util.Calendar.DAY_OF_YEAR) &&
-            cal.get(java.util.Calendar.YEAR) == today.get(java.util.Calendar.YEAR) -> "Today"
+            cal.get(java.util.Calendar.YEAR) == today.get(java.util.Calendar.YEAR) -> todayLabel
         cal.get(java.util.Calendar.DAY_OF_YEAR) == yesterday.get(java.util.Calendar.DAY_OF_YEAR) &&
-            cal.get(java.util.Calendar.YEAR) == yesterday.get(java.util.Calendar.YEAR) -> "Yesterday"
+            cal.get(java.util.Calendar.YEAR) == yesterday.get(java.util.Calendar.YEAR) -> yesterdayLabel
         else -> {
             val sevenDaysAgo = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DAY_OF_YEAR, -6) }
             if (cal.after(sevenDaysAgo)) {
@@ -535,7 +523,7 @@ private fun UnreadDivider() {
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
-            text = "New messages",
+            text = stringResource(R.string.thread_unread_divider),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.align(Alignment.CenterHorizontally),

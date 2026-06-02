@@ -26,7 +26,7 @@ import javax.inject.Inject
 enum class ScheduleStatusFilter { ALL, DUE_SOON, UPCOMING, OVERDUE }
 
 /** Schedule-type filter applied to the schedule list. */
-enum class ScheduleTypeFilter { ALL, BY_DATE, BY_METER }
+enum class ScheduleTypeFilter { ALL, BY_DATE, BY_METER, BY_ASSET }
 
 @HiltViewModel
 class ScheduleListViewModel @Inject constructor(
@@ -86,6 +86,7 @@ class ScheduleListViewModel @Inject constructor(
                     ScheduleTypeFilter.ALL -> true
                     ScheduleTypeFilter.BY_DATE -> s.scheduleType == "calendar"
                     ScheduleTypeFilter.BY_METER -> s.scheduleType == "meter"
+                    ScheduleTypeFilter.BY_ASSET -> true
                 }
             }
             .filter { s ->

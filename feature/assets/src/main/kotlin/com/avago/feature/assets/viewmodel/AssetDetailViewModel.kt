@@ -213,6 +213,25 @@ class AssetDetailViewModel @Inject constructor(
             initialValue = 0,
         )
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val openWorkOrderCount: StateFlow<Int> = accountId
+        .flatMapLatest { acctId ->
+            if (acctId == null) flowOf(0)
+            else dbFactory.get(acctId).workOrderDao().observeByAsset(assetId)
+                .map { workOrders ->
+                    workOrders.count { it.status !in setOf("complete", "cancelled") }
+                }
+                .catch { e ->
+                    Timber.e(e, "[AssetDetailViewModel] open work order count error")
+                    emit(0)
+                }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = 0,
+        )
+
     /**
      * Number of days elapsed since the most recent log entry, or null if there are no entries.
      * Mirrors the "since service" column in the iOS stats strip (sinceString(forDate:)).
@@ -382,6 +401,42 @@ class AssetDetailViewModel @Inject constructor(
             }
         }
     }
+
+    fun cloneLogEntry(entry: LogEntity) {
+                viewModelScope.launch {
+                    val acctId = accountId.value ?: return@launch
+                    val now = System.currentTimeMillis()
+                    val clone = entry.copy(
+                        entryId = UUID.randomUUID().toString(),
+                        accountId = acctId,
+                        assetId = assetId,
+                        entryDate = now,
+                        odometerValue = null,
+                        createdAt = now,
+                        updatedAt = now,
+                        deletedAt = null,
+                        serverVersion = 0L,
+                        seq = null,
+                    )
+                    val db = dbFactory.get(acctId)
+                    db.logDao().upsert(clone)
+                    db.syncQueueDao().enqueueWithDedup(
+                        SyncQueueEntity(
+                            queueId = "log_${clone.entryId}",
+                            entityType = "log",
+                            entityId = clone.entryId,
+                            operation = "insert",
+                            serverVersion = 0L,
+                            payload = null,
+                            syncStatus = "pending",
+                            attempts = 0L,
+                            lastError = null,
+                            createdAt = now,
+                            updatedAt = now,
+                        ),
+                    )
+                }
+            }
 
     suspend fun generatePdf(context: Context): Uri? = withContext(Dispatchers.IO) {
         val currentAsset = asset.value ?: return@withContext null

@@ -49,6 +49,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.avago.core.ui.CategoryItem
+import com.avago.core.ui.GlobalCategoryPickerScreen
 import com.avago.feature.workorders.R
 import com.avago.feature.workorders.model.WoPriority
 import com.avago.feature.workorders.ui.sheets.RepeatsSheet
@@ -63,10 +65,13 @@ fun WorkOrderCreateScreen(
     onBack: () -> Unit,
     onSaved: () -> Unit,
     onPickAsset: () -> Unit,
+    onPickLocation: () -> Unit = {},
     onPickAssetGroup: () -> Unit = {},
     onPickJob: () -> Unit = {},
     /** Job ID returned from JobPickerScreen via nav back-stack SavedStateHandle. */
     selectedJobId: String? = null,
+    selectedLocationId: String? = null,
+    selectedLocationName: String? = null,
     modifier: Modifier = Modifier,
     viewModel: WorkOrderCreateViewModel = hiltViewModel(),
 ) {
@@ -76,6 +81,9 @@ fun WorkOrderCreateScreen(
     val vinDecodeResult by viewModel.vinDecodeResult.collectAsStateWithLifecycle()
     val isDecodingVin by viewModel.isDecodingVin.collectAsStateWithLifecycle()
     val assetName by viewModel.assetName.collectAsStateWithLifecycle()
+    val locationName by viewModel.locationName.collectAsStateWithLifecycle()
+    val category by viewModel.category.collectAsStateWithLifecycle()
+    val availableCategories by viewModel.availableCategories.collectAsStateWithLifecycle()
     val dueDateMs by viewModel.dueDateMs.collectAsStateWithLifecycle()
     val priority by viewModel.priority.collectAsStateWithLifecycle()
     val estimatedHours by viewModel.estimatedHours.collectAsStateWithLifecycle()
@@ -98,6 +106,12 @@ fun WorkOrderCreateScreen(
         }
     }
 
+    LaunchedEffect(selectedLocationId, selectedLocationName) {
+        if (selectedLocationId != null) {
+            viewModel.onLocationSelected(selectedLocationId, selectedLocationName ?: selectedLocationId)
+        }
+    }
+
     LaunchedEffect(savedSuccessfully) {
         if (savedSuccessfully) onSaved()
     }
@@ -106,6 +120,7 @@ fun WorkOrderCreateScreen(
     var showTemplateMenu by remember { mutableStateOf(false) }
     var showTechPicker by remember { mutableStateOf(false) }
     var showRepeatsSheet by remember { mutableStateOf(false) }
+    var showCategoryPicker by remember { mutableStateOf(false) }
     var repeatsRrule by remember { mutableStateOf<String?>(null) }
     var showVinSection by remember { mutableStateOf(false) }
 
@@ -132,6 +147,19 @@ fun WorkOrderCreateScreen(
                 showTechPicker = false
             },
             woId = null,
+        )
+    }
+
+    if (showCategoryPicker) {
+        GlobalCategoryPickerScreen(
+            title = stringResource(R.string.wo_category),
+            categories = availableCategories.map { CategoryItem(key = it, displayName = it) },
+            onSelect = { item ->
+                viewModel.category.value = item.key
+                viewModel.fetchEffortHint(item.key)
+                showCategoryPicker = false
+            },
+            onDismiss = { showCategoryPicker = false },
         )
     }
 
@@ -300,6 +328,12 @@ fun WorkOrderCreateScreen(
                 maxLines = 4,
             )
 
+            ListItem(
+                headlineContent = { Text(category ?: stringResource(R.string.wo_category_placeholder)) },
+                supportingContent = { Text(stringResource(R.string.wo_create_section_category)) },
+                modifier = Modifier.clickable { showCategoryPicker = true },
+            )
+
             // Asset picker (stub — navigates out)
             OutlinedButton(
                 onClick = onPickAsset,
@@ -307,6 +341,14 @@ fun WorkOrderCreateScreen(
             ) {
                 Text(assetName ?: stringResource(R.string.wo_field_asset_placeholder))
             }
+
+            ListItem(
+                headlineContent = {
+                    Text(locationName ?: stringResource(R.string.wo_location_same_as_asset))
+                },
+                supportingContent = { Text(stringResource(R.string.wo_create_section_location)) },
+                modifier = Modifier.clickable { onPickLocation() },
+            )
 
             // Asset Group picker
             OutlinedButton(
@@ -318,8 +360,8 @@ fun WorkOrderCreateScreen(
 
             // Job / Project picker
             ListItem(
-                headlineContent = { Text(jobTitle ?: jobId ?: "No Job Assigned") },
-                supportingContent = { Text("Job / Project") },
+                headlineContent = { Text(jobTitle ?: jobId ?: stringResource(R.string.wo_no_job_assigned)) },
+                supportingContent = { Text(stringResource(R.string.wo_job_label)) },
                 trailingContent = {
                     if (jobId != null) {
                         IconButton(onClick = viewModel::clearJob) {

@@ -170,4 +170,17 @@
     <string name="system_reports_title">System Reports</string>
     <string name="system_reports_coming_soon">Coming Soon</string>
     <string name="system_reports_coming_soon_detail">System reports — Account Overview, Inventory Stock Health,\nDocument Coverage, Member Activity, Compliance Snapshot\nwill be available in a future update.</string>
+
+    <!-- iOS report parity -->
+    <string name="sort_newest">Newest first</string>
+    <string name="sort_oldest">Oldest first</string>
+    <string name="sort_highest">Highest first</string>
+    <string name="sort_lowest">Lowest first</string>
+    <string name="reports_empty_state">No results</string>
+    <string name="report_category">Category Report</string>
+    <string name="report_cost">Cost Report</string>
+    <string name="cost_report_mode_all">All</string>
+    <string name="cost_report_mode_by_asset">By Asset</string>
+    <string name="cost_report_mode_by_type">By Type</string>
+    <string name="cost_report_mode_tco">TCO</string>
 </resources>

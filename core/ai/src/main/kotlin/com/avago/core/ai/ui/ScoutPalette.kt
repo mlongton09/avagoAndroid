@@ -1,7 +1,10 @@
 package com.avago.core.ai.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,6 +20,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -38,9 +42,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.avago.core.ai.ActionCard
+import com.avago.core.ai.R
 import com.avago.core.ai.ScoutResponse
 import com.avago.core.ai.ScoutViewModel
 import com.avago.core.network.model.AiSkillResponse
@@ -66,7 +72,7 @@ import com.avago.core.network.model.AiSkillResponse
  * @param onNavigate Called with (targetRoute, fieldMap) on a successful
  *                   Scout reply that includes a [targetScreen].
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ScoutPaletteSheet(
     visible: Boolean,
@@ -180,7 +186,7 @@ fun ScoutPaletteSheet(
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
 
-            Text("Scout", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.scout_title), style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
 
             formReadyResponse?.let { response ->
@@ -204,7 +210,7 @@ fun ScoutPaletteSheet(
             OutlinedTextField(
                 value = input,
                 onValueChange = { input = it },
-                placeholder = { Text("Ask Scout anything… (/ for skills)") },
+                placeholder = { Text(stringResource(R.string.scout_placeholder)) },
                 modifier = Modifier.fillMaxWidth(),
                 trailingIcon = {
                     IconButton(
@@ -223,6 +229,11 @@ fun ScoutPaletteSheet(
             )
 
             Spacer(Modifier.height(8.dp))
+
+            if (input.isBlank()) {
+                ScoutSuggestionChips(onSuggestion = { input = it })
+                Spacer(Modifier.height(8.dp))
+            }
 
             // Loading / error state
             when (val s = state) {
@@ -296,6 +307,31 @@ fun ScoutPaletteSheet(
             }
 
             Spacer(Modifier.height(12.dp))
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ScoutSuggestionChips(
+    onSuggestion: (String) -> Unit,
+) {
+    val suggestions = listOf(
+        stringResource(R.string.chip_oil_change),
+        stringResource(R.string.chip_fuel_log),
+        stringResource(R.string.chip_inspection),
+        stringResource(R.string.chip_create_wo),
+    )
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        suggestions.forEach { suggestion ->
+            AssistChip(
+                onClick = { onSuggestion(suggestion) },
+                label = { Text(suggestion) },
+            )
         }
     }
 }

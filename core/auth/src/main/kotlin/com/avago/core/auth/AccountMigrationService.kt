@@ -1,55 +1,65 @@
 package com.avago.core.auth
 
-import android.content.Context
+import android.database.sqlite.SQLiteDatabase
 import com.avago.core.data.DatabaseFactory
-import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 
+data class AnonymousMigrationCandidate(
+    val sourceAccountId: String,
+    val assetCount: Int,
+)
+
 @Singleton
 class AccountMigrationService @Inject constructor(
-    @ApplicationContext private val context: Context,
     private val tokenStore: SecureTokenStore,
     private val accountManifest: AccountManifest,
     private val databaseFactory: DatabaseFactory,
 ) {
-    /**
-     * Called after sign-in to migrate any data from an anonymous account to the
-     * newly authenticated account. If an anonymous account exists and the new
-     * account is authenticated, merge the anonymous account's sync queue into
-     * the new account's DB then delete the anonymous account.
-     */
-    suspend fun migrateAnonymousToAuthenticated(newAccountId: String) {
-        val allAccounts = accountManifest.allAccounts()
-        val anonymousAccounts = allAccounts.filter { it.isAnonymous && it.accountId != newAccountId }
+    suspend fun pendingAnonymousMigration(): AnonymousMigrationCandidate? = withContext(Dispatchers.IO) {
+        val activeAccountId = tokenStore.activeAccountId ?: return@withContext null
+        val account = accountManifest.allAccounts()
+            .firstOrNull { it.accountId == activeAccountId && it.isAnonymous }
+            ?: return@withContext null
+        val assetCount = runCatching {
+            databaseFactory.get(account.accountId).assetDao().countRealAssets(account.accountId)
+        }.onFailure { Timber.w(it, "AccountMigrationService: failed to count anonymous assets") }
+            .getOrDefault(0)
+        if (assetCount > 0) AnonymousMigrationCandidate(account.accountId, assetCount) else null
+    }
 
-        if (anonymousAccounts.isEmpty()) {
-            Timber.d("AccountMigrationService: no anonymous accounts to migrate for $newAccountId")
-            return
+    suspend fun migrateAnonymousToAuthenticated(sourceAccountId: String, newAccountId: String): Boolean =
+        withContext(Dispatchers.IO) {
+            val migrated = runCatching {
+                databaseFactory.get(newAccountId)
+                performLocalMigration(sourceAccountId, newAccountId)
+            }
+                .onFailure { Timber.w(it, "AccountMigrationService: failed to migrate $sourceAccountId to $newAccountId") }
+                .getOrDefault(false)
+            if (migrated) discardAnonymousAccount(sourceAccountId)
+            migrated
         }
 
+    /** Backwards-compatible cleanup for callers that only know the destination account. */
+    suspend fun migrateAnonymousToAuthenticated(newAccountId: String) {
+        val anonymousAccounts = accountManifest.allAccounts().filter { it.isAnonymous && it.accountId != newAccountId }
         for (anonAccount in anonymousAccounts) {
-            val anonId = anonAccount.accountId
-            Timber.d("AccountMigrationService: pruning anonymous account $anonId")
-
-            // Clear tokens for the anonymous account
-            tokenStore.clearTokens(anonId)
-
-            // Remove from manifest
-            accountManifest.remove(anonId)
-
-            Timber.d("AccountMigrationService: anonymous account $anonId removed after sign-in as $newAccountId")
+            discardAnonymousAccount(anonAccount.accountId)
         }
     }
 
-    /**
-     * Called on app launch to clean up any orphaned anonymous accounts that
-     * have no tokens (e.g., from a crashed provision flow).
-     */
+    suspend fun discardAnonymousAccount(accountId: String) = withContext(Dispatchers.IO) {
+        tokenStore.clearTokens(accountId)
+        accountManifest.remove(accountId)
+        databaseFactory.deleteDatabase(accountId)
+        Timber.d("AccountMigrationService: anonymous account $accountId removed")
+    }
+
     suspend fun pruneOrphanedAccounts() {
         val allAccounts = accountManifest.allAccounts()
-
         val orphaned = allAccounts.filter { account ->
             val access = tokenStore.getAccessToken(account.accountId)
             val refresh = tokenStore.getRefreshToken(account.accountId)
@@ -68,4 +78,69 @@ class AccountMigrationService @Inject constructor(
 
         Timber.d("AccountMigrationService: pruned ${orphaned.size} orphaned account(s)")
     }
+
+    private fun performLocalMigration(sourceAccountId: String, newAccountId: String): Boolean {
+        if (sourceAccountId == newAccountId) return true
+        val sourceFile = databaseFactory.databaseFile(sourceAccountId)
+        if (!sourceFile.exists()) return false
+        databaseFactory.close(sourceAccountId)
+        databaseFactory.close(newAccountId)
+        val destFile = databaseFactory.databaseFile(newAccountId)
+        if (!destFile.exists()) return false
+
+        val db = SQLiteDatabase.openDatabase(destFile.absolutePath, null, SQLiteDatabase.OPEN_READWRITE)
+        return try {
+            db.beginTransaction()
+            db.execSQL("ATTACH DATABASE ? AS source", arrayOf(sourceFile.absolutePath))
+            for (table in accountScopedTables(db)) {
+                copyAccountRows(db, table, sourceAccountId, newAccountId)
+            }
+            db.setTransactionSuccessful()
+            true
+        } finally {
+            runCatching { db.endTransaction() }
+            runCatching { db.execSQL("DETACH DATABASE source") }
+            db.close()
+        }
+    }
+
+    private fun accountScopedTables(db: SQLiteDatabase): List<String> {
+        val tables = mutableListOf<String>()
+        db.rawQuery(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('android_metadata', 'room_master_table')",
+            null,
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                val table = cursor.getString(0)
+                if (columnsFor(db, table).contains("account_id")) tables.add(table)
+            }
+        }
+        return tables
+    }
+
+    private fun copyAccountRows(db: SQLiteDatabase, table: String, sourceAccountId: String, newAccountId: String) {
+        val columns = columnsFor(db, table)
+        if (columns.isEmpty()) return
+        val insertColumns = columns.joinToString(", ") { it.quotedIdentifier() }
+        val selectColumns = columns.joinToString(", ") { column ->
+            if (column == "account_id") "? AS ${column.quotedIdentifier()}"
+            else "source.${table.quotedIdentifier()}.${column.quotedIdentifier()}"
+        }
+        db.execSQL(
+            "INSERT OR REPLACE INTO main.${table.quotedIdentifier()} ($insertColumns) " +
+                "SELECT $selectColumns FROM source.${table.quotedIdentifier()} WHERE ${"account_id".quotedIdentifier()} = ?",
+            arrayOf(newAccountId, sourceAccountId),
+        )
+    }
+
+    private fun columnsFor(db: SQLiteDatabase, table: String): List<String> {
+        val columns = mutableListOf<String>()
+        db.rawQuery("PRAGMA table_info(${table.quotedIdentifier()})", null).use { cursor ->
+            val nameIndex = cursor.getColumnIndex("name")
+            while (cursor.moveToNext()) columns.add(cursor.getString(nameIndex))
+        }
+        return columns
+    }
+
+    private fun String.quotedIdentifier(): String = "\"" + replace("\"", "\"\"") + "\""
 }

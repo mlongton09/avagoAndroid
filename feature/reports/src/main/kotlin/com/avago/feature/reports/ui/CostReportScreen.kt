@@ -1,4 +1,4 @@
-﻿package com.avago.feature.reports.ui
+package com.avago.feature.reports.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -39,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -58,6 +59,7 @@ import com.avago.core.reports.model.CostGroupMode
 import com.avago.core.reports.model.CostGroupRow
 import com.avago.core.reports.model.CostPeriodMode
 import com.avago.core.reports.model.CostReportData
+import com.avago.feature.reports.R
 import com.avago.feature.reports.ui.components.ExportButtons
 import com.avago.feature.reports.viewmodel.CostReportViewModel
 
@@ -94,7 +96,7 @@ fun CostReportScreen(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Cost Report") },
+                title = { Text(stringResource(R.string.report_cost)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -123,10 +125,10 @@ fun CostReportScreen(
                             label = {
                                 Text(
                                     when (mode) {
-                                        CostGroupMode.ALL -> "All"
-                                        CostGroupMode.BY_ASSET -> "By Asset"
-                                        CostGroupMode.BY_TYPE -> "By Type"
-                                        CostGroupMode.TCO -> "TCO"
+                                        CostGroupMode.ALL -> stringResource(R.string.cost_report_mode_all)
+                                        CostGroupMode.BY_ASSET -> stringResource(R.string.cost_report_mode_by_asset)
+                                        CostGroupMode.BY_TYPE -> stringResource(R.string.cost_report_mode_by_type)
+                                        CostGroupMode.TCO -> stringResource(R.string.cost_report_mode_tco)
                                     },
                                     style = MaterialTheme.typography.labelMedium,
                                 )
@@ -266,7 +268,7 @@ fun CostReportScreen(
                     emptyList()
                 }
                 ExportButtons(
-                    title = "Cost Report",
+                    title = stringResource(R.string.report_cost),
                     headers = headers,
                     rows = rows,
                     range = viewModel.exportRange(reportData),
@@ -355,7 +357,7 @@ private fun CostBarChart(
 ) {
     val surfaceColor = MaterialTheme.colorScheme.onSurface
     val dividerColor = MaterialTheme.colorScheme.outlineVariant
-    val emptyText = "No cost data yet"
+    val emptyText = stringResource(R.string.reports_empty_state)
 
     val bars: List<Pair<String, Double>> = when {
         data == null -> emptyList()

@@ -55,7 +55,7 @@ fun GrnCreateSheet(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp, vertical = 16.dp),
         ) {
-            Text(stringResource(R.string.grn_sheet_title), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.grn_title), style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(16.dp))
 
             OutlinedTextField(

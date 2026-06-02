@@ -27,10 +27,8 @@ fun NavGraphBuilder.reportsNavGraph(navController: NavHostController) {
     ) {
         composable(ReportsRoute.List.route) {
             ReportsListScreen(
-                onNavigateToWorkOrders = { navController.navigate(ReportsRoute.WorkOrderReports.route) },
-                onNavigateToMaintenance = { navController.navigate(ReportsRoute.MaintenanceReports.route) },
-                onNavigateToFinancial = { navController.navigate(ReportsRoute.FinancialReports.route) },
-                onNavigateToSystem = { navController.navigate(ReportsRoute.SystemReports.route) },
+                onNavigateToCategory = { navController.navigate(ReportsRoute.WorkOrderReports.route) },
+                onNavigateToCost = { navController.navigate(ReportsRoute.CostReport.route) },
             )
         }
 

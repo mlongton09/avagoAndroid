@@ -1,7 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Common / Core UI -->
+    <string name="offline_banner">Offline — changes will sync when reconnected</string>
+    <string name="open_settings">Open Settings</string>
+    <string name="untitled">Untitled</string>
+    <string name="not_now">Not Now</string>
+    <string name="date_today">Today</string>
+    <string name="date_yesterday">Yesterday</string>
+    <plurals name="days_ago">
+        <item quantity="one">%d day ago</item>
+        <item quantity="other">%d days ago</item>
+    </plurals>
+    <string name="photo_camera">Camera</string>
+    <string name="photo_library">Photo Library</string>
+
     <!-- Global category picker -->
     <string name="global_category_picker_title">Select Category</string>
     <string name="global_category_picker_search">Search categories</string>
     <string name="global_category_picker_empty">No categories found</string>
+    <string name="scout_title">Scout</string>
+    <string name="scout_open">Open Scout</string>
+    <string name="scout_placeholder">Ask Scout…</string>
+    <string name="scout_close">Close Scout</string>
+    <string name="chip_oil_change">Oil change…</string>
+    <string name="chip_fuel_log">Log fuel…</string>
+    <string name="chip_inspection">Start inspection…</string>
+    <string name="chip_create_wo">Create work order…</string>
 </resources>

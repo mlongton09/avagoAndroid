@@ -2,47 +2,68 @@
 <resources>
     <!-- Asset List -->
     <string name="assets_title">Assets</string>
-    <string name="assets_search_placeholder">Search assets…</string>
-    <string name="assets_filter_all">All</string>
-    <string name="assets_filter_by_type">By Type</string>
-    <string name="assets_empty">Add your first asset</string>
+    <string name="assets_search_placeholder">Search</string>
+    <string name="assets_filter_all">All Types</string>
+    <string name="assets_filter_reset">Reset</string>
+    <string name="assets_empty">No assets yet\nTap + to add your first asset</string>
     <string name="assets_add_content_description">Add asset</string>
-    <string name="assets_pull_to_refresh">Pull to refresh</string>
 
     <!-- Asset Detail -->
     <string name="asset_detail_title">Asset</string>
-    <string name="asset_detail_total_cost">Total Cost</string>
     <string name="asset_detail_last_service">Last Service</string>
     <string name="asset_detail_meter_reading">Meter Reading</string>
-    <string name="asset_detail_log_entries">Log Entries</string>
-    <string name="asset_detail_no_logs">No log entries yet</string>
-    <string name="asset_detail_share_pdf">Share PDF</string>
+    <string name="asset_detail_log_entries">ENTRIES</string>
+    <string name="asset_detail_since_service">SINCE SERVICE</string>
+    <string name="asset_detail_open_wos">OPEN W/Os</string>
+    <string name="asset_detail_section_details">DETAILS</string>
+    <string name="asset_detail_inspection_title">INSPECTION</string>
+    <string name="asset_detail_no_logs">No log entries yet.\nLog an activity to get started.</string>
+    <string name="asset_detail_share_pdf">Generate PDF Report</string>
+    <string name="asset_detail_pdf_generate">Generate PDF Report</string>
     <string name="asset_detail_add_log">Add Log Entry</string>
-    <string name="asset_detail_overflow_menu">More options</string>
+    <string name="asset_detail_overflow_menu">Open menu</string>
+    <string name="asset_detail_action_clone">Clone</string>
     <string name="asset_detail_back">Back</string>
     <string name="asset_detail_edit">Edit</string>
     <string name="asset_detail_filter_all">All</string>
     <string name="asset_detail_na">N/A</string>
 
     <!-- Add / Edit Asset -->
-    <string name="asset_add_title">New Asset</string>
+    <string name="asset_add_title">Add Asset</string>
     <string name="asset_edit_title">Edit Asset</string>
     <string name="asset_field_name">Name</string>
-    <string name="asset_field_name_required">Name is required</string>
+    <string name="asset_field_name_required">Please enter an asset name.</string>
     <string name="asset_field_type">Asset Type</string>
-    <string name="asset_field_type_placeholder">Select type…</string>
+    <string name="asset_field_type_placeholder">Select type\u2026</string>
     <string name="asset_field_make">Make</string>
     <string name="asset_field_model">Model</string>
     <string name="asset_field_year">Year</string>
     <string name="asset_field_color">Color</string>
     <string name="asset_field_license_plate">License Plate</string>
-    <string name="asset_field_vin">VIN / Serial</string>
+    <string name="asset_field_vin">VIN</string>
+    <string name="asset_field_scan_vin">Scan VIN</string>
+    <string name="asset_field_state">State / Province</string>
+    <string name="asset_field_postal">ZIP / Postal Code</string>
+    <string name="asset_geocode_lookup">Look up coordinates from address</string>
+    <string name="asset_add_photo">Add Photo</string>
+    <string name="asset_photo_library">Photo Library</string>
+    <string name="gallery_title">Gallery</string>
+    <string name="gallery_empty">No photos yet.\nAdd photos to your assets\nand they’ll appear here.</string>
+    <string name="gallery_item_count">%1$d of %2$d</string>
+    <string name="asset_add_address_btn">Add address</string>
+    <string name="asset_section_address">Address</string>
+    <string name="asset_add_units_btn">Add units</string>
+    <string name="asset_add_bays_btn">Add bays</string>
+    <string name="asset_add_suites_btn">Add suites</string>
+    <string name="asset_geocode_error_location">Unable to determine location.</string>
+    <string name="asset_geocode_error_not_found">Address not found.</string>
+    <string name="performed_by_me">Me \u2014 %1$s</string>
     <string name="asset_field_purchase_date">Purchase Date</string>
     <string name="asset_field_purchase_price">Purchase Price</string>
     <string name="asset_field_location">Location</string>
     <string name="asset_field_notes">Notes</string>
     <string name="asset_save">Save</string>
-    <string name="asset_saving">Saving…</string>
+    <string name="asset_saving">Saving\u2026</string>
     <string name="asset_cancel">Cancel</string>
 
     <!-- Asset Type Picker -->
@@ -78,16 +99,17 @@
 
     <!-- Asset Picker -->
     <string name="asset_picker_title">Select Asset</string>
-    <string name="asset_picker_search_placeholder">Search assets…</string>
+    <string name="asset_picker_search_placeholder">Search assets\u2026</string>
     <string name="asset_picker_empty">No assets found</string>
 
-    <!-- Asset Detail — Photos -->
+    <!-- Asset Detail \u2014 Photos -->
     <string name="asset_detail_photos">Photos</string>
 
     <!-- Barcode Scanner -->
-    <string name="barcode_scanner_title">Scan Asset Barcode</string>
+    <string name="barcode_scanner_title">Scan Barcode</string>
     <string name="barcode_scanner_action_description">Scan barcode</string>
-    <string name="barcode_scanner_hint">Align the barcode or QR code within the frame</string>
+    <string name="barcode_scanner_hint">Point your camera at a barcode to scan it.</string>
+    <string name="barcode_hint">Point your camera at a barcode to scan it.</string>
     <string name="barcode_scanner_permission_rationale">Camera access is required to scan barcodes</string>
     <string name="barcode_scanner_grant_permission">Grant Camera Permission</string>
     <string name="barcode_scanner_not_found">No asset found for this barcode</string>
@@ -127,18 +149,15 @@
     <string name="doc_type_picker_title">Document Type</string>
     <string name="doc_type_picker_back">Back</string>
 
-    <!-- Asset Detail — hardcoded card labels -->
+    <!-- Asset Detail \u2014 hardcoded card labels -->
     <string name="asset_detail_work_orders_card">Work Orders</string>
     <string name="asset_detail_notes_card">Notes</string>
-    <string name="asset_detail_wheel_tire_card">Wheel / Tire</string>
-    <string name="asset_detail_wheel_configuration">Configuration</string>
-    <string name="asset_detail_wheel_data_input">Data Input</string>
     <string name="asset_detail_retry">Retry</string>
 
     <!-- Asset Work Orders screen -->
     <string name="asset_work_orders_title">Work Orders</string>
     <string name="asset_work_orders_empty">No work orders for this asset</string>
-    <string name="asset_wo_due_format">Due %s</string>
+    <string name="asset_wo_due_format">Due %1$s</string>
     <string name="asset_wo_no_due_date">No due date</string>
     <string name="asset_wo_status_open">Open</string>
     <string name="asset_wo_status_in_progress">In Progress</string>
@@ -153,7 +172,7 @@
 
     <!-- Doc Scan Pipeline screen -->
     <string name="doc_scan_title">Scan Document</string>
-    <string name="doc_scan_opening">Opening scanner…</string>
+    <string name="doc_scan_opening">Opening scanner\u2026</string>
     <string name="doc_scan_unavailable">Scanner unavailable</string>
     <string name="doc_scan_go_back">Go Back</string>
 
@@ -179,19 +198,23 @@
     <string name="rental_end_button">End Rental</string>
     <string name="rental_total_label">Total</string>
     <string name="rental_create_button">Create Rental</string>
-    <string name="rental_ending">Ending…</string>
-    <string name="rental_creating">Creating…</string>
+    <string name="rental_ending">Ending\u2026</string>
+    <string name="rental_creating">Creating\u2026</string>
     <string name="rental_end_confirm_title">End Rental</string>
     <string name="rental_end_confirm_body">Mark this rental as ended now?</string>
-    <string name="rental_asset_detail_action">Rentals</string>
 
     <!-- Onboarding / FRE -->
     <string name="onboarding_welcome_title">Welcome to Avago</string>
-    <string name="onboarding_welcome_body">Track your assets, schedule maintenance, and manage your team — all in one place. Start by adding your first asset.</string>
+    <string name="onboarding_welcome_body">The assets above are sample data to help you explore avago.\n\nTap + to add your first asset \u2014 your sample data will be automatically removed.</string>
+    <string name="fre_welcome_title">Welcome to Avago</string>
+    <string name="fre_welcome_body">The assets above are sample data to help you explore avago.\n\nTap + to add your first asset \u2014 your sample data will be automatically removed.</string>
+    <string name="fre_settings_hint">Change language, currency, and km/miles in settings</string>
+    <string name="fre_button">Settings</string>
+    <string name="fre_fab_hint">Add new assets here</string>
     <string name="onboarding_add_asset">Add Asset</string>
     <string name="onboarding_dismiss">Dismiss</string>
     <string name="onboarding_page1_title">Track Everything You Own</string>
-    <string name="onboarding_page1_body">From vehicles to equipment, buildings to vessels — add all your assets and see their full history at a glance.</string>
+    <string name="onboarding_page1_body">From vehicles to equipment, buildings to vessels \u2014 add all your assets and see their full history at a glance.</string>
     <string name="onboarding_page2_title">Manage Maintenance</string>
     <string name="onboarding_page2_body">Create work orders, assign technicians, track costs, and never miss a scheduled service.</string>
     <string name="onboarding_page3_title">Work as a Team</string>
@@ -199,4 +222,11 @@
     <string name="onboarding_next">Next</string>
     <string name="onboarding_get_started">Get Started</string>
     <string name="onboarding_skip">Skip</string>
+
+    <!-- Report parity -->
+    <string name="sort_newest">Newest first</string>
+    <string name="sort_oldest">Oldest first</string>
+    <string name="sort_highest">Highest first</string>
+    <string name="sort_lowest">Lowest first</string>
+    <string name="reports_empty_state">No results</string>
 </resources>

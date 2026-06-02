@@ -79,7 +79,6 @@ import com.avago.feature.workorders.ui.sheets.TechPickerSheet
 import com.avago.feature.workorders.viewmodel.AuditEntry
 import com.avago.feature.workorders.viewmodel.WorkOrderDetailViewModel
 import com.avago.feature.workorders.viewmodel.WorkOrderMapPreview
-import com.avago.core.network.model.BudgetPillResponse
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -93,7 +92,6 @@ fun WorkOrderDetailScreen(
     onTechClick: (techId: String) -> Unit = {},
     onAddPart: () -> Unit = {},
     onManageCostLines: () -> Unit = {},
-    onCaptureSignature: () -> Unit = {},
     onOpenChat: ((threadId: String) -> Unit)? = null,
     onLogWork: ((assetId: String?) -> Unit)? = null,
     modifier: Modifier = Modifier,
@@ -115,7 +113,6 @@ fun WorkOrderDetailScreen(
     val canEdit by viewModel.canEdit.collectAsStateWithLifecycle()
     val canApprove by viewModel.canApprove.collectAsStateWithLifecycle()
     val canDelete by viewModel.canDelete.collectAsStateWithLifecycle()
-    val budgetPill by viewModel.budgetPill.collectAsStateWithLifecycle()
     val mapPreview by viewModel.mapPreview.collectAsStateWithLifecycle()
 
     var showOverflowMenu by remember { mutableStateOf(false) }
@@ -281,13 +278,6 @@ fun WorkOrderDetailScreen(
                                     viewModel.exportPdf(context)
                                 },
                             )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.wo_detail_capture_signature)) },
-                                onClick = {
-                                    showOverflowMenu = false
-                                    onCaptureSignature()
-                                },
-                            )
                             if (canDelete) {
                                 DropdownMenuItem(
                                     text = {
@@ -415,7 +405,7 @@ fun WorkOrderDetailScreen(
                             WoTimerView(startedAtMs = startedAt)
                         }
                         currentWo.estimatedEffortMinutes?.let { mins ->
-                            LabeledRow(stringResource(R.string.wo_detail_est_hours_label), String.format("%.1f h", mins / 60.0))
+                            LabeledRow(stringResource(R.string.wo_detail_est_hours_label), stringResource(R.string.wo_detail_minutes_format, mins))
                         }
                         if (currentWo.woKind == "recurring_parent") {
                             LabeledRow(stringResource(R.string.wo_detail_type_label), stringResource(R.string.wo_detail_recurring_label))
@@ -533,55 +523,6 @@ fun WorkOrderDetailScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // ── Parts used ──
-                    DetailSection(
-                        title = stringResource(R.string.wo_detail_section_parts),
-                        action = {
-                            IconButton(
-                                onClick = onAddPart,
-                                modifier = Modifier.size(32.dp),
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.wo_detail_add_part))
-                            }
-                        },
-                    ) {
-                        Text(
-                            text = stringResource(R.string.wo_detail_parts_empty),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // ── Costs ──
-                    DetailSection(
-                        title = stringResource(R.string.wo_detail_section_costs),
-                        action = {
-                            TextButton(onClick = onManageCostLines) {
-                                Text(stringResource(R.string.wo_detail_costs_manage))
-                            }
-                        },
-                    ) {
-                        currentWo.laborCost?.let { LabeledRow(stringResource(R.string.wo_detail_labor_cost), formatCurrency(it, currentWo.currency)) }
-                        currentWo.partsCost?.let { LabeledRow(stringResource(R.string.wo_detail_parts_cost), formatCurrency(it, currentWo.currency)) }
-                        currentWo.totalCost?.let { LabeledRow(stringResource(R.string.wo_detail_total_cost), formatCurrency(it, currentWo.currency)) }
-                        if (currentWo.laborCost == null && currentWo.partsCost == null && currentWo.totalCost == null) {
-                            Text(
-                                text = stringResource(R.string.wo_detail_costs_empty),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    BudgetPillCard(budgetPill = budgetPill)
-                    if (budgetPill != null) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                    }
-
                     // ── Dispatcher notes ──
                     DetailSection(title = stringResource(R.string.wo_detail_section_dispatcher)) {
                         OutlinedTextField(
@@ -607,11 +548,9 @@ fun WorkOrderDetailScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // ── Activity (audit history) ──
+                    // ── History ──
                     ActivityCard(auditHistory = auditHistory)
-                    if (auditHistory.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                    }
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     // ── Comments ──
                     DetailSection(title = stringResource(R.string.wo_detail_section_comments)) {
@@ -671,25 +610,6 @@ fun WorkOrderDetailScreen(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun BudgetPillCard(budgetPill: BudgetPillResponse?) {
-    if (budgetPill == null) return
-    DetailSection(title = stringResource(R.string.wo_budget_pill_title)) {
-        LabeledRow(
-            stringResource(R.string.wo_budget_labor),
-            formatCurrency(budgetPill.labor_cost, budgetPill.currency),
-        )
-        LabeledRow(
-            stringResource(R.string.wo_budget_parts),
-            formatCurrency(budgetPill.parts_cost, budgetPill.currency),
-        )
-        LabeledRow(
-            stringResource(R.string.wo_budget_total),
-            formatCurrency(budgetPill.total_cost, budgetPill.currency),
-        )
     }
 }
 
@@ -783,12 +703,12 @@ private fun ApprovalBanner(
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
-                "Awaiting Cost Approval",
+                stringResource(R.string.status_awaiting_approval),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onErrorContainer,
             )
             Text(
-                "This work order requires cost approval before it can proceed.",
+                stringResource(R.string.wo_approval_required_message),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f),
             )
@@ -891,34 +811,41 @@ private fun HeaderCard(
 
 @Composable
 private fun ActivityCard(auditHistory: List<AuditEntry>) {
-    if (auditHistory.isEmpty()) return
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
-                text = "Activity",
+                text = stringResource(R.string.wo_detail_section_history),
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
             )
             Spacer(Modifier.height(8.dp))
-            auditHistory.forEach { entry ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 2.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(
-                        text = "• ${entry.description}",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Text(
-                        text = entry.createdAt,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                    )
+            if (auditHistory.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.wo_detail_history_empty),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                auditHistory.forEach { entry ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            text = "• ${entry.description}",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            text = entry.createdAt,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                        )
+                    }
                 }
             }
         }
@@ -982,7 +909,3 @@ private fun formatDate(ms: Long): String {
     val date = Instant.ofEpochMilli(ms).atZone(zone).toLocalDate()
     return date.format(DateTimeFormatter.ofPattern("MMM d, yyyy"))
 }
-
-private fun formatCurrency(amount: Double, currencyCode: String?): String =
-    try { com.avago.core.data.Formatters.formatCurrency(amount, currencyCode) }
-    catch (_: Exception) { "%.2f".format(amount) }

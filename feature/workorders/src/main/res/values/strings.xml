@@ -9,6 +9,9 @@
     <string name="wo_filter_fab_description">Filter work orders</string>
     <string name="wo_create_fab_description">Create work order</string>
     <string name="wo_empty">No work orders found</string>
+    <string name="wo_all_caught_up">All caught up!</string>
+    <string name="wo_no_unassigned">No unassigned work orders</string>
+    <string name="wo_no_open">No open work orders</string>
 
     <!-- Horizon segmented control (matches iOS Now / Next / Later) -->
     <string name="wo_horizon_now">Now</string>
@@ -21,30 +24,27 @@
     <string name="wo_bucket_this_week">This Week</string>
     <string name="wo_bucket_this_month">This Month</string>
     <string name="wo_bucket_later">Later</string>
-    <string name="wo_bucket_no_due_date">No Due Date</string>
     <string name="wo_bucket_completed">Completed</string>
 
-    <!-- Timer -->
-    <string name="wo_timer_running">Timer running</string>
     <string name="wo_due_date">Due %s</string>
     <string name="wo_overdue">Overdue</string>
     <string name="wo_no_due_date">No due date</string>
     <string name="wo_unassigned">Unassigned</string>
 
     <!-- Status labels -->
+    <string name="wo_status_draft">Draft</string>
     <string name="wo_status_open">Open</string>
     <string name="wo_status_assigned">Assigned</string>
     <string name="wo_status_in_progress">In Progress</string>
     <string name="wo_status_on_hold">On Hold</string>
-    <string name="wo_status_pending_parts">Pending Parts</string>
     <string name="wo_status_complete">Complete</string>
     <string name="wo_status_cancelled">Cancelled</string>
 
     <!-- Priority labels -->
-    <string name="wo_priority_critical">Critical</string>
-    <string name="wo_priority_high">High</string>
-    <string name="wo_priority_medium">Medium</string>
-    <string name="wo_priority_low">Low</string>
+    <string name="wo_priority_critical">P1 · Critical</string>
+    <string name="wo_priority_high">P2 · High</string>
+    <string name="wo_priority_medium">P3 · Medium</string>
+    <string name="wo_priority_low">P4 · Low</string>
 
     <!-- WO Detail -->
     <string name="wo_detail_title">Work Order</string>
@@ -60,18 +60,19 @@
     <string name="wo_detail_no_asset">No asset linked</string>
     <string name="wo_detail_due_date">Due Date</string>
     <string name="wo_detail_priority">Priority</string>
-    <string name="wo_detail_estimated_hours">Estimated Hours</string>
+    <string name="wo_detail_estimated_hours">Est. Effort (min)</string>
     <string name="wo_detail_effort_p10">P10</string>
     <string name="wo_detail_effort_p50">P50 (est.)</string>
     <string name="wo_detail_effort_p90">P90</string>
     <string name="wo_detail_recurring">Recurring</string>
     <string name="wo_detail_section_assignments">Assignments</string>
-    <string name="wo_detail_add_assignee">Add technician</string>
+    <string name="wo_detail_add_assignee">Assign Technician</string>
+    <string name="wo_detail_reassign">Reassign</string>
     <string name="wo_detail_section_checklist">Checklist</string>
     <string name="wo_detail_checklist_empty">No checklist items</string>
     <string name="wo_detail_section_comments">Comments</string>
     <string name="wo_detail_comments_empty">No comments yet</string>
-    <string name="wo_detail_comment_placeholder">Add a comment…</string>
+    <string name="wo_detail_comment_placeholder">Write a comment\u2026</string>
     <string name="wo_detail_comment_send">Send</string>
     <string name="wo_detail_section_costs">Costs</string>
     <string name="wo_detail_labor_cost">Labor Cost</string>
@@ -89,13 +90,12 @@
     <string name="wo_transition_assign">Assign</string>
     <string name="wo_transition_start">Start Work</string>
     <string name="wo_transition_hold">Place On Hold</string>
-    <string name="wo_transition_pending_parts">Pending Parts</string>
     <string name="wo_transition_resume">Resume</string>
     <string name="wo_transition_complete">Complete</string>
     <string name="wo_transition_cancel">Cancel WO</string>
 
     <!-- WO Create / Edit -->
-    <string name="wo_create_title">Work Order</string>
+    <string name="wo_create_title">New Work Order</string>
     <string name="wo_edit_title">Work Order</string>
     <string name="wo_field_title">Title</string>
     <string name="wo_field_title_required">Title is required</string>
@@ -104,9 +104,10 @@
     <string name="wo_field_asset_placeholder">Select asset…</string>
     <string name="wo_field_due_date">Due Date</string>
     <string name="wo_field_priority">Priority</string>
-    <string name="wo_field_estimated_hours">Estimated Hours</string>
+    <string name="wo_field_estimated_hours">Est. Effort (min)</string>
+    <string name="wo_effort_placeholder">Minutes</string>
     <string name="wo_field_assignees">Assigned Technicians</string>
-    <string name="wo_field_add_assignee">Add technician</string>
+    <string name="wo_field_add_assignee">Assign Technician</string>
     <string name="wo_field_repeats">Repeats</string>
     <string name="wo_field_checklist">Checklist</string>
     <string name="wo_field_add_checklist_item">Add checklist item</string>
@@ -153,7 +154,10 @@
     <string name="repeats_title">Repeats</string>
     <string name="repeats_frequency_daily">Daily</string>
     <string name="repeats_frequency_weekly">Weekly</string>
+    <string name="repeat_biweekly">Every 2 Weeks</string>
     <string name="repeats_frequency_monthly">Monthly</string>
+    <string name="repeat_quarterly">Every 3 Months</string>
+    <string name="repeat_semiannual">Every 6 Months</string>
     <string name="repeats_frequency_yearly">Yearly</string>
     <string name="repeats_frequency_custom">Custom</string>
     <string name="repeats_end_never">Never</string>
@@ -171,7 +175,7 @@
     <!-- Available Jobs -->
     <string name="available_jobs_title">Available Jobs</string>
     <string name="available_jobs_empty">No available jobs right now</string>
-    <string name="available_jobs_self_assign">Claim Job</string>
+    <string name="available_jobs_self_assign">Claim Work Order</string>
     <string name="available_jobs_claiming">Claiming…</string>
 
     <!-- Cost Lines Editor -->
@@ -217,13 +221,17 @@
 
     <!-- WO Detail — hardcoded labels -->
     <string name="wo_detail_reschedule">Reschedule</string>
-    <string name="wo_detail_capture_signature">Capture Signature</string>
     <string name="wo_detail_section_details">Details</string>
+    <string name="wo_detail_section_history">History</string>
+    <string name="wo_detail_history_empty">No history yet.</string>
     <string name="wo_detail_asset_label">Asset</string>
     <string name="wo_detail_priority_label">Priority</string>
     <string name="wo_detail_due_label">Due</string>
     <string name="wo_detail_no_due_date">No due date</string>
-    <string name="wo_detail_est_hours_label">Est. Hours</string>
+    <string name="wo_detail_est_hours_label">Est. Effort (min)</string>
+    <string name="wo_detail_minutes_format">%1$s min</string>
+    <string name="status_awaiting_approval">Awaiting approval</string>
+    <string name="wo_approval_required_message">This work order requires approval before it can proceed.</string>
     <string name="wo_detail_type_label">Type</string>
     <string name="wo_detail_recurring_label">Recurring</string>
     <string name="wo_detail_no_technicians">No technicians assigned</string>
@@ -235,6 +243,16 @@
     <string name="wo_detail_save_notes">Save Notes</string>
 
     <!-- WO Create — hardcoded labels -->
+    <string name="wo_create_section_details">Details</string>
+    <string name="wo_create_section_notes">Notes</string>
+    <string name="wo_create_section_category">Category</string>
+    <string name="wo_create_section_location">Location</string>
+    <string name="wo_location_same_as_asset">Same as asset</string>
+    <string name="wo_category">Category</string>
+    <string name="wo_category_placeholder">Pick category</string>
+    <string name="wo_job_label">Job (optional)</string>
+    <string name="wo_no_job_assigned">No Job Assigned</string>
+    <string name="wo_location_picker_title">Select Location</string>
     <string name="wo_create_select_asset_group">Select Asset Group</string>
     <string name="wo_create_repeats_configured">Configured</string>
     <string name="wo_create_repeats_none">None</string>

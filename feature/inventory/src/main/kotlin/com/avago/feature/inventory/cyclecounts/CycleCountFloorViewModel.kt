@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
+import com.avago.core.network.AvagoServiceClient
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +27,7 @@ class CycleCountFloorViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val databaseFactory: DatabaseFactory,
     private val identityManager: IdentityManager,
+    private val serviceClient: AvagoServiceClient,
 ) : ViewModel() {
 
     private val cycleCountId: String = checkNotNull(savedStateHandle["cycleCountId"])
@@ -38,6 +40,9 @@ class CycleCountFloorViewModel @Inject constructor(
 
     private val _scanFeedback = MutableStateFlow<String?>(null)
     val scanFeedback: StateFlow<String?> = _scanFeedback.asStateFlow()
+
+    private val _isCompleting = MutableStateFlow(false)
+    val isCompleting: StateFlow<Boolean> = _isCompleting.asStateFlow()
 
     fun onBarcodeScanned(barcode: String) {
         val accountId = identityManager.getActiveAccountId() ?: return
@@ -102,6 +107,26 @@ class CycleCountFloorViewModel @Inject constructor(
                 Timber.e(e, "[CycleCountFloorViewModel] Error processing barcode: $barcode")
                 _scanFeedback.value = "Error scanning barcode"
                 clearFeedbackAfterDelay()
+            }
+        }
+    }
+
+
+    fun markComplete(onComplete: () -> Unit) {
+        val accountId = identityManager.getActiveAccountId() ?: return
+        if (_isCompleting.value) return
+
+        viewModelScope.launch {
+            _isCompleting.value = true
+            try {
+                serviceClient.completeCycleCount(accountId, cycleCountId)
+                onComplete()
+            } catch (e: Exception) {
+                Timber.e(e, "[CycleCountFloorViewModel] Complete failed for count: $cycleCountId")
+                _scanFeedback.value = e.message ?: "Error completing cycle count"
+                clearFeedbackAfterDelay()
+            } finally {
+                _isCompleting.value = false
             }
         }
     }

@@ -1,4 +1,4 @@
-﻿package com.avago.feature.assets.ui
+package com.avago.feature.assets.ui
 
 import android.content.Intent
 import android.net.Uri
@@ -135,6 +135,7 @@ fun AssetDetailScreen(
     val logsByYear by viewModel.logsByYear.collectAsStateWithLifecycle()
     val entryCount by viewModel.entryCount.collectAsStateWithLifecycle()
     val lastServiceDate by viewModel.lastServiceDate.collectAsStateWithLifecycle()
+    val openWorkOrderCount by viewModel.openWorkOrderCount.collectAsStateWithLifecycle()
     val availableCategories by viewModel.availableCategories.collectAsStateWithLifecycle()
     val categoryFilter by viewModel.categoryFilter.collectAsStateWithLifecycle()
     val photos by viewModel.photos.collectAsStateWithLifecycle()
@@ -300,6 +301,14 @@ fun AssetDetailScreen(
                     AssetStatsRow(
                         entryCount = entryCount,
                         lastServiceDate = lastServiceDate,
+                        openWorkOrderCount = openWorkOrderCount,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                    Text(
+                        text = stringResource(R.string.asset_detail_section_details),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     )
                     HorizontalDivider()
@@ -326,6 +335,7 @@ fun AssetDetailScreen(
                         onOpenWheelConfig = onOpenWheelConfig,
                         onOpenWheelDataInput = onOpenWheelDataInput,
                         onLogEntryClick = onLogEntryClick,
+                        onCloneLogEntry = { viewModel.cloneLogEntry(it) },
                         currencyCode = currencyCode,
                     )
                     1 -> DocumentsTab(documents = documents)
@@ -354,6 +364,7 @@ private fun LogTab(
     onOpenWheelConfig: () -> Unit,
     onOpenWheelDataInput: () -> Unit,
     onLogEntryClick: (entryId: String) -> Unit,
+    onCloneLogEntry: (LogEntity) -> Unit,
     currencyCode: String = "USD",
 ) {
     LazyColumn(
@@ -367,16 +378,6 @@ private fun LogTab(
                     latestMeterReading = latestMeterReading,
                     onAddReading = onAddMeterReading,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-            }
-        }
-
-        if (isWheelAsset(asset.assetType)) {
-            item(key = "wheel_data_card") {
-                WheelDataCard(
-                    onConfigClick = onOpenWheelConfig,
-                    onDataClick = onOpenWheelDataInput,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 )
             }
         }
@@ -395,7 +396,7 @@ private fun LogTab(
         if (logsByYear.isEmpty()) {
             item(key = "log_empty") {
                 EmptyState(
-                    message = "No log entries yet. Tap + to add one.",
+                    message = stringResource(R.string.asset_detail_no_logs),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(200.dp),
@@ -417,7 +418,12 @@ private fun LogTab(
                     }
                 }
                 items(items = group.entries, key = { it.entryId }) { entry ->
-                    LogEntryRow(entry = entry, onClick = { onLogEntryClick(entry.entryId) }, currencyCode = currencyCode)
+                    LogEntryRow(
+                        entry = entry,
+                        onClick = { onLogEntryClick(entry.entryId) },
+                        onClone = { onCloneLogEntry(entry) },
+                        currencyCode = currencyCode,
+                    )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 }
             }
@@ -508,26 +514,6 @@ private fun InfoTab(
                 onClick = { onOpenNotes(notesText) },
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
-        }
-
-        item(key = "rentals_card") {
-            RentalsCard(
-                onClick = onOpenRentals,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            )
-        }
-
-        if (asset.assetType?.contains("vehicle", ignoreCase = true) == true ||
-            asset.assetType?.contains("truck", ignoreCase = true) == true ||
-            asset.assetType?.contains("trailer", ignoreCase = true) == true
-        ) {
-            item(key = "wheel_data_card") {
-                WheelDataCard(
-                    onConfigClick = onOpenWheelConfig,
-                    onDataClick = onOpenWheelDataInput,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                )
-            }
         }
     }
 }
@@ -673,6 +659,7 @@ private fun AssetDetailHeader(
 private fun AssetStatsRow(
     entryCount: Int,
     lastServiceDate: Long?,
+    openWorkOrderCount: Int,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -683,7 +670,7 @@ private fun AssetStatsRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         StatCell(
-            label = "ENTRIES",
+            label = stringResource(R.string.asset_detail_log_entries),
             value = entryCount.toString(),
             modifier = Modifier.weight(1f),
         )
@@ -694,7 +681,7 @@ private fun AssetStatsRow(
                 .background(MaterialTheme.colorScheme.outlineVariant)
         )
         StatCell(
-            label = "LAST SERVICE",
+            label = stringResource(R.string.asset_detail_last_service),
             value = if (lastServiceDate != null) formatShortDate(lastServiceDate) else "Never",
             modifier = Modifier.weight(1f),
         )
@@ -705,8 +692,19 @@ private fun AssetStatsRow(
                 .background(MaterialTheme.colorScheme.outlineVariant)
         )
         StatCell(
-            label = "SINCE SERVICE",
+            label = stringResource(R.string.asset_detail_since_service),
             value = if (lastServiceDate != null) sinceService(lastServiceDate) else "—",
+            modifier = Modifier.weight(1f),
+        )
+        Box(
+            modifier = Modifier
+                .height(28.dp)
+                .width(0.5.dp)
+                .background(MaterialTheme.colorScheme.outlineVariant)
+        )
+        StatCell(
+            label = stringResource(R.string.asset_detail_open_wos),
+            value = openWorkOrderCount.toString(),
             modifier = Modifier.weight(1f),
         )
     }
@@ -771,9 +769,11 @@ private fun CategoryFilterRow(
 private fun LogEntryRow(
     entry: LogEntity,
     onClick: () -> Unit,
+    onClone: () -> Unit,
     currencyCode: String = "USD",
     modifier: Modifier = Modifier,
 ) {
+    var showMenu by remember { mutableStateOf(false) }
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -808,6 +808,26 @@ private fun LogEntryRow(
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.SemiBold,
             )
+        }
+        Box {
+            IconButton(onClick = { showMenu = true }) {
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = stringResource(R.string.asset_detail_overflow_menu),
+                )
+            }
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false },
+            ) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.asset_detail_action_clone)) },
+                    onClick = {
+                        showMenu = false
+                        onClone()
+                    },
+                )
+            }
         }
     }
 }
@@ -925,84 +945,6 @@ private fun NotesCard(
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        }
-    }
-}
-
-@Composable
-private fun RentalsCard(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ReceiptLong,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-                Text(
-                    text = stringResource(R.string.rental_asset_detail_action),
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                )
-            }
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
-private fun WheelDataCard(
-    onConfigClick: () -> Unit,
-    onDataClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = stringResource(R.string.asset_detail_wheel_tire_card),
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                OutlinedButton(
-                    onClick = onConfigClick,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(stringResource(R.string.asset_detail_wheel_configuration))
-                }
-                OutlinedButton(
-                    onClick = onDataClick,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(stringResource(R.string.asset_detail_wheel_data_input))
-                }
-            }
         }
     }
 }

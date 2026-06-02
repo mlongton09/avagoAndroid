@@ -7,7 +7,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
 import androidx.navigation.navArgument
 import com.avago.feature.schedule.ui.AddEditScheduleScreen
-import com.avago.feature.schedule.ui.GlobalCalendarScreen
 import com.avago.feature.schedule.ui.ScheduleDetailScreen
 import com.avago.feature.schedule.ui.ScheduleListScreen
 
@@ -71,6 +70,7 @@ object ScheduleRoute {
 fun NavGraphBuilder.scheduleNavGraph(
     navController: NavHostController,
     onNavigateToAssetPicker: (returnRoute: String) -> Unit = {},
+    onNavigateToAddLogEntry: (assetId: String) -> Unit = {},
 ) {
     navigation(
         startDestination = ScheduleRoute.LIST,
@@ -123,6 +123,7 @@ fun NavGraphBuilder.scheduleNavGraph(
                 onEdit = { id ->
                     navController.navigate(ScheduleRoute.addEdit(scheduleId = id))
                 },
+                onCompleteService = onNavigateToAddLogEntry,
             )
         }
 
@@ -162,14 +163,5 @@ fun NavGraphBuilder.scheduleNavGraph(
             )
         }
 
-        // ── Calendar ──────────────────────────────────────────────────────────
-        composable(ScheduleRoute.CALENDAR) {
-            GlobalCalendarScreen(
-                onScheduleClick = { scheduleId ->
-                    navController.navigate(ScheduleRoute.detail(scheduleId))
-                },
-                onBack = { navController.popBackStack() },
-            )
-        }
     }
 }

@@ -33,6 +33,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -66,6 +67,7 @@ data class ChatPrefsUiState(
     val reactionToYouPushEnabled: Boolean = true,
     val notificationSound: Boolean = true,
     val showPreviews: Boolean = true,
+    val showBroadcastsInline: Boolean = true,
     val cacheCleared: Boolean = false,
     val quietHoursStart: String? = null,
     val quietHoursEnd: String? = null,
@@ -104,6 +106,7 @@ class ChatSettingsViewModel @Inject constructor(
                         reactionToYouPushEnabled = result.data.reaction_to_you_push_enabled,
                         notificationSound = result.data.notification_sound,
                         showPreviews = result.data.show_previews,
+                        showBroadcastsInline = result.data.show_broadcasts_inline,
                         quietHoursStart = result.data.quiet_hours_start,
                         quietHoursEnd = result.data.quiet_hours_end,
                         quietHoursTimezone = result.data.quiet_hours_timezone,
@@ -135,6 +138,9 @@ class ChatSettingsViewModel @Inject constructor(
 
     fun setShowPreviews(v: Boolean) =
         updatePref({ it.copy(showPreviews = v) }) { ChatPrefsRequest(show_previews = v) }
+
+    fun setShowBroadcastsInline(v: Boolean) =
+        updatePref({ it.copy(showBroadcastsInline = v) }) { ChatPrefsRequest(show_broadcasts_inline = v) }
 
     fun setQuietHours(start: String?, end: String?, timezone: String?) {
         _state.update { it.copy(quietHoursStart = start, quietHoursEnd = end, quietHoursTimezone = timezone) }
@@ -195,10 +201,11 @@ fun ChatSettingsScreen(
     val state by viewModel.state.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     var showClearCacheDialog by remember { mutableStateOf(false) }
+    val cacheClearedMessage = stringResource(R.string.chat_settings_cache_cleared)
 
     LaunchedEffect(state.cacheCleared) {
         if (state.cacheCleared) {
-            snackbarHostState.showSnackbar("Chat cache cleared")
+            snackbarHostState.showSnackbar(cacheClearedMessage)
             viewModel.consumeCacheCleared()
         }
     }
@@ -206,16 +213,16 @@ fun ChatSettingsScreen(
     if (showClearCacheDialog) {
         AlertDialog(
             onDismissRequest = { showClearCacheDialog = false },
-            title = { Text("Clear chat cache") },
-            text = { Text("This removes locally cached messages. They will be re-downloaded on next sync.") },
+            title = { Text(stringResource(R.string.chat_settings_clear_cache_title)) },
+            text = { Text(stringResource(R.string.chat_settings_clear_cache_message)) },
             confirmButton = {
                 TextButton(onClick = {
                     showClearCacheDialog = false
                     viewModel.clearCache()
-                }) { Text("Clear") }
+                }) { Text(stringResource(R.string.chat_settings_clear)) }
             },
             dismissButton = {
-                TextButton(onClick = { showClearCacheDialog = false }) { Text("Cancel") }
+                TextButton(onClick = { showClearCacheDialog = false }) { Text(stringResource(R.string.chat_settings_cancel)) }
             },
         )
     }
@@ -224,10 +231,10 @@ fun ChatSettingsScreen(
         modifier = modifier,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Chat Settings") },
+                title = { Text(stringResource(R.string.chat_settings_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.chat_settings_back))
                     }
                 },
             )
@@ -244,76 +251,8 @@ fun ChatSettingsScreen(
                 .padding(innerPadding)
                 .fillMaxSize(),
         ) {
-            // ── Push Notifications ────────────────────────────────────────────
             item {
-                SectionHeader("Push notifications")
-            }
-            item {
-                PrefToggleRow(
-                    label = "Specific @mentions",
-                    description = "Notify when someone @mentions you directly",
-                    checked = state.mentionPushEnabled,
-                    onCheckedChange = viewModel::setMentionPush,
-                )
-            }
-            item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
-            item {
-                PrefToggleRow(
-                    label = "Broadcasts",
-                    description = "@all and @here mentions",
-                    checked = state.broadcastPushEnabled,
-                    onCheckedChange = viewModel::setBroadcastPush,
-                )
-            }
-            item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
-            item {
-                PrefToggleRow(
-                    label = "Work order messages",
-                    checked = state.woPushEnabled,
-                    onCheckedChange = viewModel::setWoPush,
-                )
-            }
-            item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
-            item {
-                PrefToggleRow(
-                    label = "Team room messages",
-                    checked = state.teamRoomPushEnabled,
-                    onCheckedChange = viewModel::setTeamRoomPush,
-                )
-            }
-            item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
-            item {
-                PrefToggleRow(
-                    label = "Reactions to your messages",
-                    checked = state.reactionToYouPushEnabled,
-                    onCheckedChange = viewModel::setReactionToYouPush,
-                )
-            }
-
-            // ── Display ───────────────────────────────────────────────────────
-            item {
-                SectionHeader("Display")
-            }
-            item {
-                PrefToggleRow(
-                    label = "Notification sound",
-                    checked = state.notificationSound,
-                    onCheckedChange = viewModel::setNotificationSound,
-                )
-            }
-            item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
-            item {
-                PrefToggleRow(
-                    label = "Show message previews",
-                    description = "Show message content in notifications",
-                    checked = state.showPreviews,
-                    onCheckedChange = viewModel::setShowPreviews,
-                )
-            }
-
-            // ── Quiet Hours ───────────────────────────────────────────────────
-            item {
-                SectionHeader("Quiet hours")
+                SectionHeader(stringResource(R.string.chat_settings_quiet_hours))
             }
             item {
                 QuietHoursRow(
@@ -325,22 +264,72 @@ fun ChatSettingsScreen(
                 )
             }
 
+            // ── Push Notifications ────────────────────────────────────────────
+            item {
+                SectionHeader(stringResource(R.string.chat_settings_push_notifications))
+            }
+            item {
+                PrefToggleRow(
+                    label = stringResource(R.string.chat_settings_specific_mentions),
+                    checked = state.mentionPushEnabled,
+                    onCheckedChange = viewModel::setMentionPush,
+                )
+            }
+            item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
+            item {
+                PrefToggleRow(
+                    label = stringResource(R.string.chat_settings_broadcasts),
+                    checked = state.broadcastPushEnabled,
+                    onCheckedChange = viewModel::setBroadcastPush,
+                )
+            }
+            item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
+            item {
+                PrefToggleRow(
+                    label = stringResource(R.string.chat_settings_wo_messages),
+                    checked = state.woPushEnabled,
+                    onCheckedChange = viewModel::setWoPush,
+                )
+            }
+            item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
+            item {
+                PrefToggleRow(
+                    label = stringResource(R.string.chat_settings_team_room),
+                    checked = state.teamRoomPushEnabled,
+                    onCheckedChange = viewModel::setTeamRoomPush,
+                )
+            }
+            item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
+            item {
+                PrefToggleRow(
+                    label = stringResource(R.string.chat_settings_reactions),
+                    checked = state.reactionToYouPushEnabled,
+                    onCheckedChange = viewModel::setReactionToYouPush,
+                )
+            }
+
+            // ── Display ───────────────────────────────────────────────────────
+            item {
+                SectionHeader(stringResource(R.string.chat_settings_display))
+            }
+            item {
+                PrefToggleRow(
+                    label = stringResource(R.string.chat_settings_show_broadcasts_inline),
+                    checked = state.showBroadcastsInline,
+                    onCheckedChange = viewModel::setShowBroadcastsInline,
+                )
+            }
+
             // ── Cache ─────────────────────────────────────────────────────────
             item {
-                SectionHeader("Cache")
+                SectionHeader(stringResource(R.string.chat_settings_cache))
             }
             item {
                 ListItem(
                     headlineContent = {
                         Text(
-                            "Clear chat cache",
+                            stringResource(R.string.chat_settings_clear_cache),
                             color = MaterialTheme.colorScheme.error,
-                        )
-                    },
-                    supportingContent = {
-                        Text(
-                            "Remove locally cached messages",
-                            style = MaterialTheme.typography.bodySmall,
                         )
                     },
                     modifier = Modifier.clickable(role = Role.Button) {
@@ -396,10 +385,10 @@ private fun QuietHoursRow(
     var showDialog by remember { mutableStateOf(false) }
 
     val isEnabled = start != null && end != null
-    val summary = if (isEnabled) "$start – $end${if (timezone != null) " ($timezone)" else ""}" else "Off"
+    val summary = if (isEnabled) "$start – $end${if (timezone != null) " ($timezone)" else ""}" else stringResource(R.string.chat_settings_off)
 
     ListItem(
-        headlineContent = { Text("Do not disturb") },
+        headlineContent = { Text(stringResource(R.string.chat_settings_quiet_hours)) },
         supportingContent = { Text(summary, style = MaterialTheme.typography.bodySmall) },
         trailingContent = {
             Switch(
@@ -435,11 +424,11 @@ private fun QuietHoursDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Quiet hours") },
+        title = { Text(stringResource(R.string.chat_settings_quiet_hours)) },
         text = {
             Column {
                 Text(
-                    "No notifications will be sent during quiet hours.",
+                    stringResource(R.string.chat_settings_quiet_message),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -449,7 +438,7 @@ private fun QuietHoursDialog(
                 OutlinedTextField(
                     value = start,
                     onValueChange = { start = it },
-                    label = { Text("Start time (HH:mm)") },
+                    label = { Text(stringResource(R.string.chat_settings_quiet_start, "HH:mm")) },
                     placeholder = { Text("22:00") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -460,7 +449,7 @@ private fun QuietHoursDialog(
                 OutlinedTextField(
                     value = end,
                     onValueChange = { end = it },
-                    label = { Text("End time (HH:mm)") },
+                    label = { Text(stringResource(R.string.chat_settings_quiet_end, "HH:mm")) },
                     placeholder = { Text("07:00") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -471,7 +460,7 @@ private fun QuietHoursDialog(
                 OutlinedTextField(
                     value = timezone,
                     onValueChange = { timezone = it },
-                    label = { Text("Timezone") },
+                    label = { Text(stringResource(R.string.chat_settings_timezone)) },
                     placeholder = { Text("America/Chicago") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -482,10 +471,10 @@ private fun QuietHoursDialog(
             TextButton(
                 onClick = { onConfirm(start, end, timezone) },
                 enabled = start.isNotBlank() && end.isNotBlank(),
-            ) { Text("Save") }
+            ) { Text(stringResource(R.string.chat_settings_save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.chat_settings_cancel)) }
         },
     )
 }

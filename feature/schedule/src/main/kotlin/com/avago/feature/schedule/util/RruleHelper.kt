@@ -112,6 +112,7 @@ object RruleHelper {
     fun rruleForPreset(preset: ScheduleFrequencyPreset): String = when (preset) {
         ScheduleFrequencyPreset.DAILY -> "FREQ=DAILY;INTERVAL=1"
         ScheduleFrequencyPreset.WEEKLY -> "FREQ=WEEKLY;INTERVAL=1"
+        ScheduleFrequencyPreset.BIWEEKLY -> "FREQ=WEEKLY;INTERVAL=2"
         ScheduleFrequencyPreset.MONTHLY -> "FREQ=MONTHLY;INTERVAL=1"
         ScheduleFrequencyPreset.QUARTERLY -> "FREQ=MONTHLY;INTERVAL=3"
         ScheduleFrequencyPreset.BIANNUAL -> "FREQ=MONTHLY;INTERVAL=6"
@@ -133,6 +134,7 @@ object RruleHelper {
 enum class ScheduleFrequencyPreset(val displayName: String) {
     DAILY("Daily"),
     WEEKLY("Weekly"),
+    BIWEEKLY("Every 2 Weeks"),
     MONTHLY("Monthly"),
     QUARTERLY("Every 3 Months"),
     BIANNUAL("Every 6 Months"),
@@ -150,6 +152,7 @@ enum class ScheduleFrequencyPreset(val displayName: String) {
             val interval = parts["INTERVAL"]?.toIntOrNull() ?: 1
             return when {
                 freq == "DAILY" -> DAILY
+                freq == "WEEKLY" && interval == 2 -> BIWEEKLY
                 freq == "WEEKLY" -> WEEKLY
                 freq == "MONTHLY" && interval == 3 -> QUARTERLY
                 freq == "MONTHLY" && interval == 6 -> BIANNUAL

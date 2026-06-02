@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Sign In Landing -->
-    <string name="sign_in_app_title">Avago</string>
+    <string name="sign_in_app_title">avago</string>
     <string name="sign_in_subtitle">Fleet, equipment &amp; property maintenance</string>
     <string name="sign_in_google">Continue with Google</string>
-    <string name="sign_in_divider_or">OR</string>
+    <string name="sign_in_email">Continue with email</string>
     <string name="sign_in_email_label">Email</string>
     <string name="sign_in_password_label">Password</string>
     <string name="sign_in_hide_password">Hide password</string>
@@ -15,32 +15,39 @@
     <!-- Email Sign In -->
     <string name="email_sign_in_title">Sign In</string>
     <string name="email_sign_in_back">Back</string>
-    <string name="email_sign_in_welcome">Welcome back</string>
     <string name="email_sign_in_email_label">Email</string>
     <string name="email_sign_in_password_label">Password</string>
     <string name="email_sign_in_hide_password">Hide password</string>
     <string name="email_sign_in_show_password">Show password</string>
     <string name="email_sign_in_button">Sign In</string>
 
+    <string name="spinner_preparing">Preparing your account\u2026</string>
+    <string name="spinner_creating">Creating your account\u2026</string>
+    <string name="alert_move_data_title">Move your data to this account?</string>
+    <string name="alert_move_data_action">Move Data</string>
+    <string name="alert_move_data_fresh">Start Fresh</string>
+    <string name="email_signin_create_account">Create Account</string>
+    <string name="email_signin_display_name">Display Name</string>
+    <string name="email_signin_have_account">Already have an account? Sign in</string>
+
     <!-- Account Switcher -->
-    <string name="account_switcher_title">Accounts</string>
+    <string name="account_switcher_title">YOUR ACCOUNTS</string>
     <string name="account_switcher_active_account">Active account</string>
-    <string name="account_switcher_add_account">Add Account</string>
-    <string name="account_switcher_empty_state">No accounts added yet</string>
-    <string name="account_switcher_switch_action">Switch account</string>
-    <string name="account_switcher_remove_account">Remove account</string>
+    <string name="account_switcher_add_account">Create New Account</string>
+    <string name="account_switcher_remove_account">Sign Out of %1$s</string>
+    <string name="account_anonymous">Anonymous</string>
     <string name="account_switcher_add_account_description">Sign in with another account</string>
 
     <!-- Auth Errors -->
     <string name="auth_error_email_password_required">Email and password are required</string>
-    <string name="auth_error_sign_in_failed">Sign-in failed</string>
+    <string name="auth_error_sign_in_failed">Sign-in failed.</string>
     <string name="auth_error_google_sign_in_failed">Google sign-in failed</string>
     <string name="auth_error_token_unavailable">Could not get Firebase ID token</string>
     <string name="auth_error_anonymous_failed">Failed to continue without an account</string>
     <string name="auth_error_invalid_email">Invalid email address</string>
     <string name="auth_error_wrong_password">Incorrect password</string>
     <string name="auth_error_user_not_found">No account found for this email</string>
-    <string name="auth_error_network">Network error. Please check your connection and try again.</string>
-    <string name="auth_error_too_many_requests">Too many attempts. Please wait a moment and try again.</string>
+    <string name="auth_error_network">Unable to reach the server. Please check your connection.</string>
+    <string name="auth_error_too_many_requests">Too many requests. Please wait before trying again.</string>
     <string name="auth_error_account_exists">An account already exists with this email</string>
 </resources>

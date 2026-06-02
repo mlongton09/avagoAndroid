@@ -29,13 +29,14 @@ import com.avago.feature.inventory.R
 @Composable
 fun CycleCountCreateSheet(
     onDismiss: () -> Unit,
+    onCreatedAndStarted: (String) -> Unit,
     viewModel: CreateCycleCountViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    LaunchedEffect(state.isDone) {
-        if (state.isDone) onDismiss()
+    LaunchedEffect(state.createdCountId) {
+        state.createdCountId?.let(onCreatedAndStarted)
     }
 
     ModalBottomSheet(
@@ -98,7 +99,7 @@ fun CycleCountCreateSheet(
             ) {
                 Text(
                     if (state.isSubmitting) stringResource(R.string.cycle_count_submitting)
-                    else stringResource(R.string.cycle_count_submit),
+                    else stringResource(R.string.cc_create_btn),
                 )
             }
             Spacer(Modifier.height(16.dp))

@@ -7,7 +7,7 @@
 
     <!-- Chat list screen -->
     <string name="chat_list_title">Chat</string>
-    <string name="chat_list_empty">Noch keine Gespräche</string>
+    <string name="chat_list_empty">No conversations yet.</string>
     <string name="chat_list_new_conversation_fab">Neues Gespräch</string>
     <string name="chat_list_mentions_icon">Erwähnungen</string>
 
@@ -16,6 +16,7 @@
     <string name="chat_filter_direct">Direkt</string>
     <string name="chat_filter_work_orders">Arbeitsaufträge</string>
     <string name="chat_filter_assets">Anlagen</string>
+    <string name="chat_filter_unread">Unread</string>
 
     <!-- Thread screen -->
     <string name="thread_title_fallback">Chat</string>
@@ -27,13 +28,14 @@
     <string name="thread_loading_earlier">Laden…</string>
     <string name="thread_new_messages_pill">Neue Nachrichten ↓</string>
     <string name="thread_unread_divider">Neue Nachrichten</string>
+    <string name="date_today">Today</string>
+    <string name="date_yesterday">Yesterday</string>
 
     <!-- Subthread (reply thread) screen -->
     <string name="subthread_title">Thread</string>
     <string name="subthread_back">Zurück</string>
 
     <!-- Message composer -->
-    <string name="composer_message_placeholder">Nachricht</string>
     <string name="composer_send">Senden</string>
     <string name="composer_editing_banner">Nachricht bearbeiten</string>
     <string name="composer_cancel_edit">Bearbeitung abbrechen</string>
@@ -52,11 +54,10 @@
     <string name="message_status_delivered">Zugestellt</string>
 
     <!-- Pinned message banner -->
-    <string name="pinned_message_label">Angeheftete Nachricht</string>
-    <string name="pinned_message_unpin">Loslösen</string>
 
     <!-- New thread / new conversation screen -->
-    <string name="new_thread_title">Neues Gespräch</string>
+    <string name="new_thread_title">New Direct Message</string>
+    <string name="new_thread_title_group">New Group Chat</string>
     <string name="new_thread_back">Zurück</string>
     <string name="new_thread_tab_direct">Direktnachricht</string>
     <string name="new_thread_tab_group">Gruppe</string>
@@ -66,7 +67,7 @@
     <string name="new_thread_create_group_fab">Gruppe erstellen</string>
 
     <!-- Thread members screen -->
-    <string name="thread_members_title">Mitglieder</string>
+    <string name="thread_members_title">Thread Settings</string>
     <string name="thread_members_back">Zurück</string>
     <string name="thread_members_empty">Keine Mitglieder</string>
 
@@ -76,14 +77,18 @@
     <string name="thread_media_empty">Keine Medien in diesem Gespräch geteilt</string>
 
     <!-- Chat settings screen -->
-    <string name="chat_settings_title">Gesprächseinstellungen</string>
+    <string name="chat_settings_title">Team Chat</string>
     <string name="chat_settings_back">Zurück</string>
     <string name="chat_settings_muted_label">Stummgeschaltet</string>
     <string name="chat_settings_muted_subtitle">Benachrichtigungen für dieses Gespräch deaktivieren</string>
     <string name="chat_settings_notifications_label">Benachrichtigungen</string>
     <string name="chat_settings_notifications_subtitle">Push-Benachrichtigungen werden in den Systemeinstellungen verwaltet</string>
-    <string name="chat_settings_leave_label">Gespräch verlassen</string>
-    <string name="chat_settings_leave_coming_soon">Gespräch verlassen — demnächst verfügbar</string>
+    <string name="receipts_title">Receipts</string>
+    <string name="mute_1h">Mute for 1 hour</string>
+    <string name="mute_8h">Mute for 8 hours</string>
+    <string name="mute_24h">Mute for 24 hours</string>
+    <string name="chat_settings_leave_label">Leave thread</string>
+    <string name="chat_settings_leave_coming_soon">Leave thread — demnächst verfügbar</string>
 
     <!-- Sync conflict bottom sheet -->
     <string name="conflict_sheet_title">Synchronisierungskonflikte</string>
@@ -96,4 +101,33 @@
     <!-- Error states -->
     <string name="chat_error_send_failed">Nachricht konnte nicht gesendet werden</string>
     <string name="chat_error_load_failed">Nachrichten konnten nicht geladen werden</string>
+
+    <string name="chat_settings_quiet_hours">Quiet hours</string>
+    <string name="chat_settings_push_notifications">Push notifications</string>
+    <string name="chat_settings_display">Display</string>
+    <string name="chat_settings_cache">Cache</string>
+    <string name="chat_settings_specific_mentions">Specific @mentions</string>
+    <string name="chat_settings_broadcasts">Broadcasts (@all/@here)</string>
+    <string name="chat_settings_wo_messages">WO messages</string>
+    <string name="chat_settings_team_room">Team room</string>
+    <string name="chat_settings_reactions">Reactions to your messages</string>
+    <string name="chat_settings_show_broadcasts_inline">Show broadcasts inline in timeline</string>
+    <string name="chat_settings_quiet_start">Start: %1$s</string>
+    <string name="chat_settings_quiet_end">End: %1$s</string>
+    <string name="chat_settings_quiet_timezone">Timezone: %1$s</string>
+    <string name="chat_settings_off">Off</string>
+    <string name="chat_settings_clear_cache">Clear chat cache</string>
+    <string name="chat_settings_clear_cache_title">Clear chat cache?</string>
+    <string name="chat_settings_clear_cache_message">Local chat history will be re-downloaded on next launch.</string>
+    <string name="chat_settings_cache_cleared">Chat cache cleared</string>
+    <string name="chat_settings_clear">Clear</string>
+    <string name="chat_settings_cancel">Cancel</string>
+    <string name="chat_settings_save">Save</string>
+    <string name="chat_settings_quiet_start_title">Quiet hours start</string>
+    <string name="chat_settings_quiet_end_title">Quiet hours end</string>
+    <string name="chat_settings_timezone">Timezone</string>
+    <string name="chat_settings_pick_timezone">Pick a timezone</string>
+    <string name="thread_notifications_all">All messages</string>
+    <string name="thread_notifications_mentions">Mentions only</string>
+    <string name="thread_notifications_off">Off</string>
 </resources>

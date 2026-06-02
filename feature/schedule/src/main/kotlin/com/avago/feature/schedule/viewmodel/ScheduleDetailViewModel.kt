@@ -71,12 +71,8 @@ class ScheduleDetailViewModel @Inject constructor(
     private val _deleted = MutableStateFlow(false)
     val deleted: StateFlow<Boolean> = _deleted.asStateFlow()
 
-    private val _completeServiceEvent = MutableStateFlow(false)
-    /**
-     * Emits `true` once when the user completes a service — the UI should
-     * navigate to create a new log entry, then reset this flag via [onCompleteServiceHandled].
-     */
-    val completeServiceEvent: StateFlow<Boolean> = _completeServiceEvent.asStateFlow()
+    private val _completeServiceAssetId = MutableStateFlow<String?>(null)
+    val completeServiceAssetId: StateFlow<String?> = _completeServiceAssetId.asStateFlow()
 
     fun delete() {
         val accountId = _accountId.value ?: return
@@ -101,7 +97,7 @@ class ScheduleDetailViewModel @Inject constructor(
      * - If the schedule has an RRULE, compute the next due date and update
      *   lastCompletedAt so the scheduler advances the occurrence.
      * - If the schedule has no RRULE (one-off), soft-delete it.
-     * - In both cases emit [completeServiceEvent] so the UI can open a new log entry.
+     * - In both cases emit the asset id so the UI can open a new log entry.
      */
     fun completeService() {
         val accountId = _accountId.value ?: return
@@ -129,7 +125,7 @@ class ScheduleDetailViewModel @Inject constructor(
                     // One-off schedule finished — soft-delete it.
                     repository.softDelete(accountId, scheduleId)
                 }
-                _completeServiceEvent.value = true
+                _completeServiceAssetId.value = s.assetId
             } catch (e: Exception) {
                 Timber.e(e, "[ScheduleDetailVM] completeService failed")
                 _error.value = e.message
@@ -140,7 +136,7 @@ class ScheduleDetailViewModel @Inject constructor(
     }
 
     fun onCompleteServiceHandled() {
-        _completeServiceEvent.value = false
+        _completeServiceAssetId.value = null
     }
 
     fun addToCalendar(context: Context, assetName: String) {

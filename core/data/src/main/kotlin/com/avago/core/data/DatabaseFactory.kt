@@ -48,6 +48,8 @@ class DatabaseFactory(
         instances.clear()
     }
 
+    fun databaseFile(accountId: String): File = File(File(context.filesDir, "accounts/$accountId"), "avago.db")
+
     fun deleteDatabase(accountId: String) {
         // Multiple concurrent signOut() invocations can race on the same accountId
         // (each non-stale 403 from in-flight sync requests emits accountGoneEvents,
@@ -55,10 +57,10 @@ class DatabaseFactory(
         // already-closed Room database throws IllegalStateException; swallow it so
         // the second signOut still reaches the file-delete step below.
         runCatching { instances.remove(accountId)?.close() }
-        val dbDir = java.io.File(context.filesDir, "accounts/$accountId")
-        runCatching { java.io.File(dbDir, "avago.db").delete() }
-        runCatching { java.io.File(dbDir, "avago.db-shm").delete() }
-        runCatching { java.io.File(dbDir, "avago.db-wal").delete() }
+        val dbDir = File(context.filesDir, "accounts/$accountId")
+        runCatching { File(dbDir, "avago.db").delete() }
+        runCatching { File(dbDir, "avago.db-shm").delete() }
+        runCatching { File(dbDir, "avago.db-wal").delete() }
     }
 
 }

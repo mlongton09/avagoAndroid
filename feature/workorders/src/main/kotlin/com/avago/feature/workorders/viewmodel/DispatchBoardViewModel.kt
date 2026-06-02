@@ -26,11 +26,11 @@ import javax.inject.Inject
 
 /** Ordered status columns shown on the dispatch board (excludes CANCELLED). */
 val DISPATCH_COLUMNS = listOf(
+    WoStatus.DRAFT,
     WoStatus.OPEN,
     WoStatus.ASSIGNED,
     WoStatus.IN_PROGRESS,
     WoStatus.ON_HOLD,
-    WoStatus.PENDING_PARTS,
     WoStatus.COMPLETE,
 )
 

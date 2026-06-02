@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
+import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.FormFillRouter
 import com.avago.core.data.db.entity.WoChecklistItemEntity
 import com.avago.core.data.db.entity.WoTemplateEntity
@@ -24,6 +25,12 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import timber.log.Timber
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -50,6 +57,7 @@ class WorkOrderCreateViewModel @Inject constructor(
     private val identityManager: IdentityManager,
     private val serviceClient: AvagoServiceClient,
     private val formFillRouter: FormFillRouter,
+    private val dbFactory: DatabaseFactory,
 ) : ViewModel() {
 
     /** null = create mode; non-null = edit mode */
@@ -65,12 +73,16 @@ class WorkOrderCreateViewModel @Inject constructor(
     val category = MutableStateFlow<String?>(null)
     val assetId = MutableStateFlow<String?>(null)
     val assetName = MutableStateFlow<String?>(null)
+    val locationId = MutableStateFlow<String?>(null)
+    val locationName = MutableStateFlow<String?>(null)
     val dueDateMs = MutableStateFlow<Long?>(null)
     val priority = MutableStateFlow(WoPriority.MEDIUM)
     val estimatedHours = MutableStateFlow("")
     val assignedTechIds = MutableStateFlow<List<String>>(emptyList())
     val checklistDrafts = MutableStateFlow<List<ChecklistDraft>>(emptyList())
     val selectedTemplateId = MutableStateFlow<String?>(null)
+    private val _availableCategories = MutableStateFlow<List<String>>(emptyList())
+    val availableCategories: StateFlow<List<String>> = _availableCategories.asStateFlow()
 
     // Job picker
     val jobId = MutableStateFlow<String?>(null)
@@ -116,6 +128,7 @@ class WorkOrderCreateViewModel @Inject constructor(
     // ---------------------------------------------------------------------------
 
     init {
+        loadAvailableCategories()
         if (editingWoId != null) {
             viewModelScope.launch {
                 val accountId = identityManager.getActiveAccountId() ?: return@launch
@@ -124,10 +137,12 @@ class WorkOrderCreateViewModel @Inject constructor(
                 description.value = wo.description ?: ""
                 category.value = wo.category
                 assetId.value = wo.assetId
+                locationId.value = wo.locationId
+                locationName.value = wo.locationId?.let { repository.getLocationById(accountId, it)?.name }
                 dueDateMs.value = wo.dueDate
                 priority.value = WoPriority.fromKey(wo.priority)
                 estimatedHours.value = wo.estimatedEffortMinutes
-                    ?.let { (it / 60.0).toString() } ?: ""
+                    ?.toString() ?: ""
                 assignedTechIds.value = if (!wo.assignedTo.isNullOrBlank())
                     listOf(wo.assignedTo ?: error("unreachable")) else emptyList()
                 jobId.value = wo.jobId
@@ -183,7 +198,7 @@ class WorkOrderCreateViewModel @Inject constructor(
             priority.value = WoPriority.fromKey(p); touched.add("priority")
         }
         fields["estimated_effort_minutes"]?.toDoubleOrNull()?.let { mins ->
-            estimatedHours.value = (mins / 60.0).toString(); touched.add("estimated effort")
+            estimatedHours.value = mins.toLong().toString(); touched.add("estimated effort")
         }
         fields["assigned_to"]?.takeIf { it.isNotBlank() }?.let { name ->
             assignedTechIds.value = listOf(name); touched.add("assigned to")
@@ -210,7 +225,7 @@ class WorkOrderCreateViewModel @Inject constructor(
         if (description.value.isBlank()) description.value = template.description ?: ""
         if (estimatedHours.value.isBlank()) {
             estimatedHours.value = template.estimatedEffortMinutes
-                ?.let { (it / 60.0).toString() } ?: ""
+                ?.toString() ?: ""
         }
         // Parse checklist JSON from template if present
         val jsonItems = template.checklistItems
@@ -255,6 +270,11 @@ class WorkOrderCreateViewModel @Inject constructor(
         jobTitle.value = null
     }
 
+    fun onLocationSelected(id: String?, name: String?) {
+        locationId.value = id
+        locationName.value = name
+    }
+
     // ---------------------------------------------------------------------------
     // Timezone
     // ---------------------------------------------------------------------------
@@ -286,6 +306,45 @@ class WorkOrderCreateViewModel @Inject constructor(
                 Timber.d(e, "[WoCreateVM] fetchEffortHint failed, ignoring")
             }
         }
+    }
+
+    private fun loadAvailableCategories() {
+        viewModelScope.launch {
+            val accountId = identityManager.getActiveAccountId() ?: return@launch
+            val categories = runCatching {
+                val db = dbFactory.get(accountId)
+                val raw = db.configDao().getByKey("system", "wo_categories")?.value
+                    ?: db.configDao().getByKey("system", "work_order_categories")?.value
+                    ?: db.configDao().getByKey("system", "log_categories")?.value
+                parseCategoryLabels(raw)
+            }.getOrDefault(emptyList())
+            _availableCategories.value = categories
+        }
+    }
+
+    private fun parseCategoryLabels(raw: String?): List<String> {
+        if (raw.isNullOrBlank()) return emptyList()
+        return runCatching {
+            val root = Json.parseToJsonElement(raw)
+            val buckets = when (root) {
+                is JsonObject -> listOf(root)
+                else -> root.jsonArray.mapNotNull { it as? JsonObject }
+            }
+            val grouped = buckets.flatMap { group ->
+                val items = group["items"]?.jsonArray
+                    ?: group["categories"]?.jsonArray
+                    ?: return@flatMap emptyList()
+                items.mapNotNull { item ->
+                    val obj = item as? JsonObject ?: return@mapNotNull item.jsonPrimitive.contentOrNull
+                    obj["label"]?.jsonPrimitive?.contentOrNull
+                        ?: obj["name"]?.jsonPrimitive?.contentOrNull
+                        ?: obj["key"]?.jsonPrimitive?.contentOrNull
+                }
+            }.distinct()
+            grouped.ifEmpty {
+                root.jsonArray.mapNotNull { it.jsonPrimitive.contentOrNull }
+            }
+        }.getOrDefault(emptyList())
     }
 
     fun decodeVin() {
@@ -344,13 +403,13 @@ class WorkOrderCreateViewModel @Inject constructor(
                     repository.getById(accountId, editingWoId) else null
 
                 val estimatedMinutes = estimatedHours.value.toDoubleOrNull()
-                    ?.let { (it * 60).toLong() }
+                    ?.toLong()
 
                 val entity = WorkOrderEntity(
                     woId = woId,
                     accountId = accountId,
                     assetId = assetId.value,
-                    locationId = existing?.locationId,
+                    locationId = locationId.value ?: existing?.locationId,
                     title = titleVal,
                     description = description.value.ifBlank { null },
                     category = category.value ?: existing?.category,

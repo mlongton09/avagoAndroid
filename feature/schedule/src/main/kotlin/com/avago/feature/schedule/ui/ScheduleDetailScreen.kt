@@ -1,4 +1,4 @@
-﻿package com.avago.feature.schedule.ui
+package com.avago.feature.schedule.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -65,6 +65,7 @@ fun ScheduleDetailScreen(
     scheduleId: String,
     onBack: () -> Unit,
     onEdit: (scheduleId: String) -> Unit,
+    onCompleteService: (assetId: String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ScheduleDetailViewModel = hiltViewModel(),
 ) {
@@ -73,6 +74,7 @@ fun ScheduleDetailScreen(
     val deleted by viewModel.deleted.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val linkedWos by viewModel.linkedWos.collectAsStateWithLifecycle()
+    val completeServiceAssetId by viewModel.completeServiceAssetId.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
@@ -83,6 +85,13 @@ fun ScheduleDetailScreen(
     // Navigate back after deletion
     LaunchedEffect(deleted) {
         if (deleted) onBack()
+    }
+
+    LaunchedEffect(completeServiceAssetId) {
+        completeServiceAssetId?.let { assetId ->
+            viewModel.onCompleteServiceHandled()
+            onCompleteService(assetId)
+        }
     }
 
     // Show errors in snackbar
@@ -159,6 +168,7 @@ fun ScheduleDetailScreen(
                 onAddToCalendar = {
                     viewModel.addToCalendar(context, safeSchedule.title)
                 },
+                onCompleteService = viewModel::completeService,
                 modifier = Modifier.padding(innerPadding),
             )
         }
@@ -202,6 +212,7 @@ private fun ScheduleDetailContent(
     isSaving: Boolean,
     linkedWos: List<WorkOrderEntity>,
     onAddToCalendar: () -> Unit,
+    onCompleteService: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val isOverdue = remember(schedule) { RruleHelper.isOverdue(schedule) }
@@ -313,6 +324,14 @@ private fun ScheduleDetailContent(
         }
 
         // ── Actions ────────────────────────────────────────────────────────────
+        Button(
+            onClick = onCompleteService,
+            enabled = !isSaving,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(R.string.action_complete_service))
+        }
+
         if (schedule.scheduleType != "meter") {
             OutlinedButton(
                 onClick = onAddToCalendar,

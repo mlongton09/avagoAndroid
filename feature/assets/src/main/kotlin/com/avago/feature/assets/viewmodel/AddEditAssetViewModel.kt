@@ -262,7 +262,7 @@ class AddEditAssetViewModel @Inject constructor(
         ).any { it.isNotBlank() }
 
         if (!hasAnyAddress) {
-            _geocodeResult.value = GeocodeResult.Error("Enter at least a street address, city, or postal code before looking up coordinates.")
+            _geocodeResult.value = GeocodeResult.Error("Unable to determine location.")
             return
         }
 
@@ -302,12 +302,12 @@ class AddEditAssetViewModel @Inject constructor(
                             updated["longitude"] = lon.toString()
                             _form.value = _form.value.copy(customAttributes = updated)
                         } else {
-                            _geocodeResult.value = GeocodeResult.Error("No coordinates found for this address.")
+                            _geocodeResult.value = GeocodeResult.Error("Unable to determine location.")
                         }
                     }
                     is NetworkResult.Error -> {
                         Timber.e("[AddEditAssetViewModel] Geocode failed: ${result.code} ${result.message}")
-                        _geocodeResult.value = GeocodeResult.Error(result.message)
+                        _geocodeResult.value = GeocodeResult.Error("Address not found.")
                     }
                     is NetworkResult.Unauthorized -> {
                         _geocodeResult.value = GeocodeResult.Error("Unauthorized. Please sign in again.")
@@ -315,7 +315,7 @@ class AddEditAssetViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 Timber.e(e, "[AddEditAssetViewModel] Geocode error")
-                _geocodeResult.value = GeocodeResult.Error(e.message ?: "Geocode lookup failed.")
+                _geocodeResult.value = GeocodeResult.Error("Address not found.")
             } finally {
                 _isGeocodeLookupInProgress.value = false
             }
@@ -334,7 +334,7 @@ class AddEditAssetViewModel @Inject constructor(
     fun save(onSuccess: (assetId: String) -> Unit) {
         val current = _form.value
         if (!current.isNameValid) {
-            _form.value = current.copy(saveError = "Name is required")
+            _form.value = current.copy(saveError = "Please enter an asset name.")
             return
         }
 

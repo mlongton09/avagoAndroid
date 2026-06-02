@@ -255,6 +255,7 @@ fun NavGraphBuilder.inventoryNavGraph(navController: NavHostController) {
         composable(InventoryRoute.CycleCountList.route) {
             CycleCountListScreen(
                 onCountClick = { countId -> navController.navigate(InventoryRoute.CycleCountDetail.build(countId)) },
+                onCreateStartedCount = { countId -> navController.navigate(InventoryRoute.CycleCountFloor.build(countId)) },
             )
         }
         composable(

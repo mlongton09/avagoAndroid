@@ -28,7 +28,7 @@ dependencies {
     implementation(libs.timber)
 
     // Ktor
-    implementation(libs.ktor.core)
+    api(libs.ktor.core)
     api(libs.ktor.okhttp)
     implementation(libs.ktor.content.negotiation)
     implementation(libs.ktor.json)

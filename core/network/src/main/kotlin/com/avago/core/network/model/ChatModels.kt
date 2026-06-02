@@ -218,6 +218,7 @@ data class CustomSection(
 data class ChatPrefsResponse(
     val notification_sound: Boolean = true,
     val show_previews: Boolean = true,
+    val show_broadcasts_inline: Boolean = true,
     val badge_count: Boolean = true,
     val mention_push_enabled: Boolean = true,
     val broadcast_push_enabled: Boolean = true,
@@ -234,6 +235,7 @@ data class ChatPrefsResponse(
 data class ChatPrefsRequest(
     val notification_sound: Boolean? = null,
     val show_previews: Boolean? = null,
+    val show_broadcasts_inline: Boolean? = null,
     val badge_count: Boolean? = null,
     val mention_push_enabled: Boolean? = null,
     val broadcast_push_enabled: Boolean? = null,

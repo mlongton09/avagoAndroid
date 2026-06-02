@@ -240,6 +240,7 @@ data class CreateCycleCountUiState(
     val scopeValue: String = "",
     val isSubmitting: Boolean = false,
     val isDone: Boolean = false,
+    val createdCountId: String? = null,
     val error: String? = null,
 )
 
@@ -266,7 +267,7 @@ class CreateCycleCountViewModel @Inject constructor(
         viewModelScope.launch {
             _state.value = _state.value.copy(isSubmitting = true, error = null)
             try {
-                serviceClient.createCycleCount(
+                val count = serviceClient.createCycleCount(
                     accountId = accountId,
                     request = CreateCycleCountRequest(
                         location_id = s.locationId,
@@ -274,7 +275,12 @@ class CreateCycleCountViewModel @Inject constructor(
                         scope_value = s.scopeValue.takeIf { it.isNotBlank() },
                     ),
                 )
-                _state.value = _state.value.copy(isSubmitting = false, isDone = true)
+                serviceClient.startCycleCount(accountId, count.cycle_count_id)
+                _state.value = _state.value.copy(
+                    isSubmitting = false,
+                    isDone = true,
+                    createdCountId = count.cycle_count_id,
+                )
             } catch (e: Exception) {
                 Timber.e(e, "CreateCycleCountViewModel: submit failed")
                 _state.value = _state.value.copy(isSubmitting = false, error = e.message)

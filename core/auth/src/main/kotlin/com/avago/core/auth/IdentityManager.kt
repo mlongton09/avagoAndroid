@@ -6,6 +6,7 @@ import com.avago.core.data.DatabaseFactory
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
 import com.avago.core.network.RefreshFailedHandler
+import com.avago.core.network.getOrThrow
 import com.avago.core.network.NetworkException
 import com.avago.core.network.UnauthorizedException
 import com.avago.core.network.model.DeviceUpdateRequest
@@ -302,8 +303,6 @@ class IdentityManager @Inject constructor(
             crashDiagnosticsProvider.get().setUserContext()
 
             Timber.d("IdentityManager: signed in as $accountId")
-            runCatching { migrationService.get().migrateAnonymousToAuthenticated(accountId) }
-                .onFailure { Timber.w(it, "IdentityManager: migrateAnonymousToAuthenticated failed") }
             registerPushTokenAsync()
 
             // Sequential: validate role from members list (mirrors iOS fetchAndStoreUserProfile)
@@ -766,6 +765,33 @@ class IdentityManager @Inject constructor(
         WorkManager.getInstance(appContext)
             .enqueueUniqueWork("avago_sync", ExistingWorkPolicy.REPLACE, request)
         Timber.d("IdentityManager: enqueued post-signin sync")
+    }
+
+
+    suspend fun updateDisplayName(displayName: String) = withContext(Dispatchers.IO) {
+        val trimmed = displayName.trim()
+        if (trimmed.isBlank()) return@withContext
+        val user = client.updateMe(trimmed).getOrThrow()
+        val accountId = _activeAccountId.value ?: return@withContext
+        val existing = AccountManifest.load(appContext).find { it.accountId == accountId }
+        accountManifest.upsertFromServer(
+            AccountRecord(
+                accountId = accountId,
+                userId = user.user_id,
+                displayName = user.display_name ?: trimmed,
+                email = user.email ?: existing?.email,
+                role = user.role ?: existing?.role,
+                memberships = existing?.memberships.orEmpty(),
+                isAnonymous = false,
+                accountName = existing?.accountName,
+            )
+        )
+        _accountsChanged.tryEmit(Unit)
+    }
+
+    fun getActiveAccountLabel(): String? {
+        val accountId = _activeAccountId.value ?: return null
+        return AccountManifest.load(appContext).find { it.accountId == accountId }?.displayLabel
     }
 
     // ---------------------------------------------------------------------------

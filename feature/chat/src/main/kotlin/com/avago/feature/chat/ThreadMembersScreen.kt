@@ -49,6 +49,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.SavedStateHandle
@@ -220,6 +221,19 @@ class ThreadMembersViewModel @Inject constructor(
         }
     }
 
+    fun muteForHours(hours: Int) {
+        val until = System.currentTimeMillis() + hours * 60L * 60L * 1000L
+        viewModelScope.launch {
+            repository.muteThread(threadId, muted = true, untilEpochMs = until).fold(
+                onSuccess = { _notificationPref.value = "none" },
+                onFailure = { e ->
+                    Timber.e(e, "muteForHours failed")
+                    _actionError.value = "Failed to update notification preference"
+                },
+            )
+        }
+    }
+
     fun clearActionError() {
         _actionError.value = null
     }
@@ -266,15 +280,15 @@ fun ThreadMembersScreen(
     if (showLeaveDialog) {
         AlertDialog(
             onDismissRequest = { showLeaveDialog = false },
-            title = { Text("Leave thread?") },
-            text = { Text("You will no longer receive messages from this thread.") },
+            title = { Text(stringResource(R.string.thread_members_leave_title)) },
+            text = { Text(stringResource(R.string.thread_members_leave_message)) },
             confirmButton = {
                 TextButton(onClick = { viewModel.leaveThread(); showLeaveDialog = false }) {
-                    Text("Leave", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.thread_members_leave_action), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showLeaveDialog = false }) { Text("Cancel") }
+                TextButton(onClick = { showLeaveDialog = false }) { Text(stringResource(R.string.chat_settings_cancel)) }
             },
         )
     }
@@ -283,27 +297,31 @@ fun ThreadMembersScreen(
         modifier = modifier,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(uiState.groupName ?: "Members") },
+                title = { Text(stringResource(R.string.thread_members_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.thread_back))
                     }
                 },
                 actions = {
                     if (isAdmin) {
                         IconButton(onClick = { showRenameDialog = true }) {
-                            Icon(Icons.Default.Edit, contentDescription = "Rename group")
+                            Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.thread_members_rename_group))
                         }
                     }
                     Box {
                         IconButton(onClick = { showNotifMenu = true }) {
-                            Icon(Icons.Default.Notifications, contentDescription = "Notifications")
+                            Icon(Icons.Default.Notifications, contentDescription = stringResource(R.string.thread_members_notifications))
                         }
                         DropdownMenu(
                             expanded = showNotifMenu,
                             onDismissRequest = { showNotifMenu = false },
                         ) {
-                            listOf("all" to "All messages", "mentions" to "Mentions only", "none" to "Off")
+                            listOf(
+                                "all" to stringResource(R.string.thread_notifications_all),
+                                "mentions" to stringResource(R.string.thread_notifications_mentions),
+                                "none" to stringResource(R.string.thread_notifications_off),
+                            )
                                 .forEach { (pref, label) ->
                                     DropdownMenuItem(
                                         text = { Text(label) },
@@ -313,6 +331,19 @@ fun ThreadMembersScreen(
                                         },
                                     )
                                 }
+                            listOf(
+                                1 to stringResource(R.string.mute_1h),
+                                8 to stringResource(R.string.mute_8h),
+                                24 to stringResource(R.string.mute_24h),
+                            ).forEach { (hours, label) ->
+                                DropdownMenuItem(
+                                    text = { Text(label) },
+                                    onClick = {
+                                        viewModel.muteForHours(hours)
+                                        showNotifMenu = false
+                                    },
+                                )
+                            }
                         }
                     }
                 },
@@ -321,7 +352,7 @@ fun ThreadMembersScreen(
         floatingActionButton = {
             if (isAdmin) {
                 FloatingActionButton(onClick = { /* TODO: open member picker */ }) {
-                    Icon(Icons.Default.Add, contentDescription = "Add members")
+                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.thread_members_add))
                 }
             }
         },
@@ -368,7 +399,7 @@ fun ThreadMembersScreen(
                                 ) {
                                     Icon(
                                         Icons.Default.Delete,
-                                        contentDescription = "Remove member",
+                                        contentDescription = stringResource(R.string.thread_members_remove),
                                         tint = MaterialTheme.colorScheme.error,
                                     )
                                 }
@@ -387,7 +418,7 @@ fun ThreadMembersScreen(
                     ListItem(
                         headlineContent = {
                             Text(
-                                "Leave thread",
+                                stringResource(R.string.chat_settings_leave_label),
                                 color = MaterialTheme.colorScheme.error,
                             )
                         },

@@ -77,7 +77,11 @@ fun AccountSwitcherScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         // Avatar circle with initials
-                        val label = account.displayLabel
+                        val label = if (
+                            account.accountName.isNullOrBlank() &&
+                            account.displayName.isNullOrBlank() &&
+                            account.email.isNullOrBlank()
+                        ) stringResource(R.string.account_anonymous) else account.displayLabel
                         val initials = label.trim().split(" ").let { parts ->
                             if (parts.size >= 2) "${parts[0].firstOrNull()?.uppercaseChar() ?: ""}${parts[1].firstOrNull()?.uppercaseChar() ?: ""}"
                             else label.take(2).uppercase()
@@ -104,7 +108,7 @@ fun AccountSwitcherScreen(
                         Spacer(Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = account.displayLabel,
+                                text = label,
                                 style = MaterialTheme.typography.bodyLarge,
                             )
                             if (account.email != null && account.displayName != null) {

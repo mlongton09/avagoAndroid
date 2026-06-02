@@ -4,7 +4,10 @@ package com.avago.feature.workorders.model
 enum class RecurrenceFrequency(val rruleKey: String, val displayName: String) {
     DAILY("DAILY", "Daily"),
     WEEKLY("WEEKLY", "Weekly"),
+    BIWEEKLY("WEEKLY", "Every 2 Weeks"),
     MONTHLY("MONTHLY", "Monthly"),
+    QUARTERLY("MONTHLY", "Every 3 Months"),
+    SEMIANNUAL("MONTHLY", "Every 6 Months"),
     YEARLY("YEARLY", "Yearly"),
     CUSTOM("WEEKLY", "Custom");  // Custom uses weekly base with configurable interval
 
@@ -14,7 +17,16 @@ enum class RecurrenceFrequency(val rruleKey: String, val displayName: String) {
             val freq = rrule.split(";")
                 .firstOrNull { it.startsWith("FREQ=") }
                 ?.removePrefix("FREQ=")
-            return entries.firstOrNull { it.rruleKey == freq && it != CUSTOM } ?: MONTHLY
+            val interval = rrule.split(";")
+                .firstOrNull { it.startsWith("INTERVAL=") }
+                ?.removePrefix("INTERVAL=")
+                ?.toIntOrNull() ?: 1
+            return when {
+                freq == "WEEKLY" && interval == 2 -> BIWEEKLY
+                freq == "MONTHLY" && interval == 3 -> QUARTERLY
+                freq == "MONTHLY" && interval == 6 -> SEMIANNUAL
+                else -> entries.firstOrNull { it.rruleKey == freq && it != CUSTOM && it != BIWEEKLY && it != QUARTERLY && it != SEMIANNUAL } ?: MONTHLY
+            }
         }
     }
 }
@@ -46,7 +58,13 @@ fun buildRrule(
         else -> frequency.rruleKey
     }
     append("FREQ=$freq")
-    append(";INTERVAL=$interval")
+    val resolvedInterval = when (frequency) {
+        RecurrenceFrequency.BIWEEKLY -> 2
+        RecurrenceFrequency.QUARTERLY -> 3
+        RecurrenceFrequency.SEMIANNUAL -> 6
+        else -> interval
+    }
+    append(";INTERVAL=$resolvedInterval")
     when (endType) {
         RecurrenceEndType.AFTER_COUNT -> if (count != null) append(";COUNT=$count")
         RecurrenceEndType.ON_DATE -> if (until != null) append(";UNTIL=$until")
@@ -65,15 +83,19 @@ fun summariseRrule(rrule: String?): String {
         }
         k to v
     }
+    val interval = parts["INTERVAL"]?.toIntOrNull() ?: 1
     val freqLabel = when (parts["FREQ"]) {
         "DAILY" -> "Daily"
-        "WEEKLY" -> "Weekly"
-        "MONTHLY" -> "Monthly"
+        "WEEKLY" -> if (interval == 2) "Every 2 Weeks" else "Weekly"
+        "MONTHLY" -> when (interval) {
+            3 -> "Every 3 Months"
+            6 -> "Every 6 Months"
+            else -> "Monthly"
+        }
         "YEARLY" -> "Yearly"
         else -> "Recurring"
     }
-    val interval = parts["INTERVAL"]?.toIntOrNull() ?: 1
-    val freqText = if (interval > 1) "Every $interval ${parts["FREQ"]?.lowercase()}s" else freqLabel
+    val freqText = if (freqLabel.startsWith("Every ")) freqLabel else if (interval > 1) "Every $interval ${parts["FREQ"]?.lowercase()}s" else freqLabel
     return when {
         parts.containsKey("COUNT") -> "$freqText, ends after ${parts["COUNT"]} occurrences"
         parts.containsKey("UNTIL") -> "$freqText, ends on ${parts["UNTIL"]}"

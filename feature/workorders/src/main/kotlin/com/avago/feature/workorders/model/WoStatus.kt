@@ -11,11 +11,11 @@ import androidx.compose.ui.graphics.Color
  * RBAC keys used to gate transitions are checked via [PermissionKey].
  */
 enum class WoStatus(val key: String, val displayName: String) {
+    DRAFT("draft", "Draft"),
     OPEN("open", "Open"),
     ASSIGNED("assigned", "Assigned"),
     IN_PROGRESS("in_progress", "In Progress"),
     ON_HOLD("on_hold", "On Hold"),
-    PENDING_PARTS("pending_parts", "Pending Parts"),
     COMPLETE("complete", "Complete"),
     CANCELLED("cancelled", "Cancelled");
 
@@ -28,11 +28,11 @@ enum class WoStatus(val key: String, val displayName: String) {
 /** Returns Material 3 color for the given status. */
 @Composable
 fun WoStatus.statusColor(): Color = when (this) {
+    WoStatus.DRAFT -> MaterialTheme.colorScheme.outline
     WoStatus.OPEN -> MaterialTheme.colorScheme.primary
     WoStatus.ASSIGNED -> MaterialTheme.colorScheme.tertiary
     WoStatus.IN_PROGRESS -> MaterialTheme.colorScheme.secondary
     WoStatus.ON_HOLD -> MaterialTheme.colorScheme.tertiary
-    WoStatus.PENDING_PARTS -> MaterialTheme.colorScheme.primary
     WoStatus.COMPLETE -> MaterialTheme.colorScheme.outline
     WoStatus.CANCELLED -> MaterialTheme.colorScheme.error
 }
@@ -49,7 +49,6 @@ sealed class WoTransition(
     object Assign : WoTransition(WoStatus.ASSIGNED, "Assign", "work_orders.assign")
     object StartWork : WoTransition(WoStatus.IN_PROGRESS, "Start Work", "work_orders.start")
     object PlaceOnHold : WoTransition(WoStatus.ON_HOLD, "Place On Hold", "work_orders.update")
-    object PendingParts : WoTransition(WoStatus.PENDING_PARTS, "Pending Parts", "work_orders.update")
     object Resume : WoTransition(WoStatus.IN_PROGRESS, "Resume", "work_orders.update")
     object Complete : WoTransition(WoStatus.COMPLETE, "Complete", "work_orders.update")
     object Cancel : WoTransition(WoStatus.CANCELLED, "Cancel", "work_orders.delete")
@@ -60,16 +59,15 @@ sealed class WoTransition(
  * The caller must additionally check RBAC before showing the action.
  */
 fun WoStatus.availableTransitions(): List<WoTransition> = when (this) {
+    WoStatus.DRAFT -> listOf(WoTransition.Assign, WoTransition.Cancel)
     WoStatus.OPEN -> listOf(WoTransition.Assign, WoTransition.Cancel)
     WoStatus.ASSIGNED -> listOf(WoTransition.StartWork, WoTransition.Cancel)
     WoStatus.IN_PROGRESS -> listOf(
         WoTransition.PlaceOnHold,
-        WoTransition.PendingParts,
         WoTransition.Complete,
         WoTransition.Cancel,
     )
     WoStatus.ON_HOLD -> listOf(WoTransition.Resume, WoTransition.Cancel)
-    WoStatus.PENDING_PARTS -> listOf(WoTransition.Resume, WoTransition.Cancel)
     WoStatus.COMPLETE -> emptyList()
     WoStatus.CANCELLED -> emptyList()
 }

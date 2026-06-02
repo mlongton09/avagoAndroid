@@ -1,4 +1,4 @@
-﻿package com.avago.feature.schedule.ui
+package com.avago.feature.schedule.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -99,6 +99,7 @@ fun ScheduleListScreen(
                 ScheduleTypeFilter.ALL to stringResource(R.string.schedule_type_all),
                 ScheduleTypeFilter.BY_DATE to stringResource(R.string.schedule_type_by_date),
                 ScheduleTypeFilter.BY_METER to stringResource(R.string.schedule_type_by_meter),
+                ScheduleTypeFilter.BY_ASSET to stringResource(R.string.schedule_mode_by_asset),
             )
 
             // ── Status filter chips ───────────────────────────────────────────
@@ -138,8 +139,13 @@ fun ScheduleListScreen(
                 modifier = Modifier.fillMaxSize(),
             ) {
                 if (schedules.isEmpty()) {
+                    val emptyMessage = when (statusFilter) {
+                        ScheduleStatusFilter.DUE_SOON -> stringResource(R.string.schedule_empty_due_soon)
+                        ScheduleStatusFilter.OVERDUE -> stringResource(R.string.schedule_empty_overdue)
+                        else -> stringResource(R.string.schedule_list_empty)
+                    }
                     EmptyState(
-                        message = stringResource(R.string.schedule_list_empty),
+                        message = emptyMessage,
                         modifier = Modifier.fillMaxSize(),
                     )
                 } else {
@@ -148,11 +154,32 @@ fun ScheduleListScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxSize(),
                     ) {
-                        items(schedules, key = { it.scheduleId }) { schedule ->
-                            ScheduleCard(
-                                schedule = schedule,
-                                onClick = { onScheduleClick(schedule.scheduleId) },
-                            )
+                        if (typeFilter == ScheduleTypeFilter.BY_ASSET) {
+                            items(
+                                schedules.groupBy { it.assetId }.toList(),
+                                key = { (assetId, _) -> assetId },
+                            ) { (assetId, assetSchedules) ->
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text(
+                                        text = assetId.ifBlank { stringResource(R.string.schedule_no_asset) },
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                    assetSchedules.forEach { schedule ->
+                                        ScheduleCard(
+                                            schedule = schedule,
+                                            onClick = { onScheduleClick(schedule.scheduleId) },
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            items(schedules, key = { it.scheduleId }) { schedule ->
+                                ScheduleCard(
+                                    schedule = schedule,
+                                    onClick = { onScheduleClick(schedule.scheduleId) },
+                                )
+                            }
                         }
                     }
                 }

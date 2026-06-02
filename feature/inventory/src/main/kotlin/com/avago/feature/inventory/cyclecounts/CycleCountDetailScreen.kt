@@ -1,4 +1,4 @@
-﻿package com.avago.feature.inventory.cyclecounts
+package com.avago.feature.inventory.cyclecounts
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -165,10 +165,10 @@ fun CycleCountDetailScreen(
                         ) {
                             Text(
                                 if (state.isActioning) stringResource(R.string.common_loading)
-                                else stringResource(R.string.cycle_count_complete),
+                                else stringResource(R.string.cc_complete_btn),
                             )
                         }
-                        "locked" -> {
+                        "review", "locked" -> {
                             Button(
                                 onClick = viewModel::post,
                                 enabled = !state.isActioning,

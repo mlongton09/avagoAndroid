@@ -51,6 +51,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -85,10 +86,10 @@ fun ChatListScreen(
     var renameSectionName by rememberSaveable { mutableStateOf("") }
 
     val filterLabels = listOf(
-        ThreadFilter.ALL to "All",
-        ThreadFilter.DIRECT to "Direct",
-        ThreadFilter.WORK_ORDERS to "Work Orders",
-        ThreadFilter.ASSETS to "Assets",
+        ThreadFilter.ALL to stringResource(R.string.chat_filter_all),
+        ThreadFilter.DIRECT to stringResource(R.string.chat_filter_direct),
+        ThreadFilter.WORK_ORDERS to stringResource(R.string.chat_filter_work_orders),
+        ThreadFilter.ASSETS to stringResource(R.string.chat_filter_assets),
     )
 
     if (showNewSectionDialog) {
@@ -254,7 +255,7 @@ fun ChatListScreen(
                         FilterChip(
                             selected = uiState.unreadOnly,
                             onClick = { viewModel.setUnreadOnly(!uiState.unreadOnly) },
-                            label = { Text("Unread") },
+                            label = { Text(stringResource(R.string.chat_filter_unread)) },
                         )
                     }
                     item {

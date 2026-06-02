@@ -72,6 +72,7 @@ fun WorkOrderListScreen(
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val filter by viewModel.filter.collectAsStateWithLifecycle()
     val horizon by viewModel.horizon.collectAsStateWithLifecycle()
+    val statusFilter by viewModel.statusFilter.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val syncError by viewModel.syncError.collectAsStateWithLifecycle()
     val canCreateWo by viewModel.canCreateWo.collectAsStateWithLifecycle()
@@ -134,7 +135,11 @@ fun WorkOrderListScreen(
                     Column(modifier = Modifier.fillMaxSize()) {
                         Spacer(modifier = Modifier.height(with(density) { (headerHeightPx * headerProgress).toDp() }))
                         EmptyState(
-                            message = stringResource(R.string.wo_empty),
+                            message = if (filter == WoListFilter.MINE) {
+                                stringResource(R.string.wo_all_caught_up)
+                            } else {
+                                stringResource(R.string.wo_no_open)
+                            },
                             modifier = Modifier.fillMaxSize(),
                         )
                     }

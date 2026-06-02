@@ -1,4 +1,4 @@
-﻿package com.avago.feature.inventory.warehouse
+package com.avago.feature.inventory.warehouse
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -49,42 +49,36 @@ fun WarehouseMenuScreen(
             item {
                 WarehouseActionCard(
                     title = stringResource(R.string.warehouse_receive_card),
-                    description = stringResource(R.string.warehouse_receive_desc),
                     onClick = onReceive,
                 )
             }
             item {
                 WarehouseActionCard(
                     title = stringResource(R.string.warehouse_issue_card),
-                    description = stringResource(R.string.warehouse_issue_desc),
                     onClick = onIssue,
                 )
             }
             item {
                 WarehouseActionCard(
                     title = stringResource(R.string.warehouse_move_card),
-                    description = stringResource(R.string.warehouse_move_desc),
                     onClick = onMove,
                 )
             }
             item {
                 WarehouseActionCard(
                     title = stringResource(R.string.warehouse_reorder_card),
-                    description = stringResource(R.string.warehouse_reorder_desc),
                     onClick = onReorder,
                 )
             }
             item {
                 WarehouseActionCard(
                     title = stringResource(R.string.warehouse_grn_history_card),
-                    description = stringResource(R.string.warehouse_grn_history_desc),
                     onClick = onGrnList,
                 )
             }
             item {
                 WarehouseActionCard(
                     title = stringResource(R.string.warehouse_stocking_levels_card),
-                    description = stringResource(R.string.warehouse_stocking_levels_desc),
                     onClick = onStockingLevels,
                 )
             }
@@ -95,7 +89,7 @@ fun WarehouseMenuScreen(
 @Composable
 private fun WarehouseActionCard(
     title: String,
-    description: String,
+    description: String? = null,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -107,7 +101,7 @@ private fun WarehouseActionCard(
     ) {
         ListItem(
             headlineContent = { Text(title, style = MaterialTheme.typography.titleMedium) },
-            supportingContent = { Text(description, style = MaterialTheme.typography.bodySmall) },
+            supportingContent = description?.let { { Text(it, style = MaterialTheme.typography.bodySmall) } },
             trailingContent = {
                 Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
             },

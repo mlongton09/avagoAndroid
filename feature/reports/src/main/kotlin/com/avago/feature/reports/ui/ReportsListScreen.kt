@@ -1,4 +1,4 @@
-﻿package com.avago.feature.reports.ui
+package com.avago.feature.reports.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -11,9 +11,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.WorkOutline
+import com.avago.feature.reports.R
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -27,51 +26,33 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 
 private data class ReportSection(
     val title: String,
     val subtitle: String,
     val icon: ImageVector,
-    val reportCount: Int,
     val onClick: () -> Unit,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReportsListScreen(
-    onNavigateToWorkOrders: () -> Unit,
-    onNavigateToMaintenance: () -> Unit,
-    onNavigateToFinancial: () -> Unit,
-    onNavigateToSystem: () -> Unit,
+    onNavigateToCategory: () -> Unit,
+    onNavigateToCost: () -> Unit,
 ) {
     val sections = listOf(
         ReportSection(
-            title = "Work Orders",
-            subtitle = "8 reports — open dashboard, PM compliance, MTTR, backlog age & more",
+            title = stringResource(R.string.report_category),
+            subtitle = "Work orders grouped by category",
             icon = Icons.Default.WorkOutline,
-            reportCount = 8,
-            onClick = onNavigateToWorkOrders,
+            onClick = onNavigateToCategory,
         ),
         ReportSection(
-            title = "Maintenance",
-            subtitle = "5 reports — service history, frequency, meter trend, inspection rate",
-            icon = Icons.Default.Build,
-            reportCount = 5,
-            onClick = onNavigateToMaintenance,
-        ),
-        ReportSection(
-            title = "Financial",
-            subtitle = "10 reports — cost lines, journal, 1099, fixed assets, repair-vs-replace",
+            title = stringResource(R.string.report_cost),
+            subtitle = "Costs by asset, type, and total cost of ownership",
             icon = Icons.Default.AccountBalance,
-            reportCount = 10,
-            onClick = onNavigateToFinancial,
-        ),
-        ReportSection(
-            title = "System",
-            subtitle = "Coming soon — account overview, inventory health, compliance",
-            icon = Icons.Default.Settings,
-            reportCount = 5,
-            onClick = onNavigateToSystem,
+            onClick = onNavigateToCost,
         ),
     )
 
@@ -121,11 +102,7 @@ private fun ReportSectionCard(section: ReportSection) {
                 )
             },
             trailingContent = {
-                Text(
-                    "${section.reportCount} reports",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+
             },
         )
     }

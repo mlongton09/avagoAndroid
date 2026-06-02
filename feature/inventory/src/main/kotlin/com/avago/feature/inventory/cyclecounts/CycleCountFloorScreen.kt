@@ -81,6 +81,7 @@ fun CycleCountFloorScreen(
     val recentScans by viewModel.recentScans.collectAsStateWithLifecycle()
     val lastScannedBarcode by viewModel.lastScannedBarcode.collectAsStateWithLifecycle()
     val scanFeedback by viewModel.scanFeedback.collectAsStateWithLifecycle()
+    val isCompleting by viewModel.isCompleting.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -163,7 +164,7 @@ fun CycleCountFloorScreen(
                         )
                         Spacer(modifier = Modifier.height(24.dp))
                         Button(onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }) {
-                            Text("Grant Camera Permission")
+                            Text(stringResource(R.string.label_scanner_grant_permission))
                         }
                     }
                 } else {
@@ -258,12 +259,15 @@ fun CycleCountFloorScreen(
                         HorizontalDivider()
                     }
 
-                    // Done button
                     Button(
-                        onClick = onBack,
+                        onClick = { viewModel.markComplete(onBack) },
+                        enabled = !isCompleting,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text(stringResource(R.string.cycle_count_floor_done))
+                        Text(
+                            if (isCompleting) stringResource(R.string.common_loading)
+                            else stringResource(R.string.cc_complete_btn),
+                        )
                     }
                 }
             }

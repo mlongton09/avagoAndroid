@@ -23,10 +23,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.avago.core.data.db.entity.ChatMessageEntity
 
-/**
- * A slim banner shown at the top of the thread (below the subject card) when a message is pinned.
- * Tapping the banner scrolls to the pinned message; the X button unpins it.
- */
 @Composable
 fun PinnedMessageBanner(
     message: ChatMessageEntity,

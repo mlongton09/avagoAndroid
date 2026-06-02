@@ -39,6 +39,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
@@ -150,6 +152,7 @@ fun AddEditAssetScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var showDatePicker by remember { mutableStateOf(false) }
     var addressExpanded by remember { mutableStateOf(false) }
+    var unitsExpanded by remember { mutableStateOf(false) }
 
     // Show error in snackbar
     LaunchedEffect(form.saveError) {
@@ -363,7 +366,7 @@ fun AddEditAssetScreen(
                             enabled = form.vinSerial.isNotBlank(),
                             modifier = Modifier.padding(bottom = 4.dp),
                         ) {
-                            Text("Decode VIN")
+                            Text(stringResource(R.string.asset_field_scan_vin))
                         }
                     }
                 }
@@ -457,23 +460,31 @@ fun AddEditAssetScreen(
             }
 
             // Wheel configuration (vehicle types only)
-            if (form.assetType in WHEEL_CONFIG_ASSET_TYPES) {
-                item {
-                    WheelConfigSection(
-                        wheelConfigJson = form.customAttributes["wheel_config"],
-                        onOpenConfig = { onOpenWheelConfig?.invoke() },
-                    )
-                }
-            }
-
             // Floor / bay / suite map (real estate types only)
             if (form.assetType in REAL_ESTATE_ASSET_TYPES) {
                 item {
-                    FloorMapSection(
-                        assetType = form.assetType ?: "",
-                        currentJson = form.customAttributes[floorAttributeKeyFor(form.assetType)] ?: "",
-                        onJsonChanged = { key, json -> viewModel.onFloorMapChanged(key, json) },
-                    )
+                    if (unitsExpanded) {
+                        FloorMapSection(
+                            assetType = form.assetType ?: "",
+                            currentJson = form.customAttributes[floorAttributeKeyFor(form.assetType)] ?: "",
+                            onJsonChanged = { key, json -> viewModel.onFloorMapChanged(key, json) },
+                        )
+                    } else {
+                        OutlinedButton(
+                            onClick = { unitsExpanded = true },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                stringResource(
+                                    when (form.assetType) {
+                                        "industrial" -> R.string.asset_add_bays_btn
+                                        "office" -> R.string.asset_add_suites_btn
+                                        else -> R.string.asset_add_units_btn
+                                    },
+                                ),
+                            )
+                        }
+                    }
                 }
             }
 
@@ -563,19 +574,41 @@ private fun PhotosSection(
     onAddPhoto: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
+    var showPhotoMenu by remember { mutableStateOf(false) }
     Column(modifier = modifier) {
-        OutlinedButton(
-            onClick = { onAddPhoto?.invoke() },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(8.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Default.CameraAlt,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(Modifier.width(8.dp))
-            Text("Add Photo")
+        Box {
+            OutlinedButton(
+                onClick = { showPhotoMenu = true },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(8.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CameraAlt,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.asset_add_photo))
+            }
+            DropdownMenu(
+                expanded = showPhotoMenu,
+                onDismissRequest = { showPhotoMenu = false },
+            ) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.asset_add_photo)) },
+                    onClick = {
+                        showPhotoMenu = false
+                        onAddPhoto?.invoke()
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.asset_photo_library)) },
+                    onClick = {
+                        showPhotoMenu = false
+                        onAddPhoto?.invoke()
+                    },
+                )
+            }
         }
         if (photoUris.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
@@ -638,7 +671,11 @@ private fun AddressSection(
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                text = "Address",
+                text = if (expanded) {
+                    stringResource(R.string.asset_section_address)
+                } else {
+                    stringResource(R.string.asset_add_address_btn)
+                },
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface,
             )
@@ -680,7 +717,7 @@ private fun AddressSection(
                 OutlinedTextField(
                     value = stateProvince,
                     onValueChange = onStateProvinceChanged,
-                    label = { Text("State") },
+                    label = { Text(stringResource(R.string.asset_field_state)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
                     modifier = Modifier.weight(0.4f),
@@ -697,7 +734,7 @@ private fun AddressSection(
                 OutlinedTextField(
                     value = postalCode,
                     onValueChange = onPostalCodeChanged,
-                    label = { Text("Postal Code") },
+                    label = { Text(stringResource(R.string.asset_field_postal)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.weight(0.4f),
@@ -752,7 +789,7 @@ private fun AddressSection(
                         )
                         Spacer(Modifier.width(6.dp))
                     }
-                    Text("Lookup Coordinates")
+                    Text(stringResource(R.string.asset_geocode_lookup))
                 }
             }
         }

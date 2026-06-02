@@ -1,4 +1,4 @@
-﻿package com.avago.feature.inventory.vendors
+package com.avago.feature.inventory.vendors
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -90,7 +90,7 @@ fun VendorDetailScreen(
 
             item {
                 Text(
-                    text = stringResource(R.string.vendor_parts_title),
+                    text = stringResource(R.string.sources_section),
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.padding(top = 4.dp),
                 )

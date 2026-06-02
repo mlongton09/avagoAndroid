@@ -18,11 +18,11 @@ import com.avago.core.sync.ui.SyncConflictSheet
 import com.avago.core.sync.ui.SyncConflictViewModel
 import com.avago.feature.assets.nav.AssetsRoute
 import com.avago.feature.assets.nav.assetsNavGraph
+import com.avago.feature.assets.ui.GalleryScreen
 import com.avago.feature.auth.nav.AuthRoute
 import com.avago.feature.auth.nav.authNavGraph
 import com.avago.feature.chat.nav.chatNavGraph
 import com.avago.feature.chat.nav.ChatRoute
-import com.avago.feature.docs.nav.docsNavGraph
 import com.avago.feature.inventory.nav.inventoryNavGraph
 import com.avago.feature.log.nav.LogRoute
 import com.avago.feature.log.nav.logNavGraph
@@ -31,7 +31,6 @@ import com.avago.feature.reports.ui.CostReportScreen
 import com.avago.feature.schedule.nav.scheduleNavGraph
 import com.avago.feature.settings.nav.settingsNavGraph
 import com.avago.feature.workorders.nav.workOrderNavGraph
-import com.avago.core.ai.ui.ScoutHistoryScreen
 
 /**
  * App-level [NavHost].
@@ -54,7 +53,6 @@ fun AvagoNavHost(
     mainViewModel: MainViewModel = hiltViewModel(),
     conflictViewModel: SyncConflictViewModel = hiltViewModel(),
 ) {
-    val conflicts by conflictViewModel.conflicts.collectAsStateWithLifecycle()
     val activeAccountId by mainViewModel.activeAccountId.collectAsStateWithLifecycle()
     val activeAccountIsAnonymous by mainViewModel.activeAccountIsAnonymous.collectAsStateWithLifecycle()
 
@@ -149,20 +147,19 @@ fun AvagoNavHost(
             composable("category_report") {
                 GlobalCategoryReportScreen(onBack = { navController.popBackStack() })
             }
-            composable("scout/history") {
-                ScoutHistoryScreen(onBack = { navController.popBackStack() })
+            composable("gallery") {
+                GalleryScreen()
             }
-
             // ── Schedule ──────────────────────────────────────────────────────────
             scheduleNavGraph(
                 navController = navController,
                 onNavigateToAssetPicker = {
                     navController.navigate(AssetsRoute.PICKER)
                 },
+                onNavigateToAddLogEntry = { assetId ->
+                    navController.navigate(LogRoute.addEdit(assetId = assetId))
+                },
             )
-
-            // ── Docs ──────────────────────────────────────────────────────────────
-            docsNavGraph(navController = navController)
 
             // ── Chat ──────────────────────────────────────────────────────────────
             // Wrap in a nested nav graph so the bottom nav item "chat" resolves to the
@@ -175,18 +172,21 @@ fun AvagoNavHost(
             settingsNavGraph(navController = navController)
         }
 
-        // ── Sync conflict resolution overlay ─────────────────────────────────────
-        // Shows a bottom sheet for the first pending conflict; user resolves one at a time.
-        conflicts.firstOrNull()?.let { conflict ->
-            SyncConflictSheet(
-                conflict = conflict,
-                conflictCount = conflicts.size,
-                onKeepLocal = { conflictViewModel.keepLocal(conflict) },
-                onUseServer = { conflictViewModel.acceptServer(conflict) },
-                onKeepAllLocal = { conflictViewModel.keepAllLocal() },
-                onUseServerAll = { conflictViewModel.acceptAllServer() },
-                onDismiss = { conflictViewModel.dismiss(conflict) },
-            )
+        if (SHOW_SYNC_CONFLICT_SHEET) {
+            val conflicts by conflictViewModel.conflicts.collectAsStateWithLifecycle()
+            conflicts.firstOrNull()?.let { conflict ->
+                SyncConflictSheet(
+                    conflict = conflict,
+                    conflictCount = conflicts.size,
+                    onKeepLocal = { conflictViewModel.keepLocal(conflict) },
+                    onUseServer = { conflictViewModel.acceptServer(conflict) },
+                    onKeepAllLocal = { conflictViewModel.keepAllLocal() },
+                    onUseServerAll = { conflictViewModel.acceptAllServer() },
+                    onDismiss = { conflictViewModel.dismiss(conflict) },
+                )
+            }
         }
     }
 }
+
+private const val SHOW_SYNC_CONFLICT_SHEET = false

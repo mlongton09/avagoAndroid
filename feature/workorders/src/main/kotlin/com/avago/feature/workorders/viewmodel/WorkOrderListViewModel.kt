@@ -190,8 +190,8 @@ class WorkOrderListViewModel @Inject constructor(
         if (dueToday.isNotEmpty()) result.add(WoBucket("Due Today", dueToday.byDueAsc()))
         if (thisWeek.isNotEmpty()) result.add(WoBucket("This Week", thisWeek.byDueAsc()))
         if (thisMonth.isNotEmpty()) result.add(WoBucket("This Month", thisMonth.byDueAsc()))
-        if (later.isNotEmpty()) result.add(WoBucket("Later", later.byDueAsc()))
-        if (noDueDate.isNotEmpty()) result.add(WoBucket("No Due Date", noDueDate.sortedByDescending { it.updatedAt }))
+        val laterWithNoDueDate = later.byDueAsc() + noDueDate.sortedByDescending { it.updatedAt }
+        if (laterWithNoDueDate.isNotEmpty()) result.add(WoBucket("Later", laterWithNoDueDate))
         val completedSorted = completed.sortedByDescending { it.updatedAt }.take(20)
         if (completedSorted.isNotEmpty()) result.add(WoBucket("Completed", completedSorted))
 
@@ -240,4 +240,3 @@ class WorkOrderListViewModel @Inject constructor(
 
 /** Tuple helper for combining 4 flows — avoids nesting a second combine(). */
 private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
-

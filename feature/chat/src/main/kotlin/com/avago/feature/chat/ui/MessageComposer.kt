@@ -368,13 +368,6 @@ fun MessageComposer(
                     .padding(horizontal = 14.dp, vertical = 10.dp),
                 contentAlignment = Alignment.CenterStart,
             ) {
-                if (fieldValue.text.isEmpty()) {
-                    Text(
-                        text = "Message",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                    )
-                }
                 BasicTextField(
                     value = fieldValue,
                     onValueChange = { newVal ->

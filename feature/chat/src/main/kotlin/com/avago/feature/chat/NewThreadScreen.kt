@@ -41,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -132,13 +133,21 @@ fun NewThreadScreen(
     }
 
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Direct Message", "Group")
+    val tabs = listOf(
+        stringResource(R.string.new_thread_tab_direct),
+        stringResource(R.string.new_thread_tab_group),
+    )
+    val title = if (selectedTab == 0) {
+        stringResource(R.string.new_thread_title)
+    } else {
+        stringResource(R.string.new_thread_title_group)
+    }
 
     Scaffold(
         modifier = modifier,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("New Conversation") },
+                title = { Text(title) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")

@@ -53,16 +53,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
-
-private val SUGGESTION_CHIPS = listOf(
-    "What's the maintenance history for this asset?",
-    "Create a work order for this equipment",
-    "What parts do I need for this repair?",
-    "Show me overdue work orders",
-)
 
 data class ScoutMessage(
     val role: String, // "user" | "assistant" | "error"
@@ -89,7 +83,7 @@ fun ScoutFAB(
     ) {
         Icon(
             imageVector = Icons.Default.AutoAwesome,
-            contentDescription = "Scout AI",
+            contentDescription = stringResource(R.string.scout_open),
         )
     }
 
@@ -114,6 +108,13 @@ fun ScoutSheet(
     var messages by remember { mutableStateOf(listOf<ScoutMessage>()) }
     var fieldValue by remember { mutableStateOf(TextFieldValue("")) }
     var isLoading by remember { mutableStateOf(false) }
+    val scoutPrompt = stringResource(R.string.scout_placeholder)
+    val suggestionChips = listOf(
+        stringResource(R.string.chip_oil_change),
+        stringResource(R.string.chip_fuel_log),
+        stringResource(R.string.chip_inspection),
+        stringResource(R.string.chip_create_wo),
+    )
 
     // Voice recognition launcher
     val speechLauncher = rememberLauncherForActivityResult(
@@ -175,12 +176,12 @@ fun ScoutSheet(
                 )
                 Spacer(modifier = Modifier.size(8.dp))
                 Text(
-                    text = "Scout AI",
+                    text = stringResource(R.string.scout_title),
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
                 )
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "Close")
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.scout_close))
                 }
             }
 
@@ -196,17 +197,11 @@ fun ScoutSheet(
                 if (messages.isEmpty()) {
                     item {
                         Column(modifier = Modifier.padding(vertical = 16.dp)) {
-                            Text(
-                                text = "Ask me anything about your assets, maintenance history, or work orders.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                            )
-                            Spacer(Modifier.height(12.dp))
                             FlowRow(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(4.dp),
                             ) {
-                                SUGGESTION_CHIPS.forEach { suggestion ->
+                                suggestionChips.forEach { suggestion ->
                                     AssistChip(
                                         onClick = { sendMessage(suggestion) },
                                         label = { Text(suggestion, style = MaterialTheme.typography.labelSmall) },
@@ -251,7 +246,7 @@ fun ScoutSheet(
                     onClick = {
                         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                            putExtra(RecognizerIntent.EXTRA_PROMPT, "Ask Scout…")
+                            putExtra(RecognizerIntent.EXTRA_PROMPT, scoutPrompt)
                         }
                         speechLauncher.launch(intent)
                     },
@@ -276,7 +271,7 @@ fun ScoutSheet(
                 ) {
                     if (fieldValue.text.isEmpty()) {
                         Text(
-                            text = "Ask Scout…",
+                            text = scoutPrompt,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                         )

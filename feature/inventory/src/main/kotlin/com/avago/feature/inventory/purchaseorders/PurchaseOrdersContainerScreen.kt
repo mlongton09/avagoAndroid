@@ -66,7 +66,10 @@ fun PurchaseOrdersContainerScreen(
     val cycleState by cycleCountViewModel.uiState.collectAsStateWithLifecycle()
 
     if (cycleState.showCreateSheet) {
-        CycleCountCreateSheet(onDismiss = cycleCountViewModel::dismissCreate)
+        CycleCountCreateSheet(
+            onDismiss = cycleCountViewModel::dismissCreate,
+            onCreatedAndStarted = onCountClick,
+        )
     }
 
     Scaffold(
