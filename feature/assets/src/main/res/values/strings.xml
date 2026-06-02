@@ -20,6 +20,9 @@
     <string name="asset_detail_no_logs">No log entries yet.\nLog an activity to get started.</string>
     <string name="asset_detail_share_pdf">Generate PDF Report</string>
     <string name="asset_detail_pdf_generate">Generate PDF Report</string>
+    <string name="asset_detail_open_chat">Open team chat</string>
+    <string name="asset_detail_rental_start">Mark Rental Start</string>
+    <string name="asset_detail_rental_end">Mark Rental End</string>
     <string name="asset_detail_add_log">Add Log Entry</string>
     <string name="asset_detail_overflow_menu">Open menu</string>
     <string name="asset_detail_action_clone">Clone</string>

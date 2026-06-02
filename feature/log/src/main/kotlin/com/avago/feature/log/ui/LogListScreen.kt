@@ -44,7 +44,6 @@ import com.avago.core.ui.CategoryBadge
 import com.avago.core.ui.ScoutFAB
 import com.avago.core.ui.ScoutViewModel
 import com.avago.feature.log.viewmodel.LogListViewModel
-import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -56,6 +55,7 @@ fun LogListScreen(
     assetId: String? = null,
     onLogClick: (entryId: String) -> Unit,
     onAddLog: () -> Unit,
+    onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     viewModel: LogListViewModel = hiltViewModel(),
     scoutViewModel: ScoutViewModel = hiltViewModel(),
@@ -65,10 +65,13 @@ fun LogListScreen(
     }
 
     val logs by viewModel.logs.collectAsState()
-    val categories by viewModel.availableCategories.collectAsState()
     val categoryFilter by viewModel.categoryFilter.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val currencyCode by viewModel.currencyCode.collectAsState()
+    val asset by viewModel.asset.collectAsState()
+    val photos by viewModel.photos.collectAsState()
+    val entryCount by viewModel.entryCount.collectAsState()
+    val lastServiceDate by viewModel.lastServiceDate.collectAsState()
 
     val grouped = logs.groupBy { log ->
         Calendar.getInstance().apply { timeInMillis = log.entryDate }.get(Calendar.YEAR)
@@ -77,7 +80,25 @@ fun LogListScreen(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(if (assetId != null) "Log Entries" else "All Logs") },
+                title = {
+                    Text(
+                        text = when {
+                            assetId != null && asset != null -> asset!!.name
+                            assetId != null -> "Log Entries"
+                            else -> "All Logs"
+                        },
+                    )
+                },
+                navigationIcon = {
+                    if (onBack != null) {
+                        androidx.compose.material3.IconButton(onClick = onBack) {
+                            androidx.compose.material3.Icon(
+                                imageVector = androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                            )
+                        }
+                    }
+                },
             )
         },
         floatingActionButton = {
@@ -102,6 +123,20 @@ fun LogListScreen(
                 .padding(innerPadding),
         ) {
             Column {
+                // Asset header — only when launched from a specific asset and the asset
+                // has finished loading. Mirrors iOS AssetDetailHeaderView.
+                if (assetId != null && asset != null) {
+                    AssetLogHeader(
+                        asset = asset!!,
+                        photos = photos,
+                        entryCount = entryCount,
+                        lastServiceDate = lastServiceDate,
+                        onAddPhotoUri = { uri -> viewModel.addAssetPhoto(uri) },
+                        onDeletePhoto = { id -> viewModel.deleteAssetPhoto(id) },
+                        onSetCoverPhoto = { id -> viewModel.setCoverPhoto(id) },
+                    )
+                }
+
                 if (categoryFilter != null) {
                     FilterBanner(
                         categoryFilter = categoryFilter,

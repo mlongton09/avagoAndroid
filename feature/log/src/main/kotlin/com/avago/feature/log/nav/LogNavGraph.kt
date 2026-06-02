@@ -73,6 +73,9 @@ fun NavGraphBuilder.logNavGraph(
                 assetId = assetId,
                 onLogClick = { entryId -> navController.navigate(LogRoute.detail(entryId)) },
                 onAddLog = { navController.navigate(LogRoute.addEdit(assetId = assetId)) },
+                onBack = if (assetId != null) {
+                    { navController.popBackStack() }
+                } else null,
             )
         }
 

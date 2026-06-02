@@ -171,6 +171,10 @@ fun NavGraphBuilder.assetsNavGraph(
                 onOpenRentals = {
                     navController.navigate(AssetsRoute.rentals(assetId))
                 },
+                onOpenAssetChat = {
+                    // No asset->thread mapping yet on Android; route to the chat list.
+                    navController.navigate("chat/list")
+                },
             )
         }
 

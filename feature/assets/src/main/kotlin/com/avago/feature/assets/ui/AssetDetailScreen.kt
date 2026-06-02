@@ -38,8 +38,12 @@ import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.StopCircle
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -98,6 +102,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import org.json.JSONObject
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
@@ -134,6 +140,7 @@ fun AssetDetailScreen(
     onOpenWheelDataInput: () -> Unit = {},
     onOpenRentals: () -> Unit = {},
     onOpenAsset: (assetId: String) -> Unit = {},
+    onOpenAssetChat: (() -> Unit)? = null,
     viewModel: AssetDetailViewModel = hiltViewModel(),
 ) {
     val asset by viewModel.asset.collectAsStateWithLifecycle()
@@ -213,7 +220,7 @@ fun AssetDetailScreen(
                         }
                         Text(
                             text = asset?.name ?: stringResource(R.string.asset_detail_title),
-                            style = MaterialTheme.typography.titleMedium,
+                            fontSize = 17.sp,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -221,7 +228,7 @@ fun AssetDetailScreen(
                         )
                         Text(
                             text = "Log",
-                            style = MaterialTheme.typography.titleMedium,
+                            fontSize = 17.sp,
                             fontWeight = FontWeight.SemiBold,
                         )
                     }
@@ -254,6 +261,43 @@ fun AssetDetailScreen(
                             expanded = showOverflowMenu,
                             onDismissRequest = { showOverflowMenu = false },
                         ) {
+                            // Rental actions — iOS prepends these when asset.isRental.
+                            if (asset?.isRental == true) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.asset_detail_rental_start)) },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.PlayCircle, contentDescription = null)
+                                    },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        onOpenRentals()
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.asset_detail_rental_end)) },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.StopCircle, contentDescription = null)
+                                    },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        onOpenRentals()
+                                    },
+                                )
+                                HorizontalDivider()
+                            }
+                            // Open team chat — iOS menu item.
+                            if (onOpenAssetChat != null) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.asset_detail_open_chat)) },
+                                    leadingIcon = {
+                                        Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null)
+                                    },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        onOpenAssetChat()
+                                    },
+                                )
+                            }
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.asset_detail_share_pdf)) },
                                 leadingIcon = {
@@ -464,7 +508,7 @@ private fun LogTab(
             logsByYear.forEach { group ->
                 item(key = "year_${group.year}") {
                     Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        color = MaterialTheme.colorScheme.surface,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(
@@ -632,259 +676,6 @@ private fun WorkOrdersTab(onOpenWorkOrders: () -> Unit) {
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun AssetDetailHeader(
-    asset: AssetEntity,
-    photos: List<PhotoEntity>,
-    modifier: Modifier = Modifier,
-    onAddPhoto: () -> Unit = {},
-    onPhotoTap: (Int) -> Unit = {},
-) {
-    val bannerHeight = 210.dp
-    val infoRowHeight = 64.dp
-
-    Column(modifier = modifier.fillMaxWidth()) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(bannerHeight),
-        ) {
-            if (photos.isNotEmpty()) {
-                // ── Photo mode: paged horizontal scroller of asset photos
-                val photoPager = rememberPagerState(pageCount = { photos.size })
-                HorizontalPager(
-                    state = photoPager,
-                    modifier = Modifier.fillMaxSize(),
-                ) { page ->
-                    val photo = photos[page]
-                    val model: Any? = photo.localPath?.takeIf { it.isNotBlank() }?.let { java.io.File(it) }
-                        ?: photo.downloadUrl
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black)
-                            .combinedClickable(
-                                onClick = { onPhotoTap(page) },
-                                onLongClick = { onPhotoTap(page) },
-                            ),
-                    ) {
-                        if (model != null) {
-                            AsyncImage(
-                                model = model,
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                        }
-                    }
-                }
-                if (photos.size > 1) {
-                    Row(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 6.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color.Black.copy(alpha = 0.30f))
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        photos.indices.forEach { i ->
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (i == photoPager.currentPage) Color.White
-                                        else Color.White.copy(alpha = 0.45f),
-                                    ),
-                            )
-                        }
-                    }
-                }
-            } else {
-                // ── Color mode: asset-type tinted bg + hero icon watermark + name overlay
-                val bgColor = rememberParsedColor(AssetTypes.colorHexFor(asset.assetType))
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(bgColor),
-                )
-                // Bottom-to-top dark→clear gradient for legibility — iOS bannerGradient
-                // (0.72 alpha at bottom → 0.10 at 55% → clear at top).
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colorStops = arrayOf(
-                                    0.0f to Color.Transparent,
-                                    0.45f to Color.Black.copy(alpha = 0.10f),
-                                    1.0f to Color.Black.copy(alpha = 0.72f),
-                                ),
-                            ),
-                        ),
-                )
-                Icon(
-                    painter = painterResource(AssetTypes.iconResFor(asset.assetType)),
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.40f),
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(end = 16.dp, bottom = 16.dp)
-                        .size(110.dp),
-                )
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(start = 14.dp, end = 134.dp, bottom = 12.dp),
-                ) {
-                    Text(
-                        text = asset.name,
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = Color.White,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    val sub = listOfNotNull(asset.year?.toString(), asset.make, asset.model)
-                        .joinToString(" ")
-                    if (sub.isNotBlank()) {
-                        Text(
-                            text = sub,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.80f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-            }
-
-            // ── Camera button — top-right of banner, always visible
-            IconButton(
-                onClick = onAddPhoto,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 12.dp, end = 12.dp)
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.30f)),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.CameraAlt,
-                    contentDescription = "Add photo",
-                    tint = Color.White,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-        }
-
-        // ── Info row — photo mode only (name + subtitle below the photo)
-        if (photos.isNotEmpty()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(infoRowHeight)
-                    .padding(horizontal = 14.dp),
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Text(
-                    text = asset.name,
-                    style = MaterialTheme.typography.headlineMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                val sub = listOfNotNull(asset.year?.toString(), asset.make, asset.model)
-                    .joinToString(" ")
-                if (sub.isNotBlank()) {
-                    Text(
-                        text = sub,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-        }
-    }
-    HorizontalDivider()
-}
-
-@Composable
-private fun rememberParsedColor(hex: String): Color = try {
-    Color(0xFF000000L or hex.removePrefix("#").toLong(16))
-} catch (_: Exception) {
-    MaterialTheme.colorScheme.primary
-}
-
-@Composable
-private fun AssetStatsRow(
-    entryCount: Int,
-    lastServiceDate: Long?,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(44.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        StatCell(
-            label = stringResource(R.string.asset_detail_log_entries),
-            value = entryCount.toString(),
-            modifier = Modifier.weight(1f),
-        )
-        Box(
-            modifier = Modifier
-                .height(28.dp)
-                .width(0.5.dp)
-                .background(MaterialTheme.colorScheme.outlineVariant)
-        )
-        StatCell(
-            label = stringResource(R.string.asset_detail_last_service),
-            value = if (lastServiceDate != null) formatShortDate(lastServiceDate) else "Never",
-            modifier = Modifier.weight(1f),
-        )
-        Box(
-            modifier = Modifier
-                .height(28.dp)
-                .width(0.5.dp)
-                .background(MaterialTheme.colorScheme.outlineVariant)
-        )
-        StatCell(
-            label = stringResource(R.string.asset_detail_since_service),
-            value = if (lastServiceDate != null) sinceService(lastServiceDate) else "—",
-            modifier = Modifier.weight(1f),
-        )
-    }
-}
-
-@Composable
-private fun StatCell(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
-    }
-}
 
 @Composable
 private fun CategoryFilterRow(
@@ -928,42 +719,39 @@ private fun LogEntryRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         CategoryBadge(categoryId = entry.category)
-        Column(modifier = Modifier.weight(1f)) {
+        // Title only - category name removed; the icon conveys the category (iOS parity).
+        Text(
+            text = entry.title,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f),
+        )
+        // Right meta: "MMM d | <ago>" on top, cost below (iOS date|ago + value layout).
+        Column(horizontalAlignment = Alignment.End) {
             Text(
-                text = entry.title,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-            )
-            entry.category?.takeIf { it.isNotBlank() }?.let { category ->
-                Text(
-                    text = category.replace("_", " ").replaceFirstChar { it.uppercase() },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-            Text(
-                text = formatDate(entry.entryDate),
+                text = "${formatShortDate(entry.entryDate)} | ${agoLabel(entry.entryDate)}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        }
-        entry.cost?.takeIf { it > 0.0 }?.let { cost ->
-            Text(
-                text = formatCurrency(cost, currencyCode),
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.SemiBold,
-            )
+            entry.cost?.takeIf { it > 0.0 }?.let { cost ->
+                Text(
+                    text = formatCurrency(cost, currencyCode),
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
         }
         Box {
             IconButton(onClick = { showMenu = true }) {
                 Icon(
-                    imageVector = Icons.Default.MoreVert,
+                    imageVector = Icons.Default.MoreHoriz,
                     contentDescription = stringResource(R.string.asset_detail_overflow_menu),
                 )
             }
@@ -1482,19 +1270,17 @@ private fun isWheelAsset(assetType: String?): Boolean =
 private fun formatDate(epochMs: Long): String =
     SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date(epochMs))
 
-private fun formatShortDate(epochMs: Long): String =
-    SimpleDateFormat("MMM d", Locale.getDefault()).format(Date(epochMs))
-
-private fun sinceService(epochMs: Long): String {
+/** Relative "ago" label for a log entry date, matching iOS LogItemTableViewCell.agoString. */
+private fun agoLabel(epochMs: Long): String {
     val days = ((System.currentTimeMillis() - epochMs) / 86_400_000L).toInt()
     return when {
-        days < 1  -> "Today"
-        days == 1 -> "1 day"
-        days < 30 -> "$days days"
-        days < 60 -> "1 month"
-        days < 365 -> "${days / 30} months"
-        days < 730 -> "1 year"
-        else -> "${days / 365} years"
+        days < 1   -> "Today"
+        days == 1  -> "Yesterday"
+        days < 30  -> "$days days ago"
+        days < 60  -> "1 month ago"
+        days < 365 -> "${days / 30} months ago"
+        days < 730 -> "1 year ago"
+        else       -> "${days / 365} years ago"
     }
 }
 

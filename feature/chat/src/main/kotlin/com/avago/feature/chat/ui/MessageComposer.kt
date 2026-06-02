@@ -21,7 +21,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Reply
-import androidx.compose.material.icons.automirrored.filled.Send
+
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.AlternateEmail
 import androidx.compose.material.icons.filled.AttachFile
@@ -457,20 +457,6 @@ fun MessageComposer(
                     imageVector = Icons.Filled.PhotoCamera,
                     contentDescription = "Take photo",
                     tint = MaterialTheme.colorScheme.primary,
-                )
-            }
-
-            IconButton(
-                onClick = { attemptSend() },
-                enabled = fieldValue.text.isNotBlank(),
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Send,
-                    contentDescription = "Send",
-                    tint = if (fieldValue.text.isNotBlank())
-                        MaterialTheme.colorScheme.primary
-                    else
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
                 )
             }
         }

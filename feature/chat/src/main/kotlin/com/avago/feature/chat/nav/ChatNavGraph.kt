@@ -46,6 +46,7 @@ fun NavGraphBuilder.chatNavGraph(navController: NavHostController) {
             },
             onNewThread = { navController.navigate(ChatRoute.NewThread.route) },
             onMentions = { navController.navigate(ChatRoute.Mentions.route) },
+            onOpenSettings = { navController.navigate(ChatRoute.ChatNotificationPrefs.route) },
         )
     }
 

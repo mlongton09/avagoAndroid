@@ -21,13 +21,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Groups
-import androidx.compose.material.icons.filled.NotificationsOff
+import androidx.compose.material.icons.filled.Campaign
+import androidx.compose.material.icons.filled.Notifications
+
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.Badge
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -77,6 +81,7 @@ fun ChatListScreen(
     onThreadClick: (threadId: String) -> Unit,
     onNewThread: () -> Unit,
     onMentions: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: ChatListViewModel = hiltViewModel(),
 ) {
@@ -209,6 +214,16 @@ fun ChatListScreen(
     Scaffold(
         modifier = modifier,
         contentWindowInsets = WindowInsets(0),
+        topBar = {
+            TopAppBar(
+                title = { Text("Chat") },
+                actions = {
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = "Chat settings")
+                    }
+                },
+            )
+        },
     ) { innerPadding ->
         Box(
             modifier = Modifier
@@ -233,18 +248,11 @@ fun ChatListScreen(
                         .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
                 )
 
-                // Filter chips — All / Direct / Work Orders / Assets + Unread toggle
+                // Filter — Unread toggle only (iOS parity: filter is all/unread).
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    items(filterLabels) { (filter, label) ->
-                        FilterChip(
-                            selected = uiState.filter == filter,
-                            onClick = { viewModel.setFilter(filter) },
-                            label = { Text(label) },
-                        )
-                    }
                     item {
                         FilterChip(
                             selected = uiState.unreadOnly,
@@ -383,11 +391,11 @@ private fun MentionsShortcutRow(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Bell icon as emoji
-        Text(
-            text = "🔔", // 🔔
-            fontSize = 24.sp,
-            modifier = Modifier.size(36.dp),
+        Icon(
+            imageVector = Icons.Filled.Notifications,
+            contentDescription = "Mentions",
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(28.dp),
         )
 
         Spacer(modifier = Modifier.width(12.dp))
@@ -422,7 +430,7 @@ private fun TeamRoomShortcutRow(onClick: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Icon(
-            Icons.Default.Groups,
+            Icons.Default.Campaign,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(20.dp),
@@ -459,45 +467,27 @@ private fun ThreadRowWithSwipe(
                 viewModel.setFavorite(thread.threadId, !thread.isFavorite)
                 swipeState.reset()
             }
-            SwipeToDismissBoxValue.EndToStart -> {
-                viewModel.muteThread(thread.threadId, 8)
-                swipeState.reset()
-            }
-            SwipeToDismissBoxValue.Settled -> Unit
+            else -> Unit
         }
     }
     SwipeToDismissBox(
         state = swipeState,
+        enableDismissFromEndToStart = false,
         backgroundContent = {
-            val dir = swipeState.targetValue
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(
-                        if (dir == SwipeToDismissBoxValue.StartToEnd)
-                            MaterialTheme.colorScheme.primaryContainer
-                        else
-                            MaterialTheme.colorScheme.secondaryContainer
-                    )
+                    .background(MaterialTheme.colorScheme.primaryContainer)
                     .padding(horizontal = 20.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = if (dir == SwipeToDismissBoxValue.StartToEnd)
-                    Arrangement.Start else Arrangement.End,
+                horizontalArrangement = Arrangement.Start,
             ) {
-                if (dir == SwipeToDismissBoxValue.StartToEnd) {
-                    Icon(
-                        Icons.Default.Star,
-                        contentDescription = if (thread.isFavorite) "Unfavorite" else "Favorite",
-                        tint = if (thread.isFavorite) MaterialTheme.colorScheme.primary
-                               else MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
-                } else {
-                    Icon(
-                        Icons.Default.NotificationsOff,
-                        contentDescription = "Mute 8 hours",
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                    )
-                }
+                Icon(
+                    Icons.Default.Star,
+                    contentDescription = if (thread.isFavorite) "Unfavorite" else "Favorite",
+                    tint = if (thread.isFavorite) MaterialTheme.colorScheme.primary
+                           else MaterialTheme.colorScheme.onPrimaryContainer,
+                )
             }
         },
     ) {

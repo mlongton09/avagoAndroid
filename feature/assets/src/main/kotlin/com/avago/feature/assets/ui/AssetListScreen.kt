@@ -508,13 +508,8 @@ internal fun AssetAvatar(
 }
 
 @Composable
-private fun rememberParsedColor(hex: String): Color {
-    return try {
-        val colorLong = hex.removePrefix("#").toLong(16)
-        Color(0xFF000000L or colorLong)
-    } catch (_: Exception) {
-        MaterialTheme.colorScheme.primary
-    }
+private fun rememberParsedColorLocal(hex: String): Color {
+    return rememberParsedColor(hex)
 }
 
 private fun formatDate(epochMs: Long): String =
