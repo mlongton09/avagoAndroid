@@ -21,6 +21,7 @@ import com.avago.core.data.repository.UserPreferencesRepository
 import com.avago.core.permissions.Permissions
 import com.avago.core.permissions.PermissionsManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -57,6 +58,7 @@ data class LogsByYear(
 @HiltViewModel
 class AssetDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
+    @ApplicationContext private val appContext: Context,
     private val repository: AssetRepository,
     private val dbFactory: DatabaseFactory,
     private val identityManager: IdentityManager,
@@ -416,6 +418,81 @@ class AssetDetailViewModel @Inject constructor(
                 _isSavingMeter.value = false
             }
         }
+    }
+
+
+    fun addBatchLogEntries(categoryIds: List<String>, odometerValue: Double?) {
+        val distinctIds = categoryIds.distinct().filter { it.isNotBlank() && it != "service" }
+        if (distinctIds.isEmpty()) return
+        viewModelScope.launch {
+            val acctId = accountId.value ?: return@launch
+            val now = System.currentTimeMillis()
+            val db = dbFactory.get(acctId)
+            val entries = distinctIds.map { categoryId ->
+                LogEntity(
+                    entryId = UUID.randomUUID().toString(),
+                    assetId = assetId,
+                    accountId = acctId,
+                    title = localizedCategoryName(categoryId),
+                    entryDate = now,
+                    odometerValue = odometerValue ?: 0.0,
+                    category = categoryId,
+                    cost = null,
+                    performedBy = null,
+                    performedByUserId = null,
+                    notes = null,
+                    data = null,
+                    attributes = null,
+                    costMode = null,
+                    costItems = null,
+                    costLabor = null,
+                    costTax = null,
+                    currency = null,
+                    baseAmount = null,
+                    exchangeRateUsed = null,
+                    configId = null,
+                    configVersion = null,
+                    serviceId = null,
+                    costMisc = null,
+                    parentId = null,
+                    createdAt = now,
+                    updatedAt = now,
+                    deletedAt = null,
+                    serverVersion = 0L,
+                    seq = null,
+                )
+            }
+            db.logDao().upsertAll(entries)
+            entries.forEach { entry ->
+                db.syncQueueDao().enqueueWithDedup(
+                    SyncQueueEntity(
+                        queueId = "log_${entry.entryId}",
+                        entityType = "log",
+                        entityId = entry.entryId,
+                        operation = "insert",
+                        serverVersion = 0L,
+                        payload = null,
+                        syncStatus = "pending",
+                        attempts = 0L,
+                        lastError = null,
+                        createdAt = now,
+                        updatedAt = now,
+                    ),
+                )
+            }
+        }
+    }
+
+    private fun localizedCategoryName(categoryId: String): String {
+        val resName = "log_cat_${categoryId.replace("-", "_")}"
+        val resId = appContext.resources.getIdentifier(resName, "string", appContext.packageName)
+        if (resId != 0) return appContext.getString(resId)
+        return categoryId.replace("_", " ")
+            .split(" ")
+            .filter { it.isNotBlank() }
+            .joinToString(" ") { word ->
+                word.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+            }
     }
 
     fun cloneLogEntry(entry: LogEntity) {

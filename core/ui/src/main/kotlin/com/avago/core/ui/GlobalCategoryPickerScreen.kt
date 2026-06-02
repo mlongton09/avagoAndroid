@@ -14,10 +14,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -25,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
@@ -41,6 +45,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -76,11 +81,18 @@ fun GlobalCategoryPickerScreen(
     title: String = stringResource(R.string.global_category_picker_title),
     categories: List<CategoryItem>,
     recents: List<CategoryItem> = emptyList(),
+    enableMultiple: Boolean = false,
+    onMultipleCreate: ((selected: List<CategoryItem>, meterValue: Double?) -> Unit)? = null,
+    showMeterInput: Boolean = false,
+    meterUnitLabel: String? = null,
     onSelect: (CategoryItem) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var query by remember { mutableStateOf("") }
+    var isMultipleMode by remember { mutableStateOf(false) }
+    var selectedKeys by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var meterText by remember { mutableStateOf("") }
 
     fun CategoryItem.matchesQuery() = displayName.contains(query, ignoreCase = true) ||
         key.contains(query, ignoreCase = true)
@@ -125,11 +137,68 @@ fun GlobalCategoryPickerScreen(
         Column(
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (isMultipleMode) {
+                    TextButton(
+                        onClick = {
+                            isMultipleMode = false
+                            selectedKeys = emptySet()
+                            meterText = ""
+                        },
+                    ) { Text("Cancel") }
+                }
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                if (enableMultiple) {
+                    TextButton(
+                        onClick = {
+                            if (isMultipleMode) {
+                                val ordered = sections.flatMap { it.second }.distinctBy { it.key }
+                                val selected = ordered.filter { it.key in selectedKeys }
+                                if (selected.isNotEmpty()) {
+                                    onMultipleCreate?.invoke(selected, meterText.toDoubleOrNull())
+                                    onDismiss()
+                                }
+                            } else {
+                                isMultipleMode = true
+                            }
+                        },
+                    ) { Text(if (isMultipleMode) "Create" else "Multiple") }
+                }
+            }
+
+            if (isMultipleMode && showMeterInput) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(68.dp)
+                        .padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(
+                        text = "Odometer",
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                    OutlinedTextField(
+                        value = meterText,
+                        onValueChange = { meterText = it },
+                        suffix = { meterUnitLabel?.let { Text(it) } },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.width(150.dp),
+                    )
+                }
+            }
 
             OutlinedTextField(
                 value = query,
@@ -182,7 +251,19 @@ fun GlobalCategoryPickerScreen(
                                 row.forEach { item ->
                                     CategoryGridCell(
                                         item = item,
-                                        onClick = { onSelect(item); onDismiss() },
+                                        isMultipleMode = isMultipleMode,
+                                        isSelected = item.key in selectedKeys,
+                                        isEnabled = !isMultipleMode || item.key != "service",
+                                        onClick = {
+                                            if (isMultipleMode) {
+                                                if (item.key != "service") {
+                                                    selectedKeys = if (item.key in selectedKeys) selectedKeys - item.key else selectedKeys + item.key
+                                                }
+                                            } else {
+                                                onSelect(item)
+                                                onDismiss()
+                                            }
+                                        },
                                         modifier = Modifier.weight(1f),
                                     )
                                 }
@@ -202,7 +283,19 @@ fun GlobalCategoryPickerScreen(
                     items(filtered, key = { it.key }) { item ->
                         CategoryPickerRow(
                             item = item,
-                            onClick = { onSelect(item); onDismiss() },
+                            isMultipleMode = isMultipleMode,
+                            isSelected = item.key in selectedKeys,
+                            isEnabled = !isMultipleMode || item.key != "service",
+                            onClick = {
+                                if (isMultipleMode) {
+                                    if (item.key != "service") {
+                                        selectedKeys = if (item.key in selectedKeys) selectedKeys - item.key else selectedKeys + item.key
+                                    }
+                                } else {
+                                    onSelect(item)
+                                    onDismiss()
+                                }
+                            },
                         )
                     }
                 }
@@ -214,6 +307,9 @@ fun GlobalCategoryPickerScreen(
 @Composable
 private fun CategoryGridCell(
     item: CategoryItem,
+    isMultipleMode: Boolean,
+    isSelected: Boolean,
+    isEnabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -223,7 +319,8 @@ private fun CategoryGridCell(
             .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surface)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
+            .alpha(if (isEnabled) 1f else 0.35f)
+            .clickable(enabled = isEnabled, onClick = onClick)
             .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -244,19 +341,27 @@ private fun CategoryGridCell(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
+        if (isMultipleMode) {
+            Spacer(modifier = Modifier.width(8.dp))
+            CategoryCheckbox(isSelected = isSelected)
+        }
     }
 }
 
 @Composable
 private fun CategoryPickerRow(
     item: CategoryItem,
+    isMultipleMode: Boolean,
+    isSelected: Boolean,
+    isEnabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .alpha(if (isEnabled) 1f else 0.35f)
+            .clickable(enabled = isEnabled, onClick = onClick)
             .padding(vertical = 14.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -270,7 +375,36 @@ private fun CategoryPickerRow(
         Text(
             text = item.displayName,
             style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f),
         )
+        if (isMultipleMode) {
+            CategoryCheckbox(isSelected = isSelected)
+        }
+    }
+}
+
+@Composable
+private fun CategoryCheckbox(isSelected: Boolean) {
+    Box(
+        modifier = Modifier
+            .size(22.dp)
+            .clip(RoundedCornerShape(11.dp))
+            .background(if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent)
+            .border(
+                width = if (isSelected) 0.dp else 1.5.dp,
+                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                shape = RoundedCornerShape(11.dp),
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (isSelected) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(16.dp),
+            )
+        }
     }
 }
 

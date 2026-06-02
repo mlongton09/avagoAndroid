@@ -458,9 +458,17 @@ fun AssetDetailScreen(
     }
 
     if (showAddLogCategoryPicker) {
+        val currentAsset = asset
         GlobalCategoryPickerScreen(
             categories = availableCategories.map { it.toAssetCategoryItem(context) },
             recents = recentCategories.map { it.toAssetCategoryItem(context) },
+            enableMultiple = true,
+            showMeterInput = currentAsset?.meterType.isNumericMeterType(),
+            meterUnitLabel = meterUnitLabelFor(currentAsset?.meterType),
+            onMultipleCreate = { items, meterValue ->
+                showAddLogCategoryPicker = false
+                viewModel.addBatchLogEntries(items.map { it.key }, meterValue)
+            },
             onSelect = { item ->
                 showAddLogCategoryPicker = false
                 onAddLogEntry(item.key)
@@ -480,6 +488,20 @@ private fun String.toAssetCategoryItem(context: Context): CategoryItem {
         color = categoryBadgeColor(iconName),
         group = categoryGroup(this),
     )
+}
+
+
+private fun String?.isNumericMeterType(): Boolean {
+    val normalized = this?.trim()?.lowercase(Locale.getDefault()) ?: return false
+    return normalized.isNotEmpty() && normalized != "date"
+}
+
+private fun meterUnitLabelFor(meterType: String?): String? = when (meterType?.lowercase(Locale.getDefault())) {
+    null, "", "date" -> null
+    "odometer", "miles", "mi" -> "MI"
+    "km", "kilometers" -> "KM"
+    "hours", "hour", "hr", "hrs" -> "HRS"
+    else -> meterType.uppercase(Locale.getDefault())
 }
 
 private fun categoryDisplayName(context: Context, id: String): String {
