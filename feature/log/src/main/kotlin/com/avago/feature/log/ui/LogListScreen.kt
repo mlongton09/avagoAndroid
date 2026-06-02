@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -27,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,15 +39,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.avago.core.data.db.entity.LogEntity
 import com.avago.core.ui.CategoryBadge
 import com.avago.core.ui.ScoutFAB
 import com.avago.core.ui.ScoutViewModel
 import com.avago.feature.log.viewmodel.LogListViewModel
+import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -67,9 +72,7 @@ fun LogListScreen(
     }
 
     val logs by viewModel.logs.collectAsState()
-    val categoryFilter by viewModel.categoryFilter.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
-    val currencyCode by viewModel.currencyCode.collectAsState()
     val asset by viewModel.asset.collectAsState()
     val photos by viewModel.photos.collectAsState()
     val entryCount by viewModel.entryCount.collectAsState()
@@ -83,13 +86,46 @@ fun LogListScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    Text(
-                        text = when {
-                            assetId != null && asset != null -> asset!!.name
-                            assetId != null -> "Log Entries"
-                            else -> "All Logs"
-                        },
-                    )
+                    if (assetId != null) {
+                        // iOS-parity nav title: [22dp app logo · asset name · "Log" suffix]
+                        // (AssetDetailViewController.setupCustomHeader navTitleStack)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(7.dp),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(22.dp)
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(Color(0xFFE53935)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    painter = painterResource(
+                                        com.avago.core.design.R.drawable.ic_app_logo,
+                                    ),
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(14.dp),
+                                )
+                            }
+                            Text(
+                                text = asset?.name ?: "",
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(weight = 1f, fill = false),
+                            )
+                            Text(
+                                text = "Log",
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                    } else {
+                        Text(text = "All Logs")
+                    }
                 },
                 navigationIcon = {
                     if (onBack != null) {
@@ -101,6 +137,9 @@ fun LogListScreen(
                         }
                     }
                 },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                ),
             )
         },
         floatingActionButton = {
@@ -139,13 +178,6 @@ fun LogListScreen(
                     )
                 }
 
-                if (categoryFilter != null) {
-                    FilterBanner(
-                        categoryFilter = categoryFilter,
-                        onClear = { viewModel.setFilter(null) },
-                    )
-                }
-
                 if (logs.isEmpty()) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
@@ -164,8 +196,7 @@ fun LogListScreen(
                                 LogListRow(
                                     log = log,
                                     onClick = { onLogClick(log.entryId) },
-                                    onCategoryClick = { viewModel.setFilter(log.category) },
-                                    currencyCode = currencyCode,
+                                    meterType = asset?.meterType,
                                 )
                             }
                         }
@@ -173,35 +204,6 @@ fun LogListScreen(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun FilterBanner(
-    categoryFilter: String?,
-    onClear: () -> Unit,
-) {
-    val label = categoryFilter?.replace("_", " ")?.replaceFirstChar { it.uppercase() } ?: ""
-    val dotColor = categoryBadgeColor(categoryIconName(categoryFilter))
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.primaryContainer)
-            .clickable { onClear() }
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(dotColor),
-        )
-        Text(
-            text = "Filtering by $label",
-            style = MaterialTheme.typography.labelMedium,
-        )
     }
 }
 
@@ -226,10 +228,17 @@ private fun YearHeader(year: Int) {
 private fun LogListRow(
     log: LogEntity,
     onClick: () -> Unit,
-    onCategoryClick: () -> Unit,
-    currencyCode: String = "USD",
+    meterType: String?,
     modifier: Modifier = Modifier,
 ) {
+    // iOS LogItemTableViewCell parity:
+    // - 50pt min height
+    // - 40dp category badge, 10dp gap to title
+    // - Title font = AppTheme.bodyFont() → bodyLarge (17sp regular)
+    // - Right meta font = AppTheme.smallFont() → bodyMedium (13sp regular)
+    // - Right top: "<MMM d> | <ago>"
+    // - Right bottom: "<odometer> <unit>" when present (alpha 0.72)
+    // - No cost field on iOS
     val dateFormatter = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
     val isPending = log.serverVersion == 0L && log.seq == null
 
@@ -237,25 +246,24 @@ private fun LogListRow(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .heightIn(min = 54.dp)
+            .heightIn(min = 50.dp)
             .padding(start = 14.dp, end = 16.dp, top = 7.dp, bottom = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CategoryBadge(categoryId = log.category, onClick = onCategoryClick)
+        CategoryBadge(categoryId = log.category)
         Spacer(Modifier.width(10.dp))
 
-        // Title + optional pending tag — fills available space
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = log.title,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyLarge,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             if (isPending) {
                 Text(
                     text = "Pending",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.tertiary,
                 )
             }
@@ -263,22 +271,44 @@ private fun LogListRow(
 
         Spacer(Modifier.width(8.dp))
 
-        // Right metadata: date on top, cost below (matches iOS date + odometer layout)
         Column(horizontalAlignment = Alignment.End) {
             Text(
-                text = dateFormatter.format(Date(log.entryDate)),
-                style = MaterialTheme.typography.bodySmall,
+                text = "${dateFormatter.format(Date(log.entryDate))} \u2002|\u2002 ${agoString(log.entryDate)}",
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            val displayCost = log.cost
-            if (displayCost != null && displayCost > 0) {
+            val odo = log.odometerValue
+            if (odo != null && odo > 0) {
                 Text(
-                    text = com.avago.core.data.Formatters.formatCurrency(displayCost, currencyCode),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = formatOdometer(odo, meterType),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                 )
             }
         }
     }
+}
+
+private fun agoString(epochMs: Long): String {
+    val days = ((System.currentTimeMillis() - epochMs) / 86_400_000L).toInt()
+    return when {
+        days < 1   -> "Today"
+        days == 1  -> "Yesterday"
+        days < 30  -> "$days days"
+        days < 60  -> "1 month"
+        days < 365 -> "${days / 30} months"
+        days < 730 -> "1 year"
+        else       -> "${days / 365} years"
+    }
+}
+
+private fun formatOdometer(value: Double, meterType: String?): String {
+    val unit = when (meterType?.lowercase()) {
+        "km", "kilometers" -> "km"
+        "hours", "hrs"     -> "hrs"
+        else               -> "mi"
+    }
+    val n = NumberFormat.getIntegerInstance().format(value.toLong())
+    return "$n\u202F$unit"
 }
 

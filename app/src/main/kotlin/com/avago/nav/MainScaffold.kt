@@ -1,4 +1,4 @@
-﻿package com.avago.nav
+package com.avago.nav
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -185,6 +185,13 @@ fun MainScaffold(
     // On Android we mirror that by suppressing the FAB on chat thread + subthread
     // routes (anything matching "chat/thread/...").
     val isChatThreadDestination = currentRoute?.startsWith("chat/thread/") == true
+    // iOS parity: AssetDetailViewController hides the navigation bar
+    // (setNavigationBarHidden) and the tab bar (hidesBottomBarWhenPushed)
+    // and provides its own custom 44pt nav row above the photo banner.
+    // The log list, when launched from a specific asset, is the Android
+    // equivalent — suppress the outer chrome so its own custom header sits
+    // flush against the photo.
+    val isAssetLogDestination = currentRoute?.startsWith("log/list") == true
 
     AvagoToastHost(toastManager = toast) {
     ModalNavigationDrawer(
@@ -217,7 +224,7 @@ fun MainScaffold(
         Scaffold(
             floatingActionButtonPosition = FabPosition.Start,
             topBar = {
-                if (!isAuthDestination) {
+                if (!isAuthDestination && !isAssetLogDestination) {
                     CenterAlignedTopAppBar(
                         title = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -251,7 +258,7 @@ fun MainScaffold(
                 }
             },
             bottomBar = {
-                if (!isAuthDestination) {
+                if (!isAuthDestination && !isAssetLogDestination) {
                     BottomNavBar(
                         navController = navController,
                         workOrdersEnabled = workOrdersEnabled,
