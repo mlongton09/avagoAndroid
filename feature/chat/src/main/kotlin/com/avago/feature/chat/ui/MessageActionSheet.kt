@@ -156,6 +156,33 @@ fun MessageActionSheet(
 
             HorizontalDivider()
 
+            // iOS order: [reply, copy, moreReactions, (edit), (pin/unpin), (delete), report]
+            // moreReactions on iOS is the smiley-plus tile inside the reactions strip above,
+            // mapped on Android to the "+" square in the QuickReactions row.
+
+            // Reply — single conditional entry mirroring iOS:
+            //   subthreadRootMessageId == nil  -> "Reply in Thread" (opens subthread)
+            //   else                           -> "Reply"           (inline quote in same thread)
+            // Hidden entirely inside a subthread for top-level messages we don't show
+            // (the subthread composer is the reply UI).
+            if (!isInSubthread) {
+                val isTopLevel = message.parentMessageId == null
+                ActionRow(
+                    label = if (isTopLevel) "Reply in Thread" else "Reply",
+                    icon = {
+                        Icon(
+                            Icons.AutoMirrored.Filled.Reply,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    },
+                    onClick = {
+                        if (isTopLevel) onReplyInThread() else onReply()
+                        onDismiss()
+                    },
+                )
+            }
+
             // Copy
             ActionRow(
                 label = "Copy",
@@ -167,49 +194,8 @@ fun MessageActionSheet(
                 },
             )
 
-            // Reply — label is "Reply" in main thread, not shown in subthread
-            // (subthread replies use the composer directly)
-            if (!isInSubthread) {
-                ActionRow(
-                    label = "Reply",
-                    icon = { Icon(Icons.AutoMirrored.Filled.Reply, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                    onClick = { onReply(); onDismiss() },
-                )
-
-                ActionRow(
-                    label = "Reply in Thread",
-                    icon = {
-                        Icon(
-                            Icons.AutoMirrored.Filled.Reply,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.secondary,
-                        )
-                    },
-                    onClick = { onReplyInThread(); onDismiss() },
-                )
-            }
-
-            // Pin / Unpin — admin/root only (matching iOS)
-            if (isAdminOrRoot) {
-                if (message.isPinned) {
-                    ActionRow(
-                        label = "Unpin",
-                        icon = { Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                        onClick = { onUnpin(); onDismiss() },
-                    )
-                } else {
-                    ActionRow(
-                        label = "Pin",
-                        icon = { Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                        onClick = { onPin(); onDismiss() },
-                    )
-                }
-            }
-
-            // Edit — own non-system messages only
+            // Edit — own non-system messages only (iOS appends right after the [reply,copy,more] base)
             if (isOwn && !message.isSystem) {
-                HorizontalDivider()
                 ActionRow(
                     label = "Edit",
                     icon = { Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(20.dp)) },
@@ -217,25 +203,45 @@ fun MessageActionSheet(
                 )
             }
 
-            // Delete — own messages OR admin (matching iOS)
+            // Pin / Unpin — admin/root only
+            if (isAdminOrRoot) {
+                ActionRow(
+                    label = if (message.isPinned) "Unpin" else "Pin",
+                    icon = { Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                    onClick = {
+                        if (message.isPinned) onUnpin() else onPin()
+                        onDismiss()
+                    },
+                )
+            }
+
+            // Delete — own messages OR admin/root
             if (isOwn || isAdminOrRoot) {
-                if (!isOwn) HorizontalDivider() // separator only when admin deleting others' messages
                 ActionRow(
                     label = "Delete",
                     icon = {
-                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.error,
+                        )
                     },
                     onClick = { onDelete(); onDismiss() },
                     labelColor = MaterialTheme.colorScheme.error,
                 )
             }
 
-            // Report (always shown, matching iOS)
-            HorizontalDivider()
+            // Report — always shown, last entry
             ActionRow(
                 label = "Report",
                 icon = {
-                    Icon(Icons.Default.Flag, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
+                    Icon(
+                        Icons.Default.Flag,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.error,
+                    )
                 },
                 onClick = { onReport(); onDismiss() },
                 labelColor = MaterialTheme.colorScheme.error,
