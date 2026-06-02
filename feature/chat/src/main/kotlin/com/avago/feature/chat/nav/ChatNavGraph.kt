@@ -1,5 +1,7 @@
 package com.avago.feature.chat.nav
 
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -20,7 +22,11 @@ sealed class ChatRoute(val route: String) {
     object Thread : ChatRoute("chat/thread/{threadId}") {
         fun createRoute(threadId: String) = "chat/thread/$threadId"
     }
-    object NewThread : ChatRoute("chat/new-thread")
+    object NewThread : ChatRoute("chat/new-thread?tab={tab}") {
+        // tab: 0 = Direct, 1 = Group. Lets the Direct/Group section "+" headers
+        // deep-link straight to the matching create tab (iOS parity).
+        fun createRoute(tab: Int = 0) = "chat/new-thread?tab=$tab"
+    }
     object Mentions : ChatRoute("chat/mentions")
     object ThreadMembers : ChatRoute("chat/thread/{threadId}/members") {
         fun createRoute(threadId: String) = "chat/thread/$threadId/members"
@@ -39,14 +45,28 @@ sealed class ChatRoute(val route: String) {
 }
 
 fun NavGraphBuilder.chatNavGraph(navController: NavHostController) {
-    composable(route = ChatRoute.List.route) {
+    composable(route = ChatRoute.List.route) { backStackEntry ->
+        // Asset picker returns the chosen asset id via savedStateHandle
+        // ("selected_asset_id" — set by the app-level onAssetPicked). When it
+        // appears, ChatListScreen resolves & opens that asset's chat thread,
+        // mirroring iOS's Favorite Assets "+" → asset picker flow.
+        val pickedAssetId by backStackEntry.savedStateHandle
+            .getStateFlow<String?>("selected_asset_id", null)
+            .collectAsState()
         ChatListScreen(
             onThreadClick = { threadId ->
                 navController.navigate(ChatRoute.Thread.createRoute(threadId))
             },
-            onNewThread = { navController.navigate(ChatRoute.NewThread.route) },
+            onNewThread = { tab ->
+                navController.navigate(ChatRoute.NewThread.createRoute(tab))
+            },
+            onNewAssetThread = { navController.navigate("assets/picker") },
             onMentions = { navController.navigate(ChatRoute.Mentions.route) },
             onOpenSettings = { navController.navigate(ChatRoute.ChatNotificationPrefs.route) },
+            pickedAssetId = pickedAssetId,
+            onPickedAssetHandled = {
+                backStackEntry.savedStateHandle["selected_asset_id"] = null
+            },
         )
     }
 
@@ -79,7 +99,14 @@ fun NavGraphBuilder.chatNavGraph(navController: NavHostController) {
         )
     }
 
-    composable(ChatRoute.NewThread.route) {
+    composable(
+        route = ChatRoute.NewThread.route,
+        arguments = listOf(navArgument("tab") {
+            type = NavType.IntType
+            defaultValue = 0
+        }),
+    ) { backStackEntry ->
+        val tab = backStackEntry.arguments?.getInt("tab") ?: 0
         NewThreadScreen(
             onBack = { navController.popBackStack() },
             onThreadCreated = { threadId ->
@@ -87,6 +114,7 @@ fun NavGraphBuilder.chatNavGraph(navController: NavHostController) {
                     popUpTo(ChatRoute.NewThread.route) { inclusive = true }
                 }
             },
+            initialTab = tab,
         )
     }
 

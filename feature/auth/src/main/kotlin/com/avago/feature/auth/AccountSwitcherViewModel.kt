@@ -44,4 +44,20 @@ class AccountSwitcherViewModel @Inject constructor(
             }
         }
     }
+
+    /**
+     * Sign out of [accountId] (mirrors iOS AccountSwitcherViewController's
+     * "Sign Out" on the active account). When it's the active account this
+     * clears the session and AvagoNavHost routes back to the auth graph.
+     */
+    fun signOut(accountId: String) {
+        viewModelScope.launch {
+            try {
+                identityManager.signOut(accountId)
+                _accounts.value = accountManifest.allAccounts()
+            } catch (e: Exception) {
+                Timber.e(e, "AccountSwitcherViewModel: failed to sign out $accountId")
+            }
+        }
+    }
 }

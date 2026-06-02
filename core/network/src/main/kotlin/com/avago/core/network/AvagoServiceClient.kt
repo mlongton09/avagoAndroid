@@ -1321,17 +1321,21 @@ class AvagoServiceClient @Inject constructor(
     /** GET /chat/threads/wo/{woId} — resolve the thread for a work order. */
     suspend fun resolveWoThread(accountId: String, woId: String): NetworkResult<ChatThreadResponse> =
         safeNetworkCall {
+            // Server wraps the thread as { "thread": {...}, "messages": {...} }
+            // (chat_threads.rs resolve_wo_thread) — unwrap to .thread; the
+            // CreateThreadEnvelope drops the `messages` sibling via ignoreUnknownKeys.
             client.get("$baseUrl/chat/threads/wo/$woId") {
                 parameter("account_id", accountId)
-            }.body()
+            }.body<CreateThreadEnvelope>().thread
         }
 
     /** GET /chat/threads/asset/{assetId} — resolve the thread for an asset. */
     suspend fun resolveAssetThread(accountId: String, assetId: String): NetworkResult<ChatThreadResponse> =
         safeNetworkCall {
+            // Same { "thread": {...}, "messages": {...} } envelope as resolve_wo_thread.
             client.get("$baseUrl/chat/threads/asset/$assetId") {
                 parameter("account_id", accountId)
-            }.body()
+            }.body<CreateThreadEnvelope>().thread
         }
 
     /** GET /chat/threads/asset/{assetId}/timeline?cursor=... — asset timeline messages. */

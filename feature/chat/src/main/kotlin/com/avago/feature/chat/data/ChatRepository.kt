@@ -738,6 +738,21 @@ class ChatRepository @Inject constructor(
         }
     }
 
+    /**
+     * Resolve (lazy-create) the chat thread for an asset and cache it locally.
+     * Backs the chat list's "Favorite Assets" + button → asset picker flow.
+     */
+    suspend fun resolveAssetThread(accountId: String, assetId: String): Result<ChatThreadResponse> {
+        return when (val r = client.resolveAssetThread(accountId, assetId)) {
+            is NetworkResult.Success -> {
+                chatDbFactory.get(accountId).chatThreadDao().upsert(r.data.toEntity())
+                Result.success(r.data)
+            }
+            is NetworkResult.Error -> Result.failure(Exception(r.message))
+            is NetworkResult.Unauthorized -> Result.failure(Exception("Unauthorized"))
+        }
+    }
+
     // ---------------------------------------------------------------------------
     // Outbox — persistent send queue
     // ---------------------------------------------------------------------------

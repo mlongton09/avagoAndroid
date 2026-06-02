@@ -33,7 +33,6 @@ import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -49,7 +48,6 @@ import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.FabPosition
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -179,12 +177,23 @@ fun MainScaffold(
     val isAuthDestination = currentRoute == null ||
         currentRoute == AuthRoute.SignIn ||
         currentRoute == AuthRoute.EmailSignIn ||
-        currentRoute == AuthRoute.GRAPH
+        currentRoute == AuthRoute.GRAPH ||
+        // Full-screen account switcher: it renders its own "Accounts" top bar,
+        // so suppress all shared chrome (top bar, bottom nav, FAB, banners) to
+        // match the iOS pushed full-screen experience.
+        currentRoute == AuthRoute.AccountSwitcher
     // iOS parity: the Scout FAB is anchored to the tab bar, which UIKit hides
     // on pushed detail VCs like ThreadViewController/SubthreadViewController.
     // On Android we mirror that by suppressing the FAB on chat thread + subthread
     // routes (anything matching "chat/thread/...").
     val isChatThreadDestination = currentRoute?.startsWith("chat/thread/") == true
+    // Every chat *detail* screen (thread, subthread, new-thread, mentions,
+    // members, settings, media, notification-prefs) renders its own top app
+    // bar with back + title + actions; only the chat list (chat/list) relies on
+    // this shared bar. Suppress the shared bar on the detail screens so it
+    // doesn't stack a redundant ~half-inch empty band above their own bar.
+    val isChatDetailDestination = currentRoute?.startsWith("chat/") == true &&
+        currentRoute != "chat/list"
     // iOS parity: AssetDetailViewController hides the navigation bar
     // (setNavigationBarHidden) and the tab bar (hidesBottomBarWhenPushed)
     // and provides its own custom 44pt nav row above the photo banner.
@@ -225,7 +234,7 @@ fun MainScaffold(
         Scaffold(
             floatingActionButtonPosition = FabPosition.Start,
             topBar = {
-                if (!isAuthDestination && !isAssetLogDestination) {
+                if (!isAuthDestination && !isAssetLogDestination && !isChatDetailDestination) {
                     CenterAlignedTopAppBar(
                         title = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -435,53 +444,9 @@ fun SideMenuContent(
     val navBackStack by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStack?.destination?.route
 
-    var showAccountSwitcher by remember { mutableStateOf(false) }
-
-    if (showAccountSwitcher) {
-        AlertDialog(
-            onDismissRequest = { showAccountSwitcher = false },
-            title = { Text(stringResource(R.string.drawer_switch_account)) },
-            text = {
-                Column {
-                    accounts.forEach { account ->
-                        val label = when {
-                            account.isAnonymous -> stringResource(R.string.drawer_guest)
-                            !account.accountName.isNullOrBlank() -> account.accountName!!
-                            !account.email.isNullOrBlank() -> account.email!!
-                            !account.displayName.isNullOrBlank() -> account.displayName!!
-                            else -> stringResource(R.string.drawer_unknown_account)
-                        }
-                        val isActive = account.accountId == activeId
-                        TextButton(
-                            onClick = {
-                                if (!isActive) viewModel.switchTo(account.accountId)
-                                showAccountSwitcher = false
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(
-                                text = if (isActive) stringResource(R.string.drawer_current_account, label) else label,
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        }
-                    }
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                    TextButton(
-                        onClick = {
-                            showAccountSwitcher = false
-                            onAddAccount()
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(stringResource(R.string.drawer_add_account))
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showAccountSwitcher = false }) { Text(stringResource(R.string.drawer_cancel)) }
-            },
-        )
-    }
+    // Account switching now happens on the full-screen AccountSwitcherScreen
+    // (AuthRoute.AccountSwitcher), reached via the "Switch account" item below —
+    // no in-drawer popup.
 
     Column(
         modifier = Modifier
@@ -533,7 +498,9 @@ fun SideMenuContent(
             label = { Text(stringResource(R.string.drawer_switch_account)) },
             selected = false,
             icon = { Icon(Icons.Default.ManageAccounts, contentDescription = null) },
-            onClick = { showAccountSwitcher = true },
+            // Full-screen account switcher (iOS parity) — replaces the old
+            // in-drawer popup dialog. onNavigate closes the drawer first.
+            onClick = { onNavigate(AuthRoute.AccountSwitcher) },
             modifier = Modifier.padding(horizontal = 8.dp),
         )
 

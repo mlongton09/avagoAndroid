@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -30,7 +29,6 @@ import androidx.compose.material3.Badge
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
@@ -80,13 +78,24 @@ import com.avago.feature.chat.viewmodel.ThreadFilter
 @Composable
 fun ChatListScreen(
     onThreadClick: (threadId: String) -> Unit,
-    onNewThread: () -> Unit,
+    onNewThread: (tab: Int) -> Unit,
+    onNewAssetThread: () -> Unit = {},
     onMentions: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
+    pickedAssetId: String? = null,
+    onPickedAssetHandled: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: ChatListViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // When the asset picker returns an asset, resolve & open its chat thread.
+    LaunchedEffect(pickedAssetId) {
+        pickedAssetId?.let { assetId ->
+            viewModel.openAssetThread(assetId) { threadId -> onThreadClick(threadId) }
+            onPickedAssetHandled()
+        }
+    }
     var showNewSectionDialog by rememberSaveable { mutableStateOf(false) }
     var newSectionName by rememberSaveable { mutableStateOf("") }
     var sectionMenuThread by remember { mutableStateOf<ChatThreadEntity?>(null) }
@@ -214,17 +223,11 @@ fun ChatListScreen(
 
     Scaffold(
         modifier = modifier,
+        // No top bar here: MainScaffold already renders the "Chat" heading
+        // (brand icon + title). A second app bar just stacked a ~half-inch
+        // empty band above the list. The settings gear that lived here is
+        // relocated into the filter row below.
         contentWindowInsets = WindowInsets(0),
-        topBar = {
-            TopAppBar(
-                title = { Text("Chat") },
-                actions = {
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Chat settings")
-                    }
-                },
-            )
-        },
     ) { innerPadding ->
         Box(
             modifier = Modifier
@@ -246,27 +249,33 @@ fun ChatListScreen(
                     placeholder = "Filter by person or asset name",
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+                        // Tight to the "Chat" app bar — no dead band above the
+                        // thread list (iOS keeps search in the nav bar).
+                        .padding(start = 12.dp, end = 12.dp, top = 2.dp, bottom = 4.dp),
                 )
 
-                // Filter — Unread toggle only (iOS parity: filter is all/unread).
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                // Filter row — Unread toggle + New Section, with the chat
+                // settings gear trailing (relocated from the removed app bar).
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    item {
-                        FilterChip(
-                            selected = uiState.unreadOnly,
-                            onClick = { viewModel.setUnreadOnly(!uiState.unreadOnly) },
-                            label = { Text(stringResource(R.string.chat_filter_unread)) },
-                        )
-                    }
-                    item {
-                        FilterChip(
-                            selected = false,
-                            onClick = { showNewSectionDialog = true },
-                            label = { Text("+ New Section") },
-                        )
+                    FilterChip(
+                        selected = uiState.unreadOnly,
+                        onClick = { viewModel.setUnreadOnly(!uiState.unreadOnly) },
+                        label = { Text(stringResource(R.string.chat_filter_unread)) },
+                    )
+                    FilterChip(
+                        selected = false,
+                        onClick = { showNewSectionDialog = true },
+                        label = { Text("+ New Section") },
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = "Chat settings")
                     }
                 }
 
@@ -318,34 +327,34 @@ fun ChatListScreen(
                         val directThreads = defaultThreads.filter { it.threadType == "direct" && it.isFavorite }
                         val groupThreads = defaultThreads.filter { it.threadType == "group" && it.isFavorite }
 
-                        // "Work Orders & Assets" section
-                        if (assetWoThreads.isNotEmpty()) {
-                            stickyHeader(key = "header_assets") {
-                                SectionHeader("Favorite Assets")
-                            }
-                            items(assetWoThreads, key = { it.threadId }) { thread ->
-                                ThreadRowWithSwipe(thread, viewModel, onThreadClick) { sectionMenuThread = thread }
-                            }
+                        // Sections render their headers unconditionally (even when
+                        // empty) so each thread type's "+" affordance is always
+                        // reachable — mirrors iOS ThreadListViewController, where
+                        // the Favorite Assets / Direct Messages / Group Chats
+                        // headers (and their + buttons) are always present.
+
+                        // "Favorite Assets" — "+" opens the asset picker.
+                        stickyHeader(key = "header_assets") {
+                            SectionHeader("Favorite Assets", onAdd = onNewAssetThread)
+                        }
+                        items(assetWoThreads, key = { it.threadId }) { thread ->
+                            ThreadRowWithSwipe(thread, viewModel, onThreadClick) { sectionMenuThread = thread }
                         }
 
-                        // "Direct Messages" section
-                        if (directThreads.isNotEmpty()) {
-                            stickyHeader(key = "header_direct") {
-                                SectionHeader("Direct Messages")
-                            }
-                            items(directThreads, key = { it.threadId }) { thread ->
-                                ThreadRowWithSwipe(thread, viewModel, onThreadClick) { sectionMenuThread = thread }
-                            }
+                        // "Direct Messages" — "+" opens New Thread on the Direct tab.
+                        stickyHeader(key = "header_direct") {
+                            SectionHeader("Direct Messages", onAdd = { onNewThread(0) })
+                        }
+                        items(directThreads, key = { it.threadId }) { thread ->
+                            ThreadRowWithSwipe(thread, viewModel, onThreadClick) { sectionMenuThread = thread }
                         }
 
-                        // "Group Chats" section
-                        if (groupThreads.isNotEmpty()) {
-                            stickyHeader(key = "header_groups") {
-                                SectionHeader("Group Chats")
-                            }
-                            items(groupThreads, key = { it.threadId }) { thread ->
-                                ThreadRowWithSwipe(thread, viewModel, onThreadClick) { sectionMenuThread = thread }
-                            }
+                        // "Group Chats" — "+" opens New Thread on the Group tab.
+                        stickyHeader(key = "header_groups") {
+                            SectionHeader("Group Chats", onAdd = { onNewThread(1) })
+                        }
+                        items(groupThreads, key = { it.threadId }) { thread ->
+                            ThreadRowWithSwipe(thread, viewModel, onThreadClick) { sectionMenuThread = thread }
                         }
 
                         uiState.customSections.forEach { section ->
@@ -364,9 +373,9 @@ fun ChatListScreen(
                     }
             }
         }
-        // New-conversation FAB
+        // New-conversation FAB — defaults to the Direct tab.
         FloatingActionButton(
-            onClick = onNewThread,
+            onClick = { onNewThread(0) },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(16.dp),
@@ -431,10 +440,13 @@ private fun TeamRoomShortcutRow(onClick: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Icon(
+            // iOS TeamRoomCell uses SF Symbol "megaphone.fill" at 28pt in
+            // accentBlue. Campaign is Material's filled-megaphone equivalent;
+            // colorScheme.primary == accentBlue (0969da/539bf5); 28dp matches.
             Icons.Default.Campaign,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(20.dp),
+            modifier = Modifier.size(28.dp),
         )
         Text(
             text = "Team Room",
@@ -506,22 +518,42 @@ private fun SectionHeader(
     title: String,
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
+    onAdd: (() -> Unit)? = null,
 ) {
-    val headerModifier = if (onLongClick == null) {
+    val rowModifier = if (onLongClick == null) {
         modifier
     } else {
         modifier.combinedClickable(onClick = {}, onLongClick = onLongClick)
     }
-    Text(
-        text = title.uppercase(),
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-        fontWeight = FontWeight.SemiBold,
-        modifier = headerModifier
+    Row(
+        modifier = rowModifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-    )
+            .padding(start = 16.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = title.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .weight(1f)
+                .padding(vertical = 6.dp),
+        )
+        // Trailing "+" to create a thread of this type — iOS parity
+        // (ThreadListViewController makeSectionHeader plus button).
+        if (onAdd != null) {
+            IconButton(onClick = onAdd, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    Icons.Default.Add,
+                    contentDescription = "Add to $title",
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+    }
 }
 
 @Composable

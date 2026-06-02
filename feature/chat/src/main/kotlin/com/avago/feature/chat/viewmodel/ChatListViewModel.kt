@@ -280,6 +280,24 @@ class ChatListViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Resolve the chat thread for [assetId] (returned from the asset picker),
+     * favorite it so it lands in the Favorite Assets section, then hand the
+     * thread id back so the caller can navigate into it. Mirrors iOS
+     * ThreadListViewController.presentAssetPicker().
+     */
+    fun openAssetThread(assetId: String, onReady: (String) -> Unit) {
+        val accountId = identity.activeAccountId.value ?: return
+        viewModelScope.launch {
+            repository.resolveAssetThread(accountId, assetId)
+                .onSuccess { thread ->
+                    repository.setFavorite(thread.thread_id, true)
+                    onReady(thread.thread_id)
+                }
+                .onFailure { e -> Timber.w(e, "openAssetThread failed for assetId=$assetId") }
+        }
+    }
+
     fun setFavorite(threadId: String, favorite: Boolean) {
         viewModelScope.launch {
             repository.setFavorite(threadId, favorite).onFailure { e ->

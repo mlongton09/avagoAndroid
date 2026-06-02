@@ -35,6 +35,7 @@
     <string name="account_switcher_active_account">Active account</string>
     <string name="account_switcher_add_account">Create New Account</string>
     <string name="account_switcher_remove_account">Sign Out of %1$s</string>
+    <string name="account_switcher_sign_out">Sign Out</string>
     <string name="account_anonymous">Anonymous</string>
     <string name="account_switcher_add_account_description">Sign in with another account</string>
 
