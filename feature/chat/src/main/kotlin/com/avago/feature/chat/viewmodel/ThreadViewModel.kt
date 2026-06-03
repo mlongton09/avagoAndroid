@@ -185,8 +185,6 @@ class ThreadViewModel @Inject constructor(
     }
 
     private fun connectRealtime() {
-        val accountId = identity.activeAccountId.value ?: return
-        realtimeClient.connect(accountId)
         viewModelScope.launch {
             realtimeClient.typingChangedFlow.collect { event ->
                 if (event.threadId == threadId) {

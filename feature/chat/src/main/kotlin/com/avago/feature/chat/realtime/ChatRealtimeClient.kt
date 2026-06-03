@@ -91,18 +91,6 @@ class ChatRealtimeClient @Inject constructor(
     private val pendingAckIds = mutableSetOf<String>()
     private val ackLock = Any()
 
-    init {
-        scope.launch {
-            identity.activeAccountId.collect { accountId ->
-                if (accountId != null) {
-                    connect(accountId)
-                } else {
-                    disconnect()
-                }
-            }
-        }
-    }
-
     fun connect(accountId: String) {
         if (connectedAccountId == accountId && wsJob?.isActive == true) return
         disconnect()

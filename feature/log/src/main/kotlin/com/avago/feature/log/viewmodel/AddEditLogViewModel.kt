@@ -229,6 +229,7 @@ class AddEditLogViewModel @Inject constructor(
                 // Load meterType from asset
                 val asset = entity.assetId.let { db.assetDao().getById(it) }
                 val meterType = asset?.meterType
+                val assetType = asset?.assetType
 
                 // Restore fuel attributes from entity.attributes JSON
                 val savedFuelVolume = entity.attributes?.let { parseJsonField(it, "fuel_volume") } ?: ""
@@ -244,6 +245,7 @@ class AddEditLogViewModel @Inject constructor(
                     state.copy(
                         entryId = entity.entryId,
                         assetId = entity.assetId,
+                        assetType = assetType,
                         title = entity.title,
                         category = entity.category,
                         logType = entity.data?.let { parseJsonField(it, "log_type") } ?: "service",
@@ -268,6 +270,12 @@ class AddEditLogViewModel @Inject constructor(
                         isLoadingExisting = false,
                     )
                 }
+                // Load item attribute defs for the restored category (so Add Details is shown for edits)
+                if (!entity.category.isNullOrBlank()) {
+                    loadItemAttributeDefs(entity.category)
+                }
+                // Load available categories so the category picker is populated for edits
+                loadCategories(assetType)
             } catch (e: Exception) {
                 Timber.e(e, "[AddEditLogViewModel] loadForEdit failed")
                 _form.update { it.copy(isLoadingExisting = false) }
@@ -280,9 +288,25 @@ class AddEditLogViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val db = dbFactory.get(accountId)
-                val config = db.configDao().getByKey("system", "log_categories")
-                val allCategories = parseCategoryList(config?.value)
-                _form.update { it.copy(availableCategories = allCategories) }
+                val type = (assetType ?: _form.value.assetType)?.takeIf { it.isNotBlank() } ?: "light_vehicle"
+
+                // 1. Try server-synced ItemCategory config for this asset type
+                val categories = db.configDao().getByKey("ItemCategory", type)
+                    ?.let { parseCategoriesFromConfig(it.value) }
+                    ?.takeIf { it.isNotEmpty() }
+                // 2. Fall back to seeded system/log_categories filtered by assetType
+                    ?: db.configDao().getByKey("system", "log_categories")
+                        ?.let { parseCategoriesFromSeeded(it.value, type) }
+                    ?: emptyList()
+
+                _form.update { it.copy(availableCategories = categories) }
+
+                // Auto-select default category — mirrors iOS:
+                //   selectedCategory = initialCategory ?? existing?.category ?? assetCategories.first ?? "service"
+                val currentCat = _form.value.category
+                if ((currentCat == null || currentCat !in categories) && categories.isNotEmpty()) {
+                    onCategoryChanged(categories.first())
+                }
             } catch (e: Exception) {
                 Timber.e(e, "[AddEditLogViewModel] loadCategories failed")
             }
@@ -497,17 +521,17 @@ class AddEditLogViewModel @Inject constructor(
 
     fun onAssetSelected(assetId: String, assetName: String?) {
         _form.update { it.copy(assetId = assetId, assetName = assetName) }
-        // Reload categories and inspection fields for this asset's type
-        loadCategories()
-        loadInspectionFields()
-        // Load asset details for meterType
         val accountId = identity.getActiveAccountId() ?: return
+        // Load asset details first so assetType is known before reloading categories/inspection
         viewModelScope.launch {
             try {
                 val asset = dbFactory.get(accountId).assetDao().getById(assetId)
                 _form.update { it.copy(meterType = asset?.meterType, assetType = asset?.assetType) }
+                // Reload categories and inspection fields with the correct assetType
+                loadCategories(asset?.assetType)
+                loadInspectionSubtypes(asset?.assetType)
             } catch (e: Exception) {
-                Timber.e(e, "[AddEditLogViewModel] onAssetSelected: failed to load asset meterType")
+                Timber.e(e, "[AddEditLogViewModel] onAssetSelected: failed to load asset details")
             }
         }
         prefillMeterFromPriorEntry(assetId)
@@ -914,11 +938,34 @@ class AddEditLogViewModel @Inject constructor(
         return result
     }
 
-    private fun parseCategoryList(json: String?): List<String> {
-        if (json.isNullOrBlank()) return emptyList()
-        // Expects a JSON array of strings: ["Oil Change","Inspection",...]
-        val pattern = Regex("\"([^\"]+)\"")
-        return pattern.findAll(json).map { it.groupValues[1] }.toList()
+    private fun parseCategoriesFromConfig(json: String): List<String> {
+        // Server-synced ItemCategory value: {"categories":[{"id":"oil_change",...},...]}
+        val catKey = json.indexOf("\"categories\"")
+        val arrStart = if (catKey >= 0) json.indexOf('[', catKey) else json.indexOf('[')
+        if (arrStart < 0) return emptyList()
+        var depth = 0; var arrEnd = arrStart
+        for (i in arrStart until json.length) when (json[i]) {
+            '[' -> depth++; ']' -> { depth--; if (depth == 0) { arrEnd = i; break } }
+        }
+        return Regex("\"id\"\\s*:\\s*\"([^\"]+)\"")
+            .findAll(json.substring(arrStart, arrEnd + 1))
+            .map { it.groupValues[1] }.toList()
+    }
+
+    private fun parseCategoriesFromSeeded(json: String, assetType: String): List<String> {
+        // Seeded log_categories value: [{"asset_type":"light_vehicle","categories":[{"id":"oil_change",...}]}]
+        val assetKey = "\"asset_type\":\"$assetType\""
+        val blockStart = json.indexOf(assetKey).takeIf { it >= 0 }
+            ?: return parseCategoriesFromConfig(json) // no matching assetType block; try direct parse
+        val catKey = json.indexOf("\"categories\"", blockStart)
+        val arrStart = if (catKey >= 0) json.indexOf('[', catKey) else return emptyList()
+        var depth = 0; var arrEnd = arrStart
+        for (i in arrStart until json.length) when (json[i]) {
+            '[' -> depth++; ']' -> { depth--; if (depth == 0) { arrEnd = i; break } }
+        }
+        return Regex("\"id\"\\s*:\\s*\"([^\"]+)\"")
+            .findAll(json.substring(arrStart, arrEnd + 1))
+            .map { it.groupValues[1] }.toList()
     }
 
     /**

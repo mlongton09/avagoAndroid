@@ -56,7 +56,7 @@ class TechLocationService @Inject constructor(
             )
             Timber.d("TechLocationService: started monitoring")
         } catch (e: SecurityException) {
-            Timber.w("TechLocationService: ACCESS_COARSE_LOCATION not granted — location monitoring disabled")
+            Timber.d("TechLocationService: ACCESS_COARSE_LOCATION not granted — location monitoring disabled")
         } catch (e: Exception) {
             Timber.e(e, "TechLocationService: failed to start monitoring")
         }

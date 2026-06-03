@@ -169,8 +169,25 @@ class IdentityManager @Inject constructor(
             if (accounts.isNotEmpty()) {
                 val last = accounts.last()
                 setActiveAccount(last.accountId, last.userId, isAnonymous = last.isAnonymous)
-                permissionStore.get().activate(last.accountId, last.role, last.role == "root" || last.memberships.any { it.accountId == last.accountId && it.isRoot })
-                permissionStore.get().refresh(last.accountId, last.role)
+
+                // If role is missing (e.g. old install or failed profile fetch during prior login),
+                // refresh it from /users/me so permissions can be correctly resolved.
+                val role = if (last.role.isNullOrBlank() && !last.isAnonymous) {
+                    Timber.d("IdentityManager: role missing for ${last.accountId}, fetching from /me")
+                    runCatching {
+                        val user = client.getMe()
+                        if (user?.role != null) {
+                            accountManifest.upsertFromServer(last.copy(role = user.role))
+                        }
+                        user?.role
+                    }.getOrNull() ?: last.role
+                } else {
+                    last.role
+                }
+
+                val isRoot = role == "root" || last.memberships.any { it.accountId == last.accountId && it.isRoot }
+                permissionStore.get().activate(last.accountId, role, isRoot)
+                permissionStore.get().refresh(last.accountId, role)
                 crashDiagnosticsProvider.get().setUserContext()
                 accountManifest.deduplicateAnonymousAccounts(last.accountId)
                 Timber.d("IdentityManager: restored account ${last.accountId}")

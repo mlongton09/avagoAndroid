@@ -8,7 +8,6 @@ import com.avago.core.network.NetworkResult
 import com.avago.core.network.model.ChatPrefsRequest
 import com.avago.core.network.model.CustomSection
 import com.avago.feature.chat.data.ChatRepository
-import com.avago.feature.chat.realtime.ChatRealtimeClient
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -62,7 +61,6 @@ private data class ChatListMeta(
 @HiltViewModel
 class ChatListViewModel @Inject constructor(
     private val repository: ChatRepository,
-    private val realtimeClient: ChatRealtimeClient,
     private val identity: IdentityManager,
 ) : ViewModel() {
 
@@ -129,9 +127,6 @@ class ChatListViewModel @Inject constructor(
         viewModelScope.launch {
             repository.syncRoster()
         }
-        // Ensure the WebSocket connection is live whenever the chat list is active.
-        // WebSocket onOpen triggers BackgroundSyncCoordinator.runDelta() — matches iOS reconnect behavior.
-        identity.activeAccountId.value?.let { realtimeClient.connect(it) }
     }
 
     private fun observeThreads() {
