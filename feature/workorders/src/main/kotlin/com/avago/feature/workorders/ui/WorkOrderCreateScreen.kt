@@ -1,8 +1,10 @@
 package com.avago.feature.workorders.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,25 +19,29 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -44,18 +50,26 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.avago.core.ui.CategoryBadge
 import com.avago.core.ui.CategoryItem
 import com.avago.core.ui.GlobalCategoryPickerScreen
 import com.avago.feature.workorders.R
 import com.avago.feature.workorders.model.WoPriority
+import com.avago.feature.workorders.model.summariseRrule
+import com.avago.feature.workorders.ui.components.priorityBarColor
 import com.avago.feature.workorders.ui.sheets.RepeatsSheet
 import com.avago.feature.workorders.ui.sheets.TechPickerSheet
 import com.avago.feature.workorders.viewmodel.WorkOrderCreateViewModel
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -68,7 +82,6 @@ fun WorkOrderCreateScreen(
     onPickLocation: () -> Unit = {},
     onPickAssetGroup: () -> Unit = {},
     onPickJob: () -> Unit = {},
-    /** Job ID returned from JobPickerScreen via nav back-stack SavedStateHandle. */
     selectedJobId: String? = null,
     selectedLocationId: String? = null,
     selectedLocationName: String? = null,
@@ -98,8 +111,8 @@ fun WorkOrderCreateScreen(
     val jobTitle by viewModel.jobTitle.collectAsStateWithLifecycle()
     val timezone by viewModel.timezone.collectAsStateWithLifecycle()
     val effortHint by viewModel.effortHint.collectAsStateWithLifecycle()
+    val repeatsRrule by viewModel.repeatsRrule.collectAsStateWithLifecycle()
 
-    // Apply job selection returned from JobPickerScreen via nav back-stack
     LaunchedEffect(selectedJobId) {
         if (selectedJobId != null) {
             viewModel.onJobSelected(selectedJobId, selectedJobId)
@@ -116,13 +129,25 @@ fun WorkOrderCreateScreen(
         if (savedSuccessfully) onSaved()
     }
 
-    var showPriorityMenu by remember { mutableStateOf(false) }
     var showTemplateMenu by remember { mutableStateOf(false) }
     var showTechPicker by remember { mutableStateOf(false) }
     var showRepeatsSheet by remember { mutableStateOf(false) }
     var showCategoryPicker by remember { mutableStateOf(false) }
-    var repeatsRrule by remember { mutableStateOf<String?>(null) }
     var showVinSection by remember { mutableStateOf(false) }
+
+    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = dueDateMs)
+
+    LaunchedEffect(dueDateMs) {
+        if (datePickerState.selectedDateMillis != dueDateMs) {
+            datePickerState.selectedDateMillis = dueDateMs
+        }
+    }
+
+    LaunchedEffect(datePickerState.selectedDateMillis) {
+        if (dueDateMs != datePickerState.selectedDateMillis) {
+            viewModel.dueDateMs.value = datePickerState.selectedDateMillis
+        }
+    }
 
     if (showRepeatsSheet) {
         RepeatsSheet(
@@ -132,7 +157,7 @@ fun WorkOrderCreateScreen(
             currentEndDateMs = null,
             onDismiss = { showRepeatsSheet = false },
             onSave = { rrule ->
-                repeatsRrule = rrule
+                viewModel.repeatsRrule.value = rrule.ifBlank { null }
                 showRepeatsSheet = false
             },
         )
@@ -172,6 +197,12 @@ fun WorkOrderCreateScreen(
         )
     }
 
+    LaunchedEffect(vin, vinDecodeResult) {
+        if (vin.isNotBlank() || vinDecodeResult != null) {
+            showVinSection = true
+        }
+    }
+
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -186,10 +217,8 @@ fun WorkOrderCreateScreen(
                 },
                 title = {
                     Text(
-                        if (woId == null)
-                            stringResource(R.string.wo_create_title)
-                        else
-                            stringResource(R.string.wo_edit_title)
+                        if (woId == null) stringResource(R.string.wo_create_title)
+                        else stringResource(R.string.wo_edit_title),
                     )
                 },
                 actions = {
@@ -212,7 +241,6 @@ fun WorkOrderCreateScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // Template picker
             if (templates.isNotEmpty()) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -244,292 +272,291 @@ fun WorkOrderCreateScreen(
                 }
             }
 
-            // Title (required)
-            OutlinedTextField(
-                value = title,
-                onValueChange = { viewModel.title.value = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.wo_field_title)) },
-                isError = titleError != null,
-                supportingText = titleError?.let { { Text(it) } },
-                singleLine = true,
-            )
-
-            LaunchedEffect(vin, vinDecodeResult) {
-                if (vin.isNotBlank() || vinDecodeResult != null) {
-                    showVinSection = true
-                }
-            }
-
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.wo_vin_label)) },
-                supportingContent = { Text(stringResource(R.string.wo_vin_placeholder)) },
-                trailingContent = {
-                    Icon(
-                        imageVector = if (showVinSection) Icons.Default.Close else Icons.Default.Add,
-                        contentDescription = null,
-                    )
-                },
-                modifier = Modifier.clickable { showVinSection = !showVinSection },
-            )
-
-            if (showVinSection) {
-                Row(
+            FormSection {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { viewModel.title.value = it },
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    OutlinedTextField(
-                        value = vin,
-                        onValueChange = { viewModel.vin.value = it },
-                        modifier = Modifier.weight(1f),
-                        label = { Text(stringResource(R.string.wo_vin_label)) },
-                        placeholder = { Text(stringResource(R.string.wo_vin_placeholder)) },
-                        singleLine = true,
-                    )
-                    OutlinedButton(
-                        onClick = viewModel::decodeVin,
-                        enabled = vin.isNotBlank() && !isDecodingVin,
-                    ) {
-                        Text(
-                            if (isDecodingVin) {
-                                stringResource(R.string.wo_vin_decoding)
-                            } else {
-                                stringResource(R.string.wo_vin_decode_btn)
-                            }
-                        )
-                    }
-                }
-
-                vinDecodeResult?.let { result ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            result.year?.let {
-                                Text("${stringResource(R.string.wo_vin_year)}: $it", style = MaterialTheme.typography.bodySmall)
-                            }
-                            result.make?.takeIf { it.isNotBlank() }?.let {
-                                Text("${stringResource(R.string.wo_vin_make)}: $it", style = MaterialTheme.typography.bodySmall)
-                            }
-                            result.model?.takeIf { it.isNotBlank() }?.let {
-                                Text("${stringResource(R.string.wo_vin_model)}: $it", style = MaterialTheme.typography.bodySmall)
-                            }
-                            result.engine?.takeIf { it.isNotBlank() }?.let {
-                                Text("Engine: $it", style = MaterialTheme.typography.bodySmall)
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Description
-            OutlinedTextField(
-                value = description,
-                onValueChange = { viewModel.description.value = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.wo_field_description)) },
-                minLines = 2,
-                maxLines = 4,
-            )
-
-            ListItem(
-                headlineContent = { Text(category ?: stringResource(R.string.wo_category_placeholder)) },
-                supportingContent = { Text(stringResource(R.string.wo_create_section_category)) },
-                modifier = Modifier.clickable { showCategoryPicker = true },
-            )
-
-            // Asset picker (stub — navigates out)
-            OutlinedButton(
-                onClick = onPickAsset,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(assetName ?: stringResource(R.string.wo_field_asset_placeholder))
-            }
-
-            ListItem(
-                headlineContent = {
-                    Text(locationName ?: stringResource(R.string.wo_location_same_as_asset))
-                },
-                supportingContent = { Text(stringResource(R.string.wo_create_section_location)) },
-                modifier = Modifier.clickable { onPickLocation() },
-            )
-
-            // Asset Group picker
-            OutlinedButton(
-                onClick = onPickAssetGroup,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(R.string.wo_create_select_asset_group))
-            }
-
-            // Job / Project picker
-            ListItem(
-                headlineContent = { Text(jobTitle ?: jobId ?: stringResource(R.string.wo_no_job_assigned)) },
-                supportingContent = { Text(stringResource(R.string.wo_job_label)) },
-                trailingContent = {
-                    if (jobId != null) {
-                        IconButton(onClick = viewModel::clearJob) {
-                            Icon(Icons.Default.Close, contentDescription = "Remove job")
-                        }
-                    }
-                },
-                modifier = Modifier.clickable { onPickJob() },
-            )
-
-            // Priority
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(stringResource(R.string.wo_field_priority), style = MaterialTheme.typography.labelLarge)
-                TextButton(onClick = { showPriorityMenu = true }) {
-                    Text(priority.displayName)
-                }
-                DropdownMenu(expanded = showPriorityMenu, onDismissRequest = { showPriorityMenu = false }) {
-                    WoPriority.entries.forEach { p ->
-                        DropdownMenuItem(
-                            text = { Text(p.displayName) },
-                            onClick = {
-                                viewModel.priority.value = p
-                                showPriorityMenu = false
-                            },
-                        )
-                    }
-                }
-            }
-
-            // Estimated hours
-            OutlinedTextField(
-                value = estimatedHours,
-                onValueChange = { viewModel.estimatedHours.value = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.wo_field_estimated_hours)) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                singleLine = true,
-            )
-
-            // Effort hint (populated from server when category is known)
-            effortHint?.let { hint ->
-                Text(
-                    text = "Typical: ${hint.typicalMinutes} min  ·  fast: ${hint.fastMinutes}  ·  slow: ${hint.slowMinutes}  ·  ${hint.sampleCount} jobs",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
-                    modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
+                    label = { Text(stringResource(R.string.wo_field_title)) },
+                    isError = titleError != null,
+                    supportingText = titleError?.let { { Text(it) } },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.titleMedium,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                ListItem(
+                    headlineContent = { Text(locationName ?: stringResource(R.string.wo_location_same_as_asset)) },
+                    supportingContent = { Text(stringResource(R.string.wo_create_section_location)) },
+                    modifier = Modifier.clickable { onPickLocation() },
                 )
             }
 
-            // Assigned techs
-            Text(
-                stringResource(R.string.wo_field_assignees),
-                style = MaterialTheme.typography.labelLarge,
-            )
-            if (assignedTechIds.isNotEmpty()) {
-                assignedTechIds.forEach { techId ->
+            FormSection(title = stringResource(R.string.wo_create_section_details)) {
+                ListItem(
+                    leadingContent = { CategoryBadge(categoryId = category) },
+                    headlineContent = { Text(category ?: stringResource(R.string.wo_category_placeholder)) },
+                    supportingContent = { Text(stringResource(R.string.wo_create_section_category)) },
+                    modifier = Modifier.clickable { showCategoryPicker = true },
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = stringResource(R.string.wo_field_priority),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                PrioritySegmentedControl(
+                    selected = priority,
+                    onSelected = { viewModel.priority.value = it },
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = stringResource(R.string.wo_field_due_date),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                Text(
+                    text = dueDateMs?.let(::formatDate) ?: stringResource(R.string.wo_no_due_date),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
+                )
+                DatePicker(
+                    state = datePickerState,
+                    showModeToggle = false,
+                    colors = DatePickerDefaults.colors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                    ),
+                )
+                if (dueDateMs != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    val availableZones = listOf(
+                        "America/New_York", "America/Chicago", "America/Denver",
+                        "America/Los_Angeles", "America/Anchorage", "Pacific/Honolulu",
+                        "UTC", "Europe/London", "Europe/Paris", "Asia/Tokyo",
+                    )
+                    var tzMenuExpanded by remember { mutableStateOf(false) }
+                    ExposedDropdownMenuBox(
+                        expanded = tzMenuExpanded,
+                        onExpandedChange = { tzMenuExpanded = it },
+                    ) {
+                        OutlinedTextField(
+                            value = timezone.ifEmpty { TimeZone.getDefault().id },
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Timezone") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = tzMenuExpanded) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                        )
+                        ExposedDropdownMenu(
+                            expanded = tzMenuExpanded,
+                            onDismissRequest = { tzMenuExpanded = false },
+                        ) {
+                            availableZones.forEach { tz ->
+                                DropdownMenuItem(
+                                    text = { Text(tz) },
+                                    onClick = {
+                                        viewModel.onTimezoneChanged(tz)
+                                        tzMenuExpanded = false
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = estimatedHours,
+                    onValueChange = { viewModel.estimatedHours.value = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.wo_field_estimated_hours)) },
+                    placeholder = { Text(stringResource(R.string.wo_effort_placeholder)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                )
+                effortHint?.let { hint ->
+                    Text(
+                        text = "Typical: ${hint.typicalMinutes} min  ·  fast: ${hint.fastMinutes}  ·  slow: ${hint.slowMinutes}  ·  ${hint.sampleCount} jobs",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+                        modifier = Modifier.padding(start = 4.dp, top = 8.dp),
+                    )
+                }
+            }
+
+            FormSection(title = stringResource(R.string.wo_create_section_notes)) {
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { viewModel.description.value = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.wo_field_description)) },
+                    minLines = 3,
+                    maxLines = 5,
+                )
+            }
+
+            FormSection(title = stringResource(R.string.wo_field_repeats)) {
+                ListItem(
+                    headlineContent = { Text(summariseRrule(repeatsRrule)) },
+                    supportingContent = { Text(stringResource(R.string.wo_field_repeats)) },
+                    modifier = Modifier.clickable { showRepeatsSheet = true },
+                )
+            }
+
+            FormSection(title = stringResource(R.string.wo_field_assignees)) {
+                if (assignedTechIds.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.wo_detail_no_technicians),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    assignedTechIds.forEach { techId ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text(techId, style = MaterialTheme.typography.bodyMedium)
+                            IconButton(onClick = {
+                                viewModel.assignedTechIds.value = viewModel.assignedTechIds.value - techId
+                            }) {
+                                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.wo_create_remove_assignee))
+                            }
+                        }
+                    }
+                }
+                TextButton(
+                    onClick = { showTechPicker = true },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Text(stringResource(R.string.wo_field_add_assignee))
+                }
+            }
+
+            FormSection(title = stringResource(R.string.wo_field_asset)) {
+                OutlinedButton(
+                    onClick = onPickAsset,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(assetName ?: stringResource(R.string.wo_field_asset_placeholder))
+                }
+            }
+
+            FormSection(title = stringResource(R.string.wo_vin_label)) {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.wo_vin_label)) },
+                    supportingContent = { Text(stringResource(R.string.wo_vin_placeholder)) },
+                    trailingContent = {
+                        Icon(
+                            imageVector = if (showVinSection) Icons.Default.Close else Icons.Default.Add,
+                            contentDescription = null,
+                        )
+                    },
+                    modifier = Modifier.clickable { showVinSection = !showVinSection },
+                )
+                if (showVinSection) {
+                    Spacer(modifier = Modifier.height(8.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Text(techId, style = MaterialTheme.typography.bodyMedium)
-                        IconButton(onClick = {
-                            viewModel.assignedTechIds.value =
-                                viewModel.assignedTechIds.value - techId
-                        }) {
-                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.wo_create_remove_assignee))
-                        }
-                    }
-                }
-            }
-            TextButton(
-                onClick = { showTechPicker = true },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null)
-                Text(stringResource(R.string.wo_field_add_assignee))
-            }
-
-            // Repeats
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(stringResource(R.string.wo_field_repeats), style = MaterialTheme.typography.labelLarge)
-                TextButton(onClick = { showRepeatsSheet = true }) {
-                    Text(if (repeatsRrule != null) stringResource(R.string.wo_create_repeats_configured) else stringResource(R.string.wo_create_repeats_none))
-                }
-            }
-
-            // Timezone selector — only shown when a due date is set
-            if (dueDateMs != null) {
-                val availableZones = listOf(
-                    "America/New_York", "America/Chicago", "America/Denver",
-                    "America/Los_Angeles", "America/Anchorage", "Pacific/Honolulu",
-                    "UTC", "Europe/London", "Europe/Paris", "Asia/Tokyo",
-                )
-                var tzMenuExpanded by remember { mutableStateOf(false) }
-                ExposedDropdownMenuBox(
-                    expanded = tzMenuExpanded,
-                    onExpandedChange = { tzMenuExpanded = it },
-                ) {
-                    OutlinedTextField(
-                        value = timezone.ifEmpty { TimeZone.getDefault().id },
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Timezone") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = tzMenuExpanded) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor(MenuAnchorType.PrimaryNotEditable),
-                    )
-                    ExposedDropdownMenu(
-                        expanded = tzMenuExpanded,
-                        onDismissRequest = { tzMenuExpanded = false },
-                    ) {
-                        availableZones.forEach { tz ->
-                            DropdownMenuItem(
-                                text = { Text(tz) },
-                                onClick = {
-                                    viewModel.onTimezoneChanged(tz)
-                                    tzMenuExpanded = false
-                                },
+                        OutlinedTextField(
+                            value = vin,
+                            onValueChange = { viewModel.vin.value = it },
+                            modifier = Modifier.weight(1f),
+                            label = { Text(stringResource(R.string.wo_vin_label)) },
+                            placeholder = { Text(stringResource(R.string.wo_vin_placeholder)) },
+                            singleLine = true,
+                        )
+                        OutlinedButton(
+                            onClick = viewModel::decodeVin,
+                            enabled = vin.isNotBlank() && !isDecodingVin,
+                        ) {
+                            Text(
+                                if (isDecodingVin) stringResource(R.string.wo_vin_decoding)
+                                else stringResource(R.string.wo_vin_decode_btn),
                             )
                         }
                     }
-                }
-            }
 
-            // Checklist
-            Text(
-                stringResource(R.string.wo_field_checklist),
-                style = MaterialTheme.typography.labelLarge,
-            )
-            checklistDrafts.forEachIndexed { _, draft ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    OutlinedTextField(
-                        value = draft.title,
-                        onValueChange = { viewModel.updateChecklistItem(draft.id, it) },
-                        modifier = Modifier.weight(1f),
-                        placeholder = { Text(stringResource(R.string.wo_field_checklist_item_placeholder)) },
-                        singleLine = true,
-                    )
-                    IconButton(onClick = { viewModel.removeChecklistItem(draft.id) }) {
-                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.wo_create_remove_checklist_step))
+                    vinDecodeResult?.let { result ->
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                result.year?.let {
+                                    Text("${stringResource(R.string.wo_vin_year)}: $it", style = MaterialTheme.typography.bodySmall)
+                                }
+                                result.make?.takeIf { it.isNotBlank() }?.let {
+                                    Text("${stringResource(R.string.wo_vin_make)}: $it", style = MaterialTheme.typography.bodySmall)
+                                }
+                                result.model?.takeIf { it.isNotBlank() }?.let {
+                                    Text("${stringResource(R.string.wo_vin_model)}: $it", style = MaterialTheme.typography.bodySmall)
+                                }
+                                result.engine?.takeIf { it.isNotBlank() }?.let {
+                                    Text("Engine: $it", style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
                     }
                 }
             }
-            TextButton(onClick = viewModel::addChecklistItem) {
-                Icon(Icons.Default.Add, contentDescription = null)
-                Text(stringResource(R.string.wo_field_add_checklist_item))
+
+            FormSection(title = stringResource(R.string.wo_create_select_asset_group)) {
+                OutlinedButton(
+                    onClick = onPickAssetGroup,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.wo_create_select_asset_group))
+                }
+            }
+
+            FormSection(title = stringResource(R.string.wo_job_label)) {
+                ListItem(
+                    headlineContent = { Text(jobTitle ?: jobId ?: stringResource(R.string.wo_no_job_assigned)) },
+                    supportingContent = { Text(stringResource(R.string.wo_job_label)) },
+                    trailingContent = {
+                        if (jobId != null) {
+                            IconButton(onClick = viewModel::clearJob) {
+                                Icon(Icons.Default.Close, contentDescription = "Remove job")
+                            }
+                        }
+                    },
+                    modifier = Modifier.clickable { onPickJob() },
+                )
+            }
+
+            FormSection(title = stringResource(R.string.wo_field_checklist)) {
+                checklistDrafts.forEach { draft ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        OutlinedTextField(
+                            value = draft.title,
+                            onValueChange = { viewModel.updateChecklistItem(draft.id, it) },
+                            modifier = Modifier.weight(1f),
+                            placeholder = { Text(stringResource(R.string.wo_field_checklist_item_placeholder)) },
+                            singleLine = true,
+                        )
+                        IconButton(onClick = { viewModel.removeChecklistItem(draft.id) }) {
+                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.wo_create_remove_checklist_step))
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                TextButton(onClick = viewModel::addChecklistItem) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Text(stringResource(R.string.wo_field_add_checklist_item))
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -543,4 +570,62 @@ fun WorkOrderCreateScreen(
             }
         }
     }
+}
+
+@Composable
+private fun FormSection(
+    title: String? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            title?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            content()
+        }
+    }
+}
+
+@Composable
+private fun PrioritySegmentedControl(
+    selected: WoPriority,
+    onSelected: (WoPriority) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        WoPriority.entries.forEach { option ->
+            val selectedColor = priorityBarColor(option.key)
+            val isSelected = option == selected
+            OutlinedButton(
+                onClick = { onSelected(option) },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = if (isSelected) selectedColor else Color.Transparent,
+                    contentColor = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                ),
+                border = BorderStroke(
+                    width = 1.dp,
+                    color = if (isSelected) selectedColor else MaterialTheme.colorScheme.outline,
+                ),
+            ) {
+                Text(option.displayName.substringBefore(" · "))
+            }
+        }
+    }
+}
+
+private fun formatDate(ms: Long): String {
+    val zone = ZoneId.systemDefault()
+    val date = Instant.ofEpochMilli(ms).atZone(zone).toLocalDate()
+    return date.format(DateTimeFormatter.ofPattern("MMM d, yyyy"))
 }

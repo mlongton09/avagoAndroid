@@ -82,6 +82,16 @@ class WorkOrderDetailViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     @OptIn(ExperimentalCoroutinesApi::class)
+    val assetName: StateFlow<String?> = workOrder
+        .flatMapLatest { wo ->
+            val accountId = _accountId.value
+            val assetId = wo?.assetId
+            if (accountId == null || assetId.isNullOrBlank()) flowOf<String?>(null)
+            else flow<String?> { emit(repository.getAssetById(accountId, assetId)?.name) }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
     val mapPreview: StateFlow<WorkOrderMapPreview?> = workOrder
         .flatMapLatest { wo ->
             if (wo == null) flowOf<WorkOrderMapPreview?>(null)

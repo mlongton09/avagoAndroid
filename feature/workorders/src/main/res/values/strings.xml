@@ -218,6 +218,7 @@
 
     <!-- WO List — retry banner -->
     <string name="wo_list_retry">Retry</string>
+    <string name="wo_filter_clear">Clear filters</string>
 
     <!-- WO Detail — hardcoded labels -->
     <string name="wo_detail_reschedule">Reschedule</string>
@@ -241,6 +242,13 @@
     <string name="wo_detail_costs_manage">Manage</string>
     <string name="wo_detail_costs_empty">No cost data. Tap Manage to add cost lines.</string>
     <string name="wo_detail_save_notes">Save Notes</string>
+    <string name="wo_detail_created_label">Created</string>
+    <string name="wo_detail_log_entry_label">Log entry</string>
+    <string name="wo_detail_view">View</string>
+    <string name="wo_detail_assigned_to_label">Assigned to</string>
+    <string name="wo_detail_claim">Claim</string>
+    <string name="wo_detail_section_transitions">Transitions</string>
+    <string name="wo_detail_open_team_chat">Open team chat</string>
 
     <!-- WO Create — hardcoded labels -->
     <string name="wo_create_section_details">Details</string>

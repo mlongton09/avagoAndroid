@@ -80,6 +80,7 @@ class WorkOrderCreateViewModel @Inject constructor(
     val dueDateMs = MutableStateFlow<Long?>(null)
     val priority = MutableStateFlow(WoPriority.MEDIUM)
     val estimatedHours = MutableStateFlow("")
+    val repeatsRrule = MutableStateFlow<String?>(null)
     val assignedTechIds = MutableStateFlow<List<String>>(emptyList())
     val checklistDrafts = MutableStateFlow<List<ChecklistDraft>>(emptyList())
     val selectedTemplateId = MutableStateFlow<String?>(null)
@@ -139,12 +140,14 @@ class WorkOrderCreateViewModel @Inject constructor(
                 description.value = wo.description ?: ""
                 category.value = wo.category
                 assetId.value = wo.assetId
+                assetName.value = wo.assetId?.let { repository.getAssetById(accountId, it)?.name }
                 locationId.value = wo.locationId
                 locationName.value = wo.locationId?.let { repository.getLocationById(accountId, it)?.name }
                 dueDateMs.value = wo.dueDate
                 priority.value = WoPriority.fromKey(wo.priority)
                 estimatedHours.value = wo.estimatedEffortMinutes
                     ?.toString() ?: ""
+                repeatsRrule.value = wo.rrule
                 assignedTechIds.value = if (!wo.assignedTo.isNullOrBlank())
                     listOf(wo.assignedTo ?: error("unreachable")) else emptyList()
                 jobId.value = wo.jobId
@@ -448,11 +451,11 @@ class WorkOrderCreateViewModel @Inject constructor(
                     createdBy = existing?.createdBy ?: accountId,
                     approvalState = existing?.approvalState,
                     jobId = jobId.value ?: existing?.jobId,
-                    woKind = existing?.woKind,
-                    rrule = existing?.rrule,
-                    endType = existing?.endType,
-                    endCount = existing?.endCount,
-                    endDate = existing?.endDate,
+                    woKind = if (repeatsRrule.value.isNullOrBlank()) "one_off" else "recurring_parent",
+                    rrule = repeatsRrule.value?.ifBlank { null },
+                    endType = if (repeatsRrule.value.isNullOrBlank()) null else existing?.endType,
+                    endCount = if (repeatsRrule.value.isNullOrBlank()) null else existing?.endCount,
+                    endDate = if (repeatsRrule.value.isNullOrBlank()) null else existing?.endDate,
                     meterType = existing?.meterType,
                     meterDue = existing?.meterDue,
                     meterInterval = existing?.meterInterval,

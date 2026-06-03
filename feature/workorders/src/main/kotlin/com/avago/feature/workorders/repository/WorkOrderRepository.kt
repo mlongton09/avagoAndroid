@@ -48,6 +48,10 @@ class WorkOrderRepository @Inject constructor(
         return dbFactory.get(accountId).workOrderDao().getById(woId)
     }
 
+    suspend fun getAssetById(accountId: String, assetId: String): AssetEntity? {
+        return dbFactory.get(accountId).assetDao().getById(assetId)
+    }
+
     suspend fun getLocationById(accountId: String, locationId: String): LocationEntity? {
         return dbFactory.get(accountId).locationDao().getById(locationId)
     }
