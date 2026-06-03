@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -81,6 +82,19 @@ class WorkOrderCalendarViewModel @Inject constructor(
                 started = SharingStarted.WhileSubscribed(5_000),
                 initialValue = emptyList(),
             )
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val assetLabels: StateFlow<Map<String, String?>> = wosByDate
+        .flatMapLatest { dateMap ->
+            val accountId = identityManager.getActiveAccountId()
+                ?: return@flatMapLatest flowOf(emptyMap())
+            flow {
+                val ids = dateMap.values.flatten().mapNotNull { it.assetId }.distinct()
+                emit(ids.associateWith { id -> repository.assetLabelFor(id, accountId) })
+            }
+        }
+        .catch { emit(emptyMap()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     fun selectDate(date: LocalDate) {
         selectedDate.value = date

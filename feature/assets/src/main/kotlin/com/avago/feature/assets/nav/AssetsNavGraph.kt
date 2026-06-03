@@ -232,8 +232,8 @@ fun NavGraphBuilder.assetsNavGraph(
         composable(AssetsRoute.PICKER) {
             AssetPickerScreen(
                 onAssetSelected = { assetId ->
+                    // onAssetPicked already calls popBackStack() — don't double-pop
                     onAssetPicked(assetId)
-                    navController.popBackStack()
                 },
                 onBack = { navController.popBackStack() },
             )

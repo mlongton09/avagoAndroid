@@ -71,6 +71,7 @@ fun WorkOrderCalendarScreen(
     val selectedDate by viewModel.selectedDate.collectAsStateWithLifecycle()
     val displayMonth by viewModel.displayMonth.collectAsStateWithLifecycle()
     val selectedDayWos by viewModel.selectedDayWos.collectAsStateWithLifecycle()
+    val assetLabels by viewModel.assetLabels.collectAsStateWithLifecycle()
     val canSeeAllScope by viewModel.canSeeAllScope.collectAsStateWithLifecycle()
     val showAll by viewModel.showAll.collectAsStateWithLifecycle()
 
@@ -255,7 +256,7 @@ fun WorkOrderCalendarScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(selectedDayWos, key = { it.woId }) { wo ->
-                        WoCard(wo = wo, onClick = { onWoClick(wo.woId) })
+                        WoCard(wo = wo, onClick = { onWoClick(wo.woId) }, assetLabel = assetLabels[wo.assetId])
                     }
                 }
             }

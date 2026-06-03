@@ -135,7 +135,7 @@ class WorkOrderListViewModel @Inject constructor(
         // 2. Scope filter (matches iOS Mine / All toggle)
         val scopeFiltered = horizonFiltered.filter { wo ->
             when (scope) {
-                WoListFilter.MINE -> wo.assignedTo == myUserId || wo.createdBy == myUserId
+                WoListFilter.MINE -> myUserId != null && wo.assignedTo == myUserId
                 WoListFilter.ALL -> true
             }
         }
