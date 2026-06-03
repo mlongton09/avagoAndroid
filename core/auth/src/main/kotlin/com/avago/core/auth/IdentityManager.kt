@@ -170,17 +170,28 @@ class IdentityManager @Inject constructor(
                 val last = accounts.last()
                 setActiveAccount(last.accountId, last.userId, isAnonymous = last.isAnonymous)
 
-                // Refresh role from /users/me if:
+                // Refresh role from the account members list if:
                 //  • role is missing (old install / failed prior fetch), OR
                 //  • role is a legacy value ("owner", "tech", "member") that the
                 //    server DB has since migrated to the new RBAC equivalents.
-                //    Storing the normalised value avoids a mismatch on every launch.
+                // NOTE: /users/me does NOT include the account-specific role —
+                // the role is per-account and only returned by the members endpoint.
+                // Mirrors iOS IdentityManager.fetchAndStoreUserProfile which calls
+                // fetchAccountMembers and sets currentRole from the matching entry.
                 val isLegacyRole = last.role != null && last.role in setOf("owner", "tech", "member")
                 val role = if ((last.role.isNullOrBlank() || isLegacyRole) && !last.isAnonymous) {
-                    Timber.d("IdentityManager: role=${last.role} for ${last.accountId} — refreshing from /me")
+                    Timber.d("IdentityManager: role=${last.role} for ${last.accountId} — refreshing from members")
                     runCatching {
-                        val user = client.getMe()
-                        val fresh = normalizeLegacyRole(user?.role) ?: normalizeLegacyRole(last.role)
+                        var fresh: String? = null
+                        val userId = last.userId
+                        if (userId != null) {
+                            val result = client.getAccountMembers(last.accountId)
+                            if (result is NetworkResult.Success) {
+                                val me = result.data.find { it.user_id == userId }
+                                fresh = normalizeLegacyRole(me?.role)
+                            }
+                        }
+                        if (fresh == null) fresh = normalizeLegacyRole(last.role)
                         if (fresh != null) {
                             accountManifest.upsertFromServer(last.copy(role = fresh))
                         }
