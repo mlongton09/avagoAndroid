@@ -180,14 +180,38 @@ fun AddEditLogScreen(
         contract = ActivityResultContracts.TakePicture()
     ) { success -> if (success) captureUri?.let { viewModel.addPhotoUri(it) } }
 
+    // Permission launcher: on grant, launch the camera immediately
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            try {
+                val tmpFile = File.createTempFile("photo_", ".jpg", context.cacheDir)
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", tmpFile)
+                captureUri = uri
+                cameraLauncher.launch(uri)
+            } catch (e: Exception) {
+                scope.launch { snackbarHostState.showSnackbar("Unable to launch camera") }
+            }
+        } else {
+            scope.launch { snackbarHostState.showSnackbar("Camera permission is required to take photos") }
+        }
+    }
+
     fun launchCamera() {
-        try {
-            val tmpFile = File.createTempFile("photo_", ".jpg", context.cacheDir)
-            val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", tmpFile)
-            captureUri = uri
-            cameraLauncher.launch(uri)
-        } catch (e: Exception) {
-            scope.launch { snackbarHostState.showSnackbar("Unable to launch camera") }
+        val camPerm = android.Manifest.permission.CAMERA
+        if (androidx.core.content.ContextCompat.checkSelfPermission(context, camPerm)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            try {
+                val tmpFile = File.createTempFile("photo_", ".jpg", context.cacheDir)
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", tmpFile)
+                captureUri = uri
+                cameraLauncher.launch(uri)
+            } catch (e: Exception) {
+                scope.launch { snackbarHostState.showSnackbar("Unable to launch camera") }
+            }
+        } else {
+            cameraPermissionLauncher.launch(camPerm)
         }
     }
 
