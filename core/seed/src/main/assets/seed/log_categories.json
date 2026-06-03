@@ -2,448 +2,4426 @@
   {
     "asset_type": "light_vehicle",
     "categories": [
-      { "id": "service",             "name": "log_cat.service",             "icon": "cat_service"    },
-      { "id": "repair",              "name": "log_cat.repair",              "icon": "cat_repair"     },
-      { "id": "inspection",          "name": "log_cat.inspection",          "icon": "cat_inspection" },
-      { "id": "oil_change",          "name": "log_cat.oil_change",          "icon": "cat_oil"        },
-      { "id": "tire_rotation",       "name": "log_cat.tire_rotation",       "icon": "cat_tires"      },
-      { "id": "fluid_top_up",        "name": "log_cat.fluid_top_up",        "icon": "cat_fluid"      },
-      { "id": "air_filter",          "name": "log_cat.air_filter",          "icon": "cat_filters"    },
-      { "id": "battery_check",       "name": "log_cat.battery_check",       "icon": "cat_battery"    },
-      { "id": "battery_replace",     "name": "log_cat.battery_replace",     "icon": "cat_battery"    },
-      { "id": "wiper_blades",        "name": "log_cat.wiper_blades",        "icon": "cat_wipers"     },
-      { "id": "brake_inspection",    "name": "log_cat.brake_inspection",    "icon": "cat_brakes"     },
-      { "id": "brake_replacement",   "name": "log_cat.brake_replacement",   "icon": "cat_brakes"     },
-      { "id": "engine_tune_up",      "name": "log_cat.engine_tune_up",      "icon": "cat_engine"     },
-      { "id": "tire_replacement",    "name": "log_cat.tire_replacement",    "icon": "cat_tires"      },
-      { "id": "coolant_flush",       "name": "log_cat.coolant_flush",       "icon": "cat_fluid"      },
-      { "id": "cabin_air_filter",    "name": "log_cat.cabin_air_filter",    "icon": "cat_filters"    },
-      { "id": "wheel_alignment",     "name": "log_cat.wheel_alignment",     "icon": "cat_mechanical" },
-      { "id": "brake_fluid_flush",   "name": "log_cat.brake_fluid_flush",   "icon": "cat_fluid"      },
-      { "id": "timing_belt",         "name": "log_cat.timing_belt",         "icon": "cat_drivetrain" },
-      { "id": "ac_service",          "name": "log_cat.ac_service",          "icon": "cat_hvac"       },
-      { "id": "differential_fluid",  "name": "log_cat.differential_fluid",  "icon": "cat_fluid"      },
-      { "id": "suspension_steering", "name": "log_cat.suspension_steering", "icon": "cat_mechanical" }
+      {
+        "id": "service",
+        "name": "log_cat.service",
+        "icon": "cat_service"
+      },
+      {
+        "id": "repair",
+        "name": "log_cat.repair",
+        "icon": "cat_repair"
+      },
+      {
+        "id": "inspection",
+        "name": "log_cat.inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "fuel_log",
+        "name": "log_cat.fuel_log",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "oil_change",
+        "name": "log_cat.oil_change",
+        "icon": "cat_oil"
+      },
+      {
+        "id": "tire_rotation",
+        "name": "log_cat.tire_rotation",
+        "icon": "cat_tires"
+      },
+      {
+        "id": "fluid_top_up",
+        "name": "log_cat.fluid_top_up",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "air_filter",
+        "name": "log_cat.air_filter",
+        "icon": "cat_filters"
+      },
+      {
+        "id": "battery_check",
+        "name": "log_cat.battery_check",
+        "icon": "cat_battery"
+      },
+      {
+        "id": "battery_replace",
+        "name": "log_cat.battery_replace",
+        "icon": "cat_battery"
+      },
+      {
+        "id": "wiper_blades",
+        "name": "log_cat.wiper_blades",
+        "icon": "cat_wipers"
+      },
+      {
+        "id": "brake_inspection",
+        "name": "log_cat.brake_inspection",
+        "icon": "cat_brakes"
+      },
+      {
+        "id": "brake_replacement",
+        "name": "log_cat.brake_replacement",
+        "icon": "cat_brakes"
+      },
+      {
+        "id": "engine_tune_up",
+        "name": "log_cat.engine_tune_up",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "tire_replacement",
+        "name": "log_cat.tire_replacement",
+        "icon": "cat_tires"
+      },
+      {
+        "id": "coolant_flush",
+        "name": "log_cat.coolant_flush",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "cabin_air_filter",
+        "name": "log_cat.cabin_air_filter",
+        "icon": "cat_filters"
+      },
+      {
+        "id": "wheel_alignment",
+        "name": "log_cat.wheel_alignment",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "brake_fluid_flush",
+        "name": "log_cat.brake_fluid_flush",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "timing_belt",
+        "name": "log_cat.timing_belt",
+        "icon": "cat_drivetrain"
+      },
+      {
+        "id": "ac_service",
+        "name": "log_cat.ac_service",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "differential_fluid",
+        "name": "log_cat.differential_fluid",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "suspension_steering",
+        "name": "log_cat.suspension_steering",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "transmission_service",
+        "name": "log_cat.transmission_service",
+        "icon": "cat_gearbox"
+      },
+      {
+        "id": "spark_plugs",
+        "name": "log_cat.spark_plugs",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "fuel_filter",
+        "name": "log_cat.fuel_filter",
+        "icon": "cat_filters"
+      },
+      {
+        "id": "power_steering_service",
+        "name": "log_cat.power_steering_service",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "exhaust_service",
+        "name": "log_cat.exhaust_service",
+        "icon": "cat_exhaust"
+      },
+      {
+        "id": "transfer_case_service",
+        "name": "log_cat.transfer_case_service",
+        "icon": "cat_drivetrain"
+      },
+      {
+        "id": "fuel_system_service",
+        "name": "log_cat.fuel_system_service",
+        "icon": "cat_fuel_tank"
+      },
+      {
+        "id": "evse_charging",
+        "name": "log_cat.evse_charging",
+        "icon": "cat_evse"
+      },
+      {
+        "id": "detailing",
+        "name": "log_cat.detailing",
+        "icon": "cat_wash"
+      },
+      {
+        "id": "headlight_service",
+        "name": "log_cat.headlight_service",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "alternator_replace",
+        "name": "log_cat.alternator_replace",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "starter_motor_service",
+        "name": "log_cat.starter_motor_service",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "obd_diagnostic",
+        "name": "log_cat.obd_diagnostic",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "tpms_service",
+        "name": "log_cat.tpms_service",
+        "icon": "cat_tires"
+      },
+      {
+        "id": "tire_repair",
+        "name": "log_cat.tire_repair",
+        "icon": "cat_tires"
+      },
+      {
+        "id": "glass_service",
+        "name": "log_cat.glass_service",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "body_paint_repair",
+        "name": "log_cat.body_paint_repair",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "recall_service",
+        "name": "log_cat.recall_service",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "emissions_inspection",
+        "name": "log_cat.emissions_inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "refuel_log",
+        "name": "log_cat.refuel_log",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "car_wash",
+        "name": "log_cat.car_wash",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "roadside_assist",
+        "name": "log_cat.roadside_assist",
+        "icon": "cat_safety"
+      }
     ]
   },
   {
     "asset_type": "motorcycle",
     "categories": [
-      { "id": "service",           "name": "log_cat.service",           "icon": "cat_service"    },
-      { "id": "repair",            "name": "log_cat.repair",            "icon": "cat_repair"     },
-      { "id": "inspection",        "name": "log_cat.inspection",        "icon": "cat_inspection" },
-      { "id": "oil_change",        "name": "log_cat.oil_change",        "icon": "cat_oil"        },
-      { "id": "chain_service",     "name": "log_cat.chain_service",     "icon": "cat_drivetrain" },
-      { "id": "fluid_check",       "name": "log_cat.fluid_check",       "icon": "cat_fluid"      },
-      { "id": "tire_check",        "name": "log_cat.tire_check",        "icon": "cat_tires"      },
-      { "id": "air_filter",        "name": "log_cat.air_filter",        "icon": "cat_filters"    },
-      { "id": "battery_check",     "name": "log_cat.battery_check",     "icon": "cat_battery"    },
-      { "id": "battery_replace",   "name": "log_cat.battery_replace",   "icon": "cat_battery"    },
-      { "id": "brake_inspection",  "name": "log_cat.brake_inspection",  "icon": "cat_brakes"     },
-      { "id": "brake_replacement", "name": "log_cat.brake_replacement", "icon": "cat_brakes"     },
-      { "id": "clutch_adjustment", "name": "log_cat.clutch_adjustment", "icon": "cat_drivetrain" },
-      { "id": "spark_plugs",       "name": "log_cat.spark_plugs",       "icon": "cat_engine"     },
-      { "id": "fork_oil",          "name": "log_cat.fork_oil",          "icon": "cat_fluid"      },
-      { "id": "valve_inspection",  "name": "log_cat.valve_inspection",  "icon": "cat_engine"     },
-      { "id": "coolant_flush",     "name": "log_cat.coolant_flush",     "icon": "cat_fluid"      },
-      { "id": "brake_fluid_flush", "name": "log_cat.brake_fluid_flush", "icon": "cat_fluid"      }
+      {
+        "id": "service",
+        "name": "log_cat.service",
+        "icon": "cat_service"
+      },
+      {
+        "id": "repair",
+        "name": "log_cat.repair",
+        "icon": "cat_repair"
+      },
+      {
+        "id": "inspection",
+        "name": "log_cat.inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "fuel_log",
+        "name": "log_cat.fuel_log",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "oil_change",
+        "name": "log_cat.oil_change",
+        "icon": "cat_oil"
+      },
+      {
+        "id": "chain_service",
+        "name": "log_cat.chain_service",
+        "icon": "cat_drivetrain"
+      },
+      {
+        "id": "fluid_check",
+        "name": "log_cat.fluid_check",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "tire_check",
+        "name": "log_cat.tire_check",
+        "icon": "cat_tires"
+      },
+      {
+        "id": "air_filter",
+        "name": "log_cat.air_filter",
+        "icon": "cat_filters"
+      },
+      {
+        "id": "battery_check",
+        "name": "log_cat.battery_check",
+        "icon": "cat_battery"
+      },
+      {
+        "id": "battery_replace",
+        "name": "log_cat.battery_replace",
+        "icon": "cat_battery"
+      },
+      {
+        "id": "brake_inspection",
+        "name": "log_cat.brake_inspection",
+        "icon": "cat_brakes"
+      },
+      {
+        "id": "brake_replacement",
+        "name": "log_cat.brake_replacement",
+        "icon": "cat_brakes"
+      },
+      {
+        "id": "clutch_adjustment",
+        "name": "log_cat.clutch_adjustment",
+        "icon": "cat_drivetrain"
+      },
+      {
+        "id": "spark_plugs",
+        "name": "log_cat.spark_plugs",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "fork_oil",
+        "name": "log_cat.fork_oil",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "valve_inspection",
+        "name": "log_cat.valve_inspection",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "coolant_flush",
+        "name": "log_cat.coolant_flush",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "brake_fluid_flush",
+        "name": "log_cat.brake_fluid_flush",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "tire_replacement",
+        "name": "log_cat.tire_replacement",
+        "icon": "cat_tires"
+      },
+      {
+        "id": "suspension_steering",
+        "name": "log_cat.suspension_steering",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "transmission_service",
+        "name": "log_cat.transmission_service",
+        "icon": "cat_gearbox"
+      },
+      {
+        "id": "fuel_system_service",
+        "name": "log_cat.fuel_system_service",
+        "icon": "cat_fuel_tank"
+      },
+      {
+        "id": "ac_service",
+        "name": "log_cat.ac_service",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "exhaust_service",
+        "name": "log_cat.exhaust_service",
+        "icon": "cat_exhaust"
+      },
+      {
+        "id": "wheel_alignment",
+        "name": "log_cat.wheel_alignment",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "detailing",
+        "name": "log_cat.detailing",
+        "icon": "cat_wash"
+      },
+      {
+        "id": "cable_service",
+        "name": "log_cat.cable_service",
+        "icon": "cat_cable"
+      },
+      {
+        "id": "lighting_check",
+        "name": "log_cat.lighting_check",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "storage_prep",
+        "name": "log_cat.storage_prep",
+        "icon": "cat_service"
+      },
+      {
+        "id": "safety_check",
+        "name": "log_cat.safety_check",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "wiring_check",
+        "name": "log_cat.wiring_check",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "tire_balance",
+        "name": "log_cat.tire_balance",
+        "icon": "cat_tires"
+      },
+      {
+        "id": "sprocket_service",
+        "name": "log_cat.sprocket_service",
+        "icon": "cat_drivetrain"
+      },
+      {
+        "id": "ppe_check",
+        "name": "log_cat.ppe_check",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "carb_tune",
+        "name": "log_cat.carb_tune",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "moto_winterize",
+        "name": "log_cat.moto_winterize",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "steering_head_bearing",
+        "name": "log_cat.steering_head_bearing",
+        "icon": "cat_suspension"
+      },
+      {
+        "id": "throttle_body_sync",
+        "name": "log_cat.throttle_body_sync",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "fairing_service",
+        "name": "log_cat.fairing_service",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "moto_inspection",
+        "name": "log_cat.moto_inspection",
+        "icon": "cat_inspection"
+      }
     ]
   },
   {
     "asset_type": "commercial_vehicle",
     "categories": [
-      { "id": "service",                "name": "log_cat.service",                "icon": "cat_service"    },
-      { "id": "repair",                 "name": "log_cat.repair",                 "icon": "cat_repair"     },
-      { "id": "inspection",             "name": "log_cat.inspection",             "icon": "cat_inspection" },
-      { "id": "oil_change",             "name": "log_cat.oil_change",             "icon": "cat_oil"        },
-      { "id": "tire_inspection",        "name": "log_cat.tire_inspection",        "icon": "cat_tires"      },
-      { "id": "fluid_service",          "name": "log_cat.fluid_service",          "icon": "cat_fluid"      },
-      { "id": "air_filter",             "name": "log_cat.air_filter",             "icon": "cat_filters"    },
-      { "id": "battery_check",          "name": "log_cat.battery_check",          "icon": "cat_battery"    },
-      { "id": "battery_replace",        "name": "log_cat.battery_replace",        "icon": "cat_battery"    },
-      { "id": "brake_inspection",       "name": "log_cat.brake_inspection",       "icon": "cat_brakes"     },
-      { "id": "brake_replacement",      "name": "log_cat.brake_replacement",      "icon": "cat_brakes"     },
-      { "id": "tire_replacement",       "name": "log_cat.tire_replacement",       "icon": "cat_tires"      },
-      { "id": "wheel_alignment",        "name": "log_cat.wheel_alignment",        "icon": "cat_mechanical" },
-      { "id": "wheel_bearing_service",  "name": "log_cat.wheel_bearing_service",  "icon": "cat_mechanical" },
-      { "id": "dot_inspection",         "name": "log_cat.dot_inspection",         "icon": "cat_safety"     },
-      { "id": "coolant_flush",          "name": "log_cat.coolant_flush",          "icon": "cat_fluid"      },
-      { "id": "transmission_service",   "name": "log_cat.transmission_service",   "icon": "cat_gearbox"    },
-      { "id": "dpf_egr_service",        "name": "log_cat.dpf_egr_service",        "icon": "cat_engine"     },
-      { "id": "fifth_wheel_service",    "name": "log_cat.fifth_wheel_service",    "icon": "cat_mechanical" },
-      { "id": "air_brake_service",      "name": "log_cat.air_brake_service",      "icon": "cat_brakes"     },
-      { "id": "refrigeration_service",  "name": "log_cat.refrigeration_service",  "icon": "cat_appliances" }
+      {
+        "id": "service",
+        "name": "log_cat.service",
+        "icon": "cat_service"
+      },
+      {
+        "id": "repair",
+        "name": "log_cat.repair",
+        "icon": "cat_repair"
+      },
+      {
+        "id": "inspection",
+        "name": "log_cat.inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "fuel_log",
+        "name": "log_cat.fuel_log",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "oil_change",
+        "name": "log_cat.oil_change",
+        "icon": "cat_oil"
+      },
+      {
+        "id": "tire_inspection",
+        "name": "log_cat.tire_inspection",
+        "icon": "cat_tires"
+      },
+      {
+        "id": "fluid_service",
+        "name": "log_cat.fluid_service",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "air_filter",
+        "name": "log_cat.air_filter",
+        "icon": "cat_filters"
+      },
+      {
+        "id": "battery_check",
+        "name": "log_cat.battery_check",
+        "icon": "cat_battery"
+      },
+      {
+        "id": "battery_replace",
+        "name": "log_cat.battery_replace",
+        "icon": "cat_battery"
+      },
+      {
+        "id": "brake_inspection",
+        "name": "log_cat.brake_inspection",
+        "icon": "cat_brakes"
+      },
+      {
+        "id": "brake_replacement",
+        "name": "log_cat.brake_replacement",
+        "icon": "cat_brakes"
+      },
+      {
+        "id": "dot_inspection",
+        "name": "log_cat.dot_inspection",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "coolant_flush",
+        "name": "log_cat.coolant_flush",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "transmission_service",
+        "name": "log_cat.transmission_service",
+        "icon": "cat_gearbox"
+      },
+      {
+        "id": "dpf_egr_service",
+        "name": "log_cat.dpf_egr_service",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "fifth_wheel_service",
+        "name": "log_cat.fifth_wheel_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "air_brake_service",
+        "name": "log_cat.air_brake_service",
+        "icon": "cat_brakes"
+      },
+      {
+        "id": "refrigeration_service",
+        "name": "log_cat.refrigeration_service",
+        "icon": "cat_appliances"
+      },
+      {
+        "id": "fuel_filter",
+        "name": "log_cat.fuel_filter",
+        "icon": "cat_filters"
+      },
+      {
+        "id": "exhaust_service",
+        "name": "log_cat.exhaust_service",
+        "icon": "cat_exhaust"
+      },
+      {
+        "id": "suspension_steering",
+        "name": "log_cat.suspension_steering",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "tire_replacement",
+        "name": "log_cat.tire_replacement",
+        "icon": "cat_tires"
+      },
+      {
+        "id": "electrical_check",
+        "name": "log_cat.electrical_check",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "wheel_alignment",
+        "name": "log_cat.wheel_alignment",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "cab_interior_service",
+        "name": "log_cat.cab_interior_service",
+        "icon": "cat_cleaning"
+      },
+      {
+        "id": "liftgate_service",
+        "name": "log_cat.liftgate_service",
+        "icon": "cat_hydraulics"
+      },
+      {
+        "id": "pm_service",
+        "name": "log_cat.pm_service",
+        "icon": "cat_service"
+      },
+      {
+        "id": "turbocharger_service",
+        "name": "log_cat.turbocharger_service",
+        "icon": "cat_turbo"
+      },
+      {
+        "id": "fuel_system_service",
+        "name": "log_cat.fuel_system_service",
+        "icon": "cat_fuel_tank"
+      },
+      {
+        "id": "injector_service",
+        "name": "log_cat.injector_service",
+        "icon": "cat_injector"
+      },
+      {
+        "id": "evse_charging",
+        "name": "log_cat.evse_charging",
+        "icon": "cat_evse"
+      },
+      {
+        "id": "chassis_greasing_pm",
+        "name": "log_cat.chassis_greasing_pm",
+        "icon": "cat_service"
+      },
+      {
+        "id": "kingpin_fifth_wheel_lube",
+        "name": "log_cat.kingpin_fifth_wheel_lube",
+        "icon": "cat_mooring"
+      },
+      {
+        "id": "slack_adjuster_check",
+        "name": "log_cat.slack_adjuster_check",
+        "icon": "cat_brakes"
+      },
+      {
+        "id": "air_dryer_service",
+        "name": "log_cat.air_dryer_service",
+        "icon": "cat_brakes"
+      },
+      {
+        "id": "def_tank_service",
+        "name": "log_cat.def_tank_service",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "driveshaft_ujoint_service",
+        "name": "log_cat.driveshaft_ujoint_service",
+        "icon": "cat_drivetrain"
+      },
+      {
+        "id": "brake_chamber_service",
+        "name": "log_cat.brake_chamber_service",
+        "icon": "cat_brakes"
+      },
+      {
+        "id": "eld_telematics_service",
+        "name": "log_cat.eld_telematics_service",
+        "icon": "cat_it_systems"
+      },
+      {
+        "id": "axle_weight_verification",
+        "name": "log_cat.axle_weight_verification",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "tire_chains_service",
+        "name": "log_cat.tire_chains_service",
+        "icon": "cat_tires"
+      },
+      {
+        "id": "mudflap_fender_service",
+        "name": "log_cat.mudflap_fender_service",
+        "icon": "cat_exhaust"
+      },
+      {
+        "id": "aero_fairing_service",
+        "name": "log_cat.aero_fairing_service",
+        "icon": "cat_exhaust"
+      },
+      {
+        "id": "cab_hvac_pm",
+        "name": "log_cat.cab_hvac_pm",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "apu_service",
+        "name": "log_cat.apu_service",
+        "icon": "cat_mechanical"
+      }
     ]
   },
   {
     "asset_type": "recreational_vehicle",
     "categories": [
-      { "id": "service",              "name": "log_cat.service",              "icon": "cat_service"    },
-      { "id": "repair",               "name": "log_cat.repair",               "icon": "cat_repair"     },
-      { "id": "inspection",           "name": "log_cat.inspection",           "icon": "cat_inspection" },
-      { "id": "oil_change",           "name": "log_cat.oil_change",           "icon": "cat_oil"        },
-      { "id": "battery_check",        "name": "log_cat.battery_check",        "icon": "cat_battery"    },
-      { "id": "battery_replace",      "name": "log_cat.battery_replace",      "icon": "cat_battery"    },
-      { "id": "tire_inspection",      "name": "log_cat.tire_inspection",      "icon": "cat_tires"      },
-      { "id": "plumbing_flush",       "name": "log_cat.plumbing_flush",       "icon": "cat_plumbing"   },
-      { "id": "slideout_service",     "name": "log_cat.slideout_service",     "icon": "cat_mechanical" },
-      { "id": "brake_inspection",     "name": "log_cat.brake_inspection",     "icon": "cat_brakes"     },
-      { "id": "brake_replacement",    "name": "log_cat.brake_replacement",    "icon": "cat_brakes"     },
-      { "id": "generator_service",    "name": "log_cat.generator_service",    "icon": "cat_engine"     },
-      { "id": "hvac_service",         "name": "log_cat.hvac_service",         "icon": "cat_hvac"       },
-      { "id": "roof_seal",            "name": "log_cat.roof_seal",            "icon": "cat_structure"  },
-      { "id": "holding_tank_service", "name": "log_cat.holding_tank_service", "icon": "cat_plumbing"   },
-      { "id": "water_system_service", "name": "log_cat.water_system_service", "icon": "cat_plumbing"   },
-      { "id": "water_heater_service", "name": "log_cat.water_heater_service", "icon": "cat_plumbing"   },
-      { "id": "lp_gas_service",       "name": "log_cat.lp_gas_service",       "icon": "cat_safety"     },
-      { "id": "awning_service",       "name": "log_cat.awning_service",       "icon": "cat_exterior"   },
-      { "id": "leveling_service",     "name": "log_cat.leveling_service",     "icon": "cat_mechanical" }
+      {
+        "id": "service",
+        "name": "log_cat.service",
+        "icon": "cat_service"
+      },
+      {
+        "id": "repair",
+        "name": "log_cat.repair",
+        "icon": "cat_repair"
+      },
+      {
+        "id": "inspection",
+        "name": "log_cat.inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "fuel_log",
+        "name": "log_cat.fuel_log",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "oil_change",
+        "name": "log_cat.oil_change",
+        "icon": "cat_oil"
+      },
+      {
+        "id": "battery_check",
+        "name": "log_cat.battery_check",
+        "icon": "cat_battery"
+      },
+      {
+        "id": "battery_replace",
+        "name": "log_cat.battery_replace",
+        "icon": "cat_battery"
+      },
+      {
+        "id": "tire_inspection",
+        "name": "log_cat.tire_inspection",
+        "icon": "cat_tires"
+      },
+      {
+        "id": "plumbing_flush",
+        "name": "log_cat.plumbing_flush",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "slideout_service",
+        "name": "log_cat.slideout_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "brake_inspection",
+        "name": "log_cat.brake_inspection",
+        "icon": "cat_brakes"
+      },
+      {
+        "id": "brake_replacement",
+        "name": "log_cat.brake_replacement",
+        "icon": "cat_brakes"
+      },
+      {
+        "id": "generator_service",
+        "name": "log_cat.generator_service",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "hvac_service",
+        "name": "log_cat.hvac_service",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "roof_seal",
+        "name": "log_cat.roof_seal",
+        "icon": "cat_structure"
+      },
+      {
+        "id": "holding_tank_service",
+        "name": "log_cat.holding_tank_service",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "water_system_service",
+        "name": "log_cat.water_system_service",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "water_heater_service",
+        "name": "log_cat.water_heater_service",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "lp_gas_service",
+        "name": "log_cat.lp_gas_service",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "awning_service",
+        "name": "log_cat.awning_service",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "leveling_service",
+        "name": "log_cat.leveling_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "fuel_filter",
+        "name": "log_cat.fuel_filter",
+        "icon": "cat_filters"
+      },
+      {
+        "id": "transmission_service",
+        "name": "log_cat.transmission_service",
+        "icon": "cat_gearbox"
+      },
+      {
+        "id": "suspension_steering",
+        "name": "log_cat.suspension_steering",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "electrical_check",
+        "name": "log_cat.electrical_check",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "solar_system_service",
+        "name": "log_cat.solar_system_service",
+        "icon": "cat_solar"
+      },
+      {
+        "id": "exterior_wash",
+        "name": "log_cat.exterior_wash",
+        "icon": "cat_wash"
+      },
+      {
+        "id": "window_seal_service",
+        "name": "log_cat.window_seal_service",
+        "icon": "cat_window"
+      },
+      {
+        "id": "safety_equipment",
+        "name": "log_cat.safety_equipment",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "storage_prep",
+        "name": "log_cat.storage_prep",
+        "icon": "cat_service"
+      },
+      {
+        "id": "slide_topper_service",
+        "name": "log_cat.slide_topper_service",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "satellite_antenna",
+        "name": "log_cat.satellite_antenna",
+        "icon": "cat_navigation"
+      },
+      {
+        "id": "blackwater_tank_service",
+        "name": "log_cat.blackwater_tank_service",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "lp_regulator_service",
+        "name": "log_cat.lp_regulator_service",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "fresh_water_pump_service",
+        "name": "log_cat.fresh_water_pump_service",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "converter_inverter_service",
+        "name": "log_cat.converter_inverter_service",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "stabilizer_jack_service",
+        "name": "log_cat.stabilizer_jack_service",
+        "icon": "cat_suspension"
+      },
+      {
+        "id": "underbelly_service",
+        "name": "log_cat.underbelly_service",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "slideout_lubrication",
+        "name": "log_cat.slideout_lubrication",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "rv_water_filtration_service",
+        "name": "log_cat.rv_water_filtration_service",
+        "icon": "cat_filters"
+      },
+      {
+        "id": "generator_transfer_test",
+        "name": "log_cat.generator_transfer_test",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "rv_decal_graphics_service",
+        "name": "log_cat.rv_decal_graphics_service",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "hookup_setup_check",
+        "name": "log_cat.hookup_setup_check",
+        "icon": "cat_drivetrain"
+      },
+      {
+        "id": "rv_refuel_log",
+        "name": "log_cat.rv_refuel_log",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "absorption_fridge_service",
+        "name": "log_cat.absorption_fridge_service",
+        "icon": "cat_hvac"
+      }
     ]
   },
   {
     "asset_type": "heavy_equipment",
     "categories": [
-      { "id": "service",               "name": "log_cat.service",               "icon": "cat_service"       },
-      { "id": "repair",                "name": "log_cat.repair",                "icon": "cat_repair"        },
-      { "id": "inspection",            "name": "log_cat.inspection",            "icon": "cat_inspection"    },
-      { "id": "engine_oil_filter",     "name": "log_cat.engine_oil_filter",     "icon": "cat_oil"           },
-      { "id": "greasing",              "name": "log_cat.greasing",              "icon": "cat_fluid"         },
-      { "id": "hydraulic_fluid",       "name": "log_cat.hydraulic_fluid",       "icon": "cat_hydraulics"    },
-      { "id": "fuel_filter",           "name": "log_cat.fuel_filter",           "icon": "cat_filters"       },
-      { "id": "air_filter",            "name": "log_cat.air_filter",            "icon": "cat_filters"       },
-      { "id": "coolant_check",         "name": "log_cat.coolant_check",         "icon": "cat_fluid"         },
-      { "id": "track_inspection",      "name": "log_cat.track_inspection",      "icon": "cat_undercarriage" },
-      { "id": "brake_inspection",      "name": "log_cat.brake_inspection",      "icon": "cat_brakes"        },
-      { "id": "brake_replacement",     "name": "log_cat.brake_replacement",     "icon": "cat_brakes"        },
-      { "id": "safety_inspection",     "name": "log_cat.safety_inspection",     "icon": "cat_safety"        },
-      { "id": "cutting_edge_service",  "name": "log_cat.cutting_edge_service",  "icon": "cat_mechanical"    },
-      { "id": "bearing_service",       "name": "log_cat.bearing_service",       "icon": "cat_mechanical"    },
-      { "id": "fuel_water_separator",  "name": "log_cat.fuel_water_separator",  "icon": "cat_fluid"         }
+      {
+        "id": "service",
+        "name": "log_cat.service",
+        "icon": "cat_service"
+      },
+      {
+        "id": "repair",
+        "name": "log_cat.repair",
+        "icon": "cat_repair"
+      },
+      {
+        "id": "inspection",
+        "name": "log_cat.inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "fuel_log",
+        "name": "log_cat.fuel_log",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "engine_oil_filter",
+        "name": "log_cat.engine_oil_filter",
+        "icon": "cat_oil"
+      },
+      {
+        "id": "greasing",
+        "name": "log_cat.greasing",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "hydraulic_fluid",
+        "name": "log_cat.hydraulic_fluid",
+        "icon": "cat_hydraulics"
+      },
+      {
+        "id": "fuel_filter",
+        "name": "log_cat.fuel_filter",
+        "icon": "cat_filters"
+      },
+      {
+        "id": "air_filter",
+        "name": "log_cat.air_filter",
+        "icon": "cat_filters"
+      },
+      {
+        "id": "coolant_check",
+        "name": "log_cat.coolant_check",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "track_inspection",
+        "name": "log_cat.track_inspection",
+        "icon": "cat_undercarriage"
+      },
+      {
+        "id": "brake_inspection",
+        "name": "log_cat.brake_inspection",
+        "icon": "cat_brakes"
+      },
+      {
+        "id": "brake_replacement",
+        "name": "log_cat.brake_replacement",
+        "icon": "cat_brakes"
+      },
+      {
+        "id": "safety_inspection",
+        "name": "log_cat.safety_inspection",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "cutting_edge_service",
+        "name": "log_cat.cutting_edge_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "bearing_service",
+        "name": "log_cat.bearing_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "fuel_water_separator",
+        "name": "log_cat.fuel_water_separator",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "transmission_service",
+        "name": "log_cat.transmission_service",
+        "icon": "cat_gearbox"
+      },
+      {
+        "id": "tire_inspection",
+        "name": "log_cat.tire_inspection",
+        "icon": "cat_tires"
+      },
+      {
+        "id": "undercarriage_service",
+        "name": "log_cat.undercarriage_service",
+        "icon": "cat_undercarriage"
+      },
+      {
+        "id": "electrical_check",
+        "name": "log_cat.electrical_check",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "turbocharger_service",
+        "name": "log_cat.turbocharger_service",
+        "icon": "cat_turbo"
+      },
+      {
+        "id": "exhaust_service",
+        "name": "log_cat.exhaust_service",
+        "icon": "cat_exhaust"
+      },
+      {
+        "id": "fuel_system_service",
+        "name": "log_cat.fuel_system_service",
+        "icon": "cat_fuel_tank"
+      },
+      {
+        "id": "cab_filter_service",
+        "name": "log_cat.cab_filter_service",
+        "icon": "cat_filters"
+      },
+      {
+        "id": "swing_bearing_service",
+        "name": "log_cat.swing_bearing_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "bucket_service",
+        "name": "log_cat.bucket_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "dpf_egr_service",
+        "name": "log_cat.dpf_egr_service",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "injector_service",
+        "name": "log_cat.injector_service",
+        "icon": "cat_injector"
+      },
+      {
+        "id": "attachment_service",
+        "name": "log_cat.attachment_service",
+        "icon": "cat_equipment"
+      },
+      {
+        "id": "winch_service",
+        "name": "log_cat.winch_service",
+        "icon": "cat_winch"
+      },
+      {
+        "id": "telematics_check",
+        "name": "log_cat.telematics_check",
+        "icon": "cat_navigation"
+      },
+      {
+        "id": "pin_bushing_service",
+        "name": "log_cat.pin_bushing_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "quick_coupler_service",
+        "name": "log_cat.quick_coupler_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "get_service",
+        "name": "log_cat.get_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "rops_fops_inspection",
+        "name": "log_cat.rops_fops_inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "swing_motor_service",
+        "name": "log_cat.swing_motor_service",
+        "icon": "cat_hydraulics"
+      },
+      {
+        "id": "final_drive_service",
+        "name": "log_cat.final_drive_service",
+        "icon": "cat_drivetrain"
+      },
+      {
+        "id": "def_tank_service_eq",
+        "name": "log_cat.def_tank_service_eq",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "grease_point_audit",
+        "name": "log_cat.grease_point_audit",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "ripper_service",
+        "name": "log_cat.ripper_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "fuel_tank_cleaning",
+        "name": "log_cat.fuel_tank_cleaning",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "hydraulic_oil_change",
+        "name": "log_cat.hydraulic_oil_change",
+        "icon": "cat_oil"
+      },
+      {
+        "id": "track_tension_adjust",
+        "name": "log_cat.track_tension_adjust",
+        "icon": "cat_drivetrain"
+      }
     ]
   },
   {
     "asset_type": "pleasure_craft",
     "categories": [
-      { "id": "service",           "name": "log_cat.service",           "icon": "cat_service"    },
-      { "id": "repair",            "name": "log_cat.repair",            "icon": "cat_repair"     },
-      { "id": "inspection",        "name": "log_cat.inspection",        "icon": "cat_inspection" },
-      { "id": "engine_service",    "name": "log_cat.engine_service",    "icon": "cat_engine"     },
-      { "id": "bilge_pump",        "name": "log_cat.bilge_pump",        "icon": "cat_bilge"      },
-      { "id": "battery_check",     "name": "log_cat.battery_check",     "icon": "cat_battery"    },
-      { "id": "battery_replace",   "name": "log_cat.battery_replace",   "icon": "cat_battery"    },
-      { "id": "fuel_system",       "name": "log_cat.fuel_system",       "icon": "cat_fluid"      },
-      { "id": "safety_equipment",  "name": "log_cat.safety_equipment",  "icon": "cat_safety"     },
-      { "id": "antifouling",       "name": "log_cat.antifouling",       "icon": "cat_hull"       },
-      { "id": "impeller",          "name": "log_cat.impeller",          "icon": "cat_mechanical" },
-      { "id": "electronics",       "name": "log_cat.electronics",       "icon": "cat_electric"   },
-      { "id": "propeller",         "name": "log_cat.propeller",         "icon": "cat_mechanical" },
-      { "id": "zincs_anodes",      "name": "log_cat.zincs_anodes",      "icon": "cat_hull"       },
-      { "id": "winterization",     "name": "log_cat.winterization",     "icon": "cat_service"    },
-      { "id": "rigging_inspection","name": "log_cat.rigging_inspection","icon": "cat_mechanical" },
-      { "id": "cooling_system",    "name": "log_cat.cooling_system",    "icon": "cat_fluid"      }
+      {
+        "id": "service",
+        "name": "log_cat.service",
+        "icon": "cat_service"
+      },
+      {
+        "id": "repair",
+        "name": "log_cat.repair",
+        "icon": "cat_repair"
+      },
+      {
+        "id": "inspection",
+        "name": "log_cat.inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "fuel_log",
+        "name": "log_cat.fuel_log",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "engine_service",
+        "name": "log_cat.engine_service",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "bilge_pump",
+        "name": "log_cat.bilge_pump",
+        "icon": "cat_bilge"
+      },
+      {
+        "id": "battery_check",
+        "name": "log_cat.battery_check",
+        "icon": "cat_battery"
+      },
+      {
+        "id": "battery_replace",
+        "name": "log_cat.battery_replace",
+        "icon": "cat_battery"
+      },
+      {
+        "id": "fuel_system",
+        "name": "log_cat.fuel_system",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "safety_equipment",
+        "name": "log_cat.safety_equipment",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "antifouling",
+        "name": "log_cat.antifouling",
+        "icon": "cat_hull"
+      },
+      {
+        "id": "impeller",
+        "name": "log_cat.impeller",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "electronics",
+        "name": "log_cat.electronics",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "propeller",
+        "name": "log_cat.propeller",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "zincs_anodes",
+        "name": "log_cat.zincs_anodes",
+        "icon": "cat_hull"
+      },
+      {
+        "id": "winterization",
+        "name": "log_cat.winterization",
+        "icon": "cat_service"
+      },
+      {
+        "id": "rigging_inspection",
+        "name": "log_cat.rigging_inspection",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "cooling_system",
+        "name": "log_cat.cooling_system",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "steering_service",
+        "name": "log_cat.steering_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "deck_hardware",
+        "name": "log_cat.deck_hardware",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "mooring_service",
+        "name": "log_cat.mooring_service",
+        "icon": "cat_mooring"
+      },
+      {
+        "id": "seacock_service",
+        "name": "log_cat.seacock_service",
+        "icon": "cat_seacock"
+      },
+      {
+        "id": "upholstery_service",
+        "name": "log_cat.upholstery_service",
+        "icon": "cat_cleaning"
+      },
+      {
+        "id": "shaft_packing",
+        "name": "log_cat.shaft_packing",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "lpg_system",
+        "name": "log_cat.lpg_system",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "holding_tank_service",
+        "name": "log_cat.holding_tank_service",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "trailer_service",
+        "name": "log_cat.trailer_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "vhf_epirb_service",
+        "name": "log_cat.vhf_epirb_service",
+        "icon": "cat_navigation"
+      },
+      {
+        "id": "detailing",
+        "name": "log_cat.detailing",
+        "icon": "cat_wash"
+      },
+      {
+        "id": "spring_commissioning",
+        "name": "log_cat.spring_commissioning",
+        "icon": "cat_service"
+      },
+      {
+        "id": "outdrive_gear_oil",
+        "name": "log_cat.outdrive_gear_oil",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "raw_water_pump_service",
+        "name": "log_cat.raw_water_pump_service",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "trim_tab_service",
+        "name": "log_cat.trim_tab_service",
+        "icon": "cat_hull"
+      },
+      {
+        "id": "gelcoat_repair",
+        "name": "log_cat.gelcoat_repair",
+        "icon": "cat_hull"
+      },
+      {
+        "id": "bottom_paint_touchup",
+        "name": "log_cat.bottom_paint_touchup",
+        "icon": "cat_hull"
+      },
+      {
+        "id": "canvas_bimini_service",
+        "name": "log_cat.canvas_bimini_service",
+        "icon": "cat_mooring"
+      },
+      {
+        "id": "livewell_service",
+        "name": "log_cat.livewell_service",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "marine_head_service",
+        "name": "log_cat.marine_head_service",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "potable_water_service",
+        "name": "log_cat.potable_water_service",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "chartplotter_update",
+        "name": "log_cat.chartplotter_update",
+        "icon": "cat_seacock"
+      },
+      {
+        "id": "depth_sounder_cal",
+        "name": "log_cat.depth_sounder_cal",
+        "icon": "cat_seacock"
+      },
+      {
+        "id": "windlass_service",
+        "name": "log_cat.windlass_service",
+        "icon": "cat_mooring"
+      },
+      {
+        "id": "bow_thruster_service",
+        "name": "log_cat.bow_thruster_service",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "fuel_water_separator_service",
+        "name": "log_cat.fuel_water_separator_service",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "marine_water_heater_service",
+        "name": "log_cat.marine_water_heater_service",
+        "icon": "cat_plumbing"
+      }
     ]
   },
   {
     "asset_type": "commercial_vessel",
     "categories": [
-      { "id": "service",             "name": "log_cat.service",             "icon": "cat_service"    },
-      { "id": "repair",              "name": "log_cat.repair",              "icon": "cat_repair"     },
-      { "id": "inspection",          "name": "log_cat.inspection",          "icon": "cat_inspection" },
-      { "id": "engine_service",      "name": "log_cat.engine_service",      "icon": "cat_engine"     },
-      { "id": "bilge_pump",          "name": "log_cat.bilge_pump",          "icon": "cat_bilge"      },
-      { "id": "electrical",          "name": "log_cat.electrical",          "icon": "cat_electric"   },
-      { "id": "fuel_system",         "name": "log_cat.fuel_system",         "icon": "cat_fluid"      },
-      { "id": "safety_equipment",    "name": "log_cat.safety_equipment",    "icon": "cat_safety"     },
-      { "id": "steering_service",    "name": "log_cat.steering_service",    "icon": "cat_mechanical" },
-      { "id": "navigation_systems",  "name": "log_cat.navigation_systems",  "icon": "cat_navigation" },
-      { "id": "fire_suppression",    "name": "log_cat.fire_suppression",    "icon": "cat_safety"     },
-      { "id": "hull_survey",         "name": "log_cat.hull_survey",         "icon": "cat_hull"       },
-      { "id": "uscg_inspection",     "name": "log_cat.uscg_inspection",     "icon": "cat_compliance" },
-      { "id": "shaft_packing",       "name": "log_cat.shaft_packing",       "icon": "cat_mechanical" }
+      {
+        "id": "service",
+        "name": "log_cat.service",
+        "icon": "cat_service"
+      },
+      {
+        "id": "repair",
+        "name": "log_cat.repair",
+        "icon": "cat_repair"
+      },
+      {
+        "id": "inspection",
+        "name": "log_cat.inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "fuel_log",
+        "name": "log_cat.fuel_log",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "engine_service",
+        "name": "log_cat.engine_service",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "bilge_pump",
+        "name": "log_cat.bilge_pump",
+        "icon": "cat_bilge"
+      },
+      {
+        "id": "electrical",
+        "name": "log_cat.electrical",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "fuel_system",
+        "name": "log_cat.fuel_system",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "safety_equipment",
+        "name": "log_cat.safety_equipment",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "steering_service",
+        "name": "log_cat.steering_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "navigation_systems",
+        "name": "log_cat.navigation_systems",
+        "icon": "cat_navigation"
+      },
+      {
+        "id": "fire_suppression",
+        "name": "log_cat.fire_suppression",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "hull_survey",
+        "name": "log_cat.hull_survey",
+        "icon": "cat_hull"
+      },
+      {
+        "id": "uscg_inspection",
+        "name": "log_cat.uscg_inspection",
+        "icon": "cat_compliance"
+      },
+      {
+        "id": "shaft_packing",
+        "name": "log_cat.shaft_packing",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "propeller",
+        "name": "log_cat.propeller",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "zincs_anodes",
+        "name": "log_cat.zincs_anodes",
+        "icon": "cat_hull"
+      },
+      {
+        "id": "antifouling",
+        "name": "log_cat.antifouling",
+        "icon": "cat_hull"
+      },
+      {
+        "id": "cooling_system",
+        "name": "log_cat.cooling_system",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "bilge_alarm_service",
+        "name": "log_cat.bilge_alarm_service",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "mooring_service",
+        "name": "log_cat.mooring_service",
+        "icon": "cat_mooring"
+      },
+      {
+        "id": "seacock_service",
+        "name": "log_cat.seacock_service",
+        "icon": "cat_seacock"
+      },
+      {
+        "id": "fuel_polishing",
+        "name": "log_cat.fuel_polishing",
+        "icon": "cat_fuel_tank"
+      },
+      {
+        "id": "epirb_service",
+        "name": "log_cat.epirb_service",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "liferaft_service",
+        "name": "log_cat.liferaft_service",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "deck_equipment",
+        "name": "log_cat.deck_equipment",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "stability_test",
+        "name": "log_cat.stability_test",
+        "icon": "cat_compliance"
+      },
+      {
+        "id": "manning_compliance",
+        "name": "log_cat.manning_compliance",
+        "icon": "cat_compliance"
+      },
+      {
+        "id": "winch_service",
+        "name": "log_cat.winch_service",
+        "icon": "cat_winch"
+      },
+      {
+        "id": "oil_record_book",
+        "name": "log_cat.oil_record_book",
+        "icon": "cat_compliance"
+      },
+      {
+        "id": "battery_check",
+        "name": "log_cat.battery_check",
+        "icon": "cat_battery"
+      },
+      {
+        "id": "class_society_survey",
+        "name": "log_cat.class_society_survey",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "oily_water_separator",
+        "name": "log_cat.oily_water_separator",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "ballast_water_mgmt",
+        "name": "log_cat.ballast_water_mgmt",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "fire_main_service",
+        "name": "log_cat.fire_main_service",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "msd_service",
+        "name": "log_cat.msd_service",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "lifeboat_davit_service",
+        "name": "log_cat.lifeboat_davit_service",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "running_rigging_service",
+        "name": "log_cat.running_rigging_service",
+        "icon": "cat_mooring"
+      },
+      {
+        "id": "nav_light_test",
+        "name": "log_cat.nav_light_test",
+        "icon": "cat_lighting"
+      },
+      {
+        "id": "oil_analysis",
+        "name": "log_cat.oil_analysis",
+        "icon": "cat_oil"
+      },
+      {
+        "id": "scrubber_service",
+        "name": "log_cat.scrubber_service",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "marpol_inspection",
+        "name": "log_cat.marpol_inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "charter_inspection",
+        "name": "log_cat.charter_inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "epirb_battery_service",
+        "name": "log_cat.epirb_battery_service",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "purifier_service",
+        "name": "log_cat.purifier_service",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "isps_drill",
+        "name": "log_cat.isps_drill",
+        "icon": "cat_inspection"
+      }
     ]
   },
   {
     "asset_type": "residential",
     "categories": [
-      { "id": "service",              "name": "log_cat.service",              "icon": "cat_service"    },
-      { "id": "repair",               "name": "log_cat.repair",               "icon": "cat_repair"     },
-      { "id": "inspection",           "name": "log_cat.inspection",           "icon": "cat_inspection" },
-      { "id": "landscaping",          "name": "log_cat.landscaping",          "icon": "cat_landscaping"},
-      { "id": "hvac_service",         "name": "log_cat.hvac_service",         "icon": "cat_hvac"       },
-      { "id": "pest_control",         "name": "log_cat.pest_control",         "icon": "cat_service"    },
-      { "id": "gutter_cleaning",      "name": "log_cat.gutter_cleaning",      "icon": "cat_exterior"   },
-      { "id": "smoke_co_detector",    "name": "log_cat.smoke_co_detector",    "icon": "cat_safety"     },
-      { "id": "plumbing_check",       "name": "log_cat.plumbing_check",       "icon": "cat_plumbing"   },
-      { "id": "electrical_check",     "name": "log_cat.electrical_check",     "icon": "cat_electric"   },
-      { "id": "appliance_service",    "name": "log_cat.appliance_service",    "icon": "cat_appliances" },
-      { "id": "roof_inspection",      "name": "log_cat.roof_inspection",      "icon": "cat_structure"  },
-      { "id": "water_heater_service", "name": "log_cat.water_heater_service", "icon": "cat_plumbing"   },
-      { "id": "dryer_vent_cleaning",  "name": "log_cat.dryer_vent_cleaning",  "icon": "cat_safety"     },
-      { "id": "chimney_service",      "name": "log_cat.chimney_service",      "icon": "cat_structure"  },
-      { "id": "sump_pump_service",    "name": "log_cat.sump_pump_service",    "icon": "cat_plumbing"   },
-      { "id": "garage_door_service",  "name": "log_cat.garage_door_service",  "icon": "cat_mechanical" },
-      { "id": "septic_service",       "name": "log_cat.septic_service",       "icon": "cat_plumbing"   },
-      { "id": "caulk_weatherstrip",   "name": "log_cat.caulk_weatherstrip",   "icon": "cat_exterior"   }
+      {
+        "id": "service",
+        "name": "log_cat.service",
+        "icon": "cat_service"
+      },
+      {
+        "id": "repair",
+        "name": "log_cat.repair",
+        "icon": "cat_repair"
+      },
+      {
+        "id": "inspection",
+        "name": "log_cat.inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "landscaping",
+        "name": "log_cat.landscaping",
+        "icon": "cat_landscaping"
+      },
+      {
+        "id": "hvac_service",
+        "name": "log_cat.hvac_service",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "pest_control",
+        "name": "log_cat.pest_control",
+        "icon": "cat_service"
+      },
+      {
+        "id": "gutter_cleaning",
+        "name": "log_cat.gutter_cleaning",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "smoke_co_detector",
+        "name": "log_cat.smoke_co_detector",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "plumbing_check",
+        "name": "log_cat.plumbing_check",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "electrical_check",
+        "name": "log_cat.electrical_check",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "appliance_service",
+        "name": "log_cat.appliance_service",
+        "icon": "cat_appliances"
+      },
+      {
+        "id": "roof_inspection",
+        "name": "log_cat.roof_inspection",
+        "icon": "cat_structure"
+      },
+      {
+        "id": "water_heater_service",
+        "name": "log_cat.water_heater_service",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "dryer_vent_cleaning",
+        "name": "log_cat.dryer_vent_cleaning",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "chimney_service",
+        "name": "log_cat.chimney_service",
+        "icon": "cat_structure"
+      },
+      {
+        "id": "sump_pump_service",
+        "name": "log_cat.sump_pump_service",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "garage_door_service",
+        "name": "log_cat.garage_door_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "septic_service",
+        "name": "log_cat.septic_service",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "caulk_weatherstrip",
+        "name": "log_cat.caulk_weatherstrip",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "window_service",
+        "name": "log_cat.window_service",
+        "icon": "cat_window"
+      },
+      {
+        "id": "exterior_paint",
+        "name": "log_cat.exterior_paint",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "foundation_check",
+        "name": "log_cat.foundation_check",
+        "icon": "cat_structure"
+      },
+      {
+        "id": "deck_fence_service",
+        "name": "log_cat.deck_fence_service",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "fire_extinguisher_check",
+        "name": "log_cat.fire_extinguisher_check",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "security_systems",
+        "name": "log_cat.security_systems",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "pool_spa_service",
+        "name": "log_cat.pool_spa_service",
+        "icon": "cat_pool"
+      },
+      {
+        "id": "irrigation_service",
+        "name": "log_cat.irrigation_service",
+        "icon": "cat_landscaping"
+      },
+      {
+        "id": "solar_system_service",
+        "name": "log_cat.solar_system_service",
+        "icon": "cat_solar"
+      },
+      {
+        "id": "flooring_service",
+        "name": "log_cat.flooring_service",
+        "icon": "cat_structure"
+      },
+      {
+        "id": "painting_service",
+        "name": "log_cat.painting_service",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "garbage_disposal_service",
+        "name": "log_cat.garbage_disposal_service",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "refrigerator_coil_clean",
+        "name": "log_cat.refrigerator_coil_clean",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "range_hood_vent_service",
+        "name": "log_cat.range_hood_vent_service",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "duct_cleaning",
+        "name": "log_cat.duct_cleaning",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "attic_insulation_service",
+        "name": "log_cat.attic_insulation_service",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "crawl_space_service",
+        "name": "log_cat.crawl_space_service",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "driveway_sealcoat",
+        "name": "log_cat.driveway_sealcoat",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "fence_service",
+        "name": "log_cat.fence_service",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "water_softener_service",
+        "name": "log_cat.water_softener_service",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "water_quality_test",
+        "name": "log_cat.water_quality_test",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "well_pump_service",
+        "name": "log_cat.well_pump_service",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "exterior_pest_treatment",
+        "name": "log_cat.exterior_pest_treatment",
+        "icon": "cat_landscaping"
+      },
+      {
+        "id": "exterior_caulk_inspection",
+        "name": "log_cat.exterior_caulk_inspection",
+        "icon": "cat_inspection"
+      }
     ]
   },
   {
     "asset_type": "multifamily",
     "categories": [
-      { "id": "service",               "name": "log_cat.service",               "icon": "cat_service"      },
-      { "id": "repair",                "name": "log_cat.repair",                "icon": "cat_repair"       },
-      { "id": "inspection",            "name": "log_cat.inspection",            "icon": "cat_inspection"   },
-      { "id": "landscaping",           "name": "log_cat.landscaping",           "icon": "cat_landscaping"  },
-      { "id": "common_area_maint",     "name": "log_cat.common_area_maint",     "icon": "cat_common_areas" },
-      { "id": "hvac_service",          "name": "log_cat.hvac_service",          "icon": "cat_hvac"         },
-      { "id": "pest_control",          "name": "log_cat.pest_control",          "icon": "cat_service"      },
-      { "id": "plumbing_inspection",   "name": "log_cat.plumbing_check",        "icon": "cat_plumbing"     },
-      { "id": "fire_safety",           "name": "log_cat.fire_safety",           "icon": "cat_safety"       },
-      { "id": "electrical_check",      "name": "log_cat.electrical_check",      "icon": "cat_electric"     },
-      { "id": "elevator_service",      "name": "log_cat.elevator_service",      "icon": "cat_mechanical"   },
-      { "id": "roof_inspection",       "name": "log_cat.roof_inspection",       "icon": "cat_structure"    },
-      { "id": "boiler_service",        "name": "log_cat.boiler_service",        "icon": "cat_mechanical"   },
-      { "id": "fire_sprinkler_test",   "name": "log_cat.fire_sprinkler_test",   "icon": "cat_safety"       },
-      { "id": "emergency_lighting",    "name": "log_cat.emergency_lighting",    "icon": "cat_safety"       },
-      { "id": "backflow_preventer",    "name": "log_cat.backflow_preventer",    "icon": "cat_plumbing"     },
-      { "id": "parking_lot_maint",     "name": "log_cat.parking_lot_maint",    "icon": "cat_exterior"     }
+      {
+        "id": "service",
+        "name": "log_cat.service",
+        "icon": "cat_service"
+      },
+      {
+        "id": "repair",
+        "name": "log_cat.repair",
+        "icon": "cat_repair"
+      },
+      {
+        "id": "inspection",
+        "name": "log_cat.inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "landscaping",
+        "name": "log_cat.landscaping",
+        "icon": "cat_landscaping"
+      },
+      {
+        "id": "common_area_maint",
+        "name": "log_cat.common_area_maint",
+        "icon": "cat_common_areas"
+      },
+      {
+        "id": "hvac_service",
+        "name": "log_cat.hvac_service",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "pest_control",
+        "name": "log_cat.pest_control",
+        "icon": "cat_service"
+      },
+      {
+        "id": "plumbing_inspection",
+        "name": "log_cat.plumbing_check",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "fire_safety",
+        "name": "log_cat.fire_safety",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "electrical_check",
+        "name": "log_cat.electrical_check",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "elevator_service",
+        "name": "log_cat.elevator_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "roof_inspection",
+        "name": "log_cat.roof_inspection",
+        "icon": "cat_structure"
+      },
+      {
+        "id": "boiler_service",
+        "name": "log_cat.boiler_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "fire_sprinkler_test",
+        "name": "log_cat.fire_sprinkler_test",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "emergency_lighting",
+        "name": "log_cat.emergency_lighting",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "backflow_preventer",
+        "name": "log_cat.backflow_preventer",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "parking_lot_maint",
+        "name": "log_cat.parking_lot_maint",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "water_heater_service",
+        "name": "log_cat.water_heater_service",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "pool_spa_service",
+        "name": "log_cat.pool_spa_service",
+        "icon": "cat_pool"
+      },
+      {
+        "id": "window_service",
+        "name": "log_cat.window_service",
+        "icon": "cat_window"
+      },
+      {
+        "id": "access_control",
+        "name": "log_cat.access_control",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "laundry_equipment",
+        "name": "log_cat.laundry_equipment",
+        "icon": "cat_appliances"
+      },
+      {
+        "id": "intercom_service",
+        "name": "log_cat.intercom_service",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "irrigation_service",
+        "name": "log_cat.irrigation_service",
+        "icon": "cat_landscaping"
+      },
+      {
+        "id": "trash_chute_service",
+        "name": "log_cat.trash_chute_service",
+        "icon": "cat_waste"
+      },
+      {
+        "id": "exterior_paint",
+        "name": "log_cat.exterior_paint",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "deck_balcony_service",
+        "name": "log_cat.deck_balcony_service",
+        "icon": "cat_structure"
+      },
+      {
+        "id": "foundation_check",
+        "name": "log_cat.foundation_check",
+        "icon": "cat_structure"
+      },
+      {
+        "id": "caulk_weatherstrip",
+        "name": "log_cat.caulk_weatherstrip",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "generator_service",
+        "name": "log_cat.generator_service",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "lobby_hallway_refresh",
+        "name": "log_cat.lobby_hallway_refresh",
+        "icon": "cat_equipment"
+      },
+      {
+        "id": "mailroom_package_service",
+        "name": "log_cat.mailroom_package_service",
+        "icon": "cat_equipment"
+      },
+      {
+        "id": "trash_recycling_room",
+        "name": "log_cat.trash_recycling_room",
+        "icon": "cat_equipment"
+      },
+      {
+        "id": "stairwell_service",
+        "name": "log_cat.stairwell_service",
+        "icon": "cat_equipment"
+      },
+      {
+        "id": "balcony_railing_inspection",
+        "name": "log_cat.balcony_railing_inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "leak_intrusion_investigation",
+        "name": "log_cat.leak_intrusion_investigation",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "security_camera_service",
+        "name": "log_cat.security_camera_service",
+        "icon": "cat_equipment"
+      },
+      {
+        "id": "ev_charger_tenant_service",
+        "name": "log_cat.ev_charger_tenant_service",
+        "icon": "cat_evse"
+      },
+      {
+        "id": "amenity_room_service",
+        "name": "log_cat.amenity_room_service",
+        "icon": "cat_landscaping"
+      },
+      {
+        "id": "pet_area_service",
+        "name": "log_cat.pet_area_service",
+        "icon": "cat_landscaping"
+      },
+      {
+        "id": "bike_storage_service",
+        "name": "log_cat.bike_storage_service",
+        "icon": "cat_landscaping"
+      },
+      {
+        "id": "building_signage_service",
+        "name": "log_cat.building_signage_service",
+        "icon": "cat_lighting"
+      },
+      {
+        "id": "unit_smoke_co_test",
+        "name": "log_cat.unit_smoke_co_test",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "unit_appliance_replace",
+        "name": "log_cat.unit_appliance_replace",
+        "icon": "cat_equipment"
+      },
+      {
+        "id": "unit_balcony_repair",
+        "name": "log_cat.unit_balcony_repair",
+        "icon": "cat_doors"
+      }
     ]
   },
   {
     "asset_type": "office",
     "categories": [
-      { "id": "service",              "name": "log_cat.service",              "icon": "cat_service"    },
-      { "id": "repair",               "name": "log_cat.repair",               "icon": "cat_repair"     },
-      { "id": "inspection",           "name": "log_cat.inspection",           "icon": "cat_inspection" },
-      { "id": "hvac_service",         "name": "log_cat.hvac_service",         "icon": "cat_hvac"       },
-      { "id": "pest_control",         "name": "log_cat.pest_control",         "icon": "cat_service"    },
-      { "id": "it_systems",           "name": "log_cat.it_systems",           "icon": "cat_it_systems" },
-      { "id": "plumbing_check",       "name": "log_cat.plumbing_check",       "icon": "cat_plumbing"   },
-      { "id": "electrical_check",     "name": "log_cat.electrical_check",     "icon": "cat_electric"   },
-      { "id": "fire_safety",          "name": "log_cat.fire_safety",          "icon": "cat_safety"     },
-      { "id": "security_systems",     "name": "log_cat.security_systems",     "icon": "cat_safety"     },
-      { "id": "exterior_maint",       "name": "log_cat.exterior_maint",       "icon": "cat_exterior"   },
-      { "id": "roof_inspection",      "name": "log_cat.roof_inspection",      "icon": "cat_structure"  },
-      { "id": "emergency_generator",  "name": "log_cat.emergency_generator",  "icon": "cat_engine"     },
-      { "id": "backflow_preventer",   "name": "log_cat.backflow_preventer",   "icon": "cat_plumbing"   },
-      { "id": "thermographic_scan",   "name": "log_cat.thermographic_scan",   "icon": "cat_electric"   },
-      { "id": "cooling_tower",        "name": "log_cat.cooling_tower",        "icon": "cat_hvac"       }
+      {
+        "id": "service",
+        "name": "log_cat.service",
+        "icon": "cat_service"
+      },
+      {
+        "id": "repair",
+        "name": "log_cat.repair",
+        "icon": "cat_repair"
+      },
+      {
+        "id": "inspection",
+        "name": "log_cat.inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "hvac_service",
+        "name": "log_cat.hvac_service",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "pest_control",
+        "name": "log_cat.pest_control",
+        "icon": "cat_service"
+      },
+      {
+        "id": "it_systems",
+        "name": "log_cat.it_systems",
+        "icon": "cat_it_systems"
+      },
+      {
+        "id": "plumbing_check",
+        "name": "log_cat.plumbing_check",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "electrical_check",
+        "name": "log_cat.electrical_check",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "fire_safety",
+        "name": "log_cat.fire_safety",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "security_systems",
+        "name": "log_cat.security_systems",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "exterior_maint",
+        "name": "log_cat.exterior_maint",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "roof_inspection",
+        "name": "log_cat.roof_inspection",
+        "icon": "cat_structure"
+      },
+      {
+        "id": "emergency_generator",
+        "name": "log_cat.emergency_generator",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "backflow_preventer",
+        "name": "log_cat.backflow_preventer",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "thermographic_scan",
+        "name": "log_cat.thermographic_scan",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "cooling_tower",
+        "name": "log_cat.cooling_tower",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "elevator_service",
+        "name": "log_cat.elevator_service",
+        "icon": "cat_elevator"
+      },
+      {
+        "id": "fire_sprinkler_test",
+        "name": "log_cat.fire_sprinkler_test",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "emergency_lighting",
+        "name": "log_cat.emergency_lighting",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "window_service",
+        "name": "log_cat.window_service",
+        "icon": "cat_window"
+      },
+      {
+        "id": "parking_lot_maint",
+        "name": "log_cat.parking_lot_maint",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "landscaping",
+        "name": "log_cat.landscaping",
+        "icon": "cat_landscaping"
+      },
+      {
+        "id": "boiler_service",
+        "name": "log_cat.boiler_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "water_heater_service",
+        "name": "log_cat.water_heater_service",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "access_control",
+        "name": "log_cat.access_control",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "solar_system_service",
+        "name": "log_cat.solar_system_service",
+        "icon": "cat_solar"
+      },
+      {
+        "id": "caulk_weatherstrip",
+        "name": "log_cat.caulk_weatherstrip",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "hvac_air_quality",
+        "name": "log_cat.hvac_air_quality",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "fire_door_test",
+        "name": "log_cat.fire_door_test",
+        "icon": "cat_door"
+      },
+      {
+        "id": "exterior_paint",
+        "name": "log_cat.exterior_paint",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "vav_box_service",
+        "name": "log_cat.vav_box_service",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "fan_coil_service",
+        "name": "log_cat.fan_coil_service",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "rtu_service",
+        "name": "log_cat.rtu_service",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "chiller_water_treatment",
+        "name": "log_cat.chiller_water_treatment",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "bms_service",
+        "name": "log_cat.bms_service",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "ups_battery_service",
+        "name": "log_cat.ups_battery_service",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "ev_charger_service",
+        "name": "log_cat.ev_charger_service",
+        "icon": "cat_evse"
+      },
+      {
+        "id": "generator_load_bank_test",
+        "name": "log_cat.generator_load_bank_test",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "card_reader_service",
+        "name": "log_cat.card_reader_service",
+        "icon": "cat_lighting"
+      },
+      {
+        "id": "exterior_signage_service",
+        "name": "log_cat.exterior_signage_service",
+        "icon": "cat_lighting"
+      },
+      {
+        "id": "lobby_av_service",
+        "name": "log_cat.lobby_av_service",
+        "icon": "cat_lighting"
+      },
+      {
+        "id": "tenant_fitout",
+        "name": "log_cat.tenant_fitout",
+        "icon": "cat_equipment"
+      },
+      {
+        "id": "suite_turnover",
+        "name": "log_cat.suite_turnover",
+        "icon": "cat_equipment"
+      },
+      {
+        "id": "suite_walkthrough",
+        "name": "log_cat.suite_walkthrough",
+        "icon": "cat_equipment"
+      }
     ]
   },
   {
     "asset_type": "industrial",
     "categories": [
-      { "id": "service",                "name": "log_cat.service",                "icon": "cat_service"    },
-      { "id": "repair",                 "name": "log_cat.repair",                 "icon": "cat_repair"     },
-      { "id": "inspection",             "name": "log_cat.inspection",             "icon": "cat_inspection" },
-      { "id": "equipment_service",      "name": "log_cat.equipment_service",      "icon": "cat_equipment"  },
-      { "id": "safety_compliance",      "name": "log_cat.safety_compliance",      "icon": "cat_compliance" },
-      { "id": "electrical_check",       "name": "log_cat.electrical_check",       "icon": "cat_electric"   },
-      { "id": "hvac_service",           "name": "log_cat.hvac_service",           "icon": "cat_hvac"       },
-      { "id": "pest_control",           "name": "log_cat.pest_control",           "icon": "cat_service"    },
-      { "id": "plumbing_check",         "name": "log_cat.plumbing_check",         "icon": "cat_plumbing"   },
-      { "id": "fire_safety",            "name": "log_cat.fire_safety",            "icon": "cat_safety"     },
-      { "id": "exterior_maint",         "name": "log_cat.exterior_maint",         "icon": "cat_exterior"   },
-      { "id": "roof_inspection",        "name": "log_cat.roof_inspection",        "icon": "cat_structure"  },
-      { "id": "dock_equipment",         "name": "log_cat.dock_equipment",         "icon": "cat_mechanical" },
-      { "id": "crane_hoist_service",    "name": "log_cat.crane_hoist_service",    "icon": "cat_safety"     },
-      { "id": "compressed_air_system",  "name": "log_cat.compressed_air_system",  "icon": "cat_mechanical" },
-      { "id": "racking_inspection",     "name": "log_cat.racking_inspection",     "icon": "cat_structure"  },
-      { "id": "conveyor_service",       "name": "log_cat.conveyor_service",       "icon": "cat_mechanical" }
+      {
+        "id": "service",
+        "name": "log_cat.service",
+        "icon": "cat_service"
+      },
+      {
+        "id": "repair",
+        "name": "log_cat.repair",
+        "icon": "cat_repair"
+      },
+      {
+        "id": "inspection",
+        "name": "log_cat.inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "equipment_service",
+        "name": "log_cat.equipment_service",
+        "icon": "cat_equipment"
+      },
+      {
+        "id": "safety_compliance",
+        "name": "log_cat.safety_compliance",
+        "icon": "cat_compliance"
+      },
+      {
+        "id": "electrical_check",
+        "name": "log_cat.electrical_check",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "hvac_service",
+        "name": "log_cat.hvac_service",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "pest_control",
+        "name": "log_cat.pest_control",
+        "icon": "cat_service"
+      },
+      {
+        "id": "plumbing_check",
+        "name": "log_cat.plumbing_check",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "fire_safety",
+        "name": "log_cat.fire_safety",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "exterior_maint",
+        "name": "log_cat.exterior_maint",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "roof_inspection",
+        "name": "log_cat.roof_inspection",
+        "icon": "cat_structure"
+      },
+      {
+        "id": "dock_equipment",
+        "name": "log_cat.dock_equipment",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "crane_hoist_service",
+        "name": "log_cat.crane_hoist_service",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "compressed_air_system",
+        "name": "log_cat.compressed_air_system",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "racking_inspection",
+        "name": "log_cat.racking_inspection",
+        "icon": "cat_structure"
+      },
+      {
+        "id": "conveyor_service",
+        "name": "log_cat.conveyor_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "boiler_service",
+        "name": "log_cat.boiler_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "fire_sprinkler_test",
+        "name": "log_cat.fire_sprinkler_test",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "emergency_lighting",
+        "name": "log_cat.emergency_lighting",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "backflow_preventer",
+        "name": "log_cat.backflow_preventer",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "spill_containment",
+        "name": "log_cat.spill_containment",
+        "icon": "cat_waste"
+      },
+      {
+        "id": "floor_coating",
+        "name": "log_cat.floor_coating",
+        "icon": "cat_structure"
+      },
+      {
+        "id": "overhead_door_service",
+        "name": "log_cat.overhead_door_service",
+        "icon": "cat_door"
+      },
+      {
+        "id": "energy_audit",
+        "name": "log_cat.energy_audit",
+        "icon": "cat_compliance"
+      },
+      {
+        "id": "generator_service",
+        "name": "log_cat.generator_service",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "stormwater_management",
+        "name": "log_cat.stormwater_management",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "window_service",
+        "name": "log_cat.window_service",
+        "icon": "cat_window"
+      },
+      {
+        "id": "security_systems",
+        "name": "log_cat.security_systems",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "thermographic_scan",
+        "name": "log_cat.thermographic_scan",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "dust_collector_service",
+        "name": "log_cat.dust_collector_service",
+        "icon": "cat_filters"
+      },
+      {
+        "id": "industrial_eyewash_service",
+        "name": "log_cat.industrial_eyewash_service",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "monorail_hoist_service",
+        "name": "log_cat.monorail_hoist_service",
+        "icon": "cat_equipment"
+      },
+      {
+        "id": "robot_cell_service",
+        "name": "log_cat.robot_cell_service",
+        "icon": "cat_equipment"
+      },
+      {
+        "id": "asrs_agv_service",
+        "name": "log_cat.asrs_agv_service",
+        "icon": "cat_equipment"
+      },
+      {
+        "id": "paint_booth_service",
+        "name": "log_cat.paint_booth_service",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "industrial_oven_service",
+        "name": "log_cat.industrial_oven_service",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "weld_booth_ventilation",
+        "name": "log_cat.weld_booth_ventilation",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "wash_bay_service",
+        "name": "log_cat.wash_bay_service",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "secondary_containment_inspection",
+        "name": "log_cat.secondary_containment_inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "esd_floor_service",
+        "name": "log_cat.esd_floor_service",
+        "icon": "cat_equipment"
+      },
+      {
+        "id": "tool_crib_audit",
+        "name": "log_cat.tool_crib_audit",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "bay_turnover",
+        "name": "log_cat.bay_turnover",
+        "icon": "cat_equipment"
+      },
+      {
+        "id": "bay_walkthrough",
+        "name": "log_cat.bay_walkthrough",
+        "icon": "cat_equipment"
+      }
     ]
   },
   {
     "asset_type": "healthcare",
     "categories": [
-      { "id": "service",             "name": "log_cat.service",             "icon": "cat_service"          },
-      { "id": "repair",              "name": "log_cat.repair",              "icon": "cat_repair"           },
-      { "id": "inspection",          "name": "log_cat.inspection",          "icon": "cat_inspection"       },
-      { "id": "hvac_air_quality",    "name": "log_cat.hvac_air_quality",    "icon": "cat_hvac"             },
-      { "id": "sterilization",       "name": "log_cat.sterilization",       "icon": "cat_compliance"       },
-      { "id": "medical_equipment",   "name": "log_cat.medical_equipment",   "icon": "cat_medical_equipment"},
-      { "id": "pest_control",        "name": "log_cat.pest_control",        "icon": "cat_service"          },
-      { "id": "emergency_systems",   "name": "log_cat.emergency_systems",   "icon": "cat_safety"           },
-      { "id": "electrical_check",    "name": "log_cat.electrical_check",    "icon": "cat_electric"         },
-      { "id": "plumbing_check",      "name": "log_cat.plumbing_check",      "icon": "cat_plumbing"         },
-      { "id": "fire_safety",         "name": "log_cat.fire_safety",         "icon": "cat_safety"           },
-      { "id": "compliance_audit",    "name": "log_cat.compliance_audit",    "icon": "cat_compliance"       },
-      { "id": "medical_gas_service", "name": "log_cat.medical_gas_service", "icon": "cat_compliance"       },
-      { "id": "eyewash_station",     "name": "log_cat.eyewash_station",     "icon": "cat_safety"           },
-      { "id": "water_management",    "name": "log_cat.water_management",    "icon": "cat_plumbing"         },
-      { "id": "fire_door_test",      "name": "log_cat.fire_door_test",      "icon": "cat_safety"           }
+      {
+        "id": "service",
+        "name": "log_cat.service",
+        "icon": "cat_service"
+      },
+      {
+        "id": "repair",
+        "name": "log_cat.repair",
+        "icon": "cat_repair"
+      },
+      {
+        "id": "inspection",
+        "name": "log_cat.inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "hvac_air_quality",
+        "name": "log_cat.hvac_air_quality",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "sterilization",
+        "name": "log_cat.sterilization",
+        "icon": "cat_compliance"
+      },
+      {
+        "id": "medical_equipment",
+        "name": "log_cat.medical_equipment",
+        "icon": "cat_medical_equipment"
+      },
+      {
+        "id": "pest_control",
+        "name": "log_cat.pest_control",
+        "icon": "cat_service"
+      },
+      {
+        "id": "emergency_systems",
+        "name": "log_cat.emergency_systems",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "electrical_check",
+        "name": "log_cat.electrical_check",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "plumbing_check",
+        "name": "log_cat.plumbing_check",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "fire_safety",
+        "name": "log_cat.fire_safety",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "compliance_audit",
+        "name": "log_cat.compliance_audit",
+        "icon": "cat_compliance"
+      },
+      {
+        "id": "medical_gas_service",
+        "name": "log_cat.medical_gas_service",
+        "icon": "cat_compliance"
+      },
+      {
+        "id": "eyewash_station",
+        "name": "log_cat.eyewash_station",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "water_management",
+        "name": "log_cat.water_management",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "fire_door_test",
+        "name": "log_cat.fire_door_test",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "generator_service",
+        "name": "log_cat.generator_service",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "elevator_service",
+        "name": "log_cat.elevator_service",
+        "icon": "cat_elevator"
+      },
+      {
+        "id": "boiler_service",
+        "name": "log_cat.boiler_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "fire_sprinkler_test",
+        "name": "log_cat.fire_sprinkler_test",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "security_systems",
+        "name": "log_cat.security_systems",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "nurse_call_system",
+        "name": "log_cat.nurse_call_system",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "patient_lift_service",
+        "name": "log_cat.patient_lift_service",
+        "icon": "cat_equipment"
+      },
+      {
+        "id": "access_control",
+        "name": "log_cat.access_control",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "waste_management",
+        "name": "log_cat.waste_management",
+        "icon": "cat_waste"
+      },
+      {
+        "id": "roof_inspection",
+        "name": "log_cat.roof_inspection",
+        "icon": "cat_structure"
+      },
+      {
+        "id": "thermographic_scan",
+        "name": "log_cat.thermographic_scan",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "it_systems",
+        "name": "log_cat.it_systems",
+        "icon": "cat_it_systems"
+      },
+      {
+        "id": "backflow_preventer",
+        "name": "log_cat.backflow_preventer",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "cooling_tower",
+        "name": "log_cat.cooling_tower",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "humidity_calibration",
+        "name": "log_cat.humidity_calibration",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "pressure_differential_test",
+        "name": "log_cat.pressure_differential_test",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "lab_fume_hood_cert",
+        "name": "log_cat.lab_fume_hood_cert",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "bsc_certification",
+        "name": "log_cat.bsc_certification",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "autoclave_service",
+        "name": "log_cat.autoclave_service",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "mri_cold_head_service",
+        "name": "log_cat.mri_cold_head_service",
+        "icon": "cat_equipment"
+      },
+      {
+        "id": "imaging_calibration",
+        "name": "log_cat.imaging_calibration",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "di_ro_water_service",
+        "name": "log_cat.di_ro_water_service",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "dialysis_water_service",
+        "name": "log_cat.dialysis_water_service",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "pneumatic_tube_service",
+        "name": "log_cat.pneumatic_tube_service",
+        "icon": "cat_equipment"
+      },
+      {
+        "id": "surgical_light_service",
+        "name": "log_cat.surgical_light_service",
+        "icon": "cat_lighting"
+      },
+      {
+        "id": "code_blue_test",
+        "name": "log_cat.code_blue_test",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "infection_control_round",
+        "name": "log_cat.infection_control_round",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "exam_table_service",
+        "name": "log_cat.exam_table_service",
+        "icon": "cat_equipment"
+      }
     ]
   },
   {
     "asset_type": "restaurant",
     "categories": [
-      { "id": "service",               "name": "log_cat.service",               "icon": "cat_service"          },
-      { "id": "repair",                "name": "log_cat.repair",                "icon": "cat_repair"           },
-      { "id": "inspection",            "name": "log_cat.inspection",            "icon": "cat_inspection"       },
-      { "id": "pest_control",          "name": "log_cat.pest_control",          "icon": "cat_service"          },
-      { "id": "grease_trap",           "name": "log_cat.grease_trap",           "icon": "cat_plumbing"         },
-      { "id": "hood_cleaning",         "name": "log_cat.hood_cleaning",         "icon": "cat_hvac"             },
-      { "id": "refrigeration",         "name": "log_cat.refrigeration",         "icon": "cat_appliances"       },
-      { "id": "kitchen_equipment",     "name": "log_cat.kitchen_equipment",     "icon": "cat_kitchen_equipment"},
-      { "id": "hvac_service",          "name": "log_cat.hvac_service",          "icon": "cat_hvac"             },
-      { "id": "plumbing_check",        "name": "log_cat.plumbing_check",        "icon": "cat_plumbing"         },
-      { "id": "fire_suppression",      "name": "log_cat.fire_suppression",      "icon": "cat_safety"           },
-      { "id": "health_inspection",     "name": "log_cat.health_inspection",     "icon": "cat_compliance"       },
-      { "id": "hood_filter_cleaning",  "name": "log_cat.hood_filter_cleaning",  "icon": "cat_hvac"             },
-      { "id": "ice_machine_service",   "name": "log_cat.ice_machine_service",   "icon": "cat_appliances"       },
-      { "id": "dishwasher_service",    "name": "log_cat.dishwasher_service",    "icon": "cat_appliances"       },
-      { "id": "ansul_inspection",      "name": "log_cat.ansul_inspection",      "icon": "cat_safety"           }
+      {
+        "id": "service",
+        "name": "log_cat.service",
+        "icon": "cat_service"
+      },
+      {
+        "id": "repair",
+        "name": "log_cat.repair",
+        "icon": "cat_repair"
+      },
+      {
+        "id": "inspection",
+        "name": "log_cat.inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "pest_control",
+        "name": "log_cat.pest_control",
+        "icon": "cat_service"
+      },
+      {
+        "id": "grease_trap",
+        "name": "log_cat.grease_trap",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "hood_cleaning",
+        "name": "log_cat.hood_cleaning",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "refrigeration",
+        "name": "log_cat.refrigeration",
+        "icon": "cat_appliances"
+      },
+      {
+        "id": "kitchen_equipment",
+        "name": "log_cat.kitchen_equipment",
+        "icon": "cat_kitchen_equipment"
+      },
+      {
+        "id": "hvac_service",
+        "name": "log_cat.hvac_service",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "plumbing_check",
+        "name": "log_cat.plumbing_check",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "fire_suppression",
+        "name": "log_cat.fire_suppression",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "health_inspection",
+        "name": "log_cat.health_inspection",
+        "icon": "cat_compliance"
+      },
+      {
+        "id": "hood_filter_cleaning",
+        "name": "log_cat.hood_filter_cleaning",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "ice_machine_service",
+        "name": "log_cat.ice_machine_service",
+        "icon": "cat_appliances"
+      },
+      {
+        "id": "dishwasher_service",
+        "name": "log_cat.dishwasher_service",
+        "icon": "cat_appliances"
+      },
+      {
+        "id": "ansul_inspection",
+        "name": "log_cat.ansul_inspection",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "ventilation_service",
+        "name": "log_cat.ventilation_service",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "water_heater_service",
+        "name": "log_cat.water_heater_service",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "electrical_check",
+        "name": "log_cat.electrical_check",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "floor_drain_service",
+        "name": "log_cat.floor_drain_service",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "exterior_maint",
+        "name": "log_cat.exterior_maint",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "hvac_filter_service",
+        "name": "log_cat.hvac_filter_service",
+        "icon": "cat_filters"
+      },
+      {
+        "id": "water_filtration",
+        "name": "log_cat.water_filtration",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "safety_check",
+        "name": "log_cat.safety_check",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "lighting_check",
+        "name": "log_cat.lighting_check",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "co2_system_service",
+        "name": "log_cat.co2_system_service",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "security_systems",
+        "name": "log_cat.security_systems",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "backflow_preventer",
+        "name": "log_cat.backflow_preventer",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "deep_cleaning",
+        "name": "log_cat.deep_cleaning",
+        "icon": "cat_cleaning"
+      },
+      {
+        "id": "walk_in_cooler_service",
+        "name": "log_cat.walk_in_cooler_service",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "pos_system_service",
+        "name": "log_cat.pos_system_service",
+        "icon": "cat_it_systems"
+      },
+      {
+        "id": "beverage_line_cleaning",
+        "name": "log_cat.beverage_line_cleaning",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "draft_beer_system",
+        "name": "log_cat.draft_beer_system",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "espresso_machine_service",
+        "name": "log_cat.espresso_machine_service",
+        "icon": "cat_kitchen_equipment"
+      },
+      {
+        "id": "fryer_oil_change",
+        "name": "log_cat.fryer_oil_change",
+        "icon": "cat_oil"
+      },
+      {
+        "id": "oven_calibration",
+        "name": "log_cat.oven_calibration",
+        "icon": "cat_kitchen_equipment"
+      },
+      {
+        "id": "dining_room_hvac_balance",
+        "name": "log_cat.dining_room_hvac_balance",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "dispenser_service",
+        "name": "log_cat.dispenser_service",
+        "icon": "cat_kitchen_equipment"
+      },
+      {
+        "id": "knife_sharpening",
+        "name": "log_cat.knife_sharpening",
+        "icon": "cat_kitchen_equipment"
+      },
+      {
+        "id": "restroom_inspection",
+        "name": "log_cat.restroom_inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "ada_accessibility_check",
+        "name": "log_cat.ada_accessibility_check",
+        "icon": "cat_inspection"
+      }
     ]
   },
   {
     "asset_type": "trailer",
     "categories": [
-      { "id": "service",                "name": "log_cat.service",                "icon": "cat_service"    },
-      { "id": "repair",                 "name": "log_cat.repair",                 "icon": "cat_repair"     },
-      { "id": "inspection",             "name": "log_cat.inspection",             "icon": "cat_inspection" },
-      { "id": "wheel_bearing_service",  "name": "log_cat.wheel_bearing_service",  "icon": "cat_mechanical" },
-      { "id": "tire_inspection",        "name": "log_cat.tire_inspection",        "icon": "cat_tires"      },
-      { "id": "brake_inspection",       "name": "log_cat.brake_inspection",       "icon": "cat_brakes"     },
-      { "id": "brake_replacement",      "name": "log_cat.brake_replacement",      "icon": "cat_brakes"     },
-      { "id": "wiring_lights",          "name": "log_cat.wiring_lights",          "icon": "cat_electric"   },
-      { "id": "hitch_coupler",          "name": "log_cat.hitch_coupler",          "icon": "cat_mechanical" },
-      { "id": "lubrication",            "name": "log_cat.lubrication",            "icon": "cat_fluid"      },
-      { "id": "axle_service",           "name": "log_cat.axle_service",           "icon": "cat_mechanical" },
-      { "id": "safety_check",           "name": "log_cat.safety_check",           "icon": "cat_safety"     },
-      { "id": "structural_check",       "name": "log_cat.structural_check",       "icon": "cat_structure"  },
-      { "id": "breakaway_battery",      "name": "log_cat.breakaway_battery",      "icon": "cat_battery"    },
-      { "id": "floor_inspection",       "name": "log_cat.floor_inspection",       "icon": "cat_structure"  },
-      { "id": "corrosion_check",        "name": "log_cat.corrosion_check",        "icon": "cat_exterior"   }
+      {
+        "id": "service",
+        "name": "log_cat.service",
+        "icon": "cat_service"
+      },
+      {
+        "id": "repair",
+        "name": "log_cat.repair",
+        "icon": "cat_repair"
+      },
+      {
+        "id": "inspection",
+        "name": "log_cat.inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "wheel_bearing_service",
+        "name": "log_cat.wheel_bearing_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "tire_inspection",
+        "name": "log_cat.tire_inspection",
+        "icon": "cat_tires"
+      },
+      {
+        "id": "brake_inspection",
+        "name": "log_cat.brake_inspection",
+        "icon": "cat_brakes"
+      },
+      {
+        "id": "brake_replacement",
+        "name": "log_cat.brake_replacement",
+        "icon": "cat_brakes"
+      },
+      {
+        "id": "wiring_lights",
+        "name": "log_cat.wiring_lights",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "hitch_coupler",
+        "name": "log_cat.hitch_coupler",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "lubrication",
+        "name": "log_cat.lubrication",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "axle_service",
+        "name": "log_cat.axle_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "safety_check",
+        "name": "log_cat.safety_check",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "structural_check",
+        "name": "log_cat.structural_check",
+        "icon": "cat_structure"
+      },
+      {
+        "id": "breakaway_battery",
+        "name": "log_cat.breakaway_battery",
+        "icon": "cat_battery"
+      },
+      {
+        "id": "floor_inspection",
+        "name": "log_cat.floor_inspection",
+        "icon": "cat_structure"
+      },
+      {
+        "id": "corrosion_check",
+        "name": "log_cat.corrosion_check",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "suspension_service",
+        "name": "log_cat.suspension_service",
+        "icon": "cat_suspension"
+      },
+      {
+        "id": "tire_replacement",
+        "name": "log_cat.tire_replacement",
+        "icon": "cat_tires"
+      },
+      {
+        "id": "lp_gas_service",
+        "name": "log_cat.lp_gas_service",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "roof_seal",
+        "name": "log_cat.roof_seal",
+        "icon": "cat_structure"
+      },
+      {
+        "id": "plumbing_check",
+        "name": "log_cat.plumbing_check",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "hvac_service",
+        "name": "log_cat.hvac_service",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "battery_check",
+        "name": "log_cat.battery_check",
+        "icon": "cat_battery"
+      },
+      {
+        "id": "electrical_check",
+        "name": "log_cat.electrical_check",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "door_lock_service",
+        "name": "log_cat.door_lock_service",
+        "icon": "cat_door"
+      },
+      {
+        "id": "exterior_wash",
+        "name": "log_cat.exterior_wash",
+        "icon": "cat_wash"
+      },
+      {
+        "id": "load_securement",
+        "name": "log_cat.load_securement",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "awning_service",
+        "name": "log_cat.awning_service",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "winterization",
+        "name": "log_cat.winterization",
+        "icon": "cat_service"
+      },
+      {
+        "id": "slide_topper_service",
+        "name": "log_cat.slide_topper_service",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "reflective_tape",
+        "name": "log_cat.reflective_tape",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "trailer_brake_controller_test",
+        "name": "log_cat.trailer_brake_controller_test",
+        "icon": "cat_brakes"
+      },
+      {
+        "id": "axle_ubolt_torque",
+        "name": "log_cat.axle_ubolt_torque",
+        "icon": "cat_tires"
+      },
+      {
+        "id": "leaf_spring_service",
+        "name": "log_cat.leaf_spring_service",
+        "icon": "cat_tires"
+      },
+      {
+        "id": "brake_magnet_service",
+        "name": "log_cat.brake_magnet_service",
+        "icon": "cat_brakes"
+      },
+      {
+        "id": "ramp_door_service",
+        "name": "log_cat.ramp_door_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "tongue_jack_service",
+        "name": "log_cat.tongue_jack_service",
+        "icon": "cat_mooring"
+      },
+      {
+        "id": "wheel_chock_service",
+        "name": "log_cat.wheel_chock_service",
+        "icon": "cat_tires"
+      },
+      {
+        "id": "reefer_unit_service",
+        "name": "log_cat.reefer_unit_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "trailer_floor_liner_service",
+        "name": "log_cat.trailer_floor_liner_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "tarp_cover_service",
+        "name": "log_cat.tarp_cover_service",
+        "icon": "cat_mooring"
+      },
+      {
+        "id": "trailer_dot_inspection",
+        "name": "log_cat.trailer_dot_inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "kingpin_inspection",
+        "name": "log_cat.kingpin_inspection",
+        "icon": "cat_tires"
+      }
     ]
   },
   {
     "asset_type": "atv_utv",
     "categories": [
-      { "id": "service",              "name": "log_cat.service",              "icon": "cat_service"    },
-      { "id": "repair",               "name": "log_cat.repair",               "icon": "cat_repair"     },
-      { "id": "inspection",           "name": "log_cat.inspection",           "icon": "cat_inspection" },
-      { "id": "oil_change",           "name": "log_cat.oil_change",           "icon": "cat_oil"        },
-      { "id": "air_filter",           "name": "log_cat.air_filter",           "icon": "cat_filters"    },
-      { "id": "tire_check",           "name": "log_cat.tire_check",           "icon": "cat_tires"      },
-      { "id": "brake_inspection",     "name": "log_cat.brake_inspection",     "icon": "cat_brakes"     },
-      { "id": "brake_replacement",    "name": "log_cat.brake_replacement",    "icon": "cat_brakes"     },
-      { "id": "belt_inspection",      "name": "log_cat.cvt_belt",             "icon": "cat_drivetrain" },
-      { "id": "fluid_check",          "name": "log_cat.fluid_check",          "icon": "cat_fluid"      },
-      { "id": "spark_plugs",          "name": "log_cat.spark_plugs",          "icon": "cat_engine"     },
-      { "id": "battery_check",        "name": "log_cat.battery_check",        "icon": "cat_battery"    },
-      { "id": "battery_replace",      "name": "log_cat.battery_replace",      "icon": "cat_battery"    },
-      { "id": "chain_service",        "name": "log_cat.chain_drive",          "icon": "cat_drivetrain" },
-      { "id": "cv_axle_service",      "name": "log_cat.cv_axle_service",      "icon": "cat_drivetrain" },
-      { "id": "differential_fluid",   "name": "log_cat.differential_fluid",   "icon": "cat_fluid"      },
-      { "id": "chassis_lubrication",  "name": "log_cat.chassis_lubrication",  "icon": "cat_fluid"      },
-      { "id": "coolant_flush",        "name": "log_cat.coolant_flush",        "icon": "cat_fluid"      }
+      {
+        "id": "service",
+        "name": "log_cat.service",
+        "icon": "cat_service"
+      },
+      {
+        "id": "repair",
+        "name": "log_cat.repair",
+        "icon": "cat_repair"
+      },
+      {
+        "id": "inspection",
+        "name": "log_cat.inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "fuel_log",
+        "name": "log_cat.fuel_log",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "oil_change",
+        "name": "log_cat.oil_change",
+        "icon": "cat_oil"
+      },
+      {
+        "id": "air_filter",
+        "name": "log_cat.air_filter",
+        "icon": "cat_filters"
+      },
+      {
+        "id": "tire_check",
+        "name": "log_cat.tire_check",
+        "icon": "cat_tires"
+      },
+      {
+        "id": "brake_inspection",
+        "name": "log_cat.brake_inspection",
+        "icon": "cat_brakes"
+      },
+      {
+        "id": "brake_replacement",
+        "name": "log_cat.brake_replacement",
+        "icon": "cat_brakes"
+      },
+      {
+        "id": "belt_inspection",
+        "name": "log_cat.cvt_belt",
+        "icon": "cat_drivetrain"
+      },
+      {
+        "id": "fluid_check",
+        "name": "log_cat.fluid_check",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "spark_plugs",
+        "name": "log_cat.spark_plugs",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "battery_check",
+        "name": "log_cat.battery_check",
+        "icon": "cat_battery"
+      },
+      {
+        "id": "battery_replace",
+        "name": "log_cat.battery_replace",
+        "icon": "cat_battery"
+      },
+      {
+        "id": "chain_service",
+        "name": "log_cat.chain_drive",
+        "icon": "cat_drivetrain"
+      },
+      {
+        "id": "cv_axle_service",
+        "name": "log_cat.cv_axle_service",
+        "icon": "cat_drivetrain"
+      },
+      {
+        "id": "differential_fluid",
+        "name": "log_cat.differential_fluid",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "chassis_lubrication",
+        "name": "log_cat.chassis_lubrication",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "coolant_flush",
+        "name": "log_cat.coolant_flush",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "tire_replacement",
+        "name": "log_cat.tire_replacement",
+        "icon": "cat_tires"
+      },
+      {
+        "id": "transmission_service",
+        "name": "log_cat.transmission_service",
+        "icon": "cat_gearbox"
+      },
+      {
+        "id": "suspension_service",
+        "name": "log_cat.suspension_service",
+        "icon": "cat_suspension"
+      },
+      {
+        "id": "fuel_filter",
+        "name": "log_cat.fuel_filter",
+        "icon": "cat_filters"
+      },
+      {
+        "id": "winch_service",
+        "name": "log_cat.winch_service",
+        "icon": "cat_winch"
+      },
+      {
+        "id": "lighting_check",
+        "name": "log_cat.lighting_check",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "storage_prep",
+        "name": "log_cat.storage_prep",
+        "icon": "cat_service"
+      },
+      {
+        "id": "detailing",
+        "name": "log_cat.detailing",
+        "icon": "cat_wash"
+      },
+      {
+        "id": "safety_check",
+        "name": "log_cat.safety_check",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "wheel_bearing_service",
+        "name": "log_cat.wheel_bearing_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "exhaust_service",
+        "name": "log_cat.exhaust_service",
+        "icon": "cat_exhaust"
+      },
+      {
+        "id": "intake_snorkel",
+        "name": "log_cat.intake_snorkel",
+        "icon": "cat_filters"
+      },
+      {
+        "id": "season_prep",
+        "name": "log_cat.season_prep",
+        "icon": "cat_service"
+      },
+      {
+        "id": "cv_boot_service",
+        "name": "log_cat.cv_boot_service",
+        "icon": "cat_drivetrain"
+      },
+      {
+        "id": "plow_attach_service",
+        "name": "log_cat.plow_attach_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "water_exposure_flush",
+        "name": "log_cat.water_exposure_flush",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "winch_use_log",
+        "name": "log_cat.winch_use_log",
+        "icon": "cat_mooring"
+      },
+      {
+        "id": "cvt_clutch_service",
+        "name": "log_cat.cvt_clutch_service",
+        "icon": "cat_drivetrain"
+      },
+      {
+        "id": "rollcage_harness_check",
+        "name": "log_cat.rollcage_harness_check",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "front_diff_actuator",
+        "name": "log_cat.front_diff_actuator",
+        "icon": "cat_drivetrain"
+      },
+      {
+        "id": "skid_plate_service",
+        "name": "log_cat.skid_plate_service",
+        "icon": "cat_drivetrain"
+      },
+      {
+        "id": "ride_hour_service",
+        "name": "log_cat.ride_hour_service",
+        "icon": "cat_inspection"
+      }
     ]
   },
   {
     "asset_type": "snowmobile",
     "categories": [
-      { "id": "service",              "name": "log_cat.service",              "icon": "cat_service"       },
-      { "id": "repair",               "name": "log_cat.repair",               "icon": "cat_repair"        },
-      { "id": "inspection",           "name": "log_cat.inspection",           "icon": "cat_inspection"    },
-      { "id": "oil_change",           "name": "log_cat.oil_change",           "icon": "cat_oil"           },
-      { "id": "spark_plugs",          "name": "log_cat.spark_plugs",          "icon": "cat_engine"        },
-      { "id": "belt_inspection",      "name": "log_cat.drive_belt",           "icon": "cat_drivetrain"    },
-      { "id": "track_inspection",     "name": "log_cat.track_inspection",     "icon": "cat_undercarriage" },
-      { "id": "slide_replacement",    "name": "log_cat.slide_replacement",    "icon": "cat_mechanical"    },
-      { "id": "fuel_system",          "name": "log_cat.fuel_system",          "icon": "cat_fluid"         },
-      { "id": "battery_check",        "name": "log_cat.battery_check",        "icon": "cat_battery"       },
-      { "id": "battery_replace",      "name": "log_cat.battery_replace",      "icon": "cat_battery"       },
-      { "id": "ski_service",          "name": "log_cat.ski_service",          "icon": "cat_mechanical"    },
-      { "id": "storage_prep",         "name": "log_cat.storage_prep",         "icon": "cat_service"       },
-      { "id": "chaincase_service",    "name": "log_cat.chaincase_service",    "icon": "cat_drivetrain"    },
-      { "id": "clutch_service",       "name": "log_cat.clutch_service",       "icon": "cat_drivetrain"    },
-      { "id": "suspension_greasing",  "name": "log_cat.suspension_greasing",  "icon": "cat_fluid"         },
-      { "id": "coolant_flush",        "name": "log_cat.coolant_flush",        "icon": "cat_fluid"         }
+      {
+        "id": "service",
+        "name": "log_cat.service",
+        "icon": "cat_service"
+      },
+      {
+        "id": "repair",
+        "name": "log_cat.repair",
+        "icon": "cat_repair"
+      },
+      {
+        "id": "inspection",
+        "name": "log_cat.inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "fuel_log",
+        "name": "log_cat.fuel_log",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "oil_change",
+        "name": "log_cat.oil_change",
+        "icon": "cat_oil"
+      },
+      {
+        "id": "spark_plugs",
+        "name": "log_cat.spark_plugs",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "belt_inspection",
+        "name": "log_cat.drive_belt",
+        "icon": "cat_drivetrain"
+      },
+      {
+        "id": "track_inspection",
+        "name": "log_cat.track_inspection",
+        "icon": "cat_undercarriage"
+      },
+      {
+        "id": "slide_replacement",
+        "name": "log_cat.slide_replacement",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "fuel_system",
+        "name": "log_cat.fuel_system",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "battery_check",
+        "name": "log_cat.battery_check",
+        "icon": "cat_battery"
+      },
+      {
+        "id": "battery_replace",
+        "name": "log_cat.battery_replace",
+        "icon": "cat_battery"
+      },
+      {
+        "id": "ski_service",
+        "name": "log_cat.ski_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "storage_prep",
+        "name": "log_cat.storage_prep",
+        "icon": "cat_service"
+      },
+      {
+        "id": "chaincase_service",
+        "name": "log_cat.chaincase_service",
+        "icon": "cat_drivetrain"
+      },
+      {
+        "id": "clutch_service",
+        "name": "log_cat.clutch_service",
+        "icon": "cat_drivetrain"
+      },
+      {
+        "id": "suspension_greasing",
+        "name": "log_cat.suspension_greasing",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "coolant_flush",
+        "name": "log_cat.coolant_flush",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "pre_ride_check",
+        "name": "log_cat.pre_ride_check",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "brake_inspection",
+        "name": "log_cat.brake_inspection",
+        "icon": "cat_brakes"
+      },
+      {
+        "id": "brake_replacement",
+        "name": "log_cat.brake_replacement",
+        "icon": "cat_brakes"
+      },
+      {
+        "id": "lighting_check",
+        "name": "log_cat.lighting_check",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "exhaust_service",
+        "name": "log_cat.exhaust_service",
+        "icon": "cat_exhaust"
+      },
+      {
+        "id": "handlebar_controls",
+        "name": "log_cat.handlebar_controls",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "tunnel_runningboard",
+        "name": "log_cat.tunnel_runningboard",
+        "icon": "cat_structure"
+      },
+      {
+        "id": "spring_commissioning",
+        "name": "log_cat.spring_commissioning",
+        "icon": "cat_service"
+      },
+      {
+        "id": "safety_equipment",
+        "name": "log_cat.safety_equipment",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "tie_rod_service",
+        "name": "log_cat.tie_rod_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "engine_tune_up",
+        "name": "log_cat.engine_tune_up",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "windshield_service",
+        "name": "log_cat.windshield_service",
+        "icon": "cat_window"
+      },
+      {
+        "id": "detailing",
+        "name": "log_cat.detailing",
+        "icon": "cat_wash"
+      },
+      {
+        "id": "telematics_check",
+        "name": "log_cat.telematics_check",
+        "icon": "cat_navigation"
+      },
+      {
+        "id": "ski_carbide_service",
+        "name": "log_cat.ski_carbide_service",
+        "icon": "cat_suspension"
+      },
+      {
+        "id": "clutch_sheave_service",
+        "name": "log_cat.clutch_sheave_service",
+        "icon": "cat_drivetrain"
+      },
+      {
+        "id": "exhaust_valve_clean",
+        "name": "log_cat.exhaust_valve_clean",
+        "icon": "cat_exhaust"
+      },
+      {
+        "id": "track_studding",
+        "name": "log_cat.track_studding",
+        "icon": "cat_drivetrain"
+      },
+      {
+        "id": "shock_rebuild",
+        "name": "log_cat.shock_rebuild",
+        "icon": "cat_suspension"
+      },
+      {
+        "id": "heat_exchanger_service",
+        "name": "log_cat.heat_exchanger_service",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "oil_injection_service",
+        "name": "log_cat.oil_injection_service",
+        "icon": "cat_oil"
+      },
+      {
+        "id": "reed_valve_service",
+        "name": "log_cat.reed_valve_service",
+        "icon": "cat_engine"
+      }
     ]
   },
   {
     "asset_type": "personal_watercraft",
     "categories": [
-      { "id": "service",           "name": "log_cat.service",           "icon": "cat_service"    },
-      { "id": "repair",            "name": "log_cat.repair",            "icon": "cat_repair"     },
-      { "id": "inspection",        "name": "log_cat.inspection",        "icon": "cat_inspection" },
-      { "id": "engine_service",    "name": "log_cat.engine_service",    "icon": "cat_engine"     },
-      { "id": "impeller_check",    "name": "log_cat.impeller_check",    "icon": "cat_mechanical" },
-      { "id": "spark_plugs",       "name": "log_cat.spark_plugs",       "icon": "cat_engine"     },
-      { "id": "battery_check",     "name": "log_cat.battery_check",     "icon": "cat_battery"    },
-      { "id": "battery_replace",   "name": "log_cat.battery_replace",   "icon": "cat_battery"    },
-      { "id": "fuel_system",       "name": "log_cat.fuel_system",       "icon": "cat_fluid"      },
-      { "id": "hull_inspection",   "name": "log_cat.hull_inspection",   "icon": "cat_hull"       },
-      { "id": "wear_ring",         "name": "log_cat.wear_ring",         "icon": "cat_mechanical" },
-      { "id": "flush_service",     "name": "log_cat.flush_service",     "icon": "cat_fluid"      },
-      { "id": "storage_prep",      "name": "log_cat.storage_prep",      "icon": "cat_service"    },
-      { "id": "jet_pump_oil",      "name": "log_cat.jet_pump_oil",      "icon": "cat_fluid"      },
-      { "id": "post_use_flush",    "name": "log_cat.post_use_flush",    "icon": "cat_service"    },
-      { "id": "bilge_drain_check", "name": "log_cat.bilge_drain_check", "icon": "cat_safety"     }
+      {
+        "id": "service",
+        "name": "log_cat.service",
+        "icon": "cat_service"
+      },
+      {
+        "id": "repair",
+        "name": "log_cat.repair",
+        "icon": "cat_repair"
+      },
+      {
+        "id": "inspection",
+        "name": "log_cat.inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "fuel_log",
+        "name": "log_cat.fuel_log",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "engine_service",
+        "name": "log_cat.engine_service",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "impeller_check",
+        "name": "log_cat.impeller_check",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "spark_plugs",
+        "name": "log_cat.spark_plugs",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "battery_check",
+        "name": "log_cat.battery_check",
+        "icon": "cat_battery"
+      },
+      {
+        "id": "battery_replace",
+        "name": "log_cat.battery_replace",
+        "icon": "cat_battery"
+      },
+      {
+        "id": "fuel_system",
+        "name": "log_cat.fuel_system",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "hull_inspection",
+        "name": "log_cat.hull_inspection",
+        "icon": "cat_hull"
+      },
+      {
+        "id": "wear_ring",
+        "name": "log_cat.wear_ring",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "flush_service",
+        "name": "log_cat.flush_service",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "storage_prep",
+        "name": "log_cat.storage_prep",
+        "icon": "cat_service"
+      },
+      {
+        "id": "jet_pump_oil",
+        "name": "log_cat.jet_pump_oil",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "post_use_flush",
+        "name": "log_cat.post_use_flush",
+        "icon": "cat_service"
+      },
+      {
+        "id": "bilge_drain_check",
+        "name": "log_cat.bilge_drain_check",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "brake_inspection",
+        "name": "log_cat.brake_inspection",
+        "icon": "cat_brakes"
+      },
+      {
+        "id": "brake_replacement",
+        "name": "log_cat.brake_replacement",
+        "icon": "cat_brakes"
+      },
+      {
+        "id": "steering_service",
+        "name": "log_cat.steering_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "seat_latch_service",
+        "name": "log_cat.seat_latch_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "safety_equipment",
+        "name": "log_cat.safety_equipment",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "trailer_service",
+        "name": "log_cat.trailer_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "detailing",
+        "name": "log_cat.detailing",
+        "icon": "cat_wash"
+      },
+      {
+        "id": "electrical_check",
+        "name": "log_cat.electrical_check",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "ride_plate_service",
+        "name": "log_cat.ride_plate_service",
+        "icon": "cat_hull"
+      },
+      {
+        "id": "nozzle_deflector",
+        "name": "log_cat.nozzle_deflector",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "cooling_flush",
+        "name": "log_cat.cooling_flush",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "zincs_anodes",
+        "name": "log_cat.zincs_anodes",
+        "icon": "cat_hull"
+      },
+      {
+        "id": "registration_renewal",
+        "name": "log_cat.registration_renewal",
+        "icon": "cat_compliance"
+      },
+      {
+        "id": "spring_commissioning",
+        "name": "log_cat.spring_commissioning",
+        "icon": "cat_service"
+      },
+      {
+        "id": "intake_grate_service",
+        "name": "log_cat.intake_grate_service",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "reverse_bucket_service",
+        "name": "log_cat.reverse_bucket_service",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "drain_plug_check",
+        "name": "log_cat.drain_plug_check",
+        "icon": "cat_plumbing"
+      },
+      {
+        "id": "oil_cooler_service",
+        "name": "log_cat.oil_cooler_service",
+        "icon": "cat_oil"
+      },
+      {
+        "id": "supercharger_service",
+        "name": "log_cat.supercharger_service",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "waterbox_service",
+        "name": "log_cat.waterbox_service",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "throttle_body_service",
+        "name": "log_cat.throttle_body_service",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "oil_reservoir_topup",
+        "name": "log_cat.oil_reservoir_topup",
+        "icon": "cat_oil"
+      },
+      {
+        "id": "pump_shoe_service",
+        "name": "log_cat.pump_shoe_service",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "driveshaft_coupler_service",
+        "name": "log_cat.driveshaft_coupler_service",
+        "icon": "cat_drivetrain"
+      },
+      {
+        "id": "lanyard_dess_test",
+        "name": "log_cat.lanyard_dess_test",
+        "icon": "cat_safety"
+      }
     ]
   },
   {
     "asset_type": "golf_cart",
     "categories": [
-      { "id": "service",                "name": "log_cat.service",                "icon": "cat_service"    },
-      { "id": "repair",                 "name": "log_cat.repair",                 "icon": "cat_repair"     },
-      { "id": "inspection",             "name": "log_cat.inspection",             "icon": "cat_inspection" },
-      { "id": "battery_service",        "name": "log_cat.battery_service",        "icon": "cat_battery"    },
-      { "id": "battery_replace",        "name": "log_cat.battery_replace",        "icon": "cat_battery"    },
-      { "id": "tire_check",             "name": "log_cat.tire_check",             "icon": "cat_tires"      },
-      { "id": "brake_inspection",       "name": "log_cat.brake_inspection",       "icon": "cat_brakes"     },
-      { "id": "brake_replacement",      "name": "log_cat.brake_replacement",      "icon": "cat_brakes"     },
-      { "id": "charger_check",          "name": "log_cat.charger_check",          "icon": "cat_electric"   },
-      { "id": "belt_inspection",        "name": "log_cat.belt_inspection",        "icon": "cat_drivetrain" },
-      { "id": "fluid_check",            "name": "log_cat.fluid_check",            "icon": "cat_fluid"      },
-      { "id": "oil_change",             "name": "log_cat.oil_change",             "icon": "cat_oil"        },
-      { "id": "lighting_check",         "name": "log_cat.lighting_check",         "icon": "cat_electric"   },
-      { "id": "motor_service",          "name": "log_cat.motor_service",          "icon": "cat_engine"     },
-      { "id": "battery_equalization",   "name": "log_cat.battery_equalization",   "icon": "cat_battery"    },
-      { "id": "battery_capacity_test",  "name": "log_cat.battery_capacity_test",  "icon": "cat_battery"    },
-      { "id": "solenoid_controller",    "name": "log_cat.solenoid_controller",    "icon": "cat_electric"   }
+      {
+        "id": "service",
+        "name": "log_cat.service",
+        "icon": "cat_service"
+      },
+      {
+        "id": "repair",
+        "name": "log_cat.repair",
+        "icon": "cat_repair"
+      },
+      {
+        "id": "inspection",
+        "name": "log_cat.inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "fuel_log",
+        "name": "log_cat.fuel_log",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "battery_service",
+        "name": "log_cat.battery_service",
+        "icon": "cat_battery"
+      },
+      {
+        "id": "battery_replace",
+        "name": "log_cat.battery_replace",
+        "icon": "cat_battery"
+      },
+      {
+        "id": "tire_check",
+        "name": "log_cat.tire_check",
+        "icon": "cat_tires"
+      },
+      {
+        "id": "brake_inspection",
+        "name": "log_cat.brake_inspection",
+        "icon": "cat_brakes"
+      },
+      {
+        "id": "brake_replacement",
+        "name": "log_cat.brake_replacement",
+        "icon": "cat_brakes"
+      },
+      {
+        "id": "charger_check",
+        "name": "log_cat.charger_check",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "belt_inspection",
+        "name": "log_cat.belt_inspection",
+        "icon": "cat_drivetrain"
+      },
+      {
+        "id": "fluid_check",
+        "name": "log_cat.fluid_check",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "oil_change",
+        "name": "log_cat.oil_change",
+        "icon": "cat_oil"
+      },
+      {
+        "id": "lighting_check",
+        "name": "log_cat.lighting_check",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "motor_service",
+        "name": "log_cat.motor_service",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "battery_equalization",
+        "name": "log_cat.battery_equalization",
+        "icon": "cat_battery"
+      },
+      {
+        "id": "battery_capacity_test",
+        "name": "log_cat.battery_capacity_test",
+        "icon": "cat_battery"
+      },
+      {
+        "id": "solenoid_controller",
+        "name": "log_cat.solenoid_controller",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "tire_replacement",
+        "name": "log_cat.tire_replacement",
+        "icon": "cat_tires"
+      },
+      {
+        "id": "steering_service",
+        "name": "log_cat.steering_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "suspension_service",
+        "name": "log_cat.suspension_service",
+        "icon": "cat_suspension"
+      },
+      {
+        "id": "wiring_check",
+        "name": "log_cat.wiring_check",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "speed_controller",
+        "name": "log_cat.speed_controller",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "body_panel_service",
+        "name": "log_cat.body_panel_service",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "windshield_service",
+        "name": "log_cat.windshield_service",
+        "icon": "cat_window"
+      },
+      {
+        "id": "seat_service",
+        "name": "log_cat.seat_service",
+        "icon": "cat_cleaning"
+      },
+      {
+        "id": "evse_charging",
+        "name": "log_cat.evse_charging",
+        "icon": "cat_evse"
+      },
+      {
+        "id": "governor_adjustment",
+        "name": "log_cat.governor_adjustment",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "storage_prep",
+        "name": "log_cat.storage_prep",
+        "icon": "cat_service"
+      },
+      {
+        "id": "detailing",
+        "name": "log_cat.detailing",
+        "icon": "cat_wash"
+      },
+      {
+        "id": "registration_renewal",
+        "name": "log_cat.registration_renewal",
+        "icon": "cat_compliance"
+      },
+      {
+        "id": "safety_check",
+        "name": "log_cat.safety_check",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "motor_brush_service",
+        "name": "log_cat.motor_brush_service",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "controller_program",
+        "name": "log_cat.controller_program",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "range_test",
+        "name": "log_cat.range_test",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "charge_receptacle_service",
+        "name": "log_cat.charge_receptacle_service",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "regen_brake_check",
+        "name": "log_cat.regen_brake_check",
+        "icon": "cat_brakes"
+      },
+      {
+        "id": "battery_watering",
+        "name": "log_cat.battery_watering",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "fnr_switch_service",
+        "name": "log_cat.fnr_switch_service",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "rear_axle_lube",
+        "name": "log_cat.rear_axle_lube",
+        "icon": "cat_drivetrain"
+      }
     ]
   },
   {
     "asset_type": "lawn_equipment",
     "categories": [
-      { "id": "service",             "name": "log_cat.service",             "icon": "cat_service"    },
-      { "id": "repair",              "name": "log_cat.repair",              "icon": "cat_repair"     },
-      { "id": "inspection",          "name": "log_cat.inspection",          "icon": "cat_inspection" },
-      { "id": "oil_change",          "name": "log_cat.oil_change",          "icon": "cat_oil"        },
-      { "id": "blade_service",       "name": "log_cat.blade_service",       "icon": "cat_mechanical" },
-      { "id": "air_filter",          "name": "log_cat.air_filter",          "icon": "cat_filters"    },
-      { "id": "spark_plugs",         "name": "log_cat.spark_plugs",         "icon": "cat_engine"     },
-      { "id": "belt_replacement",    "name": "log_cat.belt_replacement",    "icon": "cat_drivetrain" },
-      { "id": "fuel_system",         "name": "log_cat.fuel_system",         "icon": "cat_fluid"      },
-      { "id": "battery_check",       "name": "log_cat.battery_check",       "icon": "cat_battery"    },
-      { "id": "battery_replace",     "name": "log_cat.battery_replace",     "icon": "cat_battery"    },
-      { "id": "tire_check",          "name": "log_cat.tire_check",          "icon": "cat_tires"      },
-      { "id": "season_prep",         "name": "log_cat.season_prep",         "icon": "cat_service"    },
-      { "id": "deck_leveling",       "name": "log_cat.deck_leveling",       "icon": "cat_mechanical" },
-      { "id": "spindle_service",     "name": "log_cat.spindle_service",     "icon": "cat_mechanical" },
-      { "id": "hydrostatic_service", "name": "log_cat.hydrostatic_service", "icon": "cat_fluid"      },
-      { "id": "grease_service",      "name": "log_cat.chassis_greasing",    "icon": "cat_fluid"      }
+      {
+        "id": "service",
+        "name": "log_cat.service",
+        "icon": "cat_service"
+      },
+      {
+        "id": "repair",
+        "name": "log_cat.repair",
+        "icon": "cat_repair"
+      },
+      {
+        "id": "inspection",
+        "name": "log_cat.inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "fuel_log",
+        "name": "log_cat.fuel_log",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "oil_change",
+        "name": "log_cat.oil_change",
+        "icon": "cat_oil"
+      },
+      {
+        "id": "blade_service",
+        "name": "log_cat.blade_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "air_filter",
+        "name": "log_cat.air_filter",
+        "icon": "cat_filters"
+      },
+      {
+        "id": "spark_plugs",
+        "name": "log_cat.spark_plugs",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "belt_replacement",
+        "name": "log_cat.belt_replacement",
+        "icon": "cat_drivetrain"
+      },
+      {
+        "id": "fuel_system",
+        "name": "log_cat.fuel_system",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "battery_check",
+        "name": "log_cat.battery_check",
+        "icon": "cat_battery"
+      },
+      {
+        "id": "battery_replace",
+        "name": "log_cat.battery_replace",
+        "icon": "cat_battery"
+      },
+      {
+        "id": "tire_check",
+        "name": "log_cat.tire_check",
+        "icon": "cat_tires"
+      },
+      {
+        "id": "season_prep",
+        "name": "log_cat.season_prep",
+        "icon": "cat_service"
+      },
+      {
+        "id": "deck_leveling",
+        "name": "log_cat.deck_leveling",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "spindle_service",
+        "name": "log_cat.spindle_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "hydrostatic_service",
+        "name": "log_cat.hydrostatic_service",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "grease_service",
+        "name": "log_cat.chassis_greasing",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "transmission_service",
+        "name": "log_cat.transmission_service",
+        "icon": "cat_gearbox"
+      },
+      {
+        "id": "cooling_check",
+        "name": "log_cat.cooling_check",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "cable_service",
+        "name": "log_cat.cable_service",
+        "icon": "cat_cable"
+      },
+      {
+        "id": "tire_replacement",
+        "name": "log_cat.tire_replacement",
+        "icon": "cat_tires"
+      },
+      {
+        "id": "chassis_lubrication",
+        "name": "log_cat.chassis_lubrication",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "mulch_bagger_service",
+        "name": "log_cat.mulch_bagger_service",
+        "icon": "cat_equipment"
+      },
+      {
+        "id": "steering_service",
+        "name": "log_cat.steering_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "exhaust_service",
+        "name": "log_cat.exhaust_service",
+        "icon": "cat_exhaust"
+      },
+      {
+        "id": "detailing",
+        "name": "log_cat.detailing",
+        "icon": "cat_wash"
+      },
+      {
+        "id": "safety_check",
+        "name": "log_cat.safety_check",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "evse_charging",
+        "name": "log_cat.evse_charging",
+        "icon": "cat_evse"
+      },
+      {
+        "id": "attachment_service",
+        "name": "log_cat.attachment_service",
+        "icon": "cat_equipment"
+      },
+      {
+        "id": "choke_throttle_service",
+        "name": "log_cat.choke_throttle_service",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "blade_balancing",
+        "name": "log_cat.blade_balancing",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "deck_washout",
+        "name": "log_cat.deck_washout",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "hydro_filter_service",
+        "name": "log_cat.hydro_filter_service",
+        "icon": "cat_filters"
+      },
+      {
+        "id": "fuel_stabilizer",
+        "name": "log_cat.fuel_stabilizer",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "idler_pulley_service",
+        "name": "log_cat.idler_pulley_service",
+        "icon": "cat_drivetrain"
+      },
+      {
+        "id": "pto_clutch_service",
+        "name": "log_cat.pto_clutch_service",
+        "icon": "cat_drivetrain"
+      },
+      {
+        "id": "safety_interlock_test",
+        "name": "log_cat.safety_interlock_test",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "anti_scalp_service",
+        "name": "log_cat.anti_scalp_service",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "fuel_pickup_screen",
+        "name": "log_cat.fuel_pickup_screen",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "recoil_starter_service",
+        "name": "log_cat.recoil_starter_service",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "ztr_dampener_service",
+        "name": "log_cat.ztr_dampener_service",
+        "icon": "cat_drivetrain"
+      },
+      {
+        "id": "rops_check",
+        "name": "log_cat.rops_check",
+        "icon": "cat_inspection"
+      }
     ]
   },
   {
     "asset_type": "generator",
     "categories": [
-      { "id": "service",             "name": "log_cat.service",             "icon": "cat_service"    },
-      { "id": "repair",              "name": "log_cat.repair",              "icon": "cat_repair"     },
-      { "id": "inspection",          "name": "log_cat.inspection",          "icon": "cat_inspection" },
-      { "id": "oil_change",          "name": "log_cat.oil_change",          "icon": "cat_oil"        },
-      { "id": "spark_plugs",         "name": "log_cat.spark_plugs",         "icon": "cat_engine"     },
-      { "id": "air_filter",          "name": "log_cat.air_filter",          "icon": "cat_filters"    },
-      { "id": "fuel_system",         "name": "log_cat.fuel_system",         "icon": "cat_fluid"      },
-      { "id": "battery_check",       "name": "log_cat.battery_check",       "icon": "cat_battery"    },
-      { "id": "battery_replace",     "name": "log_cat.battery_replace",     "icon": "cat_battery"    },
-      { "id": "load_test",           "name": "log_cat.load_test",           "icon": "cat_safety"     },
-      { "id": "coolant_check",       "name": "log_cat.coolant_check",       "icon": "cat_fluid"      },
-      { "id": "transfer_switch",     "name": "log_cat.transfer_switch",     "icon": "cat_electric"   },
-      { "id": "storage_prep",        "name": "log_cat.storage_prep",        "icon": "cat_service"    },
-      { "id": "ats_test",            "name": "log_cat.ats_test",            "icon": "cat_electric"   },
-      { "id": "fuel_quality",        "name": "log_cat.fuel_treatment",      "icon": "cat_fluid"      },
-      { "id": "exercise_log",        "name": "log_cat.exercise_log",        "icon": "cat_service"    },
-      { "id": "block_heater_check",  "name": "log_cat.block_heater_check",  "icon": "cat_engine"     }
+      {
+        "id": "service",
+        "name": "log_cat.service",
+        "icon": "cat_service"
+      },
+      {
+        "id": "repair",
+        "name": "log_cat.repair",
+        "icon": "cat_repair"
+      },
+      {
+        "id": "inspection",
+        "name": "log_cat.inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "fuel_log",
+        "name": "log_cat.fuel_log",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "oil_change",
+        "name": "log_cat.oil_change",
+        "icon": "cat_oil"
+      },
+      {
+        "id": "spark_plugs",
+        "name": "log_cat.spark_plugs",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "air_filter",
+        "name": "log_cat.air_filter",
+        "icon": "cat_filters"
+      },
+      {
+        "id": "fuel_system",
+        "name": "log_cat.fuel_system",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "battery_check",
+        "name": "log_cat.battery_check",
+        "icon": "cat_battery"
+      },
+      {
+        "id": "battery_replace",
+        "name": "log_cat.battery_replace",
+        "icon": "cat_battery"
+      },
+      {
+        "id": "load_test",
+        "name": "log_cat.load_test",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "coolant_check",
+        "name": "log_cat.coolant_check",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "transfer_switch",
+        "name": "log_cat.transfer_switch",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "storage_prep",
+        "name": "log_cat.storage_prep",
+        "icon": "cat_service"
+      },
+      {
+        "id": "ats_test",
+        "name": "log_cat.ats_test",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "fuel_quality",
+        "name": "log_cat.fuel_treatment",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "exercise_log",
+        "name": "log_cat.exercise_log",
+        "icon": "cat_service"
+      },
+      {
+        "id": "block_heater_check",
+        "name": "log_cat.block_heater_check",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "coolant_flush",
+        "name": "log_cat.coolant_flush",
+        "icon": "cat_fluid"
+      },
+      {
+        "id": "voltage_regulation",
+        "name": "log_cat.voltage_regulation",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "exhaust_service",
+        "name": "log_cat.exhaust_service",
+        "icon": "cat_exhaust"
+      },
+      {
+        "id": "fuel_filter",
+        "name": "log_cat.fuel_filter",
+        "icon": "cat_filters"
+      },
+      {
+        "id": "turbocharger_service",
+        "name": "log_cat.turbocharger_service",
+        "icon": "cat_turbo"
+      },
+      {
+        "id": "alternator_service",
+        "name": "log_cat.alternator_service",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "safety_check",
+        "name": "log_cat.safety_check",
+        "icon": "cat_safety"
+      },
+      {
+        "id": "paralleling_system",
+        "name": "log_cat.paralleling_system",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "vibration_isolators",
+        "name": "log_cat.vibration_isolators",
+        "icon": "cat_mechanical"
+      },
+      {
+        "id": "enclosure_service",
+        "name": "log_cat.enclosure_service",
+        "icon": "cat_exterior"
+      },
+      {
+        "id": "runtime_log",
+        "name": "log_cat.runtime_log",
+        "icon": "cat_compliance"
+      },
+      {
+        "id": "injection_service",
+        "name": "log_cat.injection_service",
+        "icon": "cat_injector"
+      },
+      {
+        "id": "oil_sample_analysis",
+        "name": "log_cat.oil_sample_analysis",
+        "icon": "cat_oil"
+      },
+      {
+        "id": "fuel_sample_analysis",
+        "name": "log_cat.fuel_sample_analysis",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "leak_inspection",
+        "name": "log_cat.leak_inspection",
+        "icon": "cat_inspection"
+      },
+      {
+        "id": "governor_service",
+        "name": "log_cat.governor_service",
+        "icon": "cat_engine"
+      },
+      {
+        "id": "cooling_hose_service",
+        "name": "log_cat.cooling_hose_service",
+        "icon": "cat_hvac"
+      },
+      {
+        "id": "air_intake_service",
+        "name": "log_cat.air_intake_service",
+        "icon": "cat_filters"
+      },
+      {
+        "id": "day_tank_service",
+        "name": "log_cat.day_tank_service",
+        "icon": "cat_fuel_system"
+      },
+      {
+        "id": "battery_charger_service",
+        "name": "log_cat.battery_charger_service",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "frequency_check",
+        "name": "log_cat.frequency_check",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "output_breaker_service",
+        "name": "log_cat.output_breaker_service",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "annunciator_check",
+        "name": "log_cat.annunciator_check",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "ats_maintenance",
+        "name": "log_cat.ats_maintenance",
+        "icon": "cat_electric"
+      },
+      {
+        "id": "sound_enclosure_seal",
+        "name": "log_cat.sound_enclosure_seal",
+        "icon": "cat_exhaust"
+      }
     ]
   }
 ]

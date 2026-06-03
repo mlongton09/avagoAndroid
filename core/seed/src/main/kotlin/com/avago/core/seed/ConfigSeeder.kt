@@ -36,19 +36,38 @@ class ConfigSeeder @Inject constructor(
     suspend fun seedIfNeeded(accountId: String) {
         val db = dbFactory.get(accountId)
         val existing = db.configDao().getByKey("system", "asset_types")
-        if (existing != null) {
-            Timber.d("ConfigSeeder: already seeded, skipping")
+        if (existing == null) {
+            Timber.d("ConfigSeeder: seeding config for account $accountId")
+            seedAssetTypes(accountId, db)
+            seedLogCategories(accountId, db)
+            seedInspectionTypes(accountId, db)
+            seedDocTypes(accountId, db)
+            seedInventoryCategories(accountId, db)
+            seedLimits(accountId, db)
+            Timber.d("ConfigSeeder: seeding complete")
             return
         }
-
-        Timber.d("ConfigSeeder: seeding config for account $accountId")
-        seedAssetTypes(accountId, db)
-        seedLogCategories(accountId, db)
-        seedInspectionTypes(accountId, db)
-        seedDocTypes(accountId, db)
-        seedInventoryCategories(accountId, db)
-        seedLimits(accountId, db)
-        Timber.d("ConfigSeeder: seeding complete")
+        // Re-seed log_categories once for existing installs when the v2 sentinel is absent.
+        // The category list grew significantly to match iOS — safe upsert, runs once per account.
+        if (db.configDao().getByKey("system", "log_categories_v2") == null) {
+            Timber.d("ConfigSeeder: upgrading log_categories to v2 for account $accountId")
+            seedLogCategories(accountId, db)
+            val now = System.currentTimeMillis()
+            db.configDao().upsert(
+                ConfigEntity(
+                    configId = stableId("system", "log_categories_v2"),
+                    accountId = accountId,
+                    scope = "system",
+                    key = "log_categories_v2",
+                    value = "1",
+                    version = 1,
+                    createdAt = now,
+                    updatedAt = now,
+                )
+            )
+        } else {
+            Timber.d("ConfigSeeder: already seeded, skipping")
+        }
     }
 
     // -------------------------------------------------------------------------

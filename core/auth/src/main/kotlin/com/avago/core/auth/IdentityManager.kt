@@ -273,22 +273,25 @@ class IdentityManager @Inject constructor(
             // rather than reusing the previous session's (anonymous) cached token.
             client.clearBearerTokenCache()
 
-            // Fetch profile to fill in the manifest record
+            // Fetch profile to fill in the manifest record.
+            // NOTE: /me does NOT return the account-specific role — use the role
+            // from the sign-in response accounts array (accountSummary.role) when
+            // available, falling back to user.role as a last resort.
             val user = runCatching { client.getMe() }.getOrNull()
-            val userRole = user?.role
-            val memberships = if (userRole != null) {
-                listOf(AccountMembership(accountId = accountId, role = userRole, isRoot = userRole == "root"))
+            Timber.d("IdentityManager: sign-in response has ${response.accounts.size} account(s): ${response.accounts.map { "${it.account_id}=${it.name}" }}")
+            val accountSummary = response.accounts.find { it.account_id == accountId }
+            val initialRole = normalizeLegacyRole(accountSummary?.role ?: user?.role)
+            val memberships = if (initialRole != null) {
+                listOf(AccountMembership(accountId = accountId, role = initialRole, isRoot = initialRole == "root"))
             } else {
                 emptyList()
             }
-            Timber.d("IdentityManager: sign-in response has ${response.accounts.size} account(s): ${response.accounts.map { "${it.account_id}=${it.name}" }}")
-            val accountSummary = response.accounts.find { it.account_id == accountId }
             val record = AccountRecord(
                 accountId = accountId,
                 userId = user?.user_id,
                 displayName = user?.display_name,
                 email = user?.email,
-                role = user?.role,
+                role = initialRole,
                 memberships = memberships,
                 accountName = accountSummary?.name,
             )
@@ -338,11 +341,15 @@ class IdentityManager @Inject constructor(
             Timber.d("IdentityManager: signed in as $accountId")
             registerPushTokenAsync()
 
-            // Sequential: validate role from members list (mirrors iOS fetchAndStoreUserProfile)
+            // Sequential: validate role from members list (mirrors iOS fetchAndStoreUserProfile).
+            // Re-activate the permission store afterwards so the role is live in this
+            // session — validateRoleFromMembersList only writes to the manifest, it does
+            // not call activate() itself.
             val capturedUserId = user?.user_id
             if (capturedUserId != null) {
                 runCatching { validateRoleFromMembersList(accountId, capturedUserId) }
                     .onFailure { Timber.w(it, "IdentityManager: validateRoleFromMembersList failed") }
+                refreshPermissionStoreForActiveAccount()
             }
 
             // Sequential: fetch all accounts (mirrors iOS fetchAndStoreAllAccounts).
@@ -391,7 +398,7 @@ class IdentityManager @Inject constructor(
         val accountSummary = (accountsResult as? NetworkResult.Success)
             ?.data
             ?.find { it.account_id == accountId }
-        val role = user?.role ?: accountSummary?.role
+        val role = normalizeLegacyRole(accountSummary?.role ?: user?.role)
         val memberships = if (role != null) {
             listOf(AccountMembership(accountId = accountId, role = role, isRoot = role == "root"))
         } else {
@@ -411,6 +418,12 @@ class IdentityManager @Inject constructor(
         )
         setActiveAccount(accountId, user?.user_id, isAnonymous = false)
         refreshPermissionStoreForActiveAccount()
+        // Validate role from members list and re-activate so the role is live in this session
+        if (!user?.user_id.isNullOrBlank()) {
+            runCatching { validateRoleFromMembersList(accountId, user!!.user_id) }
+                .onFailure { Timber.w(it, "IdentityManager: validateRoleFromMembersList failed on upgrade") }
+            refreshPermissionStoreForActiveAccount()
+        }
         _accountsChanged.tryEmit(Unit)
         crashDiagnosticsProvider.get().setUserContext()
         registerPushTokenAsync()
