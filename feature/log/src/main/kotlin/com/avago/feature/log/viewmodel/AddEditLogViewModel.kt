@@ -40,9 +40,10 @@ enum class LogValidationError { TITLE_REQUIRED, NO_ASSET, NO_ACCOUNT }
 data class ItemAttributeDef(
     val key: String,
     val label: String,
-    val fieldType: String, // "text", "number", "enum"
+    val fieldType: String, // "text", "number", "enum", "checkbox", "multiline"
     val options: List<String> = emptyList(),
     val unit: String? = null,
+    val placeholder: String? = null,
 )
 
 data class AddEditLogFormState(
@@ -234,6 +235,10 @@ class AddEditLogViewModel @Inject constructor(
                 val savedFuelUnit = entity.attributes?.let { parseJsonField(it, "fuel_volume_unit") }
                     ?: userPrefsRepository.fuelVolumeUnitFlow.first()
                 val savedDistanceUnit = userPrefsRepository.distanceUnitFlow.first()
+                // Restore category-specific item attributes (excludes known fuel keys)
+                val savedItemAttributes = entity.attributes?.let { attrs ->
+                    parseJsonMap(attrs).filterKeys { it != "fuel_volume" && it != "fuel_volume_unit" }
+                } ?: emptyMap()
 
                 _form.update { state ->
                     state.copy(
@@ -259,6 +264,7 @@ class AddEditLogViewModel @Inject constructor(
                         inspectionMode = inspectionMode,
                         inspectionConfigId = entity.configId,
                         inspectionConfigVersion = entity.configVersion ?: 0L,
+                        itemAttributes = savedItemAttributes,
                         isLoadingExisting = false,
                     )
                 }
@@ -379,8 +385,10 @@ class AddEditLogViewModel @Inject constructor(
 
     /**
      * Loads category-specific item attribute definitions from ConfigEntity.
-     * Looks for key "item_attributes_{categoryKey}" under scope "system".
-     * If no config is found, clears itemAttributeDefs so the section is hidden.
+     * Mirrors iOS two-pass lookup:
+     *   1. scope="ItemAttributes", key="{category}_{assetType}" (asset-specific)
+     *   2. scope="ItemAttributes", key="{category}" (generic fallback)
+     * Uses version-ordered getByPattern to avoid stale configs.
      */
     private fun loadItemAttributeDefs(category: String?) {
         if (category.isNullOrBlank()) {
@@ -391,16 +399,65 @@ class AddEditLogViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val db = dbFactory.get(accountId)
-                val categoryKey = category.lowercase().replace(" ", "_")
-                val config = db.configDao().getByKey("system", "item_attributes_$categoryKey")
-                val defs = parseItemAttributeDefs(config?.value)
-                _form.update { it.copy(itemAttributeDefs = defs) }
+                val assetType = _form.value.assetType
+                // Two-pass lookup matching iOS behaviour
+                val config = if (!assetType.isNullOrBlank()) {
+                    db.configDao().getByPattern("ItemAttributes", "${category}_${assetType}%")
+                        .maxByOrNull { it.version }
+                        ?: db.configDao().getByPattern("ItemAttributes", "$category%")
+                            .filter { it.key == category }
+                            .maxByOrNull { it.version }
+                } else {
+                    db.configDao().getByPattern("ItemAttributes", "$category%")
+                        .filter { it.key == category }
+                        .maxByOrNull { it.version }
+                }
+                val rawDefs = parseItemAttributeDefs(config?.value)
+                val strings = loadItemAttrLocaleStrings(db)
+                val resolvedDefs = rawDefs.map { def ->
+                    def.copy(label = strings[def.label] ?: def.label.toAttrDisplayLabel())
+                }
+                _form.update { it.copy(itemAttributeDefs = resolvedDefs) }
             } catch (e: Exception) {
                 Timber.e(e, "[AddEditLogViewModel] loadItemAttributeDefs failed for category=$category")
                 _form.update { it.copy(itemAttributeDefs = emptyList()) }
             }
         }
     }
+
+    /** Fetches the locale strings map for item attribute labels (scope="Locale", key="ItemAttributes"). */
+    private suspend fun loadItemAttrLocaleStrings(db: com.avago.core.data.db.AvagoDatabase): Map<String, String> {
+        return try {
+            val config = db.configDao()
+                .getByPattern("Locale", "ItemAttributes%")
+                .maxByOrNull { it.version }
+            if (config?.value.isNullOrBlank()) return emptyMap()
+            val stringsStart = config!!.value.indexOf("\"strings\"")
+            if (stringsStart < 0) return emptyMap()
+            val mapStart = config.value.indexOf('{', stringsStart)
+            if (mapStart < 0) return emptyMap()
+            var depth = 0
+            var mapEnd = mapStart
+            for (i in mapStart until config.value.length) {
+                when (config.value[i]) {
+                    '{' -> depth++
+                    '}' -> { depth--; if (depth == 0) { mapEnd = i; break } }
+                }
+            }
+            val mapJson = config.value.substring(mapStart, mapEnd + 1)
+            Regex("\"([^\"]+)\"\\s*:\\s*\"([^\"]*)\"")
+                .findAll(mapJson)
+                .associate { it.groupValues[1] to it.groupValues[2] }
+        } catch (e: Exception) {
+            Timber.e(e, "[AddEditLogViewModel] loadItemAttrLocaleStrings failed")
+            emptyMap()
+        }
+    }
+
+    /** Converts a dot/underscore key like "item_attr.oil_change.oil_brand" to "Oil brand". */
+    private fun String.toAttrDisplayLabel(): String =
+        substringAfterLast('.').substringAfterLast('_').replace('_', ' ')
+            .replaceFirstChar { it.uppercaseChar() }
 
     /**
      * Pre-fills the meter reading from the most recent log entry for this asset,
@@ -826,11 +883,20 @@ class AddEditLogViewModel @Inject constructor(
     }
 
     private fun buildAttributesJson(form: AddEditLogFormState): String? {
+        val parts = mutableMapOf<String, String>()
         val isFuel = form.category?.lowercase()?.contains("fuel") == true
-        if (!isFuel || form.fuelVolume.isBlank()) return null
-        val vol = form.fuelVolume.replace("\"", "\\\"")
-        val unit = form.fuelVolumeUnit.replace("\"", "\\\"")
-        return "{\"fuel_volume\":\"$vol\",\"fuel_volume_unit\":\"$unit\"}"
+        if (isFuel && form.fuelVolume.isNotBlank()) {
+            parts["fuel_volume"] = form.fuelVolume
+            parts["fuel_volume_unit"] = form.fuelVolumeUnit
+        }
+        form.itemAttributes.forEach { (k, v) ->
+            if (v.isNotBlank()) parts[k] = v
+        }
+        if (parts.isEmpty()) return null
+        val json = parts.entries.joinToString(",") {
+            "\"${it.key.replace("\"", "\\\"")}\":\"${it.value.replace("\"", "\\\"")}\""
+        }
+        return "{$json}"
     }
 
     private fun parseJsonField(json: String, key: String): String? {
@@ -856,30 +922,31 @@ class AddEditLogViewModel @Inject constructor(
     }
 
     /**
-     * Parses a JSON array of ItemAttributeDef objects from a config value string.
-     * Expected format:
-     * [{"key":"color","label":"Color","fieldType":"text"},
-     *  {"key":"size","label":"Size","fieldType":"enum","options":["S","M","L"],"unit":"in"}]
+     * Parses ItemAttributeDef objects from a config value string.
+     * Handles both server format `{"attributes":[...]}` and legacy bare array `[...]`.
+     * Server field names: id, label, type, values (enum options), placeholder, unit.
      */
     private fun parseItemAttributeDefs(json: String?): List<ItemAttributeDef> {
         if (json.isNullOrBlank()) return emptyList()
         return try {
-            // Reuse the lenient JSON parsing approach via InspectionFieldDef parser infrastructure.
-            // We do manual regex-free parsing via the same kotlinx.serialization path used in
-            // parseInspectionFields, but adapted here inline for ItemAttributeDef.
             val defs = mutableListOf<ItemAttributeDef>()
-            // Strip outer array brackets and split on object boundaries
-            val inner = json.trim().removePrefix("[").removeSuffix("]")
-            // Use a simple brace-depth scanner to split individual objects
+            // Unwrap {"attributes":[...]} → bare array
+            val arrayJson = if (json.trim().startsWith("{")) {
+                val s = json.indexOf('[')
+                val e = json.lastIndexOf(']')
+                if (s < 0 || e < 0) return emptyList()
+                json.substring(s, e + 1)
+            } else {
+                json.trim()
+            }
+            // Brace-depth scanner to extract each attribute object
+            val inner = arrayJson.removePrefix("[").removeSuffix("]")
             val objects = mutableListOf<String>()
             var depth = 0
             var start = -1
             for (i in inner.indices) {
                 when (inner[i]) {
-                    '{' -> {
-                        if (depth == 0) start = i
-                        depth++
-                    }
+                    '{' -> { if (depth == 0) start = i; depth++ }
                     '}' -> {
                         depth--
                         if (depth == 0 && start >= 0) {
@@ -889,17 +956,30 @@ class AddEditLogViewModel @Inject constructor(
                     }
                 }
             }
+            // Skip location-only attributes matching iOS locationKeys set
+            val locationKeys = setOf("floor", "unit_number", "suite_number", "bay_number")
             val keyPattern = Regex("\"([^\"]+)\"\\s*:\\s*\"([^\"]*)\"")
-            val arrayPattern = Regex("\"options\"\\s*:\\s*\\[([^\\]]*)]")
+            val arrayPattern = Regex("\"(?:options|values)\"\\s*:\\s*\\[([^\\]]*)]")
             for (obj in objects) {
-                val fields = keyPattern.findAll(obj).associate { it.groupValues[1] to it.groupValues[2] }
-                val key = fields["key"] ?: continue
+                val fields = keyPattern.findAll(obj)
+                    .associate { it.groupValues[1] to it.groupValues[2] }
+                val key = fields["id"] ?: fields["key"] ?: continue
+                if (key in locationKeys) continue
                 val label = fields["label"] ?: key
-                val fieldType = fields["fieldType"] ?: fields["field_type"] ?: "text"
+                val fieldType = fields["fieldType"] ?: fields["field_type"] ?: fields["type"] ?: "text"
                 val unit = fields["unit"]?.ifBlank { null }
+                val placeholder = fields["placeholder"]?.ifBlank { null }
                 val optionsJson = arrayPattern.find(obj)?.groupValues?.get(1) ?: ""
-                val options = Regex("\"([^\"]+)\"").findAll(optionsJson).map { it.groupValues[1] }.toList()
-                defs += ItemAttributeDef(key = key, label = label, fieldType = fieldType, options = options, unit = unit)
+                val options = Regex("\"([^\"]+)\"").findAll(optionsJson)
+                    .map { it.groupValues[1] }.toList()
+                defs += ItemAttributeDef(
+                    key = key,
+                    label = label,
+                    fieldType = fieldType,
+                    options = options,
+                    unit = unit,
+                    placeholder = placeholder,
+                )
             }
             defs
         } catch (e: Exception) {

@@ -1516,13 +1516,36 @@ class SyncEngine @Inject constructor(
 
                 "config" -> {
                     val now = System.currentTimeMillis()
+                    val configId = item.str("config_id") ?: run {
+                        Timber.w("[SyncEngine] config: missing config_id, skipping")
+                        return
+                    }
+                    // Server sends: type (=config_type), subtype, asset_type, config (JSON object).
+                    // Android schema: scope = type, key = subtype[_asset_type].
+                    val scope = item.str("type") ?: item.str("scope") ?: run {
+                        Timber.w("[SyncEngine] config $configId: missing type/scope, skipping")
+                        return
+                    }
+                    val subtype = item.str("subtype")
+                    val assetType = item.str("asset_type")
+                    val key = listOfNotNull(
+                        subtype?.ifBlank { null },
+                        assetType?.ifBlank { null },
+                    ).joinToString("_").ifBlank {
+                        Timber.w("[SyncEngine] config $configId: empty derived key, skipping")
+                        return
+                    }
+                    val configElement = item["config"] ?: run {
+                        Timber.w("[SyncEngine] config $configId: missing 'config' field, skipping")
+                        return
+                    }
                     db.configDao().upsert(
                         ConfigEntity(
-                            configId = item.str("config_id") ?: return,
+                            configId = configId,
                             accountId = item.str("account_id"),
-                            scope = item.str("scope") ?: "",
-                            key = item.str("key") ?: return,
-                            value = item.str("value") ?: "",
+                            scope = scope,
+                            key = key,
+                            value = configElement.toString(),
                             version = item.lng("version") ?: 0L,
                             createdAt = isoToMs(item.str("created_at")) ?: now,
                             updatedAt = isoToMs(item.str("updated_at")) ?: now,

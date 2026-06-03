@@ -193,6 +193,8 @@ fun AddEditLogScreen(
     var showInspectionSubtypePicker by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
     var showAttachmentMenu by remember { mutableStateOf(false) }
+    // Mirrors iOS itemAttrExpanded = true: card starts visible, row tap collapses/expands it.
+    var detailsExpanded by remember(form.category) { mutableStateOf(true) }
 
     LaunchedEffect(form.logType) {
         if (form.logType == "inspection") {
@@ -582,7 +584,7 @@ fun AddEditLogScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.weight(1f))
-                    SingleChoiceSegmentedButtonRow(modifier = Modifier.widthIn(min = 180.dp)) {
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.widthIn(min = 180.dp).height(28.dp)) {
                         SegmentedButton(
                             selected = form.costMode == CostMode.TOTAL,
                             onClick = { viewModel.onCostModeChanged(CostMode.TOTAL) },
@@ -861,19 +863,17 @@ fun AddEditLogScreen(
             // ==================================================================
             // ITEM ATTRIBUTES — "add details" contacts row + attrs card
             // iOS: contacts-style add row + expandable details section
+            // iOS default: itemAttrExpanded = true (starts visible, row tap collapses/expands)
             // ==================================================================
             if (form.itemAttributeDefs.isNotEmpty()) {
                 Spacer(Modifier.height(16.dp))
                 ContactsAddRow(
                     text = stringResource(R.string.log_entry_action_add_details),
-                    onClick = {},
+                    onClick = { detailsExpanded = !detailsExpanded },
                 )
-                Spacer(Modifier.height(8.dp))
-                FormCard {
-                    Column(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
+                if (detailsExpanded) {
+                    Spacer(Modifier.height(8.dp))
+                    FormCard {
                         ItemAttributesRenderer(
                             defs = form.itemAttributeDefs,
                             values = form.itemAttributes,
@@ -1133,42 +1133,55 @@ private fun ItemAttributesRenderer(
     onValueChanged: (String, String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        defs.forEach { def ->
+    Column(modifier = modifier) {
+        defs.forEachIndexed { index, def ->
+            if (index > 0) {
+                HorizontalDivider(
+                    thickness = 0.5.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                )
+            }
             val current = values[def.key] ?: ""
             when (def.fieldType) {
-                "text" -> OutlinedTextField(
-                    value = current,
-                    onValueChange = { onValueChanged(def.key, it) },
-                    label = { Text(if (def.unit != null) "${def.label} (${def.unit})" else def.label) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                "number" -> OutlinedTextField(
-                    value = current,
-                    onValueChange = { onValueChanged(def.key, it) },
-                    label = { Text(def.label) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    suffix = if (def.unit != null) ({ Text(def.unit) }) else null,
-                )
                 "enum" -> {
+                    // Picker-style row: label left, selected value right, chevron
                     var expanded by remember { mutableStateOf(false) }
                     ExposedDropdownMenuBox(
                         expanded = expanded,
                         onExpandedChange = { expanded = !expanded },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        OutlinedTextField(
-                            value = current,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text(if (def.unit != null) "${def.label} (${def.unit})" else def.label) },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
-                        )
+                                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                                .height(44.dp)
+                                .padding(horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(
+                                text = def.label,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                text = current.ifBlank { def.placeholder ?: "" },
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = if (current.isBlank())
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+                                else
+                                    MaterialTheme.colorScheme.onSurface,
+                                textAlign = TextAlign.End,
+                            )
+                            Icon(
+                                Icons.Default.ChevronRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
                         ExposedDropdownMenu(
                             expanded = expanded,
                             onDismissRequest = { expanded = false },
@@ -1185,12 +1198,91 @@ private fun ItemAttributesRenderer(
                         }
                     }
                 }
-                else -> OutlinedTextField(
-                    value = current,
-                    onValueChange = { onValueChanged(def.key, it) },
-                    label = { Text(def.label) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                "multiline" -> {
+                    // Multi-line text row (min 3 lines, matches iOS multiline field)
+                    val labelText = if (def.unit != null) "${def.label} (${def.unit})" else def.label
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = labelText,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        BasicTextField(
+                            value = current,
+                            onValueChange = { onValueChanged(def.key, it) },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp),
+                            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                color = MaterialTheme.colorScheme.onSurface,
+                            ),
+                            minLines = 3,
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            decorationBox = { inner ->
+                                Box(Modifier.fillMaxWidth()) {
+                                    if (current.isEmpty() && def.placeholder != null) {
+                                        Text(
+                                            text = def.placeholder,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+                                        )
+                                    }
+                                    inner()
+                                }
+                            },
+                        )
+                    }
+                }
+                else -> {
+                    // text / number / checkbox — inline label-left, input-right (44dp row, matches iOS)
+                    val labelText = if (def.unit != null) "${def.label} (${def.unit})" else def.label
+                    val keyboardType = if (def.fieldType == "number") KeyboardType.Decimal else KeyboardType.Text
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = labelText,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.widthIn(min = 80.dp),
+                        )
+                        BasicTextField(
+                            value = current,
+                            onValueChange = { onValueChanged(def.key, it) },
+                            modifier = Modifier.weight(1f),
+                            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                color = MaterialTheme.colorScheme.onSurface,
+                                textAlign = TextAlign.End,
+                            ),
+                            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+                            singleLine = true,
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            decorationBox = { inner ->
+                                Box(Modifier.fillMaxWidth()) {
+                                    if (current.isEmpty()) {
+                                        Text(
+                                            text = def.placeholder ?: "",
+                                            style = MaterialTheme.typography.bodyLarge.copy(
+                                                textAlign = TextAlign.End,
+                                            ),
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+                                            modifier = Modifier.fillMaxWidth(),
+                                        )
+                                    }
+                                    inner()
+                                }
+                            },
+                        )
+                    }
+                }
             }
         }
     }
