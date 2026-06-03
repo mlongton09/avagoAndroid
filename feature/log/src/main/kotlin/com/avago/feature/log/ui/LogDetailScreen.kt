@@ -1,15 +1,17 @@
-﻿package com.avago.feature.log.ui
+package com.avago.feature.log.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,29 +20,28 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -53,12 +54,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import com.avago.core.data.db.entity.LogCostLineEntity
-import com.avago.feature.log.model.InspectionFieldDef
-import com.avago.feature.log.model.parseInspectionFields
+import com.avago.core.ui.categoryBadgeColor
+import com.avago.core.ui.categoryIconName
 import com.avago.feature.log.viewmodel.LogDetailViewModel
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
@@ -121,8 +123,11 @@ fun LogDetailScreen(
                         Icon(Icons.Default.Edit, contentDescription = "Edit")
                     }
                     IconButton(onClick = { showDeleteDialog = true }) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete",
-                            tint = MaterialTheme.colorScheme.error)
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "Delete",
+                            tint = MaterialTheme.colorScheme.error,
+                        )
                     }
                 },
             )
@@ -153,10 +158,11 @@ fun LogDetailScreen(
                     fmt
                 }
 
-                // Parse inspection fields from log data JSON
                 val logType = remember(log.data) { parseJsonField(log.data, "log_type") ?: "service" }
-                val inspectionFields: List<InspectionFieldDef> = remember { emptyList() } // Config loaded on demand
                 val inspectionAnswers = remember(log.data) { parseJsonMap(log.data) }
+
+                val isHoursMeter = distanceUnit.lowercase().let { it == "hrs" || it == "hours" || it == "hr" }
+                val meterLabel = if (isHoursMeter) "HOURS" else "ODOMETER"
 
                 Column(
                     modifier = Modifier
@@ -164,132 +170,190 @@ fun LogDetailScreen(
                         .padding(innerPadding)
                         .verticalScroll(rememberScrollState()),
                 ) {
-                    // --------------- Header section ---------------
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        log.category?.let { cat ->
-                            Text(
-                                text = cat.uppercase(),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            Spacer(Modifier.height(4.dp))
-                        }
+                    Spacer(Modifier.height(16.dp))
+
+                    // ── 1. Header card: title | separator | category pill + date ──
+                    DetailCard(modifier = Modifier.padding(horizontal = 16.dp)) {
                         Text(
                             text = log.title,
-                            style = MaterialTheme.typography.headlineSmall,
+                            style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 16.dp, top = 14.dp, end = 16.dp, bottom = 6.dp),
                         )
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            text = dateFormatter.format(Date(log.entryDate)),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        HorizontalDivider(
+                            thickness = 0.5.dp,
+                            color = MaterialTheme.colorScheme.outline,
                         )
-                        log.performedBy?.let { performer ->
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                text = "Performed by: $performer",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        log.odometerValue?.let { meter ->
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                text = "Meter: ${"%.1f".format(meter)} $distanceUnit",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        // Fuel volume (stored in attributes JSON for fuel-category entries)
-                        log.attributes?.let { attrs ->
-                            val fuelVolume = parseFuelVolume(attrs)
-                            val fuelUnit = parseFuelUnit(attrs)
-                            if (fuelVolume != null) {
-                                Spacer(Modifier.height(4.dp))
-                                val unitLabel = if (fuelUnit == "liter") "L" else "gal"
-                                Text(
-                                    text = "Fuel: ${"%.2f".format(fuelVolume)} $unitLabel",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp)
+                                .padding(horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            log.category?.let { cat ->
+                                val dotColor = categoryBadgeColor(categoryIconName(cat))
+                                val label = cat.replace("_", " ").split(" ")
+                                    .joinToString(" ") { w -> w.replaceFirstChar { it.uppercaseChar() } }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(dotColor.copy(alpha = 0.13f)),
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(10.dp)
+                                                .clip(CircleShape)
+                                                .background(dotColor),
+                                        )
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(
+                                            text = label,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                        )
+                                    }
+                                }
                             }
+                            Spacer(Modifier.weight(1f))
+                            Text(
+                                text = dateFormatter.format(Date(log.entryDate)),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                     }
 
-                    SectionDivider()
+                    Spacer(Modifier.height(16.dp))
 
-                    // --------------- Cost section ---------------
-                    DetailSection(title = "Cost") {
-                        val costLines = state.costLines
-                        if (costLines.isEmpty()) {
-                            val cost = log.cost
-                            if (cost != null && cost > 0) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
+                    // ── 2. Cost + Meter two-column card ───────────────────────────
+                    DetailCard(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            // Left: COST
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .padding(horizontal = 14.dp),
+                                verticalArrangement = Arrangement.Center,
+                            ) {
+                                Text(
+                                    text = "COST",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    letterSpacing = androidx.compose.ui.unit.TextUnit(
+                                        1.5f,
+                                        androidx.compose.ui.unit.TextUnitType.Sp,
+                                    ),
+                                )
+                                val displayCost = if (state.costLines.isNotEmpty()) state.totalCost else log.cost
+                                Text(
+                                    text = if (displayCost != null && displayCost > 0)
+                                        currencyFormat.format(displayCost) else "—",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                            // Right: ODOMETER / HOURS (only if recorded)
+                            log.odometerValue?.let { meter ->
+                                VerticalDivider(
+                                    modifier = Modifier.fillMaxHeight(),
+                                    thickness = 0.5.dp,
+                                    color = MaterialTheme.colorScheme.outline,
+                                )
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .padding(horizontal = 14.dp),
+                                    verticalArrangement = Arrangement.Center,
                                 ) {
-                                    Text("Total")
                                     Text(
-                                        text = currencyFormat.format(cost),
+                                        text = meterLabel,
+                                        style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        letterSpacing = androidx.compose.ui.unit.TextUnit(
+                                            1.5f,
+                                            androidx.compose.ui.unit.TextUnitType.Sp,
+                                        ),
+                                    )
+                                    Text(
+                                        text = "${"%.1f".format(meter)} $distanceUnit",
+                                        style = MaterialTheme.typography.bodyMedium,
                                     )
                                 }
-                            } else {
-                                Text(
-                                    text = "No cost recorded",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        } else {
-                            Text(
-                                text = "(${costLines.size} cost line${if (costLines.size > 1) "s" else ""})",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                            ) {
-                                Text("Total", fontWeight = FontWeight.Medium)
-                                Text(
-                                    text = currencyFormat.format(state.totalCost),
-                                    fontWeight = FontWeight.SemiBold,
-                                )
                             }
                         }
                     }
 
-                    // --------------- Notes section ---------------
+                    // ── 3. Notes card ─────────────────────────────────────────────
                     log.notes?.takeIf { it.isNotBlank() }?.let { notes ->
-                        SectionDivider()
-                        DetailSection(title = "Notes") {
-                            // Basic markdown: bold, no external dep
+                        Spacer(Modifier.height(16.dp))
+                        DetailCard(modifier = Modifier.padding(horizontal = 16.dp)) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(36.dp)
+                                    .padding(horizontal = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = "NOTES",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    letterSpacing = androidx.compose.ui.unit.TextUnit(
+                                        1.5f,
+                                        androidx.compose.ui.unit.TextUnitType.Sp,
+                                    ),
+                                )
+                            }
+                            HorizontalDivider(
+                                thickness = 0.5.dp,
+                                color = MaterialTheme.colorScheme.outline,
+                            )
                             Text(
                                 text = notes,
                                 style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
                             )
                         }
                     }
 
-                    // --------------- Performed By card ---------------
+                    // ── 4. Performed By card ──────────────────────────────────────
                     val performedByName = log.performedBy
                     val performedByUserId = log.performedByUserId
                     if (!performedByName.isNullOrBlank() || performedByUserId != null) {
-                        SectionDivider()
-                        DetailSection(title = "Performed By") {
+                        Spacer(Modifier.height(16.dp))
+                        DetailCard(modifier = Modifier.padding(horizontal = 16.dp)) {
                             Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(44.dp)
+                                    .padding(horizontal = 16.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Person,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp),
+                                Text(
+                                    text = "Performed By",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.width(120.dp),
                                 )
-                                Spacer(Modifier.width(8.dp))
+                                Spacer(Modifier.weight(1f))
                                 Text(
                                     text = when {
                                         !performedByName.isNullOrBlank() -> performedByName
@@ -297,173 +361,268 @@ fun LogDetailScreen(
                                         else -> ""
                                     },
                                     style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.Medium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    textAlign = TextAlign.End,
                                 )
                             }
                         }
                     }
 
-                    // --------------- Photos section ---------------
+                    // ── 5. Photos card (horizontal thumbnail strip) ───────────────
                     if (state.photos.isNotEmpty()) {
-                        SectionDivider()
-                        DetailSection(title = "Photos") {
-                            val pagerState = rememberPagerState { state.photos.size }
-                            HorizontalPager(
-                                state = pagerState,
+                        Spacer(Modifier.height(16.dp))
+                        DetailCard(modifier = Modifier.padding(horizontal = 16.dp)) {
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(220.dp),
-                            ) { page ->
-                                val photo = state.photos[page]
-                                Box(modifier = Modifier.fillMaxSize()) {
-                                    AsyncImage(
-                                        model = photo.downloadUrl ?: photo.storageKey,
-                                        contentDescription = "Log photo ${page + 1}",
-                                        contentScale = ContentScale.Crop,
+                                    .height(44.dp)
+                                    .padding(horizontal = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = "PHOTOS",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    letterSpacing = androidx.compose.ui.unit.TextUnit(
+                                        1.5f,
+                                        androidx.compose.ui.unit.TextUnitType.Sp,
+                                    ),
+                                )
+                            }
+                            HorizontalDivider(
+                                thickness = 0.5.dp,
+                                color = MaterialTheme.colorScheme.outline,
+                            )
+                            LazyRow(
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                items(state.photos) { photo ->
+                                    Box(
                                         modifier = Modifier
-                                            .fillMaxSize()
+                                            .size(width = 140.dp, height = 105.dp)
+                                            .clip(RoundedCornerShape(8.dp))
                                             .combinedClickable(
                                                 onClick = {},
                                                 onLongClick = { viewModel.setPrimaryPhoto(photo.photoId) },
                                             ),
-                                    )
-                                    if (photo.isPrimary) {
-                                        Badge(
-                                            modifier = Modifier
-                                                .align(Alignment.TopEnd)
-                                                .padding(8.dp),
-                                        ) { Text("Primary") }
-                                    }
-                                }
-                            }
-                            // Page indicator dots
-                            if (state.photos.size > 1) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 8.dp),
-                                    horizontalArrangement = Arrangement.Center,
-                                ) {
-                                    state.photos.indices.forEach { idx ->
-                                        Box(
-                                            modifier = Modifier
-                                                .padding(horizontal = 3.dp)
-                                                .size(if (idx == pagerState.currentPage) 8.dp else 6.dp)
-                                                .clip(CircleShape)
-                                                .background(
-                                                    if (idx == pagerState.currentPage)
-                                                        MaterialTheme.colorScheme.primary
-                                                    else
-                                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                                                )
+                                    ) {
+                                        AsyncImage(
+                                            model = photo.downloadUrl ?: photo.storageKey,
+                                            contentDescription = "Log photo",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize(),
                                         )
+                                        if (photo.isPrimary) {
+                                            Badge(
+                                                modifier = Modifier
+                                                    .align(Alignment.TopEnd)
+                                                    .padding(6.dp),
+                                            ) { Text("★") }
+                                        }
                                     }
                                 }
                             }
                         }
                     }
 
-                    // --------------- Cost Breakdown card (itemized mode) ---------------
+                    // ── 6. Cost breakdown (itemized) ──────────────────────────────
                     if (log.costMode == "itemized" && state.costLines.isNotEmpty()) {
-                        SectionDivider()
-                        DetailSection(title = "Cost Breakdown") {
-                            state.costLines.forEach { line ->
-                                CostLineDetailRow(line = line, currencyFormat = currencyFormat)
-                                if (line != state.costLines.last()) {
-                                    HorizontalDivider(
-                                        modifier = Modifier.padding(vertical = 4.dp),
-                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                                    )
-                                }
-                            }
-                            if (state.totalCost > 0) {
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(vertical = 6.dp),
-                                    color = MaterialTheme.colorScheme.outlineVariant,
+                        Spacer(Modifier.height(16.dp))
+                        DetailCard(modifier = Modifier.padding(horizontal = 16.dp)) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(36.dp)
+                                    .padding(horizontal = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = "COST BREAKDOWN",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    letterSpacing = androidx.compose.ui.unit.TextUnit(
+                                        1.5f,
+                                        androidx.compose.ui.unit.TextUnitType.Sp,
+                                    ),
                                 )
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                ) {
-                                    Text("Total", fontWeight = FontWeight.SemiBold)
-                                    Text(
-                                        text = currencyFormat.format(state.totalCost),
-                                        fontWeight = FontWeight.Bold,
-                                    )
-                                }
                             }
-                        }
-                    }
-
-                    // --------------- Parts Used card ---------------
-                    if (state.partLines.isNotEmpty()) {
-                        SectionDivider()
-                        DetailSection(title = "Parts Used") {
-                            state.partLines.forEach { line ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Text(text = "🔩", style = MaterialTheme.typography.bodyMedium)
-                                    Spacer(Modifier.width(8.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = line.description ?: "Part",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                        )
-                                        Text(
-                                            text = "${line.quantity} × ${currencyFormat.format(line.unitCost)}",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            HorizontalDivider(
+                                thickness = 0.5.dp,
+                                color = MaterialTheme.colorScheme.outline,
+                            )
+                            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                                state.costLines.forEach { line ->
+                                    CostLineDetailRow(line = line, currencyFormat = currencyFormat)
+                                    if (line != state.costLines.last()) {
+                                        HorizontalDivider(
+                                            modifier = Modifier.padding(vertical = 4.dp),
+                                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
                                         )
                                     }
-                                    Text(
-                                        text = currencyFormat.format(line.quantity * line.unitCost),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Medium,
+                                }
+                                if (state.totalCost > 0) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(vertical = 6.dp),
+                                        color = MaterialTheme.colorScheme.outlineVariant,
                                     )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                    ) {
+                                        Text("Total", fontWeight = FontWeight.SemiBold)
+                                        Text(
+                                            text = currencyFormat.format(state.totalCost),
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
 
-                    // --------------- Labor section ---------------
-                    if (state.laborLines.isNotEmpty()) {
-                        SectionDivider()
-                        DetailSection(title = "Labor") {
-                            state.laborLines.forEach { line ->
-                                CostLineRow(line = line, currencyFormat = currencyFormat)
+                    // ── 7. Parts Used card ────────────────────────────────────────
+                    if (state.partLines.isNotEmpty()) {
+                        Spacer(Modifier.height(16.dp))
+                        DetailCard(modifier = Modifier.padding(horizontal = 16.dp)) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(36.dp)
+                                    .padding(horizontal = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = "PARTS",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    letterSpacing = androidx.compose.ui.unit.TextUnit(
+                                        1.5f,
+                                        androidx.compose.ui.unit.TextUnitType.Sp,
+                                    ),
+                                )
                             }
-                        }
-                    }
-
-                    // --------------- Inspection section ---------------
-                    if (logType == "inspection" && inspectionAnswers.isNotEmpty()) {
-                        SectionDivider()
-                        DetailSection(title = "Inspection Results") {
-                            inspectionAnswers.entries
-                                .filter { (k, _) -> k != "log_type" }
-                                .forEach { (key, value) ->
+                            HorizontalDivider(
+                                thickness = 0.5.dp,
+                                color = MaterialTheme.colorScheme.outline,
+                            )
+                            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                                state.partLines.forEach { line ->
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .padding(vertical = 4.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
                                     ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = line.description ?: "Part",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                            )
+                                            Text(
+                                                text = "${line.quantity} × ${currencyFormat.format(line.unitCost)}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
                                         Text(
-                                            text = key.replace('_', ' ').replaceFirstChar { it.uppercase() },
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                        Text(
-                                            text = value,
+                                            text = currencyFormat.format(line.quantity * line.unitCost),
                                             style = MaterialTheme.typography.bodyMedium,
                                             fontWeight = FontWeight.Medium,
                                         )
                                     }
                                 }
+                            }
+                        }
+                    }
+
+                    // ── 8. Labor card ─────────────────────────────────────────────
+                    if (state.laborLines.isNotEmpty()) {
+                        Spacer(Modifier.height(16.dp))
+                        DetailCard(modifier = Modifier.padding(horizontal = 16.dp)) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(36.dp)
+                                    .padding(horizontal = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = "LABOR",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    letterSpacing = androidx.compose.ui.unit.TextUnit(
+                                        1.5f,
+                                        androidx.compose.ui.unit.TextUnitType.Sp,
+                                    ),
+                                )
+                            }
+                            HorizontalDivider(
+                                thickness = 0.5.dp,
+                                color = MaterialTheme.colorScheme.outline,
+                            )
+                            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                                state.laborLines.forEach { line ->
+                                    CostLineRow(line = line, currencyFormat = currencyFormat)
+                                }
+                            }
+                        }
+                    }
+
+                    // ── 9. Inspection card ────────────────────────────────────────
+                    if (logType == "inspection" && inspectionAnswers.isNotEmpty()) {
+                        Spacer(Modifier.height(16.dp))
+                        DetailCard(modifier = Modifier.padding(horizontal = 16.dp)) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(36.dp)
+                                    .padding(horizontal = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = "INSPECTION",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    letterSpacing = androidx.compose.ui.unit.TextUnit(
+                                        1.5f,
+                                        androidx.compose.ui.unit.TextUnitType.Sp,
+                                    ),
+                                )
+                            }
+                            HorizontalDivider(
+                                thickness = 0.5.dp,
+                                color = MaterialTheme.colorScheme.outline,
+                            )
+                            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                                inspectionAnswers.entries
+                                    .filter { (k, _) -> k != "log_type" }
+                                    .forEach { (key, value) ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 4.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                        ) {
+                                            Text(
+                                                text = key.replace('_', ' ')
+                                                    .replaceFirstChar { it.uppercase() },
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                            Text(
+                                                text = value,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Medium,
+                                            )
+                                        }
+                                    }
+                            }
                         }
                     }
 
@@ -478,30 +637,19 @@ fun LogDetailScreen(
 // Sub-composables
 // ---------------------------------------------------------------------------
 
+/** White surface card with hairline border and 10dp corners — mirrors iOS makeCard(). */
 @Composable
-private fun SectionDivider() {
-    HorizontalDivider(
-        modifier = Modifier.padding(vertical = 4.dp),
-        color = MaterialTheme.colorScheme.outlineVariant,
-    )
-}
-
-@Composable
-private fun DetailSection(
-    title: String,
+private fun DetailCard(
     modifier: Modifier = Modifier,
-    content: @Composable () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(modifier = modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-        Text(
-            text = title.uppercase(),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            letterSpacing = androidx.compose.ui.unit.TextUnit(1.5f, androidx.compose.ui.unit.TextUnitType.Sp),
-        )
-        Spacer(Modifier.height(8.dp))
-        content()
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline),
+    ) {
+        Column(content = content)
     }
 }
 
@@ -548,7 +696,6 @@ private fun CostLineDetailRow(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Kind badge
             val kindLabel = if (line.kind == "part") "PART" else "LABOR"
             val badgeColor = if (line.kind == "part")
                 MaterialTheme.colorScheme.secondaryContainer
@@ -560,7 +707,7 @@ private fun CostLineDetailRow(
                 MaterialTheme.colorScheme.onTertiaryContainer
             Box(
                 modifier = Modifier
-                    .background(badgeColor, shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
+                    .background(badgeColor, shape = RoundedCornerShape(4.dp))
                     .padding(horizontal = 6.dp, vertical = 2.dp),
             ) {
                 Text(
@@ -584,7 +731,6 @@ private fun CostLineDetailRow(
         }
         Spacer(Modifier.height(2.dp))
         Row(modifier = Modifier.fillMaxWidth()) {
-            Spacer(Modifier.width(0.dp)) // indent align with text
             Text(
                 text = "${line.quantity} × ${currencyFormat.format(line.unitCost)}",
                 style = MaterialTheme.typography.bodySmall,
@@ -612,12 +758,6 @@ private fun parseJsonField(json: String?, key: String): String? {
     val pattern = Regex("\"$key\"\\s*:\\s*\"([^\"]*)\"")
     return pattern.find(json)?.groupValues?.get(1)
 }
-
-private fun parseFuelVolume(attributes: String): Double? =
-    parseJsonField(attributes, "fuel_volume")?.toDoubleOrNull()
-
-private fun parseFuelUnit(attributes: String): String =
-    parseJsonField(attributes, "fuel_volume_unit") ?: "gallon"
 
 private fun parseJsonMap(json: String?): Map<String, String> {
     if (json.isNullOrBlank()) return emptyMap()

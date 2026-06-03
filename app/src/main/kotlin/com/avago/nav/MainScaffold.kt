@@ -199,6 +199,7 @@ fun MainScaffold(
     // header — suppress the outer chrome so it sits flush against the photo.
     val isAssetLogDestination = currentRoute?.startsWith("log/list") == true
     val isLogAddEditDestination = currentRoute?.startsWith("log/add_edit") == true
+    val isLogDetailDestination = currentRoute?.startsWith("log/detail") == true
 
     AvagoToastHost(toastManager = toast) {
     ModalNavigationDrawer(
@@ -231,7 +232,7 @@ fun MainScaffold(
         Scaffold(
             floatingActionButtonPosition = FabPosition.Start,
             topBar = {
-                if (!isAuthDestination && !isAssetLogDestination && !isChatDetailDestination && !isLogAddEditDestination) {
+                if (!isAuthDestination && !isAssetLogDestination && !isChatDetailDestination && !isLogAddEditDestination && !isLogDetailDestination) {
                     CenterAlignedTopAppBar(
                         title = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -277,7 +278,7 @@ fun MainScaffold(
                 }
             },
             floatingActionButton = {
-                if (!isAuthDestination && !isChatThreadDestination && can("scout.view")) {
+                if (!isAuthDestination && !isChatThreadDestination && !isLogDetailDestination && !isLogAddEditDestination && can("scout.view")) {
                     FloatingActionButton(
                         onClick = {},
                         modifier = Modifier.pointerInput(Unit) {

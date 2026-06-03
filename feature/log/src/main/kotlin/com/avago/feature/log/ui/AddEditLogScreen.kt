@@ -175,16 +175,20 @@ fun AddEditLogScreen(
         contract = ActivityResultContracts.GetMultipleContents()
     ) { uris: List<Uri> -> uris.forEach { viewModel.addPhotoUri(it) } }
 
-    var captureUri by remember { mutableStateOf<Uri?>(null) }
+    var captureUri by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<Uri?>(null) }
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success -> if (success) captureUri?.let { viewModel.addPhotoUri(it) } }
 
     fun launchCamera() {
-        val tmpFile = File.createTempFile("photo_", ".jpg", context.cacheDir)
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", tmpFile)
-        captureUri = uri
-        cameraLauncher.launch(uri)
+        try {
+            val tmpFile = File.createTempFile("photo_", ".jpg", context.cacheDir)
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", tmpFile)
+            captureUri = uri
+            cameraLauncher.launch(uri)
+        } catch (e: Exception) {
+            scope.launch { snackbarHostState.showSnackbar("Unable to launch camera") }
+        }
     }
 
     val costSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -322,43 +326,47 @@ fun AddEditLogScreen(
         )
     }
 
-    // ---- Attachment action sheet ----
+    // ---- Attachment action sheet (iOS-style bottom sheet) ----
     if (showAttachmentMenu) {
-        AlertDialog(
+        androidx.compose.material3.ModalBottomSheet(
             onDismissRequest = { showAttachmentMenu = false },
-            title = null,
-            text = {
-                Column {
-                    TextButton(
-                        onClick = { launchCamera(); showAttachmentMenu = false },
+            sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 24.dp),
+            ) {
+                TextButton(
+                    onClick = { launchCamera(); showAttachmentMenu = false },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.log_entry_attachment_take_photo),
+                        style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(
-                            stringResource(R.string.log_entry_attachment_take_photo),
-                            modifier = Modifier.fillMaxWidth(),
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                    }
-                    HorizontalDivider()
-                    TextButton(
-                        onClick = { galleryLauncher.launch("image/*"); showAttachmentMenu = false },
+                        textAlign = TextAlign.Center,
+                    )
+                }
+                HorizontalDivider()
+                TextButton(
+                    onClick = { galleryLauncher.launch("image/*"); showAttachmentMenu = false },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.log_entry_attachment_photo_library),
+                        style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(
-                            stringResource(R.string.log_entry_attachment_photo_library),
-                            modifier = Modifier.fillMaxWidth(),
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                    }
+                        textAlign = TextAlign.Center,
+                    )
                 }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showAttachmentMenu = false }) {
-                    Text(stringResource(com.avago.core.ui.R.string.common_cancel))
-                }
-            },
-        )
+            }
+        }
     }
 
     // ---- Cost lines editor bottom sheet ----
@@ -666,7 +674,7 @@ fun AddEditLogScreen(
                             thickness = 0.5.dp,
                             color = MaterialTheme.colorScheme.outline,
                         )
-                        // Right column: ODOMETER or HOURS
+                        // Right column: ODOMETER or HOURS — unit suffix appears after the value
                         Row(
                             modifier = Modifier
                                 .weight(1f)
@@ -678,11 +686,6 @@ fun AddEditLogScreen(
                             Text(
                                 text = meterSectionHeader,
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Text(
-                                text = meterUnitLabel,
-                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             BasicTextField(
@@ -711,6 +714,11 @@ fun AddEditLogScreen(
                                         inner()
                                     }
                                 },
+                            )
+                            Text(
+                                text = meterUnitLabel,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }

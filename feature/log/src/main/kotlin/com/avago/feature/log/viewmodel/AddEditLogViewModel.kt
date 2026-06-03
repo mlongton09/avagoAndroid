@@ -478,10 +478,10 @@ class AddEditLogViewModel @Inject constructor(
         }
     }
 
-    /** Converts a dot/underscore key like "item_attr.oil_change.oil_brand" to "Oil brand". */
+    /** Converts a dot/underscore key like "item_attr.oil_change.oil_brand" to "Oil Brand". */
     private fun String.toAttrDisplayLabel(): String =
-        substringAfterLast('.').substringAfterLast('_').replace('_', ' ')
-            .replaceFirstChar { it.uppercaseChar() }
+        substringAfterLast('.').replace('_', ' ')
+            .split(' ').joinToString(" ") { w -> w.replaceFirstChar { it.uppercaseChar() } }
 
     /**
      * Pre-fills the meter reading from the most recent log entry for this asset,
