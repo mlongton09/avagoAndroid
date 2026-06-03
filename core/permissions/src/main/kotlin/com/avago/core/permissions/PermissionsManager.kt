@@ -11,6 +11,7 @@ class PermissionsManager @Inject constructor(
     private val permissionStore: PermissionStore,
 ) {
     val permissions: StateFlow<Set<String>> = permissionStore.permissions
+    val isRoot: StateFlow<Boolean> = permissionStore.isRoot
 
     fun can(permission: String): Boolean = permissionStore.hasPermission(permission)
 

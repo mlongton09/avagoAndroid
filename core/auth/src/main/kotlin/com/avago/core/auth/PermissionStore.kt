@@ -43,6 +43,7 @@ class PermissionStore @Inject constructor(
         combine(_isRoot, _permissions) { isRoot, permissions -> isRoot || permissions.contains(key) }
 
     suspend fun activate(accountId: String?, role: String?, isRoot: Boolean = role == "root") = withContext(Dispatchers.IO) {
+        Timber.d("[PermissionStore] activate: accountId=$accountId role=$role isRoot=$isRoot")
         activeAccountId = accountId
         activeRole = role
         _isRoot.value = isRoot

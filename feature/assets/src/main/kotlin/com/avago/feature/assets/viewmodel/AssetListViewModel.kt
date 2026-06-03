@@ -44,8 +44,21 @@ class AssetListViewModel @Inject constructor(
     private val _syncError = MutableStateFlow<String?>(null)
     val syncError: StateFlow<String?> = _syncError.asStateFlow()
 
-    val canCreateAsset: StateFlow<Boolean> = permissionsManager.observeCan(Permissions.ASSETS_CREATE)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), permissionsManager.can(Permissions.ASSETS_CREATE))
+    // Use Eagerly so the flow starts immediately on ViewModel creation (not when the
+    // first subscriber appears). Combine isRoot directly so any change to _isRoot after
+    // launch (e.g. initOnLaunch completing) is reflected without relying on the initial
+    // value snapshot. Mirrors iOS: AppPermissions.shared.can("assets.create").
+    val canCreateAsset: StateFlow<Boolean> = combine(
+        permissionsManager.isRoot,
+        permissionsManager.permissions,
+    ) { isRoot, perms ->
+        Timber.d("[AssetListVM] canCreateAsset: isRoot=$isRoot perms=${perms.contains(Permissions.ASSETS_CREATE)}")
+        isRoot || perms.contains(Permissions.ASSETS_CREATE)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = permissionsManager.isRoot.value || permissionsManager.permissions.value.contains(Permissions.ASSETS_CREATE),
+    )
 
     private val _filterType = MutableStateFlow<String?>(null)
     val filterType: StateFlow<String?> = _filterType.asStateFlow()
