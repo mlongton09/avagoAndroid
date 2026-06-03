@@ -89,5 +89,17 @@
     <string name="log_entry_save_button">Save Log Entry</string>
     <string name="log_entry_save_changes_button">Save Changes</string>
     <string name="log_entry_saving">Saving\u2026</string>
+
+    <!-- Details card column headers (mirrors iOS COST / ODOMETER / HOURS section labels) -->
+    <string name="log_entry_section_odometer">ODOMETER</string>
+    <string name="log_entry_section_hours">HOURS</string>
+    <string name="log_cost_mode_label">Cost</string>
+
+    <!-- Attachment action sheet options (mirrors iOS log_entry.attachment_*) -->
+    <string name="log_entry_attachment_take_photo">Take Photo</string>
+    <string name="log_entry_attachment_photo_library">Photo Library</string>
+
+    <!-- Itemize CTA with count (mirrors iOS log_cost.itemize_cta_count) -->
+    <string name="log_cost_itemize_cta_count">Itemize parts &amp; labor (%1$d)</string>
 </resources>
 

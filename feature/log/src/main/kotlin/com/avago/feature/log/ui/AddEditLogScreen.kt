@@ -1,56 +1,59 @@
 package com.avago.feature.log.ui
 
-import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AddAPhoto
-import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.QrCodeScanner
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.MenuAnchorType
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
@@ -58,9 +61,11 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -75,18 +80,25 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import com.avago.core.ui.CategoryItem
 import com.avago.core.ui.GlobalCategoryPickerScreen
-import com.avago.core.ui.MarkdownText
+import com.avago.core.ui.categoryBadgeColor
+import com.avago.core.ui.categoryGroup
+import com.avago.core.ui.categoryIconName
 import com.avago.feature.log.R
 import com.avago.feature.log.viewmodel.AddEditLogViewModel
 import com.avago.feature.log.viewmodel.CostMode
@@ -124,41 +136,34 @@ fun AddEditLogScreen(
         viewModel.loadInspectionFields()
     }
 
-    // Pre-fill asset if navigated from asset screen
     LaunchedEffect(preselectedAssetId) {
         if (preselectedAssetId != null && entryId == null) {
             viewModel.onAssetSelected(preselectedAssetId, null)
         }
     }
 
-    // iOS parity: when the user picks a category before opening the form,
-    // pre-fill it once so they don't have to pick it again inside the form.
     LaunchedEffect(initialCategory) {
         if (initialCategory != null && entryId == null) {
             viewModel.onCategoryChanged(initialCategory)
         }
     }
 
-    // Apply performer result from picker (delivered via nav SavedStateHandle)
     LaunchedEffect(performedByUserId, performedByName) {
         if (performedByUserId != null || performedByName != null) {
             viewModel.onPerformedBySelected(performedByUserId, performedByName)
         }
     }
 
-    // Apply scanned part from MaintenanceScannerScreen (pre-fills itemized cost line)
     LaunchedEffect(scannedPartId) {
-        if (scannedPartId != null) {
-            viewModel.onScannedPartSelected(scannedPartId)
-        }
+        if (scannedPartId != null) viewModel.onScannedPartSelected(scannedPartId)
     }
 
     val form by viewModel.form.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
 
-    // Map the generic "save_failed" error code to a localised string for the snackbar.
     val saveFailedMessage = stringResource(R.string.log_entry_alert_save_failed_message)
     LaunchedEffect(form.saveError) {
         form.saveError?.let { code ->
@@ -167,20 +172,14 @@ fun AddEditLogScreen(
         }
     }
 
-    // Launchers
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
-    ) { uris: List<Uri> ->
-        uris.forEach { viewModel.addPhotoUri(it) }
-    }
+    ) { uris: List<Uri> -> uris.forEach { viewModel.addPhotoUri(it) } }
 
-    // Camera capture: create a temp file URI via FileProvider so the camera can write to it.
     var captureUri by remember { mutableStateOf<Uri?>(null) }
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
-    ) { success ->
-        if (success) captureUri?.let { viewModel.addPhotoUri(it) }
-    }
+    ) { success -> if (success) captureUri?.let { viewModel.addPhotoUri(it) } }
 
     fun launchCamera() {
         val tmpFile = File.createTempFile("photo_", ".jpg", context.cacheDir)
@@ -189,41 +188,38 @@ fun AddEditLogScreen(
         cameraLauncher.launch(uri)
     }
 
-    // Sheet state for cost lines editor
     val costSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showCostSheet by remember { mutableStateOf(false) }
-
-    // Category picker state
     var showCategoryPicker by remember { mutableStateOf(false) }
-
-    // Inspection subtype picker
     var showInspectionSubtypePicker by remember { mutableStateOf(false) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    var showAttachmentMenu by remember { mutableStateOf(false) }
 
-    // When log type switches to inspection, load subtypes and show picker if none selected
     LaunchedEffect(form.logType) {
         if (form.logType == "inspection") {
             viewModel.loadInspectionSubtypes()
-            if (form.inspectionSubtype == null) {
-                showInspectionSubtypePicker = true
-            }
+            if (form.inspectionSubtype == null) showInspectionSubtypePicker = true
         }
     }
 
-    // Date picker state
-    var showDatePicker by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = form.entryDate)
-
     val dateFormatter = remember { SimpleDateFormat("MMMM d, yyyy", Locale.getDefault()) }
 
-    // Notes preview toggle
-    var notesPreviewMode by remember { mutableStateOf(false) }
+    // ---- Meter section labels derived from asset meterType ----
+    val meterSectionHeader = when (form.meterType?.lowercase()) {
+        "hours", "hour", "hr" -> stringResource(R.string.log_entry_section_hours)
+        else -> stringResource(R.string.log_entry_section_odometer)
+    }
+    val meterUnitLabel = when (form.meterType?.lowercase()) {
+        "hours", "hour", "hr" -> "hrs"
+        else -> if (form.distanceUnit == "km") "km" else "mi"
+    }
+    val isDateMeter = form.meterType?.lowercase() == "date"
 
-    // ---------------------------------------------------------------------------
-    // Validation error alert dialog — mirrors iOS UIAlertController behaviour
-    // ---------------------------------------------------------------------------
+    // ---- Validation alert ----
     val validationError = form.validationError
     if (validationError != null) {
-        val (title, message) = when (validationError) {
+        val (dlgTitle, dlgMsg) = when (validationError) {
             LogValidationError.TITLE_REQUIRED -> Pair(
                 stringResource(R.string.log_entry_alert_title_required_title),
                 stringResource(R.string.log_entry_alert_title_required_message),
@@ -239,8 +235,8 @@ fun AddEditLogScreen(
         }
         AlertDialog(
             onDismissRequest = { viewModel.clearValidationError() },
-            title = { Text(title) },
-            text = { Text(message) },
+            title = { Text(dlgTitle) },
+            text = { Text(dlgMsg) },
             confirmButton = {
                 TextButton(onClick = { viewModel.clearValidationError() }) {
                     Text(stringResource(com.avago.core.ui.R.string.common_done))
@@ -249,9 +245,7 @@ fun AddEditLogScreen(
         )
     }
 
-    // ---------------------------------------------------------------------------
-    // Date picker dialog
-    // ---------------------------------------------------------------------------
+    // ---- Date picker dialog ----
     if (showDatePicker) {
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
@@ -266,14 +260,10 @@ fun AddEditLogScreen(
                     Text(stringResource(com.avago.core.ui.R.string.common_cancel))
                 }
             },
-        ) {
-            DatePicker(state = datePickerState)
-        }
+        ) { DatePicker(state = datePickerState) }
     }
 
-    // ---------------------------------------------------------------------------
-    // Global category picker bottom sheet
-    // ---------------------------------------------------------------------------
+    // ---- Category picker ----
     if (showCategoryPicker) {
         GlobalCategoryPickerScreen(
             categories = buildLogCategoryItems(form.availableCategories),
@@ -284,9 +274,7 @@ fun AddEditLogScreen(
         )
     }
 
-    // ---------------------------------------------------------------------------
-    // Inspection subtype picker dialog — mirrors iOS action sheet (Basic / Full / custom)
-    // ---------------------------------------------------------------------------
+    // ---- Inspection subtype picker ----
     if (showInspectionSubtypePicker) {
         val subtypes = form.availableInspectionSubtypes
         val options: List<Pair<String, String?>> = if (subtypes.isEmpty()) {
@@ -318,11 +306,7 @@ fun AddEditLogScreen(
                             },
                             modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Text(
-                                label,
-                                modifier = Modifier.fillMaxWidth(),
-                                style = MaterialTheme.typography.bodyLarge,
-                            )
+                            Text(label, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodyLarge)
                         }
                         if (idx < options.lastIndex) HorizontalDivider()
                     }
@@ -337,9 +321,46 @@ fun AddEditLogScreen(
         )
     }
 
-    // ---------------------------------------------------------------------------
-    // Cost lines editor bottom sheet
-    // ---------------------------------------------------------------------------
+    // ---- Attachment action sheet ----
+    if (showAttachmentMenu) {
+        AlertDialog(
+            onDismissRequest = { showAttachmentMenu = false },
+            title = null,
+            text = {
+                Column {
+                    TextButton(
+                        onClick = { launchCamera(); showAttachmentMenu = false },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            stringResource(R.string.log_entry_attachment_take_photo),
+                            modifier = Modifier.fillMaxWidth(),
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                    }
+                    HorizontalDivider()
+                    TextButton(
+                        onClick = { galleryLauncher.launch("image/*"); showAttachmentMenu = false },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            stringResource(R.string.log_entry_attachment_photo_library),
+                            modifier = Modifier.fillMaxWidth(),
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showAttachmentMenu = false }) {
+                    Text(stringResource(com.avago.core.ui.R.string.common_cancel))
+                }
+            },
+        )
+    }
+
+    // ---- Cost lines editor bottom sheet ----
     if (showCostSheet) {
         CostLinesEditorSheet(
             costLines = form.pendingCostLines,
@@ -353,12 +374,25 @@ fun AddEditLogScreen(
 
     Scaffold(
         topBar = {
+            // iOS: nav bar with stacked title + asset name subtitle, green Save button on right
             CenterAlignedTopAppBar(
                 title = {
-                    Text(
-                        if (entryId != null) stringResource(com.avago.core.ui.R.string.nav_edit_entry)
-                        else stringResource(com.avago.core.ui.R.string.nav_new_entry)
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = if (entryId != null)
+                                stringResource(com.avago.core.ui.R.string.nav_edit_entry)
+                            else
+                                stringResource(com.avago.core.ui.R.string.nav_new_entry),
+                            style = MaterialTheme.typography.titleLarge,
+                        )
+                        if (form.assetName != null) {
+                            Text(
+                                text = form.assetName!!,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -368,16 +402,39 @@ fun AddEditLogScreen(
                         )
                     }
                 },
+                actions = {
+                    // iOS: "Save" in green (accentGreen = secondary token) on nav bar right
+                    TextButton(
+                        onClick = { focusManager.clearFocus(); viewModel.save(onSuccess = onSaved) },
+                        enabled = !form.isSaving,
+                    ) {
+                        if (form.isSaving) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.secondary,
+                            )
+                        } else {
+                            Text(
+                                stringResource(com.avago.core.ui.R.string.common_save),
+                                color = MaterialTheme.colorScheme.secondary,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                ),
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier,
     ) { innerPadding ->
         if (form.isLoadingExisting) {
             Box(
-                Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
+                Modifier.fillMaxSize().padding(innerPadding),
                 contentAlignment = Alignment.Center,
             ) { CircularProgressIndicator() }
             return@Scaffold
@@ -387,10 +444,16 @@ fun AddEditLogScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                // iOS: contentStack leading/trailing inset = 16, spacing = 16
+                .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState()),
         ) {
-            // --------------- Asset row ---------------
-            FormSection {
+            Spacer(Modifier.height(16.dp))
+
+            // ==================================================================
+            // ASSET CARD — Android-only: lets users select an asset + scan
+            // ==================================================================
+            FormCard {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -414,431 +477,549 @@ fun AddEditLogScreen(
                 }
             }
 
-            HorizontalDivider()
+            Spacer(Modifier.height(16.dp))
 
-            // --------------- Title ---------------
-            // Matches iOS position: large title field at top of content area.
-            FormSection {
-                OutlinedTextField(
+            // ==================================================================
+            // HEADER CARD — Title (22sp) + Category badge + Date button
+            // iOS: buildHeaderCard() in AddLogItemViewController
+            // ==================================================================
+            FormCard {
+                // Title: largeTitleFont (22sp Bold), no border, top=14/left=16/right=16/bottom=6
+                BasicTextField(
                     value = form.title,
                     onValueChange = { viewModel.onTitleChanged(it) },
-                    label = { Text(stringResource(R.string.log_entry_placeholder_title)) },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, top = 14.dp, end = 16.dp, bottom = 6.dp),
+                    textStyle = MaterialTheme.typography.headlineMedium.copy(
+                        color = MaterialTheme.colorScheme.onSurface,
+                    ),
                     singleLine = true,
-                )
-            }
-
-            HorizontalDivider()
-
-            // --------------- Category picker ---------------
-            FormSection {
-                FormRow(
-                    label = stringResource(R.string.log_entry_label_category),
-                    value = form.category?.replace("_", " ")
-                        ?.split(" ")
-                        ?.joinToString(" ") { it.replaceFirstChar { c -> c.uppercaseChar() } }
-                        ?: stringResource(R.string.log_entry_placeholder_select_category),
-                    onClick = { showCategoryPicker = true },
-                    isPlaceholder = form.category == null,
-                )
-            }
-
-            HorizontalDivider()
-
-            // --------------- Date row ---------------
-            FormSection {
-                FormRow(
-                    label = stringResource(R.string.log_entry_label_date),
-                    value = dateFormatter.format(Date(form.entryDate)),
-                    onClick = { showDatePicker = true },
-                    leadingIcon = {
-                        Icon(
-                            Icons.Default.CalendarToday,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Sentences,
+                        imeAction = ImeAction.Done,
+                    ),
+                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    decorationBox = { innerTextField ->
+                        Box(Modifier.fillMaxWidth()) {
+                            if (form.title.isEmpty()) {
+                                Text(
+                                    text = stringResource(R.string.log_entry_placeholder_title),
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+                                )
+                            }
+                            innerTextField()
+                        }
                     },
                 )
-            }
 
-            HorizontalDivider()
+                CardSeparator()
 
-            // --------------- Cost ---------------
-            // Matches iOS section order: cost before odometer, before Performed By.
-            FormSection {
-                Text(
-                    text = stringResource(R.string.log_entry_section_cost),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(8.dp))
-
-                // Segmented control: Total / Itemized
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    SegmentedButton(
-                        selected = form.costMode == CostMode.TOTAL,
-                        onClick = { viewModel.onCostModeChanged(CostMode.TOTAL) },
-                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
-                    ) { Text(stringResource(R.string.log_entry_cost_mode_total)) }
-                    SegmentedButton(
-                        selected = form.costMode == CostMode.ITEMIZED,
-                        onClick = { viewModel.onCostModeChanged(CostMode.ITEMIZED) },
-                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-                    ) { Text(stringResource(R.string.log_entry_cost_mode_itemized)) }
-                }
-
-                Spacer(Modifier.height(10.dp))
-
-                when (form.costMode) {
-                    CostMode.TOTAL -> {
-                        OutlinedTextField(
-                            value = form.totalCost,
-                            onValueChange = { viewModel.onTotalCostChanged(it) },
-                            label = { Text(stringResource(R.string.log_entry_label_total_cost)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            prefix = { Text("$") },
+                // Category badge (LEFT) + Date button (RIGHT) — 44dp row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CategoryBadgePill(
+                        categoryId = form.category,
+                        onClick = { showCategoryPicker = true },
+                    )
+                    Spacer(Modifier.weight(1f))
+                    // iOS: date shown as tappable label, opens inline picker
+                    TextButton(
+                        onClick = { showDatePicker = true },
+                        contentPadding = PaddingValues(0.dp),
+                    ) {
+                        Text(
+                            text = dateFormatter.format(Date(form.entryDate)),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
                         )
                     }
-                    CostMode.ITEMIZED -> {
-                        // Disclosure button — mirrors iOS "Itemize parts & labor" card
-                        Card(
-                            onClick = { showCostSheet = true },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            ),
+                }
+            }
+
+            // ==================================================================
+            // FUEL CARD — only shown for fuel_log category
+            // ==================================================================
+            if (form.category?.lowercase()?.contains("fuel") == true) {
+                Spacer(Modifier.height(16.dp))
+                FormCard {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                        Text(
+                            text = stringResource(R.string.log_entry_fuel_volume_label),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        text = stringResource(R.string.log_entry_itemize_label),
-                                        fontWeight = FontWeight.Medium,
+                            OutlinedTextField(
+                                value = form.fuelVolume,
+                                onValueChange = { viewModel.onFuelVolumeChanged(it) },
+                                label = { Text(stringResource(R.string.log_entry_fuel_volume_optional)) },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            )
+                            SingleChoiceSegmentedButtonRow {
+                                listOf("gallon", "liter").forEachIndexed { idx, unit ->
+                                    SegmentedButton(
+                                        selected = form.fuelVolumeUnit == unit,
+                                        onClick = { viewModel.onFuelVolumeUnitChanged(unit) },
+                                        shape = SegmentedButtonDefaults.itemShape(index = idx, count = 2),
+                                        label = {
+                                            Text(
+                                                if (unit == "gallon")
+                                                    stringResource(R.string.log_entry_fuel_unit_gallon)
+                                                else
+                                                    stringResource(R.string.log_entry_fuel_unit_liter)
+                                            )
+                                        },
                                     )
-                                    if (form.costLineCount > 0) {
-                                        val linesLabel = if (form.costLineCount == 1)
-                                            stringResource(R.string.log_entry_itemize_lines, form.costLineCount, form.itemizedTotal)
-                                        else
-                                            stringResource(R.string.log_entry_itemize_lines_plural, form.costLineCount, form.itemizedTotal)
-                                        Text(
-                                            text = linesLabel,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    } else {
-                                        Text(
-                                            text = stringResource(R.string.log_entry_itemize_tap_hint),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
                                 }
-                                Icon(
-                                    Icons.Default.ChevronRight,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
                             }
                         }
                     }
                 }
             }
 
-            HorizontalDivider()
+            Spacer(Modifier.height(16.dp))
 
-            // --------------- Meter reading ---------------
-            FormSection {
-                OutlinedTextField(
-                    value = form.meterReading,
-                    onValueChange = { viewModel.onMeterReadingChanged(it) },
-                    label = { Text(stringResource(R.string.log_entry_meter_optional, form.meterLabel)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                )
-            }
+            // ==================================================================
+            // DETAILS CARD — Cost mode segmented control + Cost | Odometer row
+            // iOS: buildCostOdoRow() in AddLogItemViewController+Cost.swift
+            // ==================================================================
+            FormCard {
+                // Row 1: "Cost" label LEFT + Total/Itemized segmented control RIGHT (44dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .padding(horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.log_cost_mode_label),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.widthIn(min = 180.dp)) {
+                        SegmentedButton(
+                            selected = form.costMode == CostMode.TOTAL,
+                            onClick = { viewModel.onCostModeChanged(CostMode.TOTAL) },
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                        ) { Text(stringResource(R.string.log_entry_cost_mode_total)) }
+                        SegmentedButton(
+                            selected = form.costMode == CostMode.ITEMIZED,
+                            onClick = { viewModel.onCostModeChanged(CostMode.ITEMIZED) },
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                        ) { Text(stringResource(R.string.log_entry_cost_mode_itemized)) }
+                    }
+                }
 
-            HorizontalDivider()
+                CardSeparator()
 
-            // --------------- Performed By ---------------
-            // Matches iOS position: after odometer, before notes.
-            FormSection {
-                FormRow(
-                    label = stringResource(R.string.log_entry_label_performed_by),
-                    value = form.performedByName
-                        ?: stringResource(R.string.log_entry_placeholder_performed_by),
-                    onClick = onOpenPerformedByPicker,
-                    isPlaceholder = form.performedByName == null,
-                    leadingIcon = {
-                        Icon(
-                            Icons.Default.Person,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                // Row 2: COST field | vertical hairline | ODOMETER/HOURS field (44dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // Left column: COST
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .padding(horizontal = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.log_entry_section_cost),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                    },
-                )
+                        Text(
+                            text = "$",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        val costEnabled = form.costMode != CostMode.ITEMIZED
+                        BasicTextField(
+                            value = form.totalCost,
+                            onValueChange = { if (costEnabled) viewModel.onTotalCostChanged(it) },
+                            modifier = Modifier.weight(1f),
+                            enabled = costEnabled,
+                            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                color = MaterialTheme.colorScheme.onSurface.copy(
+                                    alpha = if (costEnabled) 1f else 0.4f,
+                                ),
+                                textAlign = TextAlign.End,
+                            ),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            singleLine = true,
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            decorationBox = { inner ->
+                                Box(Modifier.fillMaxWidth()) {
+                                    if (form.totalCost.isEmpty()) {
+                                        Text(
+                                            text = stringResource(R.string.log_entry_placeholder_cost),
+                                            style = MaterialTheme.typography.bodyLarge.copy(
+                                                textAlign = TextAlign.End,
+                                            ),
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+                                            modifier = Modifier.fillMaxWidth(),
+                                        )
+                                    }
+                                    inner()
+                                }
+                            },
+                        )
+                    }
+
+                    if (!isDateMeter) {
+                        // Vertical hairline separator
+                        VerticalDivider(
+                            modifier = Modifier.fillMaxHeight(),
+                            thickness = 0.5.dp,
+                            color = MaterialTheme.colorScheme.outline,
+                        )
+                        // Right column: ODOMETER or HOURS
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .padding(horizontal = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text(
+                                text = meterSectionHeader,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                text = meterUnitLabel,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            BasicTextField(
+                                value = form.meterReading,
+                                onValueChange = { viewModel.onMeterReadingChanged(it) },
+                                modifier = Modifier.weight(1f),
+                                textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    textAlign = TextAlign.End,
+                                ),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                singleLine = true,
+                                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                decorationBox = { inner ->
+                                    Box(Modifier.fillMaxWidth()) {
+                                        if (form.meterReading.isEmpty()) {
+                                            Text(
+                                                text = stringResource(R.string.log_entry_placeholder_cost),
+                                                style = MaterialTheme.typography.bodyLarge.copy(
+                                                    textAlign = TextAlign.End,
+                                                ),
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+                                                modifier = Modifier.fillMaxWidth(),
+                                            )
+                                        }
+                                        inner()
+                                    }
+                                },
+                            )
+                        }
+                    }
+                }
             }
 
-            HorizontalDivider()
+            Spacer(Modifier.height(16.dp))
 
-            // --------------- Notes ---------------
-            FormSection {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+            // ==================================================================
+            // NOTES CARD — header row (36dp) + inline BasicTextField (min 80dp)
+            // iOS: buildNotesCard() — UITextView inline, no border
+            // ==================================================================
+            FormCard {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(36.dp)
+                        .padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Text(
                         text = stringResource(R.string.log_entry_section_notes),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f),
                     )
-                    TextButton(onClick = { notesPreviewMode = !notesPreviewMode }) {
+                }
+                CardSeparator()
+                BasicTextField(
+                    value = form.notes,
+                    onValueChange = { viewModel.onNotesChanged(it) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp)
+                        .heightIn(min = 80.dp),
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(
+                        color = MaterialTheme.colorScheme.onSurface,
+                    ),
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Sentences,
+                    ),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    decorationBox = { inner ->
+                        Box(Modifier.fillMaxWidth()) {
+                            if (form.notes.isEmpty()) {
+                                Text(
+                                    text = stringResource(R.string.log_entry_placeholder_notes),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+                                )
+                            }
+                            inner()
+                        }
+                    },
+                )
+            }
+
+            // ==================================================================
+            // ITEMIZE CARD — only shown in ITEMIZED cost mode
+            // iOS: itemize CTA row in buildItemizeCTACard()
+            // ==================================================================
+            if (form.costMode == CostMode.ITEMIZED) {
+                Spacer(Modifier.height(16.dp))
+                FormCard {
+                    val itemizeLabel = if (form.costLineCount == 0) {
+                        stringResource(R.string.log_entry_itemize_label)
+                    } else {
+                        stringResource(R.string.log_cost_itemize_cta_count, form.costLineCount)
+                    }
+                    TextButton(
+                        onClick = { showCostSheet = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(start = 14.dp, top = 10.dp, end = 14.dp, bottom = 10.dp),
+                    ) {
                         Text(
-                            if (notesPreviewMode) stringResource(R.string.log_entry_notes_edit)
-                            else stringResource(R.string.log_entry_notes_preview)
+                            text = itemizeLabel,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Start,
                         )
                     }
                 }
-                Spacer(Modifier.height(4.dp))
-                if (notesPreviewMode) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                    ) {
-                        if (form.notes.isBlank()) {
-                            Text(
-                                text = stringResource(R.string.log_entry_notes_empty),
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        } else {
-                            MarkdownText(
-                                text = form.notes,
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        }
-                    }
-                } else {
-                    OutlinedTextField(
-                        value = form.notes,
-                        onValueChange = { viewModel.onNotesChanged(it) },
-                        label = { Text(stringResource(R.string.log_entry_placeholder_notes)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        minLines = 3,
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // ==================================================================
+            // PERFORMED BY CARD — inline text field + person-add icon
+            // iOS: buildPerformedByRow() — text entry clears linked userId
+            // ==================================================================
+            FormCard {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.log_entry_label_performed_by),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.width(120.dp),
                     )
+                    BasicTextField(
+                        value = form.performedByName ?: "",
+                        onValueChange = { viewModel.onPerformedByTextChanged(it) },
+                        modifier = Modifier.weight(1f),
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(
+                            color = MaterialTheme.colorScheme.onSurface,
+                            textAlign = TextAlign.End,
+                        ),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Words,
+                            imeAction = ImeAction.Done,
+                        ),
+                        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        decorationBox = { inner ->
+                            Box(Modifier.fillMaxWidth()) {
+                                if (form.performedByName.isNullOrEmpty()) {
+                                    Text(
+                                        text = stringResource(R.string.log_entry_placeholder_performed_by),
+                                        style = MaterialTheme.typography.bodyLarge.copy(
+                                            textAlign = TextAlign.End,
+                                        ),
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                }
+                                inner()
+                            }
+                        },
+                    )
+                    IconButton(
+                        onClick = onOpenPerformedByPicker,
+                        modifier = Modifier.size(36.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PersonAdd,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
                 }
             }
 
-            HorizontalDivider()
-
-            // --------------- Photos (Attachments) ---------------
-            // Section mirrors iOS log_entry.section_attachments / log_entry.action_add_attachment.
-            FormSection {
-                Text(
-                    text = stringResource(R.string.log_entry_photos_label),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+            // ==================================================================
+            // ITEM ATTRIBUTES — "add details" contacts row + attrs card
+            // iOS: contacts-style add row + expandable details section
+            // ==================================================================
+            if (form.itemAttributeDefs.isNotEmpty()) {
+                Spacer(Modifier.height(16.dp))
+                ContactsAddRow(
+                    text = stringResource(R.string.log_entry_action_add_details),
+                    onClick = {},
                 )
                 Spacer(Modifier.height(8.dp))
+                FormCard {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        ItemAttributesRenderer(
+                            defs = form.itemAttributeDefs,
+                            values = form.itemAttributes,
+                            onValueChanged = { key, value -> viewModel.onItemAttributeChanged(key, value) },
+                        )
+                    }
+                }
+            }
 
-                if (form.photoUris.isNotEmpty()) {
+            // ==================================================================
+            // ATTACHMENTS — "add attachment" contacts row + photos strip card
+            // iOS: ContactsAddRow("add attachment") + photo strip (140×105dp thumbs)
+            // ==================================================================
+            Spacer(Modifier.height(16.dp))
+            ContactsAddRow(
+                text = stringResource(R.string.log_entry_action_add_attachment),
+                onClick = { showAttachmentMenu = true },
+            )
+            if (form.photoUris.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                FormCard {
+                    // iOS photo strip: 140×105pt, 8pt corner radius, gap=10
                     LazyRow(
-                        contentPadding = PaddingValues(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         items(form.photoUris) { uri ->
-                            Box {
+                            Box(
+                                modifier = Modifier
+                                    .size(width = 140.dp, height = 105.dp)
+                                    .clip(RoundedCornerShape(8.dp)),
+                            ) {
                                 AsyncImage(
                                     model = uri,
-                                    contentDescription = stringResource(R.string.log_entry_photos_label),
+                                    contentDescription = null,
                                     contentScale = ContentScale.Crop,
-                                    modifier = Modifier
-                                        .size(80.dp)
-                                        .clip(MaterialTheme.shapes.small),
+                                    modifier = Modifier.fillMaxSize(),
                                 )
-                                IconButton(
-                                    onClick = { viewModel.removePhotoUri(uri) },
+                                // Delete button: 20×20dp, black@55%, top-end with 6dp offset
+                                Box(
                                     modifier = Modifier
                                         .size(20.dp)
-                                        .align(Alignment.TopEnd),
+                                        .align(Alignment.TopEnd)
+                                        .offset(x = (-6).dp, y = 6.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.Black.copy(alpha = 0.55f))
+                                        .clickable { viewModel.removePhotoUri(uri) },
+                                    contentAlignment = Alignment.Center,
                                 ) {
                                     Icon(
-                                        Icons.Default.Close,
-                                    contentDescription = stringResource(com.avago.core.ui.R.string.common_clear),
-                                        modifier = Modifier.size(16.dp),
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(12.dp),
                                     )
                                 }
                             }
                         }
                     }
-                    Spacer(Modifier.height(8.dp))
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = { galleryLauncher.launch("image/*") },
-                        colors = ButtonDefaults.outlinedButtonColors(),
-                    ) {
-                        Icon(Icons.Default.AddAPhoto, contentDescription = null)
-                        Spacer(Modifier.width(6.dp))
-                        Text(stringResource(R.string.log_entry_photo_gallery))
-                    }
-                    Button(
-                        onClick = { launchCamera() },
-                        colors = ButtonDefaults.outlinedButtonColors(),
-                    ) {
-                        Icon(Icons.Default.AddAPhoto, contentDescription = null)
-                        Spacer(Modifier.width(6.dp))
-                        Text(stringResource(R.string.log_entry_photo_camera))
-                    }
                 }
             }
 
-            // --------------- Item Details (category-specific attributes) ---------------
-            if (form.itemAttributeDefs.isNotEmpty()) {
-                HorizontalDivider()
-                FormSection {
-                    Text(
-                        text = stringResource(R.string.log_entry_section_item_details),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    ItemAttributesRenderer(
-                        defs = form.itemAttributeDefs,
-                        values = form.itemAttributes,
-                        onValueChanged = { key, value -> viewModel.onItemAttributeChanged(key, value) },
-                    )
-                }
-            }
-
-            // --------------- Fuel volume (shown for fuel-category entries) ---------------
-            // Matches iOS: fuel card appears conditionally after item details.
-            if (form.category?.lowercase()?.contains("fuel") == true) {
-                HorizontalDivider()
-                FormSection {
-                    Text(
-                        text = stringResource(R.string.log_entry_fuel_volume_label),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        OutlinedTextField(
-                            value = form.fuelVolume,
-                            onValueChange = { viewModel.onFuelVolumeChanged(it) },
-                            label = { Text(stringResource(R.string.log_entry_fuel_volume_optional)) },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        )
-                        SingleChoiceSegmentedButtonRow {
-                            listOf("gallon", "liter").forEachIndexed { idx, unit ->
-                                SegmentedButton(
-                                    selected = form.fuelVolumeUnit == unit,
-                                    onClick = { viewModel.onFuelVolumeUnitChanged(unit) },
-                                    shape = SegmentedButtonDefaults.itemShape(index = idx, count = 2),
-                                    label = {
-                                        Text(
-                                            if (unit == "gallon")
-                                                stringResource(R.string.log_entry_fuel_unit_gallon)
-                                            else
-                                                stringResource(R.string.log_entry_fuel_unit_liter)
-                                        )
-                                    },
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // --------------- Inspection form (shown only when logType == "inspection") ---------------
+            // ==================================================================
+            // INSPECTION CARD — only shown for inspection logType
+            // ==================================================================
             if (form.logType == "inspection") {
-                HorizontalDivider()
-                FormSection {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = stringResource(R.string.log_entry_inspection_checklist_label),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            if (form.inspectionSubtype != null) {
-                                val subtypeLabel = when {
-                                    form.inspectionMode != null ->
-                                        "${form.inspectionMode} (${form.inspectionSubtype})"
-                                    else -> form.inspectionSubtype.orEmpty()
-                                }
+                Spacer(Modifier.height(16.dp))
+                FormCard {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = subtypeLabel,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary,
+                                    text = stringResource(R.string.log_entry_inspection_checklist_label),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                                if (form.inspectionSubtype != null) {
+                                    val subtypeLabel = when {
+                                        form.inspectionMode != null ->
+                                            "${form.inspectionMode} (${form.inspectionSubtype})"
+                                        else -> form.inspectionSubtype.orEmpty()
+                                    }
+                                    Text(
+                                        text = subtypeLabel,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                            }
+                            TextButton(onClick = { showInspectionSubtypePicker = true }) {
+                                Text(
+                                    if (form.inspectionSubtype == null)
+                                        stringResource(R.string.log_entry_inspection_select_type)
+                                    else
+                                        stringResource(R.string.log_entry_inspection_change_type)
                                 )
                             }
                         }
-                        TextButton(onClick = { showInspectionSubtypePicker = true }) {
+                        Spacer(Modifier.height(8.dp))
+                        if (form.inspectionFields.isNotEmpty()) {
+                            InspectionFormRenderer(
+                                fields = form.inspectionFields,
+                                answers = form.inspectionAnswers,
+                                onAnswerChanged = { key, value -> viewModel.onInspectionAnswerChanged(key, value) },
+                            )
+                        } else {
                             Text(
-                                if (form.inspectionSubtype == null)
-                                    stringResource(R.string.log_entry_inspection_select_type)
-                                else
-                                    stringResource(R.string.log_entry_inspection_change_type)
+                                text = stringResource(R.string.log_entry_inspection_no_fields),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                             )
                         }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    if (form.inspectionFields.isNotEmpty()) {
-                        InspectionFormRenderer(
-                            fields = form.inspectionFields,
-                            answers = form.inspectionAnswers,
-                            onAnswerChanged = { key, value -> viewModel.onInspectionAnswerChanged(key, value) },
-                        )
-                    } else {
-                        Text(
-                            text = stringResource(R.string.log_entry_inspection_no_fields),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                        )
-                    }
-                }
-            }
-
-            HorizontalDivider()
-
-            // --------------- Save button ---------------
-            FormSection {
-                Button(
-                    onClick = { viewModel.save(onSuccess = onSaved) },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !form.isSaving,
-                ) {
-                    if (form.isSaving) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp,
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.log_entry_saving))
-                    } else {
-                        Text(
-                            if (entryId != null) stringResource(R.string.log_entry_save_changes_button)
-                            else stringResource(R.string.log_entry_save_button)
-                        )
                     }
                 }
             }
@@ -849,10 +1030,132 @@ fun AddEditLogScreen(
 }
 
 // ---------------------------------------------------------------------------
+// iOS-style card helpers
+// ---------------------------------------------------------------------------
+
+/** White surface with hairline border and 10dp corners — mirrors iOS makeCard(). */
+@Composable
+private fun FormCard(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline),
+    ) {
+        Column(content = content)
+    }
+}
+
+/** Hairline horizontal separator inside a card — mirrors iOS makeSeparator(). */
+@Composable
+private fun CardSeparator() {
+    HorizontalDivider(
+        thickness = 0.5.dp,
+        color = MaterialTheme.colorScheme.outline,
+    )
+}
+
+/**
+ * iOS-style category badge pill: colored background, dot, label, chevron.
+ * Background = categoryBadgeColor @ 13% opacity. Dot = full opacity. Shape = 12dp radius.
+ */
+@Composable
+private fun CategoryBadgePill(
+    categoryId: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val iconName = categoryIconName(categoryId)
+    val dotColor = categoryBadgeColor(iconName)
+    val bgColor = dotColor.copy(alpha = 0.13f)
+    val label = categoryId
+        ?.replace("_", " ")
+        ?.split(" ")
+        ?.joinToString(" ") { it.replaceFirstChar { c -> c.uppercaseChar() } }
+        ?: stringResource(R.string.log_entry_placeholder_select_category)
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(bgColor)
+            .clickable(onClick = onClick),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(dotColor),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(Modifier.width(5.dp))
+            Icon(
+                imageVector = Icons.Default.UnfoldMore,
+                contentDescription = null,
+                modifier = Modifier.size(11.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/**
+ * iOS Contacts-style "add" row: green filled circle with white plus + body-font label.
+ * Used for "add attachment" and "add details" — 44dp height, green = secondary token.
+ */
+@Composable
+private fun ContactsAddRow(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(44.dp)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(26.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.secondary),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(13.dp),
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Item attributes renderer
 // ---------------------------------------------------------------------------
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ItemAttributesRenderer(
     defs: List<ItemAttributeDef>,
@@ -924,22 +1227,8 @@ private fun ItemAttributesRenderer(
 }
 
 // ---------------------------------------------------------------------------
-// Form layout helpers
+// Form row (used for asset card)
 // ---------------------------------------------------------------------------
-
-@Composable
-private fun FormSection(
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit,
-) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-    ) {
-        content()
-    }
-}
 
 @Composable
 private fun FormRow(
@@ -954,7 +1243,7 @@ private fun FormRow(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(vertical = 4.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (leadingIcon != null) {
@@ -988,22 +1277,17 @@ private fun FormRow(
 // Category helper
 // ---------------------------------------------------------------------------
 
-/**
- * Maps the list of category strings (loaded from config) to [CategoryItem]s
- * for use in [GlobalCategoryPickerScreen].  A "None" sentinel is prepended so
- * the user can clear the selection.
- */
 private fun buildLogCategoryItems(availableCategories: List<String>): List<CategoryItem> {
     val none = CategoryItem(key = "__none__", displayName = "None", group = "COMMON")
     val rest = availableCategories.map { cat ->
-        val iconName = com.avago.core.ui.categoryIconName(cat)
+        val iconName = categoryIconName(cat)
         CategoryItem(
             key = cat,
             displayName = cat.replace("_", " ").split(" ")
                 .joinToString(" ") { it.replaceFirstChar { c -> c.uppercaseChar() } },
             iconAssetName = iconName,
-            color = com.avago.core.ui.categoryBadgeColor(iconName),
-            group = com.avago.core.ui.categoryGroup(cat),
+            color = categoryBadgeColor(iconName),
+            group = categoryGroup(cat),
         )
     }
     return listOf(none) + rest

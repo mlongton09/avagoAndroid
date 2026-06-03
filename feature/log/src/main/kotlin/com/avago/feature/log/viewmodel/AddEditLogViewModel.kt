@@ -484,6 +484,11 @@ class AddEditLogViewModel @Inject constructor(
         _form.update { it.copy(performedByUserId = userId, performedByName = name) }
     }
 
+    /** Free-text entry: typing clears the linked user ID (mirrors iOS performed-by text field behaviour). */
+    fun onPerformedByTextChanged(text: String) {
+        _form.update { it.copy(performedByName = text.ifEmpty { null }, performedByUserId = null) }
+    }
+
     fun onItemAttributeChanged(key: String, value: String) {
         _form.update { state ->
             state.copy(itemAttributes = state.itemAttributes + (key to value))
