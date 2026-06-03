@@ -273,12 +273,14 @@ private fun GalleryPhotoDialog(
 }
 
 private fun PhotoEntity.toGalleryUi(assetName: String?): GalleryPhotoUi? {
-    val model = when {
-        !localPath.isNullOrBlank() && File(localPath).exists() -> File(localPath)
-        !localPath.isNullOrBlank() -> localPath
-        !downloadUrl.isNullOrBlank() -> downloadUrl
-        else -> null
-    } ?: return null
+    val path = localPath?.takeIf { it.isNotBlank() }
+    val url = downloadUrl?.takeIf { it.isNotBlank() }
+    val model: Any = when {
+        path != null && File(path).exists() -> File(path)
+        path != null -> path
+        url != null -> url
+        else -> return null
+    }
     return GalleryPhotoUi(
         id = photoId,
         assetName = assetName.orEmpty().ifBlank { "Untitled" },
