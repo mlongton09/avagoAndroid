@@ -1,5 +1,6 @@
 package com.avago.feature.workorders.nav
 
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -55,6 +56,7 @@ object WorkOrderRoute {
  * workOrderNavGraph(navController)
  * ```
  */
+@OptIn(ExperimentalMaterial3Api::class)
 fun NavGraphBuilder.workOrderNavGraph(
     navController: NavHostController,
     onNavigateToAssetPicker: (returnRoute: String) -> Unit = {},
@@ -148,6 +150,7 @@ fun NavGraphBuilder.workOrderNavGraph(
                 selectedJobId = selectedJobId,
                 selectedLocationId = selectedLocationId,
                 selectedLocationName = selectedLocationName,
+                selectedAssetId = selectedAssetId,
             )
         }
 

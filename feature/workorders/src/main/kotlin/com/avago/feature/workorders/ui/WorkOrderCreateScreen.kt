@@ -85,6 +85,7 @@ fun WorkOrderCreateScreen(
     selectedJobId: String? = null,
     selectedLocationId: String? = null,
     selectedLocationName: String? = null,
+    selectedAssetId: String? = null,
     modifier: Modifier = Modifier,
     viewModel: WorkOrderCreateViewModel = hiltViewModel(),
 ) {
@@ -134,6 +135,13 @@ fun WorkOrderCreateScreen(
     var showRepeatsSheet by remember { mutableStateOf(false) }
     var showCategoryPicker by remember { mutableStateOf(false) }
     var showVinSection by remember { mutableStateOf(false) }
+
+    LaunchedEffect(selectedAssetId) {
+        if (selectedAssetId != null) {
+            viewModel.onAssetSelected(selectedAssetId)
+            showCategoryPicker = true
+        }
+    }
 
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = dueDateMs)
 

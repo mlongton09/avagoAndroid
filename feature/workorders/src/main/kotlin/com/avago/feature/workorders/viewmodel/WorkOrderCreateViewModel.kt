@@ -262,6 +262,19 @@ class WorkOrderCreateViewModel @Inject constructor(
     }
 
     // ---------------------------------------------------------------------------
+    // Asset picker
+    // ---------------------------------------------------------------------------
+
+    fun onAssetSelected(assetId: String) {
+        this.assetId.value = assetId
+        viewModelScope.launch {
+            val accountId = identityManager.getActiveAccountId() ?: return@launch
+            val asset = repository.getAssetById(accountId, assetId)
+            assetName.value = asset?.name
+        }
+    }
+
+    // ---------------------------------------------------------------------------
     // Job picker
     // ---------------------------------------------------------------------------
 
