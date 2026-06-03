@@ -61,11 +61,12 @@ class PermissionStore @Inject constructor(
             is NetworkResult.Success -> {
                 val matrix = result.data.matrix
                 val roleKey = role?.takeIf { it.isNotBlank() } ?: return@withContext
-                val resolved = matrix[roleKey]
-                    ?.filterValues { it }
-                    ?.keys
-                    ?.toSet()
-                    ?: emptySet()
+                // Server matrix is keyed by permission → { role → allowed }.
+                // Collect all permission keys where the current role is allowed.
+                val resolved = matrix.entries
+                    .filter { (_, roles) -> roles[roleKey] == true }
+                    .map { (permKey, _) -> permKey }
+                    .toSet()
                 _permissions.value = resolved
                 persist(accountId, resolved)
                 Timber.d("PermissionStore: refreshed ${resolved.size} permissions for $accountId role=$roleKey")

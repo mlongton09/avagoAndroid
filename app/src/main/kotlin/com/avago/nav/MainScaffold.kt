@@ -98,13 +98,14 @@ data class BottomNavItem(
     @StringRes val labelRes: Int,
     val icon: ImageVector,
     val route: String,
-    val permission: String,
+    // null = always visible (matches iOS: main tabs are never permission-gated)
+    val permission: String? = null,
 )
 
 private val bottomNavItems = listOf(
-    BottomNavItem(R.string.nav_assets,      Icons.AutoMirrored.Filled.MenuBook, "assets_graph",      "assets.view"),
-    BottomNavItem(R.string.nav_work_orders, Icons.Default.CalendarToday,        "workorders_graph",  "work_orders.view"),
-    BottomNavItem(R.string.nav_chat,        Icons.AutoMirrored.Filled.Chat,     "chat",              "chat.view"),
+    BottomNavItem(R.string.nav_assets,      Icons.AutoMirrored.Filled.MenuBook, "assets_graph"),
+    BottomNavItem(R.string.nav_work_orders, Icons.Default.CalendarToday,        "workorders_graph"),
+    BottomNavItem(R.string.nav_chat,        Icons.AutoMirrored.Filled.Chat,     "chat"),
 )
 
 // ---------------------------------------------------------------------------
@@ -373,9 +374,9 @@ fun BottomNavBar(
 
         val visibleItems = bottomNavItems.filter { item ->
             when (item.route) {
-                "workorders_graph" -> workOrdersEnabled && canNavigate(item.permission)
-                "chat"            -> chatEnabled && canNavigate(item.permission)
-                else              -> canNavigate(item.permission)
+                "workorders_graph" -> workOrdersEnabled && (item.permission == null || canNavigate(item.permission))
+                "chat"            -> chatEnabled && (item.permission == null || canNavigate(item.permission))
+                else              -> item.permission == null || canNavigate(item.permission)
             }
         }
 
