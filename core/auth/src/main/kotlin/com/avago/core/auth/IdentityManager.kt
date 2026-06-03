@@ -170,19 +170,24 @@ class IdentityManager @Inject constructor(
                 val last = accounts.last()
                 setActiveAccount(last.accountId, last.userId, isAnonymous = last.isAnonymous)
 
-                // If role is missing (e.g. old install or failed profile fetch during prior login),
-                // refresh it from /users/me so permissions can be correctly resolved.
-                val role = if (last.role.isNullOrBlank() && !last.isAnonymous) {
-                    Timber.d("IdentityManager: role missing for ${last.accountId}, fetching from /me")
+                // Refresh role from /users/me if:
+                //  • role is missing (old install / failed prior fetch), OR
+                //  • role is a legacy value ("owner", "tech", "member") that the
+                //    server DB has since migrated to the new RBAC equivalents.
+                //    Storing the normalised value avoids a mismatch on every launch.
+                val isLegacyRole = last.role != null && last.role in setOf("owner", "tech", "member")
+                val role = if ((last.role.isNullOrBlank() || isLegacyRole) && !last.isAnonymous) {
+                    Timber.d("IdentityManager: role=${last.role} for ${last.accountId} — refreshing from /me")
                     runCatching {
                         val user = client.getMe()
-                        if (user?.role != null) {
-                            accountManifest.upsertFromServer(last.copy(role = user.role))
+                        val fresh = normalizeLegacyRole(user?.role) ?: normalizeLegacyRole(last.role)
+                        if (fresh != null) {
+                            accountManifest.upsertFromServer(last.copy(role = fresh))
                         }
-                        user?.role
-                    }.getOrNull() ?: last.role
+                        fresh
+                    }.getOrNull() ?: normalizeLegacyRole(last.role)
                 } else {
-                    last.role
+                    normalizeLegacyRole(last.role)
                 }
 
                 val isRoot = role == "root" || last.memberships.any { it.accountId == last.accountId && it.isRoot }
@@ -626,6 +631,20 @@ class IdentityManager @Inject constructor(
     // Role validation
     // ---------------------------------------------------------------------------
 
+    /**
+     * Maps legacy DB role values to their new RBAC equivalents.
+     * Mirrors the server migration (20260531000001_migrate_legacy_role_values.sql):
+     *   owner  → root
+     *   tech   → technician
+     *   member → reader
+     */
+    private fun normalizeLegacyRole(role: String?): String? = when (role) {
+        "owner"  -> "root"
+        "tech"   -> "technician"
+        "member" -> "reader"
+        else     -> role
+    }
+
     private suspend fun validateRoleFromMembersList(accountId: String, userId: String) {
         try {
             val result = client.getAccountMembers(accountId)
@@ -716,7 +735,7 @@ class IdentityManager @Inject constructor(
     fun getEffectiveRole(): String? {
         return _devRoleOverride.value ?: run {
             val accountId = _activeAccountId.value ?: return null
-            AccountManifest.load(appContext).find { it.accountId == accountId }?.role
+            normalizeLegacyRole(AccountManifest.load(appContext).find { it.accountId == accountId }?.role)
         }
     }
 
