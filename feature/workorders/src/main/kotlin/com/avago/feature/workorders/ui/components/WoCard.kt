@@ -53,6 +53,7 @@ import java.time.format.DateTimeFormatter
 fun WoCard(
     wo: WorkOrderEntity,
     onClick: () -> Unit,
+    assetLabel: String? = null,
     modifier: Modifier = Modifier,
 ) {
     val priorityBarColor = priorityBarColor(wo.priority)
@@ -126,14 +127,14 @@ fun WoCard(
 
                 // Row 2: P1 · asset · effort | tech · Repeats
                 Spacer(modifier = Modifier.height(2.dp))
-                WoSubtitleLine(wo = wo)
+                WoSubtitleLine(wo = wo, assetLabel = assetLabel)
             }
         }
     }
 }
 
 @Composable
-private fun WoSubtitleLine(wo: WorkOrderEntity) {
+private fun WoSubtitleLine(wo: WorkOrderEntity, assetLabel: String? = null) {
     val mutedColor = MaterialTheme.colorScheme.onSurfaceVariant
     val sepColor = mutedColor.copy(alpha = 0.5f)
     val priorityTextColor = priorityTextColor(wo.priority)
@@ -155,10 +156,10 @@ private fun WoSubtitleLine(wo: WorkOrderEntity) {
             append(priorityCode(wo.priority))
         }
 
-        // 2. Asset subtitle (dot separator)
-        if (!wo.assetId.isNullOrBlank()) {
+        // 2. Asset subtitle — resolved label (year/make/model or address), never the raw GUID
+        if (!assetLabel.isNullOrBlank()) {
             sep(dot)
-            withStyle(SpanStyle(color = mutedColor)) { append(wo.assetId!!) }
+            withStyle(SpanStyle(color = mutedColor)) { append(assetLabel) }
         }
 
         // 3. Estimated effort (pipe separator — visual split between "what" and "how much")

@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -202,6 +203,21 @@ class WorkOrderListViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = emptyList(),
         )
+
+    // Asset subtitle labels keyed by assetId — populated from local DB whenever
+    // the WO list changes. Mirrors iOS UnifiedWorkOrderCell.assetSubtitle().
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val assetLabels: StateFlow<Map<String, String?>> = _allWos
+        .flatMapLatest { wos ->
+            val accountId = identityManager.getActiveAccountId()
+                ?: return@flatMapLatest flowOf(emptyMap())
+            flow {
+                val uniqueIds = wos.mapNotNull { it.assetId }.distinct()
+                emit(uniqueIds.associateWith { id -> repository.assetLabelFor(id, accountId) })
+            }
+        }
+        .catch { emit(emptyMap()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     fun onSearchQueryChanged(q: String) { _searchQuery.value = q }
 

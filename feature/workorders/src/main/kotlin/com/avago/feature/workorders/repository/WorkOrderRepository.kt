@@ -1,6 +1,7 @@
 package com.avago.feature.workorders.repository
 
 import com.avago.core.data.DatabaseFactory
+import com.avago.core.data.db.entity.AssetEntity
 import com.avago.core.data.db.entity.LogCostLineEntity
 import com.avago.core.data.db.entity.LocationEntity
 import com.avago.core.data.db.entity.SyncQueueEntity
@@ -248,5 +249,55 @@ class WorkOrderRepository @Inject constructor(
                 updatedAt = now,
             )
         )
+    }
+
+    // ---------------------------------------------------------------------------
+    // Asset subtitle resolution — mirrors iOS UnifiedWorkOrderCell.assetSubtitle()
+    // ---------------------------------------------------------------------------
+
+    suspend fun assetLabelFor(assetId: String?, accountId: String): String? {
+        if (assetId.isNullOrBlank()) return null
+        val asset = dbFactory.get(accountId).assetDao().getById(assetId) ?: return null
+        return asset.woSubtitle()
+    }
+}
+
+private val REAL_ESTATE = setOf(
+    "residential", "multifamily", "office", "industrial", "healthcare", "restaurant",
+)
+private val VEHICLE_OR_MARINE = setOf(
+    "light_vehicle", "motorcycle", "commercial_vehicle", "recreational_vehicle",
+    "heavy_equipment", "trailer", "pleasure_craft", "commercial_vessel",
+    "atv_utv", "snowmobile", "personal_watercraft", "golf_cart",
+)
+
+// Mirrors iOS assetSubtitle(forAssetId:):
+//   real estate → street address (addressLine1)
+//   vehicle/marine → "year make model" (year + displaySubtitle)
+//   everything else → "make model" then asset name as fallback
+private fun AssetEntity.woSubtitle(): String? {
+    val type = assetType ?: return name.takeIf { it.isNotBlank() }
+    return when {
+        type in REAL_ESTATE -> addressLine1?.takeIf { it.isNotBlank() }
+        type in VEHICLE_OR_MARINE -> {
+            val yearStr = year?.takeIf { it > 0L }?.toString()
+            val makeModel = listOfNotNull(
+                make?.takeIf { it.isNotBlank() },
+                model?.takeIf { it.isNotBlank() },
+            ).joinToString(" ")
+            when {
+                yearStr != null && makeModel.isNotBlank() -> "$yearStr $makeModel"
+                yearStr != null -> yearStr
+                makeModel.isNotBlank() -> makeModel
+                else -> name.takeIf { it.isNotBlank() }
+            }
+        }
+        else -> {
+            val makeModel = listOfNotNull(
+                make?.takeIf { it.isNotBlank() },
+                model?.takeIf { it.isNotBlank() },
+            ).joinToString(" ")
+            makeModel.takeIf { it.isNotBlank() } ?: name.takeIf { it.isNotBlank() }
+        }
     }
 }

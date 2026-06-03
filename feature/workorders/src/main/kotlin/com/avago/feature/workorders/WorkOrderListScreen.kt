@@ -69,6 +69,7 @@ fun WorkOrderListScreen(
     viewModel: WorkOrderListViewModel = hiltViewModel(),
 ) {
     val buckets by viewModel.buckets.collectAsStateWithLifecycle()
+    val assetLabels by viewModel.assetLabels.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val filter by viewModel.filter.collectAsStateWithLifecycle()
     val horizon by viewModel.horizon.collectAsStateWithLifecycle()
@@ -191,6 +192,7 @@ fun WorkOrderListScreen(
                                 WoCard(
                                     wo = wo,
                                     onClick = { onWoClick(wo.woId) },
+                                    assetLabel = assetLabels[wo.assetId],
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                             }
