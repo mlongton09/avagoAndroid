@@ -194,14 +194,10 @@ fun MainScaffold(
     // doesn't stack a redundant ~half-inch empty band above their own bar.
     val isChatDetailDestination = currentRoute?.startsWith("chat/") == true &&
         currentRoute != "chat/list"
-    // iOS parity: AssetDetailViewController hides the navigation bar
-    // (setNavigationBarHidden) and the tab bar (hidesBottomBarWhenPushed)
-    // and provides its own custom 44pt nav row above the photo banner.
-    // The log list, when launched from a specific asset, is the Android
-    // equivalent — suppress the outer chrome so its own custom header sits
-    // flush against the photo.
-    val isAssetLogDestination = currentRoute?.startsWith("log/list") == true ||
-        currentRoute?.startsWith("assets/detail") == true
+    // The log list, when launched from a specific asset, renders its own custom
+    // header — suppress the outer chrome so it sits flush against the photo.
+    val isAssetLogDestination = currentRoute?.startsWith("log/list") == true
+    val isLogAddEditDestination = currentRoute?.startsWith("log/add_edit") == true
 
     AvagoToastHost(toastManager = toast) {
     ModalNavigationDrawer(
@@ -234,7 +230,7 @@ fun MainScaffold(
         Scaffold(
             floatingActionButtonPosition = FabPosition.Start,
             topBar = {
-                if (!isAuthDestination && !isAssetLogDestination && !isChatDetailDestination) {
+                if (!isAuthDestination && !isAssetLogDestination && !isChatDetailDestination && !isLogAddEditDestination) {
                     CenterAlignedTopAppBar(
                         title = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -268,7 +264,7 @@ fun MainScaffold(
                 }
             },
             bottomBar = {
-                if (!isAuthDestination && !isAssetLogDestination) {
+                if (!isAuthDestination) {
                     BottomNavBar(
                         navController = navController,
                         workOrdersEnabled = workOrdersEnabled,
@@ -391,7 +387,9 @@ fun BottomNavBar(
                 else               -> 0
             }
             NavigationBarItem(
-                selected = currentRoute == item.route || currentRoute?.startsWith("${item.route}/") == true,
+                selected = currentRoute == item.route ||
+                    currentRoute?.startsWith("${item.route}/") == true ||
+                    (item.route == "assets_graph" && currentRoute?.startsWith("assets/") == true),
                 onClick = {
                     navController.navigate(item.route) {
                         popUpTo(navController.graph.startDestinationId) {
