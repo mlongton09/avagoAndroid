@@ -16,10 +16,8 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import timber.log.Timber
+import java.time.Duration
 import javax.inject.Inject
-
-/** Statuses that count as "open" (not yet resolved) for badge display purposes. */
-private val OPEN_WO_STATUSES = setOf("open", "assigned", "in_progress", "on_hold", "pending_parts")
 
 @HiltViewModel
 class AssetWorkOrdersViewModel @Inject constructor(
@@ -45,11 +43,20 @@ class AssetWorkOrdersViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
-     * Count of work orders that are currently active (not completed or cancelled).
-     * Mirrors the open-WO pill badge iOS shows on the Work Orders tab strip in
-     * AssetDetailViewController (AVTabStrip.setBadge(at:count:)).
+     * Count of work orders whose due date falls within the "Now" 7-day window:
+     * 7 days in the past through 7 days in the future from today. Matches the iOS
+     * AVTabStrip badge logic (AssetDetailViewController using horizon: .now).
+     * WOs with no due date are excluded — they are not in the window.
      */
     val openCount: StateFlow<Int> = workOrders
-        .map { list -> list.count { it.status in OPEN_WO_STATUSES } }
+        .map { list ->
+            val now = System.currentTimeMillis()
+            val windowStart = now - Duration.ofDays(7).toMillis()
+            val windowEnd   = now + Duration.ofDays(7).toMillis()
+            list.count { wo ->
+                val due = wo.dueDate ?: return@count false
+                due in windowStart..windowEnd
+            }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 }

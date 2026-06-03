@@ -1,6 +1,8 @@
 package com.avago.feature.log.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -64,7 +67,38 @@ fun InspectionFormRenderer(
     onAnswerChanged: (key: String, value: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // ── Summary badges ────────────────────────────────────────────────────────
+    // Count items per status across select/pass_fail fields whose answers map
+    // to a known severity tier. Mirrors iOS InspectionSummaryView badges.
+    val normalCount   = answers.values.count { it.equals("normal", ignoreCase = true) || it.equals("pass", ignoreCase = true) }
+    val monitorCount  = answers.values.count { it.equals("monitor", ignoreCase = true) }
+    val repairCount   = answers.values.count { it.equals("needs_repair", ignoreCase = true) || it.equals("fail", ignoreCase = true) }
+
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // Summary pill row — only shown once at least one answer maps to a tier
+        if (normalCount > 0 || monitorCount > 0 || repairCount > 0) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (normalCount > 0) {
+                    InspectionSummaryPill(
+                        label = "Normal $normalCount",
+                        containerColor = INSPECTION_OPTION_COLORS["normal"] ?: Color(0xFF4CAF50),
+                    )
+                }
+                if (monitorCount > 0) {
+                    InspectionSummaryPill(
+                        label = "Monitor $monitorCount",
+                        containerColor = INSPECTION_OPTION_COLORS["monitor"] ?: Color(0xFFFF9800),
+                    )
+                }
+                if (repairCount > 0) {
+                    InspectionSummaryPill(
+                        label = "Needs Repair $repairCount",
+                        containerColor = INSPECTION_OPTION_COLORS["needs_repair"] ?: Color(0xFFF44336),
+                    )
+                }
+            }
+        }
+
         fields.forEach { field ->
             val current = answers[field.key] ?: ""
             when (field.type) {
@@ -110,6 +144,34 @@ fun InspectionFormRenderer(
                 )
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Summary pill — one per severity tier (Normal / Monitor / Needs Repair)
+// ---------------------------------------------------------------------------
+
+/**
+ * A small rounded pill badge showing a status label + count.
+ * Matches the circular count badges iOS shows at the top of InspectionSummaryView.
+ */
+@Composable
+private fun InspectionSummaryPill(
+    label: String,
+    containerColor: Color,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .background(color = containerColor, shape = RoundedCornerShape(50))
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.White,
+        )
     }
 }
 
