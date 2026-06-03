@@ -1,10 +1,16 @@
 package com.avago.feature.workorders
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -12,22 +18,23 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Dashboard
-import androidx.compose.material3.IconButton
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.runtime.remember
+import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
@@ -39,6 +46,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -52,6 +62,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.ui.AvagoSearchBar
 import com.avago.core.ui.EmptyState
 import com.avago.core.ui.rememberScrollAwareHeaderState
+import com.avago.feature.workorders.model.WoStatus
 import com.avago.feature.workorders.ui.components.WoCard
 import com.avago.feature.workorders.viewmodel.WoHorizon
 import com.avago.feature.workorders.viewmodel.WoListFilter
@@ -90,6 +101,9 @@ fun WorkOrderListScreen(
         WoListFilter.ALL  to stringResource(R.string.wo_scope_all),
     )
 
+    var showSearchBar by remember { mutableStateOf(false) }
+    var showFilterMenu by remember { mutableStateOf(false) }
+
     val scrollAwareState = rememberScrollAwareHeaderState()
     val headerVisible by scrollAwareState.headerVisible
     val headerProgress by animateFloatAsState(
@@ -97,8 +111,11 @@ fun WorkOrderListScreen(
         animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
         label = "wo_header_progress",
     )
-    // Filter row (~56dp) + search bar (~52dp) + templates action (~40dp).
-    val headerHeightDp = 148.dp
+    // Filter row (~56dp) + search bar (~52dp, only when visible) + templates action (~40dp).
+    val headerHeightDp by animateDpAsState(
+        targetValue = if (showSearchBar) 148.dp else 96.dp,
+        label = "wo_header_height",
+    )
     val density = LocalDensity.current
     val headerHeightPx = with(density) { headerHeightDp.toPx() }
 
@@ -212,7 +229,7 @@ fun WorkOrderListScreen(
                     },
             ) {
                 Column {
-                    // Now / Next / Later + Mine / All + Calendar + Dispatch
+                    // Now / Next / Later + Mine / All + Filter + Search + Calendar + Dispatch
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -246,6 +263,64 @@ fun WorkOrderListScreen(
                                 )
                             }
                         }
+                        // Filter icon with active-filter badge
+                        Box {
+                            IconButton(onClick = { showFilterMenu = true }) {
+                                BadgedBox(
+                                    badge = {
+                                        if (statusFilter.isNotEmpty()) {
+                                            Badge { Text("${statusFilter.size}") }
+                                        }
+                                    },
+                                ) {
+                                    Icon(
+                                        Icons.Default.FilterList,
+                                        contentDescription = stringResource(R.string.wo_filter_fab_description),
+                                    )
+                                }
+                            }
+                            DropdownMenu(
+                                expanded = showFilterMenu,
+                                onDismissRequest = { showFilterMenu = false },
+                            ) {
+                                if (statusFilter.isNotEmpty()) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.wo_filter_clear)) },
+                                        onClick = {
+                                            viewModel.clearStatusFilter()
+                                            showFilterMenu = false
+                                        },
+                                    )
+                                    HorizontalDivider()
+                                }
+                                WoStatus.entries.forEach { status ->
+                                    val isSelected = status.key in statusFilter
+                                    DropdownMenuItem(
+                                        text = { Text(status.displayName) },
+                                        leadingIcon = {
+                                            Checkbox(
+                                                checked = isSelected,
+                                                onCheckedChange = null,
+                                            )
+                                        },
+                                        onClick = { viewModel.toggleStatusFilter(status.key) },
+                                    )
+                                }
+                            }
+                        }
+                        // Search icon — toggles search bar
+                        IconButton(
+                            onClick = {
+                                showSearchBar = !showSearchBar
+                                if (!showSearchBar) viewModel.onSearchQueryChanged("")
+                            },
+                        ) {
+                            Icon(
+                                imageVector = if (showSearchBar) Icons.Default.Close else Icons.Default.Search,
+                                contentDescription = stringResource(R.string.wo_search_placeholder),
+                            )
+                        }
+                        // Calendar icon (right of search, as on iOS)
                         IconButton(onClick = onOpenCalendar) {
                             Icon(Icons.Default.CalendarToday, contentDescription = stringResource(R.string.wo_calendar_title))
                         }
@@ -256,11 +331,13 @@ fun WorkOrderListScreen(
                         }
                     }
                     HorizontalDivider()
-                    AvagoSearchBar(
-                        query = searchQuery,
-                        onQueryChange = viewModel::onSearchQueryChanged,
-                        placeholder = stringResource(R.string.wo_search_placeholder),
-                    )
+                    if (showSearchBar) {
+                        AvagoSearchBar(
+                            query = searchQuery,
+                            onQueryChange = viewModel::onSearchQueryChanged,
+                            placeholder = stringResource(R.string.wo_search_placeholder),
+                        )
+                    }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
