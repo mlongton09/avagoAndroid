@@ -15,7 +15,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -75,7 +77,6 @@ fun WorkOrderListScreen(
     onCreateWo: () -> Unit,
     onOpenCalendar: () -> Unit = {},
     onOpenDispatchBoard: () -> Unit = {},
-    onOpenTemplates: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: WorkOrderListViewModel = hiltViewModel(),
 ) {
@@ -111,9 +112,9 @@ fun WorkOrderListScreen(
         animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
         label = "wo_header_progress",
     )
-    // Filter row (~56dp) + search bar (~52dp, only when visible) + templates action (~40dp).
+    // Title row (~52dp) + filter row (~56dp) + optional search bar (~52dp).
     val headerHeightDp by animateDpAsState(
-        targetValue = if (showSearchBar) 148.dp else 96.dp,
+        targetValue = if (showSearchBar) 160.dp else 108.dp,
         label = "wo_header_height",
     )
     val density = LocalDensity.current
@@ -229,40 +230,27 @@ fun WorkOrderListScreen(
                     },
             ) {
                 Column {
-                    // Now / Next / Later + Mine / All + Filter + Search + Calendar + Dispatch
+                    // ── Title row: icon + "Work Orders" (left) + Filter/Search/Calendar (right) ──
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                            .height(52.dp)
+                            .padding(horizontal = 16.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1f)) {
-                            horizonOptions.forEachIndexed { index, (h, label) ->
-                                SegmentedButton(
-                                    selected = horizon == h,
-                                    onClick = { viewModel.onHorizonChanged(h) },
-                                    shape = SegmentedButtonDefaults.itemShape(
-                                        index = index,
-                                        count = horizonOptions.size,
-                                    ),
-                                    label = { Text(label) },
-                                )
-                            }
-                        }
-                        SingleChoiceSegmentedButtonRow(modifier = Modifier.width(110.dp)) {
-                            scopeOptions.forEachIndexed { index, (s, label) ->
-                                SegmentedButton(
-                                    selected = filter == s,
-                                    onClick = { viewModel.onScopeChanged(s) },
-                                    shape = SegmentedButtonDefaults.itemShape(
-                                        index = index,
-                                        count = scopeOptions.size,
-                                    ),
-                                    label = { Text(label) },
-                                )
-                            }
-                        }
+                        Icon(
+                            imageVector = Icons.Default.CalendarToday,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = stringResource(R.string.wo_list_title),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f),
+                        )
                         // Filter icon with active-filter badge
                         Box {
                             IconButton(onClick = { showFilterMenu = true }) {
@@ -320,13 +308,47 @@ fun WorkOrderListScreen(
                                 contentDescription = stringResource(R.string.wo_search_placeholder),
                             )
                         }
-                        // Calendar icon (right of search, as on iOS)
+                        // Calendar icon
                         IconButton(onClick = onOpenCalendar) {
-                            Icon(Icons.Default.CalendarToday, contentDescription = stringResource(R.string.wo_calendar_title))
+                            Icon(
+                                Icons.Default.CalendarToday,
+                                contentDescription = stringResource(R.string.wo_calendar_title),
+                            )
                         }
-                        if (canOpenDispatch) {
-                            IconButton(onClick = onOpenDispatchBoard) {
-                                Icon(Icons.Default.Dashboard, contentDescription = stringResource(R.string.dispatch_board_title))
+                    }
+
+                    // ── Filter row: Now/Next/Later + Mine/All segmented controls only ──
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1f)) {
+                            horizonOptions.forEachIndexed { index, (h, label) ->
+                                SegmentedButton(
+                                    selected = horizon == h,
+                                    onClick = { viewModel.onHorizonChanged(h) },
+                                    shape = SegmentedButtonDefaults.itemShape(
+                                        index = index,
+                                        count = horizonOptions.size,
+                                    ),
+                                    label = { Text(label) },
+                                )
+                            }
+                        }
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.width(110.dp)) {
+                            scopeOptions.forEachIndexed { index, (s, label) ->
+                                SegmentedButton(
+                                    selected = filter == s,
+                                    onClick = { viewModel.onScopeChanged(s) },
+                                    shape = SegmentedButtonDefaults.itemShape(
+                                        index = index,
+                                        count = scopeOptions.size,
+                                    ),
+                                    label = { Text(label) },
+                                )
                             }
                         }
                     }
@@ -337,16 +359,6 @@ fun WorkOrderListScreen(
                             onQueryChange = viewModel::onSearchQueryChanged,
                             placeholder = stringResource(R.string.wo_search_placeholder),
                         )
-                    }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.End,
-                    ) {
-                        TextButton(onClick = onOpenTemplates) {
-                            Text(stringResource(R.string.wo_templates_title))
-                        }
                     }
                 }
             }

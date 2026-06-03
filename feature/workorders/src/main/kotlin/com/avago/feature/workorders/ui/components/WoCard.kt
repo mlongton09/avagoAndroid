@@ -106,7 +106,8 @@ fun WoCard(
                 ) {
                     Text(
                         text = wo.title,
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
@@ -128,6 +129,25 @@ fun WoCard(
                 // Row 2: P1 · asset · effort | tech · Repeats
                 Spacer(modifier = Modifier.height(2.dp))
                 WoSubtitleLine(wo = wo, assetLabel = assetLabel)
+
+                // Row 3 (conditional): "⏳ Awaiting approval" — mirrors iOS orange pending badge
+                if (wo.approvalState == "pending") {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                color = Color(0xFFF97316).copy(alpha = 0.15f),
+                                shape = RoundedCornerShape(50),
+                            )
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                    ) {
+                        Text(
+                            text = "⏳ Awaiting approval",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFFC2410C),
+                        )
+                    }
+                }
             }
         }
     }
