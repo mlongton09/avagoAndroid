@@ -114,6 +114,14 @@ fun WorkOrderCreateScreen(
     val effortHint by viewModel.effortHint.collectAsStateWithLifecycle()
     val repeatsRrule by viewModel.repeatsRrule.collectAsStateWithLifecycle()
 
+    // iOS parity: UnifiedWorkOrdersViewController.addWorkOrderTapped() immediately presents
+    // the asset picker as Stage 1 of the creation flow. Mirror that here for new WOs.
+    LaunchedEffect(Unit) {
+        if (woId == null && selectedAssetId == null) {
+            onPickAsset()
+        }
+    }
+
     LaunchedEffect(selectedJobId) {
         if (selectedJobId != null) {
             viewModel.onJobSelected(selectedJobId, selectedJobId)
