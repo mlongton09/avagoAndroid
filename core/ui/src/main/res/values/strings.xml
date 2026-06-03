@@ -19,6 +19,7 @@
     <string name="common_cancel">Cancel</string>
     <string name="common_done">Done</string>
     <string name="common_clear">Clear</string>
+    <string name="common_none">None</string>
 
     <!-- Navigation titles — mirrors iOS nav.* string keys -->
     <string name="nav_new_entry">New Log Entry</string>

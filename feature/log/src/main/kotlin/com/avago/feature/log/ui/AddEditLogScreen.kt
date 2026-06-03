@@ -33,7 +33,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
@@ -266,7 +265,7 @@ fun AddEditLogScreen(
     // ---- Category picker ----
     if (showCategoryPicker) {
         GlobalCategoryPickerScreen(
-            categories = buildLogCategoryItems(form.availableCategories),
+            categories = buildLogCategoryItems(form.availableCategories, stringResource(com.avago.core.ui.R.string.common_none)),
             onSelect = { item ->
                 viewModel.onCategoryChanged(if (item.key == "__none__") null else item.key)
             },
@@ -397,7 +396,7 @@ fun AddEditLogScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
+                            Icons.Default.Close,
                             contentDescription = stringResource(com.avago.core.ui.R.string.common_cancel),
                         )
                     }
@@ -418,7 +417,7 @@ fun AddEditLogScreen(
                             Text(
                                 stringResource(com.avago.core.ui.R.string.common_save),
                                 color = MaterialTheme.colorScheme.secondary,
-                                fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.bodyLarge,
                             )
                         }
                     }
@@ -448,35 +447,6 @@ fun AddEditLogScreen(
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState()),
         ) {
-            Spacer(Modifier.height(16.dp))
-
-            // ==================================================================
-            // ASSET CARD — Android-only: lets users select an asset + scan
-            // ==================================================================
-            FormCard {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(modifier = Modifier.weight(1f)) {
-                        FormRow(
-                            label = stringResource(R.string.log_entry_label_asset),
-                            value = form.assetName ?: form.assetId
-                                ?: stringResource(R.string.log_entry_placeholder_select_asset),
-                            onClick = onOpenAssetPicker,
-                            isPlaceholder = form.assetId == null,
-                        )
-                    }
-                    IconButton(onClick = onOpenMaintenanceScanner) {
-                        Icon(
-                            imageVector = Icons.Default.QrCodeScanner,
-                            contentDescription = stringResource(R.string.maintenance_scanner_title),
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                }
-            }
-
             Spacer(Modifier.height(16.dp))
 
             // ==================================================================
@@ -1277,8 +1247,8 @@ private fun FormRow(
 // Category helper
 // ---------------------------------------------------------------------------
 
-private fun buildLogCategoryItems(availableCategories: List<String>): List<CategoryItem> {
-    val none = CategoryItem(key = "__none__", displayName = "None", group = "COMMON")
+private fun buildLogCategoryItems(availableCategories: List<String>, noneLabel: String): List<CategoryItem> {
+    val none = CategoryItem(key = "__none__", displayName = noneLabel, group = "COMMON")
     val rest = availableCategories.map { cat ->
         val iconName = categoryIconName(cat)
         CategoryItem(
