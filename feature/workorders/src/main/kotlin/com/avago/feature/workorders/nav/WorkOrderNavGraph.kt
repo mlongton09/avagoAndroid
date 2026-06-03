@@ -82,9 +82,6 @@ fun NavGraphBuilder.workOrderNavGraph(
                 onOpenDispatchBoard = {
                     navController.navigate(WorkOrderRoute.DISPATCH_BOARD)
                 },
-                onOpenTemplates = {
-                    navController.navigate(WorkOrderRoute.TEMPLATE_LIST)
-                },
             )
         }
 
