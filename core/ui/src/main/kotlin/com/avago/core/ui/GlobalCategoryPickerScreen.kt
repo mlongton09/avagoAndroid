@@ -469,3 +469,41 @@ private fun CategoryLetterFallback(text: String) {
         fontWeight = FontWeight.Bold,
     )
 }
+
+// ---------------------------------------------------------------------------
+// Shared builder — used by every surface that shows a GlobalCategoryPickerScreen
+// ---------------------------------------------------------------------------
+
+/**
+ * Converts a list of category key strings (e.g. "oil_change") into the
+ * [CategoryItem] list that [GlobalCategoryPickerScreen] expects.
+ *
+ * Call this from any screen that needs a category picker — log entry,
+ * work orders, etc. — so the icon, colour, group, and display-name logic
+ * is always identical and lives in one place.
+ *
+ * @param keys       Category keys from the server config (e.g. "oil_change").
+ * @param noneLabel  When non-null a "clear/none" row is prepended with key
+ *                   "__none__" and group "COMMON" (used by the log entry picker).
+ */
+fun buildCategoryItems(
+    keys: List<String>,
+    noneLabel: String? = null,
+): List<CategoryItem> {
+    val items = keys.map { key ->
+        val iconName = categoryIconName(key)
+        CategoryItem(
+            key = key,
+            displayName = key.replace("_", " ").split(" ")
+                .joinToString(" ") { w -> w.replaceFirstChar { it.uppercaseChar() } },
+            iconAssetName = iconName,
+            color = categoryBadgeColor(iconName),
+            group = categoryGroup(key),
+        )
+    }
+    return if (noneLabel != null) {
+        listOf(CategoryItem(key = "__none__", displayName = noneLabel, group = "COMMON")) + items
+    } else {
+        items
+    }
+}

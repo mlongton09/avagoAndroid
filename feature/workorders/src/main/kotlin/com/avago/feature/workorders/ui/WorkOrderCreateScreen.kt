@@ -194,17 +194,7 @@ fun WorkOrderCreateScreen(
     if (showCategoryPicker) {
         GlobalCategoryPickerScreen(
             title = stringResource(R.string.wo_category),
-            categories = availableCategories.map {
-                val iconName = com.avago.core.ui.categoryIconName(it)
-                CategoryItem(
-                    key = it,
-                    displayName = it.replace("_", " ").split(" ")
-                        .joinToString(" ") { w -> w.replaceFirstChar { c -> c.uppercaseChar() } },
-                    iconAssetName = iconName,
-                    color = com.avago.core.ui.categoryBadgeColor(iconName),
-                    group = com.avago.core.ui.categoryGroup(it),
-                )
-            },
+            categories = com.avago.core.ui.buildCategoryItems(keys = availableCategories),
             onSelect = { item ->
                 viewModel.category.value = item.key
                 viewModel.fetchEffortHint(item.key)

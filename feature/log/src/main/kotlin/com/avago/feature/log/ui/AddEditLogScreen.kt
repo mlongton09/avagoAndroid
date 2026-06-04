@@ -295,7 +295,10 @@ fun AddEditLogScreen(
     // ---- Category picker ----
     if (showCategoryPicker) {
         GlobalCategoryPickerScreen(
-            categories = buildLogCategoryItems(form.availableCategories, stringResource(com.avago.core.ui.R.string.common_none)),
+            categories = com.avago.core.ui.buildCategoryItems(
+                keys = form.availableCategories,
+                noneLabel = stringResource(com.avago.core.ui.R.string.common_none),
+            ),
             onSelect = { item ->
                 viewModel.onCategoryChanged(if (item.key == "__none__") null else item.key)
             },
@@ -1367,22 +1370,3 @@ private fun FormRow(
     }
 }
 
-// ---------------------------------------------------------------------------
-// Category helper
-// ---------------------------------------------------------------------------
-
-private fun buildLogCategoryItems(availableCategories: List<String>, noneLabel: String): List<CategoryItem> {
-    val none = CategoryItem(key = "__none__", displayName = noneLabel, group = "COMMON")
-    val rest = availableCategories.map { cat ->
-        val iconName = categoryIconName(cat)
-        CategoryItem(
-            key = cat,
-            displayName = cat.replace("_", " ").split(" ")
-                .joinToString(" ") { it.replaceFirstChar { c -> c.uppercaseChar() } },
-            iconAssetName = iconName,
-            color = categoryBadgeColor(iconName),
-            group = categoryGroup(cat),
-        )
-    }
-    return listOf(none) + rest
-}
