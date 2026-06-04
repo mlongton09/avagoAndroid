@@ -14,10 +14,10 @@
     <string name="asset_detail_meter_reading">Meter Reading</string>
     <string name="asset_detail_log_entries">ENTRIES</string>
     <string name="asset_detail_since_service">SINCE SERVICE</string>
-    <string name="asset_detail_open_wos">OPEN W/Os</string>
+    <string name="asset_detail_open_wos">OPEN WOs</string>
     <string name="asset_detail_section_details">DETAILS</string>
     <string name="asset_detail_inspection_title">INSPECTION</string>
-    <string name="asset_detail_no_logs">No log entries yet.\nLog an activity to get started.</string>
+    <string name="asset_detail_no_logs">No service records yet.\nTap + to log…</string>
     <string name="asset_detail_share_pdf">Generate PDF Report</string>
     <string name="asset_detail_pdf_generate">Generate PDF Report</string>
     <string name="asset_detail_open_chat">Open team chat</string>
@@ -117,7 +117,7 @@
     <!-- Barcode Scanner -->
     <string name="barcode_scanner_title">Scan Barcode</string>
     <string name="barcode_scanner_action_description">Scan barcode</string>
-    <string name="barcode_scanner_hint">Point your camera at a barcode to scan it.</string>
+    <string name="barcode_scanner_hint">Align barcode within the frame</string>
     <string name="barcode_hint">Point your camera at a barcode to scan it.</string>
     <string name="barcode_scanner_permission_rationale">Camera access is required to scan barcodes</string>
     <string name="barcode_scanner_grant_permission">Grant Camera Permission</string>

@@ -109,13 +109,13 @@ fun InventoryListScreen(
                         modifier = Modifier.weight(1f),
                     )
                     StatTile(
-                        label = "Low",
+                        label = "Low Stock",
                         count = state.lowStockCount,
                         color = ColorLowStock,
                         modifier = Modifier.weight(1f),
                     )
                     StatTile(
-                        label = "Out",
+                        label = "Out of Stock",
                         count = state.outOfStockCount,
                         color = ColorOutOfStock,
                         modifier = Modifier.weight(1f),

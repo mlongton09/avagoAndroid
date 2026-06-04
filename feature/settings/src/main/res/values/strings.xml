@@ -18,9 +18,9 @@
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>
     <string name="settings_language">Language</string>
-    <string name="settings_distance_unit">Distance unit</string>
+    <string name="settings_distance_unit">Distance Units</string>
     <string name="settings_currency">Currency</string>
-    <string name="settings_fuel_volume_unit">Fuel volume unit</string>
+    <string name="settings_fuel_volume_unit">Fuel Unit</string>
     <string name="settings_temperature_unit">Temperature unit</string>
     <string name="settings_ai">AI</string>
     <string name="settings_human_in_loop">Review forms before Scout saves</string>
@@ -59,6 +59,8 @@
     <string name="tech_profile_hourly_rate">Hourly Rate</string>
     <string name="tech_profile_max_active_wos">Max Active Work Orders</string>
     <string name="tech_profile_available_label">Available for work orders</string>
+    <string name="tech_profile_home_location">Home Location</string>
+    <string name="tech_profile_no_home_location">No home location</string>
     <string name="tech_profile_save_success">Profile saved</string>
     <string name="tech_profile_not_found">No technician profile found for your account</string>
     <string name="settings_sign_out">Sign out</string>
@@ -72,8 +74,8 @@
     <string name="settings_privacy_policy_url">https://avagomate.com/privacy</string>
 
     <!-- About screen -->
-    <string name="about_title">About</string>
-    <string name="about_tagline">Fleet, equipment &amp; property maintenance</string>
+    <string name="about_title">About avago</string>
+    <string name="about_tagline">Maintenance tracking for the real world.</string>
     <string name="about_back">Back</string>
     <string name="about_section_legal">Legal</string>
     <string name="about_section_acknowledgements">Acknowledgements</string>

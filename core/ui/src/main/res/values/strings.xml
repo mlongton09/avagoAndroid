@@ -5,8 +5,8 @@
     <string name="open_settings">Open Settings</string>
     <string name="untitled">Untitled</string>
     <string name="not_now">Not Now</string>
-    <string name="date_today">Today</string>
-    <string name="date_yesterday">Yesterday</string>
+    <string name="date_today">today</string>
+    <string name="date_yesterday">yesterday</string>
     <plurals name="days_ago">
         <item quantity="one">%d day ago</item>
         <item quantity="other">%d days ago</item>
