@@ -198,7 +198,8 @@ fun WorkOrderCreateScreen(
                 val iconName = com.avago.core.ui.categoryIconName(it)
                 CategoryItem(
                     key = it,
-                    displayName = it,
+                    displayName = it.replace("_", " ").split(" ")
+                        .joinToString(" ") { w -> w.replaceFirstChar { c -> c.uppercaseChar() } },
                     iconAssetName = iconName,
                     color = com.avago.core.ui.categoryBadgeColor(iconName),
                     group = com.avago.core.ui.categoryGroup(it),
