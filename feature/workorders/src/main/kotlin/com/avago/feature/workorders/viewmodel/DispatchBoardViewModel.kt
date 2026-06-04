@@ -56,6 +56,9 @@ class DispatchBoardViewModel @Inject constructor(
 
     private val _bannerDismissed = MutableStateFlow(false)
 
+    /** Live search query for the dispatch board — matches iOS UISearchController inline search. */
+    val searchQuery = MutableStateFlow("")
+
     @OptIn(ExperimentalCoroutinesApi::class)
     private val allWos: StateFlow<List<WorkOrderEntity>> =
         identityManager.activeAccountId
@@ -71,20 +74,24 @@ class DispatchBoardViewModel @Inject constructor(
             )
 
     val columns: StateFlow<Map<WoStatus, List<WorkOrderEntity>>> =
-        allWos
-            .map { wos ->
-                // Only active WOs on the board — exclude cancelled
-                val active = wos.filter { it.status != WoStatus.CANCELLED.key }
-                DISPATCH_COLUMNS.associateWith { status ->
-                    active.filter { it.status == status.key }
-                        .sortedBy { it.dueDate ?: Long.MAX_VALUE }
+        combine(allWos, searchQuery) { wos, query ->
+            // Only active WOs on the board — exclude cancelled, then apply search filter
+            val active = wos
+                .filter { it.status != WoStatus.CANCELLED.key }
+                .let { list ->
+                    if (query.isBlank()) list
+                    else list.filter { it.title.contains(query, ignoreCase = true) }
                 }
+            DISPATCH_COLUMNS.associateWith { status ->
+                active.filter { it.status == status.key }
+                    .sortedBy { it.dueDate ?: Long.MAX_VALUE }
             }
-            .stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(5_000),
-                initialValue = DISPATCH_COLUMNS.associateWith { emptyList() },
-            )
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = DISPATCH_COLUMNS.associateWith { emptyList() },
+        )
 
     /**
      * True when work is unevenly distributed: the technician with the most assigned

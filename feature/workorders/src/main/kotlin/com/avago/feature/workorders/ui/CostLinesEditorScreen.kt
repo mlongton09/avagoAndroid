@@ -54,6 +54,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.feature.workorders.R
 import com.avago.core.data.db.entity.LogCostLineEntity
+import com.avago.feature.workorders.ui.sheets.TechPickerSheet
 import com.avago.feature.workorders.viewmodel.CostLinesEditorViewModel
 
 private val costLineKinds = listOf("Labor", "Material", "Subcontractor", "Equipment")
@@ -91,12 +92,12 @@ fun CostLinesEditorScreen(
             onPickGlAccount = {
                 onNavigateToGlPicker()
             },
-            onConfirm = { description, kind, qty, unitCost, glCode ->
+            onConfirm = { description, kind, qty, unitCost, glCode, techId ->
                 val existing = editingLine
                 if (existing == null) {
-                    viewModel.addLine(description, kind, qty, unitCost, glCode)
+                    viewModel.addLine(description, kind, qty, unitCost, glCode, techId)
                 } else {
-                    viewModel.updateLine(existing, description, kind, qty, unitCost, glCode)
+                    viewModel.updateLine(existing, description, kind, qty, unitCost, glCode, techId)
                 }
                 dialogGlCode = ""
                 showAddDialog = false
@@ -254,6 +255,14 @@ private fun CostLineCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            if (line.kind == "Labor" && line.userId != null) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "${stringResource(R.string.cost_lines_field_technician)}: ${line.userId}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -264,7 +273,7 @@ private fun CostLineDialog(
     initial: LogCostLineEntity?,
     externalGlCode: String,
     onPickGlAccount: () -> Unit,
-    onConfirm: (description: String, kind: String, quantity: Double, unitCost: Double, glCode: String) -> Unit,
+    onConfirm: (description: String, kind: String, quantity: Double, unitCost: Double, glCode: String, techId: String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var description by rememberSaveable { mutableStateOf(initial?.description ?: "") }
@@ -272,12 +281,26 @@ private fun CostLineDialog(
     var quantityText by rememberSaveable { mutableStateOf(initial?.quantity?.toString() ?: "1") }
     var unitCostText by rememberSaveable { mutableStateOf(initial?.unitCost?.toString() ?: "0") }
     var glCode by rememberSaveable { mutableStateOf(initial?.glCode ?: "") }
+    var techId by rememberSaveable { mutableStateOf(initial?.userId) }
     var kindMenuExpanded by remember { mutableStateOf(false) }
+    var showTechPicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(externalGlCode) {
         if (externalGlCode.isNotBlank()) {
             glCode = externalGlCode
         }
+    }
+
+    if (showTechPicker) {
+        TechPickerSheet(
+            selectedTechIds = techId?.let { listOf(it) } ?: emptyList(),
+            onDismiss = { showTechPicker = false },
+            onConfirm = { ids ->
+                techId = ids.firstOrNull()
+                showTechPicker = false
+            },
+            woId = null,
+        )
     }
 
     AlertDialog(

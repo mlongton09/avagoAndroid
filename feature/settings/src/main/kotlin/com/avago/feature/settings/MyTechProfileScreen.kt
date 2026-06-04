@@ -1,5 +1,6 @@
 ﻿package com.avago.feature.settings
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,10 +11,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -62,6 +66,8 @@ class MyTechProfileViewModel @Inject constructor(
     val hourlyRate = MutableStateFlow("")
     val isAvailable = MutableStateFlow(true)
     val maxActiveWos = MutableStateFlow("")
+    val homeLocationId = MutableStateFlow<String?>(null)
+    val homeLocationName = MutableStateFlow<String?>(null)
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -91,6 +97,11 @@ class MyTechProfileViewModel @Inject constructor(
                     hourlyRate.value = entity.hourlyRate?.toString() ?: ""
                     isAvailable.value = entity.isAvailable
                     maxActiveWos.value = entity.maxActiveWos?.toString() ?: ""
+                    homeLocationId.value = entity.homeLocationId
+                    if (entity.homeLocationId != null) {
+                        val loc = databaseFactory.get(accountId).locationDao().getById(entity.homeLocationId)
+                        homeLocationName.value = loc?.name
+                    }
                 }
             } catch (e: Exception) {
                 Timber.e(e, "MyTechProfileViewModel: loadProfile failed")
@@ -118,6 +129,7 @@ class MyTechProfileViewModel @Inject constructor(
                         hourlyRate = hourlyRate.value.trim().toDoubleOrNull(),
                         isAvailable = isAvailable.value,
                         maxActiveWos = maxActiveWos.value.trim().toIntOrNull(),
+                        homeLocationId = homeLocationId.value,
                         updatedAt = now,
                     )
                 } else {
@@ -134,7 +146,7 @@ class MyTechProfileViewModel @Inject constructor(
                         speedFactor = null,
                         isAvailable = isAvailable.value,
                         maxActiveWos = maxActiveWos.value.trim().toIntOrNull(),
-                        homeLocationId = null,
+                        homeLocationId = homeLocationId.value,
                         currentLocationLat = null,
                         currentLocationLng = null,
                         createdAt = now,
@@ -156,6 +168,11 @@ class MyTechProfileViewModel @Inject constructor(
         }
     }
 
+    fun onLocationSelected(locationId: String, name: String) {
+        homeLocationId.value = locationId
+        homeLocationName.value = name
+    }
+
     fun clearSaveResult() {
         _saveResult.value = null
     }
@@ -169,6 +186,9 @@ class MyTechProfileViewModel @Inject constructor(
 @Composable
 fun MyTechProfileScreen(
     onBack: () -> Unit,
+    onPickLocation: () -> Unit = {},
+    selectedLocationId: String? = null,
+    selectedLocationName: String? = null,
     viewModel: MyTechProfileViewModel = hiltViewModel(),
 ) {
     val displayName by viewModel.displayName.collectAsStateWithLifecycle()
@@ -177,10 +197,17 @@ fun MyTechProfileScreen(
     val hourlyRate by viewModel.hourlyRate.collectAsStateWithLifecycle()
     val isAvailable by viewModel.isAvailable.collectAsStateWithLifecycle()
     val maxActiveWos by viewModel.maxActiveWos.collectAsStateWithLifecycle()
+    val homeLocationName by viewModel.homeLocationName.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val saveResult by viewModel.saveResult.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(selectedLocationId, selectedLocationName) {
+        if (selectedLocationId != null) {
+            viewModel.onLocationSelected(selectedLocationId, selectedLocationName ?: selectedLocationId)
+        }
+    }
 
     LaunchedEffect(saveResult) {
         saveResult?.let { msg ->
@@ -238,6 +265,19 @@ fun MyTechProfileScreen(
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
             )
+
+            HorizontalDivider()
+            ListItem(
+                headlineContent = {
+                    Text(homeLocationName ?: stringResource(R.string.tech_profile_no_home_location))
+                },
+                supportingContent = { Text(stringResource(R.string.tech_profile_home_location)) },
+                trailingContent = {
+                    Icon(Icons.Default.ChevronRight, contentDescription = null)
+                },
+                modifier = Modifier.clickable { onPickLocation() },
+            )
+            HorizontalDivider()
 
             OutlinedTextField(
                 value = hourlyRate,

@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
@@ -74,6 +75,8 @@ fun LogDetailScreen(
     onBack: () -> Unit,
     onEdit: (entryId: String) -> Unit,
     onDeleted: () -> Unit,
+    peerEntryIds: List<String> = emptyList(),
+    onNavigateToEntry: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier,
     viewModel: LogDetailViewModel = hiltViewModel(),
 ) {
@@ -702,6 +705,48 @@ fun LogDetailScreen(
                     }
 
                     Spacer(Modifier.height(24.dp))
+
+                    // ── Prev / Next navigation row (mirrors iOS vertical-pan gesture) ─────
+                    if (peerEntryIds.size > 1 && onNavigateToEntry != null) {
+                        val currentIdx = peerEntryIds.indexOf(entryId)
+                        val hasPrev = currentIdx > 0
+                        val hasNext = currentIdx < peerEntryIds.lastIndex
+                        Spacer(Modifier.height(8.dp))
+                        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            IconButton(
+                                onClick = { if (hasPrev) onNavigateToEntry(peerEntryIds[currentIdx - 1]) },
+                                enabled = hasPrev,
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Previous entry",
+                                    tint = if (hasPrev) MaterialTheme.colorScheme.secondary
+                                           else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                                )
+                            }
+                            VerticalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
+                            IconButton(
+                                onClick = { if (hasNext) onNavigateToEntry(peerEntryIds[currentIdx + 1]) },
+                                enabled = hasNext,
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = "Next entry",
+                                    tint = if (hasNext) MaterialTheme.colorScheme.secondary
+                                           else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(16.dp))
+                    }
                 }
             }
         }

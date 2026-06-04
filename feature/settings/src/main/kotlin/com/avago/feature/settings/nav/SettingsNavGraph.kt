@@ -4,6 +4,7 @@ import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import androidx.navigation.navigation
+import com.avago.core.ui.LocationPickerScreen
 import com.avago.feature.settings.BuildConfig
 import com.avago.feature.settings.AboutScreen
 import com.avago.feature.settings.DeveloperScreen
@@ -28,6 +29,7 @@ object SettingsRoute {
     const val Developer = "settings/developer"
     const val About = "settings/about"
     const val TechProfile = "settings/tech_profile"
+    const val TechProfileLocationPicker = "settings/tech_profile/location_picker"
     const val SyncConflicts = "settings/sync_conflicts"
     const val PrivacyPolicy = "settings/legal/privacy"
     const val TermsOfService = "settings/legal/terms"
@@ -99,8 +101,26 @@ fun NavGraphBuilder.settingsNavGraph(navController: NavController) {
             )
         }
 
-        composable(SettingsRoute.TechProfile) {
-            MyTechProfileScreen(onBack = { navController.popBackStack() })
+        composable(SettingsRoute.TechProfile) { backStackEntry ->
+            val selectedLocationId = backStackEntry.savedStateHandle.get<String>("selected_location_id")
+            val selectedLocationName = backStackEntry.savedStateHandle.get<String>("selected_location_name")
+            MyTechProfileScreen(
+                onBack = { navController.popBackStack() },
+                onPickLocation = { navController.navigate(SettingsRoute.TechProfileLocationPicker) },
+                selectedLocationId = selectedLocationId,
+                selectedLocationName = selectedLocationName,
+            )
+        }
+
+        composable(SettingsRoute.TechProfileLocationPicker) {
+            LocationPickerScreen(
+                onLocationSelected = { id, name ->
+                    navController.previousBackStackEntry?.savedStateHandle?.set("selected_location_id", id)
+                    navController.previousBackStackEntry?.savedStateHandle?.set("selected_location_name", name)
+                    navController.popBackStack()
+                },
+                onBack = { navController.popBackStack() },
+            )
         }
 
         composable(SettingsRoute.SyncConflicts) {

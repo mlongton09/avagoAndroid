@@ -120,6 +120,8 @@ fun AddEditLogScreen(
     performedByName: String? = null,
     /** Result from MaintenanceScannerScreen — part ID to pre-fill as a cost line part. */
     scannedPartId: String? = null,
+    /** Work order ID — when set, shows the WO timer card (mirrors iOS WOTimerView). */
+    workOrderId: String? = null,
     onBack: () -> Unit,
     onSaved: (entryId: String) -> Unit,
     onOpenAssetPicker: () -> Unit,
@@ -157,11 +159,27 @@ fun AddEditLogScreen(
         if (scannedPartId != null) viewModel.onScannedPartSelected(scannedPartId)
     }
 
+    LaunchedEffect(workOrderId) {
+        viewModel.setWorkOrderId(workOrderId)
+    }
+
     val form by viewModel.form.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
+    val timerStartedAt = form.timerStartedAt
+    var timerElapsedSeconds by remember { mutableStateOf(0L) }
+    LaunchedEffect(timerStartedAt) {
+        if (timerStartedAt != null) {
+            while (true) {
+                timerElapsedSeconds = (System.currentTimeMillis() - timerStartedAt) / 1000L
+                kotlinx.coroutines.delay(1000L)
+            }
+        } else {
+            timerElapsedSeconds = 0L
+        }
+    }
 
     val saveFailedMessage = stringResource(R.string.log_entry_alert_save_failed_message)
     LaunchedEffect(form.saveError) {
@@ -896,6 +914,28 @@ fun AddEditLogScreen(
             }
 
             // ==================================================================
+            // WO TIMER CARD — only shown when form is in WO context
+            // iOS: WOTimerView shown inside AddLogItemViewController WO context
+            // ==================================================================
+            if (form.workOrderId != null) {
+                Spacer(Modifier.height(16.dp))
+                WoTimerCard(
+                    elapsedSeconds = timerElapsedSeconds,
+                    isRunning = form.timerStartedAt != null,
+                    onStart = { viewModel.startTimer() },
+                    onStop = {
+                        val elapsed = viewModel.stopTimer()
+                        if (elapsed > 0 && form.totalCost.isBlank()) {
+                            // Pre-fill elapsed time as decimal hours in the cost field (mirrors iOS)
+                            val hours = elapsed / 3600.0
+                            viewModel.onTotalCostChanged("%.2f".format(hours))
+                        }
+                    },
+                    onLap = { viewModel.lapTimer() },
+                )
+            }
+
+            // ==================================================================
             // ITEM ATTRIBUTES — "add details" contacts row + attrs card
             // iOS: contacts-style add row + expandable details section
             // iOS default: itemAttrExpanded = true (starts visible, row tap collapses/expands)
@@ -1367,6 +1407,73 @@ private fun FormRow(
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+/** WO-context timer card — matches iOS WOTimerView (start/stop/lap). */
+@Composable
+private fun WoTimerCard(
+    elapsedSeconds: Long,
+    isRunning: Boolean,
+    onStart: () -> Unit,
+    onStop: () -> Unit,
+    onLap: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val hours = elapsedSeconds / 3600
+    val minutes = (elapsedSeconds % 3600) / 60
+    val seconds = elapsedSeconds % 60
+    val timeText = "%02d:%02d:%02d".format(hours, minutes, seconds)
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline),
+    ) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(36.dp)
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "TIMER",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    text = timeText,
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = if (isRunning) MaterialTheme.colorScheme.secondary
+                            else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f),
+                )
+                if (!isRunning) {
+                    TextButton(onClick = onStart) {
+                        Text("Start", color = MaterialTheme.colorScheme.secondary)
+                    }
+                } else {
+                    TextButton(onClick = onLap) {
+                        Text("Lap", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    TextButton(onClick = onStop) {
+                        Text("Stop", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+        }
     }
 }
 

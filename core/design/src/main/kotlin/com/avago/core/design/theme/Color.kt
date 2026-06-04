@@ -36,8 +36,8 @@ val LightAccentOrange = Color(0xFF9A6700)  // accentOrange light
 val DarkOutlineVariant  = Color(0xFF4D5561)  // darker gray (iOS systemGray dark)
 val LightOutlineVariant = Color(0xFFB8C1CA)  // lighter gray (iOS systemGray light)
 
-// ── Primary container tokens (FAB, chips) ───────────────────────────────────
-val DarkPrimaryContainer   = Color(0xFF1C2D40)  // dark blue-tinted surface
-val DarkOnPrimaryContainer = Color(0xFF539BF5)
-val LightPrimaryContainer   = Color(0xFFDBEAFE)  // light blue tint
-val LightOnPrimaryContainer = Color(0xFF0969DA)
+// ── Primary container tokens (FAB, chips) — green-tinted to match iOS accentGreen CTA ──
+val DarkPrimaryContainer   = Color(0xFF1A3020)  // dark green-tinted surface
+val DarkOnPrimaryContainer = Color(0xFF46954A)  // accentGreen dark
+val LightPrimaryContainer   = Color(0xFFD4EDDA)  // light green tint
+val LightOnPrimaryContainer = Color(0xFF1A7F37)  // accentGreen light

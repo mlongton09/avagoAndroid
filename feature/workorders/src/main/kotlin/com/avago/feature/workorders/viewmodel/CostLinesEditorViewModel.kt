@@ -61,6 +61,7 @@ class CostLinesEditorViewModel @Inject constructor(
         quantity: Double,
         unitCost: Double,
         glCode: String,
+        techId: String? = null,
     ) {
         val accountId = _accountId.value ?: return
         viewModelScope.launch {
@@ -75,7 +76,7 @@ class CostLinesEditorViewModel @Inject constructor(
                     kind = kind,
                     displayOrder = nextOrder,
                     inventoryId = null,
-                    userId = null,
+                    userId = techId,
                     description = description.ifBlank { null },
                     quantity = quantity,
                     unitCost = unitCost,
@@ -106,6 +107,7 @@ class CostLinesEditorViewModel @Inject constructor(
         quantity: Double,
         unitCost: Double,
         glCode: String,
+        techId: String? = null,
     ) {
         val accountId = _accountId.value ?: return
         viewModelScope.launch {
@@ -117,6 +119,7 @@ class CostLinesEditorViewModel @Inject constructor(
                     quantity = quantity,
                     unitCost = unitCost,
                     glCode = glCode.ifBlank { null },
+                    userId = techId,
                     updatedAt = System.currentTimeMillis(),
                 )
                 repository.upsertCostLine(accountId, updated)

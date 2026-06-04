@@ -47,8 +47,11 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -69,6 +72,7 @@ import com.avago.core.ui.EmptyState
 import com.avago.core.ui.rememberScrollAwareHeaderState
 import com.avago.feature.workorders.model.WoStatus
 import com.avago.feature.workorders.ui.components.WoCard
+import com.avago.feature.workorders.ui.sheets.RescheduleSheet
 import com.avago.feature.workorders.viewmodel.WoHorizon
 import com.avago.feature.workorders.viewmodel.WoListFilter
 import com.avago.feature.workorders.viewmodel.WorkOrderListViewModel
@@ -210,12 +214,69 @@ fun WorkOrderListScreen(
                                 )
                             }
                             items(bucket.items, key = { it.woId }) { wo ->
-                                WoCard(
-                                    wo = wo,
-                                    onClick = { onWoClick(wo.woId) },
-                                    assetLabel = assetLabels[wo.assetId],
-                                )
+                                var rescheduleTarget by remember { mutableStateOf<String?>(null) }
+                                SwipeToDismissBox(
+                                    state = rememberSwipeToDismissBoxState(
+                                        confirmValueChange = { value ->
+                                            if (value == SwipeToDismissBoxValue.EndToStart) {
+                                                rescheduleTarget = wo.woId
+                                            }
+                                            false // don't actually dismiss — just reveal the action
+                                        },
+                                        positionalThreshold = { it * 0.35f },
+                                    ),
+                                    enableDismissFromEndToStart = true,
+                                    enableDismissFromStartToEnd = false,
+                                    backgroundContent = {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(bottom = 8.dp)
+                                                .clip(MaterialTheme.shapes.small)
+                                                .background(MaterialTheme.colorScheme.secondary),
+                                            contentAlignment = Alignment.CenterEnd,
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.padding(end = 20.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.CalendarToday,
+                                                    contentDescription = null,
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(20.dp),
+                                                )
+                                                Text(
+                                                    text = "Reschedule",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = Color.White,
+                                                )
+                                            }
+                                        }
+                                    },
+                                ) {
+                                    WoCard(
+                                        wo = wo,
+                                        onClick = { onWoClick(wo.woId) },
+                                        assetLabel = assetLabels[wo.assetId],
+                                    )
+                                }
                                 Spacer(modifier = Modifier.height(8.dp))
+
+                                if (rescheduleTarget == wo.woId) {
+                                    val currentDue = wo.dueDate?.let {
+                                        java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+                                    }
+                                    RescheduleSheet(
+                                        currentDueDate = currentDue,
+                                        onDismiss = { rescheduleTarget = null },
+                                        onConfirm = { newDate ->
+                                            val ms = newDate.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                                            viewModel.rescheduleWo(wo.woId, ms)
+                                            rescheduleTarget = null
+                                        },
+                                    )
+                                }
                             }
                         }
                     }

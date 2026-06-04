@@ -112,6 +112,10 @@ data class AddEditLogFormState(
     val validationError: LogValidationError? = null,
 
     val isLoadingExisting: Boolean = false,
+    // WO context — timer is only shown when non-null
+    val workOrderId: String? = null,
+    // Timer: epoch millis when the timer was started; null = not running
+    val timerStartedAt: Long? = null,
 ) {
     val itemizedTotal: Double get() = pendingCostLines.sumOf { it.quantity * it.unitCost + (it.taxAmount ?: 0.0) }
     val costLineCount: Int get() = pendingCostLines.size
@@ -950,6 +954,26 @@ class AddEditLogViewModel @Inject constructor(
         return Regex("\"id\"\\s*:\\s*\"([^\"]+)\"")
             .findAll(json.substring(arrStart, arrEnd + 1))
             .map { it.groupValues[1] }.toList()
+    }
+
+    fun setWorkOrderId(woId: String?) {
+        _form.update { it.copy(workOrderId = woId) }
+    }
+
+    fun startTimer() {
+        _form.update { it.copy(timerStartedAt = System.currentTimeMillis()) }
+    }
+
+    fun stopTimer(): Long {
+        val started = _form.value.timerStartedAt ?: return 0L
+        val elapsed = (System.currentTimeMillis() - started) / 1000L
+        _form.update { it.copy(timerStartedAt = null) }
+        return elapsed
+    }
+
+    fun lapTimer(): Long {
+        val started = _form.value.timerStartedAt ?: return 0L
+        return (System.currentTimeMillis() - started) / 1000L
     }
 
     private fun parseCategoriesFromSeeded(json: String, assetType: String): List<String> {

@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Splash page background. Neutral (matches iOS LaunchScreen.storyboard
-         which is white) so the red disc + white wrench drawable reads as a
-         centered icon rather than a full-screen red wash. -->
-    <color name="splash_background">#FFFFFF</color>
+    <!-- Splash background matches iOS LaunchBackgroundColor (#0D1117 dark navy). -->
+    <color name="splash_background">#0D1117</color>
 </resources>

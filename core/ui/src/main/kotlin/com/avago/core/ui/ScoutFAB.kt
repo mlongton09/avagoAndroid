@@ -101,7 +101,7 @@ fun ScoutSheet(
     onQuery: suspend (String) -> String,
     onDismiss: () -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
 

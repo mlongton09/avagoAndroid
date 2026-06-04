@@ -98,9 +98,6 @@ fun WorkOrderCreateScreen(
 ) {
     val title by viewModel.title.collectAsStateWithLifecycle()
     val description by viewModel.description.collectAsStateWithLifecycle()
-    val vin by viewModel.vin.collectAsStateWithLifecycle()
-    val vinDecodeResult by viewModel.vinDecodeResult.collectAsStateWithLifecycle()
-    val isDecodingVin by viewModel.isDecodingVin.collectAsStateWithLifecycle()
     val assetName by viewModel.assetName.collectAsStateWithLifecycle()
     val locationName by viewModel.locationName.collectAsStateWithLifecycle()
     val category by viewModel.category.collectAsStateWithLifecycle()
@@ -112,9 +109,6 @@ fun WorkOrderCreateScreen(
     val priority by viewModel.priority.collectAsStateWithLifecycle()
     val estimatedHours by viewModel.estimatedHours.collectAsStateWithLifecycle()
     val assignedTechIds by viewModel.assignedTechIds.collectAsStateWithLifecycle()
-    val checklistDrafts by viewModel.checklistDrafts.collectAsStateWithLifecycle()
-    val templates by viewModel.templates.collectAsStateWithLifecycle()
-    val selectedTemplateId by viewModel.selectedTemplateId.collectAsStateWithLifecycle()
     val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
     val titleError by viewModel.titleError.collectAsStateWithLifecycle()
     val savedSuccessfully by viewModel.savedSuccessfully.collectAsStateWithLifecycle()
@@ -148,11 +142,9 @@ fun WorkOrderCreateScreen(
         if (savedSuccessfully) onSaved()
     }
 
-    var showTemplateMenu by remember { mutableStateOf(false) }
     var showTechPicker by remember { mutableStateOf(false) }
     var showRepeatsSheet by remember { mutableStateOf(false) }
     var showCategoryPicker by remember { mutableStateOf(false) }
-    var showVinSection by remember { mutableStateOf(false) }
     var showDatePickerDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(selectedAssetId) {
@@ -214,12 +206,6 @@ fun WorkOrderCreateScreen(
             },
             onDismiss = { showCategoryPicker = false },
         )
-    }
-
-    LaunchedEffect(vin, vinDecodeResult) {
-        if (vin.isNotBlank() || vinDecodeResult != null) {
-            showVinSection = true
-        }
     }
 
     // Compact date picker dialog — replaces the heavy inline DatePicker calendar
@@ -287,37 +273,6 @@ fun WorkOrderCreateScreen(
                     initial = assetName!!.firstOrNull()?.uppercaseChar()?.toString() ?: "A",
                     onTap = onPickAsset,
                 )
-            }
-
-            if (templates.isNotEmpty()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(
-                        stringResource(R.string.wo_field_template),
-                        style = MaterialTheme.typography.labelLarge,
-                    )
-                    TextButton(onClick = { showTemplateMenu = true }) {
-                        val selectedTemplate = templates.firstOrNull { it.templateId == selectedTemplateId }
-                        Text(selectedTemplate?.title ?: stringResource(R.string.wo_field_template_placeholder))
-                    }
-                    DropdownMenu(
-                        expanded = showTemplateMenu,
-                        onDismissRequest = { showTemplateMenu = false },
-                    ) {
-                        templates.forEach { template ->
-                            DropdownMenuItem(
-                                text = { Text(template.title) },
-                                onClick = {
-                                    viewModel.applyTemplate(template)
-                                    showTemplateMenu = false
-                                },
-                            )
-                        }
-                    }
-                }
             }
 
             FormSection {
@@ -443,72 +398,6 @@ fun WorkOrderCreateScreen(
                 }
             }
 
-            FormSection(title = stringResource(R.string.wo_vin_label)) {
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.wo_vin_label)) },
-                    supportingContent = { Text(stringResource(R.string.wo_vin_placeholder)) },
-                    trailingContent = {
-                        Icon(
-                            imageVector = if (showVinSection) Icons.Default.Close else Icons.Default.Add,
-                            contentDescription = null,
-                        )
-                    },
-                    modifier = Modifier.clickable { showVinSection = !showVinSection },
-                )
-                if (showVinSection) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        OutlinedTextField(
-                            value = vin,
-                            onValueChange = { viewModel.vin.value = it },
-                            modifier = Modifier.weight(1f),
-                            label = { Text(stringResource(R.string.wo_vin_label)) },
-                            placeholder = { Text(stringResource(R.string.wo_vin_placeholder)) },
-                            singleLine = true,
-                        )
-                        OutlinedButton(
-                            onClick = viewModel::decodeVin,
-                            enabled = vin.isNotBlank() && !isDecodingVin,
-                        ) {
-                            Text(
-                                if (isDecodingVin) stringResource(R.string.wo_vin_decoding)
-                                else stringResource(R.string.wo_vin_decode_btn),
-                            )
-                        }
-                    }
-
-                    vinDecodeResult?.let { result ->
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp),
-                            ) {
-                                result.year?.let {
-                                    Text("${stringResource(R.string.wo_vin_year)}: $it", style = MaterialTheme.typography.bodySmall)
-                                }
-                                result.make?.takeIf { it.isNotBlank() }?.let {
-                                    Text("${stringResource(R.string.wo_vin_make)}: $it", style = MaterialTheme.typography.bodySmall)
-                                }
-                                result.model?.takeIf { it.isNotBlank() }?.let {
-                                    Text("${stringResource(R.string.wo_vin_model)}: $it", style = MaterialTheme.typography.bodySmall)
-                                }
-                                result.engine?.takeIf { it.isNotBlank() }?.let {
-                                    Text("Engine: $it", style = MaterialTheme.typography.bodySmall)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
             FormSection(title = stringResource(R.string.wo_create_select_asset_group)) {
                 OutlinedButton(
                     onClick = onPickAssetGroup,
@@ -531,31 +420,6 @@ fun WorkOrderCreateScreen(
                     },
                     modifier = Modifier.clickable { onPickJob() },
                 )
-            }
-
-            FormSection(title = stringResource(R.string.wo_field_checklist)) {
-                checklistDrafts.forEach { draft ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        OutlinedTextField(
-                            value = draft.title,
-                            onValueChange = { viewModel.updateChecklistItem(draft.id, it) },
-                            modifier = Modifier.weight(1f),
-                            placeholder = { Text(stringResource(R.string.wo_field_checklist_item_placeholder)) },
-                            singleLine = true,
-                        )
-                        IconButton(onClick = { viewModel.removeChecklistItem(draft.id) }) {
-                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.wo_create_remove_checklist_step))
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-                TextButton(onClick = viewModel::addChecklistItem) {
-                    Icon(Icons.Default.Add, contentDescription = null)
-                    Text(stringResource(R.string.wo_field_add_checklist_item))
-                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))

@@ -255,6 +255,22 @@ class WorkOrderListViewModel @Inject constructor(
             }
         }
     }
+
+    fun rescheduleWo(woId: String, newDueDateMs: Long) {
+        viewModelScope.launch {
+            val accountId = identityManager.getActiveAccountId() ?: return@launch
+            val existing = repository.getById(accountId, woId) ?: run {
+                Timber.w("[WoListVM] rescheduleWo: WO $woId not found in local DB")
+                return@launch
+            }
+            val updated = existing.copy(
+                dueDate = newDueDateMs,
+                updatedAt = System.currentTimeMillis(),
+            )
+            repository.upsert(accountId, updated)
+            Timber.d("[WoListVM] rescheduled $woId to $newDueDateMs")
+        }
+    }
 }
 
 /** Tuple helper for combining 4 flows — avoids nesting a second combine(). */

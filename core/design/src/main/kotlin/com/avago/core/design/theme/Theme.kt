@@ -12,11 +12,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = DarkAccentBlue,
+    // primary = green (iOS accentGreen — CTAs, FABs, filled buttons)
+    primary = DarkAccentGreen,
     onPrimary = Color(0xFFE6EDF3),
     primaryContainer = DarkPrimaryContainer,
     onPrimaryContainer = DarkOnPrimaryContainer,
-    secondary = DarkAccentGreen,
+    // secondary = blue (iOS accentBlue — links, nav tint)
+    secondary = DarkAccentBlue,
     onSecondary = Color(0xFFE6EDF3),
     secondaryContainer = DarkSurfaceVariant,
     onSecondaryContainer = DarkOnSurface,
@@ -36,11 +38,13 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = LightAccentBlue,
+    // primary = green (iOS accentGreen — CTAs, FABs, filled buttons)
+    primary = LightAccentGreen,
     onPrimary = Color(0xFFFFFFFF),
     primaryContainer = LightPrimaryContainer,
     onPrimaryContainer = LightOnPrimaryContainer,
-    secondary = LightAccentGreen,
+    // secondary = blue (iOS accentBlue — links, nav tint)
+    secondary = LightAccentBlue,
     onSecondary = Color(0xFFFFFFFF),
     secondaryContainer = LightSurfaceVariant,
     onSecondaryContainer = LightOnSurface,

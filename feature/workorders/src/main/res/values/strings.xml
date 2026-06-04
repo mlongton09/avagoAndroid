@@ -138,6 +138,8 @@
     <string name="dispatch_board_empty_column">No work orders</string>
     <string name="dispatch_board_drag_hint">Drag a card to change status</string>
     <string name="dispatch_board_disabled">Dispatch Board is not available for your account</string>
+    <string name="dispatch_board_search_placeholder">Search work orders…</string>
+    <string name="dispatch_board_search_hint">Search</string>
 
     <!-- WO Rebalance Banner -->
     <string name="wo_rebalance_title">Assignment imbalance detected</string>
@@ -207,6 +209,9 @@
     <string name="cost_lines_field_gl_account">GL Account</string>
     <string name="cost_lines_gl_account_placeholder">Select account</string>
     <string name="cost_lines_pick_gl_account">Pick</string>
+    <string name="cost_lines_field_technician">Technician</string>
+    <string name="cost_lines_pick_technician">Pick</string>
+    <string name="cost_lines_no_technician">No technician</string>
     <string name="cost_lines_save">Save</string>
     <string name="cost_lines_cancel">Cancel</string>
     <string name="cost_lines_back">Back</string>
