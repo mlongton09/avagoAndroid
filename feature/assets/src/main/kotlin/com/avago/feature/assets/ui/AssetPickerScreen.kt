@@ -1,5 +1,6 @@
-﻿package com.avago.feature.assets.ui
+package com.avago.feature.assets.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -24,13 +25,16 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -45,9 +49,11 @@ import com.avago.feature.assets.viewmodel.AssetListViewModel
  * Searchable asset picker used when linking an asset from other features
  * (work orders, log entries, etc.). Returns the selected asset via [onAssetSelected].
  *
- * Reuses [AssetListViewModel] since the data needs are identical.
+ * Grouped by asset type in the same order as iOS AssetGroupPickerViewController:
+ * sections follow AssetTypes.all ordering, assets within each section are
+ * sorted alphabetically by name.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun AssetPickerScreen(
     onAssetSelected: (assetId: String) -> Unit,
@@ -56,6 +62,27 @@ fun AssetPickerScreen(
 ) {
     val assets by viewModel.assets.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+
+    // Type order from AssetTypes.all — mirrors the iOS AssetTypes config JSON order.
+    val orderedTypeKeys = remember { AssetTypes.all.map { it.key } }
+
+    // Group and sort: follow AssetTypes.all order, then unknown types, alpha within.
+    val grouped = remember(assets) {
+        val byType = assets.groupBy { it.assetType?.lowercase()?.trim() ?: "other" }
+        val result = mutableListOf<Pair<String, List<AssetEntity>>>()
+        for (key in orderedTypeKeys) {
+            byType[key]?.let { list ->
+                result.add(key to list.sortedBy { it.name.lowercase() })
+            }
+        }
+        // Any types not in AssetTypes.all (server-side custom types, etc.)
+        for ((key, list) in byType) {
+            if (key !in orderedTypeKeys) {
+                result.add(key to list.sortedBy { it.name.lowercase() })
+            }
+        }
+        result
+    }
 
     Scaffold(
         topBar = {
@@ -96,7 +123,7 @@ fun AssetPickerScreen(
                 shape = RoundedCornerShape(12.dp),
             )
 
-            if (assets.isEmpty()) {
+            if (grouped.isEmpty()) {
                 EmptyState(
                     message = stringResource(R.string.asset_picker_empty),
                     modifier = Modifier.fillMaxSize(),
@@ -104,21 +131,61 @@ fun AssetPickerScreen(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(vertical = 4.dp),
+                    contentPadding = PaddingValues(bottom = 16.dp),
                 ) {
-                    items(
-                        items = assets,
-                        key = { it.assetId },
-                    ) { asset ->
-                        AssetPickerRow(
-                            asset = asset,
-                            onClick = { onAssetSelected(asset.assetId) },
-                        )
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    grouped.forEach { (typeKey, typeAssets) ->
+                        val labelResId = AssetTypes.labelResIdFor(typeKey)
+                        val label = if (labelResId != null) {
+                            // resolved in composable below
+                            null
+                        } else {
+                            typeKey.replace("_", " ").uppercase()
+                        }
+
+                        stickyHeader(key = "header_$typeKey") {
+                            SectionHeader(typeKey = typeKey, fallbackLabel = label)
+                        }
+
+                        items(typeAssets, key = { it.assetId }) { asset ->
+                            AssetPickerRow(
+                                asset = asset,
+                                onClick = { onAssetSelected(asset.assetId) },
+                            )
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 72.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant,
+                            )
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SectionHeader(typeKey: String, fallbackLabel: String?) {
+    val labelResId = AssetTypes.labelResIdFor(typeKey)
+    val text = if (labelResId != null) {
+        stringResource(labelResId).uppercase()
+    } else {
+        fallbackLabel ?: typeKey.replace("_", " ").uppercase()
+    }
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            letterSpacing = androidx.compose.ui.unit.TextUnit(
+                1.2f,
+                androidx.compose.ui.unit.TextUnitType.Sp,
+            ),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+        )
     }
 }
 
@@ -132,7 +199,7 @@ private fun AssetPickerRow(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -141,22 +208,17 @@ private fun AssetPickerRow(
             assetType = asset.assetType,
             size = 40,
         )
-        Spacer(modifier = Modifier.width(4.dp))
+        Spacer(modifier = Modifier.width(0.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = asset.name,
                 style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            val subtitle = listOfNotNull(
-                asset.assetType?.let { key ->
-                    val resId = AssetTypes.labelResIdFor(key)
-                    if (resId != null) null else key.replace("_", " ").replaceFirstChar { it.uppercase() }
-                },
-                asset.make,
-                asset.model,
-            ).joinToString(" · ")
+            val subtitle = listOfNotNull(asset.make, asset.model)
+                .joinToString(" · ")
             if (subtitle.isNotBlank()) {
                 Text(
                     text = subtitle,
