@@ -8,6 +8,10 @@ import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.AssetEntity
 import com.avago.core.data.db.entity.LogEntity
 import com.avago.core.data.db.entity.WoCommentEntity
+import com.avago.core.ai.ScreenContextStore
+import com.avago.core.data.FormFillRouter
+import com.avago.core.data.db.entity.WorkOrderEntity
+import com.avago.feature.workorders.viewmodel.AuditEntry
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
 import com.avago.core.sync.SyncEngine
@@ -43,6 +47,8 @@ class WorkOrderLogViewModel @Inject constructor(
     private val dbFactory: DatabaseFactory,
     private val syncEngine: SyncEngine,
     private val serviceClient: AvagoServiceClient,
+    private val screenContextStore: ScreenContextStore,
+    private val formFillRouter: FormFillRouter,
 ) : ViewModel() {
 
     val woId: String = requireNotNull(savedStateHandle["woId"])
@@ -88,6 +94,16 @@ class WorkOrderLogViewModel @Inject constructor(
     val completedSuccessfully = MutableStateFlow(false)
 
     init {
+        formFillRouter.register("log_entry") { fields ->
+            val changed = mutableListOf<String>()
+            fields["title"]?.let { logTitle.value = it; changed += "title" }
+            fields["category"]?.let { logCategory.value = it; changed += "category" }
+            fields["notes"]?.let { logNotes.value = it; changed += "notes" }
+            fields["cost"]?.let { logCost.value = it; changed += "cost" }
+            (fields["meter_reading"] ?: fields["odometer"])?.let { logMeterReading.value = it; changed += "odometer" }
+            fields["performed_by"]?.let { logPerformedBy.value = it; changed += "performed_by" }
+            changed
+        }
         viewModelScope.launch { load() }
         viewModelScope.launch { observeComments() }
         viewModelScope.launch { loadAuditHistory() }
@@ -114,6 +130,7 @@ class WorkOrderLogViewModel @Inject constructor(
                 assetName.value = asset?.name
                 assetType.value = asset?.assetType
                 assetSubtitle.value = buildSubtitle(asset)
+                screenContextStore.setLogEntryScope(assetId, asset?.name)
 
                 val typeKey = asset?.assetType?.takeIf { it.isNotBlank() } ?: "light_vehicle"
                 loadCategories(typeKey, assetId, accountId, db)
@@ -245,6 +262,11 @@ class WorkOrderLogViewModel @Inject constructor(
     fun onCategorySelected(key: String) { logCategory.value = key }
     fun clearError() { _errorMessage.value = null }
 
+    override fun onCleared() {
+        formFillRouter.unregister("log_entry")
+        super.onCleared()
+    }
+
     // ── Timer (mirrors iOS WOTimerView delegate) ──────────────────────────────
 
     /** Start timer: set timerStartedAt, auto-advance assigned → in_progress. */
@@ -303,7 +325,7 @@ class WorkOrderLogViewModel @Inject constructor(
                         seq = null,
                     ),
                 )
-                syncEngine.requestSync()
+                syncEngine.sync()
             } catch (e: Exception) {
                 Timber.e(e, "[WoLogVM] sendComment failed")
             }

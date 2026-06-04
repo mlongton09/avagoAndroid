@@ -67,6 +67,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material.icons.filled.AutoAwesome
+import com.avago.core.ai.ui.ScoutPaletteSheet
 import com.avago.core.ui.CategoryBadge
 import com.avago.feature.workorders.R
 import com.avago.feature.workorders.model.WoPriority
@@ -120,6 +123,7 @@ fun WorkOrderDetailScreen(
     val canDelete by viewModel.canDelete.collectAsStateWithLifecycle()
     val mapPreview by viewModel.mapPreview.collectAsStateWithLifecycle()
 
+    var showScoutSheet by remember { mutableStateOf(false) }
     var showOverflowMenu by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showTechPicker by remember { mutableStateOf(false) }
@@ -206,16 +210,37 @@ fun WorkOrderDetailScreen(
         )
     }
 
+    ScoutPaletteSheet(
+        visible = showScoutSheet,
+        onDismiss = { showScoutSheet = false },
+        onNavigate = { targetScreen, fields ->
+            when (targetScreen) {
+                "log_entry" -> onLogWork?.invoke(wo?.assetId)
+                else -> Unit
+            }
+            showScoutSheet = false
+        },
+    )
+
     Scaffold(
         modifier = modifier,
         floatingActionButton = {
-            if (onLogWork != null) {
+            Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)) {
                 FloatingActionButton(
-                    onClick = { onLogWork(wo?.assetId) },
+                    onClick = { showScoutSheet = true },
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = Color.White,
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "Log work")
+                    Icon(Icons.Default.AutoAwesome, contentDescription = "Scout")
+                }
+                if (onLogWork != null) {
+                    FloatingActionButton(
+                        onClick = { onLogWork(wo?.assetId) },
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = Color.White,
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Log work")
+                    }
                 }
             }
         },

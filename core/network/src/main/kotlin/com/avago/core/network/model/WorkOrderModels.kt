@@ -20,6 +20,11 @@ data class AuditEventResponse(
 )
 
 @Serializable
+data class AuditListResponse(
+    val entries: List<AuditEventResponse> = emptyList(),
+)
+
+@Serializable
 data class BudgetPillResponse(
     val total_cost: Double = 0.0,
     val labor_cost: Double = 0.0,

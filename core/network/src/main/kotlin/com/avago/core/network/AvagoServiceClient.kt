@@ -7,6 +7,7 @@ import com.avago.core.network.model.MembersEnvelope
 import com.avago.core.network.model.AiSkillResponse
 import com.avago.core.network.model.AiSkillsEnvelope
 import com.avago.core.network.model.AuditEventResponse
+import com.avago.core.network.model.AuditListResponse
 import com.avago.core.network.model.AuthResponse
 import com.avago.core.network.model.BudgetPillResponse
 import com.avago.core.network.model.BulkInvitation
@@ -823,7 +824,8 @@ class AvagoServiceClient @Inject constructor(
         woId: String,
     ): NetworkResult<List<AuditEventResponse>> =
         safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/work-orders/$woId/audit").body()
+            val envelope: AuditListResponse = client.get("$baseUrl/accounts/$accountId/work-orders/$woId/audit").body()
+            envelope.entries
         }
 
     /** GET /accounts/{accountId}/work-orders/{woId}/budget-pill — fetch budget summary for a WO. */

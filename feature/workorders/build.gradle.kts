@@ -40,6 +40,7 @@ dependencies {
     implementation(project(":core:network"))
     implementation(project(":core:auth"))
     implementation(project(":core:permissions"))
+    implementation(project(":core:ai"))
 
     testImplementation(libs.junit5)
     testRuntimeOnly(libs.junit5.engine)

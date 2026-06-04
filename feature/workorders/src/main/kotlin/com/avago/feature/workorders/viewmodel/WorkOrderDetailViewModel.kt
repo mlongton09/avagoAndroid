@@ -20,6 +20,8 @@ import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
 import com.avago.core.network.model.BudgetPillResponse
 import com.avago.core.network.model.GeocodeRequest
+import com.avago.core.ai.ScreenContextStore
+import com.avago.core.data.FormFillRouter
 import com.avago.core.permissions.Permissions
 import com.avago.core.permissions.PermissionsManager
 import com.avago.core.sync.SyncEngine
@@ -62,6 +64,8 @@ class WorkOrderDetailViewModel @Inject constructor(
     private val syncEngine: SyncEngine,
     private val serviceClient: AvagoServiceClient,
     private val permissionsManager: PermissionsManager,
+    private val screenContextStore: ScreenContextStore,
+    private val formFillRouter: FormFillRouter,
 ) : ViewModel() {
 
     private val woId: String = requireNotNull(savedStateHandle["woId"]) {
@@ -246,6 +250,8 @@ class WorkOrderDetailViewModel @Inject constructor(
                     updatedAt = System.currentTimeMillis(),
                 ))
                 _isEditingHeader.value = false
+                runCatching { syncEngine.sync() }
+                    .onFailure { Timber.w(it, "[WoDetailVM] sync after saveHeader failed") }
             } catch (e: Exception) {
                 Timber.e(e, "[WoDetailVM] saveHeader failed")
                 _error.value = "Failed to save"
@@ -750,9 +756,27 @@ class WorkOrderDetailViewModel @Inject constructor(
     // ---------------------------------------------------------------------------
 
     init {
+        screenContextStore.setWorkOrderScope(woId)
+        formFillRouter.register("wo_detail") { fields ->
+            val changed = mutableListOf<String>()
+            val title = fields["title"]
+            val desc = fields["description"] ?: fields["notes"]
+            if (title != null || desc != null) {
+                _editTitle.value = title ?: (workOrder.value?.title ?: "")
+                _editDescription.value = desc ?: (workOrder.value?.description ?: "")
+                _isEditingHeader.value = true
+                changed += listOfNotNull(title?.let { "title" }, desc?.let { "description" })
+            }
+            changed
+        }
         loadAuditHistory()
         resolveWorkOrderThread()
         loadBudgetPill()
+    }
+
+    override fun onCleared() {
+        formFillRouter.unregister("wo_detail")
+        super.onCleared()
     }
 }
 

@@ -291,7 +291,7 @@ fun categoryBadgeColor(iconName: String): Color =
 
 private val iconNameToGroup: Map<String, String> = mapOf(
     "cat_service" to "COMMON", "cat_repair" to "COMMON",
-    "cat_inspection" to "COMMON",
+    "cat_inspection" to "INSPECTIONS",
     "cat_oil" to "ENGINE", "cat_engine" to "ENGINE",
     "cat_exhaust" to "ENGINE", "cat_turbo" to "ENGINE", "cat_injector" to "ENGINE",
     "cat_filters" to "FILTERS",
@@ -302,12 +302,12 @@ private val iconNameToGroup: Map<String, String> = mapOf(
     "cat_battery" to "ELECTRICAL", "cat_electric" to "ELECTRICAL",
     "cat_evse" to "ELECTRICAL",
     "cat_safety" to "SAFETY",
-    "cat_mechanical" to "MECHANICAL", "cat_suspension" to "MECHANICAL",
+    "cat_mechanical" to "SUSPENSION & STEERING", "cat_suspension" to "SUSPENSION & STEERING",
     "cat_hydraulics" to "MECHANICAL", "cat_undercarriage" to "MECHANICAL",
     "cat_hvac" to "HVAC & CLIMATE",
-    "cat_wash" to "BODY & EXTERIOR", "cat_cleaning" to "BODY & EXTERIOR",
-    "cat_window" to "BODY & EXTERIOR", "cat_wipers" to "BODY & EXTERIOR",
-    "cat_exterior" to "BODY & EXTERIOR",
+    "cat_wash" to "BODY & INTERIOR", "cat_cleaning" to "BODY & INTERIOR",
+    "cat_window" to "BODY & INTERIOR", "cat_wipers" to "BODY & INTERIOR",
+    "cat_exterior" to "BODY & INTERIOR",
     "cat_structure" to "STRUCTURE",
     "cat_plumbing" to "PLUMBING",
     "cat_compliance" to "COMPLIANCE",
@@ -332,13 +332,13 @@ private val iconNameToGroup: Map<String, String> = mapOf(
     "cat_lighting" to "ELECTRICAL",
     "cat_anchoring" to "MARINE",
     "cat_blades" to "MECHANICAL",
-    "cat_paint" to "BODY & EXTERIOR",
+    "cat_paint" to "BODY & INTERIOR",
     "cat_flooring" to "STRUCTURE",
 )
 
 /** Returns the display section name for a category ID (e.g. "ENGINE", "BRAKES"). */
 fun categoryGroup(categoryId: String?): String {
-    if (categoryId in setOf("service", "repair", "inspection", "fuel_log")) return "COMMON"
+    if (categoryId in setOf("service", "repair", "inspection")) return "COMMON"
     val icon = categoryIconName(categoryId)
     return iconNameToGroup[icon] ?: "OTHER"
 }

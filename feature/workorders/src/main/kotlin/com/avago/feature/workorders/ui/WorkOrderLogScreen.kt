@@ -24,8 +24,11 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material3.FloatingActionButton
+import com.avago.core.ai.ui.ScoutPaletteSheet
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.unit.sp
@@ -121,6 +124,7 @@ fun WorkOrderLogScreen(
     val auditEntries by viewModel.auditEntries.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
+    var showScoutSheet by remember { mutableStateOf(false) }
     var showCategoryPicker by remember { mutableStateOf(false) }
     var historyExpanded by remember { mutableStateOf(false) }   // starts collapsed — matches iOS
     var commentsExpanded by remember { mutableStateOf(true) }   // starts expanded — matches iOS
@@ -174,8 +178,23 @@ fun WorkOrderLogScreen(
         )
     }
 
+    ScoutPaletteSheet(
+        visible = showScoutSheet,
+        onDismiss = { showScoutSheet = false },
+        onNavigate = { _, _ -> showScoutSheet = false },
+    )
+
     Scaffold(
         modifier = modifier,
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { showScoutSheet = true },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = Color.White,
+            ) {
+                Icon(Icons.Default.AutoAwesome, contentDescription = "Scout")
+            }
+        },
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text(stringResource(R.string.wo_log_screen_title)) },

@@ -10,6 +10,7 @@ import com.avago.core.data.db.entity.WoChecklistItemEntity
 import com.avago.core.data.db.entity.WoTemplateEntity
 import com.avago.core.data.db.entity.WorkOrderEntity
 import com.avago.core.network.AvagoServiceClient
+import com.avago.core.sync.SyncEngine
 import com.avago.core.network.NetworkResult
 import com.avago.core.network.model.VinDecodeResponse
 import com.avago.feature.workorders.model.WoPriority
@@ -62,6 +63,7 @@ class WorkOrderCreateViewModel @Inject constructor(
     private val serviceClient: AvagoServiceClient,
     private val formFillRouter: FormFillRouter,
     private val dbFactory: DatabaseFactory,
+    private val syncEngine: SyncEngine,
 ) : ViewModel() {
 
     /** null = create mode; non-null = edit mode */
@@ -605,6 +607,8 @@ class WorkOrderCreateViewModel @Inject constructor(
                 }
 
                 _savedSuccessfully.value = true
+                runCatching { syncEngine.sync() }
+                    .onFailure { Timber.w(it, "[WoCreateVM] sync after save failed") }
             } catch (e: Exception) {
                 Timber.e(e, "[WoCreateVM] save failed")
             } finally {

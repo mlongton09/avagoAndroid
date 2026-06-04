@@ -57,6 +57,58 @@ import coil3.compose.SubcomposeAsyncImageContent
 import coil3.request.ImageRequest
 import coil3.svg.SvgDecoder
 
+// iOS group order (mirrors ItemCategory.json groups[].order for light_vehicle,
+// extended with other asset-type groups after the vehicle groups).
+private val CATEGORY_GROUP_SORT_ORDER: Map<String, Int> = mapOf(
+    "ENGINE" to 0,
+    "FUEL SYSTEM" to 1,
+    "ELECTRICAL" to 2,
+    "DRIVETRAIN" to 3,
+    "BRAKES" to 4,
+    "TIRES & WHEELS" to 5,
+    "SUSPENSION & STEERING" to 6,
+    "HVAC & CLIMATE" to 7,
+    "BODY & INTERIOR" to 8,
+    "FLUIDS" to 9,
+    "FILTERS" to 10,
+    "INSPECTIONS" to 11,
+    "GENERAL" to 12,
+    "MARINE" to 20,
+    "NAVIGATION" to 21,
+    "STRUCTURE" to 30,
+    "PLUMBING" to 31,
+    "APPLIANCES" to 32,
+    "ELEVATOR" to 33,
+    "SAFETY" to 40,
+    "MECHANICAL" to 41,
+    "COMPLIANCE" to 42,
+    "EQUIPMENT" to 43,
+    "ENVIRONMENTAL" to 44,
+    "GROUNDS" to 45,
+    "POOL & SPA" to 46,
+    "COMMON AREAS" to 47,
+    "DOORS" to 48,
+    "KITCHEN" to 49,
+    "IT SYSTEMS" to 50,
+    "MEDICAL" to 51,
+    "SOLAR" to 52,
+)
+
+private fun categoryGroupDisplayName(key: String): String = when (key) {
+    "RECENT" -> "Recent"
+    "COMMON" -> "Common"
+    "HVAC & CLIMATE" -> "HVAC & Climate"
+    "IT SYSTEMS" -> "IT Systems"
+    "POOL & SPA" -> "Pool & Spa"
+    "COMMON AREAS" -> "Common Areas"
+    "TIRES & WHEELS" -> "Tires & Wheels"
+    "SUSPENSION & STEERING" -> "Suspension & Steering"
+    "BODY & INTERIOR" -> "Body & Interior"
+    "FUEL SYSTEM" -> "Fuel System"
+    else -> key.lowercase().split(" ")
+        .joinToString(" ") { it.replaceFirstChar { c -> c.uppercaseChar() } }
+}
+
 /**
  * A reusable category item for [GlobalCategoryPickerScreen].
  *
@@ -111,7 +163,7 @@ fun GlobalCategoryPickerScreen(
     }
 
     val sections: List<Pair<String, List<CategoryItem>>> = remember(filtered, filteredRecents) {
-        val pinnedIds = listOf("service", "repair", "inspection", "fuel_log")
+        val pinnedIds = listOf("service", "repair", "inspection")
         val grouped = filtered.groupBy { it.group ?: "OTHER" }
         val commonItems = grouped["COMMON"].orEmpty()
         val commonByKey = commonItems.associateBy { it.key }
@@ -120,7 +172,7 @@ fun GlobalCategoryPickerScreen(
         val rest = grouped
             .filterKeys { it != "COMMON" && it != "OTHER" && it != "Other" }
             .entries
-            .sortedBy { it.key }
+            .sortedBy { CATEGORY_GROUP_SORT_ORDER[it.key] ?: 99 }
             .map { it.key to it.value }
         buildList {
             if (filteredRecents.isNotEmpty()) add("RECENT" to filteredRecents)
@@ -269,9 +321,7 @@ fun GlobalCategoryPickerScreen(
                 ) {
                     sections.forEach { (sectionTitle, items) ->
                         item(key = "header_$sectionTitle") {
-                            // Sentence-case to match iOS section header style ("Recent", "Engine")
-                            val displayTitle = sectionTitle.lowercase().split(" ")
-                                .joinToString(" ") { it.replaceFirstChar { c -> c.uppercaseChar() } }
+                            val displayTitle = categoryGroupDisplayName(sectionTitle)
                             Text(
                                 text = displayTitle,
                                 style = MaterialTheme.typography.labelSmall.copy(

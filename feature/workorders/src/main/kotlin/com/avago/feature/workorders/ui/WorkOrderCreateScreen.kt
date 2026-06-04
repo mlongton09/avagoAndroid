@@ -572,8 +572,6 @@ fun WorkOrderCreateScreen(
 }
 
 @Composable
-/** Mirrors iOS WorkOrderCreateViewController's asset tableHeaderView: avatar + name + subtitle. */
-@Composable
 private fun AssetHeaderCard(
     name: String,
     subtitle: String?,
