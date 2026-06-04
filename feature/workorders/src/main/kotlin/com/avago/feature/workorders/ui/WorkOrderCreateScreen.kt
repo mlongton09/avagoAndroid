@@ -24,8 +24,15 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDefaults
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -99,6 +106,8 @@ fun WorkOrderCreateScreen(
     val category by viewModel.category.collectAsStateWithLifecycle()
     val availableCategories by viewModel.availableCategories.collectAsStateWithLifecycle()
     val recentCategoryKeys by viewModel.recentCategoryKeys.collectAsStateWithLifecycle()
+    val assetType by viewModel.assetType.collectAsStateWithLifecycle()
+    val assetSubtitle by viewModel.assetSubtitle.collectAsStateWithLifecycle()
     val dueDateMs by viewModel.dueDateMs.collectAsStateWithLifecycle()
     val priority by viewModel.priority.collectAsStateWithLifecycle()
     val estimatedHours by viewModel.estimatedHours.collectAsStateWithLifecycle()
@@ -144,6 +153,7 @@ fun WorkOrderCreateScreen(
     var showRepeatsSheet by remember { mutableStateOf(false) }
     var showCategoryPicker by remember { mutableStateOf(false) }
     var showVinSection by remember { mutableStateOf(false) }
+    var showDatePickerDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(selectedAssetId) {
         if (selectedAssetId != null) {
@@ -212,14 +222,33 @@ fun WorkOrderCreateScreen(
         }
     }
 
+    // Compact date picker dialog — replaces the heavy inline DatePicker calendar
+    if (showDatePickerDialog) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePickerDialog = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { viewModel.dueDateMs.value = it }
+                    showDatePickerDialog = false
+                }) { Text(stringResource(com.avago.core.ui.R.string.common_done)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePickerDialog = false }) {
+                    Text(stringResource(com.avago.core.ui.R.string.common_cancel))
+                }
+            },
+        ) { DatePicker(state = datePickerState, showModeToggle = false) }
+    }
+
     Scaffold(
         modifier = modifier,
         topBar = {
             CenterAlignedTopAppBar(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
+                        // Use X (close) for new WO to match iOS modal cancel button
                         Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
+                            if (woId == null) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.wo_cancel),
                         )
                     }
@@ -250,6 +279,16 @@ fun WorkOrderCreateScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // ── Asset header — mirrors iOS tableHeaderView: avatar + name + subtitle ──
+            if (assetName != null) {
+                AssetHeaderCard(
+                    name = assetName!!,
+                    subtitle = assetSubtitle,
+                    initial = assetName!!.firstOrNull()?.uppercaseChar()?.toString() ?: "A",
+                    onTap = onPickAsset,
+                )
+            }
+
             if (templates.isNotEmpty()) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -301,9 +340,14 @@ fun WorkOrderCreateScreen(
             }
 
             FormSection(title = stringResource(R.string.wo_create_section_details)) {
+                // Category — show formatted display name ("Oil Change" not "oil_change")
+                val categoryDisplayName = category?.replace("_", " ")?.split(" ")
+                    ?.joinToString(" ") { it.replaceFirstChar { c -> c.uppercaseChar() } }
                 ListItem(
                     leadingContent = { CategoryBadge(categoryId = category) },
-                    headlineContent = { Text(category ?: stringResource(R.string.wo_category_placeholder)) },
+                    headlineContent = {
+                        Text(categoryDisplayName ?: stringResource(R.string.wo_category_placeholder))
+                    },
                     supportingContent = { Text(stringResource(R.string.wo_create_section_category)) },
                     modifier = Modifier.clickable { showCategoryPicker = true },
                 )
@@ -318,61 +362,16 @@ fun WorkOrderCreateScreen(
                     onSelected = { viewModel.priority.value = it },
                 )
                 Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = stringResource(R.string.wo_field_due_date),
-                    style = MaterialTheme.typography.labelLarge,
+                // Compact due-date row (tap → DatePickerDialog) — matches iOS compact date picker
+                HorizontalDivider()
+                ListItem(
+                    headlineContent = {
+                        Text(dueDateMs?.let(::formatDate) ?: stringResource(R.string.wo_no_due_date))
+                    },
+                    supportingContent = { Text(stringResource(R.string.wo_field_due_date)) },
+                    modifier = Modifier.clickable { showDatePickerDialog = true },
                 )
-                Text(
-                    text = dueDateMs?.let(::formatDate) ?: stringResource(R.string.wo_no_due_date),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
-                )
-                DatePicker(
-                    state = datePickerState,
-                    showModeToggle = false,
-                    colors = DatePickerDefaults.colors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                    ),
-                )
-                if (dueDateMs != null) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    val availableZones = listOf(
-                        "America/New_York", "America/Chicago", "America/Denver",
-                        "America/Los_Angeles", "America/Anchorage", "Pacific/Honolulu",
-                        "UTC", "Europe/London", "Europe/Paris", "Asia/Tokyo",
-                    )
-                    var tzMenuExpanded by remember { mutableStateOf(false) }
-                    ExposedDropdownMenuBox(
-                        expanded = tzMenuExpanded,
-                        onExpandedChange = { tzMenuExpanded = it },
-                    ) {
-                        OutlinedTextField(
-                            value = timezone.ifEmpty { TimeZone.getDefault().id },
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Timezone") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = tzMenuExpanded) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
-                        )
-                        ExposedDropdownMenu(
-                            expanded = tzMenuExpanded,
-                            onDismissRequest = { tzMenuExpanded = false },
-                        ) {
-                            availableZones.forEach { tz ->
-                                DropdownMenuItem(
-                                    text = { Text(tz) },
-                                    onClick = {
-                                        viewModel.onTimezoneChanged(tz)
-                                        tzMenuExpanded = false
-                                    },
-                                )
-                            }
-                        }
-                    }
-                }
+                HorizontalDivider()
                 Spacer(modifier = Modifier.height(12.dp))
                 OutlinedTextField(
                     value = estimatedHours,
@@ -441,15 +440,6 @@ fun WorkOrderCreateScreen(
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null)
                     Text(stringResource(R.string.wo_field_add_assignee))
-                }
-            }
-
-            FormSection(title = stringResource(R.string.wo_field_asset)) {
-                OutlinedButton(
-                    onClick = onPickAsset,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(assetName ?: stringResource(R.string.wo_field_asset_placeholder))
                 }
             }
 
@@ -576,6 +566,65 @@ fun WorkOrderCreateScreen(
                 enabled = !isSaving,
             ) {
                 Text(if (isSaving) stringResource(R.string.wo_saving) else stringResource(R.string.wo_save))
+            }
+        }
+    }
+}
+
+@Composable
+/** Mirrors iOS WorkOrderCreateViewController's asset tableHeaderView: avatar + name + subtitle. */
+@Composable
+private fun AssetHeaderCard(
+    name: String,
+    subtitle: String?,
+    initial: String,
+    onTap: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline),
+        onClick = onTap,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            // 40dp avatar with initial — matches iOS AvatarView 40pt
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.primary,
+                        shape = RoundedCornerShape(10.dp),
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = initial,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = androidx.compose.ui.graphics.Color.White,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                )
+                if (subtitle != null) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                    )
+                }
             }
         }
     }

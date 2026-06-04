@@ -77,6 +77,10 @@ class WorkOrderCreateViewModel @Inject constructor(
     val category = MutableStateFlow<String?>(null)
     val assetId = MutableStateFlow<String?>(null)
     val assetName = MutableStateFlow<String?>(null)
+    /** Asset type key (e.g. "light_vehicle") — drives avatar colour in the form header. */
+    val assetType = MutableStateFlow<String?>(null)
+    /** Short subtitle for the asset header (year make·model, or address for real estate). */
+    val assetSubtitle = MutableStateFlow<String?>(null)
     val locationId = MutableStateFlow<String?>(null)
     val locationName = MutableStateFlow<String?>(null)
     val dueDateMs = MutableStateFlow<Long?>(null)
@@ -146,7 +150,10 @@ class WorkOrderCreateViewModel @Inject constructor(
                 description.value = wo.description ?: ""
                 category.value = wo.category
                 assetId.value = wo.assetId
-                assetName.value = wo.assetId?.let { repository.getAssetById(accountId, it)?.name }
+                val editAsset = wo.assetId?.let { repository.getAssetById(accountId, it) }
+                assetName.value = editAsset?.name
+                assetType.value = editAsset?.assetType
+                assetSubtitle.value = buildAssetSubtitle(editAsset)
                 locationId.value = wo.locationId
                 locationName.value = wo.locationId?.let { repository.getLocationById(accountId, it)?.name }
                 dueDateMs.value = wo.dueDate
@@ -278,10 +285,20 @@ class WorkOrderCreateViewModel @Inject constructor(
             val accountId = identityManager.getActiveAccountId() ?: return@launch
             val asset = repository.getAssetById(accountId, assetId)
             assetName.value = asset?.name
-            val assetType = asset?.assetType?.takeIf { it.isNotBlank() } ?: "light_vehicle"
-            loadCategoriesForAssetType(assetType, accountId)
+            assetType.value = asset?.assetType
+            assetSubtitle.value = buildAssetSubtitle(asset)
+            val type = asset?.assetType?.takeIf { it.isNotBlank() } ?: "light_vehicle"
+            loadCategoriesForAssetType(type, accountId)
             loadRecentCategories(assetId, accountId)
         }
+    }
+
+    private fun buildAssetSubtitle(asset: com.avago.core.data.db.entity.AssetEntity?): String? {
+        if (asset == null) return null
+        val realEstate = setOf("residential", "multifamily", "office", "industrial", "healthcare", "restaurant")
+        if (asset.assetType in realEstate) return asset.addressLine1?.takeIf { it.isNotBlank() }
+        return listOfNotNull(asset.year?.takeIf { it > 0 }?.toString(), asset.make, asset.model)
+            .joinToString(" ").takeIf { it.isNotBlank() }
     }
 
     /** Loads categories for the given asset type — same two-pass lookup as AddEditLogViewModel. */
