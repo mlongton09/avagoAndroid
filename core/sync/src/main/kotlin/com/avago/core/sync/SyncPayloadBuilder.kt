@@ -184,7 +184,7 @@ class SyncPayloadBuilder @Inject constructor(
                         put("assignment_id", e.assignmentId)
                         put("wo_id", e.woId)
                         put("account_id", e.accountId)
-                        put("technician_id", e.technicianId)
+                        put("tech_id", e.technicianId) // server reads "tech_id" — was "technician_id" (mismatch)
                         e.assignedBy?.let { put("assigned_by", it) }
                         put("assigned_at", msToIso(e.assignedAt))
                         e.unassignedAt?.let { put("unassigned_at", msToIso(it)) }
