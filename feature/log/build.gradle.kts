@@ -43,6 +43,7 @@ dependencies {
     implementation(libs.camera.view)
     implementation(project(":core:design"))
     implementation(project(":core:ui"))
+    implementation(project(":core:ai"))
     implementation(project(":core:data"))
     implementation(project(":core:auth"))
     implementation(project(":core:sync"))

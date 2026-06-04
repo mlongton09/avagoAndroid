@@ -47,8 +47,11 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.avago.core.data.db.entity.LogEntity
 import com.avago.core.ui.CategoryBadge
-import com.avago.core.ui.ScoutFAB
-import com.avago.core.ui.ScoutViewModel
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.avago.core.ai.ui.ScoutPaletteSheet
 import com.avago.feature.log.viewmodel.LogListViewModel
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
@@ -65,11 +68,12 @@ fun LogListScreen(
     onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     viewModel: LogListViewModel = hiltViewModel(),
-    scoutViewModel: ScoutViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(assetId) {
         viewModel.setAssetId(assetId)
     }
+
+    var showScoutSheet by remember { mutableStateOf(false) }
 
     val logs by viewModel.logs.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
@@ -144,11 +148,17 @@ fun LogListScreen(
         },
         floatingActionButton = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                ScoutFAB(onQuery = { query -> scoutViewModel.query(query) })
+                FloatingActionButton(
+                    onClick = { showScoutSheet = true },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = androidx.compose.ui.graphics.Color.White,
+                ) {
+                    Icon(Icons.Default.AutoAwesome, contentDescription = "Scout")
+                }
                 FloatingActionButton(
                     onClick = onAddLog,
                     containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = Color.White,
+                    contentColor = androidx.compose.ui.graphics.Color.White,
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "Add log entry")
                 }
@@ -156,6 +166,14 @@ fun LogListScreen(
         },
         modifier = modifier,
     ) { innerPadding ->
+        if (showScoutSheet) {
+            ScoutPaletteSheet(
+                visible = true,
+                onDismiss = { showScoutSheet = false },
+                onNavigate = { _, _ -> showScoutSheet = false },
+            )
+        }
+
         PullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = { viewModel.refresh() },
