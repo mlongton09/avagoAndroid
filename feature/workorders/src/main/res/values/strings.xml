@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <!-- WO Log (merged Work Order + Log Entry screen) -->
+    <string name="wo_log_screen_title">Log Work</string>
+    <string name="wo_log_save_draft">Save Draft</string>
+    <string name="wo_log_complete">Complete &amp; Close</string>
+    <string name="wo_log_section_details">Details</string>
+    <string name="wo_log_section_work_order">Work Order</string>
+
     <!-- WO List -->
     <string name="wo_list_title">Work Orders</string>
     <string name="wo_scope_mine">Mine</string>

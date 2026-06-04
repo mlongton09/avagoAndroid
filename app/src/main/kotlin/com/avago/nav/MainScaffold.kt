@@ -198,6 +198,7 @@ fun MainScaffold(
     // The log list, when launched from a specific asset, renders its own custom
     // header — suppress the outer chrome so it sits flush against the photo.
     val isWorkOrderListDestination = currentRoute?.startsWith("workorders/list") == true
+    val isWorkOrderLogDestination = currentRoute?.startsWith("workorders/log/") == true
     val isAssetLogDestination = currentRoute?.startsWith("log/list") == true
     val isLogAddEditDestination = currentRoute?.startsWith("log/add_edit") == true
     val isLogDetailDestination = currentRoute?.startsWith("log/detail") == true
@@ -233,7 +234,7 @@ fun MainScaffold(
         Scaffold(
             floatingActionButtonPosition = FabPosition.Start,
             topBar = {
-                if (!isAuthDestination && !isAssetLogDestination && !isChatDetailDestination && !isLogAddEditDestination && !isLogDetailDestination && !isWorkOrderListDestination) {
+                if (!isAuthDestination && !isAssetLogDestination && !isChatDetailDestination && !isLogAddEditDestination && !isLogDetailDestination && !isWorkOrderListDestination && !isWorkOrderLogDestination) {
                     CenterAlignedTopAppBar(
                         title = {
                             Row(verticalAlignment = Alignment.CenterVertically) {

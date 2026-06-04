@@ -97,6 +97,8 @@ fun WorkOrderDetailScreen(
     onManageCostLines: () -> Unit = {},
     onOpenChat: ((threadId: String) -> Unit)? = null,
     onLogWork: ((assetId: String?) -> Unit)? = null,
+    /** Called when the WO status qualifies for the merged log screen — replaces this screen in the stack. */
+    onNavigateToLogScreen: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     viewModel: WorkOrderDetailViewModel = hiltViewModel(),
 ) {
@@ -126,6 +128,13 @@ fun WorkOrderDetailScreen(
     var commentText by rememberSaveable { mutableStateOf("") }
     var dispatcherNotesDraft by rememberSaveable { mutableStateOf("") }
     var dispatcherNotesInitialized by rememberSaveable { mutableStateOf(false) }
+
+    val shouldShowLogView by viewModel.shouldShowLogView.collectAsStateWithLifecycle()
+    // Auto-route to the merged log screen when the WO status qualifies —
+    // mirrors iOS routeToLogItemViewIfNeeded() which replaces the detail VC.
+    LaunchedEffect(shouldShowLogView) {
+        if (shouldShowLogView) onNavigateToLogScreen?.invoke()
+    }
 
     LaunchedEffect(wo?.woId) {
         if (!dispatcherNotesInitialized && wo != null) {

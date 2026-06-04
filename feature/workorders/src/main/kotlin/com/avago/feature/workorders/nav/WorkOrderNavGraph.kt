@@ -20,6 +20,7 @@ import com.avago.feature.workorders.ui.WoTemplateListScreen
 import com.avago.feature.workorders.ui.WorkOrderCalendarScreen
 import com.avago.feature.workorders.ui.WorkOrderCreateScreen
 import com.avago.feature.workorders.ui.WorkOrderDetailScreen
+import com.avago.feature.workorders.ui.WorkOrderLogScreen
 
 /**
  * Type-safe route constants for the workorders feature.
@@ -39,8 +40,10 @@ object WorkOrderRoute {
     const val GL_ACCOUNT_PICKER = "workorders/gl_account_picker"
     const val ASSET_GROUP_PICKER = "workorders/asset_group_picker"
     const val LOCATION_PICKER = "workorders/location_picker"
+    const val LOG_WORK = "workorders/log/{woId}"
 
     fun detail(woId: String) = "workorders/detail/$woId"
+    fun logWork(woId: String) = "workorders/log/$woId"
     fun createEdit(woId: String? = null) =
         if (woId != null) "workorders/create_edit?woId=$woId"
         else "workorders/create_edit?woId="
@@ -99,6 +102,29 @@ fun NavGraphBuilder.workOrderNavGraph(
                 onAddPart = { onNavigateToInventoryPicker(WorkOrderRoute.detail(woId)) },
                 onManageCostLines = { navController.navigate(WorkOrderRoute.costLinesEditor(woId)) },
                 onLogWork = onNavigateToLogWork,
+                onNavigateToLogScreen = {
+                    // Replace detail with the merged screen (matches iOS nav stack replacement)
+                    navController.navigate(WorkOrderRoute.logWork(woId)) {
+                        popUpTo(WorkOrderRoute.detail(woId)) { inclusive = true }
+                    }
+                },
+            )
+        }
+
+        // ── Merged Work Order + Log Entry screen ──────────────────────────────
+        composable(
+            route = WorkOrderRoute.LOG_WORK,
+            arguments = listOf(navArgument("woId") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val logWoId = requireNotNull(backStackEntry.arguments?.getString("woId"))
+            WorkOrderLogScreen(
+                woId = logWoId,
+                onBack = { navController.popBackStack() },
+                onCompleted = {
+                    navController.navigate(WorkOrderRoute.LIST) {
+                        popUpTo(WorkOrderRoute.GRAPH) { inclusive = false }
+                    }
+                },
             )
         }
 

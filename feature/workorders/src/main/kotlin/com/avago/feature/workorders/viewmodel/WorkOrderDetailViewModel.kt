@@ -102,6 +102,24 @@ class WorkOrderDetailViewModel @Inject constructor(
     val canEdit: StateFlow<Boolean> = permissionsManager.observeCan(Permissions.WO_ASSIGN)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), permissionsManager.can(Permissions.WO_ASSIGN))
 
+    /**
+     * True when the WO should show the merged log screen instead of the
+     * regular detail view — mirrors iOS routeToLogItemViewIfNeeded():
+     * in_progress and completed always qualify; assigned qualifies when
+     * the current user is the assigned technician.
+     */
+    val shouldShowLogView: StateFlow<Boolean> = workOrder.map { wo ->
+        if (wo == null) false
+        else when (wo.status) {
+            "in_progress", "completed" -> true
+            "assigned" -> {
+                val userId = identityManager.getActiveUserId()
+                userId != null && wo.assignedTo == userId
+            }
+            else -> false
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
     val canApprove: StateFlow<Boolean> = permissionsManager.observeCan(Permissions.WO_APPROVE)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), permissionsManager.can(Permissions.WO_APPROVE))
 
