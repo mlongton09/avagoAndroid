@@ -4,7 +4,10 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -238,17 +241,28 @@ fun WorkOrderListScreen(
                             .padding(horizontal = 16.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.CalendarToday,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(20.dp),
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        // Avago branded icon — mirrors iOS AppTheme.makeBrandedTitleView():
+                        // UIImageView(named:"AppIconImage") 22pt, cornerRadius 5
+                        Box(
+                            modifier = Modifier
+                                .size(22.dp)
+                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(5.dp))
+                                .background(MaterialTheme.colorScheme.error),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Build,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(13.dp),
+                            )
+                        }
+                        // iOS uses 7pt spacing between icon and text
+                        Spacer(modifier = Modifier.width(7.dp))
                         Text(
                             text = stringResource(R.string.wo_list_title),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold,
+                            // largeTitleFont() = systemFont(22, .bold) → headlineMedium in app theme
+                            style = MaterialTheme.typography.headlineMedium,
                             modifier = Modifier.weight(1f),
                         )
                         // Filter icon with active-filter badge

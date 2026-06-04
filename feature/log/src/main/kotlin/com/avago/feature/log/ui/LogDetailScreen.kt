@@ -334,7 +334,82 @@ fun LogDetailScreen(
                         }
                     }
 
-                    // ── 4. Performed By card ──────────────────────────────────────
+                    // ── 4. Item attributes (Details) card — matches iOS "ITEM DETAILS" section ──
+                    log.attributes?.takeIf { it.isNotBlank() }?.let { attrsJson ->
+                        val fuelKeys = setOf("fuel_volume", "fuel_volume_unit")
+                        val attrs = parseJsonMap(attrsJson)
+                            .filterKeys { it !in fuelKeys }
+                            .filter { (_, v) -> v.isNotBlank() && v.lowercase() != "false" }
+                        if (attrs.isNotEmpty()) {
+                            Spacer(Modifier.height(16.dp))
+                            DetailCard(modifier = Modifier.padding(horizontal = 16.dp)) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(36.dp)
+                                        .padding(horizontal = 16.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        text = "ITEM DETAILS",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        letterSpacing = androidx.compose.ui.unit.TextUnit(
+                                            1.5f,
+                                            androidx.compose.ui.unit.TextUnitType.Sp,
+                                        ),
+                                    )
+                                }
+                                HorizontalDivider(
+                                    thickness = 0.5.dp,
+                                    color = MaterialTheme.colorScheme.outline,
+                                )
+                                Column(
+                                    modifier = Modifier.padding(
+                                        horizontal = 16.dp,
+                                        vertical = 8.dp,
+                                    ),
+                                ) {
+                                    attrs.entries.toList().forEachIndexed { idx, (key, value) ->
+                                        // Convert key → display label: "oil_brand" → "Oil Brand"
+                                        val label = key.replace('_', ' ').split(' ')
+                                            .joinToString(" ") { w ->
+                                                w.replaceFirstChar { it.uppercaseChar() }
+                                            }
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 5.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Text(
+                                                text = label,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.weight(1f),
+                                            )
+                                            Text(
+                                                text = value,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Medium,
+                                                textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                                            )
+                                        }
+                                        if (idx < attrs.size - 1) {
+                                            HorizontalDivider(
+                                                thickness = 0.5.dp,
+                                                color = MaterialTheme.colorScheme.outlineVariant,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // ── 5. Performed By card ──────────────────────────────────────
                     val performedByName = log.performedBy
                     val performedByUserId = log.performedByUserId
                     if (!performedByName.isNullOrBlank() || performedByUserId != null) {
