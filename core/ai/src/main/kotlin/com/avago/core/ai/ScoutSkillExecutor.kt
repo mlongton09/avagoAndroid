@@ -3,7 +3,10 @@ package com.avago.core.ai
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.AssetEntity
+import com.avago.core.data.db.entity.InventoryEntity
+import com.avago.core.data.db.entity.InventoryTransactionEntity
 import com.avago.core.data.db.entity.LogEntity
+import com.avago.core.data.db.entity.PartEntity
 import com.avago.core.data.db.entity.SyncQueueEntity
 import com.avago.core.data.db.entity.WorkOrderEntity
 import timber.log.Timber
@@ -56,6 +59,18 @@ class ScoutSkillExecutor @Inject constructor(
 
                 "work-order-assign" ->
                     executeWorkOrderAssign(fields, accountId)
+
+                "inventory-receive" ->
+                    executeInventoryReceive(fields, accountId)
+
+                "inventory-use" ->
+                    executeInventoryUse(fields, accountId)
+
+                "parts-catalog-add" ->
+                    executeAddPart(fields, accountId)
+
+                "work-order-recurrence" ->
+                    executeSetRecurrence(fields, accountId)
 
                 else -> false
             }
@@ -316,6 +331,215 @@ class ScoutSkillExecutor @Inject constructor(
         db.workOrderDao().upsert(updated)
         db.syncQueueDao().enqueueWithDedup(syncEntry("work_order", woId, "update", existing.serverVersion, now))
         Timber.d("ScoutSkillExecutor: assigned WO $woId to $assignedTo")
+        return true
+    }
+
+    private suspend fun executeInventoryReceive(fields: Map<String, String?>, accountId: String): Boolean {
+        val partId = fields["part_id"] ?: return false
+        val qty = fields["quantity_change"]?.toDoubleOrNull()
+            ?: fields["quantity"]?.toDoubleOrNull()
+            ?: return false
+        if (qty <= 0) return false
+
+        val db = dbFactory.get(accountId)
+        val inventories = db.inventoryDao().getByPartId(partId)
+        val inventory = inventories.firstOrNull() ?: return false
+        val now = System.currentTimeMillis()
+        val txnId = UUID.randomUUID().toString()
+
+        db.inventoryTransactionDao().upsert(
+            InventoryTransactionEntity(
+                transactionId = txnId,
+                accountId = accountId,
+                inventoryId = inventory.inventoryId,
+                partId = partId,
+                locationId = inventory.locationId,
+                transactionType = "received",
+                quantity = qty,
+                unitCost = fields["unit_cost_observed"]?.toDoubleOrNull(),
+                currency = fields["currency"] ?: "USD",
+                referenceId = fields["reference"]?.ifBlank { null },
+                referenceType = null,
+                performedBy = null,
+                notes = fields["notes"]?.ifBlank { null },
+                transferId = null,
+                fromLocationId = null,
+                toLocationId = null,
+                createdAt = now,
+                serverVersion = 0L,
+                seq = null,
+            )
+        )
+        db.inventoryDao().upsert(inventory.copy(
+            quantityOnHand = inventory.quantityOnHand + qty,
+            lastTransactionId = txnId,
+            updatedAt = now,
+        ))
+        db.syncQueueDao().enqueueWithDedup(syncEntry("inventory_transaction", txnId, "insert", 0L, now))
+        db.syncQueueDao().enqueueWithDedup(syncEntry("inventory", inventory.inventoryId, "update", inventory.serverVersion, now))
+        Timber.d("ScoutSkillExecutor: inventory-receive $qty of $partId")
+        return true
+    }
+
+    private suspend fun executeInventoryUse(fields: Map<String, String?>, accountId: String): Boolean {
+        val partId = fields["part_id"] ?: return false
+        val qty = fields["quantity_change"]?.toDoubleOrNull()
+            ?: fields["quantity"]?.toDoubleOrNull()
+            ?: return false
+        if (qty <= 0) return false
+
+        val db = dbFactory.get(accountId)
+        val inventories = db.inventoryDao().getByPartId(partId)
+        val inventory = inventories.firstOrNull() ?: return false
+        val now = System.currentTimeMillis()
+        val txnId = UUID.randomUUID().toString()
+
+        db.inventoryTransactionDao().upsert(
+            InventoryTransactionEntity(
+                transactionId = txnId,
+                accountId = accountId,
+                inventoryId = inventory.inventoryId,
+                partId = partId,
+                locationId = inventory.locationId,
+                transactionType = "used",
+                quantity = -qty,
+                unitCost = null,
+                currency = null,
+                referenceId = fields["reference"]?.ifBlank { null },
+                referenceType = null,
+                performedBy = null,
+                notes = fields["notes"]?.ifBlank { null },
+                transferId = null,
+                fromLocationId = null,
+                toLocationId = null,
+                createdAt = now,
+                serverVersion = 0L,
+                seq = null,
+            )
+        )
+        db.inventoryDao().upsert(inventory.copy(
+            quantityOnHand = maxOf(0.0, inventory.quantityOnHand - qty),
+            lastTransactionId = txnId,
+            updatedAt = now,
+        ))
+        db.syncQueueDao().enqueueWithDedup(syncEntry("inventory_transaction", txnId, "insert", 0L, now))
+        db.syncQueueDao().enqueueWithDedup(syncEntry("inventory", inventory.inventoryId, "update", inventory.serverVersion, now))
+        Timber.d("ScoutSkillExecutor: inventory-use $qty of $partId")
+        return true
+    }
+
+    private suspend fun executeAddPart(fields: Map<String, String?>, accountId: String): Boolean {
+        val partName = fields["part_name"]?.trim() ?: return false
+        if (partName.isEmpty()) return false
+
+        val now = System.currentTimeMillis()
+        val partId = UUID.randomUUID().toString()
+        val inventoryId = UUID.randomUUID().toString()
+        val initialQty = fields["quantity_on_hand"]?.toDoubleOrNull() ?: 0.0
+
+        val db = dbFactory.get(accountId)
+        db.partDao().upsert(
+            PartEntity(
+                partId = partId,
+                accountId = accountId,
+                sku = fields["part_number"]?.ifBlank { null },
+                name = partName,
+                description = null,
+                category = fields["category"]?.ifBlank { null },
+                unitOfMeasure = fields["unit_of_measure"] ?: "each",
+                defaultVendorId = null,
+                cost = fields["unit_cost"]?.toDoubleOrNull() ?: 0.0,
+                currency = fields["currency"] ?: "USD",
+                attributes = null,
+                manufacturer = fields["manufacturer"]?.ifBlank { null },
+                reorderQuantity = fields["reorder_quantity"]?.toDoubleOrNull(),
+                status = "active",
+                entityType = null,
+                entityId = null,
+                quantity = initialQty,
+                gtin = null,
+                serialNumber = null,
+                notes = fields["notes"]?.ifBlank { null },
+                baseAmount = fields["unit_cost"]?.toDoubleOrNull() ?: 0.0,
+                exchangeRateUsed = 1.0,
+                createdAt = now,
+                updatedAt = now,
+                deletedAt = null,
+                serverVersion = 0L,
+                seq = null,
+            )
+        )
+        db.inventoryDao().upsert(
+            InventoryEntity(
+                inventoryId = inventoryId,
+                accountId = accountId,
+                partId = partId,
+                locationId = null,
+                binId = null,
+                quantityOnHand = initialQty,
+                status = "active",
+                lastTransactionId = null,
+                createdAt = now,
+                updatedAt = now,
+                deletedAt = null,
+                serverVersion = 0L,
+                seq = null,
+            )
+        )
+        if (initialQty > 0) {
+            val txnId = UUID.randomUUID().toString()
+            db.inventoryTransactionDao().upsert(
+                InventoryTransactionEntity(
+                    transactionId = txnId,
+                    accountId = accountId,
+                    inventoryId = inventoryId,
+                    partId = partId,
+                    locationId = null,
+                    transactionType = "initial",
+                    quantity = initialQty,
+                    unitCost = fields["unit_cost"]?.toDoubleOrNull(),
+                    currency = fields["currency"] ?: "USD",
+                    referenceId = null,
+                    referenceType = null,
+                    performedBy = null,
+                    notes = "Initial stock",
+                    transferId = null,
+                    fromLocationId = null,
+                    toLocationId = null,
+                    createdAt = now,
+                    serverVersion = 0L,
+                    seq = null,
+                )
+            )
+            db.syncQueueDao().enqueueWithDedup(syncEntry("inventory_transaction", txnId, "insert", 0L, now))
+        }
+        db.syncQueueDao().enqueueWithDedup(syncEntry("part", partId, "insert", 0L, now))
+        db.syncQueueDao().enqueueWithDedup(syncEntry("inventory", inventoryId, "insert", 0L, now))
+        Timber.d("ScoutSkillExecutor: parts-catalog-add '$partName'")
+        return true
+    }
+
+    private suspend fun executeSetRecurrence(fields: Map<String, String?>, accountId: String): Boolean {
+        val woId = fields["wo_id"] ?: return false
+        val rrule = fields["rrule"]?.ifBlank { null } ?: return false
+
+        val db = dbFactory.get(accountId)
+        val existing = db.workOrderDao().getById(woId) ?: return false
+        val now = System.currentTimeMillis()
+
+        db.workOrderDao().upsert(existing.copy(
+            rrule = rrule,
+            endType = fields["end_type"] ?: "never",
+            endCount = fields["end_count"]?.toLongOrNull(),
+            endDate = parseDate(fields["end_date"]),
+            meterType = fields["meter_type"]?.ifBlank { null },
+            meterDue = fields["meter_due"]?.toDoubleOrNull(),
+            meterInterval = fields["meter_interval"]?.toDoubleOrNull(),
+            woKind = "recurring_parent",
+            updatedAt = now,
+        ))
+        db.syncQueueDao().enqueueWithDedup(syncEntry("work_order", woId, "update", existing.serverVersion, now))
+        Timber.d("ScoutSkillExecutor: work-order-recurrence $rrule on $woId")
         return true
     }
 
