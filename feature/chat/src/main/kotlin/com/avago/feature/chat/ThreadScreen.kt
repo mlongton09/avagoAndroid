@@ -8,6 +8,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -153,10 +154,15 @@ fun ThreadScreen(
         }
     }
 
+    // Scroll to bottom when new messages arrive. Use snapshotFlow to wait
+    // for the new item to actually be laid out before scrolling — otherwise
+    // layoutInfo.totalItemsCount is stale and we scroll to the second-to-last
+    // item, leaving the new message hidden behind the compose bar.
     LaunchedEffect(uiState.messages.size) {
-        if (isAtBottom && uiState.messages.isNotEmpty()) {
-            val total = listState.layoutInfo.totalItemsCount
-            if (total > 0) listState.animateScrollToItem(total - 1)
+        if (uiState.messages.isNotEmpty()) {
+            snapshotFlow { listState.layoutInfo.totalItemsCount }
+                .first { it > 0 }
+                .let { total -> listState.animateScrollToItem(total - 1) }
         }
     }
 
@@ -280,6 +286,7 @@ fun ThreadScreen(
                         .weight(1f)
                         .fillMaxWidth(),
                     reverseLayout = false,
+                    contentPadding = PaddingValues(bottom = 8.dp),
                 ) {
                     // "Load more" indicator at top
                     if (uiState.isLoadingMore) {
