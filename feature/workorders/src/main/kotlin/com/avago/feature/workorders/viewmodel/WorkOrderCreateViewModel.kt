@@ -334,13 +334,17 @@ class WorkOrderCreateViewModel @Inject constructor(
                 val raw = db.configDao().getByKey("system", "wo_categories")?.value
                     ?: db.configDao().getByKey("system", "work_order_categories")?.value
                     ?: db.configDao().getByKey("system", "log_categories")?.value
-                parseCategoryLabels(raw)
+                parseCategoryKeys(raw)
             }.getOrDefault(emptyList())
             _availableCategories.value = categories
         }
     }
 
-    private fun parseCategoryLabels(raw: String?): List<String> {
+    // Parses category KEY strings (e.g. "oil_change") from the config JSON.
+    // Mirrors AddEditLogViewModel.parseCategoriesFromConfig — must extract "id"/"key",
+    // NOT "label", so that categoryIconName / categoryBadgeColor / categoryGroup
+    // can resolve icons, colors, and groups correctly.
+    private fun parseCategoryKeys(raw: String?): List<String> {
         if (raw.isNullOrBlank()) return emptyList()
         return runCatching {
             val root = Json.parseToJsonElement(raw)
@@ -354,9 +358,10 @@ class WorkOrderCreateViewModel @Inject constructor(
                     ?: return@flatMap emptyList()
                 items.mapNotNull { item ->
                     val obj = item as? JsonObject ?: return@mapNotNull item.jsonPrimitive.contentOrNull
-                    obj["label"]?.jsonPrimitive?.contentOrNull
-                        ?: obj["name"]?.jsonPrimitive?.contentOrNull
+                    // Priority: "id" (server format) → "key" → "label" (last resort)
+                    obj["id"]?.jsonPrimitive?.contentOrNull
                         ?: obj["key"]?.jsonPrimitive?.contentOrNull
+                        ?: obj["label"]?.jsonPrimitive?.contentOrNull
                 }
             }.distinct()
             grouped.ifEmpty {
@@ -365,7 +370,7 @@ class WorkOrderCreateViewModel @Inject constructor(
                     else -> emptyList()
                 }
             }
-        }.onFailure { Timber.w(it, "parseCategoryLabels: failed to parse config value") }
+        }.onFailure { Timber.w(it, "parseCategoryKeys: failed to parse config value") }
             .getOrDefault(emptyList())
     }
 
