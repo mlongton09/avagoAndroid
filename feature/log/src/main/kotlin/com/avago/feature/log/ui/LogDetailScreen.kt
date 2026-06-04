@@ -86,6 +86,7 @@ fun LogDetailScreen(
 
     val state by viewModel.uiState.collectAsState()
     val currencyCode by viewModel.currencyCode.collectAsState()
+    val currencyRate by viewModel.currencyRate.collectAsState()
     val distanceUnit by viewModel.distanceUnit.collectAsState()
     var showDeleteDialog by remember { mutableStateOf(false) }
 
@@ -155,11 +156,15 @@ fun LogDetailScreen(
             else -> {
                 val log = state.log!!
                 val dateFormatter = remember { SimpleDateFormat("MMMM d, yyyy", Locale.getDefault()) }
+                // Use NumberFormat for symbol lookup, but apply live exchange rate
+                // to amounts (mirrors iOS CurrencyManager.format() conversion).
                 val currencyFormat = remember(currencyCode) {
                     val fmt = NumberFormat.getCurrencyInstance(Locale.getDefault())
                     runCatching { fmt.currency = java.util.Currency.getInstance(currencyCode.uppercase()) }
                     fmt
                 }
+                // Conversion helper: multiply a USD base amount by the live rate.
+                fun convertUSD(usdAmount: Double) = usdAmount * currencyRate
 
                 val logType = remember(log.data) { parseJsonField(log.data, "log_type") ?: "service" }
                 val inspectionAnswers = remember(log.data) { parseJsonMap(log.data) }
@@ -264,7 +269,7 @@ fun LogDetailScreen(
                                 val displayCost = if (state.costLines.isNotEmpty()) state.totalCost else log.cost
                                 Text(
                                     text = if (displayCost != null && displayCost > 0)
-                                        currencyFormat.format(displayCost) else "—",
+                                        currencyFormat.format(convertUSD(displayCost)) else "—",
                                     style = MaterialTheme.typography.bodyMedium,
                                 )
                             }
@@ -533,7 +538,11 @@ fun LogDetailScreen(
                             )
                             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                                 state.costLines.forEach { line ->
-                                    CostLineDetailRow(line = line, currencyFormat = currencyFormat)
+                                    CostLineDetailRow(
+                                        line = line,
+                                        currencyFormat = currencyFormat,
+                                        currencyRate = currencyRate,
+                                    )
                                     if (line != state.costLines.last()) {
                                         HorizontalDivider(
                                             modifier = Modifier.padding(vertical = 4.dp),
@@ -552,7 +561,7 @@ fun LogDetailScreen(
                                     ) {
                                         Text("Total", fontWeight = FontWeight.SemiBold)
                                         Text(
-                                            text = currencyFormat.format(state.totalCost),
+                                            text = currencyFormat.format(convertUSD(state.totalCost)),
                                             fontWeight = FontWeight.Bold,
                                         )
                                     }
@@ -808,9 +817,11 @@ private fun CostLineRow(
 private fun CostLineDetailRow(
     line: LogCostLineEntity,
     currencyFormat: NumberFormat,
+    currencyRate: Double = 1.0,
     modifier: Modifier = Modifier,
 ) {
-    val lineTotal = line.quantity * line.unitCost + (line.taxAmount ?: 0.0)
+    fun convert(usd: Double) = usd * currencyRate
+    val lineTotal = convert(line.quantity * line.unitCost + (line.taxAmount ?: 0.0))
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -852,7 +863,7 @@ private fun CostLineDetailRow(
         Spacer(Modifier.height(2.dp))
         Row(modifier = Modifier.fillMaxWidth()) {
             Text(
-                text = "${line.quantity} × ${currencyFormat.format(line.unitCost)}",
+                text = "${line.quantity} × ${currencyFormat.format(convert(line.unitCost))}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
@@ -860,7 +871,7 @@ private fun CostLineDetailRow(
             val tax = line.taxAmount
             if (tax != null && tax > 0) {
                 Text(
-                    text = "Tax: ${currencyFormat.format(tax)}",
+                    text = "Tax: ${currencyFormat.format(convert(tax))}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

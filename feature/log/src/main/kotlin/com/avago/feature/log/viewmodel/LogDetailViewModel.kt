@@ -3,6 +3,7 @@ package com.avago.feature.log.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
+import com.avago.core.data.CurrencyManager
 import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.LogCostLineEntity
 import com.avago.core.data.db.entity.LogEntity
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -44,6 +46,7 @@ class LogDetailViewModel @Inject constructor(
     private val identity: IdentityManager,
     private val syncEngine: SyncEngine,
     private val userPrefsRepository: UserPreferencesRepository,
+    private val currencyManager: CurrencyManager,
 ) : ViewModel() {
 
     val currencyCode: StateFlow<String> = userPrefsRepository.currencyFlow
@@ -51,6 +54,15 @@ class LogDetailViewModel @Inject constructor(
 
     val distanceUnit: StateFlow<String> = userPrefsRepository.distanceUnitFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "mi")
+
+    /**
+     * Live USD→preferred-currency exchange rate, sourced from [CurrencyManager].
+     * Mirrors iOS CurrencyManager.rateFromUSD(to:). Defaults to 1.0 (no conversion)
+     * until the first emission.
+     */
+    val currencyRate: StateFlow<Double> = currencyCode.flatMapLatest { code ->
+        flow { emit(currencyManager.rateFromUSD(code)) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 1.0)
 
     private val _entryId = MutableStateFlow<String?>(null)
 
