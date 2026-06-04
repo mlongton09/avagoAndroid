@@ -414,9 +414,15 @@ class WorkOrderLogViewModel @Inject constructor(
 
     private suspend fun linkLogToWo(logId: String) {
         val accountId = identityManager.getActiveAccountId() ?: return
-        val wo = _wo.value ?: return
-        if (wo.logId != logId) {
-            repository.upsert(accountId, wo.copy(logId = logId, updatedAt = System.currentTimeMillis()))
+        // Always read the LATEST WO from DB — _wo.value was captured on screen-open.
+        // If the title was edited on another screen since then, _wo.value.title is stale;
+        // pushing it would revert or blank the WO title on iOS.
+        val db = dbFactory.get(accountId)
+        val freshWo = db.workOrderDao().getById(woId) ?: return
+        if (freshWo.logId != logId) {
+            val updated = freshWo.copy(logId = logId, updatedAt = System.currentTimeMillis())
+            repository.upsert(accountId, updated)
+            _wo.value = updated
         }
     }
 
