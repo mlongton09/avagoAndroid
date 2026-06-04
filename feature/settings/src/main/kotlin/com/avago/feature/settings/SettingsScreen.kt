@@ -79,6 +79,7 @@ fun SettingsScreen(
     val distanceUnit by viewModel.distanceUnit.collectAsState()
     val currency by viewModel.currency.collectAsState()
     val fuelVolumeUnit by viewModel.fuelVolumeUnit.collectAsState()
+    val temperatureUnit by viewModel.temperatureUnit.collectAsState()
     val disableQuotes by viewModel.disableQuotes.collectAsState()
     val enableHumanInLoop by viewModel.enableHumanInLoop.collectAsState()
     val activeAccountId by viewModel.activeAccountId.collectAsState()
@@ -198,6 +199,13 @@ fun SettingsScreen(
             FuelVolumeUnitRow(
                 selected = fuelVolumeUnit,
                 onSelect = viewModel::setFuelVolumeUnit,
+            )
+        }
+        item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
+        item {
+            TemperatureUnitRow(
+                selected = temperatureUnit,
+                onSelect = viewModel::setTemperatureUnit,
             )
         }
         item { SectionDivider() }
@@ -629,6 +637,30 @@ private fun FuelVolumeUnitRow(
                     selected = selected == "liter",
                     onClick = { onSelect("liter") },
                     label = { Text("L") },
+                )
+            }
+        },
+    )
+}
+
+@Composable
+private fun TemperatureUnitRow(
+    selected: String,
+    onSelect: (String) -> Unit,
+) {
+    ListItem(
+        headlineContent = { Text(stringResource(R.string.settings_temperature_unit)) },
+        trailingContent = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = selected == "F",
+                    onClick = { onSelect("F") },
+                    label = { Text("°F") },
+                )
+                FilterChip(
+                    selected = selected == "C",
+                    onClick = { onSelect("C") },
+                    label = { Text("°C") },
                 )
             }
         },

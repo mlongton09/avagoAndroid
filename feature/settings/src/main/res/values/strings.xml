@@ -21,6 +21,7 @@
     <string name="settings_distance_unit">Distance unit</string>
     <string name="settings_currency">Currency</string>
     <string name="settings_fuel_volume_unit">Fuel volume unit</string>
+    <string name="settings_temperature_unit">Temperature unit</string>
     <string name="settings_ai">AI</string>
     <string name="settings_human_in_loop">Review forms before Scout saves</string>
     <string name="settings_human_in_loop_desc">When enabled, Scout will ask you to review AI suggestions before saving changes.</string>

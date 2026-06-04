@@ -72,6 +72,12 @@ class SettingsViewModel @Inject constructor(
         initialValue = "gallon",
     )
 
+    val temperatureUnit: StateFlow<String> = prefs.temperatureUnitFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = "F",
+    )
+
     val disableQuotes: StateFlow<Boolean> = prefs.disableQuotesFlow.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -154,6 +160,12 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             prefs.setFuelVolumeUnit(value)
             syncPreferences(UpdatePreferencesRequest(fuel_volume_unit = value))
+        }
+    }
+
+    fun setTemperatureUnit(value: String) {
+        viewModelScope.launch {
+            prefs.setTemperatureUnit(value)
         }
     }
 

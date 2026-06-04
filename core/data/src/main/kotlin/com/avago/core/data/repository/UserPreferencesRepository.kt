@@ -75,6 +75,14 @@ class UserPreferencesRepository @Inject constructor(
     }
 
     /**
+     * Temperature unit — "F" (default) or "C".
+     * Mirrors iOS AVDefaultsKeyTemperatureUnit.
+     */
+    val temperatureUnitFlow: Flow<String> = dataStore.data.map { prefs ->
+        prefs[TEMPERATURE_UNIT_KEY] ?: "F"
+    }
+
+    /**
      * When `true` the "daily quotes" banner is hidden.
      * Mirrors iOS AVDefaultsKeyDisableQuotes.
      */
@@ -130,6 +138,10 @@ class UserPreferencesRepository @Inject constructor(
         dataStore.edit { prefs -> prefs[FUEL_VOLUME_UNIT_KEY] = value }
     }
 
+    suspend fun setTemperatureUnit(value: String) {
+        dataStore.edit { prefs -> prefs[TEMPERATURE_UNIT_KEY] = value }
+    }
+
     suspend fun setDisableQuotes(value: Boolean) {
         dataStore.edit { prefs -> prefs[DISABLE_QUOTES_KEY] = value }
     }
@@ -174,6 +186,7 @@ class UserPreferencesRepository @Inject constructor(
         val FRE_DISMISSED_KEY = booleanPreferencesKey("fre_dismissed")
         val FRE_COMPLETED_KEY = booleanPreferencesKey("fre_completed")
         val FUEL_VOLUME_UNIT_KEY = stringPreferencesKey("fuel_volume_unit")
+        val TEMPERATURE_UNIT_KEY = stringPreferencesKey("temperature_unit")
         val DISABLE_QUOTES_KEY = booleanPreferencesKey("disable_quotes")
         const val RUNTIME_FLAGS_PREFS = "avago_runtime_flags"
         const val FORCE_OFFLINE_PREF_KEY = "force_offline"

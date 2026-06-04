@@ -82,6 +82,7 @@ import com.avago.feature.workorders.ui.components.priorityBarColor
 import com.avago.feature.workorders.ui.sheets.RepeatsSheet
 import com.avago.feature.workorders.ui.sheets.RescheduleSheet
 import com.avago.feature.workorders.ui.sheets.TechPickerSheet
+import com.avago.core.network.model.BudgetPillResponse
 import com.avago.feature.workorders.viewmodel.AuditEntry
 import com.avago.feature.workorders.viewmodel.WorkOrderDetailViewModel
 import com.avago.feature.workorders.viewmodel.WorkOrderMapPreview
@@ -111,6 +112,7 @@ fun WorkOrderDetailScreen(
     val assignments by viewModel.assignments.collectAsStateWithLifecycle()
     val checklistItems by viewModel.checklistItems.collectAsStateWithLifecycle()
     val comments by viewModel.comments.collectAsStateWithLifecycle()
+    val budgetPill by viewModel.budgetPill.collectAsStateWithLifecycle()
     val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val auditHistory by viewModel.auditHistory.collectAsStateWithLifecycle()
@@ -386,6 +388,11 @@ fun WorkOrderDetailScreen(
                         )
                     }
 
+                    budgetPill?.let { pill ->
+                        Spacer(modifier = Modifier.height(12.dp))
+                        BudgetPillCard(pill = pill)
+                    }
+
                     Spacer(modifier = Modifier.height(12.dp))
 
                     CollapsibleDetailSection(
@@ -545,6 +552,45 @@ fun WorkOrderDetailScreen(
                                     )
                                 }
                             }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    CollapsibleDetailSection(
+                        title = stringResource(R.string.wo_detail_section_costs),
+                        initiallyExpanded = false,
+                    ) {
+                        budgetPill?.let { pill ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Column {
+                                    Text(stringResource(R.string.wo_detail_labor_cost), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("${pill.currency} ${"%.2f".format(pill.labor_cost)}", style = MaterialTheme.typography.bodyMedium)
+                                }
+                                Column {
+                                    Text(stringResource(R.string.wo_detail_parts_cost), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("${pill.currency} ${"%.2f".format(pill.parts_cost)}", style = MaterialTheme.typography.bodyMedium)
+                                }
+                                Column {
+                                    Text(stringResource(R.string.wo_detail_total_cost), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("${pill.currency} ${"%.2f".format(pill.total_cost)}", style = MaterialTheme.typography.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                        if (budgetPill == null) {
+                            Text(
+                                text = stringResource(R.string.wo_detail_costs_empty),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                        TextButton(onClick = onManageCostLines) {
+                            Text(stringResource(R.string.wo_detail_costs_manage))
                         }
                     }
 
@@ -1041,6 +1087,45 @@ private fun TeamChatCard(
                 contentDescription = null,
                 modifier = Modifier.rotate(90f),
             )
+        }
+    }
+}
+
+@Composable
+private fun BudgetPillCard(pill: BudgetPillResponse) {
+    val used = pill.total_cost
+    val laborPct = if (pill.total_cost > 0) pill.labor_cost / pill.total_cost else 0.0
+    val partsPct = if (pill.total_cost > 0) pill.parts_cost / pill.total_cost else 0.0
+    androidx.compose.material3.Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = androidx.compose.material3.CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        ),
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                text = stringResource(R.string.wo_budget_pill_title),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(stringResource(R.string.wo_budget_labor), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${pill.currency} ${"%.0f".format(pill.labor_cost)}", style = MaterialTheme.typography.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(stringResource(R.string.wo_budget_parts), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${pill.currency} ${"%.0f".format(pill.parts_cost)}", style = MaterialTheme.typography.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(stringResource(R.string.wo_budget_total), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${pill.currency} ${"%.0f".format(pill.total_cost)}", style = MaterialTheme.typography.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                }
+            }
         }
     }
 }
