@@ -19,8 +19,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -108,9 +117,32 @@ fun WorkOrderLogScreen(
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     val savedSuccessfully by viewModel.savedSuccessfully.collectAsStateWithLifecycle()
     val completedSuccessfully by viewModel.completedSuccessfully.collectAsStateWithLifecycle()
+    val comments by viewModel.comments.collectAsStateWithLifecycle()
+    val auditEntries by viewModel.auditEntries.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     var showCategoryPicker by remember { mutableStateOf(false) }
+    var historyExpanded by remember { mutableStateOf(false) }   // starts collapsed — matches iOS
+    var commentsExpanded by remember { mutableStateOf(true) }   // starts expanded — matches iOS
+    var commentDraft by rememberSaveable { mutableStateOf("") }
+
+    // ── Timer tick: updates once/sec when timerStartedAt is set ──────────────
+    var timerDisplay by remember { mutableStateOf("00:00:00") }
+    LaunchedEffect(wo?.timerStartedAt) {
+        val startMs = wo?.timerStartedAt
+        if (startMs == null) {
+            timerDisplay = "00:00:00"
+            return@LaunchedEffect
+        }
+        while (true) {
+            val elapsed = System.currentTimeMillis() - startMs
+            val h = elapsed / 3_600_000L
+            val m = (elapsed % 3_600_000L) / 60_000L
+            val s = (elapsed % 60_000L) / 1_000L
+            timerDisplay = "%02d:%02d:%02d".format(h, m, s)
+            delay(1_000L)
+        }
+    }
 
     LaunchedEffect(savedSuccessfully) {
         if (savedSuccessfully) {
@@ -295,92 +327,167 @@ fun WorkOrderLogScreen(
                 )
             }
 
-            // ── Work Order context (read-only) ────────────────────────────────
+            // ── Work Order context: timer + read-only fields ──────────────────
             wo?.let { currentWo ->
                 WoLogSection(title = stringResource(R.string.wo_log_section_work_order)) {
                     val dateFormatter = remember { SimpleDateFormat("MMM d, yyyy", Locale.getDefault()) }
 
-                    // Priority bar indicator + label
-                    val priority = WoPriority.entries.firstOrNull { it.key == currentWo.priority }
+                    // ── Timer — mirrors iOS WOTimerView ───────────────────────
+                    val isRunning = currentWo.timerStartedAt != null
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         Text(
-                            text = stringResource(R.string.wo_field_priority),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            text = timerDisplay,
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 24.sp,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            ),
+                            color = if (isRunning) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        when {
+                            isRunning -> OutlinedButton(onClick = { viewModel.pauseTimer() }) {
+                                Text(stringResource(R.string.wo_log_timer_pause))
+                            }
+                            currentWo.status == "in_progress" -> OutlinedButton(onClick = { viewModel.resumeTimer() }) {
+                                Text(stringResource(R.string.wo_log_timer_resume))
+                            }
+                            else -> Button(
+                                onClick = { viewModel.startTimer() },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            ) { Text(stringResource(R.string.wo_log_timer_start), color = Color.White) }
+                        }
+                    }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    // Priority
+                    val priority = WoPriority.entries.firstOrNull { it.key == currentWo.priority }
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(stringResource(R.string.wo_field_priority), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (priority != null) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(10.dp)
-                                        .background(
-                                            color = priorityBarColor(priority.key),
-                                            shape = RoundedCornerShape(50),
-                                        ),
-                                )
+                                Box(modifier = Modifier.size(10.dp).background(priorityBarColor(priority.key), RoundedCornerShape(50)))
                                 Spacer(Modifier.width(6.dp))
-                                Text(
-                                    text = priority.label,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Medium,
-                                )
+                                Text(priority.displayName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                             }
                         }
                     }
 
-                    // Due date
                     currentWo.dueDate?.let { dueMs ->
                         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            Text(
-                                stringResource(R.string.wo_field_due_date),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Text(
-                                dateFormatter.format(Date(dueMs)),
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium,
-                            )
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(stringResource(R.string.wo_field_due_date), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(dateFormatter.format(Date(dueMs)), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                         }
                     }
 
-                    // Est. effort
                     currentWo.estimatedEffortMinutes?.takeIf { it > 0 }?.let { mins ->
                         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            Text(
-                                stringResource(R.string.wo_field_estimated_hours),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            val h = mins / 60; val m = mins % 60
-                            val label = if (h > 0 && m > 0) "${h}h ${m}m"
-                            else if (h > 0) "${h}h" else "${m}m"
-                            Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                        val h = mins / 60; val m = mins % 60
+                        val effortLabel = when { h > 0 && m > 0 -> "${h}h ${m}m"; h > 0 -> "${h}h"; else -> "${m}m" }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(stringResource(R.string.wo_field_estimated_hours), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(effortLabel, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                         }
                     }
+                }
+            }
 
-                    // Description (read-only if already in notes)
-                    if (!currentWo.description.isNullOrBlank() &&
-                        logNotes.value.isBlank()
+            // ── Audit history (collapsible, starts collapsed — matches iOS) ───
+            if (auditEntries.isNotEmpty()) {
+                WoLogSection {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { historyExpanded = !historyExpanded },
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                        Text(stringResource(R.string.wo_log_section_history), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold))
+                        Icon(if (historyExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown, contentDescription = null)
+                    }
+                    if (historyExpanded) {
+                        HorizontalDivider(modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+                        auditEntries.forEachIndexed { idx, entry ->
+                            Column(modifier = Modifier.padding(vertical = 6.dp)) {
+                                Text(entry.description, style = MaterialTheme.typography.bodyMedium)
+                                Text(entry.createdAt, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            if (idx < auditEntries.lastIndex) HorizontalDivider()
+                        }
+                    }
+                }
+            }
+
+            // ── Comments: list + inline composer (matches iOS) ────────────────
+            WoLogSection {
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { commentsExpanded = !commentsExpanded },
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(stringResource(R.string.wo_detail_section_comments), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold))
+                    Icon(if (commentsExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown, contentDescription = null)
+                }
+                if (commentsExpanded) {
+                    HorizontalDivider(modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+                    if (comments.isEmpty()) {
                         Text(
-                            text = currentWo.description!!,
+                            stringResource(R.string.wo_detail_comments_empty),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 8.dp),
                         )
+                    } else {
+                        comments.forEachIndexed { idx, comment ->
+                            Column(modifier = Modifier.padding(vertical = 6.dp)) {
+                                Text(comment.authorId, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                                Text(comment.body, style = MaterialTheme.typography.bodyMedium)
+                            }
+                            if (idx < comments.lastIndex) HorizontalDivider()
+                        }
+                    }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    // Pill-style composer — mirrors iOS workOrderCommentComposerField
+                    Row(
+                        modifier = Modifier.fillMaxWidth().imePadding(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                        ) {
+                            BasicTextField(
+                                value = commentDraft,
+                                onValueChange = { commentDraft = it },
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
+                                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                modifier = Modifier.fillMaxWidth(),
+                                decorationBox = { inner ->
+                                    if (commentDraft.isEmpty()) {
+                                        Text(stringResource(R.string.wo_detail_comment_placeholder), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    inner()
+                                },
+                            )
+                        }
+                        IconButton(
+                            onClick = { viewModel.sendComment(commentDraft); commentDraft = "" },
+                            enabled = commentDraft.isNotBlank(),
+                            modifier = Modifier.size(40.dp),
+                        ) {
+                            Icon(
+                                Icons.Default.Send,
+                                contentDescription = stringResource(R.string.wo_detail_comment_send),
+                                tint = if (commentDraft.isNotBlank()) MaterialTheme.colorScheme.secondary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }

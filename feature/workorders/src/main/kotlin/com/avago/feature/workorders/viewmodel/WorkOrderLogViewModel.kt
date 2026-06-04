@@ -7,17 +7,23 @@ import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.AssetEntity
 import com.avago.core.data.db.entity.LogEntity
-import com.avago.core.data.db.entity.WorkOrderEntity
+import com.avago.core.data.db.entity.WoCommentEntity
+import com.avago.core.network.AvagoServiceClient
+import com.avago.core.network.NetworkResult
 import com.avago.core.sync.SyncEngine
 import com.avago.feature.workorders.repository.WorkOrderRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.UUID
 import javax.inject.Inject
 
@@ -36,6 +42,7 @@ class WorkOrderLogViewModel @Inject constructor(
     private val identityManager: IdentityManager,
     private val dbFactory: DatabaseFactory,
     private val syncEngine: SyncEngine,
+    private val serviceClient: AvagoServiceClient,
 ) : ViewModel() {
 
     val woId: String = requireNotNull(savedStateHandle["woId"])
@@ -62,6 +69,14 @@ class WorkOrderLogViewModel @Inject constructor(
     private val _recentCategoryKeys = MutableStateFlow<List<String>>(emptyList())
     val recentCategoryKeys: StateFlow<List<String>> = _recentCategoryKeys.asStateFlow()
 
+    // ── Comments (live from local DB) ─────────────────────────────────────────
+    private val _comments = MutableStateFlow<List<WoCommentEntity>>(emptyList())
+    val comments: StateFlow<List<WoCommentEntity>> = _comments.asStateFlow()
+
+    // ── Audit history (from server) ───────────────────────────────────────────
+    private val _auditEntries = MutableStateFlow<List<AuditEntry>>(emptyList())
+    val auditEntries: StateFlow<List<AuditEntry>> = _auditEntries.asStateFlow()
+
     // ── UI state ──────────────────────────────────────────────────────────────
     private val _isSaving = MutableStateFlow(false)
     val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
@@ -74,6 +89,8 @@ class WorkOrderLogViewModel @Inject constructor(
 
     init {
         viewModelScope.launch { load() }
+        viewModelScope.launch { observeComments() }
+        viewModelScope.launch { loadAuditHistory() }
     }
 
     // ── Data loading ──────────────────────────────────────────────────────────
@@ -210,6 +227,7 @@ class WorkOrderLogViewModel @Inject constructor(
                         logId = logId,
                         status = "completed",
                         completedAt = now,
+                        timerStartedAt = null,   // clear timer on complete (matches iOS clearTimer)
                         updatedAt = now,
                     ),
                 )
@@ -226,6 +244,101 @@ class WorkOrderLogViewModel @Inject constructor(
 
     fun onCategorySelected(key: String) { logCategory.value = key }
     fun clearError() { _errorMessage.value = null }
+
+    // ── Timer (mirrors iOS WOTimerView delegate) ──────────────────────────────
+
+    /** Start timer: set timerStartedAt, auto-advance assigned → in_progress. */
+    fun startTimer() {
+        viewModelScope.launch {
+            val accountId = identityManager.getActiveAccountId() ?: return@launch
+            val wo = _wo.value ?: return@launch
+            val now = System.currentTimeMillis()
+            val updated = wo.copy(
+                timerStartedAt = now,
+                status = if (wo.status == "assigned") "in_progress" else wo.status,
+                updatedAt = now,
+            )
+            repository.upsert(accountId, updated)
+            _wo.value = updated
+        }
+    }
+
+    /** Pause timer: clear timerStartedAt but keep status as in_progress. */
+    fun pauseTimer() {
+        viewModelScope.launch {
+            val accountId = identityManager.getActiveAccountId() ?: return@launch
+            val wo = _wo.value ?: return@launch
+            val now = System.currentTimeMillis()
+            val updated = wo.copy(timerStartedAt = null, updatedAt = now)
+            repository.upsert(accountId, updated)
+            _wo.value = updated
+        }
+    }
+
+    /** Resume timer: set a fresh timerStartedAt. */
+    fun resumeTimer() = startTimer()
+
+    // ── Comments ──────────────────────────────────────────────────────────────
+
+    /** Send a new comment, save locally and enqueue sync. */
+    fun sendComment(text: String) {
+        val trimmed = text.trim()
+        if (trimmed.isBlank()) return
+        viewModelScope.launch {
+            try {
+                val accountId = identityManager.getActiveAccountId() ?: return@launch
+                val userId = identityManager.getActiveUserId() ?: accountId
+                val db = dbFactory.get(accountId)
+                val now = System.currentTimeMillis()
+                db.woCommentDao().upsert(
+                    WoCommentEntity(
+                        commentId = UUID.randomUUID().toString(),
+                        woId = woId,
+                        authorId = userId,
+                        body = trimmed,
+                        createdAt = now,
+                        updatedAt = now,
+                        deletedAt = null,
+                        serverVersion = 0L,
+                        seq = null,
+                    ),
+                )
+                syncEngine.requestSync()
+            } catch (e: Exception) {
+                Timber.e(e, "[WoLogVM] sendComment failed")
+            }
+        }
+    }
+
+    private suspend fun observeComments() {
+        val accountId = identityManager.getActiveAccountId() ?: return
+        try {
+            dbFactory.get(accountId).woCommentDao().observeAll(accountId)
+                .map { list -> list.filter { it.woId == woId }.sortedBy { it.createdAt } }
+                .collect { _comments.value = it }
+        } catch (e: Exception) {
+            Timber.e(e, "[WoLogVM] observeComments failed")
+        }
+    }
+
+    private suspend fun loadAuditHistory() {
+        val accountId = identityManager.getActiveAccountId() ?: return
+        try {
+            val fmt = DateTimeFormatter.ofPattern("MMM d, yyyy HH:mm")
+            when (val result = serviceClient.getWorkOrderAudit(accountId, woId)) {
+                is NetworkResult.Success -> _auditEntries.value = result.data.map { event ->
+                    AuditEntry(
+                        description = event.event_type,
+                        createdAt = Instant.ofEpochMilli(event.occurred_at)
+                            .atZone(ZoneId.systemDefault()).format(fmt),
+                    )
+                }
+                else -> Unit
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "[WoLogVM] loadAuditHistory failed")
+        }
+    }
 
     // ── Private helpers ───────────────────────────────────────────────────────
 

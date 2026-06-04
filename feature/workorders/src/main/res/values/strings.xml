@@ -3,10 +3,18 @@
 
     <!-- WO Log (merged Work Order + Log Entry screen) -->
     <string name="wo_log_screen_title">Log Work</string>
+    <string name="log_entry_label_cost">Cost</string>
+    <string name="log_entry_section_odometer">Odometer</string>
+    <string name="log_entry_label_performed_by">Performed By</string>
+    <string name="log_entry_placeholder_performed_by">Shop or person</string>
     <string name="wo_log_save_draft">Save Draft</string>
     <string name="wo_log_complete">Complete &amp; Close</string>
     <string name="wo_log_section_details">Details</string>
     <string name="wo_log_section_work_order">Work Order</string>
+    <string name="wo_log_section_history">History</string>
+    <string name="wo_log_timer_start">Start</string>
+    <string name="wo_log_timer_pause">Pause</string>
+    <string name="wo_log_timer_resume">Resume</string>
 
     <!-- WO List -->
     <string name="wo_list_title">Work Orders</string>
