@@ -97,7 +97,10 @@ class WorkOrderListViewModel @Inject constructor(
             }
             .stateIn(
                 scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(5_000),
+                // Lazily keeps the Room Flow alive as long as the ViewModel lives — ensures
+                // edits made while the list screen is off-screen (navigated away) are always
+                // reflected the moment the user returns, with no stale-data flash.
+                started = SharingStarted.Lazily,
                 initialValue = emptyList(),
             )
 
