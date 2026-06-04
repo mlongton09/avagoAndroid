@@ -26,7 +26,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.FloatingActionButton
 import com.avago.core.ai.ui.ScoutPaletteSheet
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -503,7 +503,7 @@ fun WorkOrderLogScreen(
                             modifier = Modifier.size(40.dp),
                         ) {
                             Icon(
-                                Icons.Default.Send,
+                                Icons.AutoMirrored.Filled.Send,
                                 contentDescription = stringResource(R.string.wo_detail_comment_send),
                                 tint = if (commentDraft.isNotBlank()) MaterialTheme.colorScheme.secondary
                                 else MaterialTheme.colorScheme.onSurfaceVariant,
