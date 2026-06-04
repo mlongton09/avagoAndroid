@@ -20,9 +20,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
@@ -86,6 +88,10 @@ class WorkOrderCreateViewModel @Inject constructor(
     val selectedTemplateId = MutableStateFlow<String?>(null)
     private val _availableCategories = MutableStateFlow<List<String>>(emptyList())
     val availableCategories: StateFlow<List<String>> = _availableCategories.asStateFlow()
+
+    /** Up to 4 most-recently-used category keys for the selected asset (mirrors iOS LIMIT 4). */
+    private val _recentCategoryKeys = MutableStateFlow<List<String>>(emptyList())
+    val recentCategoryKeys: StateFlow<List<String>> = _recentCategoryKeys.asStateFlow()
 
     // Job picker
     val jobId = MutableStateFlow<String?>(null)
@@ -267,11 +273,83 @@ class WorkOrderCreateViewModel @Inject constructor(
 
     fun onAssetSelected(assetId: String) {
         this.assetId.value = assetId
+        _recentCategoryKeys.value = emptyList()
         viewModelScope.launch {
             val accountId = identityManager.getActiveAccountId() ?: return@launch
             val asset = repository.getAssetById(accountId, assetId)
             assetName.value = asset?.name
+            val assetType = asset?.assetType?.takeIf { it.isNotBlank() } ?: "light_vehicle"
+            loadCategoriesForAssetType(assetType, accountId)
+            loadRecentCategories(assetId, accountId)
         }
+    }
+
+    /** Loads categories for the given asset type — same two-pass lookup as AddEditLogViewModel. */
+    private suspend fun loadCategoriesForAssetType(assetType: String, accountId: String) {
+        try {
+            val db = dbFactory.get(accountId)
+            val categories =
+                db.configDao().getByKey("ItemCategory", assetType)
+                    ?.let { parseCategoriesFromItemCategoryConfig(it.value) }
+                    ?.takeIf { it.isNotEmpty() }
+                    ?: db.configDao().getByKey("system", "log_categories")
+                        ?.let { parseCategoriesFromSeededConfig(it.value, assetType) }
+            if (!categories.isNullOrEmpty()) {
+                _availableCategories.value = categories
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "[WoCreateVM] loadCategoriesForAssetType failed for $assetType")
+        }
+    }
+
+    /** Queries the log table for the 4 most-recently-used distinct categories on this asset. */
+    private suspend fun loadRecentCategories(assetId: String, accountId: String) {
+        try {
+            val db = dbFactory.get(accountId)
+            val recents = db.logDao()
+                .observeAll(accountId)
+                .map { logs ->
+                    logs.filter { it.assetId == assetId && !it.category.isNullOrBlank() }
+                        .sortedByDescending { it.entryDate }
+                        .map { it.category!! }
+                        .distinct()
+                        .take(4)
+                }
+                .first()
+            _recentCategoryKeys.value = recents
+        } catch (e: Exception) {
+            Timber.e(e, "[WoCreateVM] loadRecentCategories failed for assetId=$assetId")
+        }
+    }
+
+    /** {"categories":[{"id":"oil_change",...},...]} — mirrors AddEditLogViewModel.parseCategoriesFromConfig */
+    private fun parseCategoriesFromItemCategoryConfig(json: String): List<String> {
+        val catStart = json.indexOf("\"categories\"")
+        val arrStart = if (catStart >= 0) json.indexOf('[', catStart) else json.indexOf('[')
+        if (arrStart < 0) return emptyList()
+        var depth = 0; var arrEnd = arrStart
+        for (i in arrStart until json.length) when (json[i]) {
+            '[' -> depth++; ']' -> { depth--; if (depth == 0) { arrEnd = i; break } }
+        }
+        return Regex("\"id\"\\s*:\\s*\"([^\"]+)\"")
+            .findAll(json.substring(arrStart, arrEnd + 1))
+            .map { it.groupValues[1] }.toList()
+    }
+
+    /** [{"asset_type":"light_vehicle","categories":[...]}] — mirrors AddEditLogViewModel.parseCategoriesFromSeeded */
+    private fun parseCategoriesFromSeededConfig(json: String, assetType: String): List<String> {
+        val assetKey = "\"asset_type\":\"$assetType\""
+        val blockStart = json.indexOf(assetKey).takeIf { it >= 0 }
+            ?: return parseCategoriesFromItemCategoryConfig(json)
+        val catStart = json.indexOf("\"categories\"", blockStart)
+        val arrStart = if (catStart >= 0) json.indexOf('[', catStart) else return emptyList()
+        var depth = 0; var arrEnd = arrStart
+        for (i in arrStart until json.length) when (json[i]) {
+            '[' -> depth++; ']' -> { depth--; if (depth == 0) { arrEnd = i; break } }
+        }
+        return Regex("\"id\"\\s*:\\s*\"([^\"]+)\"")
+            .findAll(json.substring(arrStart, arrEnd + 1))
+            .map { it.groupValues[1] }.toList()
     }
 
     // ---------------------------------------------------------------------------

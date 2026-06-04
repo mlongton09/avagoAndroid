@@ -98,6 +98,7 @@ fun WorkOrderCreateScreen(
     val locationName by viewModel.locationName.collectAsStateWithLifecycle()
     val category by viewModel.category.collectAsStateWithLifecycle()
     val availableCategories by viewModel.availableCategories.collectAsStateWithLifecycle()
+    val recentCategoryKeys by viewModel.recentCategoryKeys.collectAsStateWithLifecycle()
     val dueDateMs by viewModel.dueDateMs.collectAsStateWithLifecycle()
     val priority by viewModel.priority.collectAsStateWithLifecycle()
     val estimatedHours by viewModel.estimatedHours.collectAsStateWithLifecycle()
@@ -195,6 +196,7 @@ fun WorkOrderCreateScreen(
         GlobalCategoryPickerScreen(
             title = stringResource(R.string.wo_category),
             categories = com.avago.core.ui.buildCategoryItems(keys = availableCategories),
+            recents = com.avago.core.ui.buildCategoryItems(keys = recentCategoryKeys),
             onSelect = { item ->
                 viewModel.category.value = item.key
                 viewModel.fetchEffortHint(item.key)
