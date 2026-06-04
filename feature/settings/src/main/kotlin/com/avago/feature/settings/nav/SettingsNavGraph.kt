@@ -13,8 +13,6 @@ import com.avago.feature.settings.DeveloperScreen
 import com.avago.feature.settings.LegalTextScreen
 import com.avago.feature.settings.LegalTextType
 import com.avago.feature.settings.InviteUsersScreen
-import com.avago.feature.settings.LicensesScreen
-import com.avago.feature.settings.MembersListScreen
 import com.avago.feature.settings.MyTechProfileScreen
 import com.avago.feature.settings.SettingsScreen
 import com.avago.feature.settings.SyncConflictsScreen
@@ -25,8 +23,6 @@ import com.avago.feature.settings.SyncConflictsScreen
 object SettingsRoute {
     const val GRAPH  = "settings_graph"
     const val Main   = "settings"
-    const val Members = "settings/members"
-    const val Licenses = "settings/licenses"
     const val InviteUsers = "settings/invite"
     const val Developer = "settings/developer"
     const val About = "settings/about"
@@ -52,22 +48,12 @@ fun NavGraphBuilder.settingsNavGraph(navController: NavController) {
     ) {
         composable(SettingsRoute.Main) {
             SettingsScreen(
-                onNavigateToMembers    = { navController.navigate(SettingsRoute.Members) },
-                onNavigateToLicenses   = { navController.navigate(SettingsRoute.Licenses) },
                 onNavigateToInvite     = { navController.navigate(SettingsRoute.InviteUsers) },
                 onNavigateToDeveloper  = { navController.navigate(SettingsRoute.Developer) },
                 onNavigateToAbout      = { navController.navigate(SettingsRoute.About) },
                 onNavigateToTechProfile = { navController.navigate(SettingsRoute.TechProfile) },
                 onNavigateToSyncConflicts = { navController.navigate(SettingsRoute.SyncConflicts) },
             )
-        }
-
-        composable(SettingsRoute.Members) {
-            MembersListScreen(onBack = { navController.popBackStack() })
-        }
-
-        composable(SettingsRoute.Licenses) {
-            LicensesScreen()
         }
 
         composable(SettingsRoute.InviteUsers) {
@@ -82,7 +68,6 @@ fun NavGraphBuilder.settingsNavGraph(navController: NavController) {
 
         composable(SettingsRoute.About) {
             AboutScreen(
-                onNavigateToLicenses = { navController.navigate(SettingsRoute.Licenses) },
                 onNavigateToPrivacyPolicy = { navController.navigate(SettingsRoute.PrivacyPolicy) },
                 onNavigateToTerms = { navController.navigate(SettingsRoute.TermsOfService) },
                 onBack = { navController.popBackStack() },

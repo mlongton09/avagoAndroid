@@ -41,7 +41,6 @@ import com.avago.feature.settings.R
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AboutScreen(
-    onNavigateToLicenses: () -> Unit,
     onNavigateToPrivacyPolicy: () -> Unit,
     onNavigateToTerms: () -> Unit,
     onBack: () -> Unit,
@@ -145,23 +144,6 @@ fun AboutScreen(
 
             item {
                 SectionLabel(stringResource(R.string.about_section_acknowledgements))
-            }
-
-            item {
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.about_open_source_licenses)) },
-                    leadingContent = {
-                        Icon(Icons.Default.Policy, contentDescription = null)
-                    },
-                    trailingContent = {
-                        Icon(
-                            Icons.Default.ChevronRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    },
-                    modifier = Modifier.clickable(role = Role.Button, onClick = onNavigateToLicenses),
-                )
             }
 
             item { Spacer(modifier = Modifier.height(24.dp)) }

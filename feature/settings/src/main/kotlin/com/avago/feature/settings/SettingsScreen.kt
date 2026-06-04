@@ -63,8 +63,6 @@ private const val SHOW_DELETE_ACCOUNT = false
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
-    onNavigateToMembers: () -> Unit = {},
-    onNavigateToLicenses: () -> Unit = {},
     onNavigateToInvite: () -> Unit = {},
     onNavigateToDeveloper: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {},
@@ -266,14 +264,6 @@ fun SettingsScreen(
         item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
         item {
             NavigationRow(
-                label = stringResource(R.string.settings_members),
-                leadingIcon = { Icon(Icons.Default.Group, contentDescription = null) },
-                onClick = onNavigateToMembers,
-            )
-        }
-        item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
-        item {
-            NavigationRow(
                 label = stringResource(R.string.settings_invite_team_member),
                 leadingIcon = { Icon(Icons.Default.PersonAdd, contentDescription = null) },
                 onClick = onNavigateToInvite,
@@ -349,14 +339,6 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 },
-            )
-        }
-        item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
-        item {
-            NavigationRow(
-                label = stringResource(R.string.settings_licenses),
-                leadingIcon = { Icon(Icons.Default.Policy, contentDescription = null) },
-                onClick = onNavigateToLicenses,
             )
         }
         item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
