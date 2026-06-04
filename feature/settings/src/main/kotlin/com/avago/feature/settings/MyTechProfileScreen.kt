@@ -1,11 +1,15 @@
 ﻿package com.avago.feature.settings
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -14,15 +18,14 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -186,7 +189,8 @@ class MyTechProfileViewModel @Inject constructor(
 @Composable
 fun MyTechProfileScreen(
     onBack: () -> Unit,
-    onPickLocation: () -> Unit = {},
+    /** Called when the user taps the Home Location row; receives the current locationId (if any) to pre-select it. */
+    onPickLocation: (currentLocationId: String?) -> Unit = {},
     selectedLocationId: String? = null,
     selectedLocationName: String? = null,
     viewModel: MyTechProfileViewModel = hiltViewModel(),
@@ -266,18 +270,45 @@ fun MyTechProfileScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
             )
 
-            HorizontalDivider()
-            ListItem(
-                headlineContent = {
-                    Text(homeLocationName ?: stringResource(R.string.tech_profile_no_home_location))
-                },
-                supportingContent = { Text(stringResource(R.string.tech_profile_home_location)) },
-                trailingContent = {
-                    Icon(Icons.Default.ChevronRight, contentDescription = null)
-                },
-                modifier = Modifier.clickable { onPickLocation() },
-            )
-            HorizontalDivider()
+            // Home Location — side-by-side layout matching iOS TechProfileViewController (section 0, row 3):
+            // label left (onSurfaceVariant) · value right (onSurface if set, onSurfaceVariant if not) · chevron
+            val homeLocationId by viewModel.homeLocationId.collectAsStateWithLifecycle()
+            Surface(
+                onClick = { onPickLocation(homeLocationId) },
+                shape = MaterialTheme.shapes.extraSmall,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                color = MaterialTheme.colorScheme.surface,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.tech_profile_home_location),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        text = homeLocationName ?: stringResource(R.string.tech_profile_no_home_location),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = if (homeLocationName != null)
+                            MaterialTheme.colorScheme.onSurface
+                        else
+                            MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
 
             OutlinedTextField(
                 value = hourlyRate,
