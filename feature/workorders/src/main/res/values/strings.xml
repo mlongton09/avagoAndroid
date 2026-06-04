@@ -300,13 +300,7 @@
     <!-- Dispatch Board — snackbar -->
     <string name="dispatch_rebalance_coming_soon">Auto-rebalance coming soon</string>
 
-    <!-- Signature Capture -->
-    <string name="signature_capture_title">Signature</string>
-    <string name="signature_capture_hint">Sign above</string>
-    <string name="signature_capture_clear">Clear</string>
-    <string name="signature_capture_save">Save Signature</string>
-
-    <!-- Budget Pill -->
+<!-- Budget Pill -->
     <string name="wo_budget_pill_title">Budget Summary</string>
     <string name="wo_budget_labor">Labor</string>
     <string name="wo_budget_parts">Parts</string>

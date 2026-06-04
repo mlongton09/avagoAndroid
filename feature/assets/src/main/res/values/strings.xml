@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Common actions used within assets feature -->
+    <string name="common_edit">Edit</string>
+
     <!-- Asset List -->
     <string name="assets_title">Assets</string>
     <string name="assets_search_placeholder">Search</string>

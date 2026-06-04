@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.DropdownMenu
@@ -34,6 +35,9 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -203,12 +207,53 @@ fun AssetListScreen(
                             when (item) {
                                 is String -> AssetSectionHeader(typeKey = item)
                                 is AssetEntity -> {
-                                    AssetRow(
-                                        asset = item,
-                                        openWoCount = openWoCounts[item.assetId] ?: 0,
-                                        onClick = { onAssetClick(item.assetId) },
-                                        onLongClick = { onAssetLongPress(item.assetId) },
-                                    )
+                                    // Swipe-left to edit — mirrors iOS AssetsListViewController
+                                    // trailing swipe action that reveals Edit.
+                                    SwipeToDismissBox(
+                                        state = rememberSwipeToDismissBoxState(
+                                            confirmValueChange = { value ->
+                                                if (value == SwipeToDismissBoxValue.EndToStart) {
+                                                    onAssetLongPress(item.assetId)
+                                                }
+                                                false // keep the row in place
+                                            },
+                                            positionalThreshold = { it * 0.35f },
+                                        ),
+                                        enableDismissFromEndToStart = true,
+                                        enableDismissFromStartToEnd = false,
+                                        backgroundContent = {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .background(MaterialTheme.colorScheme.secondary),
+                                                contentAlignment = Alignment.CenterEnd,
+                                            ) {
+                                                Column(
+                                                    modifier = Modifier.padding(end = 20.dp),
+                                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Edit,
+                                                        contentDescription = null,
+                                                        tint = Color.White,
+                                                        modifier = Modifier.size(20.dp),
+                                                    )
+                                                    Text(
+                                                        text = stringResource(R.string.common_edit),
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = Color.White,
+                                                    )
+                                                }
+                                            }
+                                        },
+                                    ) {
+                                        AssetRow(
+                                            asset = item,
+                                            openWoCount = openWoCounts[item.assetId] ?: 0,
+                                            onClick = { onAssetClick(item.assetId) },
+                                            onLongClick = { onAssetLongPress(item.assetId) },
+                                        )
+                                    }
                                     HorizontalDivider(
                                         modifier = Modifier.padding(start = 72.dp),
                                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
