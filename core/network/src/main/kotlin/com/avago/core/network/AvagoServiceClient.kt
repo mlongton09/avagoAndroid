@@ -196,13 +196,7 @@ class AvagoServiceClient @Inject constructor(
     suspend fun getMe(): UserResponse =
         safeCall { client.get("$baseUrl/users/me").body() }
 
-    suspend fun getAccount(): AccountResponse =
-        safeCall { client.get("$baseUrl/accounts/me").body() }
-
-    suspend fun getMyAccounts(): NetworkResult<List<AccountResponse>> =
-        safeNetworkCall { client.get("$baseUrl/users/me/accounts").body() }
-
-    /** GET /accounts — list all accounts accessible to the current user. */
+    /** GET /accounts — list all accounts accessible to the current user. Mirrors iOS GET /accounts. */
     suspend fun getAllAccounts(): NetworkResult<List<AccountResponse>> =
         safeNetworkCall { client.get("$baseUrl/accounts").body<AccountsEnvelope>().accounts }
 
