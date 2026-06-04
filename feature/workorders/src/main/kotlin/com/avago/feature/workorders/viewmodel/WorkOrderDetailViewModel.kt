@@ -223,6 +223,16 @@ class WorkOrderDetailViewModel @Inject constructor(
     private val _isEditingHeader = MutableStateFlow(false)
     val isEditingHeader: StateFlow<Boolean> = _isEditingHeader.asStateFlow()
 
+    /** Non-null while Scout has provided an RRULE for HITL review — drives the RepeatsSheet. */
+    private val _scoutRrule = MutableStateFlow<String?>(null)
+    val scoutRrule: StateFlow<String?> = _scoutRrule.asStateFlow()
+    fun clearScoutRrule() { _scoutRrule.value = null }
+
+    /** Called from the ScoutPaletteSheet onNavigate callback when target = "set_recurrence". */
+    fun onScoutRecurrence(fields: Map<String, String?>) {
+        formFillRouter.dispatch("set_recurrence", fields)
+    }
+
     private val _editTitle = MutableStateFlow("")
     val editTitle: StateFlow<String> = _editTitle.asStateFlow()
 
@@ -769,6 +779,13 @@ class WorkOrderDetailViewModel @Inject constructor(
             }
             changed
         }
+        formFillRouter.register("set_recurrence") { fields ->
+            val rrule = fields["rrule"]?.ifBlank { null }
+            if (rrule != null) {
+                _scoutRrule.value = rrule
+                listOf("rrule")
+            } else emptyList()
+        }
         loadAuditHistory()
         resolveWorkOrderThread()
         loadBudgetPill()
@@ -776,6 +793,7 @@ class WorkOrderDetailViewModel @Inject constructor(
 
     override fun onCleared() {
         formFillRouter.unregister("wo_detail")
+        formFillRouter.unregister("set_recurrence")
         super.onCleared()
     }
 }

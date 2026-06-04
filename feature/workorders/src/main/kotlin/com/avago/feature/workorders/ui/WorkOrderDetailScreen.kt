@@ -124,6 +124,12 @@ fun WorkOrderDetailScreen(
     val canApprove by viewModel.canApprove.collectAsStateWithLifecycle()
     val canDelete by viewModel.canDelete.collectAsStateWithLifecycle()
     val mapPreview by viewModel.mapPreview.collectAsStateWithLifecycle()
+    val scoutRrule by viewModel.scoutRrule.collectAsStateWithLifecycle()
+
+    // When Scout provides an RRULE (HITL-on), open the repeats sheet pre-filled.
+    LaunchedEffect(scoutRrule) {
+        if (scoutRrule != null) showRepeatsSheet = true
+    }
 
     var showScoutSheet by remember { mutableStateOf(false) }
     var showOverflowMenu by remember { mutableStateOf(false) }
@@ -200,14 +206,18 @@ fun WorkOrderDetailScreen(
 
     if (showRepeatsSheet) {
         RepeatsSheet(
-            currentRrule = wo?.rrule,
+            currentRrule = scoutRrule ?: wo?.rrule,
             currentEndType = wo?.endType,
             currentEndCount = wo?.endCount?.toInt(),
             currentEndDateMs = wo?.endDate,
-            onDismiss = { showRepeatsSheet = false },
+            onDismiss = {
+                showRepeatsSheet = false
+                viewModel.clearScoutRrule()
+            },
             onSave = { rrule ->
                 viewModel.saveRecurrence(rrule)
                 showRepeatsSheet = false
+                viewModel.clearScoutRrule()
             },
         )
     }
@@ -315,6 +325,9 @@ fun WorkOrderDetailScreen(
                 onNavigate = { targetScreen, fields ->
                     when (targetScreen) {
                         "log_entry" -> onLogWork?.invoke(wo?.assetId)
+                        "set_recurrence" -> {
+                            viewModel.onScoutRecurrence(fields)
+                        }
                         else -> Unit
                     }
                     showScoutSheet = false
