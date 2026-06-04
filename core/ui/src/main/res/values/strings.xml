@@ -20,6 +20,11 @@
     <string name="common_done">Done</string>
     <string name="common_clear">Clear</string>
     <string name="common_none">None</string>
+    <string name="common_search">Search</string>
+    <string name="common_delete">Delete</string>
+
+    <!-- Permissions -->
+    <string name="permissions_forbidden_message">You don\'t have permission to perform this action.</string>
 
     <!-- Navigation titles — mirrors iOS nav.* string keys -->
     <string name="nav_new_entry">New Log Entry</string>

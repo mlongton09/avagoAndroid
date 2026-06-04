@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Account Switcher -->
+    <string name="account_switcher_title">Suas contas</string>
+</resources>

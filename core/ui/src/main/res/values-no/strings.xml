@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Common actions -->
+    <string name="common_search">Søk</string>
+    <string name="common_delete">Slett</string>
+
+    <!-- Permissions -->
+    <string name="permissions_forbidden_message">Du har ikke tillatelse til å utføre denne handlingen.</string>
+</resources>

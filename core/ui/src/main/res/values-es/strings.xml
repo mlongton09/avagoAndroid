@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Common actions -->
+    <string name="common_search">Buscar</string>
+    <string name="common_delete">Eliminar</string>
+
+    <!-- Permissions -->
+    <string name="permissions_forbidden_message">No tienes permiso para realizar esta acción.</string>
+</resources>

@@ -38,7 +38,7 @@
     <string name="asset_add_title">Add Asset</string>
     <string name="asset_edit_title">Edit Asset</string>
     <string name="asset_field_name">Name</string>
-    <string name="asset_field_name_required">Please enter an asset name.</string>
+    <string name="asset_field_name_required">Name Required</string>
     <string name="asset_field_type">Asset Type</string>
     <string name="asset_field_type_placeholder">Select type\u2026</string>
     <string name="asset_field_make">Make</string>

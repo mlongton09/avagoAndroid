@@ -31,7 +31,7 @@
     <string name="email_signin_have_account">Already have an account? Sign in</string>
 
     <!-- Account Switcher -->
-    <string name="account_switcher_title">YOUR ACCOUNTS</string>
+    <string name="account_switcher_title">Your Accounts</string>
     <string name="account_switcher_active_account">Active account</string>
     <string name="account_switcher_add_account">Create New Account</string>
     <string name="account_switcher_remove_account">Sign Out of %1$s</string>
