@@ -73,7 +73,7 @@ class CurrencyManager @Inject constructor(
     }
 
     /** Currency symbol for the given code, e.g. "C$" for CAD. */
-    fun symbol(for currencyCode: String): String = symbolMap[currencyCode] ?: currencyCode
+    fun symbol(currencyCode: String): String = symbolMap[currencyCode] ?: currencyCode
 
     /**
      * Rate for the user's currently selected currency.
