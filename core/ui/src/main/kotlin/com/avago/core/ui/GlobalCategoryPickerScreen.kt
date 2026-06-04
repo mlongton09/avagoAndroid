@@ -14,7 +14,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -200,18 +202,50 @@ fun GlobalCategoryPickerScreen(
                 }
             }
 
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                placeholder = { Text(stringResource(R.string.global_category_picker_search)) },
-                leadingIcon = {
-                    Icon(imageVector = Icons.Default.Search, contentDescription = null)
-                },
-                singleLine = true,
+            // Minimal pill-style search bar — matches iOS .minimal UISearchBar
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-            )
+                    .padding(horizontal = 16.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+            ) {
+                BasicTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(
+                        color = MaterialTheme.colorScheme.onSurface,
+                    ),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    decorationBox = { inner ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Box(modifier = Modifier.weight(1f)) {
+                                if (query.isEmpty()) {
+                                    Text(
+                                        text = stringResource(R.string.global_category_picker_search),
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                inner()
+                            }
+                        }
+                    },
+                )
+            }
 
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -235,11 +269,16 @@ fun GlobalCategoryPickerScreen(
                 ) {
                     sections.forEach { (sectionTitle, items) ->
                         item(key = "header_$sectionTitle") {
+                            // Sentence-case to match iOS section header style ("Recent", "Engine")
+                            val displayTitle = sectionTitle.lowercase().split(" ")
+                                .joinToString(" ") { it.replaceFirstChar { c -> c.uppercaseChar() } }
                             Text(
-                                text = sectionTitle,
-                                style = MaterialTheme.typography.labelSmall,
+                                text = displayTitle,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 12.sp,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                                ),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                letterSpacing = 0.8.sp,
                                 modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
                             )
                         }
@@ -318,10 +357,10 @@ private fun CategoryGridCell(
             .height(60.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
+            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
             .alpha(if (isEnabled) 1f else 0.35f)
             .clickable(enabled = isEnabled, onClick = onClick)
-            .padding(horizontal = 8.dp),
+            .padding(start = 12.dp, end = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CategoryIconTile(
