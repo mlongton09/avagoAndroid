@@ -453,7 +453,7 @@ private fun CategorySvgIcon(
         colorFilter = ColorFilter.tint(Color.White, BlendMode.SrcIn),
         modifier = modifier,
     ) {
-        when (painter.state) {
+        when (painter.state.value) {
             is AsyncImagePainter.State.Error -> CategoryLetterFallback(fallbackText)
             else -> SubcomposeAsyncImageContent()
         }
