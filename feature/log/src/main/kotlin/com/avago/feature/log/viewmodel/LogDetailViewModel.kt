@@ -114,6 +114,26 @@ class LogDetailViewModel @Inject constructor(
                 val now = System.currentTimeMillis()
                 val targetPhoto = db.photoDao().getById(photoId) ?: return@launch
                 db.photoDao().upsert(targetPhoto.copy(isPrimary = true, updatedAt = now))
+                // Sync the parent entity so the server learns which photo is primary
+                if (targetPhoto.entityType == "log") {
+                    val sv = db.logDao().getById(targetPhoto.entityId)?.serverVersion ?: 0L
+                    db.syncQueueDao().enqueueWithDedup(
+                        com.avago.core.data.db.entity.SyncQueueEntity(
+                            queueId = "log_${targetPhoto.entityId}",
+                            entityType = "log",
+                            entityId = targetPhoto.entityId,
+                            operation = "update",
+                            serverVersion = sv,
+                            payload = null,
+                            syncStatus = "pending",
+                            attempts = 0L,
+                            lastError = null,
+                            createdAt = now,
+                            updatedAt = now,
+                        )
+                    )
+                    syncEngine.pushIfNeeded()
+                }
                 Timber.d("[LogDetailViewModel] Set primary photo $photoId")
             } catch (e: Exception) {
                 Timber.e(e, "[LogDetailViewModel] setPrimaryPhoto failed")

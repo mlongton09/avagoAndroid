@@ -11,6 +11,7 @@ import com.avago.core.data.db.entity.SyncQueueEntity
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
 import com.avago.core.network.model.DocOcrResponse
+import com.avago.core.sync.SyncEngine
 import com.avago.core.ocr.AvagoTextRecognizer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -32,6 +33,7 @@ class DocAddViewModel @Inject constructor(
     private val identity: IdentityManager,
     private val textRecognizer: AvagoTextRecognizer,
     private val serviceClient: AvagoServiceClient,
+    private val syncEngine: SyncEngine,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -220,6 +222,7 @@ class DocAddViewModel @Inject constructor(
                         updatedAt = now,
                     ),
                 )
+                syncEngine.pushIfNeeded()
                 _state.value = UiState.Done
             } catch (e: Exception) {
                 Timber.e(e, "[DocAddViewModel] Save failed")

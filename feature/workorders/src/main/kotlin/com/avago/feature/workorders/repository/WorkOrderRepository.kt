@@ -211,10 +211,26 @@ class WorkOrderRepository @Inject constructor(
 
     suspend fun upsertTemplate(accountId: String, entity: WoTemplateEntity) {
         dbFactory.get(accountId).woTemplateDao().upsert(entity)
+        enqueueSyncPush(
+            accountId = accountId,
+            entityType = "wo_template",
+            entityId = entity.templateId,
+            serverVersion = entity.serverVersion,
+            operation = "update",
+        )
     }
 
     suspend fun deleteTemplate(accountId: String, templateId: String) {
-        dbFactory.get(accountId).woTemplateDao().softDelete(templateId, System.currentTimeMillis())
+        val db = dbFactory.get(accountId)
+        val sv = db.woTemplateDao().getById(templateId)?.serverVersion ?: 0L
+        db.woTemplateDao().softDelete(templateId, System.currentTimeMillis())
+        enqueueSyncPush(
+            accountId = accountId,
+            entityType = "wo_template",
+            entityId = templateId,
+            serverVersion = sv,
+            operation = "delete",
+        )
     }
 
     // ---------------------------------------------------------------------------
