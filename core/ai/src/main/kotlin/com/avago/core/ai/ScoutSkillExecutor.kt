@@ -91,7 +91,11 @@ class ScoutSkillExecutor @Inject constructor(
             performedByUserId = fields["performed_by_user_id"],
             notes = fields["notes"]?.ifBlank { null },
             data = null,
-            attributes = null,
+            // Preserve item attributes Scout extracted (e.g. oil_brand, filter_part_no).
+            // iOS ScoutSkillExecutor serialises fields["attributes"] into entry.attributes;
+            // Android was silently dropping this, causing Scout-filled Details fields to
+            // be lost on direct-execute (HITL-off) log entries.
+            attributes = fields["attributes"]?.ifBlank { null },
             costMode = "total",
             costItems = null,
             costLabor = null,
