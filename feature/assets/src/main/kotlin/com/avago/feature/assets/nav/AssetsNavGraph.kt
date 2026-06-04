@@ -98,6 +98,9 @@ fun NavGraphBuilder.assetsNavGraph(
     onNavigateToLogDetail: (entryId: String) -> Unit = {},
     onAssetPicked: (assetId: String) -> Unit = {},
     onNavigateToWorkOrder: (woId: String) -> Unit = {},
+    /** Called when the user taps X in the asset picker to cancel. The host
+     *  decides how far back to pop (e.g. all the way to the WO list). */
+    onPickerCancel: () -> Unit = { navController.popBackStack() },
 ) {
     navigation(
         startDestination = AssetsRoute.LIST,
@@ -236,6 +239,7 @@ fun NavGraphBuilder.assetsNavGraph(
                     onAssetPicked(assetId)
                 },
                 onBack = { navController.popBackStack() },
+                onCancel = onPickerCancel,
             )
         }
 

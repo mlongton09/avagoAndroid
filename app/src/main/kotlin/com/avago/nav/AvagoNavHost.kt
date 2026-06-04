@@ -113,6 +113,17 @@ fun AvagoNavHost(
                         ?.set("selected_asset_id", assetId)
                     navController.popBackStack()
                 },
+                onPickerCancel = {
+                    // Read the caller route *before* popping so we know the context.
+                    val callerRoute = navController.previousBackStackEntry?.destination?.route
+                    navController.popBackStack()
+                    // If the picker was opened from the WO create form, also pop the
+                    // form itself so the user lands back on the WO list (mirrors iOS
+                    // dismiss(animated:true) which removes the entire modal stack).
+                    if (callerRoute?.startsWith("workorders/create_edit") == true) {
+                        navController.popBackStack()
+                    }
+                },
             )
 
             // ── Log ───────────────────────────────────────────────────────────────

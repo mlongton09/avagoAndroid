@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -58,6 +59,9 @@ import com.avago.feature.assets.viewmodel.AssetListViewModel
 fun AssetPickerScreen(
     onAssetSelected: (assetId: String) -> Unit,
     onBack: () -> Unit,
+    /** Called when the user taps the X button to cancel the entire creation flow.
+     *  Defaults to [onBack] (pop one screen) when not provided. */
+    onCancel: () -> Unit = onBack,
     viewModel: AssetListViewModel = hiltViewModel(),
 ) {
     val assets by viewModel.assets.collectAsStateWithLifecycle()
@@ -89,10 +93,11 @@ fun AssetPickerScreen(
             CenterAlignedTopAppBar(
                 title = { Text(stringResource(R.string.asset_picker_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    // X button — cancels the entire creation flow (matches iOS cancel bar button)
+                    IconButton(onClick = onCancel) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.asset_detail_back),
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Cancel",
                         )
                     }
                 },
