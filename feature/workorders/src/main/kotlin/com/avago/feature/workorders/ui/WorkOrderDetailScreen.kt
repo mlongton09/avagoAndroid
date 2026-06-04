@@ -212,18 +212,6 @@ fun WorkOrderDetailScreen(
         )
     }
 
-    ScoutPaletteSheet(
-        visible = showScoutSheet,
-        onDismiss = { showScoutSheet = false },
-        onNavigate = { targetScreen, fields ->
-            when (targetScreen) {
-                "log_entry" -> onLogWork?.invoke(wo?.assetId)
-                else -> Unit
-            }
-            showScoutSheet = false
-        },
-    )
-
     Scaffold(
         modifier = modifier,
         floatingActionButton = {
@@ -320,6 +308,20 @@ fun WorkOrderDetailScreen(
             )
         },
     ) { innerPadding ->
+        if (showScoutSheet) {
+            ScoutPaletteSheet(
+                visible = true,
+                onDismiss = { showScoutSheet = false },
+                onNavigate = { targetScreen, fields ->
+                    when (targetScreen) {
+                        "log_entry" -> onLogWork?.invoke(wo?.assetId)
+                        else -> Unit
+                    }
+                    showScoutSheet = false
+                },
+            )
+        }
+
         if (wo == null) {
             Box(
                 modifier = Modifier

@@ -178,12 +178,6 @@ fun WorkOrderLogScreen(
         )
     }
 
-    ScoutPaletteSheet(
-        visible = showScoutSheet,
-        onDismiss = { showScoutSheet = false },
-        onNavigate = { _, _ -> showScoutSheet = false },
-    )
-
     Scaffold(
         modifier = modifier,
         floatingActionButton = {
@@ -255,6 +249,14 @@ fun WorkOrderLogScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
+        if (showScoutSheet) {
+            ScoutPaletteSheet(
+                visible = true,
+                onDismiss = { showScoutSheet = false },
+                onNavigate = { _, _ -> showScoutSheet = false },
+            )
+        }
+
         Column(
             modifier = Modifier
                 .padding(innerPadding)
