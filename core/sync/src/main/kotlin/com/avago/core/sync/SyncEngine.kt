@@ -42,6 +42,10 @@ import com.avago.core.data.db.entity.EventEntity
 import com.avago.core.data.db.entity.LabelTemplateEntity
 import com.avago.core.data.db.entity.WoTemplateEntity
 import com.avago.core.data.db.entity.WorkOrderEntity
+import com.avago.core.data.db.entity.BinEntity
+import com.avago.core.data.db.entity.VendorPartEntity
+import com.avago.core.data.db.entity.TechLaborRateEntity
+import com.avago.core.data.db.entity.ReorderSuggestionEntity
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkException
 import com.avago.core.network.model.SyncOperation
@@ -189,6 +193,10 @@ class SyncEngine @Inject constructor(
         "gl_account"        to Triple("gl_accounts",        "gl_account_id",     "gl_account_id"),
         "job"               to Triple("jobs",               "job_id",            "job_id"),
         "service"           to Triple("services",           "service_id",        "service_id"),
+        "bin"                to Triple("bins",                "bin_id",            "bin_id"),
+        "vendor_part"        to Triple("vendor_parts",        "vendor_part_id",    "vendor_part_id"),
+        "tech_labor_rate"    to Triple("tech_labor_rates",    "rate_id",           "rate_id"),
+        "reorder_suggestion" to Triple("reorder_suggestions", "suggestion_id",     "suggestion_id"),
     )
 
     // Entity types for which a pending local push must block the pull upsert, preventing
@@ -214,6 +222,7 @@ class SyncEngine @Inject constructor(
         "doc", "photo",
         "label_template",
         "item", "gl_account", "job", "service",
+        "bin", "vendor_part", "tech_labor_rate", "reorder_suggestion",
     )
 
     private val pullEntityTypes get() = priorityPullTypes + secondaryPullTypes
@@ -1450,6 +1459,88 @@ class SyncEngine @Inject constructor(
                             deletedAt = isoToMs(item.str("deleted_at")),
                             serverVersion = item.lng("server_version") ?: 0L,
                             seq = item.lng("seq"),
+                        )
+                    )
+                }
+
+                "bin" -> {
+                    val now = System.currentTimeMillis()
+                    db.binDao().upsert(
+                        BinEntity(
+                            binId = item.str("bin_id") ?: return,
+                            locationId = item.str("location_id") ?: return,
+                            name = item.str("name") ?: "",
+                            code = item.str("code"),
+                            barcode = item.str("barcode"),
+                            aisle = item.str("aisle"),
+                            shelf = item.str("shelf"),
+                            slot = item.str("slot"),
+                            active = item.bool("active") ?: true,
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
+                            serverVersion = item.lng("server_version") ?: 0L,
+                        )
+                    )
+                }
+
+                "vendor_part" -> {
+                    val now = System.currentTimeMillis()
+                    db.vendorPartDao().upsert(
+                        VendorPartEntity(
+                            vendorPartId = item.str("vendor_part_id") ?: return,
+                            accountId = item.str("account_id") ?: accountId,
+                            vendorId = item.str("vendor_id") ?: return,
+                            partId = item.str("part_id") ?: return,
+                            vendorSku = item.str("vendor_sku"),
+                            unitCost = item.dbl("unit_cost"),
+                            moq = item.dbl("moq"),
+                            packSize = item.dbl("pack_size"),
+                            leadDays = item.lng("lead_days")?.toInt(),
+                            isPreferred = item.bool("is_preferred") ?: false,
+                            currency = item.str("currency"),
+                            notes = item.str("notes"),
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
+                            deletedAt = isoToMs(item.str("deleted_at")),
+                            serverVersion = item.lng("server_version") ?: 0L,
+                            seq = item.lng("seq"),
+                        )
+                    )
+                }
+
+                "tech_labor_rate" -> {
+                    val now = System.currentTimeMillis()
+                    db.techLaborRateDao().upsert(
+                        TechLaborRateEntity(
+                            rateId = item.str("rate_id") ?: return,
+                            techId = item.str("tech_id") ?: return,
+                            accountId = item.str("account_id") ?: accountId,
+                            roleKey = item.str("role_key"),
+                            hourlyRate = item.dbl("hourly_rate") ?: 0.0,
+                            currency = item.str("currency") ?: "USD",
+                            effectiveDate = isoToMs(item.str("effective_date")),
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
+                            serverVersion = item.lng("server_version") ?: 0L,
+                        )
+                    )
+                }
+
+                "reorder_suggestion" -> {
+                    val now = System.currentTimeMillis()
+                    db.reorderSuggestionDao().upsert(
+                        ReorderSuggestionEntity(
+                            suggestionId = item.str("suggestion_id") ?: return,
+                            accountId = item.str("account_id") ?: accountId,
+                            partId = item.str("part_id") ?: return,
+                            quantityOnHand = item.dbl("quantity_on_hand") ?: 0.0,
+                            reorderQty = item.dbl("reorder_qty"),
+                            suggestedQty = item.dbl("suggested_qty") ?: 0.0,
+                            preferredVendorId = item.str("preferred_vendor_id"),
+                            status = item.str("status") ?: "open",
+                            reason = item.str("reason"),
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
                         )
                     )
                 }
