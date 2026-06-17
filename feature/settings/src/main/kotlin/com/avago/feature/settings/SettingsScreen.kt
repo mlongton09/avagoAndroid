@@ -68,6 +68,8 @@ fun SettingsScreen(
     onNavigateToAbout: () -> Unit = {},
     onNavigateToTechProfile: () -> Unit = {},
     onNavigateToSyncConflicts: () -> Unit = {},
+    onNavigateToPermissionSets: () -> Unit = {},
+    onNavigateToCustomFields: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val versionName = remember(context) {
@@ -218,6 +220,27 @@ fun SettingsScreen(
                 label = stringResource(R.string.settings_disable_quotes),
                 checked = disableQuotes,
                 onCheckedChange = viewModel::setDisableQuotes,
+            )
+        }
+        item { SectionDivider() }
+
+        // ── Workspace ────────────────────────────────────────────────────────
+        item {
+            SectionHeader(text = "Workspace")
+        }
+        item {
+            NavigationRow(
+                label = "Permission Sets",
+                leadingIcon = { Icon(Icons.Default.Group, contentDescription = null) },
+                onClick = onNavigateToPermissionSets,
+            )
+        }
+        item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
+        item {
+            NavigationRow(
+                label = "Custom Fields",
+                leadingIcon = { Icon(Icons.Default.ChevronRight, contentDescription = null) },
+                onClick = onNavigateToCustomFields,
             )
         }
         item { SectionDivider() }

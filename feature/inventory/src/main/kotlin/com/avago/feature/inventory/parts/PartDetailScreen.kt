@@ -146,10 +146,16 @@ fun PartDetailScreen(
                             style = MaterialTheme.typography.titleSmall,
                         )
                         Spacer(Modifier.height(8.dp))
+                        val onHand = inv?.quantityOnHand ?: 0.0
+                        val committed = (state.part?.committedReservedQuantity ?: 0.0) +
+                            (state.part?.committedInProgressQuantity ?: 0.0)
+                        val available = maxOf(0.0, onHand - committed)
                         LabelValue(
                             stringResource(R.string.part_on_hand),
-                            "%.2f".format(inv?.quantityOnHand ?: 0.0),
+                            "%.2f".format(onHand),
                         )
+                        LabelValue("Committed", "%.2f".format(committed))
+                        LabelValue("Available", "%.2f".format(available))
                         sl?.minQty?.let { LabelValue(stringResource(R.string.part_min_qty), "%.2f".format(it)) }
                         sl?.maxQty?.let { LabelValue(stringResource(R.string.part_max_qty), "%.2f".format(it)) }
                         sl?.reorderQty?.let { LabelValue(stringResource(R.string.part_reorder_point), "%.2f".format(it)) }

@@ -14,6 +14,8 @@ import com.avago.feature.settings.LegalTextScreen
 import com.avago.feature.settings.LegalTextType
 import com.avago.feature.settings.InviteUsersScreen
 import com.avago.feature.settings.MyTechProfileScreen
+import com.avago.feature.settings.CustomFieldDefsScreen
+import com.avago.feature.settings.PermissionSetsScreen
 import com.avago.feature.settings.SettingsScreen
 import com.avago.feature.settings.SyncConflictsScreen
 
@@ -31,6 +33,8 @@ object SettingsRoute {
     const val SyncConflicts = "settings/sync_conflicts"
     const val PrivacyPolicy = "settings/legal/privacy"
     const val TermsOfService = "settings/legal/terms"
+    const val PermissionSets = "settings/permission_sets"
+    const val CustomFields = "settings/custom_fields"
 }
 
 /**
@@ -48,11 +52,13 @@ fun NavGraphBuilder.settingsNavGraph(navController: NavController) {
     ) {
         composable(SettingsRoute.Main) {
             SettingsScreen(
-                onNavigateToInvite     = { navController.navigate(SettingsRoute.InviteUsers) },
-                onNavigateToDeveloper  = { navController.navigate(SettingsRoute.Developer) },
-                onNavigateToAbout      = { navController.navigate(SettingsRoute.About) },
-                onNavigateToTechProfile = { navController.navigate(SettingsRoute.TechProfile) },
+                onNavigateToInvite        = { navController.navigate(SettingsRoute.InviteUsers) },
+                onNavigateToDeveloper     = { navController.navigate(SettingsRoute.Developer) },
+                onNavigateToAbout         = { navController.navigate(SettingsRoute.About) },
+                onNavigateToTechProfile   = { navController.navigate(SettingsRoute.TechProfile) },
                 onNavigateToSyncConflicts = { navController.navigate(SettingsRoute.SyncConflicts) },
+                onNavigateToPermissionSets = { navController.navigate(SettingsRoute.PermissionSets) },
+                onNavigateToCustomFields  = { navController.navigate(SettingsRoute.CustomFields) },
             )
         }
 
@@ -123,6 +129,14 @@ fun NavGraphBuilder.settingsNavGraph(navController: NavController) {
 
         composable(SettingsRoute.SyncConflicts) {
             SyncConflictsScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(SettingsRoute.PermissionSets) {
+            PermissionSetsScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(SettingsRoute.CustomFields) {
+            CustomFieldDefsScreen(onBack = { navController.popBackStack() })
         }
     }
 }
