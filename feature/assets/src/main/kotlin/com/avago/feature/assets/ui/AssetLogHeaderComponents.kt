@@ -2,6 +2,7 @@ package com.avago.feature.assets.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,10 +14,13 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.FilterChip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material3.HorizontalDivider
@@ -205,14 +209,16 @@ fun AssetDetailHeader(
             }
         }
 
-        // Info row — name + subtitle on plain bg0, shown in BOTH modes.
+        // Info row — name + subtitle + tags on plain bg0, shown in BOTH modes.
         // iOS `infoRow.isHidden = false` unconditionally.
+        // Change 106: row height expands if tags are present.
+        val tags = remember(asset.tagsJson) { parseAssetTags(asset.tagsJson) }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(infoRowHeight)
-                .padding(horizontal = 14.dp),
-            verticalArrangement = Arrangement.Center,
+                .wrapContentHeight()
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             // iOS `infoRowNameLabel` uses largeTitleFont (~34 pt) with
             // adjustsFontSizeToFitWidth + minimumScaleFactor 0.75.
@@ -232,9 +238,40 @@ fun AssetDetailHeader(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            // Change 106: tag chips in a horizontally scrollable row
+            if (tags.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    tags.forEach { tag ->
+                        FilterChip(
+                            selected = false,
+                            onClick = {},
+                            label = {
+                                Text(
+                                    text = tag,
+                                    style = MaterialTheme.typography.labelSmall,
+                                )
+                            },
+                        )
+                    }
+                }
+            }
         }
     }
     HorizontalDivider()
+}
+
+/** Change 106: parse a JSON array string like [\"hvac\",\"electrical\"] into a List<String>. */
+private fun parseAssetTags(json: String?): List<String> {
+    if (json.isNullOrBlank()) return emptyList()
+    return try {
+        val arr = org.json.JSONArray(json)
+        (0 until arr.length()).map { arr.getString(it) }
+    } catch (_: Exception) { emptyList() }
 }
 
 /**

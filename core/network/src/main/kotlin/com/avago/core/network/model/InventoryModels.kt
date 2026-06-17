@@ -7,12 +7,16 @@ data class InventoryReceiveRequest(
     val quantity: Double,
     val location_id: String? = null,
     val notes: String? = null,
+    // Change 50: reason code for this inventory adjustment
+    val reason_code: String? = null,
 )
 
 @Serializable
 data class InventoryUseRequest(
     val quantity: Double,
     val notes: String? = null,
+    // Change 50: reason code for this inventory adjustment
+    val reason_code: String? = null,
 )
 
 @Serializable
@@ -246,6 +250,21 @@ data class BinContent(
     val part_id: String,
     val quantity: Int,
     val part_name: String? = null,
+)
+
+// Change 144: bin location info for a part — returned by GET /inventory?part_id=&include_bins=true
+@Serializable
+data class PartBinLocation(
+    val bin_id: String,
+    val bin_name: String? = null,
+    val bin_label: String? = null,
+    val quantity: Double,
+    val location_path: String? = null,
+)
+
+@Serializable
+data class PartBinLocationsResponse(
+    val bins: List<PartBinLocation> = emptyList(),
 )
 
 @Serializable

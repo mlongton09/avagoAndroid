@@ -131,4 +131,8 @@ data class AssetEntity(
 
     @ColumnInfo(name = "model_id")
     val modelId: String? = null,
+
+    // Change 106: tags stored as a JSON array string e.g. ["electrical","hvac"]
+    @ColumnInfo(name = "tags_json", defaultValue = "NULL")
+    val tagsJson: String? = null,
 )

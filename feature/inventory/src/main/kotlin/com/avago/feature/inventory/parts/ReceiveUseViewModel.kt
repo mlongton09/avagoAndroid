@@ -17,9 +17,16 @@ import javax.inject.Inject
 
 enum class ReceiveUseMode { RECEIVE, USE }
 
+// Change 50: reason codes for inventory adjustments
+val INVENTORY_REASON_CODES = listOf(
+    "PURCHASE", "USE", "ADJUSTMENT", "TRANSFER", "RETURN", "WASTE", "INITIAL_COUNT",
+)
+
 data class ReceiveUseUiState(
     val quantity: String = "",
     val notes: String = "",
+    // Change 50: selected reason code; null = not yet chosen
+    val reasonCode: String? = null,
     val isSubmitting: Boolean = false,
     val error: String? = null,
     val isDone: Boolean = false,
@@ -37,6 +44,8 @@ class ReceiveUseViewModel @Inject constructor(
 
     fun setQuantity(q: String) { _state.value = _state.value.copy(quantity = q, error = null) }
     fun setNotes(n: String) { _state.value = _state.value.copy(notes = n) }
+    // Change 50: reason code setter
+    fun setReasonCode(code: String) { _state.value = _state.value.copy(reasonCode = code, error = null) }
 
     fun registerFormFill(screenId: String) {
         formFillRouter.register(screenId) { fields -> applyScoutFields(fields) }
@@ -70,6 +79,9 @@ class ReceiveUseViewModel @Inject constructor(
             _state.value = _state.value.copy(error = "Quantity must be positive")
             return
         }
+        // Change 50: reason code — the dropdown is optional for RECEIVE/USE but when the
+        // caller explicitly selects "ADJUSTMENT" as the reason code, the field is already set.
+        val reasonCode = _state.value.reasonCode
         viewModelScope.launch {
             _state.value = _state.value.copy(isSubmitting = true, error = null)
             try {
@@ -79,6 +91,7 @@ class ReceiveUseViewModel @Inject constructor(
                         request = InventoryReceiveRequest(
                             quantity = qty,
                             notes = _state.value.notes.takeIf { it.isNotBlank() },
+                            reason_code = reasonCode,
                         ),
                     )
                     ReceiveUseMode.USE -> serviceClient.useInventory(
@@ -86,6 +99,7 @@ class ReceiveUseViewModel @Inject constructor(
                         request = InventoryUseRequest(
                             quantity = qty,
                             notes = _state.value.notes.takeIf { it.isNotBlank() },
+                            reason_code = reasonCode,
                         ),
                     )
                 }

@@ -168,6 +168,15 @@ data class QrScanEntry(
     val device_info: String? = null,
 )
 
+// Change 132/135: record a QR scan with optional GPS coordinates
+@Serializable
+data class RecordQrScanRequest(
+    val asset_id: String,
+    val device_info: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+)
+
 @Serializable
 data class AddRecommendedPartRequest(
     val part_id: String,

@@ -10,15 +10,21 @@ import com.avago.core.data.db.entity.InventoryTransactionEntity
 import com.avago.core.data.db.entity.PartEntity
 import com.avago.core.data.db.entity.StockingLevelEntity
 import com.avago.core.data.db.entity.VendorEntity
+import com.avago.core.network.AvagoServiceClient
+import com.avago.core.network.NetworkResult
+import com.avago.core.network.model.PartBinLocation
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import timber.log.Timber
 import javax.inject.Inject
 
 data class VendorSource(
@@ -41,6 +47,9 @@ data class PartDetailUiState(
     val isLoading: Boolean = true,
     val showReceiveSheet: Boolean = false,
     val showUseSheet: Boolean = false,
+    // Change 144: bin/location info
+    val binLocations: List<PartBinLocation> = emptyList(),
+    val binLocationsLoading: Boolean = false,
 )
 
 @HiltViewModel
@@ -48,12 +57,17 @@ class PartDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val dbFactory: DatabaseFactory,
     private val identityManager: IdentityManager,
+    private val serviceClient: AvagoServiceClient,
 ) : ViewModel() {
 
     private val partId: String = checkNotNull(savedStateHandle["partId"])
 
     private val _showReceive = MutableStateFlow(false)
     private val _showUse = MutableStateFlow(false)
+
+    // Change 144: bin locations fetched on init
+    private val _binLocations = MutableStateFlow<List<PartBinLocation>>(emptyList())
+    private val _binLocationsLoading = MutableStateFlow(false)
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<PartDetailUiState> = identityManager.activeAccountId.flatMapLatest { accountId ->
@@ -138,11 +152,38 @@ class PartDetailViewModel @Inject constructor(
                 )
             }
         }
+    // Change 144: merge bin location state into the UI state
+    }.combine(_binLocations) { state, bins ->
+        state.copy(binLocations = bins)
+    }.combine(_binLocationsLoading) { state, loading ->
+        state.copy(binLocationsLoading = loading)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = PartDetailUiState(),
     )
+
+    init {
+        // Change 144: load bin locations on VM creation
+        loadBinLocations()
+    }
+
+    private fun loadBinLocations() {
+        val accountId = identityManager.getActiveAccountId() ?: return
+        viewModelScope.launch {
+            _binLocationsLoading.value = true
+            try {
+                when (val result = serviceClient.getPartBinLocations(accountId, partId)) {
+                    is NetworkResult.Success -> _binLocations.value = result.data
+                    is NetworkResult.Error -> Timber.w("[PartDetailVM] getPartBinLocations: ${result.message}")
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "[PartDetailVM] loadBinLocations failed")
+            } finally {
+                _binLocationsLoading.value = false
+            }
+        }
+    }
 
     fun openReceive() { _showReceive.value = true }
     fun openUse() { _showUse.value = true }

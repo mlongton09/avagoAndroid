@@ -152,7 +152,7 @@ import com.avago.core.data.db.entity.WorkOrderEntity
         ScoutPendingEntity::class,
         ScoutHistoryEntity::class,
     ],
-    version = 14,
+    version = 15,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)

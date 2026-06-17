@@ -3,6 +3,7 @@ package com.avago.feature.assets.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,17 +18,20 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CropFree
@@ -43,6 +47,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -505,6 +510,15 @@ fun AddEditAssetScreen(
                     maxLines = 6,
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
+            // Change 106: Tags section — chips-with-add-button pattern
+            item {
+                TagsInputSection(
+                    tags = form.tags,
+                    onAddTag = { viewModel.addTag(it) },
+                    onRemoveTag = { viewModel.removeTag(it) },
                 )
             }
 
@@ -1134,6 +1148,97 @@ private fun ColorSwatchGrid(
                     )
                     .clickable { onSelect(hex) },
             )
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Change 106: Tags input section — chips-with-add-button pattern
+// ---------------------------------------------------------------------------
+
+@Composable
+private fun TagsInputSection(
+    tags: List<String>,
+    onAddTag: (String) -> Unit,
+    onRemoveTag: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var tagInput by remember { mutableStateOf("") }
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = "Tags",
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+
+        // Existing tags as removable chips
+        if (tags.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                tags.forEach { tag ->
+                    FilterChip(
+                        selected = true,
+                        onClick = { onRemoveTag(tag) },
+                        label = { Text(text = tag, style = MaterialTheme.typography.labelSmall) },
+                        trailingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Remove tag $tag",
+                                modifier = Modifier.size(14.dp),
+                            )
+                        },
+                    )
+                }
+            }
+        }
+
+        // Tag input row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedTextField(
+                value = tagInput,
+                onValueChange = { tagInput = it },
+                label = { Text("Add tag") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Words,
+                    imeAction = androidx.compose.ui.text.input.ImeAction.Done,
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        val trimmed = tagInput.trim()
+                        if (trimmed.isNotEmpty() && trimmed !in tags) {
+                            onAddTag(trimmed)
+                            tagInput = ""
+                        }
+                    },
+                ),
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(
+                onClick = {
+                    val trimmed = tagInput.trim()
+                    if (trimmed.isNotEmpty() && trimmed !in tags) {
+                        onAddTag(trimmed)
+                        tagInput = ""
+                    }
+                },
+                enabled = tagInput.isNotBlank(),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Add tag",
+                )
+            }
         }
     }
 }

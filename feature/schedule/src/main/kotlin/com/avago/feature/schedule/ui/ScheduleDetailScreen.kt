@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -17,6 +18,7 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -27,7 +29,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -35,11 +39,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,7 +53,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.data.db.entity.ScheduleEntity
@@ -169,6 +177,9 @@ fun ScheduleDetailScreen(
                     viewModel.addToCalendar(context, safeSchedule.title)
                 },
                 onCompleteService = viewModel::completeService,
+                onSkipWo = { woId, reasonCode, notes ->
+                    viewModel.skipWo(woId, reasonCode, notes)
+                },
                 modifier = Modifier.padding(innerPadding),
             )
         }
@@ -213,6 +224,7 @@ private fun ScheduleDetailContent(
     linkedWos: List<WorkOrderEntity>,
     onAddToCalendar: () -> Unit,
     onCompleteService: () -> Unit,
+    onSkipWo: (woId: String, reasonCode: String, notes: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val isOverdue = remember(schedule) { RruleHelper.isOverdue(schedule) }
@@ -309,6 +321,11 @@ private fun ScheduleDetailContent(
         }
 
         // ── History ────────────────────────────────────────────────────────────
+        // Change 72: each pending WO row gets a Skip action button
+        var skipTargetWoId by remember { mutableStateOf<String?>(null) }
+        val skipSheetState = rememberModalBottomSheetState()
+        val scope = rememberCoroutineScope()
+
         DetailSection(title = stringResource(R.string.schedule_detail_history_title)) {
             if (linkedWos.isEmpty()) {
                 Text(
@@ -318,9 +335,34 @@ private fun ScheduleDetailContent(
                 )
             } else {
                 linkedWos.forEach { wo ->
-                    WoHistoryRow(wo = wo)
+                    WoHistoryRow(
+                        wo = wo,
+                        onSkip = if (wo.status in setOf("open", "pending", "assigned")) {
+                            {
+                                skipTargetWoId = wo.workOrderId
+                                scope.launch { skipSheetState.show() }
+                            }
+                        } else null,
+                    )
                 }
             }
+        }
+
+        // Skip bottom sheet
+        if (skipTargetWoId != null) {
+            SkipOccurrenceSheet(
+                sheetState = skipSheetState,
+                onDismiss = {
+                    scope.launch { skipSheetState.hide() }
+                    skipTargetWoId = null
+                },
+                onConfirm = { reasonCode, notes ->
+                    val woId = skipTargetWoId ?: return@SkipOccurrenceSheet
+                    scope.launch { skipSheetState.hide() }
+                    skipTargetWoId = null
+                    onSkipWo(woId, reasonCode, notes)
+                },
+            )
         }
 
         // ── Actions ────────────────────────────────────────────────────────────
@@ -385,7 +427,10 @@ private fun DetailRow(label: String, value: String) {
 }
 
 @Composable
-private fun WoHistoryRow(wo: WorkOrderEntity) {
+private fun WoHistoryRow(
+    wo: WorkOrderEntity,
+    onSkip: (() -> Unit)? = null,
+) {
     val dateFmt = DateTimeFormatter.ofPattern("MMM d, yyyy")
     val dateStr = Instant.ofEpochMilli(wo.updatedAt).atZone(ZoneId.systemDefault()).format(dateFmt)
     val statusColor = when (wo.status) {
@@ -409,16 +454,122 @@ private fun WoHistoryRow(wo: WorkOrderEntity) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Surface(
-            color = statusColor.copy(alpha = 0.12f),
-            shape = MaterialTheme.shapes.small,
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Surface(
+                color = statusColor.copy(alpha = 0.12f),
+                shape = MaterialTheme.shapes.small,
+            ) {
+                Text(
+                    text = wo.status.replace("_", " ").replaceFirstChar { it.uppercase() },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = statusColor,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                )
+            }
+            // Change 72: Skip button for open/pending occurrences
+            if (onSkip != null) {
+                IconButton(onClick = onSkip) {
+                    Icon(
+                        imageVector = Icons.Default.SkipNext,
+                        contentDescription = "Skip occurrence",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+// Change 72: Skip occurrence bottom sheet
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SkipOccurrenceSheet(
+    sheetState: androidx.compose.material3.SheetState,
+    onDismiss: () -> Unit,
+    onConfirm: (reasonCode: String, notes: String) -> Unit,
+) {
+    val reasonCodes = listOf("DEFERRED", "EQUIPMENT_UNAVAILABLE", "WEATHER", "OTHER")
+    var selectedReason by remember { mutableStateOf(reasonCodes[0]) }
+    var notes by remember { mutableStateOf("") }
+    var reasonExpanded by remember { mutableStateOf(false) }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
-                text = wo.status.replace("_", " ").replaceFirstChar { it.uppercase() },
-                style = MaterialTheme.typography.labelSmall,
-                color = statusColor,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                text = "Skip Occurrence",
+                style = MaterialTheme.typography.titleLarge,
             )
+
+            // Reason code dropdown
+            Box {
+                OutlinedTextField(
+                    value = selectedReason.replace("_", " "),
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Reason") },
+                    trailingIcon = {
+                        IconButton(onClick = { reasonExpanded = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = null)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                DropdownMenu(
+                    expanded = reasonExpanded,
+                    onDismissRequest = { reasonExpanded = false },
+                ) {
+                    reasonCodes.forEach { code ->
+                        DropdownMenuItem(
+                            text = { Text(code.replace("_", " ")) },
+                            onClick = {
+                                selectedReason = code
+                                reasonExpanded = false
+                            },
+                        )
+                    }
+                }
+            }
+
+            // Optional notes
+            OutlinedTextField(
+                value = notes,
+                onValueChange = { notes = it },
+                label = { Text("Notes (optional)") },
+                minLines = 2,
+                maxLines = 4,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Cancel")
+                }
+                Button(
+                    onClick = { onConfirm(selectedReason, notes) },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Skip")
+                }
+            }
         }
     }
 }

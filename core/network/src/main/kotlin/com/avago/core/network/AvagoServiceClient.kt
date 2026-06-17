@@ -69,6 +69,8 @@ import com.avago.core.network.model.GrnResponse
 import com.avago.core.network.model.InventoryReceiveRequest
 import com.avago.core.network.model.InventoryReceiveResponse
 import com.avago.core.network.model.InventoryUseRequest
+import com.avago.core.network.model.PartBinLocation
+import com.avago.core.network.model.PartBinLocationsResponse
 import com.avago.core.network.model.PartIssueResponse
 import com.avago.core.network.model.CreateVendorPartRequest
 import com.avago.core.network.model.UpdateVendorPartRequest
@@ -76,6 +78,7 @@ import com.avago.core.network.model.VendorPartResponse
 import com.avago.core.network.model.ReorderSuggestionResponse
 import com.avago.core.network.model.InvitationStatusResponse
 import com.avago.core.network.model.WorkOrderResponse
+import com.avago.core.network.model.WorkOrderPatch
 import com.avago.core.network.model.RecurrenceResponse
 import com.avago.core.network.model.RescheduleResponse
 import com.avago.core.network.model.ProvisionRequest
@@ -157,6 +160,7 @@ import com.avago.core.network.model.LocationHistoryEntry
 import com.avago.core.network.model.QrBatchJobRequest
 import com.avago.core.network.model.QrBatchJobResponse
 import com.avago.core.network.model.QrScanEntry
+import com.avago.core.network.model.RecordQrScanRequest
 import com.avago.core.network.model.AssetHistoryEvent
 import com.avago.core.network.model.BulkReassignRequest
 import com.avago.core.network.model.BulkReassignResponse
@@ -824,6 +828,25 @@ class AvagoServiceClient @Inject constructor(
             val response: HttpResponse =
                 client.patch("$baseUrl/accounts/$accountId/work-orders/$woId") {
                     setBody(fields)
+                }
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
+        }
+
+    /**
+     * PATCH /accounts/{accountId}/work-orders/{woId} — typed overload for field-level edits.
+     * Change 3: only the non-null fields in [patch] are serialised and sent to the server.
+     */
+    suspend fun patchWorkOrder(
+        accountId: String,
+        woId: String,
+        patch: WorkOrderPatch,
+    ): NetworkResult<Unit> =
+        safeNetworkCall {
+            val response: HttpResponse =
+                client.patch("$baseUrl/accounts/$accountId/work-orders/$woId") {
+                    setBody(patch)
                 }
             if (!response.status.isSuccess()) {
                 throw NetworkException(response.status.value, response.status.description)
@@ -2338,6 +2361,24 @@ class AvagoServiceClient @Inject constructor(
             }
         }
 
+    // Change 72: POST /accounts/:accountId/work-orders/:woId/skip
+    suspend fun skipWorkOrder(
+        accountId: String,
+        woId: String,
+        reasonCode: String? = null,
+        notes: String? = null,
+    ): NetworkResult<Unit> =
+        safeNetworkCall {
+            val response: HttpResponse =
+                client.post("$baseUrl/accounts/$accountId/work-orders/$woId/skip") {
+                    contentType(io.ktor.http.ContentType.Application.Json)
+                    setBody(SkipOccurrenceRequest(skip_reason_code = reasonCode, skip_reason = notes))
+                }
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
+        }
+
     // ---------------------------------------------------------------------------
     // Inventory Transactions (Changes 73-74)
     // ---------------------------------------------------------------------------
@@ -2932,6 +2973,22 @@ class AvagoServiceClient @Inject constructor(
         }
 
     // ---------------------------------------------------------------------------
+    // Record QR Scan with GPS (Change 132/135)
+    // ---------------------------------------------------------------------------
+
+    /** POST /accounts/:accountId/assets/:assetId/qr-scans — record a scan with optional GPS. */
+    suspend fun recordQrScan(
+        accountId: String,
+        request: RecordQrScanRequest,
+    ): NetworkResult<QrScanEntry> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/assets/${request.asset_id}/qr-scans") {
+                contentType(io.ktor.http.ContentType.Application.Json)
+                setBody(request)
+            }.body()
+        }
+
+    // ---------------------------------------------------------------------------
     // AI Thread Summary Stub (Change 136)
     // ---------------------------------------------------------------------------
 
@@ -3191,6 +3248,19 @@ class AvagoServiceClient @Inject constructor(
             if (!response.status.isSuccess()) {
                 throw NetworkException(response.status.value, response.status.description)
             }
+        }
+
+    // Change 144: GET /accounts/:accountId/inventory?part_id=:partId&include_bins=true
+    suspend fun getPartBinLocations(
+        accountId: String,
+        partId: String,
+    ): NetworkResult<List<PartBinLocation>> =
+        safeNetworkCall {
+            val resp = client.get("$baseUrl/accounts/$accountId/inventory") {
+                parameter("part_id", partId)
+                parameter("include_bins", "true")
+            }.body<PartBinLocationsResponse>()
+            resp.bins
         }
 
     // ---------------------------------------------------------------------------

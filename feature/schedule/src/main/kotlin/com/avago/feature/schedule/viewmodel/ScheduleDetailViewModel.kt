@@ -8,6 +8,7 @@ import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.ScheduleEntity
 import com.avago.core.data.db.entity.WorkOrderEntity
+import com.avago.core.network.AvagoServiceClient
 import com.avago.core.sync.SyncEngine
 import com.avago.feature.schedule.repository.ScheduleRepository
 import com.avago.feature.schedule.util.RruleHelper
@@ -34,6 +35,7 @@ class ScheduleDetailViewModel @Inject constructor(
     private val identityManager: IdentityManager,
     private val syncEngine: SyncEngine,
     private val dbFactory: DatabaseFactory,
+    private val serviceClient: AvagoServiceClient,
 ) : ViewModel() {
 
     private val scheduleId: String = requireNotNull(savedStateHandle["scheduleId"]) {
@@ -148,6 +150,32 @@ class ScheduleDetailViewModel @Inject constructor(
         viewModelScope.launch {
             try { syncEngine.sync() } catch (e: Exception) {
                 Timber.e(e, "[ScheduleDetailVM] sync failed")
+            }
+        }
+    }
+
+    /**
+     * Change 72: Skip a scheduled WO occurrence.
+     * Calls POST /accounts/:id/work-orders/:woId/skip, then refreshes the WO list.
+     */
+    fun skipWo(woId: String, reasonCode: String, notes: String) {
+        val accountId = _accountId.value ?: return
+        viewModelScope.launch {
+            _isSaving.value = true
+            try {
+                serviceClient.skipWorkOrder(
+                    accountId = accountId,
+                    woId = woId,
+                    reasonCode = reasonCode.ifBlank { null },
+                    notes = notes.ifBlank { null },
+                )
+                // Refresh local data after skip
+                try { syncEngine.sync() } catch (_: Exception) {}
+            } catch (e: Exception) {
+                Timber.e(e, "[ScheduleDetailVM] skipWo failed")
+                _error.value = e.message
+            } finally {
+                _isSaving.value = false
             }
         }
     }

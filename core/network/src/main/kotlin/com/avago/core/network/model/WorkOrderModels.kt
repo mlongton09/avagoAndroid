@@ -167,6 +167,18 @@ data class AssetHistoryEvent(
     val occurred_at: String? = null,
 )
 
+// Change 3: PATCH work order — only changed fields are sent
+@Serializable
+data class WorkOrderPatch(
+    val title: String? = null,
+    val priority: String? = null,
+    val status: String? = null,
+    val assigned_to: String? = null,
+    val due_date: String? = null,
+    val category: String? = null,
+    val description: String? = null,
+)
+
 // Change 80: KPI summary
 @Serializable
 data class OpenWoByPriority(

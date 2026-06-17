@@ -54,6 +54,8 @@ data class AssetFormState(
     val fleetNumber: String = "",
     // Custom attributes (keys not in the known set)
     val customAttributes: Map<String, String> = emptyMap(),
+    // Change 106: tags
+    val tags: List<String> = emptyList(),
     val isSaving: Boolean = false,
     val saveError: String? = null,
     val savedAssetId: String? = null,
@@ -154,6 +156,7 @@ class AddEditAssetViewModel @Inject constructor(
                 country = entity.country ?: extractAttribute(entity.attributes, "country"),
                 fleetNumber = extractAttribute(entity.attributes, "fleet_number"),
                 customAttributes = customAttrs,
+                tags = parseTagsJson(entity.tagsJson),
             )
         }
     }
@@ -194,6 +197,20 @@ class AddEditAssetViewModel @Inject constructor(
     fun onCustomAttributeChanged(key: String, value: String) {
         val updated = _form.value.customAttributes.toMutableMap().also { it[key] = value }
         _form.value = _form.value.copy(customAttributes = updated)
+    }
+
+    // Change 106: tag management
+    fun addTag(tag: String) {
+        val trimmed = tag.trim()
+        if (trimmed.isBlank()) return
+        val current = _form.value.tags
+        if (current.none { it.equals(trimmed, ignoreCase = true) }) {
+            _form.value = _form.value.copy(tags = current + trimmed)
+        }
+    }
+
+    fun removeTag(tag: String) {
+        _form.value = _form.value.copy(tags = _form.value.tags.filter { it != tag })
     }
 
     /** Called when a VIN barcode is scanned externally. */
@@ -399,6 +416,7 @@ class AddEditAssetViewModel @Inject constructor(
                         repository.getAssetById(accountId, assetId)?.serverVersion ?: 0L
                     } else 0L,
                     seq = null,
+                    tagsJson = serializeTagsJson(current.tags),
                 )
 
                 repository.upsertAsset(accountId, entity)
@@ -470,5 +488,19 @@ class AddEditAssetViewModel @Inject constructor(
             }
         }
         return result
+    }
+
+    // Change 106: tags JSON helpers
+    private fun parseTagsJson(json: String?): List<String> {
+        if (json.isNullOrBlank()) return emptyList()
+        return try {
+            val arr = org.json.JSONArray(json)
+            (0 until arr.length()).map { arr.getString(it) }
+        } catch (_: Exception) { emptyList() }
+    }
+
+    private fun serializeTagsJson(tags: List<String>): String? {
+        if (tags.isEmpty()) return null
+        return "[${tags.joinToString(",") { "\"${it.replace("\"", "\\\"")}\"" }}]"
     }
 }

@@ -20,6 +20,7 @@ import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
 import com.avago.core.network.model.BudgetPillResponse
 import com.avago.core.network.model.GeocodeRequest
+import com.avago.core.network.model.WorkOrderPatch
 import com.avago.core.ai.ScreenContextStore
 import com.avago.core.data.FormFillRouter
 import com.avago.core.permissions.Permissions
@@ -254,9 +255,19 @@ class WorkOrderDetailViewModel @Inject constructor(
             val title = _editTitle.value.trim()
             if (title.isBlank()) return@launch
             try {
+                val newDescription = _editDescription.value.trim().ifBlank { null }
+                // Change 3: send only the changed fields via PATCH instead of a full entity push.
+                serviceClient.patchWorkOrder(
+                    accountId,
+                    woId,
+                    WorkOrderPatch(
+                        title = title,
+                        description = newDescription,
+                    ),
+                )
                 repository.upsert(accountId, wo.copy(
                     title = title,
-                    description = _editDescription.value.trim().ifBlank { null },
+                    description = newDescription,
                     updatedAt = System.currentTimeMillis(),
                 ))
                 _isEditingHeader.value = false
@@ -505,6 +516,12 @@ class WorkOrderDetailViewModel @Inject constructor(
                     seq = null,
                 )
                 repository.upsertAssignment(accountId, assignment)
+                // Change 3: push only the assignment field via PATCH instead of a full entity sync.
+                serviceClient.patchWorkOrder(
+                    accountId,
+                    woId,
+                    WorkOrderPatch(assigned_to = techId),
+                )
             } catch (e: Exception) {
                 Timber.e(e, "[WoDetailVM] assignTech failed")
                 _error.value = e.message
