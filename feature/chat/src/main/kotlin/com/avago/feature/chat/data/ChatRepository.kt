@@ -1145,6 +1145,11 @@ class ChatRepository @Inject constructor(
         }
     }
 
+    suspend fun getThreadSummary(threadId: String): Map<String, Any>? {
+        val result = client.getThreadSummary(threadId)
+        return if (result is com.avago.core.network.NetworkResult.Success) result.data else null
+    }
+
     private fun defaultUploadFileName(contentType: String): String {
         val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(contentType)
             ?.takeIf { it.isNotBlank() }

@@ -49,4 +49,22 @@ data class BinEntity(
 
     @ColumnInfo(name = "server_version", defaultValue = "0")
     val serverVersion: Long,
+
+    // Change 145: bin capacity and current count for fill % display
+    @ColumnInfo(name = "capacity")
+    val capacity: Long? = null,
+
+    @ColumnInfo(name = "current_count")
+    val currentCount: Long? = null,
+
+    // Change 147: bin type classification (e.g. "shelf", "rack", "drawer")
+    @ColumnInfo(name = "bin_type")
+    val binType: String? = null,
+
+    // Change 64: audit trail
+    @ColumnInfo(name = "created_by_id")
+    val createdById: String? = null,
+
+    @ColumnInfo(name = "updated_by_id")
+    val updatedById: String? = null,
 )

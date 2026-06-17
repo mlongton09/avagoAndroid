@@ -3335,6 +3335,25 @@ class AvagoServiceClient @Inject constructor(
             }.body()
         }
 
+    suspend fun updatePmPlan(
+        accountId: String,
+        planId: String,
+        plan: PmPlan,
+    ): NetworkResult<PmPlan> =
+        safeNetworkCall {
+            client.patch("$baseUrl/accounts/$accountId/pm-plans/$planId") {
+                setBody(plan)
+            }.body()
+        }
+
+    suspend fun deletePmPlan(
+        accountId: String,
+        planId: String,
+    ): NetworkResult<Unit> =
+        safeNetworkCall {
+            client.delete("$baseUrl/accounts/$accountId/pm-plans/$planId").body()
+        }
+
     // ---------------------------------------------------------------------------
     // Permission Sets (new)
     // ---------------------------------------------------------------------------

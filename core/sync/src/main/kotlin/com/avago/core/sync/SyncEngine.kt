@@ -46,6 +46,25 @@ import com.avago.core.data.db.entity.BinEntity
 import com.avago.core.data.db.entity.VendorPartEntity
 import com.avago.core.data.db.entity.TechLaborRateEntity
 import com.avago.core.data.db.entity.ReorderSuggestionEntity
+import com.avago.core.data.db.entity.AssetCustomStatusEntity
+import com.avago.core.data.db.entity.AssetStatusEntity
+import com.avago.core.data.db.entity.MeterReadingEntity
+import com.avago.core.data.db.entity.WorkOrderAssetEntity
+import com.avago.core.data.db.entity.WorkPermitEntity
+import com.avago.core.data.db.entity.WorkPermitSignatureEntity
+import com.avago.core.data.db.entity.MeterTriggerEntity
+import com.avago.core.data.db.entity.PmPlanEntity
+import com.avago.core.data.db.entity.PmPlanIntervalEntity
+import com.avago.core.data.db.entity.CustomFieldDefinitionEntity
+import com.avago.core.data.db.entity.AssetCriticalityEntity
+import com.avago.core.data.db.entity.AssetModelEntity
+import com.avago.core.data.db.entity.RcaReportEntity
+import com.avago.core.data.db.entity.CategoryEntity
+import com.avago.core.data.db.entity.PoCommentEntity
+import com.avago.core.data.db.entity.SyncConflictEntity
+import com.avago.core.data.db.entity.OwnerAssignmentEntity
+import com.avago.core.data.db.entity.PartTransferRequestEntity
+import com.avago.core.data.db.entity.RequestPortalEntity
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkException
 import com.avago.core.network.model.SyncOperation
@@ -239,6 +258,17 @@ class SyncEngine @Inject constructor(
         "label_template",
         "item", "gl_account", "job", "service",
         "bin", "vendor_part", "tech_labor_rate", "reorder_suggestion",
+        // New entity types from changes 10–150
+        "asset_custom_status", "asset_status",
+        "meter_reading", "work_order_asset",
+        "work_permit", "work_permit_signature",
+        "meter_trigger", "pm_plan", "pm_plan_interval",
+        "custom_field_definition", "asset_criticality", "asset_model",
+        "rca_report", "category",
+        "po_comment",
+        "owner_assignment", "part_transfer_request", "request_portal",
+        // Alias for location_history (change 131 — server may send either name)
+        "location_history",
     )
 
     private val pullEntityTypes get() = priorityPullTypes + secondaryPullTypes
@@ -677,6 +707,13 @@ class SyncEngine @Inject constructor(
                                 ?.let { el ->
                                     try { Json.encodeToString(el.jsonArray) } catch (_: Exception) { null }
                                 },
+                            // Changes 10, 22, 31, 61, 106 (tags_json already mapped via serialNumber/modelId path)
+                            currentStatus = item.str("current_status"),
+                            downtimeType = item.str("downtime_type"),
+                            customStatusId = item.str("custom_status_id"),
+                            customFields = item.str("custom_fields"),
+                            criticalityId = item.str("criticality_id"),
+                            globalUuid = item.str("global_uuid"),
                         )
                     )
                 }
@@ -715,6 +752,7 @@ class SyncEngine @Inject constructor(
                             deletedAt = isoToMs(item.str("deleted_at")),
                             serverVersion = item.lng("server_version") ?: 0L,
                             seq = item.lng("seq"),
+                            overtimeMultiplier = item.dbl("overtime_multiplier"),
                         )
                     )
                 }

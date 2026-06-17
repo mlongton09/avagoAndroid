@@ -21,4 +21,14 @@ data class ChatPresenceEntity(
 
     @ColumnInfo(name = "updated_at")
     val updatedAt: Long,
+
+    // Change 68: rich custom status fields
+    @ColumnInfo(name = "status_emoji")
+    val statusEmoji: String? = null,
+
+    @ColumnInfo(name = "status_text")
+    val statusText: String? = null,
+
+    @ColumnInfo(name = "status_expires_at")
+    val statusExpiresAt: Long? = null,
 )

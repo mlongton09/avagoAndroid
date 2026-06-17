@@ -27,4 +27,7 @@ data class ChatThreadEntity(
     @ColumnInfo(name = "notification_pref") val notificationPref: String? = null, // "all" | "mentions_only" | "mute"
     @ColumnInfo(name = "created_at") val createdAt: Long,
     @ColumnInfo(name = "updated_at") val updatedAt: Long,
+    // Change 70: thread topic and description
+    @ColumnInfo(name = "topic") val topic: String? = null,
+    @ColumnInfo(name = "description") val description: String? = null,
 )

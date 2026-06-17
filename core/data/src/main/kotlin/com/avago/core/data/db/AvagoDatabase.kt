@@ -8,8 +8,14 @@ import com.avago.core.data.db.dao.AccountRolePermissionsDao
 import com.avago.core.data.db.dao.AssetLocationHistoryDao
 import com.avago.core.data.db.dao.LabelTemplateDao
 import com.avago.core.data.db.dao.AssetDao
+import com.avago.core.data.db.dao.AssetCriticalityDao
+import com.avago.core.data.db.dao.AssetCustomStatusDao
+import com.avago.core.data.db.dao.AssetModelDao
+import com.avago.core.data.db.dao.AssetStatusDao
 import com.avago.core.data.db.dao.BinDao
+import com.avago.core.data.db.dao.CategoryDao
 import com.avago.core.data.db.dao.ConfigDao
+import com.avago.core.data.db.dao.CustomFieldDefinitionDao
 import com.avago.core.data.db.dao.CycleCountDao
 import com.avago.core.data.db.dao.CycleCountLineDao
 import com.avago.core.data.db.dao.DeviceDao
@@ -25,12 +31,21 @@ import com.avago.core.data.db.dao.JobDao
 import com.avago.core.data.db.dao.LocationDao
 import com.avago.core.data.db.dao.LogCostLineDao
 import com.avago.core.data.db.dao.LogDao
+import com.avago.core.data.db.dao.MeterReadingDao
+import com.avago.core.data.db.dao.MeterTriggerDao
+import com.avago.core.data.db.dao.OwnerAssignmentDao
 import com.avago.core.data.db.dao.PartDao
 import com.avago.core.data.db.dao.PartIssueDao
 import com.avago.core.data.db.dao.PartIssueLineDao
+import com.avago.core.data.db.dao.PartTransferRequestDao
 import com.avago.core.data.db.dao.PhotoDao
+import com.avago.core.data.db.dao.PmPlanDao
+import com.avago.core.data.db.dao.PmPlanIntervalDao
+import com.avago.core.data.db.dao.PoCommentDao
 import com.avago.core.data.db.dao.PoLineDao
 import com.avago.core.data.db.dao.PurchaseOrderDao
+import com.avago.core.data.db.dao.RcaReportDao
+import com.avago.core.data.db.dao.RequestPortalDao
 import com.avago.core.data.db.dao.RolePermissionDefaultsDao
 import com.avago.core.data.db.dao.RoleLabelCacheDao
 import com.avago.core.data.db.dao.ScheduleDao
@@ -38,6 +53,7 @@ import com.avago.core.data.db.dao.ServiceDao
 import com.avago.core.data.db.dao.ScoutHistoryDao
 import com.avago.core.data.db.dao.ScoutPendingDao
 import com.avago.core.data.db.dao.StockingLevelDao
+import com.avago.core.data.db.dao.SyncConflictDao
 import com.avago.core.data.db.dao.SyncMetadataDao
 import com.avago.core.data.db.dao.SyncQueueDao
 import com.avago.core.data.db.dao.TechLaborRateDao
@@ -51,13 +67,22 @@ import com.avago.core.data.db.dao.WoAssignmentDao
 import com.avago.core.data.db.dao.WoChecklistItemDao
 import com.avago.core.data.db.dao.WoCommentDao
 import com.avago.core.data.db.dao.WoTemplateDao
+import com.avago.core.data.db.dao.WorkOrderAssetDao
 import com.avago.core.data.db.dao.WorkOrderDao
+import com.avago.core.data.db.dao.WorkPermitDao
+import com.avago.core.data.db.dao.WorkPermitSignatureDao
 import com.avago.core.data.db.entity.AccountRolePermissionsEntity
+import com.avago.core.data.db.entity.AssetCriticalityEntity
+import com.avago.core.data.db.entity.AssetCustomStatusEntity
 import com.avago.core.data.db.entity.AssetLocationHistoryEntity
+import com.avago.core.data.db.entity.AssetModelEntity
+import com.avago.core.data.db.entity.AssetStatusEntity
 import com.avago.core.data.db.entity.LabelTemplateEntity
 import com.avago.core.data.db.entity.AssetEntity
 import com.avago.core.data.db.entity.BinEntity
+import com.avago.core.data.db.entity.CategoryEntity
 import com.avago.core.data.db.entity.ConfigEntity
+import com.avago.core.data.db.entity.CustomFieldDefinitionEntity
 import com.avago.core.data.db.entity.CycleCountEntity
 import com.avago.core.data.db.entity.CycleCountLineEntity
 import com.avago.core.data.db.entity.DeviceEntity
@@ -73,12 +98,21 @@ import com.avago.core.data.db.entity.JobEntity
 import com.avago.core.data.db.entity.LocationEntity
 import com.avago.core.data.db.entity.LogCostLineEntity
 import com.avago.core.data.db.entity.LogEntity
+import com.avago.core.data.db.entity.MeterReadingEntity
+import com.avago.core.data.db.entity.MeterTriggerEntity
+import com.avago.core.data.db.entity.OwnerAssignmentEntity
 import com.avago.core.data.db.entity.PartEntity
 import com.avago.core.data.db.entity.PartIssueEntity
 import com.avago.core.data.db.entity.PartIssueLineEntity
+import com.avago.core.data.db.entity.PartTransferRequestEntity
 import com.avago.core.data.db.entity.PhotoEntity
+import com.avago.core.data.db.entity.PmPlanEntity
+import com.avago.core.data.db.entity.PmPlanIntervalEntity
+import com.avago.core.data.db.entity.PoCommentEntity
 import com.avago.core.data.db.entity.PoLineEntity
 import com.avago.core.data.db.entity.PurchaseOrderEntity
+import com.avago.core.data.db.entity.RcaReportEntity
+import com.avago.core.data.db.entity.RequestPortalEntity
 import com.avago.core.data.db.entity.RolePermissionDefaultsEntity
 import com.avago.core.data.db.entity.RoleLabelCacheEntity
 import com.avago.core.data.db.entity.ScheduleEntity
@@ -86,6 +120,7 @@ import com.avago.core.data.db.entity.ScoutHistoryEntity
 import com.avago.core.data.db.entity.ScoutPendingEntity
 import com.avago.core.data.db.entity.ServiceEntity
 import com.avago.core.data.db.entity.StockingLevelEntity
+import com.avago.core.data.db.entity.SyncConflictEntity
 import com.avago.core.data.db.entity.SyncMetadataEntity
 import com.avago.core.data.db.entity.SyncQueueEntity
 import com.avago.core.data.db.entity.TechLaborRateEntity
@@ -99,7 +134,10 @@ import com.avago.core.data.db.entity.WoAssignmentEntity
 import com.avago.core.data.db.entity.WoChecklistItemEntity
 import com.avago.core.data.db.entity.WoCommentEntity
 import com.avago.core.data.db.entity.WoTemplateEntity
+import com.avago.core.data.db.entity.WorkOrderAssetEntity
 import com.avago.core.data.db.entity.WorkOrderEntity
+import com.avago.core.data.db.entity.WorkPermitEntity
+import com.avago.core.data.db.entity.WorkPermitSignatureEntity
 
 @Database(
     entities = [
@@ -151,8 +189,28 @@ import com.avago.core.data.db.entity.WorkOrderEntity
         EventEntity::class,
         ScoutPendingEntity::class,
         ScoutHistoryEntity::class,
+        // New entities from changes 10–150
+        AssetCustomStatusEntity::class,
+        AssetStatusEntity::class,
+        MeterReadingEntity::class,
+        WorkOrderAssetEntity::class,
+        WorkPermitEntity::class,
+        WorkPermitSignatureEntity::class,
+        MeterTriggerEntity::class,
+        PmPlanEntity::class,
+        PmPlanIntervalEntity::class,
+        CustomFieldDefinitionEntity::class,
+        AssetCriticalityEntity::class,
+        AssetModelEntity::class,
+        RcaReportEntity::class,
+        CategoryEntity::class,
+        PoCommentEntity::class,
+        SyncConflictEntity::class,
+        OwnerAssignmentEntity::class,
+        PartTransferRequestEntity::class,
+        RequestPortalEntity::class,
     ],
-    version = 15,
+    version = 16,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -206,4 +264,24 @@ abstract class AvagoDatabase : RoomDatabase() {
     abstract fun eventDao(): EventDao
     abstract fun scoutPendingDao(): ScoutPendingDao
     abstract fun scoutHistoryDao(): ScoutHistoryDao
+    // New DAOs
+    abstract fun assetCustomStatusDao(): AssetCustomStatusDao
+    abstract fun assetStatusDao(): AssetStatusDao
+    abstract fun meterReadingDao(): MeterReadingDao
+    abstract fun workOrderAssetDao(): WorkOrderAssetDao
+    abstract fun workPermitDao(): WorkPermitDao
+    abstract fun workPermitSignatureDao(): WorkPermitSignatureDao
+    abstract fun meterTriggerDao(): MeterTriggerDao
+    abstract fun pmPlanDao(): PmPlanDao
+    abstract fun pmPlanIntervalDao(): PmPlanIntervalDao
+    abstract fun customFieldDefinitionDao(): CustomFieldDefinitionDao
+    abstract fun assetCriticalityDao(): AssetCriticalityDao
+    abstract fun assetModelDao(): AssetModelDao
+    abstract fun rcaReportDao(): RcaReportDao
+    abstract fun categoryDao(): CategoryDao
+    abstract fun poCommentDao(): PoCommentDao
+    abstract fun syncConflictDao(): SyncConflictDao
+    abstract fun ownerAssignmentDao(): OwnerAssignmentDao
+    abstract fun partTransferRequestDao(): PartTransferRequestDao
+    abstract fun requestPortalDao(): RequestPortalDao
 }

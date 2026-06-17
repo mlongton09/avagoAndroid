@@ -53,7 +53,11 @@ data class PoLineEntity(
     @ColumnInfo(name = "server_version", defaultValue = "0")
     val serverVersion: Long,
 
-    // Change 77: PO line linked to work order
+    // Change 77: PO line linked to work order (work_order_id is the canonical field from server)
     @ColumnInfo(name = "work_order_id")
     val workOrderId: String? = null,
+
+    // Change 77: also store as wo_id for consistency with rest of the schema
+    @ColumnInfo(name = "wo_id")
+    val woId: String? = null,
 )

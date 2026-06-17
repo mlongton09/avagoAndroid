@@ -45,4 +45,19 @@ data class WoTemplateEntity(
 
     @ColumnInfo(name = "server_version", defaultValue = "0")
     val serverVersion: Long,
+
+    // Change 71: extended procedure rows JSON for new row types (HEADING, FILE, SIGNATURE, CYCLE_COUNT)
+    @ColumnInfo(name = "rows_json")
+    val rowsJson: String? = null,
+
+    // Change 109: seq watermark for template copy sync
+    @ColumnInfo(name = "seq")
+    val seq: Long? = null,
+
+    // Change 64: audit trail
+    @ColumnInfo(name = "created_by_id")
+    val createdById: String? = null,
+
+    @ColumnInfo(name = "updated_by_id")
+    val updatedById: String? = null,
 )

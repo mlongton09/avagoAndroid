@@ -59,4 +59,22 @@ data class WoAssignmentEntity(
 
     @ColumnInfo(name = "seq")
     val seq: Long?,
+
+    // Change 8: actual hours recorded against this assignment
+    @ColumnInfo(name = "actual_hours")
+    val actualHours: Double? = null,
+
+    // Change 29: technician role on this assignment and estimated hours
+    @ColumnInfo(name = "role")
+    val role: String? = null,
+
+    @ColumnInfo(name = "estimated_hours")
+    val estimatedHours: Double? = null,
+
+    // Change 64: audit trail
+    @ColumnInfo(name = "created_by_id")
+    val createdById: String? = null,
+
+    @ColumnInfo(name = "updated_by_id")
+    val updatedById: String? = null,
 )

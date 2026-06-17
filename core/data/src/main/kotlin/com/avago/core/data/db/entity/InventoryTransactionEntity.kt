@@ -79,4 +79,8 @@ data class InventoryTransactionEntity(
     // Change 74: reversal link
     @ColumnInfo(name = "reversed_transaction_id")
     val reversedTransactionId: String? = null,
+
+    // Change 50: human-readable reference number (e.g. PO-1234, WO-5678)
+    @ColumnInfo(name = "reference_number")
+    val referenceNumber: String? = null,
 )

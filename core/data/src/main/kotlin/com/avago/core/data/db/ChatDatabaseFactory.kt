@@ -135,6 +135,29 @@ private val CHAT_MIGRATION_6_7 = object : Migration(6, 7) {
     }
 }
 
+// Change 68 / 70 / 111 / 137 — presence custom status, thread topic/description,
+// message attachment indicator, voice note fields
+private val CHAT_MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        // ChatPresenceEntity (Change 68)
+        database.execSQL("ALTER TABLE presence ADD COLUMN status_emoji TEXT")
+        database.execSQL("ALTER TABLE presence ADD COLUMN status_text TEXT")
+        database.execSQL("ALTER TABLE presence ADD COLUMN status_expires_at INTEGER")
+
+        // ChatThreadEntity (Change 70)
+        database.execSQL("ALTER TABLE chat_threads ADD COLUMN topic TEXT")
+        database.execSQL("ALTER TABLE chat_threads ADD COLUMN description TEXT")
+
+        // ChatMessageEntity (Change 111 — attachment indicator)
+        database.execSQL("ALTER TABLE chat_messages ADD COLUMN has_attachment INTEGER NOT NULL DEFAULT 0")
+        database.execSQL("ALTER TABLE chat_messages ADD COLUMN attachment_count INTEGER NOT NULL DEFAULT 0")
+
+        // ChatMessageEntity (Change 137 — voice note)
+        database.execSQL("ALTER TABLE chat_messages ADD COLUMN audio_key TEXT")
+        database.execSQL("ALTER TABLE chat_messages ADD COLUMN audio_duration_s REAL")
+    }
+}
+
 @Singleton
 class ChatDatabaseFactory @Inject constructor(
     @ApplicationContext private val ctx: Context,
@@ -153,6 +176,7 @@ class ChatDatabaseFactory @Inject constructor(
                     CHAT_MIGRATION_4_5,
                     CHAT_MIGRATION_5_6,
                     CHAT_MIGRATION_6_7,
+                    CHAT_MIGRATION_7_8,
                 )
                 .fallbackToDestructiveMigration(dropAllTables = true)
                 .build()

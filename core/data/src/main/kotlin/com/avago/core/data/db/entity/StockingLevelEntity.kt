@@ -60,4 +60,11 @@ data class StockingLevelEntity(
 
     @ColumnInfo(name = "deleted_at")
     val deletedAt: Long? = null,
+
+    // Change 64: audit trail
+    @ColumnInfo(name = "created_by_id")
+    val createdById: String? = null,
+
+    @ColumnInfo(name = "updated_by_id")
+    val updatedById: String? = null,
 )

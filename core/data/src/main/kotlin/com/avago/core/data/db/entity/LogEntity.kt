@@ -103,4 +103,8 @@ data class LogEntity(
 
     @ColumnInfo(name = "seq")
     val seq: Long?,
+
+    // Change 11: overtime multiplier for cost calculations
+    @ColumnInfo(name = "overtime_multiplier")
+    val overtimeMultiplier: Double? = null,
 )

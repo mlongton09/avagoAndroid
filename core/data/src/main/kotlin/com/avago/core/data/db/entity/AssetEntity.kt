@@ -135,4 +135,26 @@ data class AssetEntity(
     // Change 106: tags stored as a JSON array string e.g. ["electrical","hvac"]
     @ColumnInfo(name = "tags_json", defaultValue = "NULL")
     val tagsJson: String? = null,
+
+    // Change 10: asset custom status fields
+    @ColumnInfo(name = "current_status")
+    val currentStatus: String? = null,
+
+    @ColumnInfo(name = "downtime_type")
+    val downtimeType: String? = null,
+
+    @ColumnInfo(name = "custom_status_id")
+    val customStatusId: String? = null,
+
+    // Change 22: custom field values as JSON
+    @ColumnInfo(name = "custom_fields")
+    val customFields: String? = null,
+
+    // Change 31: criticality reference
+    @ColumnInfo(name = "criticality_id")
+    val criticalityId: String? = null,
+
+    // Change 61: cross-account global UUID for group scenarios
+    @ColumnInfo(name = "global_uuid")
+    val globalUuid: String? = null,
 )

@@ -37,7 +37,7 @@ data class WoChecklistItemEntity(
     @ColumnInfo(name = "seq")
     val seq: Long?,
 
-    // Change 71: procedure row type and metadata
+    // Change 71 / Change 42: procedure row type and metadata
     @ColumnInfo(name = "row_type")
     val rowType: String = "STEP",
 
@@ -46,4 +46,24 @@ data class WoChecklistItemEntity(
 
     @ColumnInfo(name = "urls")
     val urlsJson: String? = null,
+
+    // Change 19: checklist item response fields for procedure execution
+    @ColumnInfo(name = "response")
+    val response: String? = null,
+
+    @ColumnInfo(name = "notes")
+    val notes: String? = null,
+
+    @ColumnInfo(name = "pass_fail")
+    val passFail: String? = null,
+
+    @ColumnInfo(name = "signature_url")
+    val signatureUrl: String? = null,
+
+    // Change 64: audit trail
+    @ColumnInfo(name = "created_by_id")
+    val createdById: String? = null,
+
+    @ColumnInfo(name = "updated_by_id")
+    val updatedById: String? = null,
 )

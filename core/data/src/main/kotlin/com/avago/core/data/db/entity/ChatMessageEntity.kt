@@ -73,4 +73,10 @@ data class ChatMessageEntity(
     @ColumnInfo(name = "updated_at") val updatedAt: Long,
     @ColumnInfo(name = "parent_message_id") val parentMessageId: String? = null,
     @ColumnInfo(name = "is_pinned", defaultValue = "0") val isPinned: Boolean = false,
+    // Change 111: document attachment indicator
+    @ColumnInfo(name = "has_attachment", defaultValue = "0") val hasAttachment: Boolean = false,
+    @ColumnInfo(name = "attachment_count", defaultValue = "0") val attachmentCount: Int = 0,
+    // Change 137: voice note / audio message
+    @ColumnInfo(name = "audio_key") val audioKey: String? = null,
+    @ColumnInfo(name = "audio_duration_s") val audioDurationS: Double? = null,
 )

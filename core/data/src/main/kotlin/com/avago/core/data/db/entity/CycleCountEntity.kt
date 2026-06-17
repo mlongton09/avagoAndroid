@@ -61,4 +61,11 @@ data class CycleCountEntity(
 
     @ColumnInfo(name = "seq")
     val seq: Long?,
+
+    // Change 90: scheduling fields
+    @ColumnInfo(name = "scheduled_date")
+    val scheduledDate: String? = null,
+
+    @ColumnInfo(name = "completed_date")
+    val completedDate: String? = null,
 )

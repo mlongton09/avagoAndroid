@@ -20,7 +20,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -103,6 +108,64 @@ fun ThreadScreen(
         val msg = uiState.errorMessage ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(msg)
         viewModel.clearError()
+    }
+
+    // AI summary sheet state
+    val aiSummary by viewModel.aiSummary.collectAsStateWithLifecycle()
+    val isLoadingAiSummary by viewModel.isLoadingAiSummary.collectAsStateWithLifecycle()
+    var showAiSummarySheet by remember { mutableStateOf(false) }
+    val aiSummarySheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    if (showAiSummarySheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showAiSummarySheet = false },
+            sheetState = aiSummarySheetState,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(bottom = 12.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                    Spacer(modifier = Modifier.padding(start = 8.dp))
+                    Text(
+                        text = "AI Thread Summary",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
+                if (isLoadingAiSummary) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 32.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                } else {
+                    Text(
+                        text = aiSummary ?: "Tap below to generate a summary.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(bottom = 16.dp),
+                    )
+                    Button(
+                        onClick = { viewModel.fetchAiSummary() },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(if (aiSummary == null) "Generate Summary" else "Regenerate")
+                    }
+                }
+                Spacer(modifier = Modifier.height(32.dp))
+            }
+        }
     }
 
     // Which message has the action sheet open.
@@ -194,6 +257,12 @@ fun ThreadScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = {
+                        showAiSummarySheet = true
+                        if (aiSummary == null) viewModel.fetchAiSummary()
+                    }) {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = "AI Summary")
+                    }
                     var showMenu by remember { mutableStateOf(false) }
                     IconButton(onClick = { showMenu = true }) {
                         Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.thread_more_options))

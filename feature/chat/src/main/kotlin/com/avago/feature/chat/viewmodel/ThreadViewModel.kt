@@ -81,6 +81,9 @@ class ThreadViewModel @Inject constructor(
     private val _linkPreview = MutableStateFlow<LinkPreviewResponse?>(null)
     private val _needsReply = MutableStateFlow(false)
 
+    val aiSummary: MutableStateFlow<String?> = MutableStateFlow(null)
+    val isLoadingAiSummary: MutableStateFlow<Boolean> = MutableStateFlow(false)
+
     val uiState: StateFlow<ThreadUiState> = combine(
         listOf(
             _thread,
@@ -455,6 +458,24 @@ class ThreadViewModel @Inject constructor(
                 Timber.e(e, "loadMoreMessages failed")
             } finally {
                 _isLoadingMore.value = false
+            }
+        }
+    }
+
+    fun fetchAiSummary() {
+        if (isLoadingAiSummary.value) return
+        viewModelScope.launch {
+            isLoadingAiSummary.value = true
+            aiSummary.value = null
+            try {
+                val result = repository.getThreadSummary(threadId)
+                aiSummary.value = result?.get("summary") as? String
+                    ?: "No summary available."
+            } catch (e: Exception) {
+                Timber.e(e, "fetchAiSummary failed")
+                aiSummary.value = "Unable to generate summary. Please try again."
+            } finally {
+                isLoadingAiSummary.value = false
             }
         }
     }

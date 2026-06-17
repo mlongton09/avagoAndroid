@@ -47,4 +47,18 @@ data class AssetLocationHistoryEntity(
 
     @ColumnInfo(name = "seq")
     val seq: Long?,
+
+    // Change 131: renamed field (moved_by -> moved_by_user_id) + move reason
+    @ColumnInfo(name = "moved_by_user_id")
+    val movedByUserId: String? = null,
+
+    @ColumnInfo(name = "move_reason")
+    val moveReason: String? = null,
+
+    // Change 132: GPS coordinates of the move event
+    @ColumnInfo(name = "lat")
+    val lat: Double? = null,
+
+    @ColumnInfo(name = "lng")
+    val lng: Double? = null,
 )

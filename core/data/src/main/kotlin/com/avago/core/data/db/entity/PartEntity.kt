@@ -99,4 +99,18 @@ data class PartEntity(
     // Change 108 — abc_class on parts
     @ColumnInfo(name = "abc_class")
     val abcClass: String? = null,
+
+    // Change 22: custom field values as JSON
+    @ColumnInfo(name = "custom_fields")
+    val customFields: String? = null,
+
+    // Change 150: committed quantities (server-computed, read-only)
+    @ColumnInfo(name = "committed_reserved_quantity")
+    val committedReservedQuantity: Double? = null,
+
+    @ColumnInfo(name = "committed_in_progress_quantity")
+    val committedInProgressQuantity: Double? = null,
+
+    @ColumnInfo(name = "committed_completed_quantity")
+    val committedCompletedQuantity: Double? = null,
 )

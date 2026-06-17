@@ -176,4 +176,27 @@ data class WorkOrderEntity(
 
     @ColumnInfo(name = "skip_reason")
     val skipReason: String? = null,
+
+    // Change 15: sub-work-order hierarchy
+    @ColumnInfo(name = "child_wo_count")
+    val childWoCount: Long? = null,
+
+    @ColumnInfo(name = "child_wo_ids")
+    val childWoIds: String? = null,
+
+    // Change 19: procedure template linkage
+    @ColumnInfo(name = "procedure_template_id")
+    val procedureTemplateId: String? = null,
+
+    // Change 21: permit status summary for offline 'Start Work' guard
+    @ColumnInfo(name = "permit_status_summary")
+    val permitStatusSummary: String? = null,
+
+    // Change 22: custom field values as JSON
+    @ColumnInfo(name = "custom_fields")
+    val customFields: String? = null,
+
+    // Change 83: team assignment
+    @ColumnInfo(name = "assigned_team_id")
+    val assignedTeamId: String? = null,
 )

@@ -74,4 +74,15 @@ data class JobEntity(
 
     @ColumnInfo(name = "seq")
     val seq: Long?,
+
+    // Change 127: budget alert threshold (% of budget)
+    @ColumnInfo(name = "budget_alert_threshold")
+    val budgetAlertThreshold: Double? = null,
+
+    // Change 149: budget tracking
+    @ColumnInfo(name = "budget_amount")
+    val budgetAmount: Double? = null,
+
+    @ColumnInfo(name = "spent_amount")
+    val spentAmount: Double? = null,
 )

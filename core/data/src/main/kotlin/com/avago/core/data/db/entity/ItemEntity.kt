@@ -82,4 +82,11 @@ data class ItemEntity(
 
     @ColumnInfo(name = "seq")
     val seq: Long?,
+
+    // Change 86: auto-deduct inventory flag and linked transaction
+    @ColumnInfo(name = "deduct_inventory", defaultValue = "0")
+    val deductInventory: Boolean = false,
+
+    @ColumnInfo(name = "inventory_transaction_id")
+    val inventoryTransactionId: String? = null,
 )

@@ -70,4 +70,12 @@ data class LocationEntity(
 
     @ColumnInfo(name = "seq")
     val seq: Long?,
+
+    // Change 58: structured address street field (prefixed to avoid collision with existing 'address')
+    @ColumnInfo(name = "address_street")
+    val addressStreet: String? = null,
+
+    // Change 62: location hierarchy
+    @ColumnInfo(name = "parent_location_id")
+    val parentLocationId: String? = null,
 )
