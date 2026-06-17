@@ -84,6 +84,12 @@ interface SyncQueueDao {
      * - anything else    → replace the existing row with the new one
      *
      * Mirrors iOS SyncQueueDAO.enqueue() dedup rules.
+     *
+     * ORDERING NOTE: items are drained in FIFO order by created_at (ORDER BY created_at ASC).
+     * When an insert+update is collapsed the existing queueId (and therefore created_at) is
+     * preserved, so the merged item retains the original insertion timestamp. This is
+     * intentional — it ensures dependency ordering is maintained, e.g. a WO create is always
+     * pushed before its wo_assignment creates even after the WO is subsequently edited offline.
      */
     @Transaction
     suspend fun enqueueWithDedup(entity: SyncQueueEntity) {

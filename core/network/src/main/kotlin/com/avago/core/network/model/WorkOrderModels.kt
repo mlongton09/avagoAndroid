@@ -177,6 +177,9 @@ data class WorkOrderPatch(
     val due_date: String? = null,
     val category: String? = null,
     val description: String? = null,
+    // Change 85/86: RCA fields
+    val rootCause: String? = null,
+    val failureMode: String? = null,
 )
 
 // Change 80: KPI summary

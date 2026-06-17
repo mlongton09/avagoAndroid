@@ -15,6 +15,7 @@ import com.avago.core.auth.IdentityManager
 import com.avago.core.data.db.entity.WoAssignmentEntity
 import com.avago.core.data.db.entity.WoChecklistItemEntity
 import com.avago.core.data.db.entity.WoCommentEntity
+import com.avago.core.data.db.entity.WoTemplateEntity
 import com.avago.core.data.db.entity.WorkOrderEntity
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
@@ -629,6 +630,26 @@ class WorkOrderDetailViewModel @Inject constructor(
         }
     }
 
+    fun addChecklistItem(title: String) {
+        val accountId = _accountId.value ?: return
+        if (title.isBlank()) return
+        val now = System.currentTimeMillis()
+        val existingCount = checklistItems.value.size.toLong()
+        viewModelScope.launch {
+            val item = WoChecklistItemEntity(
+                itemId = UUID.randomUUID().toString(),
+                woId = woId,
+                title = title.trim(),
+                isCompleted = false,
+                completedAt = null,
+                displayOrder = existingCount,
+                serverVersion = 0L,
+                seq = null,
+            )
+            repository.upsertChecklistItem(accountId, item)
+        }
+    }
+
     // ---------------------------------------------------------------------------
     // Comments
     // ---------------------------------------------------------------------------
@@ -667,6 +688,33 @@ class WorkOrderDetailViewModel @Inject constructor(
             } catch (e: Exception) {
                 Timber.e(e, "[WoDetailVM] deleteWorkOrder failed")
                 _error.value = e.message
+            }
+        }
+    }
+
+    fun saveAsTemplate(name: String) {
+        val accountId = _accountId.value ?: return
+        val wo = workOrder.value ?: return
+        if (name.isBlank()) return
+        val now = System.currentTimeMillis()
+        viewModelScope.launch {
+            val template = WoTemplateEntity(
+                templateId = UUID.randomUUID().toString(),
+                accountId = accountId,
+                title = name.trim(),
+                description = wo.description,
+                category = wo.category,
+                checklistItems = null,
+                estimatedEffortMinutes = wo.estimatedEffortMinutes,
+                createdAt = now,
+                updatedAt = now,
+                deletedAt = null,
+                serverVersion = 0L,
+            )
+            try {
+                repository.upsertTemplate(accountId, template)
+            } catch (e: Exception) {
+                Timber.e(e, "[WoDetailVM] saveAsTemplate failed")
             }
         }
     }

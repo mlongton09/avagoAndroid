@@ -10,9 +10,13 @@ import com.avago.core.network.getOrThrow
 import com.avago.core.network.NetworkException
 import com.avago.core.network.UnauthorizedException
 import com.avago.core.network.model.DeviceUpdateRequest
+import androidx.work.BackoffPolicy
+import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
+import java.util.concurrent.TimeUnit
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -821,7 +825,13 @@ class IdentityManager @Inject constructor(
 
     private fun enqueueSyncWork() {
         val cls = syncWorkerClass ?: return
-        val request = OneTimeWorkRequest.Builder(cls).build()
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+        val request = OneTimeWorkRequest.Builder(cls)
+            .setConstraints(constraints)
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 60, TimeUnit.SECONDS)
+            .build()
         WorkManager.getInstance(appContext)
             .enqueueUniqueWork("avago_sync", ExistingWorkPolicy.REPLACE, request)
         Timber.d("IdentityManager: enqueued post-signin sync")

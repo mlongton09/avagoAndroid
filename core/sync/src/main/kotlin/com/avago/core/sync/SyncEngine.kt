@@ -205,8 +205,20 @@ class SyncEngine @Inject constructor(
 
     // Entity types for which a pending local push must block the pull upsert, preventing
     // a stale server snapshot from overwriting uncommitted user edits.
-    // Mirrors iOS SyncEngine hasPendingPush guard (asset, log, work_order).
-    private val pendingPushGuardTypes = setOf("asset", "log", "work_order")
+    // Covers all entity types that can be mutated offline so that a pull during the
+    // push-pending window does not silently overwrite local changes.
+    private val pendingPushGuardTypes = setOf(
+        "asset", "log", "log_cost_line",
+        "work_order", "wo_assignment", "wo_checklist_item", "wo_comment",
+        "schedule",
+        "inventory", "part", "stocking_level",
+        "vendor", "purchase_order", "po_line",
+        "grn", "grn_line",
+        "cycle_count", "cycle_count_line",
+        "part_issue", "part_issue_line",
+        "doc", "photo",
+        "tech_profile", "location", "job", "service", "bin", "vendor_part",
+    )
 
     // Priority entities are pulled first so the asset list and work orders are visible
     // as soon as possible. The sync gate opens after these complete.

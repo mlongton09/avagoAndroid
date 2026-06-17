@@ -128,6 +128,10 @@ class SyncPayloadBuilder @Inject constructor(
                 }
 
                 "work_order" -> {
+                    // Full-entity payload sent via POST /sync/push. The server is expected to
+                    // treat absent optional fields as no-change (PATCH semantics). If concurrent
+                    // server edits are a concern, switch to the typed patchWorkOrder PATCH overload
+                    // on AvagoServiceClient and store only the changed fields in the sync queue.
                     val e = db.workOrderDao().getById(entityId) ?: return null
                     buildJsonObject {
                         put("wo_id", e.woId)
