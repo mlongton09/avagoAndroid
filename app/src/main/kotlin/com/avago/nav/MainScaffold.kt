@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.automirrored.filled.Label
@@ -546,6 +547,14 @@ fun SideMenuContent(
 
         // ── REPORTS ──────────────────────────────────────────────────────────
         DrawerSectionHeader(stringResource(R.string.drawer_header_reports))
+
+        NavigationDrawerItem(
+            label = { Text("KPI Dashboard") },
+            selected = currentRoute == "reports/kpi_dashboard",
+            icon = { Icon(Icons.Default.Dashboard, contentDescription = null) },
+            onClick = { onNavigate("reports/kpi_dashboard") },
+            modifier = Modifier.padding(horizontal = 8.dp),
+        )
 
         NavigationDrawerItem(
             label = { Text(stringResource(R.string.nav_cost_report)) },

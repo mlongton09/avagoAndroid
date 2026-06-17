@@ -11,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.WorkOutline
 import com.avago.feature.reports.R
 import androidx.compose.material3.Card
@@ -40,8 +41,15 @@ private data class ReportSection(
 fun ReportsListScreen(
     onNavigateToCategory: () -> Unit,
     onNavigateToCost: () -> Unit,
+    onNavigateToKpiDashboard: () -> Unit = {},
 ) {
     val sections = listOf(
+        ReportSection(
+            title = "KPI Dashboard",
+            subtitle = "MTTR, MTBF, PM compliance, and open WOs by priority",
+            icon = Icons.Default.Dashboard,
+            onClick = onNavigateToKpiDashboard,
+        ),
         ReportSection(
             title = stringResource(R.string.report_category),
             subtitle = "Work orders grouped by category",

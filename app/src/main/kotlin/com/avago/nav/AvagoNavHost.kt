@@ -27,6 +27,7 @@ import com.avago.feature.inventory.nav.inventoryNavGraph
 import com.avago.feature.log.nav.LogRoute
 import com.avago.feature.log.nav.logNavGraph
 import com.avago.feature.assets.ui.GlobalCategoryReportScreen
+import com.avago.feature.reports.KpiDashboardScreen
 import com.avago.feature.reports.ui.CostReportScreen
 import com.avago.feature.schedule.nav.scheduleNavGraph
 import com.avago.feature.settings.nav.settingsNavGraph
@@ -152,6 +153,9 @@ fun AvagoNavHost(
             inventoryNavGraph(navController = navController)
 
             // ── Reports ───────────────────────────────────────────────────────────
+            composable("reports/kpi_dashboard") {
+                KpiDashboardScreen(onBack = { navController.popBackStack() })
+            }
             composable("reports/cost") {
                 CostReportScreen(onBack = { navController.popBackStack() })
             }
