@@ -74,6 +74,7 @@ data class ChatMessageResponse(
     val reaction_counts: Map<String, Int> = emptyMap(),
     val my_reactions: List<String> = emptyList(),
     // Needs-reply flag and idempotency key
+    val attachment_keys: List<String> = emptyList(),
     val needs_reply: Boolean = false,
     val client_ref: String? = null,
     val server_version: Long = 0,
@@ -81,6 +82,9 @@ data class ChatMessageResponse(
     val updated_at: String,
     val parent_message_id: String? = null,
     val is_pinned: Boolean = false,
+    // Change 137 — voice notes
+    val audio_key: String? = null,
+    val audio_duration_s: Int? = null,
 )
 
 @Serializable
@@ -110,6 +114,10 @@ data class ChatThreadResponse(
     val is_favorite: Boolean = false,
     // Members array present for direct/group threads — used to resolve display names
     val members: List<ChatMemberResponse> = emptyList(),
+    val topic: String? = null,
+    val topic_set_by: String? = null,
+    val topic_set_at: String? = null,
+    val description: String? = null,
     val created_at: String,
 )
 
@@ -150,6 +158,9 @@ data class SendMessageRequest(
     val subthread_root_message_id: String? = null,
     val quick_reply_kind: String? = null,
     val link_preview: ChatLinkPreviewResponse? = null,
+    // Change 137 — voice notes
+    val audio_key: String? = null,
+    val audio_duration_s: Int? = null,
 )
 
 @Serializable
@@ -276,4 +287,19 @@ data class ChatRosterEntry(
 data class ChatRosterEnvelope(
     val generated_at: String? = null,
     val members: List<ChatRosterEntry> = emptyList(),
+)
+
+@Serializable
+data class MessageReceiptResponse(
+    val user_id: String,
+    val read_at: String,
+)
+
+@Serializable
+data class BroadcastReceiptResponse(
+    val message_id: String,
+    val targets: Int,
+    val read_count: Long,
+    val read_by_count: Int,
+    val compliance_pct: Double,
 )

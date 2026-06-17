@@ -26,6 +26,17 @@ import com.avago.core.network.model.RolePermissionsSyncEnvelope
 import com.avago.core.network.model.UpdatePreferencesRequest
 import com.avago.core.network.model.UserPreferencesResponse
 import com.avago.core.network.model.VinDecodeResponse
+import com.avago.core.network.model.AssetCriticalityResponse
+import com.avago.core.network.model.AssetModelResponse
+import com.avago.core.network.model.RecommendedPartResponse
+import com.avago.core.network.model.RcaReportResponse
+import com.avago.core.network.model.CreateAssetCriticalityRequest
+import com.avago.core.network.model.CreateAssetModelRequest
+import com.avago.core.network.model.CreateRcaReportRequest
+import com.avago.core.network.model.AddRecommendedPartRequest
+import com.avago.core.network.model.FileUploadResponse
+import com.avago.core.network.model.PresignedUploadRequest
+import com.avago.core.network.model.PresignedUploadResponse
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -81,6 +92,64 @@ import com.avago.core.network.model.SyncPullResponse
 import com.avago.core.network.model.SyncPushRequest
 import com.avago.core.network.model.SyncPushResponse
 import com.avago.core.network.model.UserResponse
+import com.avago.core.network.model.MessageReceiptResponse
+import com.avago.core.network.model.BroadcastReceiptResponse
+import com.avago.core.network.model.VendorResponse
+import com.avago.core.network.model.PatchVendorRequest
+import com.avago.core.network.model.StockingLevelResponse
+import com.avago.core.network.model.UpsertStockingLevelRequest
+import com.avago.core.network.model.SavedFilterViewResponse
+import com.avago.core.network.model.CreateFilterViewRequest
+import com.avago.core.network.model.WoCostSummaryResponse
+import com.avago.core.network.model.ChatMessageSave
+import com.avago.core.network.model.ChatUserStatus
+import com.avago.core.network.model.ChatScheduledMessage
+import com.avago.core.network.model.SetStatusRequest
+import com.avago.core.network.model.UpdateScheduledMessageRequest
+import com.avago.core.network.model.SaveMessageRequest
+import com.avago.core.network.model.SetTopicRequest
+import com.avago.core.network.model.SetDescriptionRequest
+import com.avago.core.network.model.SkipOccurrenceRequest
+import com.avago.core.network.model.CreateInventoryTransactionRequest
+import com.avago.core.network.model.ReverseTransactionRequest
+import com.avago.core.network.model.InventoryTransactionResponse
+import com.avago.core.network.model.ConvertReorderToPORequest
+import com.avago.core.network.model.ConvertReorderToPOResponse
+import com.avago.core.network.model.PatchPurchaseOrderRequest
+import com.avago.core.network.model.PurchaseOrdersResponse
+import com.avago.core.network.model.VendorContactResponse
+import com.avago.core.network.model.VendorContactsResponse
+import com.avago.core.network.model.CreateVendorContactRequest
+import com.avago.core.network.model.UpdateVendorContactRequest
+import com.avago.core.network.model.KpiSummaryResponse
+import com.avago.core.network.model.BulkUpdateWorkOrderRequest
+import com.avago.core.network.model.BulkUpdateResponse
+import com.avago.core.network.model.ChatMessageTemplate
+import com.avago.core.network.model.CreateTemplateRequest
+import com.avago.core.network.model.ChatWebhook
+import com.avago.core.network.model.CreateWebhookRequest
+import com.avago.core.network.model.CreateWebhookResponse
+import com.avago.core.network.model.SyncConflict
+import com.avago.core.network.model.SlashCommandRequest
+import com.avago.core.network.model.GenerateCycleCountsRequest
+import com.avago.core.network.model.CopyTemplateRequest
+import com.avago.core.network.model.CycleCountLineResponse
+import com.avago.core.network.model.CategoryResponse
+import com.avago.core.network.model.DelegateApprovalRequest
+import com.avago.core.network.model.ApprovalResponse
+import com.avago.core.network.model.ApproveCostsRequest
+import com.avago.core.network.model.WoCostApproval
+import com.avago.core.network.model.PoCommentsResponse
+import com.avago.core.network.model.CreatePoCommentRequest
+import com.avago.core.network.model.PoCommentResponse
+import com.avago.core.network.model.OrganizationResponse
+import com.avago.core.network.model.OrgSummaryResponse
+import com.avago.core.network.model.RequestPortalResponse
+import com.avago.core.network.model.CreatePortalRequest
+import com.avago.core.network.model.PortalSubmissionRequest
+import com.avago.core.network.model.WorkRequestPortalResponse
+import com.avago.core.network.model.CreateWorkRequestPortalRequest
+import com.avago.core.network.model.SyncCheckpointResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.auth.Auth
@@ -1756,6 +1825,62 @@ class AvagoServiceClient @Inject constructor(
     }
 
     // ---------------------------------------------------------------------------
+    // Chat Read Receipts (Change 45)
+    // ---------------------------------------------------------------------------
+
+    suspend fun getMessageReadReceipts(messageId: String): NetworkResult<List<MessageReceiptResponse>> =
+        safeNetworkCall {
+            client.get("$baseUrl/chat/messages/$messageId/receipts")
+                .body<Map<String, List<MessageReceiptResponse>>>()["receipts"] ?: emptyList()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Broadcast Compliance (Change 46)
+    // ---------------------------------------------------------------------------
+
+    suspend fun getBroadcastReceipt(messageId: String): NetworkResult<BroadcastReceiptResponse> =
+        safeNetworkCall {
+            client.get("$baseUrl/chat/messages/$messageId/broadcast-receipt")
+                .body<BroadcastReceiptResponse>()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Jump-to-Message (Change 47)
+    // ---------------------------------------------------------------------------
+
+    suspend fun listMessagesAround(threadId: String, aroundMessageId: String, limit: Int = 50): NetworkResult<ChatPageResponse> =
+        safeNetworkCall {
+            client.get("$baseUrl/chat/threads/$threadId/messages") {
+                parameter("around", aroundMessageId)
+                parameter("limit", limit)
+            }.body<ChatPageResponse>()
+        }
+
+    // ---------------------------------------------------------------------------
+    // PATCH Vendor with ETag (Change 49)
+    // ---------------------------------------------------------------------------
+
+    suspend fun patchVendor(accountId: String, vendorId: String, request: PatchVendorRequest, serverVersion: Int? = null): NetworkResult<VendorResponse> =
+        safeNetworkCall {
+            client.patch("$baseUrl/accounts/$accountId/vendors/$vendorId") {
+                if (serverVersion != null) {
+                    headers.append("If-Match", "\"$serverVersion\"")
+                }
+                setBody(request)
+            }.body<VendorResponse>()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Sub-Work-Orders (Change 15)
+    // ---------------------------------------------------------------------------
+
+    suspend fun listSubWorkOrders(accountId: String, woId: String): NetworkResult<List<WorkOrderResponse>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/work-orders/$woId/sub-work-orders")
+                .body<Map<String, List<WorkOrderResponse>>>()["work_orders"] ?: emptyList()
+        }
+
+    // ---------------------------------------------------------------------------
     // Internal helpers
     // ---------------------------------------------------------------------------
 
@@ -1826,6 +1951,1040 @@ class AvagoServiceClient @Inject constructor(
         val match = Regex("""Wait for (\d+)s""").find(body) ?: return null
         return match.groupValues[1].toLongOrNull()
     }
+
+    // ---------------------------------------------------------------------------
+    // Asset Criticalities (Change 31)
+    // ---------------------------------------------------------------------------
+
+    suspend fun listAssetCriticalities(accountId: String): NetworkResult<List<AssetCriticalityResponse>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/asset-criticalities")
+                .body<Map<String, List<AssetCriticalityResponse>>>()["asset_criticalities"] ?: emptyList()
+        }
+
+    suspend fun createAssetCriticality(accountId: String, request: CreateAssetCriticalityRequest): NetworkResult<AssetCriticalityResponse> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/asset-criticalities") {
+                setBody(request)
+            }.body<AssetCriticalityResponse>()
+        }
+
+    suspend fun updateAssetCriticality(accountId: String, critId: String, request: CreateAssetCriticalityRequest): NetworkResult<AssetCriticalityResponse> =
+        safeNetworkCall {
+            client.put("$baseUrl/accounts/$accountId/asset-criticalities/$critId") {
+                setBody(request)
+            }.body<AssetCriticalityResponse>()
+        }
+
+    suspend fun deleteAssetCriticality(accountId: String, critId: String): NetworkResult<Unit> =
+        safeNetworkCall {
+            client.delete("$baseUrl/accounts/$accountId/asset-criticalities/$critId")
+            Unit
+        }
+
+    // ---------------------------------------------------------------------------
+    // Asset Models (Change 40) + Recommended Parts (Change 41)
+    // ---------------------------------------------------------------------------
+
+    suspend fun listAssetModels(accountId: String): NetworkResult<List<AssetModelResponse>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/asset-models")
+                .body<Map<String, List<AssetModelResponse>>>()["asset_models"] ?: emptyList()
+        }
+
+    suspend fun createAssetModel(accountId: String, request: CreateAssetModelRequest): NetworkResult<AssetModelResponse> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/asset-models") {
+                setBody(request)
+            }.body<AssetModelResponse>()
+        }
+
+    suspend fun updateAssetModel(accountId: String, modelId: String, request: CreateAssetModelRequest): NetworkResult<AssetModelResponse> =
+        safeNetworkCall {
+            client.put("$baseUrl/accounts/$accountId/asset-models/$modelId") {
+                setBody(request)
+            }.body<AssetModelResponse>()
+        }
+
+    suspend fun deleteAssetModel(accountId: String, modelId: String): NetworkResult<Unit> =
+        safeNetworkCall {
+            client.delete("$baseUrl/accounts/$accountId/asset-models/$modelId")
+            Unit
+        }
+
+    suspend fun listRecommendedParts(accountId: String, modelId: String): NetworkResult<List<RecommendedPartResponse>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/asset-models/$modelId/recommended-parts")
+                .body<Map<String, List<RecommendedPartResponse>>>()["recommended_parts"] ?: emptyList()
+        }
+
+    suspend fun addRecommendedPart(accountId: String, modelId: String, request: AddRecommendedPartRequest): NetworkResult<RecommendedPartResponse> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/asset-models/$modelId/recommended-parts") {
+                setBody(request)
+            }.body<RecommendedPartResponse>()
+        }
+
+    suspend fun removeRecommendedPart(accountId: String, modelId: String, partId: String): NetworkResult<Unit> =
+        safeNetworkCall {
+            client.delete("$baseUrl/accounts/$accountId/asset-models/$modelId/recommended-parts/$partId")
+            Unit
+        }
+
+    // ---------------------------------------------------------------------------
+    // RCA Reports (Change 34)
+    // ---------------------------------------------------------------------------
+
+    suspend fun createRcaReport(accountId: String, request: CreateRcaReportRequest): NetworkResult<RcaReportResponse> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/rca-reports") {
+                setBody(request)
+            }.body<RcaReportResponse>()
+        }
+
+    suspend fun getRcaReport(accountId: String, rcaId: String): NetworkResult<RcaReportResponse> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/rca-reports/$rcaId").body<RcaReportResponse>()
+        }
+
+    suspend fun listRcaReportsForWorkOrder(accountId: String, woId: String): NetworkResult<List<RcaReportResponse>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/work-orders/$woId/rca-reports")
+                .body<Map<String, List<RcaReportResponse>>>()["rca_reports"] ?: emptyList()
+        }
+
+    suspend fun listRcaReportsForAsset(accountId: String, assetId: String): NetworkResult<List<RcaReportResponse>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/assets/$assetId/rca-reports")
+                .body<Map<String, List<RcaReportResponse>>>()["rca_reports"] ?: emptyList()
+        }
+
+    suspend fun deleteRcaReport(accountId: String, rcaId: String): NetworkResult<Unit> =
+        safeNetworkCall {
+            client.delete("$baseUrl/accounts/$accountId/rca-reports/$rcaId")
+            Unit
+        }
+
+    // ---------------------------------------------------------------------------
+    // Attachments (Changes 38-39)
+    // ---------------------------------------------------------------------------
+
+    suspend fun listAssetAttachments(accountId: String, assetId: String): NetworkResult<List<Map<String, Any>>> =
+        safeNetworkCall {
+            @Suppress("UNCHECKED_CAST")
+            client.get("$baseUrl/accounts/$accountId/assets/$assetId/attachments")
+                .body<Map<String, Any>>()["photos"] as? List<Map<String, Any>> ?: emptyList()
+        }
+
+    suspend fun listWorkOrderAttachments(accountId: String, woId: String): NetworkResult<List<Map<String, Any>>> =
+        safeNetworkCall {
+            @Suppress("UNCHECKED_CAST")
+            client.get("$baseUrl/accounts/$accountId/work-orders/$woId/attachments")
+                .body<Map<String, Any>>()["photos"] as? List<Map<String, Any>> ?: emptyList()
+        }
+
+    suspend fun getPresignedUploadUrl(accountId: String, request: PresignedUploadRequest): NetworkResult<PresignedUploadResponse> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/attachments/presigned-url") {
+                setBody(request)
+            }.body<PresignedUploadResponse>()
+        }
+
+    suspend fun finalizeFileUpload(accountId: String, fileUploadId: String, fileSizeBytes: Long? = null): NetworkResult<FileUploadResponse> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/attachments/$fileUploadId/finalize") {
+                setBody(mapOf("file_size_bytes" to fileSizeBytes))
+            }.body<Map<String, FileUploadResponse>>()["file_upload"]!!
+        }
+
+    // ---------------------------------------------------------------------------
+    // Recurrence Preview (Change 43)
+    // ---------------------------------------------------------------------------
+
+    suspend fun previewRecurrence(accountId: String, woId: String): NetworkResult<List<String>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/work-orders/$woId/recurrence/preview")
+                .body<Map<String, List<String>>>()["occurrences"] ?: emptyList()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Stocking Levels (Changes 51-52)
+    // ---------------------------------------------------------------------------
+
+    suspend fun listStockingLevels(
+        accountId: String,
+        partId: String? = null,
+        locationId: String? = null,
+    ): NetworkResult<List<StockingLevelResponse>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/stocking-levels") {
+                partId?.let { parameter("part_id", it) }
+                locationId?.let { parameter("location_id", it) }
+            }.body<Map<String, List<StockingLevelResponse>>>()["stocking_levels"] ?: emptyList()
+        }
+
+    suspend fun upsertStockingLevel(
+        accountId: String,
+        request: UpsertStockingLevelRequest,
+    ): NetworkResult<StockingLevelResponse> =
+        safeNetworkCall {
+            client.put("$baseUrl/accounts/$accountId/stocking-levels/upsert") {
+                setBody(request)
+            }.body<StockingLevelResponse>()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Filter Views (Change 54)
+    // ---------------------------------------------------------------------------
+
+    suspend fun listFilterViews(
+        accountId: String,
+        entityType: String? = null,
+    ): NetworkResult<List<SavedFilterViewResponse>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/filter-views") {
+                entityType?.let { parameter("entity_type", it) }
+            }.body<Map<String, List<SavedFilterViewResponse>>>()["filter_views"] ?: emptyList()
+        }
+
+    suspend fun createFilterView(
+        accountId: String,
+        request: CreateFilterViewRequest,
+    ): NetworkResult<SavedFilterViewResponse> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/filter-views") {
+                setBody(request)
+            }.body<SavedFilterViewResponse>()
+        }
+
+    suspend fun deleteFilterView(accountId: String, viewId: String): NetworkResult<Unit> =
+        safeNetworkCall {
+            client.delete("$baseUrl/accounts/$accountId/filter-views/$viewId")
+            Unit
+        }
+
+    // ---------------------------------------------------------------------------
+    // Cost Line Approval + WO Cost Summary (Changes 55-56)
+    // ---------------------------------------------------------------------------
+
+    suspend fun approveCostLine(
+        accountId: String,
+        logId: String,
+        costLineId: String,
+    ): NetworkResult<JsonObject> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/log/$logId/cost-lines/$costLineId/approve")
+                .body<JsonObject>()
+        }
+
+    suspend fun getWoCostSummary(accountId: String, woId: String): NetworkResult<WoCostSummaryResponse> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/work-orders/$woId/costs/summary")
+                .body<WoCostSummaryResponse>()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Assets with Children (Change 60)
+    // ---------------------------------------------------------------------------
+
+    // Change 106: tags filter — pass a list of tags to filter assets (all must match)
+    suspend fun listAssetsWithChildren(
+        accountId: String,
+        maxDepth: Int = 3,
+        tags: List<String>? = null,
+    ): NetworkResult<List<JsonObject>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/assets") {
+                parameter("include_children", "true")
+                parameter("max_depth", maxDepth)
+                tags?.forEach { parameter("tags[]", it) }
+            }.body<Map<String, List<JsonObject>>>()["assets"] ?: emptyList()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Saved Messages (Change 67)
+    // ---------------------------------------------------------------------------
+
+    suspend fun saveMessage(messageId: String, note: String? = null): NetworkResult<ChatMessageSave> =
+        safeNetworkCall {
+            client.post("$baseUrl/chat/messages/$messageId/save") {
+                setBody(SaveMessageRequest(note = note))
+            }.body<Map<String, ChatMessageSave>>()["save"]!!
+        }
+
+    suspend fun unsaveMessage(messageId: String): NetworkResult<Unit> =
+        safeNetworkCall {
+            client.delete("$baseUrl/chat/messages/$messageId/save")
+            Unit
+        }
+
+    suspend fun listSavedMessages(limit: Int = 25, cursor: String? = null): NetworkResult<List<ChatMessageSave>> =
+        safeNetworkCall {
+            client.get("$baseUrl/chat/me/saved") {
+                parameter("limit", limit)
+                if (cursor != null) parameter("cursor", cursor)
+            }.body<Map<String, List<ChatMessageSave>>>()["saves"] ?: emptyList()
+        }
+
+    suspend fun updateSaveNote(messageId: String, note: String?): NetworkResult<ChatMessageSave> =
+        safeNetworkCall {
+            client.patch("$baseUrl/chat/messages/$messageId/save") {
+                setBody(SaveMessageRequest(note = note))
+            }.body<Map<String, ChatMessageSave>>()["save"]!!
+        }
+
+    // ---------------------------------------------------------------------------
+    // Custom User Status (Change 68)
+    // ---------------------------------------------------------------------------
+
+    suspend fun setUserStatus(request: SetStatusRequest): NetworkResult<Unit> =
+        safeNetworkCall {
+            client.put("$baseUrl/chat/me/status") {
+                setBody(request)
+            }
+            Unit
+        }
+
+    suspend fun clearUserStatus(): NetworkResult<Unit> =
+        safeNetworkCall {
+            client.delete("$baseUrl/chat/me/status")
+            Unit
+        }
+
+    suspend fun getUserStatus(userId: String): NetworkResult<ChatUserStatus> =
+        safeNetworkCall {
+            client.get("$baseUrl/chat/users/$userId/status").body<ChatUserStatus>()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Scheduled Messages (Change 69)
+    // ---------------------------------------------------------------------------
+
+    suspend fun listScheduledMessages(accountId: String, threadId: String): NetworkResult<List<ChatScheduledMessage>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/chat/threads/$threadId/scheduled")
+                .body<Map<String, List<ChatScheduledMessage>>>()["scheduled"] ?: emptyList()
+        }
+
+    suspend fun cancelScheduledMessage(accountId: String, scheduledMessageId: String): NetworkResult<Unit> =
+        safeNetworkCall {
+            client.delete("$baseUrl/accounts/$accountId/chat/scheduled-messages/$scheduledMessageId")
+            Unit
+        }
+
+    suspend fun updateScheduledMessage(accountId: String, scheduledMessageId: String, request: UpdateScheduledMessageRequest): NetworkResult<ChatScheduledMessage> =
+        safeNetworkCall {
+            client.patch("$baseUrl/accounts/$accountId/chat/scheduled-messages/$scheduledMessageId") {
+                setBody(request)
+            }.body<Map<String, ChatScheduledMessage>>()["scheduled_message"]!!
+        }
+
+    // ---------------------------------------------------------------------------
+    // Thread Topic and Description (Change 70)
+    // ---------------------------------------------------------------------------
+
+    suspend fun setThreadTopic(threadId: String, topic: String): NetworkResult<Unit> =
+        safeNetworkCall {
+            client.put("$baseUrl/chat/threads/$threadId/topic") {
+                setBody(SetTopicRequest(topic = topic))
+            }
+            Unit
+        }
+
+    suspend fun setThreadDescription(threadId: String, description: String): NetworkResult<Unit> =
+        safeNetworkCall {
+            client.put("$baseUrl/chat/threads/$threadId/description") {
+                setBody(SetDescriptionRequest(description = description))
+            }
+            Unit
+        }
+
+    // ---------------------------------------------------------------------------
+    // Occurrence Skip with reason (Change 72)
+    // ---------------------------------------------------------------------------
+
+    /** POST /accounts/:accountId/occurrences/:occurrenceId/skip */
+    suspend fun skipOccurrence(
+        accountId: String,
+        occurrenceId: String,
+        skipReasonCode: String? = null,
+        skipReason: String? = null,
+    ): NetworkResult<Unit> =
+        safeNetworkCall {
+            val response: HttpResponse =
+                client.post("$baseUrl/accounts/$accountId/occurrences/$occurrenceId/skip") {
+                    setBody(SkipOccurrenceRequest(skip_reason_code = skipReasonCode, skip_reason = skipReason))
+                }
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
+        }
+
+    // ---------------------------------------------------------------------------
+    // Inventory Transactions (Changes 73-74)
+    // ---------------------------------------------------------------------------
+
+    /** POST /accounts/:accountId/inventory-transactions */
+    suspend fun createInventoryTransaction(
+        accountId: String,
+        request: CreateInventoryTransactionRequest,
+    ): NetworkResult<InventoryTransactionResponse> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/inventory-transactions") {
+                setBody(request)
+            }.body()
+        }
+
+    /** POST /accounts/:accountId/inventory-transactions/:transactionId/reverse */
+    suspend fun reverseInventoryTransaction(
+        accountId: String,
+        transactionId: String,
+        request: ReverseTransactionRequest,
+    ): NetworkResult<InventoryTransactionResponse> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/inventory-transactions/$transactionId/reverse") {
+                setBody(request)
+            }.body()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Reorder Suggestions → PO conversion (Change 75)
+    // ---------------------------------------------------------------------------
+
+    /** POST /accounts/:accountId/reorder-suggestions/convert-to-po */
+    suspend fun convertReorderToPO(
+        accountId: String,
+        request: ConvertReorderToPORequest,
+    ): NetworkResult<ConvertReorderToPOResponse> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/reorder-suggestions/convert-to-po") {
+                setBody(request)
+            }.body()
+        }
+
+    // ---------------------------------------------------------------------------
+    // PATCH Purchase Order (Change 76)
+    // ---------------------------------------------------------------------------
+
+    /** PATCH /accounts/:accountId/purchase-orders/:poId */
+    suspend fun patchPurchaseOrder(
+        accountId: String,
+        poId: String,
+        request: PatchPurchaseOrderRequest,
+    ): NetworkResult<PurchaseOrderResponse> =
+        safeNetworkCall {
+            client.patch("$baseUrl/accounts/$accountId/purchase-orders/$poId") {
+                setBody(request)
+            }.body()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Work Order Purchase Orders (Change 77)
+    // ---------------------------------------------------------------------------
+
+    /** GET /accounts/:accountId/work-orders/:woId/purchase-orders */
+    suspend fun getPurchaseOrdersForWorkOrder(
+        accountId: String,
+        woId: String,
+    ): NetworkResult<PurchaseOrdersResponse> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/work-orders/$woId/purchase-orders").body()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Vendor Contacts (Change 79)
+    // ---------------------------------------------------------------------------
+
+    /** GET /accounts/:accountId/vendors/:vendorId/contacts */
+    suspend fun listVendorContacts(
+        accountId: String,
+        vendorId: String,
+    ): NetworkResult<List<VendorContactResponse>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/vendors/$vendorId/contacts")
+                .body<VendorContactsResponse>().contacts
+        }
+
+    /** POST /accounts/:accountId/vendors/:vendorId/contacts */
+    suspend fun createVendorContact(
+        accountId: String,
+        vendorId: String,
+        request: CreateVendorContactRequest,
+    ): NetworkResult<VendorContactResponse> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/vendors/$vendorId/contacts") {
+                setBody(request)
+            }.body()
+        }
+
+    /** PATCH /accounts/:accountId/vendors/:vendorId/contacts/:contactId */
+    suspend fun updateVendorContact(
+        accountId: String,
+        vendorId: String,
+        contactId: String,
+        request: UpdateVendorContactRequest,
+    ): NetworkResult<VendorContactResponse> =
+        safeNetworkCall {
+            client.patch("$baseUrl/accounts/$accountId/vendors/$vendorId/contacts/$contactId") {
+                setBody(request)
+            }.body()
+        }
+
+    /** DELETE /accounts/:accountId/vendors/:vendorId/contacts/:contactId */
+    suspend fun deleteVendorContact(
+        accountId: String,
+        vendorId: String,
+        contactId: String,
+    ): NetworkResult<Unit> =
+        safeNetworkCall {
+            val response: HttpResponse =
+                client.delete("$baseUrl/accounts/$accountId/vendors/$vendorId/contacts/$contactId")
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
+        }
+
+    // ---------------------------------------------------------------------------
+    // KPI Summary (Change 80)
+    // ---------------------------------------------------------------------------
+
+    /** GET /accounts/:accountId/kpi/summary */
+    suspend fun getKpiSummary(
+        accountId: String,
+        from: String? = null,
+        to: String? = null,
+        locationId: String? = null,
+    ): NetworkResult<KpiSummaryResponse> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/kpi/summary") {
+                from?.let { parameter("from", it) }
+                to?.let { parameter("to", it) }
+                locationId?.let { parameter("location_id", it) }
+            }.body()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Bulk Work Order Update (Change 88)
+    // ---------------------------------------------------------------------------
+
+    suspend fun bulkUpdateWorkOrders(accountId: String, request: BulkUpdateWorkOrderRequest): NetworkResult<BulkUpdateResponse> =
+        safeNetworkCall {
+            client.patch("$baseUrl/accounts/$accountId/work-orders/bulk") {
+                setBody(request)
+            }.body<BulkUpdateResponse>()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Team Work Order Queue (Change 84)
+    // ---------------------------------------------------------------------------
+
+    suspend fun listGroupWorkOrders(
+        accountId: String,
+        groupId: String,
+        status: String? = null,
+        priority: String? = null,
+    ): NetworkResult<List<WorkOrderResponse>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/groups/$groupId/work-orders") {
+                if (status != null) parameter("status", status)
+                if (priority != null) parameter("priority", priority)
+            }.body<Map<String, List<WorkOrderResponse>>>()["work_orders"] ?: emptyList()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Report CSV Export (Change 81)
+    // ---------------------------------------------------------------------------
+
+    fun getReportCsvUrl(accountId: String, reportKey: String, params: Map<String, String> = emptyMap()): String {
+        val qs = (params + mapOf("format" to "csv")).entries.joinToString("&") { "${it.key}=${it.value}" }
+        return "$baseUrl/accounts/$accountId/reports/$reportKey?$qs"
+    }
+
+    // ---------------------------------------------------------------------------
+    // Cycle Count Date Filters (Change 90)
+    // ---------------------------------------------------------------------------
+
+    suspend fun listCycleCountsFiltered(
+        accountId: String,
+        status: String? = null,
+        dueBefore: String? = null,
+        dueAfter: String? = null,
+        limit: Int? = null,
+    ): NetworkResult<List<CycleCountResponse>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/cycle-counts") {
+                if (status != null) parameter("status", status)
+                if (dueBefore != null) parameter("due_before", dueBefore)
+                if (dueAfter != null) parameter("due_after", dueAfter)
+                if (limit != null) parameter("limit", limit)
+            }.body<Map<String, List<CycleCountResponse>>>()["cycle_counts"] ?: emptyList()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Chat Message Templates (Change 102)
+    // ---------------------------------------------------------------------------
+
+    suspend fun listPersonalTemplates(): NetworkResult<List<ChatMessageTemplate>> =
+        safeNetworkCall {
+            client.get("$baseUrl/chat/me/templates")
+                .body<Map<String, List<ChatMessageTemplate>>>()["templates"] ?: emptyList()
+        }
+
+    suspend fun createPersonalTemplate(request: CreateTemplateRequest): NetworkResult<ChatMessageTemplate> =
+        safeNetworkCall {
+            client.post("$baseUrl/chat/me/templates") {
+                setBody(request)
+            }.body<Map<String, ChatMessageTemplate>>()["template"]!!
+        }
+
+    suspend fun updatePersonalTemplate(templateId: String, request: CreateTemplateRequest): NetworkResult<ChatMessageTemplate> =
+        safeNetworkCall {
+            client.put("$baseUrl/chat/me/templates/$templateId") {
+                setBody(request)
+            }.body<Map<String, ChatMessageTemplate>>()["template"]!!
+        }
+
+    suspend fun deletePersonalTemplate(templateId: String): NetworkResult<Unit> =
+        safeNetworkCall {
+            client.delete("$baseUrl/chat/me/templates/$templateId")
+            Unit
+        }
+
+    suspend fun listAccountTemplates(accountId: String): NetworkResult<List<ChatMessageTemplate>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/chat/templates")
+                .body<Map<String, List<ChatMessageTemplate>>>()["templates"] ?: emptyList()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Chat Slash Commands (Change 103)
+    // ---------------------------------------------------------------------------
+
+    suspend fun executeSlashCommand(request: SlashCommandRequest): NetworkResult<Map<String, Any>> =
+        safeNetworkCall {
+            @Suppress("UNCHECKED_CAST")
+            client.post("$baseUrl/chat/commands") {
+                setBody(request)
+            }.body<Map<String, Any>>()["result"] as? Map<String, Any> ?: emptyMap()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Chat Webhooks (Change 104)
+    // ---------------------------------------------------------------------------
+
+    suspend fun listChatWebhooks(accountId: String): NetworkResult<List<ChatWebhook>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/chat/webhooks")
+                .body<Map<String, List<ChatWebhook>>>()["webhooks"] ?: emptyList()
+        }
+
+    suspend fun createChatWebhook(accountId: String, request: CreateWebhookRequest): NetworkResult<CreateWebhookResponse> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/chat/webhooks") {
+                setBody(request)
+            }.body<CreateWebhookResponse>()
+        }
+
+    suspend fun deleteChatWebhook(accountId: String, webhookId: String): NetworkResult<Unit> =
+        safeNetworkCall {
+            client.delete("$baseUrl/accounts/$accountId/chat/webhooks/$webhookId")
+            Unit
+        }
+
+    // ---------------------------------------------------------------------------
+    // WO Template Copy (Change 109)
+    // ---------------------------------------------------------------------------
+
+    suspend fun copyWorkOrderTemplate(accountId: String, templateId: String, title: String? = null): NetworkResult<Map<String, Any>> =
+        safeNetworkCall {
+            @Suppress("UNCHECKED_CAST")
+            client.post("$baseUrl/accounts/$accountId/wo-templates/$templateId/copy") {
+                setBody(CopyTemplateRequest(title = title))
+            }.body<Map<String, Any>>()["template"] as? Map<String, Any> ?: emptyMap()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Cycle Count Generation (Change 107)
+    // ---------------------------------------------------------------------------
+
+    suspend fun generateCycleCounts(accountId: String, request: GenerateCycleCountsRequest): NetworkResult<Map<String, Any>> =
+        safeNetworkCall {
+            @Suppress("UNCHECKED_CAST")
+            client.post("$baseUrl/accounts/$accountId/cycle-counts/generate") {
+                setBody(request)
+            }.body<Map<String, Any>>()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Sync Conflict Review (Change 110)
+    // ---------------------------------------------------------------------------
+
+    suspend fun listSyncConflicts(accountId: String, page: Int = 0): NetworkResult<List<SyncConflict>> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/sync/conflicts") {
+                setBody(mapOf("mode" to "list", "page" to page))
+            }.body<Map<String, List<SyncConflict>>>()["conflicts"] ?: emptyList()
+        }
+
+    suspend fun resolveSyncConflicts(accountId: String, conflictIds: List<String>, resolution: String): NetworkResult<Int> =
+        safeNetworkCall {
+            val res = client.post("$baseUrl/accounts/$accountId/sync/conflicts") {
+                setBody(mapOf("mode" to "resolve", "conflict_ids" to conflictIds, "resolution" to resolution))
+            }.body<Map<String, Any>>()
+            (res["resolved_count"] as? Number)?.toInt() ?: 0
+        }
+
+    // ---------------------------------------------------------------------------
+    // Cycle Count Lines (Change 91)
+    // ---------------------------------------------------------------------------
+
+    /** GET /accounts/:accountId/cycle-counts/:countId/lines */
+    suspend fun listCycleCountLines(
+        accountId: String,
+        countId: String,
+        varianceOnly: Boolean? = null,
+        minValue: Double? = null,
+    ): NetworkResult<List<CycleCountLineResponse>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/cycle-counts/$countId/lines") {
+                if (varianceOnly != null) parameter("variance_only", varianceOnly)
+                if (minValue != null) parameter("min_value", minValue)
+            }.body<Map<String, List<CycleCountLineResponse>>>()["lines"] ?: emptyList()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Categories (Changes 93+94)
+    // ---------------------------------------------------------------------------
+
+    /** GET /accounts/:accountId/categories */
+    suspend fun listCategories(
+        accountId: String,
+        includeTree: Boolean? = null,
+    ): NetworkResult<List<CategoryResponse>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/categories") {
+                if (includeTree != null) parameter("include_tree", includeTree)
+            }.body<Map<String, List<CategoryResponse>>>()["categories"] ?: emptyList()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Approval Delegation (Change 95)
+    // ---------------------------------------------------------------------------
+
+    /** POST /accounts/:accountId/approval-requests/:requestId/delegate */
+    suspend fun delegateApproval(
+        accountId: String,
+        requestId: String,
+        request: DelegateApprovalRequest,
+    ): NetworkResult<ApprovalResponse> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/approval-requests/$requestId/delegate") {
+                setBody(request)
+            }.body<ApprovalResponse>()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Work Order Cost Approvals (Change 98)
+    // ---------------------------------------------------------------------------
+
+    /** POST /accounts/:accountId/work-orders/:woId/costs/approve */
+    suspend fun approveWoCosts(
+        accountId: String,
+        woId: String,
+        request: ApproveCostsRequest,
+    ): NetworkResult<WoCostApproval> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/work-orders/$woId/costs/approve") {
+                setBody(request)
+            }.body<WoCostApproval>()
+        }
+
+    // ---------------------------------------------------------------------------
+    // PO Comments (Change 100)
+    // ---------------------------------------------------------------------------
+
+    /** GET /accounts/:accountId/purchase-orders/:poId/comments */
+    suspend fun listPoComments(
+        accountId: String,
+        poId: String,
+        cursor: String? = null,
+        limit: Int? = null,
+    ): NetworkResult<PoCommentsResponse> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/purchase-orders/$poId/comments") {
+                if (cursor != null) parameter("cursor", cursor)
+                if (limit != null) parameter("limit", limit)
+            }.body<PoCommentsResponse>()
+        }
+
+    /** POST /accounts/:accountId/purchase-orders/:poId/comments */
+    suspend fun createPoComment(
+        accountId: String,
+        poId: String,
+        content: String,
+    ): NetworkResult<PoCommentResponse> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/purchase-orders/$poId/comments") {
+                setBody(CreatePoCommentRequest(content = content))
+            }.body<PoCommentResponse>()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Organizations (Change 112)
+    // ---------------------------------------------------------------------------
+
+    suspend fun listOrganizations(): NetworkResult<List<OrganizationResponse>> =
+        safeNetworkCall {
+            client.get("$baseUrl/organizations")
+                .body<Map<String, List<OrganizationResponse>>>()["organizations"] ?: emptyList()
+        }
+
+    suspend fun getOrgSummary(orgId: String, from: String? = null, to: String? = null): NetworkResult<OrgSummaryResponse> =
+        safeNetworkCall {
+            client.get("$baseUrl/organizations/$orgId/summary") {
+                from?.let { parameter("from", it) }
+                to?.let { parameter("to", it) }
+            }.body<OrgSummaryResponse>()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Request Portals (Change 113)
+    // ---------------------------------------------------------------------------
+
+    suspend fun createRequestPortal(accountId: String, request: CreatePortalRequest): NetworkResult<Map<String, Any>> =
+        safeNetworkCall {
+            @Suppress("UNCHECKED_CAST")
+            client.post("$baseUrl/accounts/$accountId/request-portals") {
+                setBody(request)
+            }.body<Map<String, Any>>()
+        }
+
+    suspend fun submitPortal(portalToken: String, request: PortalSubmissionRequest): NetworkResult<Map<String, Any>> =
+        safeNetworkCall {
+            @Suppress("UNCHECKED_CAST")
+            client.post("$baseUrl/request-portals/$portalToken/submissions") {
+                setBody(request)
+            }.body<Map<String, Any>>()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Sync Checkpoint (Change 114)
+    // ---------------------------------------------------------------------------
+
+    suspend fun getSyncCheckpoint(accountId: String, deviceId: String): NetworkResult<SyncCheckpointResponse> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/sync/checkpoint") {
+                headers { append("X-Device-Id", deviceId) }
+            }.body<SyncCheckpointResponse>()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Work Request Portals (Change 116)
+    // ---------------------------------------------------------------------------
+
+    suspend fun listWorkRequestPortals(accountId: String): NetworkResult<List<WorkRequestPortalResponse>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/work-request-portals")
+                .body<Map<String, List<WorkRequestPortalResponse>>>()["portals"] ?: emptyList()
+        }
+
+    suspend fun createWorkRequestPortal(accountId: String, request: CreateWorkRequestPortalRequest): NetworkResult<WorkRequestPortalResponse> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/work-request-portals") {
+                setBody(request)
+            }.body<Map<String, WorkRequestPortalResponse>>()["portal"]!!
+        }
+
+    suspend fun updateWorkRequestPortal(accountId: String, portalId: String, updates: Map<String, Any>): NetworkResult<WorkRequestPortalResponse> =
+        safeNetworkCall {
+            client.patch("$baseUrl/accounts/$accountId/work-request-portals/$portalId") {
+                setBody(updates)
+            }.body<Map<String, WorkRequestPortalResponse>>()["portal"]!!
+        }
+
+    suspend fun deleteWorkRequestPortal(accountId: String, portalId: String): NetworkResult<Unit> =
+        safeNetworkCall {
+            client.delete("$baseUrl/accounts/$accountId/work-request-portals/$portalId")
+            Unit
+        }
+
+    // ---------------------------------------------------------------------------
+    // Chat Link Preview (Change 119)
+    // ---------------------------------------------------------------------------
+
+    suspend fun getChatLinkPreview(url: String): NetworkResult<Map<String, Any>> =
+        safeNetworkCall {
+            @Suppress("UNCHECKED_CAST")
+            client.get("$baseUrl/chat/link-preview") {
+                parameter("url", url)
+            }.body<Map<String, Any>>()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Asset Location History with GPS + Pagination (Changes 131+132+134)
+    // ---------------------------------------------------------------------------
+
+    suspend fun getAssetLocationHistory(
+        accountId: String,
+        assetId:   String,
+        from:      String? = null,
+        to:        String? = null,
+        page:      Int? = null,
+        pageSize:  Int? = null,
+    ): NetworkResult<Map<String, Any>> =
+        safeNetworkCall {
+            @Suppress("UNCHECKED_CAST")
+            client.get("$baseUrl/accounts/$accountId/assets/$assetId/location-history") {
+                from?.let     { parameter("from",      it) }
+                to?.let       { parameter("to",        it) }
+                page?.let     { parameter("page",      it) }
+                pageSize?.let { parameter("page_size", it) }
+            }.body<Map<String, Any>>()
+        }
+
+    // ---------------------------------------------------------------------------
+    // QR Batch Generation (Change 133)
+    // ---------------------------------------------------------------------------
+
+    suspend fun generateQrBatch(
+        accountId:        String,
+        assetIds:         List<String>,
+        format:           String? = null,
+        pageSize:         String? = null,
+        includeAssetName: Boolean? = null,
+    ): NetworkResult<Map<String, Any>> =
+        safeNetworkCall {
+            @Suppress("UNCHECKED_CAST")
+            client.post("$baseUrl/accounts/$accountId/assets/qr-tokens/batch") {
+                contentType(io.ktor.http.ContentType.Application.Json)
+                setBody(buildMap<String, Any?> {
+                    put("asset_ids", assetIds)
+                    format?.let           { put("format", it) }
+                    pageSize?.let         { put("page_size", it) }
+                    includeAssetName?.let { put("include_asset_name", it) }
+                })
+            }.body<Map<String, Any>>()
+        }
+
+    // ---------------------------------------------------------------------------
+    // QR Scan History (Change 135)
+    // ---------------------------------------------------------------------------
+
+    suspend fun getAssetQrScans(
+        accountId: String,
+        assetId:   String,
+        from:      String? = null,
+        to:        String? = null,
+        page:      Int? = null,
+        pageSize:  Int? = null,
+    ): NetworkResult<Map<String, Any>> =
+        safeNetworkCall {
+            @Suppress("UNCHECKED_CAST")
+            client.get("$baseUrl/accounts/$accountId/assets/$assetId/qr-scans") {
+                from?.let     { parameter("from",      it) }
+                to?.let       { parameter("to",        it) }
+                page?.let     { parameter("page",      it) }
+                pageSize?.let { parameter("page_size", it) }
+            }.body<Map<String, Any>>()
+        }
+
+    // ---------------------------------------------------------------------------
+    // AI Thread Summary Stub (Change 136)
+    // ---------------------------------------------------------------------------
+
+    suspend fun getThreadSummary(threadId: String): NetworkResult<Map<String, Any>> =
+        safeNetworkCall {
+            @Suppress("UNCHECKED_CAST")
+            client.post("$baseUrl/chat/threads/$threadId/summary")
+                .body<Map<String, Any>>()
+        }
+
+    // ---------------------------------------------------------------------------
+    // QBO Targeted Re-sync (Change 138)
+    // ---------------------------------------------------------------------------
+
+    suspend fun resyncQboEntity(
+        accountId:  String,
+        entityType: String,
+        entityId:   String,
+        force:      Boolean? = null,
+        reason:     String? = null,
+    ): NetworkResult<Map<String, Any>> =
+        safeNetworkCall {
+            @Suppress("UNCHECKED_CAST")
+            client.post("$baseUrl/accounts/$accountId/integrations/qbo/sync/$entityType/$entityId") {
+                contentType(io.ktor.http.ContentType.Application.Json)
+                setBody(buildMap<String, Any?> {
+                    force?.let  { put("force",  it) }
+                    reason?.let { put("reason", it) }
+                })
+            }.body<Map<String, Any>>()
+        }
+
+    // ---------------------------------------------------------------------------
+    // QBO Sync Directions (Change 139)
+    // ---------------------------------------------------------------------------
+
+    suspend fun getQboSyncDirections(accountId: String): NetworkResult<Map<String, Any>> =
+        safeNetworkCall {
+            @Suppress("UNCHECKED_CAST")
+            client.get("$baseUrl/accounts/$accountId/integrations/qbo/sync-directions")
+                .body<Map<String, Any>>()
+        }
+
+    suspend fun putQboSyncDirections(
+        accountId:        String,
+        entityDirections: List<Map<String, String>>,
+    ): NetworkResult<Map<String, Any>> =
+        safeNetworkCall {
+            @Suppress("UNCHECKED_CAST")
+            client.put("$baseUrl/accounts/$accountId/integrations/qbo/sync-directions") {
+                contentType(io.ktor.http.ContentType.Application.Json)
+                setBody(mapOf("entity_directions" to entityDirections))
+            }.body<Map<String, Any>>()
+        }
+
+    // ---------------------------------------------------------------------------
+    // GL Mapping Rules (Change 140)
+    // ---------------------------------------------------------------------------
+
+    suspend fun listGlMappingRules(accountId: String): NetworkResult<Map<String, Any>> =
+        safeNetworkCall {
+            @Suppress("UNCHECKED_CAST")
+            client.get("$baseUrl/accounts/$accountId/gl-accounts/mapping-rules")
+                .body<Map<String, Any>>()
+        }
+
+    suspend fun createGlMappingRule(
+        accountId:   String,
+        name:        String,
+        conditions:  List<Map<String, Any>>,
+        glAccountId: String,
+        priority:    Int? = null,
+        enabled:     Boolean? = null,
+    ): NetworkResult<Map<String, Any>> =
+        safeNetworkCall {
+            @Suppress("UNCHECKED_CAST")
+            client.post("$baseUrl/accounts/$accountId/gl-accounts/mapping-rules") {
+                contentType(io.ktor.http.ContentType.Application.Json)
+                setBody(buildMap<String, Any?> {
+                    put("name", name)
+                    put("conditions", conditions)
+                    put("gl_account_id", glAccountId)
+                    priority?.let { put("priority", it) }
+                    enabled?.let  { put("enabled",  it) }
+                })
+            }.body<Map<String, Any>>()
+        }
+
+    suspend fun deleteGlMappingRule(
+        accountId: String,
+        ruleId:    String,
+    ): NetworkResult<Unit> =
+        safeNetworkCall {
+            client.delete("$baseUrl/accounts/$accountId/gl-accounts/mapping-rules/$ruleId")
+            Unit
+        }
 }
 
 class NetworkException(
