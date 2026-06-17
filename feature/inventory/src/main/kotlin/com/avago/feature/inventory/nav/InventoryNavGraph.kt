@@ -24,6 +24,11 @@ import com.avago.feature.inventory.ui.LabelScannerScreen
 import com.avago.feature.inventory.vendors.AddEditVendorScreen
 import com.avago.feature.inventory.vendors.VendorDetailScreen
 import com.avago.feature.inventory.vendors.VendorListScreen
+import com.avago.feature.inventory.bins.BinDetailScreen
+import com.avago.feature.inventory.bins.BinListScreen
+import com.avago.feature.inventory.partissues.PartIssueDetailScreen
+import com.avago.feature.inventory.partissues.PartIssueListScreen
+import com.avago.feature.inventory.transfers.PartTransferRequestListScreen
 import com.avago.feature.inventory.warehouse.WarehouseIssueScreen
 import com.avago.feature.inventory.warehouse.WarehouseMenuScreen
 import com.avago.feature.inventory.warehouse.WarehouseMoveScreen
@@ -86,6 +91,20 @@ sealed class InventoryRoute(val route: String) {
     }
 
     object LabelScanner : InventoryRoute("inventory/label-scanner")
+
+    object BinList : InventoryRoute("inventory/bins")
+
+    object BinDetail : InventoryRoute("inventory/bins/{binId}") {
+        fun build(binId: String) = "inventory/bins/$binId"
+    }
+
+    object PartIssueList : InventoryRoute("inventory/part-issues")
+
+    object PartIssueDetail : InventoryRoute("inventory/part-issues/{issueId}") {
+        fun build(issueId: String) = "inventory/part-issues/$issueId"
+    }
+
+    object PartTransferRequestList : InventoryRoute("inventory/transfer-requests")
 
     object InventoryPicker : InventoryRoute("inventory/picker")
 
@@ -222,6 +241,9 @@ fun NavGraphBuilder.inventoryNavGraph(navController: NavHostController) {
                 onReorder = { navController.navigate(InventoryRoute.WarehouseReorder.route) },
                 onGrnList = { navController.navigate(InventoryRoute.GrnList.route) },
                 onStockingLevels = { navController.navigate(InventoryRoute.StockingLevels.route) },
+                onBins = { navController.navigate(InventoryRoute.BinList.route) },
+                onPartIssues = { navController.navigate(InventoryRoute.PartIssueList.route) },
+                onTransferRequests = { navController.navigate(InventoryRoute.PartTransferRequestList.route) },
             )
         }
         composable(InventoryRoute.WarehouseReceive.route) {
@@ -276,6 +298,49 @@ fun NavGraphBuilder.inventoryNavGraph(navController: NavHostController) {
             val cycleCountId = back.arguments?.getString("cycleCountId") ?: return@composable
             CycleCountFloorScreen(
                 cycleCountId = cycleCountId,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        // Bins
+        composable(InventoryRoute.BinList.route) {
+            BinListScreen(
+                onBinClick = { binId -> navController.navigate(InventoryRoute.BinDetail.build(binId)) },
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable(
+            route = InventoryRoute.BinDetail.route,
+            arguments = listOf(navArgument("binId") { type = NavType.StringType }),
+        ) { back ->
+            val binId = back.arguments?.getString("binId") ?: return@composable
+            BinDetailScreen(
+                binId = binId,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        // Part Issues (issue history)
+        composable(InventoryRoute.PartIssueList.route) {
+            PartIssueListScreen(
+                onIssueClick = { issueId -> navController.navigate(InventoryRoute.PartIssueDetail.build(issueId)) },
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable(
+            route = InventoryRoute.PartIssueDetail.route,
+            arguments = listOf(navArgument("issueId") { type = NavType.StringType }),
+        ) { back ->
+            val issueId = back.arguments?.getString("issueId") ?: return@composable
+            PartIssueDetailScreen(
+                issueId = issueId,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        // Part Transfer Requests
+        composable(InventoryRoute.PartTransferRequestList.route) {
+            PartTransferRequestListScreen(
                 onBack = { navController.popBackStack() },
             )
         }

@@ -24,6 +24,6 @@ interface BinDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(entities: List<BinEntity>)
 
-    @Query("DELETE FROM bins WHERE bin_id = :id")
-    suspend fun softDelete(id: String)
+    @Query("UPDATE bins SET deleted_at = :now, updated_at = :now WHERE bin_id = :id")
+    suspend fun softDelete(id: String, now: Long)
 }

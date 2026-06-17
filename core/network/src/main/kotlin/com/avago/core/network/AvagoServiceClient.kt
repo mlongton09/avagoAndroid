@@ -3408,6 +3408,30 @@ class AvagoServiceClient @Inject constructor(
         safeNetworkCall {
             client.get("$baseUrl/accounts/$accountId/reports/kpis").body()
         }
+
+    // ---------------------------------------------------------------------------
+    // Part Transfer Requests
+    // ---------------------------------------------------------------------------
+
+    suspend fun createPartTransferRequest(
+        accountId: String,
+        request: CreatePartTransferRequestBody,
+    ): NetworkResult<PartTransferRequestResponse> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/part-transfer-requests") {
+                setBody(request)
+            }.body()
+        }
+
+    suspend fun approvePartTransferRequest(accountId: String, requestId: String): NetworkResult<Unit> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/part-transfer-requests/$requestId/approve").body()
+        }
+
+    suspend fun rejectPartTransferRequest(accountId: String, requestId: String): NetworkResult<Unit> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/part-transfer-requests/$requestId/reject").body()
+        }
 }
 
 class NetworkException(

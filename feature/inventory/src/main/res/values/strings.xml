@@ -339,6 +339,62 @@
     <string name="inv_cat_body_panels">Body Panels</string>
     <string name="inv_cat_other">Other</string>
 
+    <!-- Bins -->
+    <string name="bins_list_title">Bins</string>
+    <string name="bins_detail_title">Bin</string>
+    <string name="bins_not_found">Bin not found</string>
+    <string name="bins_empty">No bins found</string>
+    <string name="bins_filter_all">All Locations</string>
+    <string name="bins_inactive">Inactive</string>
+    <string name="bins_units">units</string>
+    <string name="bins_yes">Yes</string>
+    <string name="bins_no">No</string>
+    <string name="bins_capacity_section">Capacity</string>
+    <string name="bins_field_name">Name</string>
+    <string name="bins_field_location">Location</string>
+    <string name="bins_field_code">Code</string>
+    <string name="bins_field_barcode">Barcode</string>
+    <string name="bins_field_aisle">Aisle</string>
+    <string name="bins_field_shelf">Shelf</string>
+    <string name="bins_field_slot">Slot</string>
+    <string name="bins_field_type">Bin Type</string>
+    <string name="bins_field_active">Active</string>
+
+    <!-- Part Issues -->
+    <string name="part_issues_title">Issue History</string>
+    <string name="part_issue_detail_title">Issue Detail</string>
+    <string name="part_issues_not_found">Issue not found</string>
+    <string name="part_issues_empty">No issues found</string>
+    <string name="part_issues_filter_all">All</string>
+    <string name="part_issues_filter_issue">Issues</string>
+    <string name="part_issues_filter_transfer">Transfers</string>
+    <string name="part_issues_type_issue">Issue</string>
+    <string name="part_issues_type_transfer">Transfer</string>
+    <string name="part_issue_field_reference">Reference</string>
+    <string name="part_issue_field_from_location">From Location</string>
+    <string name="part_issue_field_to_location">To Location</string>
+    <string name="part_issue_field_location">Location</string>
+    <string name="part_issue_field_notes">Notes</string>
+    <string name="part_issue_lines_section">Lines</string>
+    <string name="part_issue_no_lines">No line items</string>
+
+    <!-- Part Transfer Requests -->
+    <string name="transfer_requests_title">Transfer Requests</string>
+    <string name="transfer_requests_create">New Transfer Request</string>
+    <string name="transfer_requests_submit">Submit Request</string>
+    <string name="transfer_requests_empty">No transfer requests</string>
+    <string name="transfer_filter_all">All</string>
+    <string name="transfer_field_from_location">From Location</string>
+    <string name="transfer_field_to_location">To Location</string>
+
+    <!-- Warehouse menu additions -->
+    <string name="warehouse_bins_card">Bins</string>
+    <string name="warehouse_bins_card_desc">Browse and manage storage bins</string>
+    <string name="warehouse_part_issues_card">Issue History</string>
+    <string name="warehouse_part_issues_card_desc">View all part issues and transfers</string>
+    <string name="warehouse_transfer_requests_card">Transfer Requests</string>
+    <string name="warehouse_transfer_requests_card_desc">Request inter-location part moves with approval</string>
+
     <!-- Common -->
     <string name="common_back">Back</string>
     <string name="common_save">Save</string>

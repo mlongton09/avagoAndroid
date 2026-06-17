@@ -14,6 +14,9 @@ interface PartIssueLineDao {
     @Query("SELECT pil.* FROM part_issue_lines pil INNER JOIN part_issues pi ON pil.issue_id = pi.issue_id WHERE pi.account_id = :accountId")
     fun observeAll(accountId: String): Flow<List<PartIssueLineEntity>>
 
+    @Query("SELECT * FROM part_issue_lines WHERE issue_id = :issueId")
+    fun observeByIssueId(issueId: String): Flow<List<PartIssueLineEntity>>
+
     @Query("SELECT * FROM part_issue_lines WHERE line_id = :id")
     suspend fun getById(id: String): PartIssueLineEntity?
 

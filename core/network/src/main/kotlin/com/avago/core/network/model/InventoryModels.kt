@@ -268,6 +268,21 @@ data class PartBinLocationsResponse(
 )
 
 @Serializable
+data class CreatePartTransferRequestBody(
+    val part_id: String,
+    val quantity: Double,
+    val from_location_id: String? = null,
+    val to_location_id: String? = null,
+    val notes: String? = null,
+)
+
+@Serializable
+data class PartTransferRequestResponse(
+    val request_id: String,
+    val status: String,
+)
+
+@Serializable
 data class ReorderSuggestionResponse(
     val suggestion_id: String,
     val part_id: String,
