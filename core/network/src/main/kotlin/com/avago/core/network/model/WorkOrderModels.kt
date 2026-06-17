@@ -55,6 +55,18 @@ data class WorkOrderResponse(
     val created_at: Long = 0,
     val updated_at: Long = 0,
     val assigned_group_id: String? = null,
+    val root_cause: String? = null,
+    val failure_mode: String? = null,
+    val completed_at: String? = null,
+    val labor_cost: Double? = null,
+    val parts_cost: Double? = null,
+    val total_cost: Double? = null,
+    val estimated_cost: Double? = null,
+    val rrule: String? = null,
+    val description: String? = null,
+    val due_date: String? = null,
+    val category: String? = null,
+    val assigned_to: String? = null,
 )
 
 @Serializable

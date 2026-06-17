@@ -679,6 +679,19 @@ class WorkOrderDetailViewModel @Inject constructor(
     // Delete WO
     // ---------------------------------------------------------------------------
 
+    fun skipOccurrence(reason: String, onSkipped: () -> Unit) {
+        val accountId = _accountId.value ?: return
+        viewModelScope.launch {
+            try {
+                serviceClient.skipOccurrence(accountId, woId, reason)
+                onSkipped()
+            } catch (e: Exception) {
+                Timber.e(e, "[WoDetailVM] skipOccurrence failed")
+                _error.value = "Failed to skip occurrence: ${e.message}"
+            }
+        }
+    }
+
     fun deleteWorkOrder(onDeleted: () -> Unit) {
         val accountId = _accountId.value ?: return
         viewModelScope.launch {

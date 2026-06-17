@@ -7,6 +7,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
 import androidx.navigation.navArgument
 import com.avago.feature.schedule.ui.AddEditScheduleScreen
+import com.avago.feature.schedule.ui.PmPlansScreen
 import com.avago.feature.schedule.ui.ScheduleDetailScreen
 import com.avago.feature.schedule.ui.ScheduleListScreen
 
@@ -39,7 +40,12 @@ object ScheduleRoute {
     /** Full-account PM calendar. */
     const val CALENDAR = "schedule/calendar"
 
+    /** PM Plans for a specific asset. */
+    const val PM_PLANS = "schedule/pm-plans/{assetId}"
+
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    fun pmPlans(assetId: String) = "schedule/pm-plans/$assetId"
 
     fun assetSchedules(assetId: String) = "schedule/asset/$assetId"
 
@@ -124,6 +130,22 @@ fun NavGraphBuilder.scheduleNavGraph(
                     navController.navigate(ScheduleRoute.addEdit(scheduleId = id))
                 },
                 onCompleteService = onNavigateToAddLogEntry,
+            )
+        }
+
+        // ── PM Plans (asset-scoped) ───────────────────────────────────────────
+        composable(
+            route = ScheduleRoute.PM_PLANS,
+            arguments = listOf(
+                navArgument("assetId") { type = NavType.StringType },
+            ),
+        ) { backStackEntry ->
+            val assetId = requireNotNull(backStackEntry.arguments?.getString("assetId"))
+            PmPlansScreen(
+                assetId = assetId,
+                onBack = { navController.popBackStack() },
+                onCreatePlan = { id -> navController.navigate(ScheduleRoute.pmPlans(id)) },
+                onEditPlan = { /* edit handled inline via bottom sheet in PmPlansScreen */ },
             )
         }
 

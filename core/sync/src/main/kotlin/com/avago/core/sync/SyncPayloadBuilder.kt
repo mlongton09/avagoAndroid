@@ -61,6 +61,14 @@ class SyncPayloadBuilder @Inject constructor(
                         e.usefulLifeMonths?.let { put("useful_life_months", it) }
                         e.depreciationMethod?.let { put("depreciation_method", it) }
                         e.placedInServiceDate?.let { put("placed_in_service_date", msToDateOnly(it)) }
+                        // Change 10/31/61
+                        e.currentStatus?.let { put("current_status", it) }
+                        e.downtimeType?.let { put("downtime_type", it) }
+                        e.customStatusId?.let { put("custom_status_id", it) }
+                        e.criticalityId?.let { put("criticality_id", it) }
+                        e.globalUuid?.let { put("global_uuid", it) }
+                        // Change 22
+                        e.customFields?.let { put("custom_fields", it) }
                         put("created_at", msToIso(e.createdAt))
                         put("updated_at", msToIso(e.updatedAt))
                         e.deletedAt?.let { put("deleted_at", msToIso(it)) }
@@ -179,6 +187,13 @@ class SyncPayloadBuilder @Inject constructor(
                         e.scheduleId?.let { put("schedule_id", it) }
                         e.lastCompletedAt?.let { put("last_completed_at", msToIso(it)) }
                         e.timezone?.let { put("timezone", it) }
+                        // Change 15/19/21/22/83
+                        e.childWoCount?.let { put("child_wo_count", it) }
+                        e.childWoIds?.let { put("child_wo_ids", it) }
+                        e.procedureTemplateId?.let { put("procedure_template_id", it) }
+                        e.permitStatusSummary?.let { put("permit_status_summary", it) }
+                        e.customFields?.let { put("custom_fields", it) }
+                        e.assignedTeamId?.let { put("assigned_team_id", it) }
                         put("created_at", msToIso(e.createdAt))
                         put("updated_at", msToIso(e.updatedAt))
                         e.deletedAt?.let { put("deleted_at", msToIso(it)) }
@@ -199,6 +214,12 @@ class SyncPayloadBuilder @Inject constructor(
                         e.scheduledEnd?.let { put("scheduled_end", msToIso(it)) }
                         put("status", e.status)
                         e.notes?.let { put("notes", it) }
+                        // Change 8/29/64
+                        e.role?.let { put("role", it) }
+                        e.estimatedHours?.let { put("estimated_hours", it) }
+                        e.actualHours?.let { put("actual_hours", it) }
+                        e.createdById?.let { put("created_by_id", it) }
+                        e.updatedById?.let { put("updated_by_id", it) }
                     }
                 }
 
@@ -211,6 +232,16 @@ class SyncPayloadBuilder @Inject constructor(
                         put("is_completed", e.isCompleted)
                         e.completedAt?.let { put("completed_at", msToIso(it)) }
                         put("display_order", e.displayOrder)
+                        // Change 19/42/64
+                        e.rowType?.let { put("row_type", it) }
+                        e.rowDescription?.let { put("row_description", it) }
+                        e.urlsJson?.let { put("urls_json", it) }
+                        e.response?.let { put("response", it) }
+                        e.notes?.let { put("notes", it) }
+                        e.passFail?.let { put("pass_fail", it) }
+                        e.signatureUrl?.let { put("signature_url", it) }
+                        e.createdById?.let { put("created_by_id", it) }
+                        e.updatedById?.let { put("updated_by_id", it) }
                     }
                 }
 
@@ -221,6 +252,12 @@ class SyncPayloadBuilder @Inject constructor(
                         put("wo_id", e.woId)
                         put("author_id", e.authorId)
                         put("body", e.body)
+                        // Change 1/5/14/64
+                        e.mentionedUserIds?.let { put("mentioned_user_ids", it) }
+                        put("is_internal", e.isInternal)
+                        e.commentType?.let { put("comment_type", it) }
+                        e.createdById?.let { put("created_by_id", it) }
+                        e.updatedById?.let { put("updated_by_id", it) }
                         put("created_at", msToIso(e.createdAt))
                         put("updated_at", msToIso(e.updatedAt))
                         e.deletedAt?.let { put("deleted_at", msToIso(it)) }
@@ -294,6 +331,12 @@ class SyncPayloadBuilder @Inject constructor(
                         e.baseAmount?.let { put("base_amount", it) }
                         e.exchangeRateUsed?.let { put("exchange_rate_used", it) }
                         e.attributes?.let { put("attributes", it) }
+                        // Change 22/108/150
+                        e.customFields?.let { put("custom_fields", it) }
+                        e.abcClass?.let { put("abc_class", it) }
+                        e.committedReservedQuantity?.let { put("committed_reserved_quantity", it) }
+                        e.committedInProgressQuantity?.let { put("committed_in_progress_quantity", it) }
+                        e.committedCompletedQuantity?.let { put("committed_completed_quantity", it) }
                         put("created_at", msToIso(e.createdAt))
                         put("updated_at", msToIso(e.updatedAt))
                         e.deletedAt?.let { put("deleted_at", msToIso(it)) }
@@ -429,26 +472,6 @@ class SyncPayloadBuilder @Inject constructor(
                         e.notes?.let { put("notes", it) }
                         put("created_at", msToIso(e.createdAt))
                         put("updated_at", msToIso(e.updatedAt))
-                    }
-                }
-
-                "cycle_count" -> {
-                    val e = db.cycleCountDao().getById(entityId) ?: return null
-                    buildJsonObject {
-                        put("cycle_count_id", e.cycleCountId)
-                        put("account_id", e.accountId)
-                        put("location_id", e.locationId)
-                        put("status", e.status)
-                        e.scopeType?.let { put("scope_type", it) }
-                        e.scopeValue?.let { put("scope_value", it) }
-                        e.startedAt?.let { put("started_at", msToIso(it)) }
-                        e.lockedAt?.let { put("locked_at", msToIso(it)) }
-                        e.completedAt?.let { put("completed_at", msToIso(it)) }
-                        e.startedBy?.let { put("started_by", it) }
-                        e.lockedBy?.let { put("locked_by", it) }
-                        put("created_at", msToIso(e.createdAt))
-                        put("updated_at", msToIso(e.updatedAt))
-                        e.deletedAt?.let { put("deleted_at", msToIso(it)) }
                     }
                 }
 
@@ -598,6 +621,239 @@ class SyncPayloadBuilder @Inject constructor(
                         e.timezone?.let { put("timezone", it) }
                         put("is_primary", e.isPrimary)
                         put("archived", e.archived)
+                        // Change 58/62
+                        e.addressStreet?.let { put("address_street", it) }
+                        e.parentLocationId?.let { put("parent_location_id", it) }
+                        put("created_at", msToIso(e.createdAt))
+                        put("updated_at", msToIso(e.updatedAt))
+                        e.deletedAt?.let { put("deleted_at", msToIso(it)) }
+                    }
+                }
+
+                "cycle_count" -> {
+                    val e = db.cycleCountDao().getById(entityId) ?: return null
+                    buildJsonObject {
+                        put("cycle_count_id", e.cycleCountId)
+                        put("account_id", e.accountId)
+                        put("location_id", e.locationId)
+                        put("status", e.status)
+                        e.scopeType?.let { put("scope_type", it) }
+                        e.scopeValue?.let { put("scope_value", it) }
+                        e.startedAt?.let { put("started_at", msToIso(it)) }
+                        e.lockedAt?.let { put("locked_at", msToIso(it)) }
+                        e.completedAt?.let { put("completed_at", msToIso(it)) }
+                        e.startedBy?.let { put("started_by", it) }
+                        e.lockedBy?.let { put("locked_by", it) }
+                        // Change 90
+                        e.scheduledDate?.let { put("scheduled_date", it) }
+                        e.completedDate?.let { put("completed_date", it) }
+                        put("created_at", msToIso(e.createdAt))
+                        put("updated_at", msToIso(e.updatedAt))
+                        e.deletedAt?.let { put("deleted_at", msToIso(it)) }
+                    }
+                }
+
+                "bin" -> {
+                    val e = db.binDao().getById(entityId) ?: return null
+                    buildJsonObject {
+                        put("bin_id", e.binId)
+                        put("account_id", e.accountId)
+                        put("name", e.name)
+                        e.locationId?.let { put("location_id", it) }
+                        e.aisle?.let { put("aisle", it) }
+                        e.row?.let { put("row", it) }
+                        e.shelf?.let { put("shelf", it) }
+                        e.barcode?.let { put("barcode", it) }
+                        put("is_active", e.isActive)
+                        // Change 145/147/64
+                        e.capacity?.let { put("capacity", it) }
+                        e.currentCount?.let { put("current_count", it) }
+                        e.binType?.let { put("bin_type", it) }
+                        e.createdById?.let { put("created_by_id", it) }
+                        e.updatedById?.let { put("updated_by_id", it) }
+                        put("created_at", msToIso(e.createdAt))
+                        put("updated_at", msToIso(e.updatedAt))
+                        e.deletedAt?.let { put("deleted_at", msToIso(it)) }
+                    }
+                }
+
+                "job" -> {
+                    val e = db.jobDao().getById(entityId) ?: return null
+                    buildJsonObject {
+                        put("job_id", e.jobId)
+                        put("account_id", e.accountId)
+                        e.assetId?.let { put("asset_id", it) }
+                        put("title", e.title)
+                        e.description?.let { put("description", it) }
+                        put("status", e.status)
+                        e.jobType?.let { put("job_type", it) }
+                        e.priority?.let { put("priority", it) }
+                        e.assignedTo?.let { put("assigned_to", it) }
+                        e.dueDate?.let { put("due_date", msToIso(it)) }
+                        e.startedAt?.let { put("started_at", msToIso(it)) }
+                        e.completedAt?.let { put("completed_at", msToIso(it)) }
+                        e.notes?.let { put("notes", it) }
+                        e.attributes?.let { put("attributes", it) }
+                        e.createdBy?.let { put("created_by", it) }
+                        // Change 127/149
+                        e.budgetAmount?.let { put("budget_amount", it) }
+                        e.budgetAlertThreshold?.let { put("budget_alert_threshold", it) }
+                        e.spentAmount?.let { put("spent_amount", it) }
+                        put("created_at", msToIso(e.createdAt))
+                        put("updated_at", msToIso(e.updatedAt))
+                        e.deletedAt?.let { put("deleted_at", msToIso(it)) }
+                    }
+                }
+
+                // Change 86/87: item (part issue line in log) — always include part_id even if null
+                "item" -> {
+                    val e = db.itemDao().getById(entityId) ?: return null
+                    buildJsonObject {
+                        put("item_id", e.itemId)
+                        put("log_id", e.logId)
+                        put("account_id", e.accountId)
+                        // Change 87: always send part_id (nullable) so server processes it explicitly
+                        if (e.partId != null) put("part_id", e.partId) else put("part_id", "")
+                        e.description?.let { put("name", it) }
+                        put("quantity", e.quantity)
+                        e.unitCost?.let { put("unit_price", it) }
+                        e.currency?.let { put("currency", it) }
+                        e.notes?.let { put("notes", it) }
+                        e.partNumber?.let { put("part_number", it) }
+                        e.gtin?.let { put("gtin", it) }
+                        e.serialNumber?.let { put("serial_number", it) }
+                        e.modelNumber?.let { put("model_number", it) }
+                        e.lotNumber?.let { put("lot_number", it) }
+                        // Change 86
+                        put("deduct_inventory", e.deductInventory)
+                        e.inventoryTransactionId?.let { put("inventory_transaction_id", it) }
+                        put("created_at", msToIso(e.createdAt))
+                        put("updated_at", msToIso(e.updatedAt))
+                        e.deletedAt?.let { put("deleted_at", msToIso(it)) }
+                    }
+                }
+
+                "wo_template" -> {
+                    val e = db.woTemplateDao().getById(entityId) ?: return null
+                    buildJsonObject {
+                        put("template_id", e.templateId)
+                        put("account_id", e.accountId)
+                        put("title", e.title)
+                        e.description?.let { put("description", it) }
+                        e.category?.let { put("category", it) }
+                        e.checklistItems?.let { put("checklist_items", it) }
+                        e.estimatedEffortMinutes?.let { put("estimated_effort_minutes", it) }
+                        // Change 71/109/64
+                        e.rowsJson?.let { put("rows_json", it) }
+                        e.seq?.let { put("seq", it) }
+                        e.createdById?.let { put("created_by_id", it) }
+                        e.updatedById?.let { put("updated_by_id", it) }
+                        put("created_at", msToIso(e.createdAt))
+                        put("updated_at", msToIso(e.updatedAt))
+                        e.deletedAt?.let { put("deleted_at", msToIso(it)) }
+                    }
+                }
+
+                "meter_reading" -> {
+                    val e = db.meterReadingDao().getById(entityId) ?: return null
+                    buildJsonObject {
+                        put("meter_reading_id", e.meterReadingId)
+                        put("asset_id", e.assetId)
+                        put("account_id", e.accountId)
+                        put("meter_type", e.meterType)
+                        put("reading_value", e.readingValue)
+                        put("read_at", msToIso(e.readAt))
+                        e.recordedBy?.let { put("recorded_by", it) }
+                        e.triggeredWoIds?.let { put("triggered_wo_ids", it) }
+                        e.notes?.let { put("notes", it) }
+                        put("created_at", msToIso(e.createdAt))
+                        put("updated_at", msToIso(e.updatedAt))
+                        e.deletedAt?.let { put("deleted_at", msToIso(it)) }
+                    }
+                }
+
+                "work_permit" -> {
+                    val e = db.workPermitDao().getById(entityId) ?: return null
+                    buildJsonObject {
+                        put("permit_id", e.permitId)
+                        put("wo_id", e.woId)
+                        put("account_id", e.accountId)
+                        put("status", e.status)
+                        e.permitType?.let { put("permit_type", it) }
+                        e.requiredApprovers?.let { put("required_approvers", it) }
+                        e.approvedBy?.let { put("approved_by", it) }
+                        e.approvedAt?.let { put("approved_at", msToIso(it)) }
+                        e.rejectedBy?.let { put("rejected_by", it) }
+                        e.rejectedAt?.let { put("rejected_at", msToIso(it)) }
+                        e.notes?.let { put("notes", it) }
+                        put("created_at", msToIso(e.createdAt))
+                        put("updated_at", msToIso(e.updatedAt))
+                        e.deletedAt?.let { put("deleted_at", msToIso(it)) }
+                    }
+                }
+
+                "work_permit_signature" -> {
+                    val e = db.workPermitSignatureDao().getById(entityId) ?: return null
+                    buildJsonObject {
+                        put("signature_id", e.signatureId)
+                        put("permit_id", e.permitId)
+                        put("account_id", e.accountId)
+                        put("signer_id", e.signerId)
+                        e.signerName?.let { put("signer_name", it) }
+                        e.signatureUrl?.let { put("signature_url", it) }
+                        e.signedAt?.let { put("signed_at", msToIso(it)) }
+                        put("all_signed", e.allSigned)
+                        put("created_at", msToIso(e.createdAt))
+                        put("updated_at", msToIso(e.updatedAt))
+                    }
+                }
+
+                "part_transfer_request" -> {
+                    val e = db.partTransferRequestDao().getById(entityId) ?: return null
+                    buildJsonObject {
+                        put("request_id", e.requestId)
+                        put("account_id", e.accountId)
+                        put("part_id", e.partId)
+                        put("quantity", e.quantity)
+                        e.fromLocationId?.let { put("from_location_id", it) }
+                        e.toLocationId?.let { put("to_location_id", it) }
+                        put("status", e.status)
+                        e.requestedBy?.let { put("requested_by", it) }
+                        e.approvedBy?.let { put("approved_by", it) }
+                        e.approvedAt?.let { put("approved_at", msToIso(it)) }
+                        e.notes?.let { put("notes", it) }
+                        put("created_at", msToIso(e.createdAt))
+                        put("updated_at", msToIso(e.updatedAt))
+                        e.deletedAt?.let { put("deleted_at", msToIso(it)) }
+                    }
+                }
+
+                "owner_assignment" -> {
+                    val e = db.ownerAssignmentDao().getById(entityId) ?: return null
+                    buildJsonObject {
+                        put("assignment_id", e.assignmentId)
+                        put("account_id", e.accountId)
+                        put("resource_type", e.resourceType)
+                        put("resource_id", e.resourceId)
+                        put("owner_user_id", e.ownerUserId)
+                        e.secondaryOwnerId?.let { put("secondary_owner_id", it) }
+                        put("fallback_enabled", e.fallbackEnabled)
+                        e.role?.let { put("role", it) }
+                        e.assignedAt?.let { put("assigned_at", msToIso(it)) }
+                        put("created_at", msToIso(e.createdAt))
+                        put("updated_at", msToIso(e.updatedAt))
+                        e.deletedAt?.let { put("deleted_at", msToIso(it)) }
+                    }
+                }
+
+                "po_comment" -> {
+                    val e = db.poCommentDao().getById(entityId) ?: return null
+                    buildJsonObject {
+                        put("comment_id", e.commentId)
+                        put("po_id", e.poId)
+                        put("account_id", e.accountId)
+                        put("author_id", e.authorId)
+                        put("body", e.body)
                         put("created_at", msToIso(e.createdAt))
                         put("updated_at", msToIso(e.updatedAt))
                         e.deletedAt?.let { put("deleted_at", msToIso(it)) }

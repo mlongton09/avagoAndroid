@@ -65,6 +65,7 @@ import com.avago.core.data.db.entity.SyncConflictEntity
 import com.avago.core.data.db.entity.OwnerAssignmentEntity
 import com.avago.core.data.db.entity.PartTransferRequestEntity
 import com.avago.core.data.db.entity.RequestPortalEntity
+import com.avago.core.data.db.entity.InventoryTransactionEntity
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkException
 import com.avago.core.network.model.SyncOperation
@@ -220,6 +221,28 @@ class SyncEngine @Inject constructor(
         "vendor_part"        to Triple("vendor_parts",        "vendor_part_id",    "vendor_part_id"),
         "tech_labor_rate"    to Triple("tech_labor_rates",    "rate_id",           "rate_id"),
         "reorder_suggestion" to Triple("reorder_suggestions", "suggestion_id",     "suggestion_id"),
+        // New entity types from Changes 10–150
+        "asset_custom_status"    to Triple("asset_custom_statuses",    "custom_status_id",  "custom_status_id"),
+        "asset_status"           to Triple("asset_statuses",           "asset_status_id",   "asset_status_id"),
+        "meter_reading"          to Triple("meter_readings",           "meter_reading_id",  "meter_reading_id"),
+        "work_order_asset"       to Triple("work_order_assets",        "wo_asset_id",       "wo_asset_id"),
+        "work_permit"            to Triple("work_permits",             "permit_id",         "permit_id"),
+        "work_permit_signature"  to Triple("work_permit_signatures",   "signature_id",      "signature_id"),
+        "meter_trigger"          to Triple("meter_triggers",           "trigger_id",        "trigger_id"),
+        "pm_plan"                to Triple("pm_plans",                 "pm_plan_id",        "pm_plan_id"),
+        "pm_plan_interval"       to Triple("pm_plan_intervals",        "interval_id",       "interval_id"),
+        "custom_field_definition" to Triple("custom_field_definitions", "definition_id",   "definition_id"),
+        "asset_criticality"      to Triple("asset_criticalities",      "criticality_id",    "criticality_id"),
+        "asset_model"            to Triple("asset_models",             "model_id",          "model_id"),
+        "rca_report"             to Triple("rca_reports",              "report_id",         "report_id"),
+        "category"               to Triple("categories",               "category_id",       "category_id"),
+        "po_comment"             to Triple("po_comments",              "comment_id",        "comment_id"),
+        "owner_assignment"       to Triple("owner_assignments",        "assignment_id",     "assignment_id"),
+        "part_transfer_request"  to Triple("part_transfer_requests",   "request_id",        "request_id"),
+        "request_portal"         to Triple("request_portals",          "portal_id",         "portal_id"),
+        "inventory_transaction"  to Triple("inventory_transactions",   "transaction_id",    "transaction_id"),
+        "asset_location_history" to Triple("asset_location_history",   "history_id",        "history_id"),
+        "location_history"       to Triple("asset_location_history",   "history_id",        "history_id"),
     )
 
     // Entity types for which a pending local push must block the pull upsert, preventing
@@ -258,6 +281,7 @@ class SyncEngine @Inject constructor(
         "label_template",
         "item", "gl_account", "job", "service",
         "bin", "vendor_part", "tech_labor_rate", "reorder_suggestion",
+        "inventory_transaction",
         // New entity types from changes 10–150
         "asset_custom_status", "asset_status",
         "meter_reading", "work_order_asset",
@@ -780,6 +804,9 @@ class SyncEngine @Inject constructor(
                             deletedAt = isoToMs(item.str("deleted_at")),
                             serverVersion = item.lng("server_version") ?: 0L,
                             seq = item.lng("seq"),
+                            costStatus = item.str("cost_status") ?: "ACTUAL",
+                            approvedBy = item.str("approved_by"),
+                            approvedAt = isoToMs(item.str("approved_at")),
                         )
                     )
                 }
@@ -870,6 +897,13 @@ class SyncEngine @Inject constructor(
                             deletedAt = isoToMs(item.str("deleted_at")),
                             serverVersion = item.lng("server_version") ?: 0L,
                             seq = item.lng("seq"),
+                            // Changes 15, 19, 21, 22, 83
+                            childWoCount = item.lng("child_wo_count"),
+                            childWoIds = item.str("child_wo_ids"),
+                            procedureTemplateId = item.str("procedure_template_id"),
+                            permitStatusSummary = item.str("permit_status_summary"),
+                            customFields = item.str("custom_fields"),
+                            assignedTeamId = item.str("assigned_team_id"),
                         )
                     )
                 }
@@ -893,6 +927,12 @@ class SyncEngine @Inject constructor(
                             isDirty = item.bool("is_dirty") ?: false,
                             serverVersion = item.lng("server_version") ?: 0L,
                             seq = item.lng("seq"),
+                            // Changes 8, 29, 64
+                            actualHours = item.dbl("actual_hours"),
+                            role = item.str("role"),
+                            estimatedHours = item.dbl("estimated_hours"),
+                            createdById = item.str("created_by_id"),
+                            updatedById = item.str("updated_by_id"),
                         )
                     )
                 }
@@ -909,6 +949,16 @@ class SyncEngine @Inject constructor(
                             displayOrder = item.lng("step_order") ?: item.lng("display_order") ?: 0L,
                             serverVersion = item.lng("server_version") ?: 0L,
                             seq = item.lng("seq"),
+                            rowType = item.str("row_type") ?: "STEP",
+                            rowDescription = item.str("description"),
+                            urlsJson = item.str("urls"),
+                            // Change 19
+                            response = item.str("response"),
+                            notes = item.str("notes"),
+                            passFail = item.str("pass_fail"),
+                            signatureUrl = item.str("signature_url"),
+                            createdById = item.str("created_by_id"),
+                            updatedById = item.str("updated_by_id"),
                         )
                     )
                 }
@@ -926,6 +976,12 @@ class SyncEngine @Inject constructor(
                             deletedAt = isoToMs(item.str("deleted_at")),
                             serverVersion = item.lng("server_version") ?: 0L,
                             seq = item.lng("seq"),
+                            // Changes 1, 5, 14, 64
+                            mentionedUserIds = item.str("mentioned_user_ids"),
+                            isInternal = item.bool("is_internal") ?: false,
+                            commentType = item.str("comment_type"),
+                            createdById = item.str("created_by_id"),
+                            updatedById = item.str("updated_by_id"),
                         )
                     )
                 }
@@ -945,6 +1001,10 @@ class SyncEngine @Inject constructor(
                             updatedAt = isoToMs(item.str("updated_at")) ?: now,
                             deletedAt = isoToMs(item.str("deleted_at")),
                             serverVersion = item.lng("server_version") ?: 0L,
+                            rowsJson = item.str("rows_json"),
+                            seq = item.lng("seq"),
+                            createdById = item.str("created_by_id"),
+                            updatedById = item.str("updated_by_id"),
                         )
                     )
                 }
@@ -1029,6 +1089,12 @@ class SyncEngine @Inject constructor(
                             deletedAt = isoToMs(item.str("deleted_at")),
                             serverVersion = item.lng("server_version") ?: 0L,
                             seq = item.lng("seq"),
+                            // Changes 22, 108, 150
+                            customFields = item.str("custom_fields"),
+                            abcClass = item.str("abc_class"),
+                            committedReservedQuantity = item.dbl("committed_reserved_quantity"),
+                            committedInProgressQuantity = item.dbl("committed_in_progress_quantity"),
+                            committedCompletedQuantity = item.dbl("committed_completed_quantity"),
                         )
                     )
                 }
@@ -1040,13 +1106,16 @@ class SyncEngine @Inject constructor(
                             stockingLevelId = item.str("stocking_level_id") ?: return,
                             partId = item.str("part_id") ?: return,
                             locationId = item.str("location_id") ?: return,
-                            minQty = item.dbl("min_qty"),
-                            maxQty = item.dbl("max_qty"),
-                            reorderQty = item.dbl("reorder_qty"),
+                            minQty = item.dbl("min_qty") ?: item.dbl("min_quantity"),
+                            maxQty = item.dbl("max_qty") ?: item.dbl("max_quantity"),
+                            reorderQty = item.dbl("reorder_qty") ?: item.dbl("reorder_point"),
+                            // Change 51: accept both field name variants
                             safetyStock = item.dbl("safety_stock"),
+                            safetyStockQuantity = item.dbl("safety_stock_quantity"),
                             createdAt = isoToMs(item.str("created_at")) ?: now,
                             updatedAt = isoToMs(item.str("updated_at")) ?: now,
                             serverVersion = item.lng("server_version") ?: 0L,
+                            accountId = item.str("account_id") ?: accountId,
                         )
                     )
                 }
@@ -1138,6 +1207,9 @@ class SyncEngine @Inject constructor(
                             createdAt = isoToMs(item.str("created_at")) ?: now,
                             updatedAt = isoToMs(item.str("updated_at")) ?: now,
                             serverVersion = item.lng("server_version") ?: 0L,
+                            // Change 77
+                            workOrderId = item.str("work_order_id"),
+                            woId = item.str("wo_id"),
                         )
                     )
                 }
@@ -1206,6 +1278,9 @@ class SyncEngine @Inject constructor(
                             deletedAt = isoToMs(item.str("deleted_at")),
                             serverVersion = item.lng("server_version") ?: 0L,
                             seq = item.lng("seq"),
+                            // Change 90
+                            scheduledDate = item.str("scheduled_date"),
+                            completedDate = item.str("completed_date"),
                         )
                     )
                 }
@@ -1227,6 +1302,9 @@ class SyncEngine @Inject constructor(
                             createdAt = isoToMs(item.str("created_at")) ?: now,
                             updatedAt = isoToMs(item.str("updated_at")) ?: now,
                             serverVersion = item.lng("server_version") ?: 0L,
+                            // Change 91
+                            varianceQuantity = item.dbl("variance_quantity"),
+                            varianceValue = item.dbl("variance_value"),
                         )
                     )
                 }
@@ -1443,6 +1521,9 @@ class SyncEngine @Inject constructor(
                             deletedAt = isoToMs(item.str("deleted_at")),
                             serverVersion = item.lng("server_version") ?: 0L,
                             seq = item.lng("seq"),
+                            // Change 86
+                            deductInventory = item.bool("deduct_inventory") ?: false,
+                            inventoryTransactionId = item.str("inventory_transaction_id"),
                         )
                     )
                 }
@@ -1604,7 +1685,7 @@ class SyncEngine @Inject constructor(
                     )
                 }
 
-                "asset_location_history" -> {
+                "asset_location_history", "location_history" -> {
                     val now = System.currentTimeMillis()
                     db.assetLocationHistoryDao().upsert(
                         AssetLocationHistoryEntity(
@@ -1617,6 +1698,430 @@ class SyncEngine @Inject constructor(
                             movedAt = isoToMs(item.str("moved_at")) ?: now,
                             reason = item.str("reason"),
                             notes = item.str("notes"),
+                            serverVersion = item.lng("server_version") ?: 0L,
+                            seq = item.lng("seq"),
+                            // Change 131
+                            movedByUserId = item.str("moved_by_user_id") ?: item.str("moved_by"),
+                            moveReason = item.str("move_reason"),
+                            // Change 132
+                            lat = item.dbl("lat"),
+                            lng = item.dbl("lng"),
+                        )
+                    )
+                }
+
+                // Change 50: inventory transactions with reference number
+                "inventory_transaction" -> {
+                    val now = System.currentTimeMillis()
+                    db.inventoryTransactionDao().upsert(
+                        InventoryTransactionEntity(
+                            transactionId = item.str("transaction_id") ?: return,
+                            accountId = item.str("account_id") ?: accountId,
+                            inventoryId = item.str("inventory_id") ?: return,
+                            partId = item.str("part_id") ?: return,
+                            locationId = item.str("location_id"),
+                            transactionType = item.str("transaction_type") ?: return,
+                            quantity = item.dbl("quantity") ?: return,
+                            unitCost = item.dbl("unit_cost"),
+                            currency = item.str("currency"),
+                            referenceId = item.str("reference_id"),
+                            referenceType = item.str("reference_type"),
+                            performedBy = item.str("performed_by"),
+                            notes = item.str("notes"),
+                            transferId = item.str("transfer_id"),
+                            fromLocationId = item.str("from_location_id"),
+                            toLocationId = item.str("to_location_id"),
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            serverVersion = item.lng("server_version") ?: 0L,
+                            seq = item.lng("seq"),
+                            reasonCode = item.str("reason_code"),
+                            reversedTransactionId = item.str("reversed_transaction_id"),
+                            referenceNumber = item.str("reference_number"),
+                        )
+                    )
+                }
+
+                // Change 10: asset custom status definitions
+                "asset_custom_status" -> {
+                    val now = System.currentTimeMillis()
+                    db.assetCustomStatusDao().upsert(
+                        AssetCustomStatusEntity(
+                            customStatusId = item.str("custom_status_id") ?: return,
+                            accountId = item.str("account_id") ?: accountId,
+                            name = item.str("name") ?: return,
+                            color = item.str("color"),
+                            downtimeType = item.str("downtime_type"),
+                            isDowntime = item.bool("is_downtime") ?: false,
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
+                            deletedAt = isoToMs(item.str("deleted_at")),
+                            serverVersion = item.lng("server_version") ?: 0L,
+                            seq = item.lng("seq"),
+                        )
+                    )
+                }
+
+                // Change 13: asset status timeline history
+                "asset_status" -> {
+                    val now = System.currentTimeMillis()
+                    db.assetStatusDao().upsert(
+                        AssetStatusEntity(
+                            assetStatusId = item.str("asset_status_id") ?: return,
+                            assetId = item.str("asset_id") ?: return,
+                            accountId = item.str("account_id") ?: accountId,
+                            status = item.str("status") ?: return,
+                            downtimeType = item.str("downtime_type"),
+                            startedAt = isoToMs(item.str("started_at")),
+                            endedAt = isoToMs(item.str("ended_at")),
+                            recordedBy = item.str("recorded_by"),
+                            notes = item.str("notes"),
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
+                            serverVersion = item.lng("server_version") ?: 0L,
+                            seq = item.lng("seq"),
+                        )
+                    )
+                }
+
+                // Change 12: meter readings
+                "meter_reading" -> {
+                    val now = System.currentTimeMillis()
+                    db.meterReadingDao().upsert(
+                        MeterReadingEntity(
+                            meterReadingId = item.str("meter_reading_id") ?: return,
+                            assetId = item.str("asset_id") ?: return,
+                            accountId = item.str("account_id") ?: accountId,
+                            meterType = item.str("meter_type") ?: return,
+                            readingValue = item.dbl("reading_value") ?: return,
+                            readAt = isoToMs(item.str("read_at")) ?: now,
+                            recordedBy = item.str("recorded_by"),
+                            triggeredWoIds = item.str("triggered_wo_ids"),
+                            notes = item.str("notes"),
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
+                            deletedAt = isoToMs(item.str("deleted_at")),
+                            serverVersion = item.lng("server_version") ?: 0L,
+                            seq = item.lng("seq"),
+                        )
+                    )
+                }
+
+                // Change 17: work order to asset join records
+                "work_order_asset" -> {
+                    val now = System.currentTimeMillis()
+                    db.workOrderAssetDao().upsert(
+                        WorkOrderAssetEntity(
+                            woAssetId = item.str("wo_asset_id") ?: return,
+                            woId = item.str("wo_id") ?: return,
+                            assetId = item.str("asset_id") ?: return,
+                            seqOrder = item.lng("seq_order") ?: 0L,
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            serverVersion = item.lng("server_version") ?: 0L,
+                            seq = item.lng("seq"),
+                        )
+                    )
+                }
+
+                // Change 23: work permits
+                "work_permit" -> {
+                    val now = System.currentTimeMillis()
+                    db.workPermitDao().upsert(
+                        WorkPermitEntity(
+                            permitId = item.str("permit_id") ?: return,
+                            woId = item.str("wo_id") ?: return,
+                            accountId = item.str("account_id") ?: accountId,
+                            status = item.str("status") ?: return,
+                            permitType = item.str("permit_type"),
+                            requiredApprovers = item.str("required_approvers"),
+                            approvedBy = item.str("approved_by"),
+                            approvedAt = isoToMs(item.str("approved_at")),
+                            rejectedBy = item.str("rejected_by"),
+                            rejectedAt = isoToMs(item.str("rejected_at")),
+                            notes = item.str("notes"),
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
+                            deletedAt = isoToMs(item.str("deleted_at")),
+                            serverVersion = item.lng("server_version") ?: 0L,
+                            seq = item.lng("seq"),
+                        )
+                    )
+                }
+
+                // Change 20: work permit signatures
+                "work_permit_signature" -> {
+                    val now = System.currentTimeMillis()
+                    db.workPermitSignatureDao().upsert(
+                        WorkPermitSignatureEntity(
+                            signatureId = item.str("signature_id") ?: return,
+                            permitId = item.str("permit_id") ?: return,
+                            accountId = item.str("account_id") ?: accountId,
+                            signerId = item.str("signer_id") ?: return,
+                            signerName = item.str("signer_name"),
+                            signatureUrl = item.str("signature_url"),
+                            signedAt = isoToMs(item.str("signed_at")),
+                            allSigned = item.bool("all_signed") ?: false,
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
+                            serverVersion = item.lng("server_version") ?: 0L,
+                            seq = item.lng("seq"),
+                        )
+                    )
+                }
+
+                // Change 26: meter triggers
+                "meter_trigger" -> {
+                    val now = System.currentTimeMillis()
+                    db.meterTriggerDao().upsert(
+                        MeterTriggerEntity(
+                            triggerId = item.str("trigger_id") ?: return,
+                            assetId = item.str("asset_id") ?: return,
+                            accountId = item.str("account_id") ?: accountId,
+                            meterType = item.str("meter_type") ?: return,
+                            thresholdValue = item.dbl("threshold_value") ?: return,
+                            woTemplateId = item.str("wo_template_id"),
+                            isActive = item.bool("is_active") ?: true,
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
+                            deletedAt = isoToMs(item.str("deleted_at")),
+                            serverVersion = item.lng("server_version") ?: 0L,
+                            seq = item.lng("seq"),
+                        )
+                    )
+                }
+
+                // Change 27: PM plans
+                "pm_plan" -> {
+                    val now = System.currentTimeMillis()
+                    db.pmPlanDao().upsert(
+                        PmPlanEntity(
+                            pmPlanId = item.str("pm_plan_id") ?: return,
+                            accountId = item.str("account_id") ?: accountId,
+                            assetId = item.str("asset_id"),
+                            title = item.str("title") ?: return,
+                            triggerType = item.str("trigger_type") ?: return,
+                            woTemplateId = item.str("wo_template_id"),
+                            isActive = item.bool("is_active") ?: true,
+                            nextDueAt = isoToMs(item.str("next_due_at")),
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
+                            deletedAt = isoToMs(item.str("deleted_at")),
+                            serverVersion = item.lng("server_version") ?: 0L,
+                            seq = item.lng("seq"),
+                        )
+                    )
+                }
+
+                // Change 28: PM plan intervals
+                "pm_plan_interval" -> {
+                    val now = System.currentTimeMillis()
+                    db.pmPlanIntervalDao().upsert(
+                        PmPlanIntervalEntity(
+                            intervalId = item.str("interval_id") ?: return,
+                            pmPlanId = item.str("pm_plan_id") ?: return,
+                            cycleNumber = item.lng("cycle_number") ?: return,
+                            intervalValue = item.dbl("interval_value") ?: return,
+                            intervalUnit = item.str("interval_unit"),
+                            woTemplateId = item.str("wo_template_id"),
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
+                            serverVersion = item.lng("server_version") ?: 0L,
+                            seq = item.lng("seq"),
+                        )
+                    )
+                }
+
+                // Change 30: custom field definitions
+                "custom_field_definition" -> {
+                    val now = System.currentTimeMillis()
+                    db.customFieldDefinitionDao().upsert(
+                        CustomFieldDefinitionEntity(
+                            definitionId = item.str("definition_id") ?: return,
+                            accountId = item.str("account_id") ?: accountId,
+                            entityType = item.str("entity_type") ?: return,
+                            fieldName = item.str("field_name") ?: return,
+                            fieldType = item.str("field_type") ?: return,
+                            label = item.str("label"),
+                            optionsJson = item.str("options_json"),
+                            isRequired = item.bool("is_required") ?: false,
+                            displayOrder = item.lng("display_order") ?: 0L,
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
+                            deletedAt = isoToMs(item.str("deleted_at")),
+                            serverVersion = item.lng("server_version") ?: 0L,
+                            seq = item.lng("seq"),
+                        )
+                    )
+                }
+
+                // Change 31: asset criticality definitions
+                "asset_criticality" -> {
+                    val now = System.currentTimeMillis()
+                    db.assetCriticalityDao().upsert(
+                        AssetCriticalityEntity(
+                            criticalityId = item.str("criticality_id") ?: return,
+                            accountId = item.str("account_id") ?: accountId,
+                            name = item.str("name") ?: return,
+                            level = item.lng("level") ?: return,
+                            color = item.str("color"),
+                            description = item.str("description"),
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
+                            deletedAt = isoToMs(item.str("deleted_at")),
+                            serverVersion = item.lng("server_version") ?: 0L,
+                            seq = item.lng("seq"),
+                        )
+                    )
+                }
+
+                // Change 40/41/92: asset model definitions
+                "asset_model" -> {
+                    val now = System.currentTimeMillis()
+                    db.assetModelDao().upsert(
+                        AssetModelEntity(
+                            modelId = item.str("model_id") ?: return,
+                            accountId = item.str("account_id") ?: accountId,
+                            name = item.str("name") ?: return,
+                            manufacturer = item.str("manufacturer"),
+                            defaultProcedureTemplateId = item.str("default_procedure_template_id"),
+                            recommendedParts = item.str("recommended_parts"),
+                            serialNumberPattern = item.str("serial_number_pattern"),
+                            helpText = item.str("help_text"),
+                            examples = item.str("examples"),
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
+                            deletedAt = isoToMs(item.str("deleted_at")),
+                            serverVersion = item.lng("server_version") ?: 0L,
+                            seq = item.lng("seq"),
+                        )
+                    )
+                }
+
+                // Change 34: RCA reports
+                "rca_report" -> {
+                    val now = System.currentTimeMillis()
+                    db.rcaReportDao().upsert(
+                        RcaReportEntity(
+                            reportId = item.str("report_id") ?: return,
+                            woId = item.str("wo_id"),
+                            assetId = item.str("asset_id"),
+                            accountId = item.str("account_id") ?: accountId,
+                            summary = item.str("summary"),
+                            rootCause = item.str("root_cause"),
+                            correctiveActions = item.str("corrective_actions"),
+                            status = item.str("status") ?: return,
+                            authorId = item.str("author_id"),
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
+                            deletedAt = isoToMs(item.str("deleted_at")),
+                            serverVersion = item.lng("server_version") ?: 0L,
+                            seq = item.lng("seq"),
+                        )
+                    )
+                }
+
+                // Change 89/93/94: categories
+                "category" -> {
+                    val now = System.currentTimeMillis()
+                    db.categoryDao().upsert(
+                        CategoryEntity(
+                            categoryId = item.str("category_id") ?: return,
+                            accountId = item.str("account_id") ?: accountId,
+                            name = item.str("name") ?: return,
+                            entityType = item.str("entity_type"),
+                            color = item.str("color"),
+                            icon = item.str("icon"),
+                            defaultPriority = item.str("default_priority"),
+                            defaultSlaHours = item.dbl("default_sla_hours"),
+                            parentCategoryId = item.str("parent_category_id"),
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
+                            deletedAt = isoToMs(item.str("deleted_at")),
+                            serverVersion = item.lng("server_version") ?: 0L,
+                            seq = item.lng("seq"),
+                        )
+                    )
+                }
+
+                // Change 100: PO comments
+                "po_comment" -> {
+                    val now = System.currentTimeMillis()
+                    db.poCommentDao().upsert(
+                        PoCommentEntity(
+                            commentId = item.str("comment_id") ?: return,
+                            poId = item.str("po_id") ?: return,
+                            accountId = item.str("account_id") ?: accountId,
+                            authorId = item.str("author_id") ?: return,
+                            body = item.str("body") ?: return,
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
+                            deletedAt = isoToMs(item.str("deleted_at")),
+                            serverVersion = item.lng("server_version") ?: 0L,
+                            seq = item.lng("seq"),
+                        )
+                    )
+                }
+
+                // Change 124/125: owner assignments
+                "owner_assignment" -> {
+                    val now = System.currentTimeMillis()
+                    db.ownerAssignmentDao().upsert(
+                        OwnerAssignmentEntity(
+                            assignmentId = item.str("assignment_id") ?: return,
+                            accountId = item.str("account_id") ?: accountId,
+                            resourceType = item.str("resource_type") ?: return,
+                            resourceId = item.str("resource_id") ?: return,
+                            ownerUserId = item.str("owner_user_id") ?: return,
+                            secondaryOwnerId = item.str("secondary_owner_id"),
+                            fallbackEnabled = item.bool("fallback_enabled") ?: false,
+                            role = item.str("role"),
+                            assignedAt = isoToMs(item.str("assigned_at")),
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
+                            deletedAt = isoToMs(item.str("deleted_at")),
+                            serverVersion = item.lng("server_version") ?: 0L,
+                            seq = item.lng("seq"),
+                        )
+                    )
+                }
+
+                // Change 146: part transfer requests
+                "part_transfer_request" -> {
+                    val now = System.currentTimeMillis()
+                    db.partTransferRequestDao().upsert(
+                        PartTransferRequestEntity(
+                            requestId = item.str("request_id") ?: return,
+                            accountId = item.str("account_id") ?: accountId,
+                            partId = item.str("part_id") ?: return,
+                            quantity = item.dbl("quantity") ?: return,
+                            fromLocationId = item.str("from_location_id"),
+                            toLocationId = item.str("to_location_id"),
+                            status = item.str("status") ?: return,
+                            requestedBy = item.str("requested_by"),
+                            approvedBy = item.str("approved_by"),
+                            approvedAt = isoToMs(item.str("approved_at")),
+                            notes = item.str("notes"),
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
+                            deletedAt = isoToMs(item.str("deleted_at")),
+                            serverVersion = item.lng("server_version") ?: 0L,
+                            seq = item.lng("seq"),
+                        )
+                    )
+                }
+
+                // Change 113: request portals
+                "request_portal" -> {
+                    val now = System.currentTimeMillis()
+                    db.requestPortalDao().upsert(
+                        RequestPortalEntity(
+                            portalId = item.str("portal_id") ?: return,
+                            accountId = item.str("account_id") ?: accountId,
+                            name = item.str("name") ?: return,
+                            description = item.str("description"),
+                            isActive = item.bool("is_active") ?: true,
+                            createdAt = isoToMs(item.str("created_at")) ?: now,
+                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
+                            deletedAt = isoToMs(item.str("deleted_at")),
                             serverVersion = item.lng("server_version") ?: 0L,
                             seq = item.lng("seq"),
                         )

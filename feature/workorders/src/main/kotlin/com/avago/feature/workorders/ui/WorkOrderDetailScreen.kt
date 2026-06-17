@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -137,6 +138,8 @@ fun WorkOrderDetailScreen(
         if (scoutRrule != null) showRepeatsSheet = true
     }
     var showRescheduleSheet by remember { mutableStateOf(false) }
+    var showSkipDialog by remember { mutableStateOf(false) }
+    var skipReason by remember { mutableStateOf("") }
     var commentText by rememberSaveable { mutableStateOf("") }
     var dispatcherNotesDraft by rememberSaveable { mutableStateOf("") }
     var dispatcherNotesInitialized by rememberSaveable { mutableStateOf(false) }
@@ -284,6 +287,18 @@ fun WorkOrderDetailScreen(
                                     showRescheduleSheet = true
                                 },
                             )
+                            if (!wo?.rrule.isNullOrBlank()) {
+                                DropdownMenuItem(
+                                    text = { Text("Skip This Occurrence") },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.SkipNext, contentDescription = null)
+                                    },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        showSkipDialog = true
+                                    },
+                                )
+                            }
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.wo_export_pdf)) },
                                 onClick = {
@@ -318,6 +333,34 @@ fun WorkOrderDetailScreen(
             )
         },
     ) { innerPadding ->
+        if (showSkipDialog) {
+            AlertDialog(
+                onDismissRequest = { showSkipDialog = false },
+                title = { Text("Skip This Occurrence") },
+                text = {
+                    Column {
+                        Text("Select a reason for skipping this occurrence:")
+                        Spacer(Modifier.height(8.dp))
+                        listOf("No Access", "Part Unavailable", "Rescheduled", "Other").forEach { reason ->
+                            TextButton(
+                                onClick = {
+                                    skipReason = reason
+                                    viewModel.skipOccurrence(reason) { showSkipDialog = false }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(reason)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { showSkipDialog = false }) { Text("Cancel") }
+                },
+            )
+        }
+
         if (showScoutSheet) {
             ScoutPaletteSheet(
                 visible = true,
@@ -616,6 +659,24 @@ fun WorkOrderDetailScreen(
                         initiallyExpanded = false,
                     ) {
                         HistoryContent(auditHistory = auditHistory)
+                    }
+
+                    if (currentWo.status?.lowercase() == "completed") {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        CollapsibleDetailSection(
+                            title = "Completion Details",
+                            initiallyExpanded = true,
+                        ) {
+                            currentWo.completedAt?.let { ts: Long ->
+                                LabeledRow(
+                                    label = "Completed",
+                                    value = formatDate(ts),
+                                )
+                            }
+                            currentWo.failureCode?.takeIf { it.isNotBlank() }?.let { code ->
+                                LabeledRow(label = "Failure Code", value = code)
+                            }
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
