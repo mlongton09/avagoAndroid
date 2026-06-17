@@ -43,6 +43,7 @@ import com.avago.core.data.db.dao.SyncQueueDao
 import com.avago.core.data.db.dao.TechLaborRateDao
 import com.avago.core.data.db.dao.TechProfileDao
 import com.avago.core.data.db.dao.UserDao
+import com.avago.core.data.db.dao.VendorContactDao
 import com.avago.core.data.db.dao.VendorDao
 import com.avago.core.data.db.dao.VendorPartDao
 import com.avago.core.data.db.dao.ReorderSuggestionDao
@@ -90,6 +91,7 @@ import com.avago.core.data.db.entity.SyncQueueEntity
 import com.avago.core.data.db.entity.TechLaborRateEntity
 import com.avago.core.data.db.entity.TechProfileEntity
 import com.avago.core.data.db.entity.UserEntity
+import com.avago.core.data.db.entity.VendorContactEntity
 import com.avago.core.data.db.entity.VendorEntity
 import com.avago.core.data.db.entity.VendorPartEntity
 import com.avago.core.data.db.entity.ReorderSuggestionEntity
@@ -121,6 +123,7 @@ import com.avago.core.data.db.entity.WorkOrderEntity
         DocEntity::class,
         UserEntity::class,
         LocationEntity::class,
+        VendorContactEntity::class,
         VendorEntity::class,
         VendorPartEntity::class,
         ReorderSuggestionEntity::class,
@@ -149,7 +152,7 @@ import com.avago.core.data.db.entity.WorkOrderEntity
         ScoutPendingEntity::class,
         ScoutHistoryEntity::class,
     ],
-    version = 10,
+    version = 14,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -175,6 +178,7 @@ abstract class AvagoDatabase : RoomDatabase() {
     abstract fun docDao(): DocDao
     abstract fun userDao(): UserDao
     abstract fun locationDao(): LocationDao
+    abstract fun vendorContactDao(): VendorContactDao
     abstract fun vendorDao(): VendorDao
     abstract fun vendorPartDao(): VendorPartDao
     abstract fun reorderSuggestionDao(): ReorderSuggestionDao

@@ -95,4 +95,8 @@ data class PartEntity(
 
     @ColumnInfo(name = "seq")
     val seq: Long?,
+
+    // Change 108 — abc_class on parts
+    @ColumnInfo(name = "abc_class")
+    val abcClass: String? = null,
 )

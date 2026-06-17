@@ -100,9 +100,10 @@ class MyTechProfileViewModel @Inject constructor(
                     hourlyRate.value = entity.hourlyRate?.toString() ?: ""
                     isAvailable.value = entity.isAvailable
                     maxActiveWos.value = entity.maxActiveWos?.toString() ?: ""
-                    homeLocationId.value = entity.homeLocationId
-                    if (entity.homeLocationId != null) {
-                        val loc = databaseFactory.get(accountId).locationDao().getById(entity.homeLocationId)
+                    val entityHomeLocationId = entity.homeLocationId
+                    homeLocationId.value = entityHomeLocationId
+                    if (entityHomeLocationId != null) {
+                        val loc = databaseFactory.get(accountId).locationDao().getById(entityHomeLocationId)
                         homeLocationName.value = loc?.name
                     }
                 }

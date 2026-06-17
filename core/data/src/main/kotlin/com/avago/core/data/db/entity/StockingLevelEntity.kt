@@ -42,4 +42,22 @@ data class StockingLevelEntity(
 
     @ColumnInfo(name = "server_version", defaultValue = "0")
     val serverVersion: Long,
+
+    @ColumnInfo(name = "safety_stock_quantity")
+    val safetyStockQuantity: Double? = null,
+
+    @ColumnInfo(name = "account_id")
+    val accountId: String,
+
+    @ColumnInfo(name = "consumption_window")
+    val consumptionWindow: Int? = null,
+
+    @ColumnInfo(name = "last_reviewed_at")
+    val lastReviewedAt: Long? = null,
+
+    @ColumnInfo(name = "seq")
+    val seq: Long? = null,
+
+    @ColumnInfo(name = "deleted_at")
+    val deletedAt: Long? = null,
 )

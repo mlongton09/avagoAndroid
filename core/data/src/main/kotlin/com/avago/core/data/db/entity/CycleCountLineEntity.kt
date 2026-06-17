@@ -52,4 +52,14 @@ data class CycleCountLineEntity(
 
     @ColumnInfo(name = "server_version", defaultValue = "0")
     val serverVersion: Long,
+
+    // Change 91: cycle count variance fields
+    @ColumnInfo(name = "unit_cost")
+    val unitCost: Double? = null,
+
+    @ColumnInfo(name = "variance_quantity")
+    val varianceQuantity: Double? = null,
+
+    @ColumnInfo(name = "variance_value")
+    val varianceValue: Double? = null,
 )

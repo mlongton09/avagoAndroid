@@ -71,4 +71,12 @@ data class InventoryTransactionEntity(
 
     @ColumnInfo(name = "seq")
     val seq: Long?,
+
+    // Change 73: transaction reason code
+    @ColumnInfo(name = "reason_code")
+    val reasonCode: String? = null,
+
+    // Change 74: reversal link
+    @ColumnInfo(name = "reversed_transaction_id")
+    val reversedTransactionId: String? = null,
 )

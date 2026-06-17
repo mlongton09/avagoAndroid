@@ -126,16 +126,16 @@ fun WorkOrderDetailScreen(
     val mapPreview by viewModel.mapPreview.collectAsStateWithLifecycle()
     val scoutRrule by viewModel.scoutRrule.collectAsStateWithLifecycle()
 
-    // When Scout provides an RRULE (HITL-on), open the repeats sheet pre-filled.
-    LaunchedEffect(scoutRrule) {
-        if (scoutRrule != null) showRepeatsSheet = true
-    }
-
     var showScoutSheet by remember { mutableStateOf(false) }
     var showOverflowMenu by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showTechPicker by remember { mutableStateOf(false) }
     var showRepeatsSheet by remember { mutableStateOf(false) }
+
+    // When Scout provides an RRULE (HITL-on), open the repeats sheet pre-filled.
+    LaunchedEffect(scoutRrule) {
+        if (scoutRrule != null) showRepeatsSheet = true
+    }
     var showRescheduleSheet by remember { mutableStateOf(false) }
     var commentText by rememberSaveable { mutableStateOf("") }
     var dispatcherNotesDraft by rememberSaveable { mutableStateOf("") }

@@ -121,4 +121,14 @@ data class AssetEntity(
 
     @ColumnInfo(name = "seq")
     val seq: Long?,
+
+    @ColumnInfo(name = "ancestors_json")
+    val ancestorsJson: String? = null,
+
+    // Change 92: serial number and model association
+    @ColumnInfo(name = "serial_number")
+    val serialNumber: String? = null,
+
+    @ColumnInfo(name = "model_id")
+    val modelId: String? = null,
 )

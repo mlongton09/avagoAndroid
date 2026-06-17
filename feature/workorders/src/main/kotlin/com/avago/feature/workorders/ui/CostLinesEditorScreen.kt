@@ -382,7 +382,7 @@ private fun CostLineDialog(
                 onClick = {
                     val qty = quantityText.toDoubleOrNull() ?: 1.0
                     val cost = unitCostText.toDoubleOrNull() ?: 0.0
-                    onConfirm(description, kind, qty, cost, glCode)
+                    onConfirm(description, kind, qty, cost, glCode, techId)
                 },
             ) {
                 Text(stringResource(R.string.cost_lines_save))

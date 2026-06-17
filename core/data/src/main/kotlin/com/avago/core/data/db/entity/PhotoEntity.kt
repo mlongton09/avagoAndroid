@@ -52,4 +52,14 @@ data class PhotoEntity(
     /** Absolute path to a locally-captured image file. Null once evicted by PhotoCacheSweeper. */
     @ColumnInfo(name = "local_path", defaultValue = "NULL")
     val localPath: String? = null,
+
+    // Change 99: photo thumbnails
+    @ColumnInfo(name = "thumbnail_url", defaultValue = "NULL")
+    val thumbnailUrl: String? = null,
+
+    @ColumnInfo(name = "thumbnail_width", defaultValue = "NULL")
+    val thumbnailWidth: Int? = null,
+
+    @ColumnInfo(name = "thumbnail_height", defaultValue = "NULL")
+    val thumbnailHeight: Int? = null,
 )

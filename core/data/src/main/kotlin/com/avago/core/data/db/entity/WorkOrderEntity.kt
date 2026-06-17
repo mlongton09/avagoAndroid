@@ -169,4 +169,11 @@ data class WorkOrderEntity(
 
     @ColumnInfo(name = "seq")
     val seq: Long?,
+
+    // Change 72: occurrence skip reason
+    @ColumnInfo(name = "skip_reason_code")
+    val skipReasonCode: String? = null,
+
+    @ColumnInfo(name = "skip_reason")
+    val skipReason: String? = null,
 )

@@ -62,12 +62,16 @@ import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.Instant
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -656,6 +660,11 @@ class SyncEngine @Inject constructor(
                             deletedAt = isoToMs(item.str("deleted_at")),
                             serverVersion = item.lng("server_version") ?: 0L,
                             seq = item.lng("seq"),
+                            ancestorsJson = item["ancestors"]
+                                ?.takeIf { it !is JsonNull }
+                                ?.let { el ->
+                                    try { Json.encodeToString(el.jsonArray) } catch (_: Exception) { null }
+                                },
                         )
                     )
                 }

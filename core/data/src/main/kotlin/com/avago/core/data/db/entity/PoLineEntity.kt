@@ -52,4 +52,8 @@ data class PoLineEntity(
 
     @ColumnInfo(name = "server_version", defaultValue = "0")
     val serverVersion: Long,
+
+    // Change 77: PO line linked to work order
+    @ColumnInfo(name = "work_order_id")
+    val workOrderId: String? = null,
 )

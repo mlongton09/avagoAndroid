@@ -36,4 +36,14 @@ data class WoChecklistItemEntity(
 
     @ColumnInfo(name = "seq")
     val seq: Long?,
+
+    // Change 71: procedure row type and metadata
+    @ColumnInfo(name = "row_type")
+    val rowType: String = "STEP",
+
+    @ColumnInfo(name = "description")
+    val rowDescription: String? = null,
+
+    @ColumnInfo(name = "urls")
+    val urlsJson: String? = null,
 )

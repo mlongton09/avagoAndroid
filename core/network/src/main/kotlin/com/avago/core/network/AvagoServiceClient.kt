@@ -1,8 +1,10 @@
 package com.avago.core.network
 
 import android.content.Context
+import com.avago.core.network.model.AccountFeaturesResponse
 import com.avago.core.network.model.AccountResponse
 import com.avago.core.network.model.AccountsEnvelope
+import com.avago.core.network.model.PutAccountFeaturesRequest
 import com.avago.core.network.model.MembersEnvelope
 import com.avago.core.network.model.AiSkillResponse
 import com.avago.core.network.model.AiSkillsEnvelope
@@ -150,6 +152,22 @@ import com.avago.core.network.model.PortalSubmissionRequest
 import com.avago.core.network.model.WorkRequestPortalResponse
 import com.avago.core.network.model.CreateWorkRequestPortalRequest
 import com.avago.core.network.model.SyncCheckpointResponse
+import com.avago.core.network.model.AncestorItem
+import com.avago.core.network.model.LocationHistoryEntry
+import com.avago.core.network.model.QrBatchJobRequest
+import com.avago.core.network.model.QrBatchJobResponse
+import com.avago.core.network.model.QrScanEntry
+import com.avago.core.network.model.AssetHistoryEvent
+import com.avago.core.network.model.BulkReassignRequest
+import com.avago.core.network.model.BulkReassignResponse
+import com.avago.core.network.model.WorkPermit
+import com.avago.core.network.model.CreateWorkPermitRequest
+import com.avago.core.network.model.BinContent
+import com.avago.core.network.model.CustomFieldDef
+import com.avago.core.network.model.CustomFieldValue
+import com.avago.core.network.model.MeterTrigger
+import com.avago.core.network.model.PmPlan
+import com.avago.core.network.model.PermissionSet
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.auth.Auth
@@ -788,7 +806,7 @@ class AvagoServiceClient @Inject constructor(
     ): NetworkResult<Unit> =
         safeNetworkCall {
             val response: HttpResponse =
-                client.post("$baseUrl/accounts/$accountId/work-orders/$woId/status") {
+                client.post("$baseUrl/accounts/$accountId/work-orders/$woId/transition") {
                     setBody(mapOf("status" to status))
                 }
             if (!response.status.isSuccess()) {
@@ -2843,6 +2861,31 @@ class AvagoServiceClient @Inject constructor(
         }
 
     // ---------------------------------------------------------------------------
+    // Asset Transfer (Fix 2)
+    // ---------------------------------------------------------------------------
+
+    suspend fun transferAsset(
+        accountId:    String,
+        assetId:      String,
+        toLocationId: String,
+        moveReason:   String? = null,
+        lat:          Double? = null,
+        lng:          Double? = null,
+    ): NetworkResult<Map<String, Any>> =
+        safeNetworkCall {
+            @Suppress("UNCHECKED_CAST")
+            client.post("$baseUrl/accounts/$accountId/assets/$assetId/transfer") {
+                contentType(io.ktor.http.ContentType.Application.Json)
+                setBody(buildMap<String, Any?> {
+                    put("to_location_id", toLocationId)
+                    moveReason?.let { put("move_reason", it) }
+                    lat?.let        { put("lat", it) }
+                    lng?.let        { put("lng", it) }
+                })
+            }.body<Map<String, Any>>()
+        }
+
+    // ---------------------------------------------------------------------------
     // QR Batch Generation (Change 133)
     // ---------------------------------------------------------------------------
 
@@ -2984,6 +3027,263 @@ class AvagoServiceClient @Inject constructor(
         safeNetworkCall {
             client.delete("$baseUrl/accounts/$accountId/gl-accounts/mapping-rules/$ruleId")
             Unit
+        }
+
+    // ── Account Feature Flags ─────────────────────────────────────────────────
+
+    suspend fun getAccountFeatures(
+        accountId: String,
+    ): NetworkResult<AccountFeaturesResponse> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/features").body()
+        }
+
+    suspend fun putAccountFeatures(
+        accountId: String,
+        patch:     PutAccountFeaturesRequest,
+    ): NetworkResult<AccountFeaturesResponse> =
+        safeNetworkCall {
+            client.put("$baseUrl/accounts/$accountId/features") {
+                contentType(io.ktor.http.ContentType.Application.Json)
+                setBody(patch)
+            }.body()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Asset Ancestors & History (new)
+    // ---------------------------------------------------------------------------
+
+    /** GET /accounts/:accountId/assets/:assetId/ancestors */
+    suspend fun getAssetAncestors(
+        accountId: String,
+        assetId: String,
+    ): NetworkResult<List<AncestorItem>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/assets/$assetId/ancestors")
+                .body<Map<String, List<AncestorItem>>>()["ancestors"] ?: emptyList()
+        }
+
+    /** GET /accounts/:accountId/assets/:assetId/history */
+    suspend fun getAssetHistory(
+        accountId: String,
+        assetId: String,
+        limit: Int = 50,
+        cursor: String? = null,
+    ): NetworkResult<List<AssetHistoryEvent>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/assets/$assetId/history") {
+                parameter("limit", limit)
+                cursor?.let { parameter("cursor", it) }
+            }.body<Map<String, List<AssetHistoryEvent>>>()["events"] ?: emptyList()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Work Order Batch Log Entries & Quick Work (new)
+    // ---------------------------------------------------------------------------
+
+    /** POST /accounts/:accountId/work-orders/:woId/log-entries/batch */
+    suspend fun batchCreateLogEntries(
+        accountId: String,
+        woId: String,
+        entries: List<Map<String, Any>>,
+    ): NetworkResult<Unit> =
+        safeNetworkCall {
+            val response: HttpResponse =
+                client.post("$baseUrl/accounts/$accountId/work-orders/$woId/log-entries/batch") {
+                    setBody(entries)
+                }
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
+        }
+
+    /** POST /accounts/:accountId/quick-work */
+    suspend fun createQuickWork(
+        accountId: String,
+        body: Map<String, Any>,
+    ): NetworkResult<Map<String, Any>> =
+        safeNetworkCall {
+            @Suppress("UNCHECKED_CAST")
+            client.post("$baseUrl/accounts/$accountId/quick-work") {
+                setBody(body)
+            }.body<Map<String, Any>>()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Bulk Reassign Work Orders (new)
+    // ---------------------------------------------------------------------------
+
+    /** POST /accounts/:accountId/work-orders/bulk-reassign */
+    suspend fun bulkReassignWorkOrders(
+        accountId: String,
+        request: BulkReassignRequest,
+    ): NetworkResult<BulkReassignResponse> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/work-orders/bulk-reassign") {
+                setBody(request)
+            }.body()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Work Permits (new)
+    // ---------------------------------------------------------------------------
+
+    /** GET /accounts/:accountId/work-orders/:woId/permits */
+    suspend fun listWorkPermits(
+        accountId: String,
+        woId: String,
+    ): NetworkResult<List<WorkPermit>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/work-orders/$woId/permits")
+                .body<Map<String, List<WorkPermit>>>()["permits"] ?: emptyList()
+        }
+
+    /** POST /accounts/:accountId/work-orders/:woId/permits */
+    suspend fun createWorkPermit(
+        accountId: String,
+        woId: String,
+        request: CreateWorkPermitRequest,
+    ): NetworkResult<WorkPermit> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/work-orders/$woId/permits") {
+                setBody(request)
+            }.body()
+        }
+
+    /** POST /accounts/:accountId/work-permits/:permitId/sign */
+    suspend fun signWorkPermit(
+        accountId: String,
+        permitId: String,
+        signatureData: String,
+    ): NetworkResult<WorkPermit> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/work-permits/$permitId/sign") {
+                setBody(mapOf("signature" to signatureData))
+            }.body()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Bin Contents (new)
+    // ---------------------------------------------------------------------------
+
+    /** GET /accounts/:accountId/bins/:binId/contents */
+    suspend fun listBinContents(
+        accountId: String,
+        binId: String,
+    ): NetworkResult<List<BinContent>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/bins/$binId/contents")
+                .body<Map<String, List<BinContent>>>()["contents"] ?: emptyList()
+        }
+
+    /** POST /accounts/:accountId/bins/:binId/contents */
+    suspend fun addBinContent(
+        accountId: String,
+        binId: String,
+        partId: String,
+        quantity: Int,
+    ): NetworkResult<Unit> =
+        safeNetworkCall {
+            val response: HttpResponse =
+                client.post("$baseUrl/accounts/$accountId/bins/$binId/contents") {
+                    setBody(mapOf("part_id" to partId, "quantity" to quantity))
+                }
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
+        }
+
+    // ---------------------------------------------------------------------------
+    // Custom Fields (new)
+    // ---------------------------------------------------------------------------
+
+    /** GET /accounts/:accountId/custom-fields?entity_type=... */
+    suspend fun listCustomFieldDefs(
+        accountId: String,
+        entityType: String,
+    ): NetworkResult<List<CustomFieldDef>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/custom-fields") {
+                parameter("entity_type", entityType)
+            }.body<Map<String, List<CustomFieldDef>>>()["field_defs"] ?: emptyList()
+        }
+
+    /** GET /accounts/:accountId/custom-fields/values?entity_type=...&entity_id=... */
+    suspend fun getEntityCustomValues(
+        accountId: String,
+        entityType: String,
+        entityId: String,
+    ): NetworkResult<List<CustomFieldValue>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/custom-fields/values") {
+                parameter("entity_type", entityType)
+                parameter("entity_id", entityId)
+            }.body<Map<String, List<CustomFieldValue>>>()["values"] ?: emptyList()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Meter Triggers (new)
+    // ---------------------------------------------------------------------------
+
+    /** GET /accounts/:accountId/meter-triggers */
+    suspend fun listMeterTriggers(accountId: String): NetworkResult<List<MeterTrigger>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/meter-triggers")
+                .body<Map<String, List<MeterTrigger>>>()["triggers"] ?: emptyList()
+        }
+
+    /** POST /accounts/:accountId/meter-triggers */
+    suspend fun createMeterTrigger(
+        accountId: String,
+        trigger: MeterTrigger,
+    ): NetworkResult<MeterTrigger> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/meter-triggers") {
+                setBody(trigger)
+            }.body()
+        }
+
+    // ---------------------------------------------------------------------------
+    // PM Plans (new)
+    // ---------------------------------------------------------------------------
+
+    /** GET /accounts/:accountId/pm-plans */
+    suspend fun listPmPlans(accountId: String): NetworkResult<List<PmPlan>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/pm-plans")
+                .body<Map<String, List<PmPlan>>>()["plans"] ?: emptyList()
+        }
+
+    /** POST /accounts/:accountId/pm-plans */
+    suspend fun createPmPlan(
+        accountId: String,
+        plan: PmPlan,
+    ): NetworkResult<PmPlan> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/pm-plans") {
+                setBody(plan)
+            }.body()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Permission Sets (new)
+    // ---------------------------------------------------------------------------
+
+    /** GET /accounts/:accountId/permission-sets */
+    suspend fun listPermissionSets(accountId: String): NetworkResult<List<PermissionSet>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/permission-sets")
+                .body<Map<String, List<PermissionSet>>>()["permission_sets"] ?: emptyList()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Report KPIs (new — typed alias over getKpiSummary)
+    // ---------------------------------------------------------------------------
+
+    /** GET /accounts/:accountId/reports/kpis */
+    suspend fun getReportKPIs(accountId: String): NetworkResult<KpiSummaryResponse> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/reports/kpis").body()
         }
 }
 

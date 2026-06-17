@@ -118,6 +118,9 @@ class SyncPayloadBuilder @Inject constructor(
                         e.glCode?.let { put("gl_code", it) }
                         e.notes?.let { put("notes", it) }
                         e.woId?.let { put("wo_id", it) }
+                        put("cost_status", e.costStatus)
+                        e.approvedBy?.let { put("approved_by", it) }
+                        e.approvedAt?.let { put("approved_at", msToIso(it)) }
                         put("created_at", msToIso(e.createdAt))
                         put("updated_at", msToIso(e.updatedAt))
                         e.deletedAt?.let { put("deleted_at", msToIso(it)) }

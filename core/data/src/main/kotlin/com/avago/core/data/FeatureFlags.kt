@@ -71,6 +71,30 @@ class FeatureFlags @Inject constructor(
     /** Whether Purchase Orders are visible in Inventory. Fail-open (default true). */
     val purchaseOrdersEnabled: Boolean get() = getFlag("purchase_orders_enabled", default = true)
 
+    /** Whether named permission sets can be assigned to members. */
+    val permissionSetsEnabled: Boolean get() = getFlag("permission_sets_enabled", default = true)
+
+    /** Whether work orders can be assigned to groups/teams. */
+    val teamWorkOrderRoutingEnabled: Boolean get() = getFlag("team_work_order_routing_enabled", default = true)
+
+    /** Whether the multi-organization hierarchy APIs are enabled. */
+    val multiOrgEnabled: Boolean get() = getFlag("multi_org_enabled", default = true)
+
+    /** Whether members can set rich presence statuses in chat. */
+    val chatCustomStatusEnabled: Boolean get() = getFlag("chat_custom_status_enabled", default = true)
+
+    /** Whether personal and account-level message templates are available in chat. */
+    val chatMessageTemplatesEnabled: Boolean get() = getFlag("chat_message_templates_enabled", default = true)
+
+    /** Whether AI-powered chat thread summaries are enabled (opt-in, default false). */
+    val aiSummariesEnabled: Boolean get() = getFlag("ai_summaries_enabled", default = false)
+
+    /** Whether AI voice transcription is enabled (opt-in, default false). */
+    val aiTranscriptionEnabled: Boolean get() = getFlag("ai_transcription_enabled", default = false)
+
+    /** Whether bulk QR label generation is available. */
+    val assetQrBulkGenerationEnabled: Boolean get() = getFlag("asset_qr_bulk_generation_enabled", default = true)
+
     val clientBooleanFlags: List<ClientFeatureFlag> = listOf(
         ClientFeatureFlag("feature.scout_enabled", "AI Scout", false),
         ClientFeatureFlag("feature.inspection_enabled", "Inspection checklist", false),
@@ -81,6 +105,14 @@ class FeatureFlags @Inject constructor(
         ClientFeatureFlag("chat_enabled", "Chat tab", true),
         ClientFeatureFlag("work_orders_enabled", "Work Orders tab", true),
         ClientFeatureFlag("purchase_orders_enabled", "Purchase Orders", true),
+        ClientFeatureFlag("permission_sets_enabled", "Permission sets", true),
+        ClientFeatureFlag("team_work_order_routing_enabled", "Team WO routing", true),
+        ClientFeatureFlag("multi_org_enabled", "Multi-organization", true),
+        ClientFeatureFlag("chat_custom_status_enabled", "Chat custom status", true),
+        ClientFeatureFlag("chat_message_templates_enabled", "Chat message templates", true),
+        ClientFeatureFlag("ai_summaries_enabled", "AI thread summaries", false),
+        ClientFeatureFlag("ai_transcription_enabled", "AI voice transcription", false),
+        ClientFeatureFlag("asset_qr_bulk_generation_enabled", "Bulk QR generation", true),
     )
 
     // ---------------------------------------------------------------------------
@@ -100,6 +132,13 @@ class FeatureFlags @Inject constructor(
     fun observeChatEnabled(): Flow<Boolean> = observeFlag("chat_enabled", default = true)
     fun observeWorkOrdersEnabled(): Flow<Boolean> = observeFlag("work_orders_enabled", default = true)
     fun observePurchaseOrdersEnabled(): Flow<Boolean> = observeFlag("purchase_orders_enabled", default = true)
+    fun observePermissionSetsEnabled(): Flow<Boolean> = observeFlag("permission_sets_enabled", default = true)
+    fun observeTeamWorkOrderRoutingEnabled(): Flow<Boolean> = observeFlag("team_work_order_routing_enabled", default = true)
+    fun observeChatCustomStatusEnabled(): Flow<Boolean> = observeFlag("chat_custom_status_enabled", default = true)
+    fun observeChatMessageTemplatesEnabled(): Flow<Boolean> = observeFlag("chat_message_templates_enabled", default = true)
+    fun observeAiSummariesEnabled(): Flow<Boolean> = observeFlag("ai_summaries_enabled", default = false)
+    fun observeAiTranscriptionEnabled(): Flow<Boolean> = observeFlag("ai_transcription_enabled", default = false)
+    fun observeAssetQrBulkGenerationEnabled(): Flow<Boolean> = observeFlag("asset_qr_bulk_generation_enabled", default = true)
 
     /**
      * Observe a boolean flag as a [Flow]. Re-emits whenever the DB row changes

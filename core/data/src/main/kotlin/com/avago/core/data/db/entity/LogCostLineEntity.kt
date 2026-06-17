@@ -70,4 +70,13 @@ data class LogCostLineEntity(
 
     @ColumnInfo(name = "seq")
     val seq: Long?,
+
+    @ColumnInfo(name = "cost_status", defaultValue = "ACTUAL")
+    val costStatus: String = "ACTUAL",
+
+    @ColumnInfo(name = "approved_by")
+    val approvedBy: String? = null,
+
+    @ColumnInfo(name = "approved_at")
+    val approvedAt: Long? = null,
 )
