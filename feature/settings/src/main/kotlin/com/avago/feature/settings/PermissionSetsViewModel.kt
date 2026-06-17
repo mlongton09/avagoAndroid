@@ -2,7 +2,7 @@ package com.avago.feature.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.identity.IdentityManager
+import com.avago.core.auth.IdentityManager
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
 import com.avago.core.network.model.PermissionSet
@@ -26,7 +26,7 @@ class PermissionSetsViewModel @Inject constructor(
     val isLoading: StateFlow<Boolean> = _isLoading
 
     fun load() {
-        val accountId = identity.accountId ?: return
+        val accountId = identity.getActiveAccountId() ?: return
         viewModelScope.launch {
             _isLoading.value = true
             try {
@@ -43,7 +43,7 @@ class PermissionSetsViewModel @Inject constructor(
     }
 
     fun create(name: String, permissions: List<String>) {
-        val accountId = identity.accountId ?: return
+        val accountId = identity.getActiveAccountId() ?: return
         viewModelScope.launch {
             try {
                 val body = mapOf("name" to name, "permissions" to permissions)
@@ -56,7 +56,7 @@ class PermissionSetsViewModel @Inject constructor(
     }
 
     fun delete(setId: String) {
-        val accountId = identity.accountId ?: return
+        val accountId = identity.getActiveAccountId() ?: return
         viewModelScope.launch {
             try {
                 client.deletePermissionSet(accountId, setId)

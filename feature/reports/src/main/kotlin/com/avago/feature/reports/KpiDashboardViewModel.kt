@@ -2,7 +2,7 @@ package com.avago.feature.reports
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.identity.IdentityManager
+import com.avago.core.auth.IdentityManager
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
 import com.avago.core.network.model.KpiSummaryResponse
@@ -33,7 +33,7 @@ class KpiDashboardViewModel @Inject constructor(
     }
 
     fun load() {
-        val accountId = identity.accountId ?: return
+        val accountId = identity.getActiveAccountId() ?: return
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null

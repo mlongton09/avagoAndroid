@@ -144,7 +144,7 @@ fun NavGraphBuilder.scheduleNavGraph(
             PmPlansScreen(
                 assetId = assetId,
                 onBack = { navController.popBackStack() },
-                onCreatePlan = { id -> navController.navigate(ScheduleRoute.pmPlans(id)) },
+                onCreatePlan = { id -> navController.navigate(ScheduleRoute.pmPlans(id)) { popUpTo(ScheduleRoute.PM_PLANS) { inclusive = true } } },
                 onEditPlan = { /* edit handled inline via bottom sheet in PmPlansScreen */ },
             )
         }

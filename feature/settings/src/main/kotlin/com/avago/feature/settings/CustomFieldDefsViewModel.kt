@@ -2,7 +2,7 @@ package com.avago.feature.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.identity.IdentityManager
+import com.avago.core.auth.IdentityManager
 import com.avago.core.network.AvagoServiceClient
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,7 +24,7 @@ class CustomFieldDefsViewModel @Inject constructor(
     val isLoading: StateFlow<Boolean> = _isLoading
 
     fun load() {
-        val accountId = identity.accountId ?: return
+        val accountId = identity.getActiveAccountId() ?: return
         viewModelScope.launch {
             _isLoading.value = true
             try {
@@ -41,7 +41,7 @@ class CustomFieldDefsViewModel @Inject constructor(
     }
 
     fun create(entityType: String, fieldType: String, name: String, options: List<String>) {
-        val accountId = identity.accountId ?: return
+        val accountId = identity.getActiveAccountId() ?: return
         viewModelScope.launch {
             try {
                 val body = buildMap<String, Any> {
@@ -59,7 +59,7 @@ class CustomFieldDefsViewModel @Inject constructor(
     }
 
     fun delete(fieldId: String) {
-        val accountId = identity.accountId ?: return
+        val accountId = identity.getActiveAccountId() ?: return
         viewModelScope.launch {
             try {
                 client.deleteCustomFieldDef(accountId, fieldId)
