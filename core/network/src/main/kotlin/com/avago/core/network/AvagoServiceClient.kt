@@ -180,7 +180,6 @@ import io.ktor.client.plugins.auth.Auth
 import io.ktor.client.plugins.auth.authProviders
 import io.ktor.client.plugins.auth.providers.BearerAuthProvider
 import io.ktor.client.plugins.plugin
-import io.ktor.client.request.contentType
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.headers
@@ -2375,8 +2374,7 @@ class AvagoServiceClient @Inject constructor(
         safeNetworkCall {
             val response: HttpResponse =
                 client.post("$baseUrl/accounts/$accountId/work-orders/$woId/skip") {
-                    contentType(io.ktor.http.ContentType.Application.Json)
-                    setBody(SkipOccurrenceRequest(skip_reason_code = reasonCode, skip_reason = notes))
+        setBody(SkipOccurrenceRequest(skip_reason_code = reasonCode, skip_reason = notes))
                 }
             if (!response.status.isSuccess()) {
                 throw NetworkException(response.status.value, response.status.description)
@@ -2920,8 +2918,7 @@ class AvagoServiceClient @Inject constructor(
         safeNetworkCall {
             @Suppress("UNCHECKED_CAST")
             client.post("$baseUrl/accounts/$accountId/assets/$assetId/transfer") {
-                contentType(io.ktor.http.ContentType.Application.Json)
-                setBody(buildMap<String, Any?> {
+setBody(buildMap<String, Any?> {
                     put("to_location_id", toLocationId)
                     moveReason?.let { put("move_reason", it) }
                     lat?.let        { put("lat", it) }
@@ -2944,8 +2941,7 @@ class AvagoServiceClient @Inject constructor(
         safeNetworkCall {
             @Suppress("UNCHECKED_CAST")
             client.post("$baseUrl/accounts/$accountId/assets/qr-tokens/batch") {
-                contentType(io.ktor.http.ContentType.Application.Json)
-                setBody(buildMap<String, Any?> {
+setBody(buildMap<String, Any?> {
                     put("asset_ids", assetIds)
                     format?.let           { put("format", it) }
                     pageSize?.let         { put("page_size", it) }
@@ -2987,8 +2983,7 @@ class AvagoServiceClient @Inject constructor(
     ): NetworkResult<QrScanEntry> =
         safeNetworkCall {
             client.post("$baseUrl/accounts/$accountId/assets/${request.asset_id}/qr-scans") {
-                contentType(io.ktor.http.ContentType.Application.Json)
-                setBody(request)
+setBody(request)
             }.body()
         }
 
@@ -3017,8 +3012,7 @@ class AvagoServiceClient @Inject constructor(
         safeNetworkCall {
             @Suppress("UNCHECKED_CAST")
             client.post("$baseUrl/accounts/$accountId/integrations/qbo/sync/$entityType/$entityId") {
-                contentType(io.ktor.http.ContentType.Application.Json)
-                setBody(buildMap<String, Any?> {
+setBody(buildMap<String, Any?> {
                     force?.let  { put("force",  it) }
                     reason?.let { put("reason", it) }
                 })
@@ -3043,8 +3037,7 @@ class AvagoServiceClient @Inject constructor(
         safeNetworkCall {
             @Suppress("UNCHECKED_CAST")
             client.put("$baseUrl/accounts/$accountId/integrations/qbo/sync-directions") {
-                contentType(io.ktor.http.ContentType.Application.Json)
-                setBody(mapOf("entity_directions" to entityDirections))
+setBody(mapOf("entity_directions" to entityDirections))
             }.body<Map<String, Any>>()
         }
 
@@ -3070,8 +3063,7 @@ class AvagoServiceClient @Inject constructor(
         safeNetworkCall {
             @Suppress("UNCHECKED_CAST")
             client.post("$baseUrl/accounts/$accountId/gl-accounts/mapping-rules") {
-                contentType(io.ktor.http.ContentType.Application.Json)
-                setBody(buildMap<String, Any?> {
+setBody(buildMap<String, Any?> {
                     put("name", name)
                     put("conditions", conditions)
                     put("gl_account_id", glAccountId)
@@ -3105,8 +3097,7 @@ class AvagoServiceClient @Inject constructor(
     ): NetworkResult<AccountFeaturesResponse> =
         safeNetworkCall {
             client.put("$baseUrl/accounts/$accountId/features") {
-                contentType(io.ktor.http.ContentType.Application.Json)
-                setBody(patch)
+setBody(patch)
             }.body()
         }
 
