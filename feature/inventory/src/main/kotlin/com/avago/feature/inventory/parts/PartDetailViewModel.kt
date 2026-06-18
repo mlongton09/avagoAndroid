@@ -176,6 +176,7 @@ class PartDetailViewModel @Inject constructor(
                 when (val result = serviceClient.getPartBinLocations(accountId, partId)) {
                     is NetworkResult.Success -> _binLocations.value = result.data
                     is NetworkResult.Error -> Timber.w("[PartDetailVM] getPartBinLocations: ${result.message}")
+                    is NetworkResult.Unauthorized -> Timber.w("[PartDetailVM] getPartBinLocations: unauthorized")
                 }
             } catch (e: Exception) {
                 Timber.e(e, "[PartDetailVM] loadBinLocations failed")

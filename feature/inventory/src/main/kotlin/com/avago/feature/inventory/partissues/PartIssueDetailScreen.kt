@@ -98,12 +98,12 @@ fun PartIssueDetailScreen(
                 LabelValue(stringResource(R.string.part_issue_field_reference), "${issue.referenceType ?: "ref"}: ${issue.referenceId}")
             }
             if (issue.issueType == "transfer") {
-                if (issue.fromLocationId != null) LabelValue(stringResource(R.string.part_issue_field_from_location), issue.fromLocationId)
-                if (issue.toLocationId != null) LabelValue(stringResource(R.string.part_issue_field_to_location), issue.toLocationId)
+                issue.fromLocationId?.let { LabelValue(stringResource(R.string.part_issue_field_from_location), it) }
+                issue.toLocationId?.let { LabelValue(stringResource(R.string.part_issue_field_to_location), it) }
             } else {
-                if (issue.locationId != null) LabelValue(stringResource(R.string.part_issue_field_location), issue.locationId)
+                issue.locationId?.let { LabelValue(stringResource(R.string.part_issue_field_location), it) }
             }
-            if (issue.notes != null) LabelValue(stringResource(R.string.part_issue_field_notes), issue.notes)
+            issue.notes?.let { LabelValue(stringResource(R.string.part_issue_field_notes), it) }
 
             Spacer(Modifier.height(16.dp))
             Text(stringResource(R.string.part_issue_lines_section), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
@@ -121,14 +121,14 @@ fun PartIssueDetailScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(viewModel.partName(line.partId), style = MaterialTheme.typography.bodyMedium)
-                            if (line.notes != null) {
-                                Text(line.notes, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            line.notes?.let {
+                                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                         Column(horizontalAlignment = Alignment.End) {
                             Text(stringResource(R.string.common_qty_format, line.quantity), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                            if (line.unitCost != null) {
-                                Text(stringResource(R.string.common_currency_format, "", line.unitCost), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            line.unitCost?.let {
+                                Text(stringResource(R.string.common_currency_format, "", it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }

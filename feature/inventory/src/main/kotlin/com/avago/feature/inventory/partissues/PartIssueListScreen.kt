@@ -163,8 +163,8 @@ private fun PartIssueCard(issue: PartIssueEntity, onClick: () -> Unit) {
                 }
                 Spacer(Modifier.height(4.dp))
                 Text(dateFmt.format(Date(issue.issuedAt)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                if (issue.notes != null) {
-                    Text(issue.notes, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                issue.notes?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                 }
             }
         }
