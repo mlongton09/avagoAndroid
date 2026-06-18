@@ -339,7 +339,7 @@ private fun ScheduleDetailContent(
                         wo = wo,
                         onSkip = if (wo.status in setOf("open", "pending", "assigned")) {
                             {
-                                skipTargetWoId = wo.workOrderId
+                                skipTargetWoId = wo.woId
                                 scope.launch { skipSheetState.show() }
                             }
                         } else null,
