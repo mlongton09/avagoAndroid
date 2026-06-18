@@ -78,27 +78,27 @@ fun BinDetailScreen(
         ) {
             DetailRow(label = stringResource(R.string.bins_field_name), value = bin.name)
             DetailRow(label = stringResource(R.string.bins_field_location), value = state.locationName)
-            if (bin.code != null) DetailRow(label = stringResource(R.string.bins_field_code), value = bin.code)
-            if (bin.barcode != null) DetailRow(label = stringResource(R.string.bins_field_barcode), value = bin.barcode)
-            if (bin.aisle != null) DetailRow(label = stringResource(R.string.bins_field_aisle), value = bin.aisle)
-            if (bin.shelf != null) DetailRow(label = stringResource(R.string.bins_field_shelf), value = bin.shelf)
-            if (bin.slot != null) DetailRow(label = stringResource(R.string.bins_field_slot), value = bin.slot)
-            if (bin.binType != null) DetailRow(label = stringResource(R.string.bins_field_type), value = bin.binType)
+            bin.code?.let { DetailRow(label = stringResource(R.string.bins_field_code), value = it) }
+            bin.barcode?.let { DetailRow(label = stringResource(R.string.bins_field_barcode), value = it) }
+            bin.aisle?.let { DetailRow(label = stringResource(R.string.bins_field_aisle), value = it) }
+            bin.shelf?.let { DetailRow(label = stringResource(R.string.bins_field_shelf), value = it) }
+            bin.slot?.let { DetailRow(label = stringResource(R.string.bins_field_slot), value = it) }
+            bin.binType?.let { DetailRow(label = stringResource(R.string.bins_field_type), value = it) }
             DetailRow(label = stringResource(R.string.bins_field_active), value = if (bin.active) stringResource(R.string.bins_yes) else stringResource(R.string.bins_no))
 
-            if (bin.capacity != null && bin.capacity > 0) {
+            bin.capacity?.takeIf { it > 0 }?.let { capacity ->
                 HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
                 Text(stringResource(R.string.bins_capacity_section), style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(8.dp))
                 val count = bin.currentCount ?: 0L
-                val fillFraction = (count.toFloat() / bin.capacity.toFloat()).coerceIn(0f, 1f)
+                val fillFraction = (count.toFloat() / capacity.toFloat()).coerceIn(0f, 1f)
                 LinearProgressIndicator(
                     progress = { fillFraction },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "$count / ${bin.capacity} ${stringResource(R.string.bins_units)} (${(fillFraction * 100).toInt()}%)",
+                    "$count / $capacity ${stringResource(R.string.bins_units)} (${(fillFraction * 100).toInt()}%)",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
