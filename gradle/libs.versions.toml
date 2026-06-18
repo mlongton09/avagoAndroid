@@ -14,6 +14,7 @@ camerax = "1.5.0"
 ml-kit-barcode = "17.3.0"
 ml-kit-text = "16.0.0"
 ml-kit-doc-scanner = "16.0.0-beta1"
+play-services-location = "21.3.0"
 firebase-bom = "33.12.0"
 coil = "3.0.0"
 nav = "2.8.0"
@@ -103,6 +104,7 @@ camera-view = { module = "androidx.camera:camera-view", version.ref = "camerax" 
 mlkit-barcode = { module = "com.google.mlkit:barcode-scanning", version.ref = "ml-kit-barcode" }
 mlkit-text = { module = "com.google.mlkit:text-recognition", version.ref = "ml-kit-text" }
 mlkit-doc-scanner = { module = "com.google.android.gms:play-services-mlkit-document-scanner", version.ref = "ml-kit-doc-scanner" }
+play-services-location = { module = "com.google.android.gms:play-services-location", version.ref = "play-services-location" }
 
 # Firebase
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
