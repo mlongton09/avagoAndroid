@@ -85,44 +85,35 @@ class ThreadViewModel @Inject constructor(
     val isLoadingAiSummary: MutableStateFlow<Boolean> = MutableStateFlow(false)
 
     val uiState: StateFlow<ThreadUiState> = combine(
-        listOf(
-            _thread,
-            _messages,
-            _isLoadingMore,
-            _hasMore,
-            _editingMessage,
-            _isTypingRemote,
-            _pinnedMessage,
-            _errorMessage,
-            _roster,
-            _typingUserNames,
-            _draft,
-            _resumeDraft,
-            _replyingToMessage,
-            _userRole,
-            _linkPreview,
-            _needsReply,
-        )
-    ) { values ->
-        @Suppress("UNCHECKED_CAST")
+        combine(_thread, _messages, _isLoadingMore, _hasMore, _editingMessage) { thread, messages, isLoadingMore, hasMore, editingMessage ->
+            ThreadUiState5A(thread, messages, isLoadingMore, hasMore, editingMessage)
+        },
+        combine(_isTypingRemote, _pinnedMessage, _errorMessage, _roster, _typingUserNames) { isTypingRemote, pinnedMessage, errorMessage, roster, typingUserNames ->
+            ThreadUiState5B(isTypingRemote, pinnedMessage, errorMessage, roster, typingUserNames)
+        },
+        combine(_draft, _resumeDraft, _replyingToMessage, _userRole, _linkPreview) { draft, resumeDraft, replyingToMessage, userRole, linkPreview ->
+            ThreadUiState5C(draft, resumeDraft, replyingToMessage, userRole, linkPreview)
+        },
+        _needsReply,
+    ) { a, b, c, needsReply ->
         ThreadUiState(
-            thread = values[0] as? ChatThreadEntity,
-            messages = values[1] as List<ChatMessageEntity>,
+            thread = a.thread,
+            messages = a.messages,
             myUserId = identity.activeUserId.value ?: "",
-            isLoadingMore = values[2] as Boolean,
-            hasMore = values[3] as Boolean,
-            editingMessage = values[4] as? ChatMessageEntity,
-            isTypingRemote = values[5] as Boolean,
-            pinnedMessage = values[6] as? ChatMessageEntity,
-            errorMessage = values[7] as? String,
-            roster = values[8] as List<ChatAccountRosterEntity>,
-            typingUserNames = values[9] as List<String>,
-            draft = values[10] as String,
-            resumeDraft = values[11] as? String,
-            replyingToMessage = values[12] as? ChatMessageEntity,
-            userRole = values[13] as? String,
-            linkPreview = values[14] as? LinkPreviewResponse,
-            needsReply = values[15] as Boolean,
+            isLoadingMore = a.isLoadingMore,
+            hasMore = a.hasMore,
+            editingMessage = a.editingMessage,
+            isTypingRemote = b.isTypingRemote,
+            pinnedMessage = b.pinnedMessage,
+            errorMessage = b.errorMessage,
+            roster = b.roster,
+            typingUserNames = b.typingUserNames,
+            draft = c.draft,
+            resumeDraft = c.resumeDraft,
+            replyingToMessage = c.replyingToMessage,
+            userRole = c.userRole,
+            linkPreview = c.linkPreview,
+            needsReply = needsReply,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -486,3 +477,27 @@ class ThreadViewModel @Inject constructor(
         realtimeClient.sendTyping(threadId, false)
     }
 }
+
+private data class ThreadUiState5A(
+    val thread: ChatThreadEntity?,
+    val messages: List<ChatMessageEntity>,
+    val isLoadingMore: Boolean,
+    val hasMore: Boolean,
+    val editingMessage: ChatMessageEntity?,
+)
+
+private data class ThreadUiState5B(
+    val isTypingRemote: Boolean,
+    val pinnedMessage: ChatMessageEntity?,
+    val errorMessage: String?,
+    val roster: List<ChatAccountRosterEntity>,
+    val typingUserNames: List<String>,
+)
+
+private data class ThreadUiState5C(
+    val draft: String,
+    val resumeDraft: String?,
+    val replyingToMessage: ChatMessageEntity?,
+    val userRole: String?,
+    val linkPreview: LinkPreviewResponse?,
+)

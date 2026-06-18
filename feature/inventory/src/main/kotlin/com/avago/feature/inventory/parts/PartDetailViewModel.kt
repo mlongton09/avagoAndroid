@@ -74,23 +74,24 @@ class PartDetailViewModel @Inject constructor(
         if (accountId == null) flowOf(PartDetailUiState(isLoading = false))
         else {
             val db = dbFactory.get(accountId)
-            @Suppress("UNCHECKED_CAST")
             combine(
-                db.partDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
-                db.inventoryDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
-                db.stockingLevelDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
-                db.inventoryTransactionDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
-                db.vendorDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
-                _showReceive as kotlinx.coroutines.flow.Flow<Any?>,
-                _showUse as kotlinx.coroutines.flow.Flow<Any?>,
-            ) { v ->
-                val parts = v[0] as List<PartEntity>
-                val inventories = v[1] as List<InventoryEntity>
-                val levels = v[2] as List<StockingLevelEntity>
-                val transactions = v[3] as List<InventoryTransactionEntity>
-                val vendors = v[4] as List<VendorEntity>
-                val showReceive = v[5] as Boolean
-                val showUse = v[6] as Boolean
+                combine(
+                    db.partDao().observeAll(accountId),
+                    db.inventoryDao().observeAll(accountId),
+                    db.stockingLevelDao().observeAll(accountId),
+                    db.inventoryTransactionDao().observeAll(accountId),
+                    db.vendorDao().observeAll(accountId),
+                ) { parts, inventories, levels, transactions, vendors ->
+                    PartDetailIntermediate(parts, inventories, levels, transactions, vendors)
+                },
+                _showReceive,
+                _showUse,
+            ) { mid, showReceive, showUse ->
+                val parts = mid.parts
+                val inventories = mid.inventories
+                val levels = mid.levels
+                val transactions = mid.transactions
+                val vendors = mid.vendors
 
                 val part = parts.find { it.partId == partId }
                 val inv = inventories.find { it.partId == partId }
@@ -200,3 +201,11 @@ class PartDetailViewModel @Inject constructor(
         _showUse.value = false
     }
 }
+
+private data class PartDetailIntermediate(
+    val parts: List<PartEntity>,
+    val inventories: List<InventoryEntity>,
+    val levels: List<StockingLevelEntity>,
+    val transactions: List<InventoryTransactionEntity>,
+    val vendors: List<VendorEntity>,
+)

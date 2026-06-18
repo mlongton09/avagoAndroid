@@ -113,28 +113,23 @@ class CycleCountDetailViewModel @Inject constructor(
         if (accountId == null) flowOf(CycleCountDetailUiState(isLoading = false))
         else {
             val db = dbFactory.get(accountId)
-            @Suppress("UNCHECKED_CAST")
             combine(
-                db.cycleCountDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
-                db.cycleCountLineDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
-                db.locationDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
-                db.partDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
-                _isActioning as kotlinx.coroutines.flow.Flow<Any?>,
-                _actionError as kotlinx.coroutines.flow.Flow<Any?>,
-                _localQtyEdits as kotlinx.coroutines.flow.Flow<Any?>,
-            ) { v ->
-                val counts = v[0] as List<CycleCountEntity>
-                val lines = v[1] as List<CycleCountLineEntity>
-                val locations = v[2] as List<LocationEntity>
-                val parts = v[3] as List<PartEntity>
-                val actioning = v[4] as Boolean
-                val actionErr = v[5] as String?
-                @Suppress("UNCHECKED_CAST")
-                val edits = v[6] as Map<String, String>
-                val count = counts.find { it.cycleCountId == countId }
-                val location = locations.find { it.locationId == count?.locationId }
-                val partMap = parts.associateBy { it.partId }
-                val countLines = lines
+                combine(
+                    db.cycleCountDao().observeAll(accountId),
+                    db.cycleCountLineDao().observeAll(accountId),
+                    db.locationDao().observeAll(accountId),
+                    db.partDao().observeAll(accountId),
+                    _isActioning,
+                ) { counts, lines, locations, parts, actioning ->
+                    CycleCountDetailIntermediate(counts, lines, locations, parts, actioning)
+                },
+                _actionError,
+                _localQtyEdits,
+            ) { mid, actionErr, edits ->
+                val count = mid.counts.find { it.cycleCountId == countId }
+                val location = mid.locations.find { it.locationId == count?.locationId }
+                val partMap = mid.parts.associateBy { it.partId }
+                val countLines = mid.lines
                     .filter { it.cycleCountId == countId }
                     .map { line ->
                         CycleCountLineWithPart(
@@ -148,7 +143,7 @@ class CycleCountDetailViewModel @Inject constructor(
                     location = location,
                     lines = countLines,
                     isLoading = false,
-                    isActioning = actioning,
+                    isActioning = mid.actioning,
                     actionError = actionErr,
                 )
             }
@@ -229,6 +224,18 @@ class CycleCountDetailViewModel @Inject constructor(
 
     fun clearError() { _actionError.value = null }
 }
+
+// ---------------------------------------------------------------------------
+// Private intermediate state for nested combine
+// ---------------------------------------------------------------------------
+
+private data class CycleCountDetailIntermediate(
+    val counts: List<CycleCountEntity>,
+    val lines: List<CycleCountLineEntity>,
+    val locations: List<LocationEntity>,
+    val parts: List<PartEntity>,
+    val actioning: Boolean,
+)
 
 // ---------------------------------------------------------------------------
 // Create sheet state

@@ -60,31 +60,28 @@ class PurchaseOrderViewModel @Inject constructor(
         if (accountId == null) flowOf(PoDetailUiState(isLoading = false))
         else {
             val db = dbFactory.get(accountId)
-            @Suppress("UNCHECKED_CAST")
             combine(
-                db.purchaseOrderDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
-                db.poLineDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
-                db.vendorDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
-                _showGrnSheet as kotlinx.coroutines.flow.Flow<Any?>,
-                _isActioning as kotlinx.coroutines.flow.Flow<Any?>,
-                _actionError as kotlinx.coroutines.flow.Flow<Any?>,
-            ) { v ->
-                val pos = v[0] as List<PurchaseOrderEntity>
-                val lines = v[1] as List<PoLineEntity>
-                val vendors = v[2] as List<VendorEntity>
-                val showGrn = v[3] as Boolean
-                val actioning = v[4] as Boolean
-                val actionErr = v[5] as String?
-                val po = pos.find { it.poId == poId }
-                val vendor = vendors.find { it.vendorId == po?.vendorId }
-                val poLines = lines.filter { it.poId == poId }.sortedBy { it.displayOrder }
+                combine(
+                    db.purchaseOrderDao().observeAll(accountId),
+                    db.poLineDao().observeAll(accountId),
+                    db.vendorDao().observeAll(accountId),
+                    _showGrnSheet,
+                    _isActioning,
+                ) { pos, lines, vendors, showGrn, actioning ->
+                    PoDetailIntermediate(pos, lines, vendors, showGrn, actioning)
+                },
+                _actionError,
+            ) { mid, actionErr ->
+                val po = mid.pos.find { it.poId == poId }
+                val vendor = mid.vendors.find { it.vendorId == po?.vendorId }
+                val poLines = mid.lines.filter { it.poId == poId }.sortedBy { it.displayOrder }
                 PoDetailUiState(
                     po = po,
                     vendor = vendor,
                     lines = poLines,
                     isLoading = false,
-                    showGrnSheet = showGrn,
-                    isActioning = actioning,
+                    showGrnSheet = mid.showGrn,
+                    isActioning = mid.actioning,
                     actionError = actionErr,
                 )
             }
@@ -195,6 +192,18 @@ class PurchaseOrderViewModel @Inject constructor(
     fun dismissGrnSheet() { _showGrnSheet.value = false }
     fun clearError() { _actionError.value = null }
 }
+
+// ---------------------------------------------------------------------------
+// Private intermediate state for nested combine
+// ---------------------------------------------------------------------------
+
+private data class PoDetailIntermediate(
+    val pos: List<PurchaseOrderEntity>,
+    val lines: List<PoLineEntity>,
+    val vendors: List<VendorEntity>,
+    val showGrn: Boolean,
+    val actioning: Boolean,
+)
 
 // ---------------------------------------------------------------------------
 // Create / Edit
