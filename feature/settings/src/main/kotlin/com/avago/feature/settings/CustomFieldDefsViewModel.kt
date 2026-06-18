@@ -30,7 +30,9 @@ class CustomFieldDefsViewModel @Inject constructor(
             try {
                 val result = client.listCustomFieldDefs(accountId)
                 if (result is com.avago.core.network.NetworkResult.Success) {
-                    _fields.value = result.data["custom_field_defs"] as? List<Map<String, Any>> ?: emptyList()
+                    _fields.value = (result.data["custom_field_defs"] as? List<*>)
+                        ?.filterIsInstance<Map<String, Any>>()
+                        ?: emptyList()
                 }
             } catch (e: Exception) {
                 Timber.e(e, "loadCustomFieldDefs failed")
