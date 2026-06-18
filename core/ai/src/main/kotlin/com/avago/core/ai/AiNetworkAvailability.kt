@@ -33,7 +33,7 @@ class AiNetworkAvailability @Inject constructor(
     val isOnline: StateFlow<Boolean> = _isOnline.asStateFlow()
 
     private val connectivityManager =
-        context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        context.getSystemService(ConnectivityManager::class.java)
 
     private val callback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {

@@ -151,7 +151,7 @@ class WorkOrderNotificationService @Inject constructor(
             CHANNEL_NAME,
             NotificationManager.IMPORTANCE_DEFAULT,
         )
-        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val manager = context.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(channel)
     }
 }

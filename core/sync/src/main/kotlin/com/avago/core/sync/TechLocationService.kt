@@ -10,6 +10,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
@@ -35,8 +36,10 @@ class TechLocationService @Inject constructor(
     private val minDistanceM = 500f
 
     private val locationManager: LocationManager by lazy {
-        context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        context.getSystemService(LocationManager::class.java)
     }
+
+    private var locationJob: Job? = null
 
     private val locationListener = LocationListener { location ->
         onLocationUpdate(location.latitude, location.longitude)
@@ -89,7 +92,8 @@ class TechLocationService @Inject constructor(
         }
 
         @OptIn(DelicateCoroutinesApi::class)
-        GlobalScope.launch(Dispatchers.IO) {
+        locationJob?.cancel()
+        locationJob = GlobalScope.launch(Dispatchers.IO) {
             try {
                 serviceClientProvider.get().updateTechLocation(accountId, userId, lat, lon)
                 Timber.d("TechLocationService: posted location ($lat, $lon) for user $userId")

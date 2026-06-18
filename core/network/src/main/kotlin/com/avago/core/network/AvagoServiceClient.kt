@@ -2138,7 +2138,7 @@ class AvagoServiceClient @Inject constructor(
         safeNetworkCall {
             client.post("$baseUrl/accounts/$accountId/attachments/$fileUploadId/finalize") {
                 setBody(mapOf("file_size_bytes" to fileSizeBytes))
-            }.body<Map<String, FileUploadResponse>>()["file_upload"]!!
+            }.body<Map<String, FileUploadResponse>>()?.get("file_upload") ?: throw IllegalStateException("Missing file_upload in response")
         }
 
     // ---------------------------------------------------------------------------
@@ -2253,7 +2253,7 @@ class AvagoServiceClient @Inject constructor(
         safeNetworkCall {
             client.post("$baseUrl/chat/messages/$messageId/save") {
                 setBody(SaveMessageRequest(note = note))
-            }.body<Map<String, ChatMessageSave>>()["save"]!!
+            }.body<Map<String, ChatMessageSave>>()?.get("save") ?: throw IllegalStateException("Missing save in response")
         }
 
     suspend fun unsaveMessage(messageId: String): NetworkResult<Unit> =
@@ -2274,7 +2274,7 @@ class AvagoServiceClient @Inject constructor(
         safeNetworkCall {
             client.patch("$baseUrl/chat/messages/$messageId/save") {
                 setBody(SaveMessageRequest(note = note))
-            }.body<Map<String, ChatMessageSave>>()["save"]!!
+            }.body<Map<String, ChatMessageSave>>()?.get("save") ?: throw IllegalStateException("Missing save in response")
         }
 
     // ---------------------------------------------------------------------------
@@ -2320,7 +2320,7 @@ class AvagoServiceClient @Inject constructor(
         safeNetworkCall {
             client.patch("$baseUrl/accounts/$accountId/chat/scheduled-messages/$scheduledMessageId") {
                 setBody(request)
-            }.body<Map<String, ChatScheduledMessage>>()["scheduled_message"]!!
+            }.body<Map<String, ChatScheduledMessage>>()?.get("scheduled_message") ?: throw IllegalStateException("Missing scheduled_message in response")
         }
 
     // ---------------------------------------------------------------------------
@@ -2595,14 +2595,14 @@ class AvagoServiceClient @Inject constructor(
         safeNetworkCall {
             client.post("$baseUrl/chat/me/templates") {
                 setBody(request)
-            }.body<Map<String, ChatMessageTemplate>>()["template"]!!
+            }.body<Map<String, ChatMessageTemplate>>()?.get("template") ?: throw IllegalStateException("Missing template in response")
         }
 
     suspend fun updatePersonalTemplate(templateId: String, request: CreateTemplateRequest): NetworkResult<ChatMessageTemplate> =
         safeNetworkCall {
             client.put("$baseUrl/chat/me/templates/$templateId") {
                 setBody(request)
-            }.body<Map<String, ChatMessageTemplate>>()["template"]!!
+            }.body<Map<String, ChatMessageTemplate>>()?.get("template") ?: throw IllegalStateException("Missing template in response")
         }
 
     suspend fun deletePersonalTemplate(templateId: String): NetworkResult<Unit> =
@@ -2853,14 +2853,14 @@ class AvagoServiceClient @Inject constructor(
         safeNetworkCall {
             client.post("$baseUrl/accounts/$accountId/work-request-portals") {
                 setBody(request)
-            }.body<Map<String, WorkRequestPortalResponse>>()["portal"]!!
+            }.body<Map<String, WorkRequestPortalResponse>>()?.get("portal") ?: throw IllegalStateException("Missing portal in response")
         }
 
     suspend fun updateWorkRequestPortal(accountId: String, portalId: String, updates: Map<String, Any>): NetworkResult<WorkRequestPortalResponse> =
         safeNetworkCall {
             client.patch("$baseUrl/accounts/$accountId/work-request-portals/$portalId") {
                 setBody(updates)
-            }.body<Map<String, WorkRequestPortalResponse>>()["portal"]!!
+            }.body<Map<String, WorkRequestPortalResponse>>()?.get("portal") ?: throw IllegalStateException("Missing portal in response")
         }
 
     suspend fun deleteWorkRequestPortal(accountId: String, portalId: String): NetworkResult<Unit> =

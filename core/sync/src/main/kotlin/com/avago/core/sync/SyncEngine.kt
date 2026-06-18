@@ -2234,7 +2234,7 @@ class SyncEngine @Inject constructor(
                 kotlinx.coroutines.delay(delay)
             }
         }
-        throw lastError!!
+        throw lastError ?: RuntimeException("Sync failed with unknown error")
     }
 
     private fun retryDelayMs(attempt: Int): Long = when (attempt) {
