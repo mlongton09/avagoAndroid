@@ -174,46 +174,30 @@ class IdentityManager @Inject constructor(
                 val last = accounts.last()
                 setActiveAccount(last.accountId, last.userId, isAnonymous = last.isAnonymous)
 
-                // Refresh role from the account members list if:
-                //  • role is missing (old install / failed prior fetch), OR
-                //  • role is a legacy value ("owner", "tech", "member") that the
-                //    server DB has since migrated to the new RBAC equivalents.
-                // NOTE: /users/me does NOT include the account-specific role —
-                // the role is per-account and only returned by the members endpoint.
-                // Mirrors iOS IdentityManager.fetchAndStoreUserProfile which calls
-                // fetchAccountMembers and sets currentRole from the matching entry.
-                val isLegacyRole = last.role != null && last.role in setOf("owner", "tech", "member")
-                val role = if ((last.role.isNullOrBlank() || isLegacyRole) && !last.isAnonymous) {
-                    Timber.d("IdentityManager: role=${last.role} for ${last.accountId} — refreshing from members")
-                    runCatching {
-                        var fresh: String? = null
-                        val userId = last.userId
-                        if (userId != null) {
-                            val result = client.getAccountMembers(last.accountId)
-                            if (result is NetworkResult.Success) {
-                                val me = result.data.find { it.user_id == userId }
-                                fresh = normalizeLegacyRole(me?.role)
-                            }
-                        }
-                        if (fresh == null) fresh = normalizeLegacyRole(last.role)
-                        if (fresh != null) {
-                            accountManifest.upsertFromServer(last.copy(role = fresh))
-                        }
-                        fresh
-                    }.getOrNull() ?: normalizeLegacyRole(last.role)
-                } else {
-                    normalizeLegacyRole(last.role)
-                }
-
+                // Use the role from disk immediately — never block startup on a network call.
+                // Mirrors iOS provision() which reads Keychain then fires AVIdentityReady
+                // without waiting for any network response. If the role is missing or a
+                // legacy value, refresh it in the background after isInitialized fires.
+                val role = normalizeLegacyRole(last.role)
                 val isRoot = role == "root" || last.memberships.any { it.accountId == last.accountId && it.isRoot }
                 permissionStore.get().activate(last.accountId, role, isRoot)
                 permissionStore.get().refresh(last.accountId, role)
                 crashDiagnosticsProvider.get().setUserContext()
                 accountManifest.deduplicateAnonymousAccounts(last.accountId)
                 Timber.d("IdentityManager: restored account ${last.accountId}")
+
+                val isLegacyRole = last.role != null && last.role in setOf("owner", "tech", "member")
+                if ((last.role.isNullOrBlank() || isLegacyRole) && !last.isAnonymous) {
+                    refreshRoleInBackground(last.accountId, last.userId)
+                }
             } else {
                 Timber.d("IdentityManager: no accounts on disk, provisioning")
-                provisionConnected(appContext)
+                try {
+                    provisionConnected(appContext)
+                } catch (e: Exception) {
+                    Timber.w(e, "IdentityManager: connected provision failed — provisioning offline")
+                    provisionOffline()
+                }
             }
         } finally {
             // Always mark init as done so the splash and nav-host are unblocked
@@ -243,6 +227,51 @@ class IdentityManager @Inject constructor(
 
         Timber.d("IdentityManager: provisioned as $accountId")
         registerPushTokenAsync()
+    }
+
+    // ---------------------------------------------------------------------------
+    // Offline provision — fresh install with no network connectivity.
+    // Mirrors iOS IdentityManager.provisionOffline(): generates local UUIDs,
+    // writes to disk, and fires identity-ready without any network call.
+    // ---------------------------------------------------------------------------
+
+    private suspend fun provisionOffline() = withContext(Dispatchers.IO) {
+        val accountId = java.util.UUID.randomUUID().toString()
+        val deviceId = tokenStore.getOrCreateDeviceId()
+        tokenStore.storeTokens(accountId, "", "")
+        tokenStore.storeDeviceId(accountId, deviceId)
+        val record = AccountRecord(accountId = accountId, isAnonymous = true)
+        AccountManifest.addOrUpdate(appContext, record)
+        setActiveAccount(accountId, isAnonymous = true)
+        permissionStore.get().activate(accountId, null, isRoot = false)
+        Timber.d("IdentityManager: provisioned offline as $accountId")
+    }
+
+    // ---------------------------------------------------------------------------
+    // Background role refresh — called after isInitialized fires for returning
+    // users whose stored role is missing or a legacy RBAC value.
+    // ---------------------------------------------------------------------------
+
+    @Suppress("OPT_IN_USAGE")
+    private fun refreshRoleInBackground(accountId: String, userId: String?) {
+        if (userId == null) return
+        GlobalScope.launch(Dispatchers.IO) {
+            runCatching {
+                Timber.d("IdentityManager: background role refresh for $accountId")
+                val result = client.getAccountMembers(accountId)
+                if (result is NetworkResult.Success) {
+                    val me = result.data.find { it.user_id == userId }
+                    val fresh = normalizeLegacyRole(me?.role) ?: return@runCatching
+                    val record = AccountManifest.load(appContext).find { it.accountId == accountId }
+                        ?: return@runCatching
+                    accountManifest.upsertFromServer(record.copy(role = fresh))
+                    val freshIsRoot = fresh == "root" || record.memberships.any { it.accountId == accountId && it.isRoot }
+                    permissionStore.get().activate(accountId, fresh, freshIsRoot)
+                    permissionStore.get().refresh(accountId, fresh)
+                    Timber.d("IdentityManager: background role refresh complete — $fresh")
+                }
+            }.onFailure { Timber.w(it, "IdentityManager: background role refresh failed") }
+        }
     }
 
     // ---------------------------------------------------------------------------
