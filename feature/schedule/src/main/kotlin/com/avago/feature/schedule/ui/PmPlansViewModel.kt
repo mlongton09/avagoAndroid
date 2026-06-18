@@ -35,6 +35,8 @@ class PmPlansViewModel @Inject constructor(
                         _plans.value = result.data.filter { it.asset_id == assetId }
                     is NetworkResult.Error ->
                         Timber.e("listPmPlans error: ${result.message}")
+                    is NetworkResult.Unauthorized ->
+                        Timber.w("listPmPlans: unauthorized")
                 }
             } catch (e: Exception) {
                 Timber.e(e, "listPmPlans failed")

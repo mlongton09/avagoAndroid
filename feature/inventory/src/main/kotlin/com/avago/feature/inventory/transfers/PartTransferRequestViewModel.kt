@@ -144,6 +144,8 @@ class CreateTransferRequestViewModel @Inject constructor(
                     Timber.e("CreateTransferRequestViewModel: submit failed ${result.code} ${result.message}")
                     _state.value = _state.value.copy(isSubmitting = false, error = result.message)
                 }
+                is NetworkResult.Unauthorized ->
+                    _state.value = _state.value.copy(isSubmitting = false, error = "Session expired. Please sign in again.")
             }
         }
     }
