@@ -657,14 +657,14 @@ class SyncPayloadBuilder @Inject constructor(
                     val e = db.binDao().getById(entityId) ?: return null
                     buildJsonObject {
                         put("bin_id", e.binId)
-                        put("account_id", e.accountId)
+                        put("account_id", accountId)
                         put("name", e.name)
                         e.locationId?.let { put("location_id", it) }
                         e.aisle?.let { put("aisle", it) }
-                        e.row?.let { put("row", it) }
+                        e.slot?.let { put("slot", it) }
                         e.shelf?.let { put("shelf", it) }
                         e.barcode?.let { put("barcode", it) }
-                        put("is_active", e.isActive)
+                        put("is_active", e.active)
                         // Change 145/147/64
                         e.capacity?.let { put("capacity", it) }
                         e.currentCount?.let { put("current_count", it) }
@@ -673,7 +673,6 @@ class SyncPayloadBuilder @Inject constructor(
                         e.updatedById?.let { put("updated_by_id", it) }
                         put("created_at", msToIso(e.createdAt))
                         put("updated_at", msToIso(e.updatedAt))
-                        e.deletedAt?.let { put("deleted_at", msToIso(it)) }
                     }
                 }
 
