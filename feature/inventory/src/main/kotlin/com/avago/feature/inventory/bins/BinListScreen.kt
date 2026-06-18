@@ -133,8 +133,8 @@ private fun BinCard(
         Column(modifier = Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(bin.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                if (bin.binType != null) {
-                    SuggestionChip(onClick = {}, label = { Text(bin.binType, style = MaterialTheme.typography.labelSmall) })
+                bin.binType?.let {
+                    SuggestionChip(onClick = {}, label = { Text(it, style = MaterialTheme.typography.labelSmall) })
                 }
                 if (!bin.active) {
                     Spacer(Modifier.width(6.dp))
@@ -155,18 +155,20 @@ private fun BinCard(
                 }
             }
             // Fill % bar
-            if (bin.capacity != null && bin.capacity > 0 && bin.currentCount != null) {
-                Spacer(Modifier.height(6.dp))
-                val fillFraction = (bin.currentCount.toFloat() / bin.capacity.toFloat()).coerceIn(0f, 1f)
-                LinearProgressIndicator(
-                    progress = { fillFraction },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Text(
-                    "${bin.currentCount} / ${bin.capacity} ${stringResource(R.string.bins_units)}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            bin.capacity?.takeIf { it > 0 }?.let { capacity ->
+                bin.currentCount?.let { currentCount ->
+                    Spacer(Modifier.height(6.dp))
+                    val fillFraction = (currentCount.toFloat() / capacity.toFloat()).coerceIn(0f, 1f)
+                    LinearProgressIndicator(
+                        progress = { fillFraction },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        "$currentCount / $capacity ${stringResource(R.string.bins_units)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }
