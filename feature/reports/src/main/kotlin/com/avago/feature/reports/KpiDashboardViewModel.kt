@@ -42,6 +42,7 @@ class KpiDashboardViewModel @Inject constructor(
                 when (result) {
                     is NetworkResult.Success -> _kpis.value = result.data
                     is NetworkResult.Error -> _error.value = result.message
+                    is NetworkResult.Unauthorized -> _error.value = "Session expired. Please sign in again."
                 }
             } catch (e: Exception) {
                 Timber.e(e, "loadKpis failed")
