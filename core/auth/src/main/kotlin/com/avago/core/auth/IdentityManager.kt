@@ -190,6 +190,10 @@ class IdentityManager @Inject constructor(
                 if ((last.role.isNullOrBlank() || isLegacyRole) && !last.isAnonymous) {
                     refreshRoleInBackground(last.accountId, last.userId)
                 }
+                // Re-register push token on every cold start — FCM can rotate the token
+                // while the app is not running. Matches iOS which re-registers on every
+                // AVIdentityReady. Runs fire-and-forget so it never blocks startup.
+                if (!last.isAnonymous) registerPushTokenAsync()
             } else {
                 Timber.d("IdentityManager: no accounts on disk, provisioning")
                 try {
