@@ -217,6 +217,7 @@ fun ScheduleDetailScreen(
 // Content
 // ─────────────────────────────────────────────────────────────────────────────
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ScheduleDetailContent(
     schedule: ScheduleEntity,
