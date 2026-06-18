@@ -49,6 +49,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -155,6 +158,7 @@ fun PurchaseOrderCreateScreen(
                 trailingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null) },
                 modifier = Modifier
                     .fillMaxWidth()
+                    .semantics { role = Role.Button }
                     .clickable { showDatePicker = true },
             )
 
@@ -282,6 +286,7 @@ fun PurchaseOrderCreateScreen(
                             trailingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .semantics { role = Role.Button }
                                 .clickable { onPickPart?.invoke(lineIndex) },
                         )
 

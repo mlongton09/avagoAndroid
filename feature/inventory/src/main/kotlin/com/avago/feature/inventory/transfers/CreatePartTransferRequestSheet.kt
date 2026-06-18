@@ -24,6 +24,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -72,6 +75,7 @@ fun CreatePartTransferRequestSheet(
                             text = part.name,
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .semantics { role = Role.Button }
                                 .clickable { viewModel.selectPart(part) }
                                 .padding(8.dp),
                         )

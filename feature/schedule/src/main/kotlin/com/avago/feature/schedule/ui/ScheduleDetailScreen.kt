@@ -522,7 +522,7 @@ private fun SkipOccurrenceSheet(
                     label = { Text("Reason") },
                     trailingIcon = {
                         IconButton(onClick = { reasonExpanded = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = null)
+                            Icon(Icons.Default.MoreVert, contentDescription = "Show reason options")
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),

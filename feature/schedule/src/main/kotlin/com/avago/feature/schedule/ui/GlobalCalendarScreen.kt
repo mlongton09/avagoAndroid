@@ -39,6 +39,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -76,7 +79,7 @@ fun GlobalCalendarScreen(
             CenterAlignedTopAppBar(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 title = { Text(stringResource(R.string.schedule_calendar_title)) },
@@ -179,6 +182,7 @@ fun GlobalCalendarScreen(
                                         else -> Color.Transparent
                                     }
                                 )
+                                .semantics { role = Role.Button }
                                 .clickable { viewModel.selectDate(date) },
                             contentAlignment = Alignment.Center,
                         ) {

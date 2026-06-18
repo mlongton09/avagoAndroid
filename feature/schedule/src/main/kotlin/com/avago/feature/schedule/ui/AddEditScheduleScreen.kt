@@ -43,6 +43,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -168,6 +171,7 @@ fun AddEditScheduleScreen(
                 onValueChange = {},
                 modifier = Modifier
                     .fillMaxWidth()
+                    .semantics { role = Role.Button }
                     .clickable { onPickAsset() },
                 label = { Text(stringResource(R.string.schedule_field_asset)) },
                 isError = assetError,
@@ -222,6 +226,7 @@ fun AddEditScheduleScreen(
                     onValueChange = {},
                     modifier = Modifier
                         .fillMaxWidth()
+                        .semantics { role = Role.Button }
                         .clickable { showFrequencyMenu = true },
                     label = { Text(stringResource(R.string.schedule_field_frequency)) },
                     enabled = false,
@@ -251,6 +256,7 @@ fun AddEditScheduleScreen(
                     onValueChange = {},
                     modifier = Modifier
                         .fillMaxWidth()
+                        .semantics { role = Role.Button }
                         .clickable { showMeterTypeMenu = true },
                     label = { Text(stringResource(R.string.schedule_field_meter_type)) },
                     enabled = false,
@@ -299,6 +305,7 @@ fun AddEditScheduleScreen(
                     onValueChange = {},
                     modifier = Modifier
                         .fillMaxWidth()
+                        .semantics { role = Role.Button }
                         .clickable { showTimezoneMenu = true },
                     label = { Text("Timezone") },
                     enabled = false,
@@ -351,6 +358,7 @@ fun AddEditScheduleScreen(
                         onValueChange = {},
                         modifier = Modifier
                             .fillMaxWidth()
+                            .semantics { role = Role.Button }
                             .clickable {
                                 val today = endDate ?: LocalDate.now()
                                 DatePickerDialog(
