@@ -122,11 +122,7 @@ fun CustomFieldDefsScreen(
                 CircularProgressIndicator()
             }
             fields.isEmpty() -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                EmptyState(
-                    icon = Icons.Default.Add,
-                    title = "No Custom Fields",
-                    subtitle = "Add custom fields to assets, work orders, parts, or vendors.",
-                )
+                EmptyState(message = "No Custom Fields")
             }
             else -> LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),

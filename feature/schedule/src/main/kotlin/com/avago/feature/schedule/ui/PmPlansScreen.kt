@@ -16,7 +16,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -97,9 +96,7 @@ fun PmPlansScreen(
                 CircularProgressIndicator()
             }
             plans.isEmpty() -> EmptyState(
-                icon = Icons.Default.Schedule,
-                title = "No PM Plans",
-                subtitle = "Create a preventive maintenance plan to schedule recurring work orders.",
+                message = "No PM Plans",
                 modifier = Modifier.fillMaxSize(),
             )
             else -> LazyColumn(contentPadding = padding) {

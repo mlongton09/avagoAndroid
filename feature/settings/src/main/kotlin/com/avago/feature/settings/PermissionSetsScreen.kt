@@ -127,11 +127,7 @@ fun PermissionSetsScreen(
                 CircularProgressIndicator()
             }
             sets.isEmpty() -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                EmptyState(
-                    icon = Icons.Default.Add,
-                    title = "No Permission Sets",
-                    subtitle = "Create a set to define role-based access.",
-                )
+                EmptyState(message = "No Permission Sets")
             }
             else -> LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),
