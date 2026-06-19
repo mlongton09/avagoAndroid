@@ -118,7 +118,7 @@ private fun titleForRoute(route: String?): Int = when {
     route.startsWith("workorders/dispatch")      -> R.string.nav_dispatch
     route.startsWith("workorders/calendar")      -> R.string.nav_calendar
     route.startsWith("workorders/available")     -> R.string.nav_available_jobs
-    route.startsWith("workorders/tech_profile")  -> R.string.nav_my_tech_profile
+    route.startsWith("workorders/tech/")          -> R.string.nav_my_tech_profile
     route.startsWith("workorders")               -> R.string.nav_work_orders
     route.startsWith("assets")                   -> R.string.nav_assets
     route == "gallery"                           -> R.string.nav_gallery
