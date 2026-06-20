@@ -69,6 +69,7 @@ class RentalInvoiceViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             val accountId = identityManager.getActiveAccountId() ?: return@launch
             _isLoading.value = true
+            _error.value = null
             try {
                 when (val result = serviceClient.sendRentalInvoice(accountId, invoiceId)) {
                     is NetworkResult.Success -> {
@@ -90,6 +91,7 @@ class RentalInvoiceViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             val accountId = identityManager.getActiveAccountId() ?: return@launch
             _isLoading.value = true
+            _error.value = null
             try {
                 val request = PayInvoiceRequest(
                     payment_method = paymentMethod,
@@ -115,6 +117,7 @@ class RentalInvoiceViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             val accountId = identityManager.getActiveAccountId() ?: return@launch
             _isLoading.value = true
+            _error.value = null
             try {
                 when (val result = serviceClient.voidRentalInvoice(accountId, invoiceId)) {
                     is NetworkResult.Success -> {

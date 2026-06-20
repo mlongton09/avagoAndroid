@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import timber.log.Timber
 import javax.inject.Inject
 
@@ -62,7 +63,7 @@ class RentalBookingViewModel @Inject constructor(
                 when (val result = serviceClient.createRental(accountId, request)) {
                     is NetworkResult.Success -> {
                         Timber.d("[RentalBookingVM] Rental created: ${result.data.rental_id}")
-                        onSuccess()
+                        withContext(Dispatchers.Main) { onSuccess() }
                     }
                     is NetworkResult.Error -> {
                         Timber.e("[RentalBookingVM] Error creating rental: ${result.message}")

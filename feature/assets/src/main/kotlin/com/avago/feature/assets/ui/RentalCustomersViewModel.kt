@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import timber.log.Timber
 import javax.inject.Inject
 
@@ -129,7 +130,7 @@ class RentalCustomerFormViewModel @Inject constructor(
                 when (result) {
                     is NetworkResult.Success -> {
                         Timber.d("[RentalCustomerFormVM] Saved customer ${result.data.rental_customer_id}")
-                        onSuccess()
+                        withContext(Dispatchers.Main) { onSuccess() }
                     }
                     is NetworkResult.Error -> {
                         Timber.e("[RentalCustomerFormVM] Error saving: ${result.message}")

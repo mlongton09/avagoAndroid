@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -439,7 +440,7 @@ private fun DateRateStep(
     if (showStartPicker) {
         val state = rememberDatePickerState(
             initialSelectedDateMillis = startDate
-                .atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                .atStartOfDay(ZoneId.of("UTC")).toInstant().toEpochMilli(),
         )
         DatePickerDialog(
             onDismissRequest = { showStartPicker = false },
@@ -464,16 +465,19 @@ private fun DateRateStep(
     if (showEndPicker) {
         val state = rememberDatePickerState(
             initialSelectedDateMillis = (endDate ?: startDate)
-                .atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                .atStartOfDay(ZoneId.of("UTC")).toInstant().toEpochMilli(),
         )
         DatePickerDialog(
             onDismissRequest = { showEndPicker = false },
             confirmButton = {
                 TextButton(onClick = {
                     state.selectedDateMillis?.let { millis ->
-                        onEndDateChange(
-                            Instant.ofEpochMilli(millis).atZone(ZoneId.of("UTC")).toLocalDate()
-                        )
+                        val picked = Instant.ofEpochMilli(millis).atZone(ZoneId.of("UTC")).toLocalDate()
+                        if (picked.isBefore(startDate) || picked == startDate) {
+                            // end date must be after start date — do not update
+                        } else {
+                            onEndDateChange(picked)
+                        }
                     }
                     showEndPicker = false
                 }) { Text(stringResource(R.string.date_picker_ok)) }
@@ -580,11 +584,10 @@ private fun ConfirmBookingStep(
         ) {
             if (isLoading) {
                 CircularProgressIndicator(
-                    modifier = Modifier
-                        .size(18.dp)
-                        .padding(end = 8.dp),
+                    modifier = Modifier.size(18.dp),
                     strokeWidth = 2.dp,
                 )
+                Spacer(Modifier.width(8.dp))
             }
             Text(stringResource(R.string.rental_booking_confirm))
         }
