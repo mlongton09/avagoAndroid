@@ -36,6 +36,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -51,6 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.avago.core.network.model.RentalReservation
 import com.avago.core.network.model.RentalResponse
 import com.avago.feature.assets.R
 import java.text.NumberFormat
@@ -64,10 +66,13 @@ import java.util.Locale
 fun AssetRentalsScreen(
     assetId: String,
     onBack: () -> Unit,
+    onOpenBooking: () -> Unit = {},
+    onOpenInvoice: (invoiceId: String) -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: AssetRentalsViewModel = hiltViewModel(),
 ) {
     val rentals by viewModel.rentals.collectAsStateWithLifecycle()
+    val reservations by viewModel.reservations.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
 
@@ -96,6 +101,12 @@ fun AssetRentalsScreen(
                     }
                 },
                 title = { Text(stringResource(R.string.rental_list_title)) },
+                actions = {
+                    // "Book" action opens the multi-step booking flow
+                    TextButton(onClick = onOpenBooking) {
+                        Text("Book")
+                    }
+                },
             )
         },
         floatingActionButton = {
@@ -116,7 +127,7 @@ fun AssetRentalsScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            if (!isLoading && rentals.isEmpty()) {
+            if (!isLoading && rentals.isEmpty() && reservations.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
@@ -141,10 +152,47 @@ fun AssetRentalsScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
+                    // Reservations section
+                    if (reservations.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = stringResource(R.string.rental_reservations_section),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(bottom = 4.dp),
+                            )
+                        }
+                        items(reservations, key = { "res_${it.reservation_id}" }) { reservation ->
+                            ReservationCard(
+                                reservation = reservation,
+                                onStartRental = { viewModel.startReservation(reservation.reservation_id) },
+                            )
+                        }
+                        item {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    // Active rentals section label
+                    if (rentals.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = "Rentals",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(bottom = 4.dp),
+                            )
+                        }
+                    }
+
                     items(rentals, key = { it.rental_id }) { rental ->
                         RentalCard(
                             rental = rental,
                             onEndRental = { pendingEndRentalId = rental.rental_id },
+                            onOpenInvoice = { invoiceId -> onOpenInvoice(invoiceId) },
+                            onCreateInvoice = { viewModel.createInvoice(rental.rental_id) },
                         )
                     }
                     // bottom spacer for FAB
@@ -194,9 +242,14 @@ fun AssetRentalsScreen(
 private fun RentalCard(
     rental: RentalResponse,
     onEndRental: () -> Unit,
+    onOpenInvoice: (invoiceId: String) -> Unit = {},
+    onCreateInvoice: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val isActive = rental.status == "active"
+    val isEnded = rental.status == "ended"
+    val isInvoiced = rental.status == "invoiced"
+    val isPaid = rental.status == "paid"
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -220,7 +273,21 @@ private fun RentalCard(
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
                 )
-                RentalStatusChip(status = rental.status)
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (isInvoiced) {
+                        RentalMiniChip(
+                            label = stringResource(R.string.rental_invoiced_chip),
+                            color = MaterialTheme.colorScheme.secondary,
+                        )
+                    }
+                    if (isPaid) {
+                        RentalMiniChip(
+                            label = stringResource(R.string.rental_paid_chip),
+                            color = Color(0xFF2E7D32),
+                        )
+                    }
+                    RentalStatusChip(status = rental.status)
+                }
             }
 
             Spacer(Modifier.height(6.dp))
@@ -280,7 +347,112 @@ private fun RentalCard(
                     Text(stringResource(R.string.rental_end_button))
                 }
             }
+
+            // Ended rentals: show "Create Invoice" action
+            if (isEnded) {
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick = onCreateInvoice,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.rental_invoice_create))
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun RentalMiniChip(label: String, color: Color) {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = color.copy(alpha = 0.15f),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+            color = color,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+        )
+    }
+}
+
+@Composable
+private fun ReservationCard(
+    reservation: RentalReservation,
+    onStartRental: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f),
+        ),
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = reservation.customer_name ?: "Internal",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                ReservationStatusChip(status = reservation.status)
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "${formatRentalDate(reservation.reserved_from)} → ${formatRentalDate(reservation.reserved_until)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            reservation.notes?.takeIf { it.isNotBlank() }?.let { note ->
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = note,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                )
+            }
+            if (reservation.status != "cancelled") {
+                Spacer(Modifier.height(10.dp))
+                OutlinedButton(
+                    onClick = onStartRental,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.rental_reservation_start))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReservationStatusChip(
+    status: String,
+    modifier: Modifier = Modifier,
+) {
+    val (color, label) = when (status) {
+        "confirmed" -> MaterialTheme.colorScheme.primary to stringResource(R.string.rental_reservation_confirmed)
+        "cancelled" -> MaterialTheme.colorScheme.error to stringResource(R.string.rental_reservation_cancelled)
+        else -> MaterialTheme.colorScheme.outline to stringResource(R.string.rental_reservation_tentative)
+    }
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(50),
+        color = color.copy(alpha = 0.15f),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+            color = color,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+        )
     }
 }
 

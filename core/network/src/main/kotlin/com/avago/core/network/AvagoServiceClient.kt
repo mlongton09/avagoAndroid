@@ -1277,6 +1277,185 @@ class AvagoServiceClient @Inject constructor(
         }
 
     // ---------------------------------------------------------------------------
+    // Rental Customers
+    // ---------------------------------------------------------------------------
+
+    /** GET /accounts/{accountId}/rental-customers */
+    suspend fun getRentalCustomers(accountId: String): NetworkResult<List<com.avago.core.network.model.RentalCustomer>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/rental-customers")
+                .body<com.avago.core.network.model.RentalCustomersEnvelope>().customers
+        }
+
+    /** POST /accounts/{accountId}/rental-customers */
+    suspend fun createRentalCustomer(
+        accountId: String,
+        request: com.avago.core.network.model.CreateRentalCustomerRequest,
+    ): NetworkResult<com.avago.core.network.model.RentalCustomer> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/rental-customers") {
+                setBody(request)
+            }.body<com.avago.core.network.model.RentalCustomerEnvelope>().customer
+        }
+
+    /** GET /accounts/{accountId}/rental-customers/{customerId} */
+    suspend fun getRentalCustomer(accountId: String, customerId: String): NetworkResult<com.avago.core.network.model.RentalCustomer> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/rental-customers/$customerId")
+                .body<com.avago.core.network.model.RentalCustomerEnvelope>().customer
+        }
+
+    /** PUT /accounts/{accountId}/rental-customers/{customerId} */
+    suspend fun updateRentalCustomer(
+        accountId: String,
+        customerId: String,
+        request: com.avago.core.network.model.CreateRentalCustomerRequest,
+    ): NetworkResult<com.avago.core.network.model.RentalCustomer> =
+        safeNetworkCall {
+            client.put("$baseUrl/accounts/$accountId/rental-customers/$customerId") {
+                setBody(request)
+            }.body<com.avago.core.network.model.RentalCustomerEnvelope>().customer
+        }
+
+    /** DELETE /accounts/{accountId}/rental-customers/{customerId} */
+    suspend fun deleteRentalCustomer(accountId: String, customerId: String): NetworkResult<Unit> =
+        safeNetworkCall {
+            val response: HttpResponse =
+                client.delete("$baseUrl/accounts/$accountId/rental-customers/$customerId")
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
+        }
+
+    // ---------------------------------------------------------------------------
+    // Rental Invoices
+    // ---------------------------------------------------------------------------
+
+    /** POST /accounts/{accountId}/rental-periods/{rentalId}/invoice */
+    suspend fun createRentalInvoice(
+        accountId: String,
+        rentalId: String,
+    ): NetworkResult<com.avago.core.network.model.RentalInvoice> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/rental-periods/$rentalId/invoice")
+                .body<com.avago.core.network.model.RentalInvoiceEnvelope>().invoice
+        }
+
+    /** GET /accounts/{accountId}/rental-invoices */
+    suspend fun getRentalInvoices(
+        accountId: String,
+        status: String? = null,
+        customerId: String? = null,
+    ): NetworkResult<List<com.avago.core.network.model.RentalInvoice>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/rental-invoices") {
+                status?.let { parameter("status", it) }
+                customerId?.let { parameter("customer_id", it) }
+            }.body<com.avago.core.network.model.RentalInvoicesEnvelope>().invoices
+        }
+
+    /** GET /accounts/{accountId}/rental-invoices/{invoiceId} */
+    suspend fun getRentalInvoice(accountId: String, invoiceId: String): NetworkResult<com.avago.core.network.model.RentalInvoice> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/rental-invoices/$invoiceId")
+                .body<com.avago.core.network.model.RentalInvoiceEnvelope>().invoice
+        }
+
+    /** PUT /accounts/{accountId}/rental-invoices/{invoiceId} */
+    suspend fun updateRentalInvoice(
+        accountId: String,
+        invoiceId: String,
+        request: com.avago.core.network.model.UpdateInvoiceRequest,
+    ): NetworkResult<com.avago.core.network.model.RentalInvoice> =
+        safeNetworkCall {
+            client.put("$baseUrl/accounts/$accountId/rental-invoices/$invoiceId") {
+                setBody(request)
+            }.body<com.avago.core.network.model.RentalInvoiceEnvelope>().invoice
+        }
+
+    /** POST /accounts/{accountId}/rental-invoices/{invoiceId}/send */
+    suspend fun sendRentalInvoice(accountId: String, invoiceId: String): NetworkResult<com.avago.core.network.model.RentalInvoice> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/rental-invoices/$invoiceId/send")
+                .body<com.avago.core.network.model.RentalInvoiceEnvelope>().invoice
+        }
+
+    /** POST /accounts/{accountId}/rental-invoices/{invoiceId}/pay */
+    suspend fun payRentalInvoice(
+        accountId: String,
+        invoiceId: String,
+        request: com.avago.core.network.model.PayInvoiceRequest,
+    ): NetworkResult<com.avago.core.network.model.RentalInvoice> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/rental-invoices/$invoiceId/pay") {
+                setBody(request)
+            }.body<com.avago.core.network.model.RentalInvoiceEnvelope>().invoice
+        }
+
+    /** POST /accounts/{accountId}/rental-invoices/{invoiceId}/void */
+    suspend fun voidRentalInvoice(accountId: String, invoiceId: String): NetworkResult<com.avago.core.network.model.RentalInvoice> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/rental-invoices/$invoiceId/void")
+                .body<com.avago.core.network.model.RentalInvoiceEnvelope>().invoice
+        }
+
+    // ---------------------------------------------------------------------------
+    // Reservations
+    // ---------------------------------------------------------------------------
+
+    /** GET /accounts/{accountId}/assets/{assetId}/reservations */
+    suspend fun getReservationsForAsset(
+        accountId: String,
+        assetId: String,
+    ): NetworkResult<List<com.avago.core.network.model.RentalReservation>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/assets/$assetId/reservations")
+                .body<com.avago.core.network.model.ReservationsEnvelope>().reservations
+        }
+
+    /** POST /accounts/{accountId}/reservations */
+    suspend fun createReservation(
+        accountId: String,
+        request: com.avago.core.network.model.CreateReservationRequest,
+    ): NetworkResult<com.avago.core.network.model.RentalReservation> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/reservations") {
+                setBody(request)
+            }.body<com.avago.core.network.model.ReservationEnvelope>().reservation
+        }
+
+    /** PUT /accounts/{accountId}/reservations/{reservationId} */
+    suspend fun updateReservation(
+        accountId: String,
+        reservationId: String,
+        request: com.avago.core.network.model.UpdateReservationRequest,
+    ): NetworkResult<com.avago.core.network.model.RentalReservation> =
+        safeNetworkCall {
+            client.put("$baseUrl/accounts/$accountId/reservations/$reservationId") {
+                setBody(request)
+            }.body<com.avago.core.network.model.ReservationEnvelope>().reservation
+        }
+
+    /** DELETE /accounts/{accountId}/reservations/{reservationId} */
+    suspend fun deleteReservation(accountId: String, reservationId: String): NetworkResult<Unit> =
+        safeNetworkCall {
+            val response: HttpResponse =
+                client.delete("$baseUrl/accounts/$accountId/reservations/$reservationId")
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
+        }
+
+    /** POST /accounts/{accountId}/reservations/{reservationId}/start — convert reservation to rental */
+    suspend fun startReservation(
+        accountId: String,
+        reservationId: String,
+    ): NetworkResult<RentalResponse> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/reservations/$reservationId/start").body()
+        }
+
+    // ---------------------------------------------------------------------------
     // Chat
     // ---------------------------------------------------------------------------
 

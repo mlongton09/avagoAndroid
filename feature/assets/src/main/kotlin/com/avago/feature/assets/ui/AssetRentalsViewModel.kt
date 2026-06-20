@@ -7,9 +7,11 @@ import com.avago.core.auth.IdentityManager
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
 import com.avago.core.network.model.CreateRentalRequest
+import com.avago.core.network.model.RentalReservation
 import com.avago.core.network.model.RentalResponse
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,6 +32,9 @@ class AssetRentalsViewModel @Inject constructor(
     private val _rentals = MutableStateFlow<List<RentalResponse>>(emptyList())
     val rentals: StateFlow<List<RentalResponse>> = _rentals.asStateFlow()
 
+    private val _reservations = MutableStateFlow<List<RentalReservation>>(emptyList())
+    val reservations: StateFlow<List<RentalReservation>> = _reservations.asStateFlow()
+
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
@@ -49,9 +54,12 @@ class AssetRentalsViewModel @Inject constructor(
             _isLoading.value = true
             _error.value = null
             try {
-                when (val result = serviceClient.getRentalsForAsset(accountId, assetId)) {
+                // Load rentals and reservations in parallel
+                val rentalsDeferred = async { serviceClient.getRentalsForAsset(accountId, assetId) }
+                val reservationsDeferred = async { serviceClient.getReservationsForAsset(accountId, assetId) }
+
+                when (val result = rentalsDeferred.await()) {
                     is NetworkResult.Success -> {
-                        // Active first, then ended; within each group newest start_at first
                         val active = result.data.filter { it.status == "active" }
                             .sortedByDescending { it.start_at }
                         val ended = result.data.filter { it.status != "active" }
@@ -66,6 +74,21 @@ class AssetRentalsViewModel @Inject constructor(
                     is NetworkResult.Unauthorized -> {
                         Timber.w("[AssetRentalsVM] Unauthorized loading rentals")
                         _error.value = "Unauthorized"
+                    }
+                }
+
+                when (val result = reservationsDeferred.await()) {
+                    is NetworkResult.Success -> {
+                        _reservations.value = result.data
+                            .filter { it.status != "cancelled" }
+                            .sortedBy { it.reserved_from }
+                        Timber.d("[AssetRentalsVM] Loaded ${result.data.size} reservations")
+                    }
+                    is NetworkResult.Error -> {
+                        Timber.w("[AssetRentalsVM] Could not load reservations: ${result.message}")
+                    }
+                    is NetworkResult.Unauthorized -> {
+                        Timber.w("[AssetRentalsVM] Unauthorized loading reservations")
                     }
                 }
             } catch (e: Exception) {
@@ -136,6 +159,55 @@ class AssetRentalsViewModel @Inject constructor(
                 Timber.e(e, "[AssetRentalsVM] Exception creating rental")
                 _error.value = e.message ?: "Unknown error"
                 _isLoading.value = false
+            }
+        }
+    }
+
+    /** Create an invoice for an ended rental period. */
+    fun createInvoice(rentalId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val accountId = identityManager.getActiveAccountId() ?: return@launch
+            _error.value = null
+            try {
+                when (val result = serviceClient.createRentalInvoice(accountId, rentalId)) {
+                    is NetworkResult.Success -> {
+                        Timber.d("[AssetRentalsVM] Invoice created: ${result.data.rental_invoice_id}")
+                        // Reload so status changes from "ended" -> "invoiced" are reflected
+                        load()
+                    }
+                    is NetworkResult.Error -> {
+                        Timber.e("[AssetRentalsVM] Error creating invoice: ${result.message}")
+                        _error.value = result.message
+                    }
+                    is NetworkResult.Unauthorized -> _error.value = "Unauthorized"
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "[AssetRentalsVM] Exception creating invoice")
+                _error.value = e.message ?: "Unknown error"
+            }
+        }
+    }
+
+    /** Convert a reservation to an active rental. */
+    fun startReservation(reservationId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val accountId = identityManager.getActiveAccountId() ?: return@launch
+            _error.value = null
+            try {
+                when (val result = serviceClient.startReservation(accountId, reservationId)) {
+                    is NetworkResult.Success -> {
+                        Timber.d("[AssetRentalsVM] Reservation $reservationId started as rental ${result.data.rental_id}")
+                        load()
+                    }
+                    is NetworkResult.Error -> {
+                        Timber.e("[AssetRentalsVM] Error starting reservation: ${result.message}")
+                        _error.value = result.message
+                    }
+                    is NetworkResult.Unauthorized -> _error.value = "Unauthorized"
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "[AssetRentalsVM] Exception starting reservation")
+                _error.value = e.message ?: "Unknown error"
             }
         }
     }

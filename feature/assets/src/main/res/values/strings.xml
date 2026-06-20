@@ -235,6 +235,65 @@
     <string name="onboarding_get_started">Get Started</string>
     <string name="onboarding_skip">Skip</string>
 
+    <!-- Rental Customers -->
+    <string name="rental_customers_title">Rental Customers</string>
+    <string name="rental_customers_empty">No customers yet\nTap + to add your first customer</string>
+    <string name="rental_customer_add_title">New Customer</string>
+    <string name="rental_customer_edit_title">Edit Customer</string>
+    <string name="rental_customer_name_label">Name *</string>
+    <string name="rental_customer_email_label">Email</string>
+    <string name="rental_customer_phone_label">Phone</string>
+    <string name="rental_customer_company_label">Company</string>
+    <string name="rental_customer_address_label">Address</string>
+    <string name="rental_customer_name_required">Name is required</string>
+
+    <!-- Rental Booking -->
+    <string name="rental_booking_title">New Booking</string>
+    <string name="rental_booking_step_customer">Customer</string>
+    <string name="rental_booking_step_dates">Dates</string>
+    <string name="rental_booking_step_confirm">Confirm</string>
+    <string name="rental_booking_new_customer">+ New Customer</string>
+    <string name="rental_booking_end_date_label">End Date (Optional)</string>
+    <string name="rental_booking_duration_label">Duration</string>
+    <string name="rental_booking_rate_label">Rate</string>
+    <string name="rental_booking_estimated_cost">Estimated Cost</string>
+    <string name="rental_booking_no_customer">No customer (internal)</string>
+    <string name="rental_booking_confirm">Confirm Booking</string>
+    <string name="rental_booking_next">Next</string>
+    <string name="rental_booking_back">Back</string>
+    <string name="rental_booking_summary_customer">Customer</string>
+    <string name="rental_booking_summary_dates">Dates</string>
+    <string name="rental_booking_summary_rate">Rate</string>
+
+    <!-- Rental Reservations -->
+    <string name="rental_reservations_section">Reservations</string>
+    <string name="rental_reservation_tentative">Tentative</string>
+    <string name="rental_reservation_confirmed">Confirmed</string>
+    <string name="rental_reservation_cancelled">Cancelled</string>
+    <string name="rental_reservation_start">Start Rental</string>
+
+    <!-- Rental Invoice -->
+    <string name="rental_invoice_title">Invoice</string>
+    <string name="rental_invoice_status_draft">Draft</string>
+    <string name="rental_invoice_status_sent">Sent</string>
+    <string name="rental_invoice_status_paid">Paid</string>
+    <string name="rental_invoice_status_void">Void</string>
+    <string name="rental_invoice_send">Send Invoice</string>
+    <string name="rental_invoice_mark_paid">Mark Paid</string>
+    <string name="rental_invoice_void">Void Invoice</string>
+    <string name="rental_invoice_payment_method">Payment Method</string>
+    <string name="rental_invoice_payment_notes_label">Payment Notes</string>
+    <string name="rental_invoice_confirm_pay">Confirm Payment</string>
+    <string name="rental_invoice_subtotal">Subtotal</string>
+    <string name="rental_invoice_tax">Tax (%1$.1f%%)</string>
+    <string name="rental_invoice_total">Total</string>
+    <string name="rental_invoice_line_items">Line Items</string>
+    <string name="rental_invoice_paid_on">Paid on %1$s via %2$s</string>
+    <string name="rental_invoice_due_date">Due %1$s</string>
+    <string name="rental_invoice_create">Create Invoice</string>
+    <string name="rental_invoiced_chip">Invoiced</string>
+    <string name="rental_paid_chip">Paid</string>
+
     <!-- Report parity -->
     <string name="sort_newest">Newest first</string>
     <string name="sort_oldest">Oldest first</string>
