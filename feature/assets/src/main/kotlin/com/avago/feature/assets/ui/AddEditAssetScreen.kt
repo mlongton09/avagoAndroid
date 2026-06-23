@@ -61,6 +61,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -530,6 +531,24 @@ fun AddEditAssetScreen(
                         onCustomAttributeChanged = { key, value ->
                             viewModel.onCustomAttributeChanged(key, value)
                         },
+                    )
+                }
+            }
+
+            // Available for Rental toggle
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Available for Rental",
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Switch(
+                        checked = form.isRental,
+                        onCheckedChange = { viewModel.onIsRentalChanged(it) },
                     )
                 }
             }

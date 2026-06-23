@@ -56,6 +56,7 @@ data class AssetFormState(
     val customAttributes: Map<String, String> = emptyMap(),
     // Change 106: tags
     val tags: List<String> = emptyList(),
+    val isRental: Boolean = false,
     val isSaving: Boolean = false,
     val saveError: String? = null,
     val savedAssetId: String? = null,
@@ -157,6 +158,7 @@ class AddEditAssetViewModel @Inject constructor(
                 fleetNumber = extractAttribute(entity.attributes, "fleet_number"),
                 customAttributes = customAttrs,
                 tags = parseTagsJson(entity.tagsJson),
+                isRental = entity.isRental,
             )
         }
     }
@@ -183,6 +185,7 @@ class AddEditAssetViewModel @Inject constructor(
     fun onPostalCodeChanged(value: String) { _form.value = _form.value.copy(postalCode = value) }
     fun onCountryChanged(value: String) { _form.value = _form.value.copy(country = value) }
     fun onFleetNumberChanged(value: String) { _form.value = _form.value.copy(fleetNumber = value) }
+    fun onIsRentalChanged(value: Boolean) { _form.value = _form.value.copy(isRental = value) }
 
     fun onWheelConfigChanged(json: String) {
         val updated = _form.value.customAttributes.toMutableMap().also { it["wheel_config"] = json }
@@ -403,7 +406,7 @@ class AddEditAssetViewModel @Inject constructor(
                     path = null,
                     depth = 0L,
                     childCount = 0L,
-                    isRental = false,
+                    isRental = current.isRental,
                     rentalRate = null,
                     rentalRateUnit = null,
                     createdAt = if (editingAssetId != null) {
