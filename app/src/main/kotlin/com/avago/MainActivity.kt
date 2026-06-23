@@ -103,7 +103,8 @@ class MainActivity : ComponentActivity() {
         forwardChatDeepLink(intent)
 
         // Trigger a full sync every time the activity resumes (foreground).
-        lifecycleScope.launch {
+        // Use Dispatchers.IO so network + DB work in sync() never blocks the main thread.
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             repeatOnLifecycle(Lifecycle.State.RESUMED) {
                 try {
                     syncEngine.sync()
