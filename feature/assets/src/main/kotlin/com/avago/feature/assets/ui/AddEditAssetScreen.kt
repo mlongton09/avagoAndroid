@@ -77,7 +77,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -87,7 +86,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.avago.feature.assets.R
-import com.avago.feature.assets.model.AssetColorPalette
 import com.avago.feature.assets.model.AssetTypes
 import com.avago.feature.assets.viewmodel.AddEditAssetViewModel
 import com.avago.feature.assets.viewmodel.GeocodeResult
@@ -312,21 +310,6 @@ fun AddEditAssetScreen(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                 )
-            }
-
-            // Color picker
-            item {
-                Column {
-                    Text(
-                        text = stringResource(R.string.asset_field_color),
-                        style = MaterialTheme.typography.labelLarge,
-                        modifier = Modifier.padding(bottom = 8.dp),
-                    )
-                    ColorSwatchGrid(
-                        selected = form.avatarColor,
-                        onSelect = { viewModel.onAvatarColorChanged(it) },
-                    )
-                }
             }
 
             // License Plate
@@ -1129,43 +1112,6 @@ private fun FieldRow(
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun ColorSwatchGrid(
-    selected: String,
-    onSelect: (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(10),
-        modifier = modifier
-            .fillMaxWidth()
-            .height(80.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-        userScrollEnabled = false,
-    ) {
-        items(AssetColorPalette) { colorLong ->
-            val hex = "#%06X".format(colorLong and 0xFFFFFF)
-            val isSelected = selected.equals(hex, ignoreCase = true)
-            val color = Color(colorLong)
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(CircleShape)
-                    .background(color)
-                    .then(
-                        if (isSelected) Modifier.border(
-                            width = 2.dp,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            shape = CircleShape,
-                        ) else Modifier
-                    )
-                    .clickable { onSelect(hex) },
             )
         }
     }
