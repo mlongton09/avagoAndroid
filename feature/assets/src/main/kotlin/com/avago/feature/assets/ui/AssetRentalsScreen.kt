@@ -237,7 +237,12 @@ fun AssetRentalsScreen(
     endingRentalId?.let { rentalId ->
         val endSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
-            onDismissRequest = { endingRentalId = null },
+            onDismissRequest = {
+                endingRentalId = null
+                endCondition = null
+                endMeter = ""
+                endMeterUnit = "miles"
+            },
             sheetState = endSheetState,
         ) {
             Column(
@@ -265,6 +270,7 @@ fun AssetRentalsScreen(
                         )
                     }
                 }
+                val endMeterError = endMeter.isNotBlank() && endMeter.toDoubleOrNull() == null
                 OutlinedTextField(
                     value = endMeter,
                     onValueChange = { endMeter = it },
@@ -272,6 +278,8 @@ fun AssetRentalsScreen(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
+                    isError = endMeterError,
+                    supportingText = if (endMeterError) { { Text("Enter a valid number") } } else null,
                 )
                 if (endMeter.isNotBlank()) {
                     Text(
@@ -291,8 +299,11 @@ fun AssetRentalsScreen(
                 }
                 Button(
                     onClick = {
-                        viewModel.endRental(rentalId, endMeter.toDoubleOrNull(), endCondition)
+                        viewModel.endRental(rentalId, endMeter.toDoubleOrNull(), endCondition?.lowercase())
                         endingRentalId = null
+                        endCondition = null
+                        endMeter = ""
+                        endMeterUnit = "miles"
                     },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = endCondition != null,
@@ -307,7 +318,14 @@ fun AssetRentalsScreen(
     startingReservation?.let { reservation ->
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
-            onDismissRequest = { startingReservation = null },
+            onDismissRequest = {
+                startingReservation = null
+                startRate = ""
+                startRateUnit = "daily"
+                startCondition = null
+                startMeter = ""
+                startMeterUnit = "miles"
+            },
             sheetState = sheetState,
         ) {
             Column(
@@ -357,6 +375,7 @@ fun AssetRentalsScreen(
                         )
                     }
                 }
+                val startMeterError = startMeter.isNotBlank() && startMeter.toDoubleOrNull() == null
                 OutlinedTextField(
                     value = startMeter,
                     onValueChange = { startMeter = it },
@@ -364,6 +383,8 @@ fun AssetRentalsScreen(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
+                    isError = startMeterError,
+                    supportingText = if (startMeterError) { { Text("Enter a valid number") } } else null,
                 )
                 if (startMeter.isNotBlank()) {
                     Text(
@@ -389,9 +410,14 @@ fun AssetRentalsScreen(
                             rateUnit = startRateUnit,
                             meterStart = startMeter.toDoubleOrNull(),
                             meterUnit = if (startMeter.isNotBlank()) startMeterUnit else null,
-                            condition = startCondition,
+                            condition = startCondition?.lowercase(),
                         )
                         startingReservation = null
+                        startRate = ""
+                        startRateUnit = "daily"
+                        startCondition = null
+                        startMeter = ""
+                        startMeterUnit = "miles"
                     },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = startRate.toDoubleOrNull() != null && startRate.isNotBlank() && startCondition != null,

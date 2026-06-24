@@ -55,6 +55,7 @@ class RentalBookingViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             val accountId = identityManager.getActiveAccountId() ?: run {
                 _error.value = "No active account"
+                _isLoading.value = false
                 return@launch
             }
             _isLoading.value = true
