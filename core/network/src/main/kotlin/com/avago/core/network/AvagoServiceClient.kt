@@ -1452,7 +1452,9 @@ class AvagoServiceClient @Inject constructor(
         reservationId: String,
     ): NetworkResult<RentalResponse> =
         safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/reservations/$reservationId/start").body()
+            client.post("$baseUrl/accounts/$accountId/reservations/$reservationId/start") {
+                setBody(emptyMap<String, String>())
+            }.body()
         }
 
     // ---------------------------------------------------------------------------
