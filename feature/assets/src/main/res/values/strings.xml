@@ -294,6 +294,16 @@
     <string name="rental_invoiced_chip">Invoiced</string>
     <string name="rental_paid_chip">Paid</string>
 
+    <!-- Rental — additional strings -->
+    <string name="rental_overdue_section">Overdue (%1$d)</string>
+    <string name="rental_section_active">Rentals</string>
+    <string name="rental_condition_notes_label">Condition notes (optional)</string>
+    <string name="rental_condition_notes_placeholder">e.g. scratch on rear bumper</string>
+    <string name="rental_meter_final_label">Final meter reading (optional)</string>
+    <string name="rental_meter_invalid">Enter a valid number</string>
+    <string name="rental_search_customers">Search customers</string>
+    <string name="rental_search_customers_clear">Clear search</string>
+
     <!-- Report parity -->
     <string name="sort_newest">Newest first</string>
     <string name="sort_oldest">Oldest first</string>

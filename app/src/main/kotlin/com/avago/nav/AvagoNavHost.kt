@@ -53,9 +53,11 @@ fun AvagoNavHost(
     navController: NavHostController = rememberNavController(),
     mainViewModel: MainViewModel = hiltViewModel(),
     conflictViewModel: SyncConflictViewModel = hiltViewModel(),
+    navFlagsViewModel: NavFlagsViewModel = hiltViewModel(),
 ) {
     val activeAccountId by mainViewModel.activeAccountId.collectAsStateWithLifecycle()
     val activeAccountIsAnonymous by mainViewModel.activeAccountIsAnonymous.collectAsStateWithLifecycle()
+    val rentalsEnabled by navFlagsViewModel.rentalsEnabled.collectAsStateWithLifecycle()
 
     // ── Bootstrap: skip sign-in for returning users ───────────────────────────
     // When the active account is set (restored from disk by initOnLaunch) and the
@@ -125,6 +127,7 @@ fun AvagoNavHost(
                         navController.popBackStack()
                     }
                 },
+                rentalsEnabled = rentalsEnabled,
             )
 
             // ── Log ───────────────────────────────────────────────────────────────

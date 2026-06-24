@@ -213,12 +213,12 @@ private fun CustomerPickerStep(
         OutlinedTextField(
             value = customerSearch,
             onValueChange = { customerSearch = it },
-            label = { Text("Search customers") },
+            label = { Text(stringResource(R.string.rental_search_customers)) },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
             trailingIcon = if (customerSearch.isNotEmpty()) {
                 {
                     IconButton(onClick = { customerSearch = "" }) {
-                        Icon(Icons.Default.Clear, contentDescription = "Clear search")
+                        Icon(Icons.Default.Clear, contentDescription = stringResource(R.string.rental_search_customers_clear))
                     }
                 }
             } else null,

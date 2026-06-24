@@ -2,4 +2,87 @@
 <resources>
     <!-- Add / Edit Asset -->
     <string name="asset_field_name_required">Name erforderlich</string>
+
+    <!-- Rentals -->
+    <string name="rental_list_title">Vermietungen</string>
+    <string name="rental_empty">Keine Vermietungen vorhanden</string>
+    <string name="rental_create_title">Neue Vermietung</string>
+    <string name="rental_customer_label">Kunde</string>
+    <string name="rental_rate_label">Preis</string>
+    <string name="rental_rate_unit_label">Preiseinheit</string>
+    <string name="rental_rate_unit_hourly">Stündlich</string>
+    <string name="rental_rate_unit_daily">Täglich</string>
+    <string name="rental_rate_unit_weekly">Wöchentlich</string>
+    <string name="rental_rate_unit_monthly">Monatlich</string>
+    <string name="rental_currency_label">Währung</string>
+    <string name="rental_notes_label">Notizen</string>
+    <string name="rental_start_date_label">Startdatum</string>
+    <string name="rental_status_active">Aktiv</string>
+    <string name="rental_status_ended">Beendet</string>
+    <string name="rental_end_button">Vermietung beenden</string>
+    <string name="rental_total_label">Gesamtbetrag</string>
+    <string name="rental_create_button">Vermietung erstellen</string>
+    <string name="rental_ending">Wird beendet&#8230;</string>
+    <string name="rental_creating">Wird erstellt&#8230;</string>
+    <string name="rental_end_confirm_title">Vermietung beenden?</string>
+    <string name="rental_end_confirm_body">Sind Sie sicher, dass Sie diese Vermietung beenden möchten?</string>
+
+    <!-- Rental Customers -->
+    <string name="rental_customers_title">Mieter</string>
+    <string name="rental_customers_empty">Noch keine Mieter vorhanden</string>
+    <string name="rental_customer_add_title">Mieter hinzufügen</string>
+    <string name="rental_customer_edit_title">Mieter bearbeiten</string>
+    <string name="rental_customer_name_label">Name</string>
+    <string name="rental_customer_email_label">E-Mail</string>
+    <string name="rental_customer_phone_label">Telefon</string>
+    <string name="rental_customer_company_label">Unternehmen</string>
+    <string name="rental_customer_address_label">Adresse</string>
+    <string name="rental_customer_name_required">Name erforderlich</string>
+
+    <!-- Rental Booking -->
+    <string name="rental_booking_title">Vermietung buchen</string>
+    <string name="rental_booking_step_customer">Kunde</string>
+    <string name="rental_booking_step_dates">Daten</string>
+    <string name="rental_booking_step_confirm">Bestätigen</string>
+    <string name="rental_booking_new_customer">+ Neuer Kunde</string>
+    <string name="rental_booking_end_date_label">Enddatum</string>
+    <string name="rental_booking_duration_label">Dauer</string>
+    <string name="rental_booking_rate_label">Preis</string>
+    <string name="rental_booking_estimated_cost">Geschätzte Kosten</string>
+    <string name="rental_booking_no_customer">Kein Kunde (Laufkunde)</string>
+    <string name="rental_booking_confirm">Bestätigen</string>
+    <string name="rental_booking_next">Weiter &#8594;</string>
+    <string name="rental_booking_back">&#8592; Zurück</string>
+    <string name="rental_booking_summary_customer">Kunde</string>
+    <string name="rental_booking_summary_dates">Zeitraum</string>
+    <string name="rental_booking_summary_rate">Preis</string>
+
+    <!-- Rental Reservations -->
+    <string name="rental_reservations_section">Reservierungen</string>
+    <string name="rental_reservation_tentative">Vorläufig</string>
+    <string name="rental_reservation_confirmed">Bestätigt</string>
+    <string name="rental_reservation_cancelled">Storniert</string>
+    <string name="rental_reservation_start">Vermietung starten</string>
+
+    <!-- Rental Invoice -->
+    <string name="rental_invoice_title">Rechnung</string>
+    <string name="rental_invoice_status_draft">Entwurf</string>
+    <string name="rental_invoice_status_sent">Versendet</string>
+    <string name="rental_invoice_status_paid">Bezahlt</string>
+    <string name="rental_invoice_status_void">Storniert</string>
+    <string name="rental_invoice_send">Rechnung senden</string>
+    <string name="rental_invoice_mark_paid">Als bezahlt markieren</string>
+    <string name="rental_invoice_void">Stornieren</string>
+    <string name="rental_invoice_payment_method">Zahlungsmethode</string>
+    <string name="rental_invoice_payment_notes_label">Zahlungsnotizen</string>
+
+    <!-- Rental — additional strings -->
+    <string name="rental_overdue_section">Überfällig (%1$d)</string>
+    <string name="rental_section_active">Vermietungen</string>
+    <string name="rental_condition_notes_label">Zustandsnotizen (optional)</string>
+    <string name="rental_condition_notes_placeholder">z. B. Kratzer am hinteren Stoßfänger</string>
+    <string name="rental_meter_final_label">Abschlusszählerstand (optional)</string>
+    <string name="rental_meter_invalid">Gültige Zahl eingeben</string>
+    <string name="rental_search_customers">Kunden suchen</string>
+    <string name="rental_search_customers_clear">Suche löschen</string>
 </resources>

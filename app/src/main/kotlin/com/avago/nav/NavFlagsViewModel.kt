@@ -37,6 +37,9 @@ class NavFlagsViewModel @Inject constructor(
     val purchaseOrdersEnabled: StateFlow<Boolean> = featureFlags.observePurchaseOrdersEnabled()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), featureFlags.purchaseOrdersEnabled)
 
+    val rentalsEnabled: StateFlow<Boolean> = featureFlags.observeRentalsEnabled()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), featureFlags.rentalsEnabled)
+
     /**
      * Unread @-mention count for the chat tab pill. Matches iOS
      * ChatTabRootViewController.refreshBadge which shows only mentions

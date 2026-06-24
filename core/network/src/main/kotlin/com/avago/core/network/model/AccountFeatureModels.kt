@@ -16,6 +16,7 @@ data class AccountFeaturesResponse(
     @SerialName("ai_summaries_enabled")            val aiSummariesEnabled: Boolean = false,
     @SerialName("ai_transcription_enabled")        val aiTranscriptionEnabled: Boolean = false,
     @SerialName("asset_qr_bulk_generation_enabled") val assetQrBulkGenerationEnabled: Boolean = true,
+    @SerialName("rentals_enabled")                   val rentals_enabled: Boolean = true,
 )
 
 @Serializable
@@ -31,4 +32,5 @@ data class PutAccountFeaturesRequest(
     @SerialName("ai_summaries_enabled")            val aiSummariesEnabled: Boolean? = null,
     @SerialName("ai_transcription_enabled")        val aiTranscriptionEnabled: Boolean? = null,
     @SerialName("asset_qr_bulk_generation_enabled") val assetQrBulkGenerationEnabled: Boolean? = null,
+    @SerialName("rentals_enabled")                   val rentals_enabled: Boolean? = null,
 )

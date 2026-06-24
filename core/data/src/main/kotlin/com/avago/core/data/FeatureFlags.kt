@@ -95,6 +95,9 @@ class FeatureFlags @Inject constructor(
     /** Whether bulk QR label generation is available. */
     val assetQrBulkGenerationEnabled: Boolean get() = getFlag("asset_qr_bulk_generation_enabled", default = true)
 
+    /** Whether the Rentals feature is enabled for this account. Fail-open (default true). */
+    val rentalsEnabled: Boolean get() = getFlag("rentals_enabled", default = true)
+
     val clientBooleanFlags: List<ClientFeatureFlag> = listOf(
         ClientFeatureFlag("feature.scout_enabled", "AI Scout", false),
         ClientFeatureFlag("feature.inspection_enabled", "Inspection checklist", false),
@@ -113,6 +116,7 @@ class FeatureFlags @Inject constructor(
         ClientFeatureFlag("ai_summaries_enabled", "AI thread summaries", false),
         ClientFeatureFlag("ai_transcription_enabled", "AI voice transcription", false),
         ClientFeatureFlag("asset_qr_bulk_generation_enabled", "Bulk QR generation", true),
+        ClientFeatureFlag("rentals_enabled", "Rentals", true),
     )
 
     // ---------------------------------------------------------------------------
@@ -139,6 +143,7 @@ class FeatureFlags @Inject constructor(
     fun observeAiSummariesEnabled(): Flow<Boolean> = observeFlag("ai_summaries_enabled", default = false)
     fun observeAiTranscriptionEnabled(): Flow<Boolean> = observeFlag("ai_transcription_enabled", default = false)
     fun observeAssetQrBulkGenerationEnabled(): Flow<Boolean> = observeFlag("asset_qr_bulk_generation_enabled", default = true)
+    fun observeRentalsEnabled(): Flow<Boolean> = observeFlag("rentals_enabled", default = true)
 
     /**
      * Observe a boolean flag as a [Flow]. Re-emits whenever the DB row changes

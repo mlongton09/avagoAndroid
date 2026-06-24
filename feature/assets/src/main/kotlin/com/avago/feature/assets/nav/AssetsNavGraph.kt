@@ -113,6 +113,7 @@ fun NavGraphBuilder.assetsNavGraph(
     /** Called when the user taps X in the asset picker to cancel. The host
      *  decides how far back to pop (e.g. all the way to the WO list). */
     onPickerCancel: () -> Unit = { navController.popBackStack() },
+    rentalsEnabled: Boolean = true,
 ) {
     navigation(
         startDestination = AssetsRoute.LIST,
@@ -186,6 +187,7 @@ fun NavGraphBuilder.assetsNavGraph(
                 onOpenRentals = {
                     navController.navigate(AssetsRoute.rentals(assetId))
                 },
+                rentalsEnabled = rentalsEnabled,
                 onOpenAssetChat = {
                     // No asset->thread mapping yet on Android; route to the chat list.
                     navController.navigate("chat/list")

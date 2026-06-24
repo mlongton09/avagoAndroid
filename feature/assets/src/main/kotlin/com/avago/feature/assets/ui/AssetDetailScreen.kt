@@ -145,6 +145,7 @@ fun AssetDetailScreen(
     onOpenWheelConfig: () -> Unit = {},
     onOpenWheelDataInput: () -> Unit = {},
     onOpenRentals: () -> Unit = {},
+    rentalsEnabled: Boolean = true,
     onOpenAsset: (assetId: String) -> Unit = {},
     onOpenAssetChat: (() -> Unit)? = null,
     viewModel: AssetDetailViewModel = hiltViewModel(),
@@ -277,7 +278,7 @@ fun AssetDetailScreen(
                             onDismissRequest = { showOverflowMenu = false },
                         ) {
                             // Rental actions — iOS prepends these when asset.isRental.
-                            if (asset?.isRental == true) {
+                            if (rentalsEnabled && asset?.isRental == true) {
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.asset_detail_rental_start)) },
                                     leadingIcon = {

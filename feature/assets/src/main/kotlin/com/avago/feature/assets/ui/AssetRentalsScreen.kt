@@ -248,7 +248,7 @@ fun AssetRentalsScreen(
                                 Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error)
                                 Spacer(Modifier.width(8.dp))
                                 Text(
-                                    "Overdue (${overdueRentals.size})",
+                                    stringResource(R.string.rental_overdue_section, overdueRentals.size),
                                     style = MaterialTheme.typography.titleSmall,
                                     color = MaterialTheme.colorScheme.error,
                                     fontWeight = FontWeight.Bold,
@@ -276,7 +276,7 @@ fun AssetRentalsScreen(
                     if (activeRentals.isNotEmpty() || endedRentals.isNotEmpty()) {
                         item {
                             Text(
-                                text = "Rentals",
+                                text = stringResource(R.string.rental_section_active),
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(bottom = 4.dp),
@@ -347,8 +347,8 @@ fun AssetRentalsScreen(
                 OutlinedTextField(
                     value = endConditionNotes,
                     onValueChange = { endConditionNotes = it },
-                    label = { Text("Condition notes (optional)") },
-                    placeholder = { Text("e.g. scratch on rear bumper") },
+                    label = { Text(stringResource(R.string.rental_condition_notes_label)) },
+                    placeholder = { Text(stringResource(R.string.rental_condition_notes_placeholder)) },
                     modifier = Modifier.fillMaxWidth(),
                     maxLines = 2,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -357,12 +357,12 @@ fun AssetRentalsScreen(
                 OutlinedTextField(
                     value = endMeter,
                     onValueChange = { endMeter = it },
-                    label = { Text("Final meter reading (optional)") },
+                    label = { Text(stringResource(R.string.rental_meter_final_label)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     isError = endMeterError,
-                    supportingText = if (endMeterError) { { Text("Enter a valid number") } } else null,
+                    supportingText = if (endMeterError) { { Text(stringResource(R.string.rental_meter_invalid)) } } else null,
                 )
                 if (endMeter.isNotBlank()) {
                     Text(
@@ -470,8 +470,8 @@ fun AssetRentalsScreen(
                 OutlinedTextField(
                     value = startConditionNotes,
                     onValueChange = { startConditionNotes = it },
-                    label = { Text("Condition notes (optional)") },
-                    placeholder = { Text("e.g. minor wear on left side") },
+                    label = { Text(stringResource(R.string.rental_condition_notes_label)) },
+                    placeholder = { Text(stringResource(R.string.rental_condition_notes_placeholder)) },
                     modifier = Modifier.fillMaxWidth(),
                     maxLines = 2,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -480,12 +480,12 @@ fun AssetRentalsScreen(
                 OutlinedTextField(
                     value = startMeter,
                     onValueChange = { startMeter = it },
-                    label = { Text("Meter reading (optional)") },
+                    label = { Text(stringResource(R.string.rental_meter_final_label)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     isError = startMeterError,
-                    supportingText = if (startMeterError) { { Text("Enter a valid number") } } else null,
+                    supportingText = if (startMeterError) { { Text(stringResource(R.string.rental_meter_invalid)) } } else null,
                 )
                 if (startMeter.isNotBlank()) {
                     Text(
