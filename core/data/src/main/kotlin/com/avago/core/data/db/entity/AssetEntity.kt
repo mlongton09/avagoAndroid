@@ -83,7 +83,7 @@ data class AssetEntity(
     @ColumnInfo(name = "child_count")
     val childCount: Long,
 
-    @ColumnInfo(name = "is_rental")
+    @ColumnInfo(name = "is_rental", defaultValue = "0")
     val isRental: Boolean,
 
     @ColumnInfo(name = "rental_rate")

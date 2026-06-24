@@ -105,6 +105,10 @@ data class AddEditLogFormState(
     val itemAttributes: Map<String, String> = emptyMap(),
     val itemAttributeDefs: List<ItemAttributeDef> = emptyList(),
 
+    // Title hint — true when title was auto-set from category and not yet edited by the user.
+    // Mirrors iOS isTitleHint: text shows with reduced opacity, clears on first tap.
+    val isTitleHint: Boolean = false,
+
     // Save state
     val isSaving: Boolean = false,
     val saveError: String? = null,
@@ -157,7 +161,7 @@ class AddEditLogViewModel @Inject constructor(
         _form.update { state ->
             var s = state
             fields["title"]?.trim()?.takeIf { it.isNotEmpty() }?.let {
-                s = s.copy(title = it); touched.add("title")
+                s = s.copy(title = it, isTitleHint = false); touched.add("title")
             }
             fields["asset_id"]?.let {
                 s = s.copy(assetId = it); touched.add("asset")
@@ -541,9 +545,16 @@ class AddEditLogViewModel @Inject constructor(
         prefillMeterFromPriorEntry(assetId)
     }
 
-    fun onTitleChanged(value: String) = _form.update { it.copy(title = value) }
+    fun onTitleChanged(value: String) = _form.update { it.copy(title = value, isTitleHint = false) }
 
-    fun onCategoryChanged(value: String?) {
+    /** Called when the title field gains focus — clears the category-defaulted hint text. */
+    fun onTitleFocused() {
+        _form.update { state ->
+            if (state.isTitleHint) state.copy(title = "", isTitleHint = false) else state
+        }
+    }
+
+    fun onCategoryChanged(value: String?, displayName: String? = null) {
         // Derive logType from category key — mirrors iOS behaviour where log type
         // is implicitly set by the category rather than a separate picker.
         val derivedLogType = when {
@@ -552,7 +563,18 @@ class AddEditLogViewModel @Inject constructor(
             value?.lowercase()?.contains("note") == true -> "note"
             else -> "service"
         }
-        _form.update { it.copy(category = value, logType = derivedLogType) }
+        _form.update { state ->
+            val effectiveDisplayName = displayName ?: value?.replace("_", " ")
+                ?.split(" ")?.joinToString(" ") { w -> w.replaceFirstChar { it.uppercaseChar() } }
+            val shouldApplyHint = value != null && effectiveDisplayName != null
+                && (state.title.isEmpty() || state.isTitleHint)
+            state.copy(
+                category = value,
+                logType = derivedLogType,
+                title = if (shouldApplyHint) effectiveDisplayName!! else if (value == null && state.isTitleHint) "" else state.title,
+                isTitleHint = if (shouldApplyHint) true else if (value == null) false else state.isTitleHint,
+            )
+        }
         loadItemAttributeDefs(value)
     }
 

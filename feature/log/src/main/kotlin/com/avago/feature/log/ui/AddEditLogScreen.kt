@@ -77,6 +77,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -145,7 +146,9 @@ fun AddEditLogScreen(
 
     LaunchedEffect(initialCategory) {
         if (initialCategory != null && entryId == null) {
-            viewModel.onCategoryChanged(initialCategory)
+            val displayName = initialCategory.replace("_", " ").split(" ")
+                .joinToString(" ") { w -> w.replaceFirstChar { it.uppercaseChar() } }
+            viewModel.onCategoryChanged(initialCategory, displayName)
         }
     }
 
@@ -318,7 +321,10 @@ fun AddEditLogScreen(
                 noneLabel = stringResource(com.avago.core.ui.R.string.common_none),
             ),
             onSelect = { item ->
-                viewModel.onCategoryChanged(if (item.key == "__none__") null else item.key)
+                viewModel.onCategoryChanged(
+                    if (item.key == "__none__") null else item.key,
+                    if (item.key == "__none__") null else item.displayName,
+                )
             },
             onDismiss = { showCategoryPicker = false },
         )
@@ -515,9 +521,15 @@ fun AddEditLogScreen(
                     onValueChange = { viewModel.onTitleChanged(it) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 16.dp, top = 14.dp, end = 16.dp, bottom = 6.dp),
+                        .padding(start = 16.dp, top = 14.dp, end = 16.dp, bottom = 6.dp)
+                        .onFocusChanged { focusState ->
+                            if (focusState.isFocused) viewModel.onTitleFocused()
+                        },
                     textStyle = MaterialTheme.typography.headlineMedium.copy(
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = if (form.isTitleHint)
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+                        else
+                            MaterialTheme.colorScheme.onSurface,
                     ),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(
@@ -528,7 +540,7 @@ fun AddEditLogScreen(
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     decorationBox = { innerTextField ->
                         Box(Modifier.fillMaxWidth()) {
-                            if (form.title.isEmpty()) {
+                            if (form.title.isEmpty() && !form.isTitleHint) {
                                 Text(
                                     text = stringResource(R.string.log_entry_placeholder_title),
                                     style = MaterialTheme.typography.headlineMedium,

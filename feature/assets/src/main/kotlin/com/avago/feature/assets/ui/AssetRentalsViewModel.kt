@@ -100,7 +100,7 @@ class AssetRentalsViewModel @Inject constructor(
         }
     }
 
-    fun endRental(rentalId: String) {
+    fun endRental(rentalId: String, meterEnd: Double? = null, condition: String? = null, conditionNotes: String? = null) {
         viewModelScope.launch(Dispatchers.IO) {
             val accountId = identityManager.getActiveAccountId() ?: run {
                 Timber.w("[AssetRentalsVM] No active account — cannot end rental")
@@ -109,7 +109,7 @@ class AssetRentalsViewModel @Inject constructor(
             val endAt = Instant.now().toString()
             _error.value = null
             try {
-                when (val result = serviceClient.endRental(accountId, rentalId, endAt)) {
+                when (val result = serviceClient.endRental(accountId, rentalId, endAt, meterEnd, condition, conditionNotes)) {
                     is NetworkResult.Success -> {
                         Timber.d("[AssetRentalsVM] Rental $rentalId ended successfully")
                         load()
@@ -189,12 +189,12 @@ class AssetRentalsViewModel @Inject constructor(
     }
 
     /** Convert a reservation to an active rental. */
-    fun startReservation(reservationId: String, rate: Double, rateUnit: String) {
+    fun startReservation(reservationId: String, rate: Double, rateUnit: String, meterStart: Double? = null, meterUnit: String? = null, condition: String? = null, conditionNotes: String? = null) {
         viewModelScope.launch(Dispatchers.IO) {
             val accountId = identityManager.getActiveAccountId() ?: return@launch
             _error.value = null
             try {
-                when (val result = serviceClient.startReservation(accountId, reservationId, rate, rateUnit)) {
+                when (val result = serviceClient.startReservation(accountId, reservationId, rate, rateUnit, meterStart, meterUnit, condition, conditionNotes)) {
                     is NetworkResult.Success -> {
                         Timber.d("[AssetRentalsVM] Reservation $reservationId started as rental ${result.data.rental_id}")
                         load()

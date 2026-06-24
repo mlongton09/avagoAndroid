@@ -14,6 +14,7 @@ import com.avago.core.network.model.AuthResponse
 import com.avago.core.network.model.BudgetPillResponse
 import com.avago.core.network.model.BulkInvitation
 import com.avago.core.network.model.CreateRentalRequest
+import com.avago.core.network.model.EndRentalRequest
 import com.avago.core.network.model.DispatchConfigResponse
 import com.avago.core.network.model.DocOcrResponse
 import com.avago.core.network.model.EffortStatsResponse
@@ -1265,11 +1266,14 @@ class AvagoServiceClient @Inject constructor(
         accountId: String,
         rentalId: String,
         endAt: String,
+        meterEnd: Double? = null,
+        condition: String? = null,
+        conditionNotes: String? = null,
     ): NetworkResult<Unit> =
         safeNetworkCall {
             val response: HttpResponse =
                 client.post("$baseUrl/accounts/$accountId/rentals/$rentalId/end") {
-                    setBody(mapOf("end_at" to endAt))
+                    setBody(EndRentalRequest(end_at = endAt, meter_end = meterEnd, condition = condition, condition_notes = conditionNotes))
                 }
             if (!response.status.isSuccess()) {
                 throw NetworkException(response.status.value, response.status.description)
@@ -1452,10 +1456,14 @@ class AvagoServiceClient @Inject constructor(
         reservationId: String,
         rate: Double,
         rateUnit: String,
+        meterStart: Double? = null,
+        meterUnit: String? = null,
+        condition: String? = null,
+        conditionNotes: String? = null,
     ): NetworkResult<RentalResponse> =
         safeNetworkCall {
             client.post("$baseUrl/accounts/$accountId/reservations/$reservationId/start") {
-                setBody(com.avago.core.network.model.StartReservationRequest(rate = rate, rate_unit = rateUnit))
+                setBody(com.avago.core.network.model.StartReservationRequest(rate = rate, rate_unit = rateUnit, meter_start = meterStart, meter_unit = meterUnit, condition = condition, condition_notes = conditionNotes))
             }.body()
         }
 

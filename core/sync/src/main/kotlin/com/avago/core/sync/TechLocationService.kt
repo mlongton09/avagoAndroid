@@ -7,10 +7,10 @@ import android.location.LocationManager
 import com.avago.core.auth.IdentityManager
 import com.avago.core.network.AvagoServiceClient
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
@@ -39,6 +39,7 @@ class TechLocationService @Inject constructor(
         context.getSystemService(LocationManager::class.java)
     }
 
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var locationJob: Job? = null
 
     private val locationListener = LocationListener { location ->
@@ -91,9 +92,8 @@ class TechLocationService @Inject constructor(
             return
         }
 
-        @OptIn(DelicateCoroutinesApi::class)
         locationJob?.cancel()
-        locationJob = GlobalScope.launch(Dispatchers.IO) {
+        locationJob = scope.launch {
             try {
                 serviceClientProvider.get().updateTechLocation(accountId, userId, lat, lon)
                 Timber.d("TechLocationService: posted location ($lat, $lon) for user $userId")

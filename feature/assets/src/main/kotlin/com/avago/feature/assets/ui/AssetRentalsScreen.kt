@@ -19,7 +19,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -84,10 +83,16 @@ fun AssetRentalsScreen(
     val error by viewModel.error.collectAsStateWithLifecycle()
 
     var showCreateSheet by remember { mutableStateOf(false) }
-    var pendingEndRentalId by remember { mutableStateOf<String?>(null) }
+    var endingRentalId by remember { mutableStateOf<String?>(null) }
+    var endCondition by remember { mutableStateOf<String?>(null) }
+    var endMeter by remember { mutableStateOf("") }
+    var endMeterUnit by remember { mutableStateOf("miles") }
     var startingReservation by remember { mutableStateOf<RentalReservation?>(null) }
     var startRate by remember { mutableStateOf("") }
     var startRateUnit by remember { mutableStateOf("daily") }
+    var startCondition by remember { mutableStateOf<String?>(null) }
+    var startMeter by remember { mutableStateOf("") }
+    var startMeterUnit by remember { mutableStateOf("miles") }
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -179,6 +184,9 @@ fun AssetRentalsScreen(
                                     startingReservation = reservation
                                     startRate = ""
                                     startRateUnit = "daily"
+                                    startCondition = null
+                                    startMeter = ""
+                                    startMeterUnit = "miles"
                                 },
                             )
                         }
@@ -202,9 +210,18 @@ fun AssetRentalsScreen(
                     }
 
                     items(rentals, key = { it.rental_id }) { rental ->
+                        val isOverdue = rental.due_at?.let {
+                            runCatching { java.time.Instant.parse(it).isBefore(java.time.Instant.now()) }.getOrDefault(false)
+                        } ?: false
                         RentalCard(
                             rental = rental,
-                            onEndRental = { pendingEndRentalId = rental.rental_id },
+                            isOverdue = isOverdue,
+                            onEndRental = {
+                                endingRentalId = rental.rental_id
+                                endCondition = null
+                                endMeter = ""
+                                endMeterUnit = "miles"
+                            },
                             onOpenInvoice = { invoiceId -> onOpenInvoice(invoiceId) },
                             onCreateInvoice = { viewModel.createInvoice(rental.rental_id) },
                         )
@@ -216,28 +233,74 @@ fun AssetRentalsScreen(
         }
     }
 
-    // "End Rental" confirmation dialog
-    pendingEndRentalId?.let { rentalId ->
-        AlertDialog(
-            onDismissRequest = { pendingEndRentalId = null },
-            title = { Text(stringResource(R.string.rental_end_confirm_title)) },
-            text = { Text(stringResource(R.string.rental_end_confirm_body)) },
-            confirmButton = {
+    // "End Rental" bottom sheet
+    endingRentalId?.let { rentalId ->
+        val endSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { endingRentalId = null },
+            sheetState = endSheetState,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Text(
+                    text = "End Rental",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = "Condition at return *",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("excellent", "good", "fair", "poor").forEach { cond ->
+                        FilterChip(
+                            selected = endCondition == cond,
+                            onClick = { endCondition = cond },
+                            label = { Text(cond.replaceFirstChar { it.uppercase() }) },
+                        )
+                    }
+                }
+                OutlinedTextField(
+                    value = endMeter,
+                    onValueChange = { endMeter = it },
+                    label = { Text("Final meter reading (optional)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+                if (endMeter.isNotBlank()) {
+                    Text(
+                        text = "Unit",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("hours", "miles", "km").forEach { unit ->
+                            FilterChip(
+                                selected = endMeterUnit == unit,
+                                onClick = { endMeterUnit = unit },
+                                label = { Text(unit.replaceFirstChar { it.uppercase() }) },
+                            )
+                        }
+                    }
+                }
                 Button(
                     onClick = {
-                        viewModel.endRental(rentalId)
-                        pendingEndRentalId = null
+                        viewModel.endRental(rentalId, endMeter.toDoubleOrNull(), endCondition)
+                        endingRentalId = null
                     },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = endCondition != null,
                 ) {
                     Text(stringResource(R.string.rental_end_button))
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingEndRentalId = null }) {
-                    Text(stringResource(R.string.asset_cancel))
-                }
-            },
-        )
+            }
+        }
     }
 
     // "Start Rental" bottom sheet — collect rate before converting reservation
@@ -280,17 +343,58 @@ fun AssetRentalsScreen(
                         )
                     }
                 }
+                Text(
+                    text = "Condition *",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("excellent", "good", "fair", "poor").forEach { cond ->
+                        FilterChip(
+                            selected = startCondition == cond,
+                            onClick = { startCondition = cond },
+                            label = { Text(cond.replaceFirstChar { it.uppercase() }) },
+                        )
+                    }
+                }
+                OutlinedTextField(
+                    value = startMeter,
+                    onValueChange = { startMeter = it },
+                    label = { Text("Meter reading (optional)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+                if (startMeter.isNotBlank()) {
+                    Text(
+                        text = "Unit",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("hours", "miles", "km").forEach { unit ->
+                            FilterChip(
+                                selected = startMeterUnit == unit,
+                                onClick = { startMeterUnit = unit },
+                                label = { Text(unit.replaceFirstChar { it.uppercase() }) },
+                            )
+                        }
+                    }
+                }
                 Button(
                     onClick = {
                         viewModel.startReservation(
-                            reservation.reservation_id,
-                            startRate.toDoubleOrNull() ?: 0.0,
-                            startRateUnit,
+                            reservationId = reservation.reservation_id,
+                            rate = startRate.toDoubleOrNull() ?: 0.0,
+                            rateUnit = startRateUnit,
+                            meterStart = startMeter.toDoubleOrNull(),
+                            meterUnit = if (startMeter.isNotBlank()) startMeterUnit else null,
+                            condition = startCondition,
                         )
                         startingReservation = null
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = startRate.toDoubleOrNull() != null && startRate.isNotBlank(),
+                    enabled = startRate.toDoubleOrNull() != null && startRate.isNotBlank() && startCondition != null,
                 ) {
                     Text(stringResource(R.string.rental_reservation_start))
                 }
@@ -313,6 +417,7 @@ fun AssetRentalsScreen(
 @Composable
 private fun RentalCard(
     rental: RentalResponse,
+    isOverdue: Boolean = false,
     onEndRental: () -> Unit,
     onOpenInvoice: (invoiceId: String) -> Unit = {},
     onCreateInvoice: () -> Unit = {},
@@ -339,12 +444,21 @@ private fun RentalCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = rental.customer_name ?: "Internal",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f),
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = rental.customer_name ?: "Internal",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    if (isOverdue) {
+                        Text(
+                            text = "OVERDUE",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (isInvoiced) {
                         RentalMiniChip(
@@ -404,6 +518,29 @@ private fun RentalCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
+                )
+            }
+
+            rental.condition_start?.let {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Start condition: ${it.replaceFirstChar { c -> c.uppercase() }}",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            rental.condition_end?.let {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Return condition: ${it.replaceFirstChar { c -> c.uppercase() }}",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            if (rental.meter_start != null && rental.meter_end != null) {
+                val usage = rental.meter_end - rental.meter_start
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Usage: $usage ${rental.meter_unit ?: ""}",
+                    style = MaterialTheme.typography.bodySmall,
                 )
             }
 

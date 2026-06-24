@@ -30,6 +30,14 @@ data class RentalResponse(
     val notes: String? = null,
     val status: String,  // "active", "ended", "invoiced", "paid"
     val total_amount: Double? = null,
+    val meter_start: Double? = null,
+    val meter_end: Double? = null,
+    val meter_unit: String? = null,
+    val condition_start: String? = null,
+    val condition_start_notes: String? = null,
+    val condition_end: String? = null,
+    val condition_end_notes: String? = null,
+    val due_at: String? = null,
 )
 
 // ---------------------------------------------------------------------------
@@ -196,4 +204,16 @@ data class StartReservationRequest(
     val rate: Double,
     val rate_unit: String,
     val currency: String = "USD",
+    val meter_start: Double? = null,
+    val meter_unit: String? = null,
+    val condition: String? = null,
+    val condition_notes: String? = null,
+)
+
+@Serializable
+data class EndRentalRequest(
+    val end_at: String,
+    val meter_end: Double? = null,
+    val condition: String? = null,
+    val condition_notes: String? = null,
 )
