@@ -109,6 +109,28 @@ fun AssetRentalsScreen(
         }
     }
 
+    LaunchedEffect(Unit) {
+        viewModel.startSuccess.collect {
+            startingReservation = null
+            startRate = ""
+            startRateUnit = "daily"
+            startCondition = null
+            startMeter = ""
+            startMeterUnit = "miles"
+            startConditionNotes = ""
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.endSuccess.collect {
+            endingRentalId = null
+            endCondition = null
+            endMeter = ""
+            endMeterUnit = "miles"
+            endConditionNotes = ""
+        }
+    }
+
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -373,11 +395,6 @@ fun AssetRentalsScreen(
                 Button(
                     onClick = {
                         viewModel.endRental(rentalId, endMeter.toDoubleOrNull(), endCondition?.lowercase(), endConditionNotes.takeIf { it.isNotBlank() })
-                        endingRentalId = null
-                        endCondition = null
-                        endConditionNotes = ""
-                        endMeter = ""
-                        endMeterUnit = "miles"
                     },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = endCondition != null,
@@ -512,13 +529,6 @@ fun AssetRentalsScreen(
                             condition = startCondition?.lowercase(),
                             conditionNotes = startConditionNotes.takeIf { it.isNotBlank() },
                         )
-                        startingReservation = null
-                        startRate = ""
-                        startRateUnit = "daily"
-                        startCondition = null
-                        startConditionNotes = ""
-                        startMeter = ""
-                        startMeterUnit = "miles"
                     },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = startRate.toDoubleOrNull() != null && startRate.isNotBlank() && startCondition != null,

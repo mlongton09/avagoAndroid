@@ -12,8 +12,11 @@ import com.avago.core.network.model.RentalResponse
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -40,6 +43,12 @@ class AssetRentalsViewModel @Inject constructor(
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
+
+    private val _startSuccess = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val startSuccess: SharedFlow<Unit> = _startSuccess.asSharedFlow()
+
+    private val _endSuccess = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val endSuccess: SharedFlow<Unit> = _endSuccess.asSharedFlow()
 
     init {
         load()
@@ -112,6 +121,7 @@ class AssetRentalsViewModel @Inject constructor(
                 when (val result = serviceClient.endRental(accountId, rentalId, endAt, meterEnd, condition, conditionNotes)) {
                     is NetworkResult.Success -> {
                         Timber.d("[AssetRentalsVM] Rental $rentalId ended successfully")
+                        _endSuccess.emit(Unit)
                         load()
                     }
                     is NetworkResult.Error -> {
@@ -197,6 +207,7 @@ class AssetRentalsViewModel @Inject constructor(
                 when (val result = serviceClient.startReservation(accountId, reservationId, rate, rateUnit, meterStart, meterUnit, condition, conditionNotes)) {
                     is NetworkResult.Success -> {
                         Timber.d("[AssetRentalsVM] Reservation $reservationId started as rental ${result.data.rental_id}")
+                        _startSuccess.emit(Unit)
                         load()
                     }
                     is NetworkResult.Error -> {
