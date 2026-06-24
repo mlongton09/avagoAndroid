@@ -189,12 +189,12 @@ class AssetRentalsViewModel @Inject constructor(
     }
 
     /** Convert a reservation to an active rental. */
-    fun startReservation(reservationId: String) {
+    fun startReservation(reservationId: String, rate: Double, rateUnit: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val accountId = identityManager.getActiveAccountId() ?: return@launch
             _error.value = null
             try {
-                when (val result = serviceClient.startReservation(accountId, reservationId)) {
+                when (val result = serviceClient.startReservation(accountId, reservationId, rate, rateUnit)) {
                     is NetworkResult.Success -> {
                         Timber.d("[AssetRentalsVM] Reservation $reservationId started as rental ${result.data.rental_id}")
                         load()

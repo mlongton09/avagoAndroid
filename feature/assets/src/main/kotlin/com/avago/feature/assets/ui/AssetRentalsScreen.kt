@@ -1,5 +1,6 @@
 ﻿package com.avago.feature.assets.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -24,11 +26,14 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -38,12 +43,14 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -78,6 +85,9 @@ fun AssetRentalsScreen(
 
     var showCreateSheet by remember { mutableStateOf(false) }
     var pendingEndRentalId by remember { mutableStateOf<String?>(null) }
+    var startingReservation by remember { mutableStateOf<RentalReservation?>(null) }
+    var startRate by remember { mutableStateOf("") }
+    var startRateUnit by remember { mutableStateOf("daily") }
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -165,7 +175,11 @@ fun AssetRentalsScreen(
                         items(reservations, key = { "res_${it.reservation_id}" }) { reservation ->
                             ReservationCard(
                                 reservation = reservation,
-                                onStartRental = { viewModel.startReservation(reservation.reservation_id) },
+                                onStartRental = {
+                                    startingReservation = reservation
+                                    startRate = ""
+                                    startRateUnit = "daily"
+                                },
                             )
                         }
                         item {
@@ -224,6 +238,64 @@ fun AssetRentalsScreen(
                 }
             },
         )
+    }
+
+    // "Start Rental" bottom sheet — collect rate before converting reservation
+    startingReservation?.let { reservation ->
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { startingReservation = null },
+            sheetState = sheetState,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.rental_reservation_start),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                OutlinedTextField(
+                    value = startRate,
+                    onValueChange = { startRate = it },
+                    label = { Text(stringResource(R.string.rental_rate_label)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+                Text(
+                    text = stringResource(R.string.rental_rate_unit_label),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("hourly", "daily", "weekly", "monthly").forEach { unit ->
+                        FilterChip(
+                            selected = startRateUnit == unit,
+                            onClick = { startRateUnit = unit },
+                            label = { Text(unit.replaceFirstChar { it.uppercase() }) },
+                        )
+                    }
+                }
+                Button(
+                    onClick = {
+                        viewModel.startReservation(
+                            reservation.reservation_id,
+                            startRate.toDoubleOrNull() ?: 0.0,
+                            startRateUnit,
+                        )
+                        startingReservation = null
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = startRate.toDoubleOrNull() != null && startRate.isNotBlank(),
+                ) {
+                    Text(stringResource(R.string.rental_reservation_start))
+                }
+            }
+        }
     }
 
     if (showCreateSheet) {

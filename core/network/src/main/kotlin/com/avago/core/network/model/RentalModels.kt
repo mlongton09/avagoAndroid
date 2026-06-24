@@ -190,3 +190,10 @@ data class UpdateReservationRequest(
     val reserved_until: String? = null,
     val notes: String? = null,
 )
+
+@Serializable
+data class StartReservationRequest(
+    val rate: Double,
+    val rate_unit: String,
+    val currency: String = "USD",
+)

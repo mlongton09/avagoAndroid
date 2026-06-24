@@ -6,7 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
-import com.avago.core.network.model.CreateRentalRequest
+import com.avago.core.network.model.CreateReservationRequest
 import com.avago.core.network.model.RentalCustomer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -51,7 +51,7 @@ class RentalBookingViewModel @Inject constructor(
         }
     }
 
-    fun createRental(request: CreateRentalRequest, onSuccess: () -> Unit) {
+    fun createReservation(request: CreateReservationRequest, onSuccess: () -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             val accountId = identityManager.getActiveAccountId() ?: run {
                 _error.value = "No active account"
@@ -60,13 +60,13 @@ class RentalBookingViewModel @Inject constructor(
             _isLoading.value = true
             _error.value = null
             try {
-                when (val result = serviceClient.createRental(accountId, request)) {
+                when (val result = serviceClient.createReservation(accountId, request)) {
                     is NetworkResult.Success -> {
-                        Timber.d("[RentalBookingVM] Rental created: ${result.data.rental_id}")
+                        Timber.d("[RentalBookingVM] Reservation created: ${result.data.reservation_id}")
                         withContext(Dispatchers.Main) { onSuccess() }
                     }
                     is NetworkResult.Error -> {
-                        Timber.e("[RentalBookingVM] Error creating rental: ${result.message}")
+                        Timber.e("[RentalBookingVM] Error creating reservation: ${result.message}")
                         _error.value = result.message
                     }
                     is NetworkResult.Unauthorized -> {

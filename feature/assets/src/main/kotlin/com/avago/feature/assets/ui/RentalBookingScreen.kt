@@ -16,8 +16,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -41,7 +39,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -55,14 +52,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.avago.core.network.model.CreateRentalRequest
+import com.avago.core.network.model.CreateReservationRequest
 import com.avago.core.network.model.RentalCustomer
 import com.avago.feature.assets.R
 import java.time.Instant
@@ -72,7 +67,6 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
 private val DATE_FMT = DateTimeFormatter.ofPattern("MMM d, yyyy")
-private val RATE_UNITS_BOOKING = listOf("hourly", "daily", "weekly", "monthly")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -104,8 +98,6 @@ fun RentalBookingScreen(
     var selectedCustomer by remember { mutableStateOf<RentalCustomer?>(null) }
     var startDate by remember { mutableStateOf(LocalDate.now()) }
     var endDate by remember { mutableStateOf<LocalDate?>(null) }
-    var rate by rememberSaveable { mutableStateOf("") }
-    var rateUnit by rememberSaveable { mutableStateOf("daily") }
     var notes by rememberSaveable { mutableStateOf("") }
 
     val stepTitles = listOf(
@@ -155,15 +147,11 @@ fun RentalBookingScreen(
                     .padding(innerPadding),
             )
 
-            1 -> DateRateStep(
+            1 -> DateStep(
                 startDate = startDate,
                 endDate = endDate,
-                rate = rate,
-                rateUnit = rateUnit,
                 onStartDateChange = { startDate = it },
                 onEndDateChange = { endDate = it },
-                onRateChange = { rate = it },
-                onRateUnitChange = { rateUnit = it },
                 notes = notes,
                 onNotesChange = { notes = it },
                 onNext = { step = 2 },
@@ -176,24 +164,20 @@ fun RentalBookingScreen(
                 customer = selectedCustomer,
                 startDate = startDate,
                 endDate = endDate,
-                rate = rate,
-                rateUnit = rateUnit,
                 notes = notes,
                 isLoading = isLoading,
                 onConfirm = {
-                    val parsedRate = rate.toDoubleOrNull() ?: 0.0
                     val startInstant = startDate.atStartOfDay(ZoneId.systemDefault()).toInstant()
-                    val request = CreateRentalRequest(
+                    val endInstant = (endDate ?: startDate.plusDays(1))
+                        .atStartOfDay(ZoneId.systemDefault()).toInstant()
+                    val request = CreateReservationRequest(
                         asset_id = assetId,
                         rental_customer_id = selectedCustomer?.rental_customer_id,
-                        start_at = startInstant.toString(),
-                        rate = parsedRate,
-                        rate_unit = rateUnit,
-                        currency = "USD",
-                        customer_name = selectedCustomer?.name,
+                        reserved_from = startInstant.toString(),
+                        reserved_until = endInstant.toString(),
                         notes = notes.takeIf { it.isNotBlank() },
                     )
-                    viewModel.createRental(request, onSuccess = onBooked)
+                    viewModel.createReservation(request, onSuccess = onBooked)
                 },
                 modifier = Modifier
                     .fillMaxSize()
@@ -307,15 +291,11 @@ private fun CustomerPickerRow(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DateRateStep(
+private fun DateStep(
     startDate: LocalDate,
     endDate: LocalDate?,
-    rate: String,
-    rateUnit: String,
     onStartDateChange: (LocalDate) -> Unit,
     onEndDateChange: (LocalDate?) -> Unit,
-    onRateChange: (String) -> Unit,
-    onRateUnitChange: (String) -> Unit,
     notes: String,
     onNotesChange: (String) -> Unit,
     onNext: () -> Unit,
@@ -374,47 +354,6 @@ private fun DateRateStep(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary,
             )
-        }
-        Spacer(Modifier.height(12.dp))
-
-        // Rate
-        OutlinedTextField(
-            value = rate,
-            onValueChange = onRateChange,
-            label = { Text(stringResource(R.string.rental_rate_label)) },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-        )
-        Spacer(Modifier.height(12.dp))
-
-        // Rate unit chips
-        Text(
-            text = stringResource(R.string.rental_rate_unit_label),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(6.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            RATE_UNITS_BOOKING.forEach { unit ->
-                val selected = rateUnit == unit
-                Surface(
-                    shape = RoundedCornerShape(50),
-                    color = if (selected) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.surfaceVariant,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(50))
-                        .clickable { onRateUnitChange(unit) },
-                ) {
-                    Text(
-                        text = unit.replaceFirstChar { it.uppercase() },
-                        style = MaterialTheme.typography.labelMedium,
-                        color = if (selected) MaterialTheme.colorScheme.onPrimary
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                    )
-                }
-            }
         }
         Spacer(Modifier.height(12.dp))
 
@@ -496,18 +435,12 @@ private fun ConfirmBookingStep(
     customer: RentalCustomer?,
     startDate: LocalDate,
     endDate: LocalDate?,
-    rate: String,
-    rateUnit: String,
     notes: String,
     isLoading: Boolean,
     onConfirm: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val parsedRate = rate.toDoubleOrNull() ?: 0.0
     val durationDays = endDate?.let { ChronoUnit.DAYS.between(startDate, it) }
-    val estimatedCost = if (durationDays != null && durationDays > 0 && rateUnit == "daily") {
-        parsedRate * durationDays
-    } else null
 
     Column(
         modifier = modifier
@@ -543,21 +476,6 @@ private fun ConfirmBookingStep(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                SummaryRow(
-                    label = stringResource(R.string.rental_booking_summary_rate),
-                    value = "$${"%.2f".format(parsedRate)} / $rateUnit",
-                )
-
-                if (estimatedCost != null) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                    SummaryRow(
-                        label = stringResource(R.string.rental_booking_estimated_cost),
-                        value = "$${"%.2f".format(estimatedCost)}",
-                        valueWeight = FontWeight.Bold,
-                    )
-                }
 
                 if (notes.isNotBlank()) {
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -580,7 +498,7 @@ private fun ConfirmBookingStep(
         Button(
             onClick = onConfirm,
             modifier = Modifier.fillMaxWidth(),
-            enabled = !isLoading && parsedRate > 0,
+            enabled = !isLoading,
         ) {
             if (isLoading) {
                 CircularProgressIndicator(

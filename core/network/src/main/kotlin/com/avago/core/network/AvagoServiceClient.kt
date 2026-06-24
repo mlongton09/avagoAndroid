@@ -1450,10 +1450,12 @@ class AvagoServiceClient @Inject constructor(
     suspend fun startReservation(
         accountId: String,
         reservationId: String,
+        rate: Double,
+        rateUnit: String,
     ): NetworkResult<RentalResponse> =
         safeNetworkCall {
             client.post("$baseUrl/accounts/$accountId/reservations/$reservationId/start") {
-                setBody(emptyMap<String, String>())
+                setBody(com.avago.core.network.model.StartReservationRequest(rate = rate, rate_unit = rateUnit))
             }.body()
         }
 
