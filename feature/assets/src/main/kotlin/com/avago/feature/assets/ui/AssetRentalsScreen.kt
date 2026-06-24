@@ -1,5 +1,6 @@
 ﻿package com.avago.feature.assets.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -19,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -49,6 +52,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -85,12 +89,14 @@ fun AssetRentalsScreen(
     var showCreateSheet by remember { mutableStateOf(false) }
     var endingRentalId by remember { mutableStateOf<String?>(null) }
     var endCondition by remember { mutableStateOf<String?>(null) }
+    var endConditionNotes by remember { mutableStateOf("") }
     var endMeter by remember { mutableStateOf("") }
     var endMeterUnit by remember { mutableStateOf("miles") }
     var startingReservation by remember { mutableStateOf<RentalReservation?>(null) }
     var startRate by remember { mutableStateOf("") }
     var startRateUnit by remember { mutableStateOf("daily") }
     var startCondition by remember { mutableStateOf<String?>(null) }
+    var startConditionNotes by remember { mutableStateOf("") }
     var startMeter by remember { mutableStateOf("") }
     var startMeterUnit by remember { mutableStateOf("miles") }
 
@@ -185,6 +191,7 @@ fun AssetRentalsScreen(
                                     startRate = ""
                                     startRateUnit = "daily"
                                     startCondition = null
+                                    startConditionNotes = ""
                                     startMeter = ""
                                     startMeterUnit = "miles"
                                 },
@@ -197,8 +204,54 @@ fun AssetRentalsScreen(
                         }
                     }
 
+                    // Split rentals into overdue / active / ended
+                    val isOverdueFn = { r: RentalResponse ->
+                        r.end_at == null && r.due_at != null &&
+                            runCatching { Instant.parse(r.due_at).isBefore(Instant.now()) }.getOrDefault(false)
+                    }
+                    val overdueRentals = rentals.filter { isOverdueFn(it) }
+                    val activeRentals = rentals.filter { it.end_at == null && !isOverdueFn(it) }
+                    val endedRentals = rentals.filter { it.end_at != null }
+
+                    // Overdue section
+                    if (overdueRentals.isNotEmpty()) {
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(MaterialTheme.colorScheme.errorContainer)
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    "Overdue (${overdueRentals.size})",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            }
+                        }
+                        items(overdueRentals, key = { "over_${it.rental_id}" }) { rental ->
+                            RentalCard(
+                                rental = rental,
+                                isOverdue = true,
+                                onEndRental = {
+                                    endingRentalId = rental.rental_id
+                                    endCondition = null
+                                    endConditionNotes = ""
+                                    endMeter = ""
+                                    endMeterUnit = "miles"
+                                },
+                                onOpenInvoice = { invoiceId -> onOpenInvoice(invoiceId) },
+                                onCreateInvoice = { viewModel.createInvoice(rental.rental_id) },
+                            )
+                        }
+                    }
+
                     // Active rentals section label
-                    if (rentals.isNotEmpty()) {
+                    if (activeRentals.isNotEmpty() || endedRentals.isNotEmpty()) {
                         item {
                             Text(
                                 text = "Rentals",
@@ -209,16 +262,14 @@ fun AssetRentalsScreen(
                         }
                     }
 
-                    items(rentals, key = { it.rental_id }) { rental ->
-                        val isOverdue = rental.due_at?.let {
-                            runCatching { java.time.Instant.parse(it).isBefore(java.time.Instant.now()) }.getOrDefault(false)
-                        } ?: false
+                    items(activeRentals + endedRentals, key = { it.rental_id }) { rental ->
                         RentalCard(
                             rental = rental,
-                            isOverdue = isOverdue,
+                            isOverdue = false,
                             onEndRental = {
                                 endingRentalId = rental.rental_id
                                 endCondition = null
+                                endConditionNotes = ""
                                 endMeter = ""
                                 endMeterUnit = "miles"
                             },
@@ -240,6 +291,7 @@ fun AssetRentalsScreen(
             onDismissRequest = {
                 endingRentalId = null
                 endCondition = null
+                endConditionNotes = ""
                 endMeter = ""
                 endMeterUnit = "miles"
             },
@@ -270,6 +322,15 @@ fun AssetRentalsScreen(
                         )
                     }
                 }
+                OutlinedTextField(
+                    value = endConditionNotes,
+                    onValueChange = { endConditionNotes = it },
+                    label = { Text("Condition notes (optional)") },
+                    placeholder = { Text("e.g. scratch on rear bumper") },
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 2,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                )
                 val endMeterError = endMeter.isNotBlank() && endMeter.toDoubleOrNull() == null
                 OutlinedTextField(
                     value = endMeter,
@@ -297,11 +358,24 @@ fun AssetRentalsScreen(
                         }
                     }
                 }
+                val endSubmitHint = when {
+                    endCondition == null -> "Select a condition to continue"
+                    else -> null
+                }
+                if (endSubmitHint != null) {
+                    Text(
+                        text = endSubmitHint,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                }
                 Button(
                     onClick = {
-                        viewModel.endRental(rentalId, endMeter.toDoubleOrNull(), endCondition?.lowercase())
+                        viewModel.endRental(rentalId, endMeter.toDoubleOrNull(), endCondition?.lowercase(), endConditionNotes.takeIf { it.isNotBlank() })
                         endingRentalId = null
                         endCondition = null
+                        endConditionNotes = ""
                         endMeter = ""
                         endMeterUnit = "miles"
                     },
@@ -323,6 +397,7 @@ fun AssetRentalsScreen(
                 startRate = ""
                 startRateUnit = "daily"
                 startCondition = null
+                startConditionNotes = ""
                 startMeter = ""
                 startMeterUnit = "miles"
             },
@@ -375,6 +450,15 @@ fun AssetRentalsScreen(
                         )
                     }
                 }
+                OutlinedTextField(
+                    value = startConditionNotes,
+                    onValueChange = { startConditionNotes = it },
+                    label = { Text("Condition notes (optional)") },
+                    placeholder = { Text("e.g. minor wear on left side") },
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 2,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                )
                 val startMeterError = startMeter.isNotBlank() && startMeter.toDoubleOrNull() == null
                 OutlinedTextField(
                     value = startMeter,
@@ -402,6 +486,21 @@ fun AssetRentalsScreen(
                         }
                     }
                 }
+                val startSubmitHint = when {
+                    startCondition == null && (startRate.isBlank() || startRate.toDoubleOrNull() == null) ->
+                        "Enter a rate and select a condition to continue"
+                    startCondition == null -> "Select a condition to continue"
+                    startRate.isBlank() || startRate.toDoubleOrNull() == null -> "Enter a rate to continue"
+                    else -> null
+                }
+                if (startSubmitHint != null) {
+                    Text(
+                        text = startSubmitHint,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                }
                 Button(
                     onClick = {
                         viewModel.startReservation(
@@ -411,11 +510,13 @@ fun AssetRentalsScreen(
                             meterStart = startMeter.toDoubleOrNull(),
                             meterUnit = if (startMeter.isNotBlank()) startMeterUnit else null,
                             condition = startCondition?.lowercase(),
+                            conditionNotes = startConditionNotes.takeIf { it.isNotBlank() },
                         )
                         startingReservation = null
                         startRate = ""
                         startRateUnit = "daily"
                         startCondition = null
+                        startConditionNotes = ""
                         startMeter = ""
                         startMeterUnit = "miles"
                     },
@@ -561,13 +662,17 @@ private fun RentalCard(
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
-            if (rental.meter_start != null && rental.meter_end != null) {
-                val usage = rental.meter_end - rental.meter_start
+            val meterDisplay = when {
+                rental.meter_start != null && rental.meter_end != null -> {
+                    val usage = rental.meter_end - rental.meter_start
+                    "Meter: ${rental.meter_start} → ${rental.meter_end} = ${"%.1f".format(usage)} ${rental.meter_unit ?: ""}"
+                }
+                rental.meter_start != null -> "Start meter: ${rental.meter_start} ${rental.meter_unit ?: ""}"
+                else -> null
+            }
+            if (meterDisplay != null) {
                 Spacer(Modifier.height(4.dp))
-                Text(
-                    text = "Usage: $usage ${rental.meter_unit ?: ""}",
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                Text(text = meterDisplay, style = MaterialTheme.typography.bodySmall)
             }
 
             if (isActive) {

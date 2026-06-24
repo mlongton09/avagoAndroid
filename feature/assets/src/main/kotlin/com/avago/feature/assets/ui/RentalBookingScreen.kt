@@ -21,7 +21,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -196,10 +198,38 @@ private fun CustomerPickerStep(
     onNext: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var customerSearch by remember { mutableStateOf("") }
+
+    val filteredCustomers = remember(customerSearch, customers) {
+        if (customerSearch.isBlank()) customers
+        else customers.filter {
+            it.name.contains(customerSearch, ignoreCase = true) ||
+                it.company?.contains(customerSearch, ignoreCase = true) == true ||
+                it.email?.contains(customerSearch, ignoreCase = true) == true
+        }
+    }
+
     Column(modifier = modifier) {
+        OutlinedTextField(
+            value = customerSearch,
+            onValueChange = { customerSearch = it },
+            label = { Text("Search customers") },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            trailingIcon = if (customerSearch.isNotEmpty()) {
+                {
+                    IconButton(onClick = { customerSearch = "" }) {
+                        Icon(Icons.Default.Clear, contentDescription = "Clear search")
+                    }
+                }
+            } else null,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            singleLine = true,
+        )
         LazyColumn(
             modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
             verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
             // "No customer" row
@@ -222,8 +252,8 @@ private fun CustomerPickerStep(
                 )
                 HorizontalDivider()
             }
-            // Existing customers
-            items(customers, key = { it.rental_customer_id }) { customer ->
+            // Existing customers (filtered)
+            items(filteredCustomers, key = { it.rental_customer_id }) { customer ->
                 CustomerPickerRow(
                     name = customer.name,
                     subtitle = listOfNotNull(customer.company, customer.email).firstOrNull(),
