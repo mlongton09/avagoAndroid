@@ -39,6 +39,7 @@ class AccountPreferencesSync @Inject constructor(
         val disableQuotes: Boolean = false,
         val enableHumanInLoop: Boolean = true,
         val fuelVolumeUnit: String = "gallon",
+        val rentalDefaultRateUnit: String = "day",
     )
 
     private val _prefs = MutableStateFlow(UserPrefs())
@@ -65,6 +66,7 @@ class AccountPreferencesSync @Inject constructor(
                     disableQuotes = r.disable_quotes ?: _prefs.value.disableQuotes,
                     enableHumanInLoop = _prefs.value.enableHumanInLoop,
                     fuelVolumeUnit = _prefs.value.fuelVolumeUnit,
+                    rentalDefaultRateUnit = r.rental_default_rate_unit ?: _prefs.value.rentalDefaultRateUnit,
                 )
                 _prefsChanged.value = System.currentTimeMillis()
                 Timber.d("[AccountPreferencesSync] refreshed")
@@ -96,6 +98,7 @@ class AccountPreferencesSync @Inject constructor(
                     disableQuotes = patch.disable_quotes ?: _prefs.value.disableQuotes,
                     enableHumanInLoop = patch.enable_human_in_loop ?: _prefs.value.enableHumanInLoop,
                     fuelVolumeUnit = patch.fuel_volume_unit ?: _prefs.value.fuelVolumeUnit,
+                    rentalDefaultRateUnit = _prefs.value.rentalDefaultRateUnit,
                 )
                 _prefsChanged.value = System.currentTimeMillis()
                 true

@@ -9,6 +9,7 @@ import com.avago.core.network.NetworkResult
 import com.avago.core.network.model.CreateRentalRequest
 import com.avago.core.network.model.RentalReservation
 import com.avago.core.network.model.RentalResponse
+import com.avago.core.auth.AccountPreferencesSync
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -28,9 +29,14 @@ class AssetRentalsViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val serviceClient: AvagoServiceClient,
     private val identityManager: IdentityManager,
+    private val accountPreferencesSync: AccountPreferencesSync,
 ) : ViewModel() {
 
     private val assetId: String = savedStateHandle["assetId"] ?: ""
+
+    /** The account-level default rate unit for new rentals (e.g. "hour", "day", "week", "month"). */
+    val rentalDefaultRateUnit: String
+        get() = accountPreferencesSync.prefs.value.rentalDefaultRateUnit
 
     private val _rentals = MutableStateFlow<List<RentalResponse>>(emptyList())
     val rentals: StateFlow<List<RentalResponse>> = _rentals.asStateFlow()

@@ -17,6 +17,7 @@ data class UserPreferencesResponse(
     val locale: String? = null,
     val disable_quotes: Boolean? = null,
     val notifications_enabled: Boolean? = null,
+    val rental_default_rate_unit: String? = null,
 )
 
 @Serializable

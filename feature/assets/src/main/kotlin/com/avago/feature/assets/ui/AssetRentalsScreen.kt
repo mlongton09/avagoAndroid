@@ -94,7 +94,7 @@ fun AssetRentalsScreen(
     var endMeterUnit by remember { mutableStateOf("miles") }
     var startingReservation by remember { mutableStateOf<RentalReservation?>(null) }
     var startRate by remember { mutableStateOf("") }
-    var startRateUnit by remember { mutableStateOf("daily") }
+    var startRateUnit by remember { mutableStateOf(prefRateUnitToUiUnit(viewModel.rentalDefaultRateUnit)) }
     var startCondition by remember { mutableStateOf<String?>(null) }
     var startConditionNotes by remember { mutableStateOf("") }
     var startMeter by remember { mutableStateOf("") }
@@ -113,7 +113,7 @@ fun AssetRentalsScreen(
         viewModel.startSuccess.collect {
             startingReservation = null
             startRate = ""
-            startRateUnit = "daily"
+            startRateUnit = prefRateUnitToUiUnit(viewModel.rentalDefaultRateUnit)
             startCondition = null
             startMeter = ""
             startMeterUnit = "miles"
@@ -211,7 +211,7 @@ fun AssetRentalsScreen(
                                 onStartRental = {
                                     startingReservation = reservation
                                     startRate = ""
-                                    startRateUnit = "daily"
+                                    startRateUnit = prefRateUnitToUiUnit(viewModel.rentalDefaultRateUnit)
                                     startCondition = null
                                     startConditionNotes = ""
                                     startMeter = ""
@@ -412,7 +412,7 @@ fun AssetRentalsScreen(
             onDismissRequest = {
                 startingReservation = null
                 startRate = ""
-                startRateUnit = "daily"
+                startRateUnit = prefRateUnitToUiUnit(viewModel.rentalDefaultRateUnit)
                 startCondition = null
                 startConditionNotes = ""
                 startMeter = ""
@@ -829,6 +829,18 @@ private fun RentalStatusChip(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
         )
     }
+}
+
+/**
+ * Maps the account preference rate unit ("hour", "day", "week", "month") to the
+ * UI chip value ("hourly", "daily", "weekly", "monthly"). Falls back to "daily".
+ */
+private fun prefRateUnitToUiUnit(unit: String): String = when (unit) {
+    "hour" -> "hourly"
+    "day"  -> "daily"
+    "week" -> "weekly"
+    "month" -> "monthly"
+    else   -> "daily"
 }
 
 private fun formatRentalDate(isoString: String): String = try {
