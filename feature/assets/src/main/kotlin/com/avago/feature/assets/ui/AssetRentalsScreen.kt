@@ -672,12 +672,14 @@ private fun RentalCard(
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
+            val meterStart = rental.meter_start
+            val meterEnd = rental.meter_end
             val meterDisplay = when {
-                rental.meter_start != null && rental.meter_end != null -> {
-                    val usage = rental.meter_end - rental.meter_start
-                    "Meter: ${rental.meter_start} → ${rental.meter_end} = ${"%.1f".format(usage)} ${rental.meter_unit ?: ""}"
+                meterStart != null && meterEnd != null -> {
+                    val usage = meterEnd - meterStart
+                    "Meter: $meterStart → $meterEnd = ${"%.1f".format(usage)} ${rental.meter_unit ?: ""}"
                 }
-                rental.meter_start != null -> "Start meter: ${rental.meter_start} ${rental.meter_unit ?: ""}"
+                meterStart != null -> "Start meter: $meterStart ${rental.meter_unit ?: ""}"
                 else -> null
             }
             if (meterDisplay != null) {
