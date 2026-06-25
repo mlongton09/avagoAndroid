@@ -45,6 +45,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -52,6 +53,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -81,6 +85,9 @@ fun RentalBookingScreen(
     viewModel: RentalBookingViewModel = hiltViewModel(),
 ) {
     val customers by viewModel.customers.collectAsStateWithLifecycle()
+    val selectedCustomer by viewModel.selectedCustomer.collectAsStateWithLifecycle()
+    val startDate by viewModel.startDate.collectAsStateWithLifecycle()
+    val endDate by viewModel.endDate.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
 
@@ -93,13 +100,20 @@ fun RentalBookingScreen(
         }
     }
 
+    // Refresh the customers list when returning from the new-customer screen.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.refreshCustomers()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     // Step state: 0=Customer, 1=Dates, 2=Confirm
     var step by rememberSaveable { mutableIntStateOf(0) }
 
-    // Booking form state
-    var selectedCustomer by remember { mutableStateOf<RentalCustomer?>(null) }
-    var startDate by remember { mutableStateOf(LocalDate.now()) }
-    var endDate by remember { mutableStateOf<LocalDate?>(null) }
+    // Notes is local-only; doesn't need to survive navigation to the customer-creation screen.
     var notes by rememberSaveable { mutableStateOf("") }
 
     val stepTitles = listOf(
@@ -141,7 +155,7 @@ fun RentalBookingScreen(
             0 -> CustomerPickerStep(
                 customers = customers,
                 selectedCustomer = selectedCustomer,
-                onSelectCustomer = { selectedCustomer = it },
+                onSelectCustomer = { viewModel.setSelectedCustomer(it) },
                 onNewCustomer = onNavigateToNewCustomer,
                 onNext = { step = 1 },
                 modifier = Modifier
@@ -150,10 +164,11 @@ fun RentalBookingScreen(
             )
 
             1 -> DateStep(
+                selectedCustomer = selectedCustomer,
                 startDate = startDate,
                 endDate = endDate,
-                onStartDateChange = { startDate = it },
-                onEndDateChange = { endDate = it },
+                onStartDateChange = { viewModel.setStartDate(it) },
+                onEndDateChange = { viewModel.setEndDate(it) },
                 notes = notes,
                 onNotesChange = { notes = it },
                 onNext = { step = 2 },
@@ -322,6 +337,7 @@ private fun CustomerPickerRow(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DateStep(
+    selectedCustomer: RentalCustomer?,
     startDate: LocalDate,
     endDate: LocalDate?,
     onStartDateChange: (LocalDate) -> Unit,
@@ -341,6 +357,15 @@ private fun DateStep(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
+        // Customer name summary — so the user knows who they selected on step 1
+        val customerLabel = selectedCustomer?.name ?: stringResource(R.string.rental_booking_no_customer)
+        Text(
+            text = stringResource(R.string.rental_booking_summary_customer) + ": $customerLabel",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 12.dp),
+        )
+
         // Start date
         OutlinedTextField(
             value = startDate.format(DATE_FMT),

@@ -44,8 +44,6 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PictureAsPdf
-import androidx.compose.material.icons.filled.PlayCircle
-import androidx.compose.material.icons.filled.StopCircle
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material3.Card
@@ -277,22 +275,13 @@ fun AssetDetailScreen(
                             expanded = showOverflowMenu,
                             onDismissRequest = { showOverflowMenu = false },
                         ) {
-                            // Rental actions — iOS prepends these when asset.isRental.
+                            // Single rental hub entry — takes user to AssetRentalsScreen
+                            // where they can start, stop, book, and view all rental activity.
                             if (rentalsEnabled && asset?.isRental == true) {
                                 DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.asset_detail_rental_start)) },
+                                    text = { Text(stringResource(R.string.asset_detail_rental)) },
                                     leadingIcon = {
-                                        Icon(Icons.Default.PlayCircle, contentDescription = null)
-                                    },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        onOpenRentals()
-                                    },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.asset_detail_rental_end)) },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.StopCircle, contentDescription = null)
+                                        Icon(Icons.AutoMirrored.Filled.ReceiptLong, contentDescription = null)
                                     },
                                     onClick = {
                                         showOverflowMenu = false

@@ -64,6 +64,23 @@ class RentalCustomersViewModel @Inject constructor(
         }
     }
 
+    fun deleteCustomer(customerId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val accountId = identityManager.getActiveAccountId() ?: return@launch
+            when (val result = serviceClient.deleteRentalCustomer(accountId, customerId)) {
+                is NetworkResult.Success -> {
+                    _customers.value = _customers.value.filter { it.rental_customer_id != customerId }
+                    Timber.d("[RentalCustomersVM] Deleted customer $customerId")
+                }
+                is NetworkResult.Error -> {
+                    Timber.e("[RentalCustomersVM] Error deleting: ${result.message}")
+                    _error.value = result.message
+                }
+                is NetworkResult.Unauthorized -> _error.value = "Unauthorized"
+            }
+        }
+    }
+
     fun clearError() {
         _error.value = null
     }

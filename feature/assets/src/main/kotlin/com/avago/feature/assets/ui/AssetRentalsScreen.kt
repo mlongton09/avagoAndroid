@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -77,6 +78,7 @@ fun AssetRentalsScreen(
     assetId: String,
     onBack: () -> Unit,
     onOpenBooking: () -> Unit = {},
+    onOpenCustomers: () -> Unit = {},
     onOpenInvoice: (invoiceId: String) -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: AssetRentalsViewModel = hiltViewModel(),
@@ -145,6 +147,9 @@ fun AssetRentalsScreen(
                 },
                 title = { Text(stringResource(R.string.rental_list_title)) },
                 actions = {
+                    IconButton(onClick = onOpenCustomers) {
+                        Icon(Icons.Default.Person, contentDescription = "Customers")
+                    }
                     // "Book" action opens the multi-step booking flow
                     TextButton(onClick = onOpenBooking) {
                         Text("Book")

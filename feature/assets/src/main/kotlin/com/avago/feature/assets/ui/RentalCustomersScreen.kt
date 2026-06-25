@@ -1,5 +1,6 @@
 package com.avago.feature.assets.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,7 +18,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -30,12 +33,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -61,12 +70,32 @@ fun RentalCustomersScreen(
     val error by viewModel.error.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
+    var customerToDelete by remember { mutableStateOf<RentalCustomer?>(null) }
 
     LaunchedEffect(error) {
         error?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.clearError()
         }
+    }
+
+    customerToDelete?.let { customer ->
+        AlertDialog(
+            onDismissRequest = { customerToDelete = null },
+            title = { Text("Delete ${customer.name}?") },
+            text = { Text("This permanently removes the customer record.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteCustomer(customer.rental_customer_id)
+                    customerToDelete = null
+                }) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { customerToDelete = null }) { Text("Cancel") }
+            },
+        )
     }
 
     Scaffold(
@@ -128,10 +157,39 @@ fun RentalCustomersScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(customers, key = { it.rental_customer_id }) { customer ->
-                        RentalCustomerRow(
-                            customer = customer,
-                            onClick = { onEditCustomer(customer.rental_customer_id) },
+                        val dismissState = rememberSwipeToDismissBoxState(
+                            confirmValueChange = { value ->
+                                if (value == SwipeToDismissBoxValue.EndToStart) {
+                                    customerToDelete = customer
+                                }
+                                // Never auto-dismiss — we handle removal after confirmation.
+                                false
+                            },
                         )
+                        SwipeToDismissBox(
+                            state = dismissState,
+                            enableDismissFromStartToEnd = false,
+                            backgroundContent = {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(MaterialTheme.colorScheme.errorContainer)
+                                        .padding(horizontal = 20.dp),
+                                    contentAlignment = Alignment.CenterEnd,
+                                ) {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = "Delete",
+                                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                                    )
+                                }
+                            },
+                        ) {
+                            RentalCustomerRow(
+                                customer = customer,
+                                onClick = { onEditCustomer(customer.rental_customer_id) },
+                            )
+                        }
                     }
                     item { Spacer(Modifier.height(72.dp)) }
                 }
@@ -160,7 +218,6 @@ private fun RentalCustomerRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                // Primary: name + company
                 val primaryLabel = if (!customer.company.isNullOrBlank()) {
                     "${customer.name} · ${customer.company}"
                 } else {
@@ -171,7 +228,6 @@ private fun RentalCustomerRow(
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
                 )
-                // Secondary: email / phone
                 val secondary = listOfNotNull(customer.email, customer.phone).joinToString(" · ")
                 if (secondary.isNotBlank()) {
                     Spacer(Modifier.height(2.dp))

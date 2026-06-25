@@ -477,6 +477,7 @@ fun NavGraphBuilder.assetsNavGraph(
                 assetId = assetId,
                 onBack = { navController.popBackStack() },
                 onOpenBooking = { navController.navigate(AssetsRoute.rentalBooking(assetId)) },
+                onOpenCustomers = { navController.navigate(AssetsRoute.RENTAL_CUSTOMERS) },
                 onOpenInvoice = { invoiceId -> navController.navigate(AssetsRoute.rentalInvoice(invoiceId)) },
             )
         }

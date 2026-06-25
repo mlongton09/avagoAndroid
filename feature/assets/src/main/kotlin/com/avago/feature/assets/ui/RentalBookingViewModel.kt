@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
+import java.time.LocalDate
 import javax.inject.Inject
 
 @HiltViewModel
@@ -29,6 +30,15 @@ class RentalBookingViewModel @Inject constructor(
 
     private val _customers = MutableStateFlow<List<RentalCustomer>>(emptyList())
     val customers: StateFlow<List<RentalCustomer>> = _customers.asStateFlow()
+
+    private val _selectedCustomer = MutableStateFlow<RentalCustomer?>(null)
+    val selectedCustomer: StateFlow<RentalCustomer?> = _selectedCustomer.asStateFlow()
+
+    private val _startDate = MutableStateFlow(LocalDate.now())
+    val startDate: StateFlow<LocalDate> = _startDate.asStateFlow()
+
+    private val _endDate = MutableStateFlow<LocalDate?>(null)
+    val endDate: StateFlow<LocalDate?> = _endDate.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -50,6 +60,12 @@ class RentalBookingViewModel @Inject constructor(
             }
         }
     }
+
+    fun refreshCustomers() = loadCustomers()
+
+    fun setSelectedCustomer(customer: RentalCustomer?) { _selectedCustomer.value = customer }
+    fun setStartDate(date: LocalDate) { _startDate.value = date }
+    fun setEndDate(date: LocalDate?) { _endDate.value = date }
 
     fun createReservation(request: CreateReservationRequest, onSuccess: () -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
