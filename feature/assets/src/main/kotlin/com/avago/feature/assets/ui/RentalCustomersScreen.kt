@@ -12,13 +12,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -39,7 +40,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -212,10 +218,11 @@ private fun CustomerContactRow(
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .background(MaterialTheme.colorScheme.surface)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        ContactAvatar(name = customer.name)
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = customer.name,
@@ -233,10 +240,30 @@ private fun CustomerContactRow(
                 )
             }
         }
-        Icon(
-            Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+    }
+}
+
+@Composable
+private fun ContactAvatar(name: String, modifier: Modifier = Modifier) {
+    val colors = listOf(
+        Color(0xFF3399DC), Color(0xFF34C759), Color(0xFFFF9500),
+        Color(0xFFE6443B), Color(0xFF8E5CF5), Color(0xFF00B0B5),
+        Color(0xFFFA5E59), Color(0xFF4990E2),
+    )
+    val color = colors[Math.abs(name.hashCode()) % colors.size]
+    val initials = name.split(" ").take(2).joinToString("") { it.take(1).uppercase() }
+    Box(
+        modifier = modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(color),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = initials,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = Color.White,
         )
     }
 }
@@ -247,21 +274,46 @@ private fun AlphabetSideIndex(
     onLetterClick: (Char) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
+    var totalHeightPx by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
+
+    fun letterAt(yPx: Float): Char? {
+        if (totalHeightPx == 0 || letters.isEmpty()) return null
+        val idx = ((yPx / totalHeightPx) * letters.size).toInt().coerceIn(0, letters.lastIndex)
+        return letters[idx]
+    }
+
+    Box(
         modifier = modifier
             .fillMaxHeight()
-            .width(20.dp)
-            .padding(vertical = 8.dp),
-        verticalArrangement = Arrangement.SpaceEvenly,
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .width(28.dp)
+            .onSizeChanged { totalHeightPx = it.height }
+            .pointerInput(letters) {
+                detectTapGestures { offset ->
+                    letterAt(offset.y)?.let { onLetterClick(it) }
+                }
+            }
+            .pointerInput(letters) {
+                detectDragGestures { change, _ ->
+                    change.consume()
+                    letterAt(change.position.y)?.let { onLetterClick(it) }
+                }
+            },
+        contentAlignment = Alignment.Center,
     ) {
-        letters.forEach { letter ->
-            Text(
-                text = letter.toString(),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.clickable { onLetterClick(letter) },
-            )
+        Column(
+            modifier = Modifier
+                .fillMaxHeight()
+                .padding(vertical = 8.dp),
+            verticalArrangement = Arrangement.SpaceEvenly,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            letters.forEach { letter ->
+                Text(
+                    text = letter.toString(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
         }
     }
 }
