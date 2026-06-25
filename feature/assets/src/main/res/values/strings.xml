@@ -245,6 +245,10 @@
     <string name="rental_customer_company_label">Company</string>
     <string name="rental_customer_address_label">Address</string>
     <string name="rental_customer_name_required">Name is required</string>
+    <string name="rental_customer_delete">Delete Customer</string>
+    <string name="rental_customer_delete_title">Delete customer?</string>
+    <string name="rental_customer_delete_message">This permanently removes the customer record.</string>
+    <string name="rental_customer_delete_confirm">Delete</string>
 
     <!-- Rental Booking -->
     <string name="rental_booking_title">New Booking</string>

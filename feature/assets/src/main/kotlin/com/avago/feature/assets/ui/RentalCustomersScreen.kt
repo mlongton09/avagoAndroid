@@ -5,46 +5,38 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -55,6 +47,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.network.model.RentalCustomer
 import com.avago.feature.assets.R
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,8 +62,7 @@ fun RentalCustomersScreen(
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
 
-    val snackbarHostState = remember { SnackbarHostState() }
-    var customerToDelete by remember { mutableStateOf<RentalCustomer?>(null) }
+    val snackbarHostState = androidx.compose.runtime.remember { SnackbarHostState() }
 
     LaunchedEffect(error) {
         error?.let {
@@ -79,24 +71,30 @@ fun RentalCustomersScreen(
         }
     }
 
-    customerToDelete?.let { customer ->
-        AlertDialog(
-            onDismissRequest = { customerToDelete = null },
-            title = { Text("Delete ${customer.name}?") },
-            text = { Text("This permanently removes the customer record.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.deleteCustomer(customer.rental_customer_id)
-                    customerToDelete = null
-                }) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { customerToDelete = null }) { Text("Cancel") }
-            },
-        )
+    // Group alphabetically
+    val sorted = customers.sortedBy { it.name }
+    val grouped = sorted.groupBy { c ->
+        val first = c.name.firstOrNull()?.uppercaseChar()
+        if (first != null && first.isLetter()) first else '#'
     }
+    val sortedLetters = grouped.keys.sortedWith { a, b ->
+        when {
+            a == '#' -> 1
+            b == '#' -> -1
+            else -> a.compareTo(b)
+        }
+    }
+
+    // Compute first item index for each letter section (header + rows)
+    val sectionStartIndices = mutableMapOf<Char, Int>()
+    var idx = 0
+    sortedLetters.forEach { letter ->
+        sectionStartIndices[letter] = idx
+        idx += 1 + (grouped[letter]?.size ?: 0)
+    }
+
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         modifier = modifier,
@@ -151,47 +149,52 @@ fun RentalCustomersScreen(
                     }
                 }
             } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    items(customers, key = { it.rental_customer_id }) { customer ->
-                        val dismissState = rememberSwipeToDismissBoxState(
-                            confirmValueChange = { value ->
-                                if (value == SwipeToDismissBoxValue.EndToStart) {
-                                    customerToDelete = customer
-                                }
-                                // Never auto-dismiss — we handle removal after confirmation.
-                                false
-                            },
-                        )
-                        SwipeToDismissBox(
-                            state = dismissState,
-                            enableDismissFromStartToEnd = false,
-                            backgroundContent = {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        sortedLetters.forEach { letter ->
+                            stickyHeader(key = "header_$letter") {
                                 Box(
                                     modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(MaterialTheme.colorScheme.errorContainer)
-                                        .padding(horizontal = 20.dp),
-                                    contentAlignment = Alignment.CenterEnd,
+                                        .fillMaxWidth()
+                                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                                        .padding(horizontal = 16.dp, vertical = 4.dp),
                                 ) {
-                                    Icon(
-                                        Icons.Default.Delete,
-                                        contentDescription = "Delete",
-                                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                                    Text(
+                                        text = letter.toString(),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary,
                                     )
                                 }
-                            },
-                        ) {
-                            RentalCustomerRow(
-                                customer = customer,
-                                onClick = { onEditCustomer(customer.rental_customer_id) },
-                            )
+                            }
+                            items(grouped[letter] ?: emptyList(), key = { it.rental_customer_id }) { customer ->
+                                CustomerContactRow(
+                                    customer = customer,
+                                    onClick = { onEditCustomer(customer.rental_customer_id) },
+                                )
+                                HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
+                            }
                         }
+                        item { Spacer(Modifier.height(80.dp)) }
                     }
-                    item { Spacer(Modifier.height(72.dp)) }
+
+                    // Side alphabet index
+                    if (sortedLetters.size > 1) {
+                        AlphabetSideIndex(
+                            letters = sortedLetters,
+                            onLetterClick = { letter ->
+                                scope.launch {
+                                    sectionStartIndices[letter]?.let { listState.scrollToItem(it) }
+                                }
+                            },
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .padding(end = 4.dp),
+                        )
+                    }
                 }
             }
         }
@@ -199,49 +202,65 @@ fun RentalCustomersScreen(
 }
 
 @Composable
-private fun RentalCustomerRow(
+private fun CustomerContactRow(
     customer: RentalCustomer,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Card(
+    Row(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            .clickable(onClick = onClick)
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                val primaryLabel = if (!customer.company.isNullOrBlank()) {
-                    "${customer.name} · ${customer.company}"
-                } else {
-                    customer.name
-                }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = customer.name,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+            )
+            val secondary = listOfNotNull(customer.company, customer.email, customer.phone)
+                .joinToString(" · ")
+            if (secondary.isNotBlank()) {
+                Spacer(Modifier.height(2.dp))
                 Text(
-                    text = primaryLabel,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
+                    text = secondary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                val secondary = listOfNotNull(customer.email, customer.phone).joinToString(" · ")
-                if (secondary.isNotBlank()) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = secondary,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
             }
-            Icon(
-                Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        }
+        Icon(
+            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun AlphabetSideIndex(
+    letters: List<Char>,
+    onLetterClick: (Char) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxHeight()
+            .width(20.dp)
+            .padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.SpaceEvenly,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        letters.forEach { letter ->
+            Text(
+                text = letter.toString(),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable { onLetterClick(letter) },
             )
         }
     }

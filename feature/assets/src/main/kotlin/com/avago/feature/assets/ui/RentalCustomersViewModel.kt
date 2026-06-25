@@ -166,6 +166,26 @@ class RentalCustomerFormViewModel @Inject constructor(
         }
     }
 
+    fun deleteCustomer(customerId: String, onSuccess: () -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val accountId = identityManager.getActiveAccountId() ?: return@launch
+            _isSaving.value = true
+            _error.value = null
+            try {
+                when (val result = serviceClient.deleteRentalCustomer(accountId, customerId)) {
+                    is NetworkResult.Success -> withContext(Dispatchers.Main) { onSuccess() }
+                    is NetworkResult.Error -> _error.value = result.message
+                    is NetworkResult.Unauthorized -> _error.value = "Unauthorized"
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "[RentalCustomerFormVM] Exception deleting")
+                _error.value = e.message ?: "Unknown error"
+            } finally {
+                _isSaving.value = false
+            }
+        }
+    }
+
     fun clearError() {
         _error.value = null
     }

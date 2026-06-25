@@ -38,6 +38,10 @@
     <string name="rental_customer_company_label">Unternehmen</string>
     <string name="rental_customer_address_label">Adresse</string>
     <string name="rental_customer_name_required">Name erforderlich</string>
+    <string name="rental_customer_delete">Kunden löschen</string>
+    <string name="rental_customer_delete_title">Kunden löschen?</string>
+    <string name="rental_customer_delete_message">Dieser Datensatz wird dauerhaft gelöscht.</string>
+    <string name="rental_customer_delete_confirm">Löschen</string>
 
     <!-- Rental Booking -->
     <string name="rental_booking_title">Vermietung buchen</string>
