@@ -51,6 +51,7 @@ private val RATE_UNITS = listOf("hourly", "daily", "weekly", "monthly")
 @Composable
 fun CreateRentalSheet(
     assetId: String,
+    currencyCode: String,
     onDismiss: () -> Unit,
     onConfirm: (CreateRentalRequest) -> Unit,
 ) {
@@ -60,7 +61,6 @@ fun CreateRentalSheet(
     var rate by remember { mutableStateOf("") }
     var rateUnitExpanded by remember { mutableStateOf(false) }
     var selectedRateUnit by remember { mutableStateOf("daily") }
-    var currency by remember { mutableStateOf("USD") }
     var notes by remember { mutableStateOf("") }
 
     // Start date — defaults to today
@@ -111,6 +111,7 @@ fun CreateRentalSheet(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 isError = rateError,
+                prefix = { Text(currencyCode) },
                 supportingText = if (rateError) {
                     { Text(stringResource(R.string.rental_rate_label) + " is required") }
                 } else null,
@@ -148,16 +149,6 @@ fun CreateRentalSheet(
                     }
                 }
             }
-            Spacer(Modifier.height(12.dp))
-
-            // Currency
-            OutlinedTextField(
-                value = currency,
-                onValueChange = { currency = it },
-                label = { Text(stringResource(R.string.rental_currency_label)) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-            )
             Spacer(Modifier.height(12.dp))
 
             // Start date
@@ -201,7 +192,7 @@ fun CreateRentalSheet(
                             start_at = startInstant.toString(),
                             rate = parsedRate,
                             rate_unit = selectedRateUnit,
-                            currency = currency.trim().ifBlank { "USD" },
+                            currency = currencyCode,
                             customer_name = customerName.trim().takeIf { it.isNotBlank() },
                             notes = notes.trim().takeIf { it.isNotBlank() },
                         ),

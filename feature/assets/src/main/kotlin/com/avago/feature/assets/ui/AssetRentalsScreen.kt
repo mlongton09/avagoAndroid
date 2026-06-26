@@ -87,6 +87,7 @@ fun AssetRentalsScreen(
     val reservations by viewModel.reservations.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
+    val currencyCode by viewModel.currencyCode.collectAsStateWithLifecycle()
 
     var showCreateSheet by remember { mutableStateOf(false) }
     var endingRentalId by remember { mutableStateOf<String?>(null) }
@@ -547,6 +548,7 @@ fun AssetRentalsScreen(
     if (showCreateSheet) {
         CreateRentalSheet(
             assetId = assetId,
+            currencyCode = currencyCode,
             onDismiss = { showCreateSheet = false },
             onConfirm = { request ->
                 showCreateSheet = false
@@ -565,8 +567,8 @@ private fun RentalCard(
     onCreateInvoice: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    val isActive = rental.status == "active"
-    val isEnded = rental.status == "ended"
+    val isActive = rental.end_at == null
+    val isEnded = rental.end_at != null && rental.status !in setOf("invoiced", "paid")
     val isInvoiced = rental.status == "invoiced"
     val isPaid = rental.status == "paid"
 
@@ -614,7 +616,7 @@ private fun RentalCard(
                             color = Color(0xFF2E7D32),
                         )
                     }
-                    RentalStatusChip(status = rental.status)
+                    RentalStatusChip(status = if (rental.end_at == null) "active" else rental.status.takeIf { it != "active" } ?: "ended")
                 }
             }
 

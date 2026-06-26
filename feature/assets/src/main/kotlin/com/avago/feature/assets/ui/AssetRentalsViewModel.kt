@@ -10,15 +10,18 @@ import com.avago.core.network.model.CreateRentalRequest
 import com.avago.core.network.model.RentalReservation
 import com.avago.core.network.model.RentalResponse
 import com.avago.core.auth.AccountPreferencesSync
+import com.avago.core.data.repository.UserPreferencesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.time.Instant
@@ -30,6 +33,7 @@ class AssetRentalsViewModel @Inject constructor(
     private val serviceClient: AvagoServiceClient,
     private val identityManager: IdentityManager,
     private val accountPreferencesSync: AccountPreferencesSync,
+    private val userPrefsRepository: UserPreferencesRepository,
 ) : ViewModel() {
 
     private val assetId: String = savedStateHandle["assetId"] ?: ""
@@ -37,6 +41,10 @@ class AssetRentalsViewModel @Inject constructor(
     /** The account-level default rate unit for new rentals (e.g. "hour", "day", "week", "month"). */
     val rentalDefaultRateUnit: String
         get() = accountPreferencesSync.prefs.value.rentalDefaultRateUnit
+
+    /** User's preferred currency code, reactive to preference changes. */
+    val currencyCode: StateFlow<String> = userPrefsRepository.currencyFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "USD")
 
     private val _rentals = MutableStateFlow<List<RentalResponse>>(emptyList())
     val rentals: StateFlow<List<RentalResponse>> = _rentals.asStateFlow()
@@ -75,9 +83,9 @@ class AssetRentalsViewModel @Inject constructor(
 
                 when (val result = rentalsDeferred.await()) {
                     is NetworkResult.Success -> {
-                        val active = result.data.filter { it.status == "active" }
+                        val active = result.data.filter { it.end_at == null }
                             .sortedByDescending { it.start_at }
-                        val ended = result.data.filter { it.status != "active" }
+                        val ended = result.data.filter { it.end_at != null }
                             .sortedByDescending { it.start_at }
                         _rentals.value = active + ended
                         Timber.d("[AssetRentalsVM] Loaded ${result.data.size} rentals for asset $assetId")
