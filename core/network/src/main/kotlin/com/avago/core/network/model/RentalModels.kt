@@ -1,5 +1,6 @@
 package com.avago.core.network.model
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /** Wire models for the Rentals API. */
@@ -18,7 +19,8 @@ data class CreateRentalRequest(
 
 @Serializable
 data class RentalResponse(
-    val rental_id: String,
+    // Server sends "rental_period_id"; rental_id kept for UI backward-compat.
+    @SerialName("rental_period_id") val rental_id: String,
     val asset_id: String,
     val start_at: String,
     val end_at: String? = null,
@@ -28,7 +30,8 @@ data class RentalResponse(
     val rental_customer_id: String? = null,
     val customer_name: String? = null,
     val notes: String? = null,
-    val status: String,  // "active", "ended", "invoiced", "paid"
+    // Server does not emit status; default to "active" and override in UI via end_at.
+    val status: String = "active",
     val total_amount: Double? = null,
     val meter_start: Double? = null,
     val meter_end: Double? = null,
@@ -39,6 +42,12 @@ data class RentalResponse(
     val condition_end_notes: String? = null,
     val due_at: String? = null,
 )
+
+@Serializable
+data class RentalsEnvelope(val rentals: List<RentalResponse>)
+
+@Serializable
+data class StartReservationEnvelope(val rental: RentalResponse)
 
 // ---------------------------------------------------------------------------
 // Rental Customers

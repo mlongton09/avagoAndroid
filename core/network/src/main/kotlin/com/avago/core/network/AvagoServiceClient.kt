@@ -23,6 +23,8 @@ import com.avago.core.network.model.GeocodeResponse
 import com.avago.core.network.model.PhotoResponse
 import com.avago.core.network.model.PhotoUploadUrlResponse
 import com.avago.core.network.model.RentalResponse
+import com.avago.core.network.model.RentalsEnvelope
+import com.avago.core.network.model.StartReservationEnvelope
 import com.avago.core.network.model.RolePermissionResponse
 import com.avago.core.network.model.RolePermissionsSyncData
 import com.avago.core.network.model.RolePermissionsSyncEnvelope
@@ -1230,7 +1232,7 @@ class AvagoServiceClient @Inject constructor(
      */
     suspend fun getRentals(accountId: String): NetworkResult<List<RentalResponse>> =
         safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/rentals").body()
+            client.get("$baseUrl/accounts/$accountId/rentals").body<RentalsEnvelope>().rentals
         }
 
     /**
@@ -1254,7 +1256,8 @@ class AvagoServiceClient @Inject constructor(
         assetId: String,
     ): NetworkResult<List<RentalResponse>> =
         safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/assets/$assetId/rentals").body()
+            client.get("$baseUrl/accounts/$accountId/assets/$assetId/rentals")
+                .body<RentalsEnvelope>().rentals
         }
 
     /**
@@ -1464,7 +1467,7 @@ class AvagoServiceClient @Inject constructor(
         safeNetworkCall {
             client.post("$baseUrl/accounts/$accountId/reservations/$reservationId/start") {
                 setBody(com.avago.core.network.model.StartReservationRequest(rate = rate, rate_unit = rateUnit, meter_start = meterStart, meter_unit = meterUnit, condition = condition, condition_notes = conditionNotes))
-            }.body()
+            }.body<StartReservationEnvelope>().rental
         }
 
     // ---------------------------------------------------------------------------
