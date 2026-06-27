@@ -274,7 +274,7 @@ private fun AlphabetSideIndex(
     onLetterClick: (Char) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var totalHeightPx by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    var totalHeightPx by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0) }
 
     fun letterAt(yPx: Float): Char? {
         if (totalHeightPx == 0 || letters.isEmpty()) return null
