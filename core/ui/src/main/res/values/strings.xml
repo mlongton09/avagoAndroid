@@ -38,6 +38,8 @@
     <string name="scout_open">Open Scout</string>
     <string name="scout_placeholder">Ask Scout…</string>
     <string name="scout_close">Close Scout</string>
+    <string name="voice_error_not_available">Speech recognition not available.</string>
+    <string name="voice_error_no_permission">Microphone permission denied.</string>
     <string name="chip_oil_change">Oil change…</string>
     <string name="chip_fuel_log">Log fuel…</string>
     <string name="chip_inspection">Start inspection…</string>

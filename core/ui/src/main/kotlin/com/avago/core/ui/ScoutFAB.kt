@@ -108,7 +108,10 @@ fun ScoutSheet(
     var messages by remember { mutableStateOf(listOf<ScoutMessage>()) }
     var fieldValue by remember { mutableStateOf(TextFieldValue("")) }
     var isLoading by remember { mutableStateOf(false) }
+    var voiceError by remember { mutableStateOf<String?>(null) }
     val scoutPrompt = stringResource(R.string.scout_placeholder)
+    val voiceErrorNotAvailable = stringResource(R.string.voice_error_not_available)
+    val voiceErrorNoPermission = stringResource(R.string.voice_error_no_permission)
     val suggestionChips = listOf(
         stringResource(R.string.chip_oil_change),
         stringResource(R.string.chip_fuel_log),
@@ -244,11 +247,18 @@ fun ScoutSheet(
                 // Mic button
                 IconButton(
                     onClick = {
+                        voiceError = null
                         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                             putExtra(RecognizerIntent.EXTRA_PROMPT, scoutPrompt)
                         }
-                        speechLauncher.launch(intent)
+                        try {
+                            speechLauncher.launch(intent)
+                        } catch (_: android.content.ActivityNotFoundException) {
+                            voiceError = voiceErrorNotAvailable
+                        } catch (_: SecurityException) {
+                            voiceError = voiceErrorNoPermission
+                        }
                     },
                     enabled = !isLoading,
                 ) {
@@ -257,6 +267,15 @@ fun ScoutSheet(
                         contentDescription = "Voice input",
                         tint = if (!isLoading) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                    )
+                }
+
+                voiceError?.let { err ->
+                    Text(
+                        text = err,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(start = 4.dp),
                     )
                 }
 
