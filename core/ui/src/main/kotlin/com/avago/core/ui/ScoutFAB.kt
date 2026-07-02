@@ -302,6 +302,7 @@ fun ScoutSheet(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         ),
                         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        maxLines = 4,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
