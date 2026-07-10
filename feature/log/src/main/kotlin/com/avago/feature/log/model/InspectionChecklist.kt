@@ -39,10 +39,18 @@ import kotlinx.serialization.json.jsonPrimitive
 
 /** A single selectable option for "select" and "corner-select" items. */
 data class InspectionOption(
-    /** Raw value, e.g. "insp.opt.normal" or "Normal" once resolved. */
+    /** Localized display value, e.g. "Normal" once resolved through localeStrings. */
     val value: String,
     /** Optional per-option tooltip/hover text (localized), e.g. describes what "Monitor" means for this item. */
     val guide: String? = null,
+    /**
+     * Pre-resolution key, e.g. "insp.opt.normal", captured before locale
+     * resolution. Column/color/short-label matching should use this instead
+     * of [value] — it's stable across locales, whereas [value] becomes
+     * translated display text once resolved and can't be reliably matched
+     * against hardcoded English literals in every language.
+     */
+    val rawValue: String = value,
 )
 
 /** One measurable corner in a "corner-select" item (e.g. LF/RF/LR/RR tire positions). */
@@ -116,12 +124,15 @@ fun parseInspectionChecklist(json: String?, localeStrings: Map<String, String> =
 
         fun parseOption(el: kotlinx.serialization.json.JsonElement): InspectionOption {
             return if (el is JsonObject) {
+                val raw = el["value"]?.jsonPrimitive?.content ?: ""
                 InspectionOption(
-                    value = resolve(el["value"]?.jsonPrimitive?.content) ?: "",
+                    value = resolve(raw) ?: "",
                     guide = resolve(el["guide"]?.jsonPrimitive?.content),
+                    rawValue = raw,
                 )
             } else {
-                InspectionOption(value = resolve(el.jsonPrimitive.content) ?: "")
+                val raw = el.jsonPrimitive.content
+                InspectionOption(value = resolve(raw) ?: "", rawValue = raw)
             }
         }
 
@@ -211,4 +222,4 @@ fun inspectionOptionShortLabel(value: String): String = when (value) {
 /** True when this item's answer options are tier-based (Normal/Monitor/Needs Repair) and should count toward the score bar. */
 fun InspectionItem.isScoreEligible(): Boolean =
     (type == "select" || type == "corner-select") &&
-        options.any { inspectionOptionColumn(it.value) in 0..2 }
+        options.any { inspectionOptionColumn(it.rawValue) in 0..2 }

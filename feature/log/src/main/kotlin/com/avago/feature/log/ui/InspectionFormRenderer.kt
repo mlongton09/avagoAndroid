@@ -15,7 +15,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.RemoveCircle
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
@@ -71,6 +75,19 @@ private fun colorKeyFor(value: String): String = when (value) {
     "Pass", "insp.opt.pass" -> "pass"
     "Fail", "insp.opt.fail" -> "fail"
     else -> value.lowercase()
+}
+
+/**
+ * Small icon shown alongside a standard option button's text so status is
+ * distinguishable without relying on color alone (colorblind accessibility) —
+ * mirrors iOS's avOptionIcon(_:). Returns null for custom/non-standard options.
+ */
+private fun inspectionOptionIcon(rawValue: String) = when (rawValue) {
+    "Normal", "insp.opt.normal" -> Icons.Filled.CheckCircle
+    "Monitor", "insp.opt.monitor" -> Icons.Filled.Visibility
+    "Needs Repair", "insp.opt.needs_repair" -> Icons.Filled.Warning
+    "N/A", "insp.opt.na" -> Icons.Filled.RemoveCircle
+    else -> null
 }
 
 // Answer buttons render at a fixed column width so Normal/Monitor/Needs Repair/N-A stay vertically
@@ -338,6 +355,7 @@ private fun InspectionQuestionHeader(text: String, note: String?) {
  * any extra custom options after) so the same semantic answer always lines up in the same column
  * across every question — matches iOS's avOptionColumn(_:) redesign.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FixedColumnOptionRow(
     options: List<InspectionOption>,
@@ -347,7 +365,11 @@ private fun FixedColumnOptionRow(
     var nextExtraCol = OPTION_STD_COLS
     val colToOption = mutableMapOf<Int, InspectionOption>()
     options.forEach { opt ->
-        var col = inspectionOptionColumn(opt.value)
+        // Match by rawValue (stable "insp.opt.*" key), not the locale-resolved
+        // value — otherwise column alignment breaks whenever the active
+        // locale's translated text doesn't equal the hardcoded English
+        // literals below (mirrors iOS's avOptionRawValue fix).
+        var col = inspectionOptionColumn(opt.rawValue)
         if (col < 0) {
             col = nextExtraCol
             nextExtraCol++
@@ -357,7 +379,10 @@ private fun FixedColumnOptionRow(
     val maxCol = colToOption.keys.maxOrNull() ?: -1
     if (maxCol < 0) return
 
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    // FlowRow instead of a plain Row so extra custom options beyond the
+    // standard 4 columns wrap onto additional lines rather than running off
+    // narrow screens.
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         for (col in 0..maxCol) {
             val opt = colToOption[col]
             if (opt == null) {
@@ -379,7 +404,8 @@ private fun InspectionOptionButton(
     isSelected: Boolean,
     onClick: () -> Unit,
 ) {
-    val color = INSPECTION_OPTION_COLORS[colorKeyFor(option.value)] ?: MaterialTheme.colorScheme.primary
+    val color = INSPECTION_OPTION_COLORS[colorKeyFor(option.rawValue)] ?: MaterialTheme.colorScheme.primary
+    val icon = inspectionOptionIcon(option.rawValue)
     var showGuide by remember(option.value) { mutableStateOf(false) }
 
     Box {
@@ -400,12 +426,25 @@ private fun InspectionOptionButton(
                 )
             },
         ) {
-            Text(
-                text = option.value,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                // Small icon alongside the text so status is distinguishable
+                // without relying on color alone (colorblind accessibility;
+                // mirrors iOS's avOptionIcon redundancy fix).
+                if (icon != null) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = if (isSelected) Color.White else color,
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
+                Text(
+                    text = option.value,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                )
+            }
         }
         if (!option.guide.isNullOrBlank() && showGuide) {
             AlertDialog(
