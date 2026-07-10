@@ -1070,6 +1070,7 @@ fun AddEditLogScreen(
                                 fields = form.inspectionFields,
                                 answers = form.inspectionAnswers,
                                 onAnswerChanged = { key, value -> viewModel.onInspectionAnswerChanged(key, value) },
+                                snackbarHostState = snackbarHostState,
                             )
                         } else {
                             Text(

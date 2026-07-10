@@ -1,11 +1,13 @@
 package com.avago.feature.log.ui
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,16 +33,24 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -51,7 +61,9 @@ import com.avago.feature.log.model.InspectionItem
 import com.avago.feature.log.model.InspectionOption
 import com.avago.feature.log.model.InspectionSection
 import com.avago.feature.log.model.inspectionOptionColumn
+import com.avago.feature.log.model.inspectionOptionShortLabel
 import com.avago.feature.log.model.isScoreEligible
+import kotlinx.coroutines.launch
 
 /**
  * Color map for well-known inspection option values.
@@ -108,9 +120,10 @@ fun InspectionFormRenderer(
     answers: Map<String, String>,
     onAnswerChanged: (key: String, value: String) -> Unit,
     modifier: Modifier = Modifier,
+    snackbarHostState: SnackbarHostState? = null,
 ) {
     if (checklist != null) {
-        InspectionChecklistRenderer(checklist, answers, onAnswerChanged, modifier)
+        InspectionChecklistRenderer(checklist, answers, onAnswerChanged, modifier, snackbarHostState)
     } else {
         LegacyInspectionFieldsRenderer(fields, answers, onAnswerChanged, modifier)
     }
@@ -126,12 +139,13 @@ private fun InspectionChecklistRenderer(
     answers: Map<String, String>,
     onAnswerChanged: (key: String, value: String) -> Unit,
     modifier: Modifier = Modifier,
+    snackbarHostState: SnackbarHostState?,
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(20.dp)) {
         InspectionScoreBar(checklist, answers)
 
         checklist.groups.forEach { group ->
-            InspectionGroupBlock(group, answers, onAnswerChanged)
+            InspectionGroupBlock(group, answers, onAnswerChanged, snackbarHostState)
         }
     }
 }
@@ -170,6 +184,7 @@ private fun InspectionGroupBlock(
     group: InspectionGroup,
     answers: Map<String, String>,
     onAnswerChanged: (key: String, value: String) -> Unit,
+    snackbarHostState: SnackbarHostState?,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text(
@@ -178,7 +193,28 @@ private fun InspectionGroupBlock(
             fontWeight = FontWeight.Bold,
         )
         group.sections.forEach { section ->
-            InspectionSectionBlock(section, answers, onAnswerChanged)
+            InspectionSectionBlock(section, answers, onAnswerChanged, snackbarHostState)
+        }
+    }
+}
+
+/** Column index (0=Normal, 1=Monitor, 2=Needs Repair) + display label for a section quick-fill action. */
+private data class QuickFillRequest(val col: Int, val label: String)
+
+/** select/corner-select items in this section that quick-fill can affect, expanded to answer keys. */
+private fun sectionQuickFillKeys(section: InspectionSection): List<String> =
+    section.items.filter { it.type == "select" || it.type == "corner-select" }.flatMap { item ->
+        if (item.corners.isNotEmpty()) item.corners.map { "${item.id}.${it.id}" } else listOf(item.id)
+    }
+
+/** Applies quick-fill: for every eligible item, finds the option at the target column and sets it. */
+private fun applySectionQuickFill(section: InspectionSection, col: Int, onAnswerChanged: (String, String) -> Unit) {
+    section.items.filter { it.type == "select" || it.type == "corner-select" }.forEach { item ->
+        val value = item.options.firstOrNull { inspectionOptionColumn(it.rawValue) == col }?.value ?: return@forEach
+        if (item.corners.isNotEmpty()) {
+            item.corners.forEach { corner -> onAnswerChanged("${item.id}.${corner.id}", value) }
+        } else {
+            onAnswerChanged(item.id, value)
         }
     }
 }
@@ -188,18 +224,114 @@ private fun InspectionSectionBlock(
     section: InspectionSection,
     answers: Map<String, String>,
     onAnswerChanged: (key: String, value: String) -> Unit,
+    snackbarHostState: SnackbarHostState?,
 ) {
+    val scope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
+    var activeQuickFillCol by remember(section.id) { mutableStateOf<Int?>(null) }
+    var pendingQuickFill by remember { mutableStateOf<QuickFillRequest?>(null) }
+    val quickFillKeys = remember(section) { sectionQuickFillKeys(section) }
+
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(
-            text = section.title,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.primary,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = section.title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            if (quickFillKeys.isNotEmpty()) {
+                SectionQuickFillRow(
+                    activeCol = activeQuickFillCol,
+                    onRequested = { col, label ->
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        if (activeQuickFillCol == col) {
+                            // Toggling the same quick-fill button off clears the section instead
+                            // of re-confirming — mirrors iOS's clearQuickFill() toggle behavior.
+                            activeQuickFillCol = null
+                            quickFillKeys.forEach { key -> onAnswerChanged(key, "") }
+                        } else {
+                            pendingQuickFill = QuickFillRequest(col, label)
+                        }
+                    },
+                )
+            }
+        }
         HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
         section.items.forEach { item ->
             InspectionItemBlock(item, answers, onAnswerChanged)
             HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        }
+    }
+
+    // One tap here can silently overwrite every answer in the section, so
+    // confirm before applying — mirrors iOS's AVInspectionSectionView.quickFillTapped().
+    pendingQuickFill?.let { request ->
+        AlertDialog(
+            onDismissRequest = { pendingQuickFill = null },
+            title = { Text("Mark All as ${request.label}?") },
+            text = {
+                Text("This will set every item in \"${section.title}\" to \"${request.label}\" and overwrite any existing answers.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    // Snapshot previous values before overwriting so an "Undo" snackbar can restore them.
+                    val previous = quickFillKeys.associateWith { key -> answers[key] ?: "" }
+                    applySectionQuickFill(section, request.col, onAnswerChanged)
+                    activeQuickFillCol = request.col
+                    pendingQuickFill = null
+                    if (snackbarHostState != null) {
+                        scope.launch {
+                            val result = snackbarHostState.showSnackbar(
+                                message = "Marked all as ${request.label}",
+                                actionLabel = "Undo",
+                                duration = SnackbarDuration.Short,
+                            )
+                            if (result == SnackbarResult.ActionPerformed) {
+                                previous.forEach { (key, value) -> onAnswerChanged(key, value) }
+                                activeQuickFillCol = null
+                            }
+                        }
+                    }
+                }) { Text("Mark All") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingQuickFill = null }) { Text("Cancel") }
+            },
+        )
+    }
+}
+
+/** Small NR/M/N quick-fill buttons — mirrors iOS's AVInspectionSectionView quick-fill row. */
+@Composable
+private fun SectionQuickFillRow(
+    activeCol: Int?,
+    onRequested: (col: Int, label: String) -> Unit,
+) {
+    val defs = listOf(Triple(2, "NR", "Needs Repair"), Triple(1, "M", "Monitor"), Triple(0, "N", "Normal"))
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        defs.forEach { (col, short, full) ->
+            val color = INSPECTION_OPTION_COLORS.getValue(colorKeyFor(full))
+            val isActive = activeCol == col
+            OutlinedButton(
+                onClick = { onRequested(col, full) },
+                modifier = Modifier
+                    .width(36.dp)
+                    .height(28.dp)
+                    .semantics { contentDescription = "Mark all as $full" },
+                contentPadding = PaddingValues(0.dp),
+                colors = if (isActive) {
+                    ButtonDefaults.outlinedButtonColors(containerColor = color, contentColor = Color.White)
+                } else {
+                    ButtonDefaults.outlinedButtonColors(contentColor = color)
+                },
+            ) {
+                Text(short, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
@@ -407,24 +539,34 @@ private fun InspectionOptionButton(
     val color = INSPECTION_OPTION_COLORS[colorKeyFor(option.rawValue)] ?: MaterialTheme.colorScheme.primary
     val icon = inspectionOptionIcon(option.rawValue)
     var showGuide by remember(option.value) { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
+
+    // Animate the selected-state color transition so tapping an answer feels
+    // responsive instead of an instant, jarring color swap.
+    val containerColor by animateColorAsState(
+        targetValue = if (isSelected) color else Color.Transparent,
+        label = "optionContainerColor",
+    )
+    val contentColor by animateColorAsState(
+        targetValue = if (isSelected) Color.White else color,
+        label = "optionContentColor",
+    )
 
     Box {
         OutlinedButton(
             onClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 if (!option.guide.isNullOrBlank() && isSelected) showGuide = true
                 onClick()
             },
-            modifier = Modifier.width(OPTION_BUTTON_WIDTH).height(OPTION_BUTTON_HEIGHT),
-            colors = if (isSelected) {
-                ButtonDefaults.outlinedButtonColors(
-                    containerColor = color,
-                    contentColor = Color.White,
-                )
-            } else {
-                ButtonDefaults.outlinedButtonColors(
-                    contentColor = color,
-                )
-            },
+            modifier = Modifier
+                .width(OPTION_BUTTON_WIDTH)
+                .height(OPTION_BUTTON_HEIGHT)
+                .semantics { contentDescription = option.value },
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = containerColor,
+                contentColor = contentColor,
+            ),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 // Small icon alongside the text so status is distinguishable
@@ -434,12 +576,15 @@ private fun InspectionOptionButton(
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
-                        tint = if (isSelected) Color.White else color,
+                        tint = contentColor,
                         modifier = Modifier.size(14.dp),
                     )
                 }
                 Text(
-                    text = option.value,
+                    // Compact label ("N"/"M"/"NR"/"N/A") to match iOS's density —
+                    // full text is still exposed to accessibility services via
+                    // the button's contentDescription above.
+                    text = inspectionOptionShortLabel(option.rawValue),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
