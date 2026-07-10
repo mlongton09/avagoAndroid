@@ -234,11 +234,7 @@ private fun InspectionSectionBlock(
     val quickFillKeys = remember(section) { sectionQuickFillKeys(section) }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
                 text = section.title,
                 style = MaterialTheme.typography.titleSmall,
@@ -246,13 +242,15 @@ private fun InspectionSectionBlock(
                 color = MaterialTheme.colorScheme.primary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                // Reserve space for the quick-fill row / summary badges so a
-                // long (or untranslated raw-key) title truncates instead of
-                // overlapping them — SpaceBetween alone doesn't constrain
-                // the title's width.
-                modifier = Modifier.weight(1f, fill = false).padding(end = 8.dp),
+                modifier = Modifier.fillMaxWidth(),
             )
             if (quickFillKeys.isNotEmpty()) {
+                // Quick-fill buttons live on their own row directly below
+                // the title — not squeezed beside it — so they can use the
+                // exact same column width/spacing/left-alignment as
+                // FixedColumnOptionRow below and land in the same N/M/NR
+                // columns as every question's answer buttons in this
+                // section. Mirrors iOS's title-row / quick-fill-row split.
                 SectionQuickFillRow(
                     activeCol = activeQuickFillCol,
                     onRequested = { col, label ->
@@ -320,16 +318,21 @@ private fun SectionQuickFillRow(
     activeCol: Int?,
     onRequested: (col: Int, label: String) -> Unit,
 ) {
-    val defs = listOf(Triple(2, "NR", "Needs Repair"), Triple(1, "M", "Monitor"), Triple(0, "N", "Normal"))
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    // Ascending column order (Normal=0, Monitor=1, Needs Repair=2) and the
+    // *same* button width/height/spacing as FixedColumnOptionRow's answer
+    // buttons below — this row is left-aligned in the same Column with no
+    // extra indent, so each quick-fill button sits directly above its
+    // matching answer column on every question in the section.
+    val defs = listOf(Triple(0, "N", "Normal"), Triple(1, "M", "Monitor"), Triple(2, "NR", "Needs Repair"))
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         defs.forEach { (col, short, full) ->
             val color = INSPECTION_OPTION_COLORS.getValue(colorKeyFor(full))
             val isActive = activeCol == col
             OutlinedButton(
                 onClick = { onRequested(col, full) },
                 modifier = Modifier
-                    .width(36.dp)
-                    .height(28.dp)
+                    .width(OPTION_BUTTON_WIDTH)
+                    .height(36.dp)
                     .semantics { contentDescription = "Mark all as $full" },
                 contentPadding = PaddingValues(0.dp),
                 colors = if (isActive) {

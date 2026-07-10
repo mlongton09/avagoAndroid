@@ -119,7 +119,7 @@ fun parseInspectionChecklist(json: String?, localeStrings: Map<String, String> =
 
         fun resolve(key: String?): String? {
             if (key == null) return null
-            return localeStrings[key] ?: key
+            return localeStrings[key] ?: humanizeIfKey(key)
         }
 
         fun parseOption(el: kotlinx.serialization.json.JsonElement): InspectionOption {
@@ -181,6 +181,30 @@ fun parseInspectionChecklist(json: String?, localeStrings: Map<String, String> =
         )
     } catch (_: Exception) {
         null
+    }
+}
+
+/**
+ * Last-resort display fallback for an `insp.*` key with no match in
+ * [localeStrings] — e.g. a config landed on-device before its translation
+ * synced. Mirrors avagoweb's `localizeAttrLabel()` final step and iOS's
+ * `LocaleManager.humanize()`: take the trailing dot-segment, split on
+ * underscores, and title-case each word (short all-caps tokens are
+ * upper-cased). "insp.item.under_03" -> "Under 03". Never returns the raw
+ * dotted key. Non-key-shaped strings (no dot, e.g. already-resolved text or
+ * legacy literal values) pass through unchanged.
+ */
+private fun humanizeIfKey(key: String): String {
+    if (!key.contains(".") || key.contains(" ")) return key
+    val lastSegment = key.substringAfterLast(".")
+    val words = lastSegment.split("_").filter { it.isNotEmpty() }
+    if (words.isEmpty()) return key
+    return words.joinToString(" ") { word ->
+        if (word.length <= 3 && word.all { it.isLetter() } && word == word.lowercase()) {
+            word.uppercase()
+        } else {
+            word.replaceFirstChar { it.uppercase() }
+        }
     }
 }
 
