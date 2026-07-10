@@ -2,7 +2,9 @@ package com.avago.feature.log.model
 
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -210,18 +212,40 @@ private fun humanizeIfKey(key: String): String {
 
 /**
  * Parses a `type='Locale', subtype='Inspection'` config value into a flat
- * `insp.*` key -> translated string map. Unlike the `ItemAttributes` locale
- * config (which nests under a `"strings"` key), the Inspection locale config
- * is a flat top-level JSON object of key -> string pairs.
+ * `insp.*` key -> translated string map. The row is *supposed* to be a flat
+ * top-level JSON object of key -> string pairs (unlike `ItemAttributes`,
+ * which nests under a `"strings"` key) — but a stale/mis-seeded environment
+ * can still have the old wrapped shape `{"strings": {...}}` on disk (the
+ * seed generator wrapped every subtype uniformly until a later fix
+ * special-cased Inspection to stay flat, and re-seeding wasn't guaranteed
+ * to reach every deployment). Recursively flatten instead of assuming one
+ * shape, so both a flat object and a `"strings"`-wrapped one (or any other
+ * accidental nesting) resolve identically — mirrors avagoweb's tolerant
+ * `mergeConfigInto()`.
  */
 fun parseInspectionLocaleStrings(json: String?): Map<String, String> {
     if (json.isNullOrBlank()) return emptyMap()
     return try {
-        lenientJson.parseToJsonElement(json).jsonObject
-            .mapNotNull { (k, v) -> v.jsonPrimitive.content.let { k to it } }
-            .toMap()
+        val flat = mutableMapOf<String, String>()
+        flattenInspectionStrings(lenientJson.parseToJsonElement(json), flat)
+        flat
     } catch (_: Exception) {
         emptyMap()
+    }
+}
+
+private fun flattenInspectionStrings(element: JsonElement, into: MutableMap<String, String>) {
+    when (element) {
+        is JsonObject -> for ((k, v) in element) {
+            val prim = v as? JsonPrimitive
+            if (prim != null && prim.isString) {
+                into[k] = prim.content
+            } else {
+                flattenInspectionStrings(v, into)
+            }
+        }
+        is JsonArray -> for (v in element) flattenInspectionStrings(v, into)
+        else -> {}
     }
 }
 
