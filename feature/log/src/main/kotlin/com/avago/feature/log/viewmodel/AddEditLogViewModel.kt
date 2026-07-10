@@ -476,12 +476,10 @@ class AddEditLogViewModel @Inject constructor(
         }
     }
 
-    /** Fetches the locale strings map for item attribute labels (scope="Locale", key="ItemAttributes"). */
+    /** Fetches the locale strings map for item attribute labels (scope="Locale", key="ItemAttributes_{locale}"). */
     private suspend fun loadItemAttrLocaleStrings(db: com.avago.core.data.db.AvagoDatabase): Map<String, String> {
         return try {
-            val config = db.configDao()
-                .getByPattern("Locale", "ItemAttributes%")
-                .maxByOrNull { it.version }
+            val config = pickLocaleRow(db, "ItemAttributes")
             if (config?.value.isNullOrBlank()) return emptyMap()
             val stringsStart = config!!.value.indexOf("\"strings\"")
             if (stringsStart < 0) return emptyMap()
@@ -511,20 +509,39 @@ class AddEditLogViewModel @Inject constructor(
             .split(' ').joinToString(" ") { w -> w.replaceFirstChar { it.uppercaseChar() } }
 
     /**
-     * Fetches the flat `insp.*` -> translated-string map (scope="Locale", key="Inspection").
+     * Fetches the flat `insp.*` -> translated-string map (scope="Locale", key="Inspection_{locale}").
      * Unlike [loadItemAttrLocaleStrings], this config's value is a flat top-level JSON object
      * (no `"strings"` wrapper) — see parseInspectionLocaleStrings for details.
      */
     private suspend fun loadInspectionLocaleStrings(db: com.avago.core.data.db.AvagoDatabase): Map<String, String> {
         return try {
-            val config = db.configDao()
-                .getByPattern("Locale", "Inspection%")
-                .maxByOrNull { it.version }
-            parseInspectionLocaleStrings(config?.value)
+            parseInspectionLocaleStrings(pickLocaleRow(db, "Inspection")?.value)
         } catch (e: Exception) {
             Timber.e(e, "[AddEditLogViewModel] loadInspectionLocaleStrings failed")
             emptyMap()
         }
+    }
+
+    /**
+     * Picks the `Locale`-scope config row for [subtype] matching the device's active
+     * locale, falling back to en-us, then to whatever's cached if neither is present.
+     *
+     * `SyncEngine` stores one row PER LOCALE under keys like "Inspection_en-us" /
+     * "Inspection_de-de" (locale folded into the key since Room's `configs` table has
+     * no separate `locale` column). Without this locale-aware selection, every caller
+     * here was previously just grabbing whichever locale's row happened to have the
+     * highest `version` — which could silently serve the wrong language, or an older
+     * cached copy missing recently-added keys, instead of the user's selected locale.
+     */
+    private suspend fun pickLocaleRow(
+        db: com.avago.core.data.db.AvagoDatabase,
+        subtype: String,
+    ): com.avago.core.data.db.entity.ConfigEntity? {
+        val locale = java.util.Locale.getDefault().toLanguageTag().lowercase()
+        val rows = db.configDao().getByPattern("Locale", "$subtype%")
+        return rows.firstOrNull { it.key == "${subtype}_$locale" }
+            ?: rows.firstOrNull { it.key == "${subtype}_en-us" }
+            ?: rows.maxByOrNull { it.version }
     }
 
     /**

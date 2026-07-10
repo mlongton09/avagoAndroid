@@ -2175,17 +2175,28 @@ class SyncEngine @Inject constructor(
                         Timber.w("[SyncEngine] config: missing config_id, skipping")
                         return
                     }
-                    // Server sends: type (=config_type), subtype, asset_type, config (JSON object).
-                    // Android schema: scope = type, key = subtype[_asset_type].
+                    // Server sends: type (=config_type), subtype, asset_type, locale, config (JSON object).
+                    // Android schema: scope = type, key = subtype[_asset_type][_locale].
                     val scope = item.str("type") ?: item.str("scope") ?: run {
                         Timber.w("[SyncEngine] config $configId: missing type/scope, skipping")
                         return
                     }
                     val subtype = item.str("subtype")
                     val assetType = item.str("asset_type")
+                    val locale = item.str("locale")
+                    // `Locale`-scope rows (translated key -> string maps) exist as one
+                    // row PER LOCALE for the same subtype/asset_type — e.g. `Inspection`
+                    // has an en-us row and a de-de row, both with the same subtype and
+                    // asset_type but different content. Without folding `locale` into the
+                    // key, both rows collided under the identical key "Inspection" (only
+                    // distinguished by their unique configId), so `getByPattern` couldn't
+                    // tell them apart and callers were forced to just grab whichever row
+                    // had the highest `version` — silently serving the wrong language's
+                    // strings (or a stale copy) instead of the user's selected locale.
                     val key = listOfNotNull(
                         subtype?.ifBlank { null },
                         assetType?.ifBlank { null },
+                        locale?.ifBlank { null }?.takeIf { scope == "Locale" },
                     ).joinToString("_").ifBlank {
                         Timber.w("[SyncEngine] config $configId: empty derived key, skipping")
                         return

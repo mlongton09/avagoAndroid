@@ -38,6 +38,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -243,6 +244,13 @@ private fun InspectionSectionBlock(
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                // Reserve space for the quick-fill row / summary badges so a
+                // long (or untranslated raw-key) title truncates instead of
+                // overlapping them — SpaceBetween alone doesn't constrain
+                // the title's width.
+                modifier = Modifier.weight(1f, fill = false).padding(end = 8.dp),
             )
             if (quickFillKeys.isNotEmpty()) {
                 SectionQuickFillRow(
