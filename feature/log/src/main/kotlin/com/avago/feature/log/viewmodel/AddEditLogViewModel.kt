@@ -12,9 +12,12 @@ import com.avago.core.data.db.entity.PhotoEntity
 import com.avago.core.data.db.entity.SyncQueueEntity
 import com.avago.core.data.repository.UserPreferencesRepository
 import com.avago.core.sync.SyncEngine
+import com.avago.feature.log.model.InspectionChecklist
 import com.avago.feature.log.model.InspectionFieldDef
 import com.avago.feature.log.model.LogCostLineDraft
+import com.avago.feature.log.model.parseInspectionChecklist
 import com.avago.feature.log.model.parseInspectionFields
+import com.avago.feature.log.model.parseInspectionLocaleStrings
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -97,9 +100,14 @@ data class AddEditLogFormState(
     val inspectionConfigVersion: Long = 0L,
     val availableInspectionSubtypes: List<String> = emptyList(),
 
-    // Inspection field definitions loaded from ConfigEntity (scope="Inspection", key="{assetType}_{subtype}")
+    // Inspection field definitions loaded from ConfigEntity (scope="Inspection", key="{subtype}_{assetType}")
     // Populated by loadInspectionFields(); empty until the asset type is known.
+    // Legacy flat format — kept for old configs that don't use the nested groups/sections schema below.
     val inspectionFields: List<InspectionFieldDef> = emptyList(),
+
+    // Full nested checklist (groups -> sections -> items), localized via the "Locale"/"Inspection"
+    // config. Preferred over [inspectionFields] when the config uses the newer schema (matches iOS).
+    val inspectionChecklist: InspectionChecklist? = null,
 
     // Category-specific item attributes
     val itemAttributes: Map<String, String> = emptyMap(),
@@ -323,8 +331,13 @@ class AddEditLogViewModel @Inject constructor(
 
     /**
      * Loads available inspection subtypes for the given asset type.
-     * Queries configs with scope="Inspection" and key like "{assetType}_%".
+     * Queries configs with scope="Inspection" and key like "%_{assetType}".
      * Extracts the subtype portion from the key.
+     *
+     * NOTE: the sync engine derives the local key as "{subtype}_{assetType}" (see
+     * SyncEngine.kt's config upsert — "Android schema: scope = type, key = subtype[_asset_type]"),
+     * matching the convention already used for ItemAttributes. This previously searched with the
+     * order reversed ("{assetType}_%"), which never matched real synced configs.
      */
     fun loadInspectionSubtypes(assetType: String? = null) {
         val accountId = identity.getActiveAccountId() ?: return
@@ -332,11 +345,11 @@ class AddEditLogViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val db = dbFactory.get(accountId)
-                val configs = db.configDao().getByPattern("Inspection", "${type}_%")
+                val configs = db.configDao().getByPattern("Inspection", "%_$type")
+                val suffix = "_$type"
                 val subtypes = configs.mapNotNull { config ->
                     val key = config.key
-                    val prefix = "${type}_"
-                    if (key.startsWith(prefix)) key.removePrefix(prefix) else null
+                    if (key.endsWith(suffix)) key.removeSuffix(suffix) else null
                 }.distinct()
                 _form.update { it.copy(availableInspectionSubtypes = subtypes) }
                 // Auto-load "Base" subtype if available and none selected
@@ -360,11 +373,13 @@ class AddEditLogViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val db = dbFactory.get(accountId)
-                val config = db.configDao().getByPattern("Inspection", "${type}_$subtype")
+                val config = db.configDao().getByPattern("Inspection", "${subtype}_$type")
                     .maxByOrNull { it.version }
-                    ?: db.configDao().getByPattern("Inspection", "light_vehicle_$subtype")
+                    ?: db.configDao().getByPattern("Inspection", "${subtype}_light_vehicle")
                         .maxByOrNull { it.version }
-                val fields = parseInspectionFields(config?.value)
+                val localeStrings = loadInspectionLocaleStrings(db)
+                val checklist = parseInspectionChecklist(config?.value, localeStrings)
+                val fields = if (checklist == null) parseInspectionFields(config?.value) else emptyList()
                 _form.update {
                     it.copy(
                         inspectionSubtype = subtype,
@@ -372,6 +387,7 @@ class AddEditLogViewModel @Inject constructor(
                         inspectionConfigId = config?.configId,
                         inspectionConfigVersion = config?.version ?: 0L,
                         inspectionFields = fields,
+                        inspectionChecklist = checklist,
                     )
                 }
             } catch (e: Exception) {
@@ -382,7 +398,7 @@ class AddEditLogViewModel @Inject constructor(
 
     /**
      * Loads inspection field definitions from ConfigEntity.
-     * Scope="Inspection", key="{assetType}_{subtype}". Falls back to scope="system",
+     * Scope="Inspection", key="{subtype}_{assetType}". Falls back to scope="system",
      * key="inspection_fields_{assetType}" for backwards compatibility.
      */
     fun loadInspectionFields(assetType: String? = null) {
@@ -393,21 +409,24 @@ class AddEditLogViewModel @Inject constructor(
             try {
                 val db = dbFactory.get(accountId)
                 // Try Inspection scope (iOS-style) first
-                val config = db.configDao().getByPattern("Inspection", "${type}_$subtype")
+                val config = db.configDao().getByPattern("Inspection", "${subtype}_$type")
                     .maxByOrNull { it.version }
                     ?: db.configDao().getByKey("system", "inspection_fields_$type")
                     ?: db.configDao().getByKey("system", "inspection_fields")
-                val fields = parseInspectionFields(config?.value)
+                val localeStrings = if (config?.scope == "Inspection") loadInspectionLocaleStrings(db) else emptyMap()
+                val checklist = parseInspectionChecklist(config?.value, localeStrings)
+                val fields = if (checklist == null) parseInspectionFields(config?.value) else emptyList()
                 if (config != null && config.scope == "Inspection") {
                     _form.update {
                         it.copy(
                             inspectionFields = fields,
+                            inspectionChecklist = checklist,
                             inspectionConfigId = config.configId,
                             inspectionConfigVersion = config.version,
                         )
                     }
                 } else {
-                    _form.update { it.copy(inspectionFields = fields) }
+                    _form.update { it.copy(inspectionFields = fields, inspectionChecklist = checklist) }
                 }
             } catch (e: Exception) {
                 Timber.e(e, "[AddEditLogViewModel] loadInspectionFields failed")
@@ -490,6 +509,23 @@ class AddEditLogViewModel @Inject constructor(
     private fun String.toAttrDisplayLabel(): String =
         substringAfterLast('.').replace('_', ' ')
             .split(' ').joinToString(" ") { w -> w.replaceFirstChar { it.uppercaseChar() } }
+
+    /**
+     * Fetches the flat `insp.*` -> translated-string map (scope="Locale", key="Inspection").
+     * Unlike [loadItemAttrLocaleStrings], this config's value is a flat top-level JSON object
+     * (no `"strings"` wrapper) — see parseInspectionLocaleStrings for details.
+     */
+    private suspend fun loadInspectionLocaleStrings(db: com.avago.core.data.db.AvagoDatabase): Map<String, String> {
+        return try {
+            val config = db.configDao()
+                .getByPattern("Locale", "Inspection%")
+                .maxByOrNull { it.version }
+            parseInspectionLocaleStrings(config?.value)
+        } catch (e: Exception) {
+            Timber.e(e, "[AddEditLogViewModel] loadInspectionLocaleStrings failed")
+            emptyMap()
+        }
+    }
 
     /**
      * Pre-fills the meter reading from the most recent log entry for this asset,
@@ -730,6 +766,7 @@ class AddEditLogViewModel @Inject constructor(
                     inspectionSubtype = current.inspectionSubtype,
                     inspectionMode = current.inspectionMode,
                     inspectionFields = current.inspectionFields,
+                    inspectionChecklist = current.inspectionChecklist,
                 )
 
                 val costMode = if (current.costMode == CostMode.ITEMIZED) "itemized" else "total"
@@ -906,6 +943,7 @@ class AddEditLogViewModel @Inject constructor(
         inspectionSubtype: String? = null,
         inspectionMode: String? = null,
         inspectionFields: List<InspectionFieldDef> = emptyList(),
+        inspectionChecklist: InspectionChecklist? = null,
     ): String? {
         val parts = mutableListOf<String>()
         parts += "\"log_type\":\"$logType\""
@@ -921,7 +959,15 @@ class AddEditLogViewModel @Inject constructor(
         }
         // Embed a stripped config snapshot so read mode can render without the configs table.
         // Only embed when we have actual inspection fields (mirrors iOS AVRenderableConfigSnapshot).
-        if (logType == "inspection" && inspectionFields.isNotEmpty()) {
+        // Prefer the resolved (localized) nested checklist so LogDetailScreen can show real question
+        // text instead of raw "insp.*" keys or item ids — this is the Android-side equivalent of the
+        // iOS raw-key bug fix (LogDetailScreen previously had no snapshot to read labels from at all).
+        if (logType == "inspection" && inspectionChecklist != null) {
+            val itemJsons = inspectionChecklist.allItems().joinToString(",") { item ->
+                "{\"key\":\"${item.id}\",\"label\":\"${item.text.replace("\"", "\\\"")}\",\"type\":\"${item.type}\"}"
+            }
+            parts += "\"configSnapshot\":{\"fields\":[$itemJsons]}"
+        } else if (logType == "inspection" && inspectionFields.isNotEmpty()) {
             val fieldJsons = inspectionFields.joinToString(",") { field ->
                 val optStr = if (field.options.isEmpty()) "" else
                     ",\"options\":[${field.options.joinToString(",") { "\"${it.replace("\"", "\\\"")}\"" }}]"
@@ -931,6 +977,7 @@ class AddEditLogViewModel @Inject constructor(
         }
         return if (parts.size <= 1 && inspectionAnswers.isEmpty()) null else "{${parts.joinToString(",")}}"
     }
+
 
     private fun buildAttributesJson(form: AddEditLogFormState): String? {
         val parts = mutableMapOf<String, String>()

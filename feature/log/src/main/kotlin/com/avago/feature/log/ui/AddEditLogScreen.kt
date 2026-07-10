@@ -1064,8 +1064,9 @@ fun AddEditLogScreen(
                             }
                         }
                         Spacer(Modifier.height(8.dp))
-                        if (form.inspectionFields.isNotEmpty()) {
+                        if (form.inspectionChecklist != null || form.inspectionFields.isNotEmpty()) {
                             InspectionFormRenderer(
+                                checklist = form.inspectionChecklist,
                                 fields = form.inspectionFields,
                                 answers = form.inspectionAnswers,
                                 onAnswerChanged = { key, value -> viewModel.onInspectionAnswerChanged(key, value) },

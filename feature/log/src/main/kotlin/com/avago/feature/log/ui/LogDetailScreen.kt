@@ -167,7 +167,16 @@ fun LogDetailScreen(
                 fun convertUSD(usdAmount: Double) = usdAmount * currencyRate
 
                 val logType = remember(log.data) { parseJsonField(log.data, "log_type") ?: "service" }
-                val inspectionAnswers = remember(log.data) { parseJsonMap(log.data) }
+                // Strip the embedded configSnapshot before parsing top-level answers so its nested
+                // "key"/"label" pairs aren't picked up as bogus answer entries by the flat regex parser.
+                val inspectionItemLabels = remember(log.data) { parseInspectionItemLabels(log.data) }
+                val inspectionAnswers = remember(log.data) {
+                    val snapshot = log.data?.let { extractJsonObject(it, "configSnapshot") }
+                    val stripped = if (snapshot != null) log.data?.replace(snapshot, "") else log.data
+                    parseJsonMap(stripped).filterKeys {
+                        it != "log_type" && it != "inspection_subtype" && it != "inspection_mode"
+                    }
+                }
 
                 val isHoursMeter = distanceUnit.lowercase().let { it == "hrs" || it == "hours" || it == "hr" }
                 val meterLabel = if (isHoursMeter) "HOURS" else "ODOMETER"
@@ -697,8 +706,9 @@ fun LogDetailScreen(
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                         ) {
                                             Text(
-                                                text = key.replace('_', ' ')
-                                                    .replaceFirstChar { it.uppercase() },
+                                                text = inspectionItemLabels[key]
+                                                    ?: key.replace('_', ' ')
+                                                        .replaceFirstChar { it.uppercase() },
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             )
@@ -896,6 +906,47 @@ private fun parseJsonMap(json: String?): Map<String, String> {
     val pattern = Regex("\"([^\"]+)\"\\s*:\\s*\"([^\"]*)\"")
     pattern.findAll(json).forEach { match ->
         result[match.groupValues[1]] = match.groupValues[2]
+    }
+    return result
+}
+
+/** Extracts the raw JSON substring of a nested object value, e.g. extractJsonObject(json, "configSnapshot"). */
+private fun extractJsonObject(json: String, key: String): String? {
+    val keyIdx = json.indexOf("\"$key\"")
+    if (keyIdx < 0) return null
+    val colonIdx = json.indexOf(':', keyIdx)
+    if (colonIdx < 0) return null
+    val braceStart = json.indexOf('{', colonIdx)
+    if (braceStart < 0) return null
+    var depth = 0
+    for (i in braceStart until json.length) {
+        when (json[i]) {
+            '{' -> depth++
+            '}' -> {
+                depth--
+                if (depth == 0) return json.substring(braceStart, i + 1)
+            }
+        }
+    }
+    return null
+}
+
+/**
+ * Parses the embedded `configSnapshot.fields` array into an itemId -> localized question text map,
+ * so the inspection answers list can show real question text instead of raw ids/insp.* keys.
+ * Mirrors iOS's AVRenderableConfigSnapshot read-mode rendering.
+ */
+private fun parseInspectionItemLabels(json: String?): Map<String, String> {
+    if (json.isNullOrBlank()) return emptyMap()
+    val snapshot = extractJsonObject(json, "configSnapshot") ?: return emptyMap()
+    val fieldsIdx = snapshot.indexOf("\"fields\"")
+    if (fieldsIdx < 0) return emptyMap()
+    val result = mutableMapOf<String, String>()
+    Regex("\\{[^{}]*\\}").findAll(snapshot, fieldsIdx).forEach { m ->
+        val obj = m.value
+        val key = Regex("\"key\"\\s*:\\s*\"([^\"]*)\"").find(obj)?.groupValues?.get(1)
+        val label = Regex("\"label\"\\s*:\\s*\"([^\"]*)\"").find(obj)?.groupValues?.get(1)
+        if (key != null && label != null) result[key] = label
     }
     return result
 }
