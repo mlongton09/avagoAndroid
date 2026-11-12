@@ -59,6 +59,16 @@ data class InspectionOption(
 data class InspectionCorner(
     val id: String,
     val label: String,
+    /** Pre-resolution label (may be an `insp.*` key) — written to envelope defects. */
+    val rawLabel: String = label,
+)
+
+/** One numeric input of a "number-input" item. */
+data class InspectionInput(
+    val id: String,
+    val label: String,
+    val min: Double? = null,
+    val max: Double? = null,
 )
 
 /**
@@ -79,12 +89,22 @@ data class InspectionItem(
     val dataType: String? = null,
     val placeholder: String? = null,
     val requiresPhoto: Boolean = false,
+    /** Pre-resolution item text (may be an `insp.*` key) — written to envelope defects. */
+    val rawText: String = text,
+    val required: Boolean = false,
+    /** Acceptable range for measurement / number-input / wheel-data items. */
+    val min: Double? = null,
+    val max: Double? = null,
+    val inputs: List<InspectionInput> = emptyList(),
+    /** Per-wheel (fl/fr/rl/rr) min/max overrides for wheel-data items. */
+    val cornerRanges: Map<String, Pair<Double?, Double?>> = emptyMap(),
 )
 
 data class InspectionSection(
     val id: String,
     val title: String,
     val items: List<InspectionItem>,
+    val rawTitle: String = title,
 )
 
 data class InspectionGroup(
@@ -103,6 +123,9 @@ data class InspectionChecklist(
 }
 
 private val lenientJson = Json { ignoreUnknownKeys = true; isLenient = true }
+
+private fun JsonElement?.numberOrNull(): Double? =
+    (this as? JsonPrimitive)?.takeIf { it !is kotlinx.serialization.json.JsonNull }?.content?.toDoubleOrNull()
 
 /**
  * Parses the nested `inspectionChecklist` JSON shape into [InspectionChecklist].
@@ -143,11 +166,33 @@ fun parseInspectionChecklist(json: String?, localeStrings: Map<String, String> =
             val corners = (obj["corners"] as? JsonArray)?.mapNotNull { cEl ->
                 val c = cEl as? JsonObject ?: return@mapNotNull null
                 val id = c["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
-                InspectionCorner(id = id, label = resolve(c["label"]?.jsonPrimitive?.content) ?: id)
+                val rawLabel = c["label"]?.jsonPrimitive?.content
+                InspectionCorner(id = id, label = resolve(rawLabel) ?: id, rawLabel = rawLabel ?: id)
             } ?: emptyList()
+            val inputs = (obj["inputs"] as? JsonArray)?.mapNotNull { iEl ->
+                val i = iEl as? JsonObject ?: return@mapNotNull null
+                val id = i["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                InspectionInput(
+                    id = id,
+                    label = resolve(i["label"]?.jsonPrimitive?.content) ?: id,
+                    min = i["min"].numberOrNull(),
+                    max = i["max"].numberOrNull(),
+                )
+            } ?: emptyList()
+            val cornerRanges = (obj["cornerRanges"] as? JsonObject)?.mapNotNull { (corner, r) ->
+                val range = r as? JsonObject ?: return@mapNotNull null
+                corner to (range["min"].numberOrNull() to range["max"].numberOrNull())
+            }?.toMap() ?: emptyMap()
+            val rawText = obj["text"]?.jsonPrimitive?.content
             return InspectionItem(
                 id = obj["id"]?.jsonPrimitive?.content ?: "",
-                text = resolve(obj["text"]?.jsonPrimitive?.content) ?: "",
+                text = resolve(rawText) ?: "",
+                rawText = rawText ?: (obj["id"]?.jsonPrimitive?.content ?: ""),
+                required = obj["required"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false,
+                min = obj["min"].numberOrNull(),
+                max = obj["max"].numberOrNull(),
+                inputs = inputs,
+                cornerRanges = cornerRanges,
                 type = obj["type"]?.jsonPrimitive?.content ?: "select",
                 options = options,
                 corners = corners,
@@ -164,7 +209,8 @@ fun parseInspectionChecklist(json: String?, localeStrings: Map<String, String> =
             val items = (obj["items"] as? JsonArray)?.mapNotNull { itEl ->
                 (itEl as? JsonObject)?.let { parseItem(it) }
             } ?: emptyList()
-            return InspectionSection(id = id, title = resolve(obj["title"]?.jsonPrimitive?.content) ?: id, items = items)
+            val rawTitle = obj["title"]?.jsonPrimitive?.content
+            return InspectionSection(id = id, title = resolve(rawTitle) ?: id, items = items, rawTitle = rawTitle ?: id)
         }
 
         fun parseGroup(obj: JsonObject): InspectionGroup {
@@ -196,7 +242,7 @@ fun parseInspectionChecklist(json: String?, localeStrings: Map<String, String> =
  * dotted key. Non-key-shaped strings (no dot, e.g. already-resolved text or
  * legacy literal values) pass through unchanged.
  */
-private fun humanizeIfKey(key: String): String {
+internal fun humanizeIfKey(key: String): String {
     if (!key.contains(".") || key.contains(" ")) return key
     val lastSegment = key.substringAfterLast(".")
     val words = lastSegment.split("_").filter { it.isNotEmpty() }

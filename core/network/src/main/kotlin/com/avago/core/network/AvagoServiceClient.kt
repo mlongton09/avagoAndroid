@@ -859,6 +859,38 @@ class AvagoServiceClient @Inject constructor(
             }
         }
 
+    // ---------------------------------------------------------------------------
+    // Log entries — direct update with optimistic concurrency + defect register
+    // ---------------------------------------------------------------------------
+
+    /**
+     * PUT /accounts/{accountId}/log/{logId} — full update of a log entry.
+     * [body] may carry `expected_server_version`; the service then answers 409 with
+     * `{ "error": "conflict", "current": {...} }` (returned as [NetworkResult.Error] whose
+     * message is the raw response body) when the row changed since it was read.
+     * Returns the updated entry JSON.
+     */
+    suspend fun updateLog(accountId: String, logId: String, body: JsonObject): NetworkResult<JsonObject> =
+        safeNetworkCall {
+            client.put("$baseUrl/accounts/$accountId/log/$logId") {
+                setBody(body)
+            }.body<JsonObject>()
+        }
+
+    /**
+     * GET /accounts/{accountId}/defects?asset_id= — open-defect register rows for an asset.
+     * 404/405 means the service predates the register (callers fall back to local history).
+     */
+    suspend fun getDefects(accountId: String, assetId: String): NetworkResult<kotlinx.serialization.json.JsonArray> =
+        safeNetworkCall {
+            val el = client.get("$baseUrl/accounts/$accountId/defects") {
+                parameter("asset_id", assetId)
+            }.body<kotlinx.serialization.json.JsonElement>()
+            el as? kotlinx.serialization.json.JsonArray
+                ?: ((el as? JsonObject)?.let { it["defects"] ?: it["data"] } as? kotlinx.serialization.json.JsonArray)
+                ?: kotlinx.serialization.json.JsonArray(emptyList())
+        }
+
     /** POST /accounts/{accountId}/work-orders/{woId}/assignments/claim — self-claim a WO. */
     suspend fun claimWorkOrder(accountId: String, woId: String): NetworkResult<Unit> =
         safeNetworkCall {

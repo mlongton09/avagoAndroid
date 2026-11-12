@@ -85,6 +85,7 @@ import kotlinx.datetime.Instant
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonArray
@@ -743,42 +744,7 @@ class SyncEngine @Inject constructor(
                 }
 
                 "log" -> {
-                    val now = System.currentTimeMillis()
-                    db.logDao().upsert(
-                        LogEntity(
-                            entryId = item.str("log_id") ?: return,
-                            assetId = item.str("asset_id") ?: return,
-                            accountId = item.str("account_id") ?: accountId,
-                            title = item.str("title") ?: "",
-                            entryDate = isoToMs(item.str("log_date")) ?: now,
-                            odometerValue = item.dbl("meter"),
-                            category = item.str("category"),
-                            cost = item.dbl("cost"),
-                            performedBy = item.str("performed_by"),
-                            performedByUserId = item.str("performed_by_user_id"),
-                            notes = item.str("notes"),
-                            data = item.str("data"),
-                            attributes = item.str("attributes"),
-                            costMode = item.str("cost_mode"),
-                            costItems = item.dbl("cost_items"),
-                            costLabor = item.dbl("cost_labor"),
-                            costTax = item.dbl("cost_tax"),
-                            currency = item.str("currency"),
-                            baseAmount = item.dbl("base_amount"),
-                            exchangeRateUsed = item.dbl("exchange_rate_used"),
-                            configId = item.str("config_id"),
-                            configVersion = item.lng("config_version"),
-                            serviceId = item.str("service_id"),
-                            costMisc = item.dbl("cost_misc"),
-                            parentId = item.str("parent_id"),
-                            createdAt = isoToMs(item.str("created_at")) ?: now,
-                            updatedAt = isoToMs(item.str("updated_at")) ?: now,
-                            deletedAt = isoToMs(item.str("deleted_at")),
-                            serverVersion = item.lng("server_version") ?: 0L,
-                            seq = item.lng("seq"),
-                            overtimeMultiplier = item.dbl("overtime_multiplier"),
-                        )
-                    )
+                    db.logDao().upsert(logEntityFromJson(item, accountId) ?: return)
                 }
 
                 "log_cost_line" -> {
@@ -2305,10 +2271,62 @@ class SyncEngine @Inject constructor(
     // JsonObject parsing helpers
     // ---------------------------------------------------------------------------
 
+    /**
+     * Maps a service log-entry row (sync pull item, PUT response or 409 `current`) to a
+     * [LogEntity]. Returns null when the row lacks its id or asset id.
+     */
+    fun logEntityFromJson(item: JsonObject, accountId: String): LogEntity? {
+        val now = System.currentTimeMillis()
+        return LogEntity(
+            entryId = item.str("log_id") ?: return null,
+            assetId = item.str("asset_id") ?: return null,
+            accountId = item.str("account_id") ?: accountId,
+            title = item.str("title") ?: "",
+            entryDate = isoToMs(item.str("log_date")) ?: now,
+            odometerValue = item.dbl("meter"),
+            category = item.str("category"),
+            cost = item.dbl("cost"),
+            performedBy = item.str("performed_by"),
+            performedByUserId = item.str("performed_by_user_id"),
+            notes = item.str("notes"),
+            data = item.jsonText("data"),
+            attributes = item.jsonText("attributes"),
+            costMode = item.str("cost_mode"),
+            costItems = item.dbl("cost_items"),
+            costLabor = item.dbl("cost_labor"),
+            costTax = item.dbl("cost_tax"),
+            currency = item.str("currency"),
+            baseAmount = item.dbl("base_amount"),
+            exchangeRateUsed = item.dbl("exchange_rate_used"),
+            configId = item.str("config_id"),
+            configVersion = item.lng("config_version"),
+            serviceId = item.str("service_id"),
+            costMisc = item.dbl("cost_misc"),
+            parentId = item.str("parent_id"),
+            createdAt = isoToMs(item.str("created_at")) ?: now,
+            updatedAt = isoToMs(item.str("updated_at")) ?: now,
+            deletedAt = isoToMs(item.str("deleted_at")),
+            serverVersion = item.lng("server_version") ?: 0L,
+            seq = item.lng("seq"),
+            overtimeMultiplier = item.dbl("overtime_multiplier"),
+        )
+    }
+
     private fun JsonObject.str(key: String): String? {
         val element = this[key] ?: return null
         if (element is JsonNull) return null
         return try { element.jsonPrimitive.content } catch (_: Exception) { null }
+    }
+
+    /**
+     * Like [str] but keeps JSON objects/arrays as their JSON text. The service returns
+     * log `data` / `attributes` as JSON objects; [str] would turn them into null and a later
+     * local edit would then wipe the server envelope (inspection answers, defects, sign-off…).
+     */
+    private fun JsonObject.jsonText(key: String): String? {
+        val element = this[key] ?: return null
+        if (element is JsonNull) return null
+        return if (element is JsonPrimitive) element.content else element.toString()
     }
 
     private fun JsonObject.lng(key: String): Long? {

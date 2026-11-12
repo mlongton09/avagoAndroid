@@ -252,6 +252,33 @@ fun AddEditLogScreen(
         }
     }
 
+    // Open defects from earlier inspections are only carried into NEW inspections.
+    LaunchedEffect(form.logType, form.assetId) {
+        viewModel.loadOpenDefects(
+            assetId = form.assetId,
+            isNewEntry = entryId == null && form.logType == "inspection",
+        )
+    }
+
+    // ---- Optimistic-concurrency conflict (409 on inspection update) ----
+    if (form.inspectionConflict != null) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissConflict() },
+            title = { Text(stringResource(R.string.log_inspection_conflict_title)) },
+            text = { Text(stringResource(R.string.log_inspection_conflict_message)) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.resolveConflictOverwrite() }) {
+                    Text(stringResource(R.string.log_inspection_conflict_overwrite))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.resolveConflictReloadTheirs() }) {
+                    Text(stringResource(R.string.log_inspection_conflict_reload))
+                }
+            },
+        )
+    }
+
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = form.entryDate)
     val dateFormatter = remember { SimpleDateFormat("MMMM d, yyyy", Locale.getDefault()) }
 
@@ -1064,6 +1091,15 @@ fun AddEditLogScreen(
                             }
                         }
                         Spacer(Modifier.height(8.dp))
+                        if (form.inspectionOpenDefects.isNotEmpty()) {
+                            InspectionOpenDefectsCard(
+                                defects = form.inspectionOpenDefects,
+                                resolutions = form.openDefectResolutions,
+                                labelOf = { key -> viewModel.inspectionLabel(key) },
+                                onResolve = { key, resolution -> viewModel.setOpenDefectResolution(key, resolution) },
+                            )
+                            Spacer(Modifier.height(12.dp))
+                        }
                         if (form.inspectionChecklist != null || form.inspectionFields.isNotEmpty()) {
                             InspectionFormRenderer(
                                 checklist = form.inspectionChecklist,

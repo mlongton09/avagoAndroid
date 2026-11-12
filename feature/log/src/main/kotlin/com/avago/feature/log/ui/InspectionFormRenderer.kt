@@ -25,6 +25,8 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -52,15 +54,19 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.avago.feature.log.R
 import com.avago.feature.log.model.InspectionChecklist
+import com.avago.feature.log.model.InspectionCorner
 import com.avago.feature.log.model.InspectionFieldDef
 import com.avago.feature.log.model.InspectionGroup
 import com.avago.feature.log.model.InspectionItem
 import com.avago.feature.log.model.InspectionOption
 import com.avago.feature.log.model.InspectionSection
+import com.avago.feature.log.model.InspectionV2
 import com.avago.feature.log.model.inspectionOptionColumn
 import com.avago.feature.log.model.inspectionOptionShortLabel
 import com.avago.feature.log.model.isScoreEligible
@@ -153,30 +159,16 @@ private fun InspectionChecklistRenderer(
 
 @Composable
 private fun InspectionScoreBar(checklist: InspectionChecklist, answers: Map<String, String>) {
-    val eligible = checklist.allItems().filter { it.isScoreEligible() }
-    if (eligible.isEmpty()) return
-    var normal = 0
-    var monitor = 0
-    var repair = 0
-    eligible.forEach { item ->
-        val itemAnswerKeys = if (item.corners.isNotEmpty()) {
-            item.corners.map { "${item.id}.${it.id}" }
-        } else {
-            listOf(item.id)
-        }
-        itemAnswerKeys.forEach { key ->
-            when (inspectionOptionColumn(answers[key] ?: "")) {
-                0 -> normal++
-                1 -> monitor++
-                2 -> repair++
-            }
-        }
-    }
-    if (normal == 0 && monitor == 0 && repair == 0) return
+    if (checklist.allItems().none { it.isScoreEligible() }) return
+    val progress = InspectionV2.computeProgress(checklist, answers)
+    if (progress.n == 0 && progress.m == 0 && progress.nr == 0) return
+    val normalLabel = stringResource(R.string.log_inspection_opt_normal)
+    val monitorLabel = stringResource(R.string.log_inspection_opt_monitor)
+    val repairLabel = stringResource(R.string.log_inspection_opt_needs_repair)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (normal > 0) InspectionSummaryPill("Normal $normal", INSPECTION_OPTION_COLORS.getValue("normal"))
-        if (monitor > 0) InspectionSummaryPill("Monitor $monitor", INSPECTION_OPTION_COLORS.getValue("monitor"))
-        if (repair > 0) InspectionSummaryPill("Needs Repair $repair", INSPECTION_OPTION_COLORS.getValue("needs_repair"))
+        if (progress.n > 0) InspectionSummaryPill("$normalLabel ${progress.n}", INSPECTION_OPTION_COLORS.getValue("normal"))
+        if (progress.m > 0) InspectionSummaryPill("$monitorLabel ${progress.m}", INSPECTION_OPTION_COLORS.getValue("monitor"))
+        if (progress.nr > 0) InspectionSummaryPill("$repairLabel ${progress.nr}", INSPECTION_OPTION_COLORS.getValue("needs_repair"))
     }
 }
 
@@ -199,25 +191,54 @@ private fun InspectionGroupBlock(
     }
 }
 
-/** Column index (0=Normal, 1=Monitor, 2=Needs Repair) + display label for a section quick-fill action. */
-private data class QuickFillRequest(val col: Int, val label: String)
+/** One answer slot a section "mark all" can fill: a select item, or one corner of a corner-select item. */
+private data class QuickFillTarget(val item: InspectionItem, val corner: InspectionCorner?) {
+    val key: String get() = if (corner == null) item.id else InspectionV2.cornerKey(corner)
+}
 
-/** select/corner-select items in this section that quick-fill can affect, expanded to answer keys. */
-private fun sectionQuickFillKeys(section: InspectionSection): List<String> =
-    section.items.filter { it.type == "select" || it.type == "corner-select" }.flatMap { item ->
-        if (item.corners.isNotEmpty()) item.corners.map { "${item.id}.${it.id}" } else listOf(item.id)
-    }
+/** Pending "mark all" confirmation: column (0=N, 1=M, 2=NR, 3=N/A), its label and the answered-count. */
+private data class QuickFillRequest(val col: Int, val label: String, val answered: Int, val unanswered: Int)
 
-/** Applies quick-fill: for every eligible item, finds the option at the target column and sets it. */
-private fun applySectionQuickFill(section: InspectionSection, col: Int, onAnswerChanged: (String, String) -> Unit) {
-    section.items.filter { it.type == "select" || it.type == "corner-select" }.forEach { item ->
-        val value = item.options.firstOrNull { inspectionOptionColumn(it.rawValue) == col }?.value ?: return@forEach
-        if (item.corners.isNotEmpty()) {
-            item.corners.forEach { corner -> onAnswerChanged("${item.id}.${corner.id}", value) }
+/** Score-eligible select / corner-select answer slots in this section. */
+private fun sectionQuickFillTargets(section: InspectionSection): List<QuickFillTarget> =
+    section.items.filter { it.isScoreEligible() }.flatMap { item ->
+        if (item.type == "corner-select" && item.corners.isNotEmpty()) {
+            item.corners.map { QuickFillTarget(item, it) }
         } else {
-            onAnswerChanged(item.id, value)
+            listOf(QuickFillTarget(item, null))
         }
     }
+
+private fun QuickFillTarget.optionAt(col: Int): InspectionOption? =
+    item.options.firstOrNull { inspectionOptionColumn(it.rawValue) == col }
+
+private fun QuickFillTarget.answer(answers: Map<String, String>): String? = InspectionV2.answerOf(answers, item, corner)
+
+/**
+ * Applies a section "mark all" to [targets] and returns the previous values of every key it touched
+ * (for undo). Stores the option's raw value under the contract key; a pre-v2 "item.corner" key is
+ * cleared so the old answer can't shadow the new one.
+ */
+private fun applySectionQuickFill(
+    targets: List<QuickFillTarget>,
+    col: Int,
+    answers: Map<String, String>,
+    onAnswerChanged: (String, String) -> Unit,
+): Map<String, String> {
+    val previous = LinkedHashMap<String, String>()
+    targets.forEach { target ->
+        val option = target.optionAt(col) ?: return@forEach
+        previous[target.key] = answers[target.key] ?: ""
+        onAnswerChanged(target.key, option.rawValue)
+        if (target.corner != null) {
+            val legacy = InspectionV2.legacyCornerKey(target.item, target.corner)
+            if (!answers[legacy].isNullOrEmpty()) {
+                previous[legacy] = answers[legacy] ?: ""
+                onAnswerChanged(legacy, "")
+            }
+        }
+    }
+    return previous
 }
 
 @Composable
@@ -229,9 +250,35 @@ private fun InspectionSectionBlock(
 ) {
     val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
-    var activeQuickFillCol by remember(section.id) { mutableStateOf<Int?>(null) }
     var pendingQuickFill by remember { mutableStateOf<QuickFillRequest?>(null) }
-    val quickFillKeys = remember(section) { sectionQuickFillKeys(section) }
+    val targets = remember(section) { sectionQuickFillTargets(section) }
+    val doneTemplate = stringResource(R.string.log_inspection_mark_all_done)
+    val undoLabel = stringResource(R.string.log_inspection_undo)
+
+    // A column is "active" when every slot that offers it is already answered with it.
+    val activeCol = (0..3).firstOrNull { col ->
+        val slots = targets.filter { it.optionAt(col) != null }
+        slots.isNotEmpty() && slots.all { t ->
+            inspectionOptionColumn(InspectionV2.canonicalAnswer(t.item, t.answer(answers)) ?: "") == col
+        }
+    }
+
+    fun runQuickFill(col: Int, label: String, slots: List<QuickFillTarget>) {
+        val previous = applySectionQuickFill(slots, col, answers, onAnswerChanged)
+        val count = slots.count { it.optionAt(col) != null }
+        if (snackbarHostState != null && previous.isNotEmpty()) {
+            scope.launch {
+                val result = snackbarHostState.showSnackbar(
+                    message = String.format(doneTemplate, count, label),
+                    actionLabel = undoLabel,
+                    duration = SnackbarDuration.Short,
+                )
+                if (result == SnackbarResult.ActionPerformed) {
+                    previous.forEach { (key, value) -> onAnswerChanged(key, value) }
+                }
+            }
+        }
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -244,24 +291,24 @@ private fun InspectionSectionBlock(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.fillMaxWidth(),
             )
-            if (quickFillKeys.isNotEmpty()) {
-                // Quick-fill buttons live on their own row directly below
-                // the title — not squeezed beside it — so they can use the
-                // exact same column width/spacing/left-alignment as
-                // FixedColumnOptionRow below and land in the same N/M/NR
-                // columns as every question's answer buttons in this
-                // section. Mirrors iOS's title-row / quick-fill-row split.
+            if (targets.isNotEmpty()) {
+                // Quick-fill buttons sit on their own row below the title using the same
+                // column width/spacing as FixedColumnOptionRow, so each lands above its
+                // matching answer column. Mirrors iOS's title-row / quick-fill-row split.
                 SectionQuickFillRow(
-                    activeCol = activeQuickFillCol,
+                    activeCol = activeCol,
                     onRequested = { col, label ->
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        if (activeQuickFillCol == col) {
-                            // Toggling the same quick-fill button off clears the section instead
-                            // of re-confirming — mirrors iOS's clearQuickFill() toggle behavior.
-                            activeQuickFillCol = null
-                            quickFillKeys.forEach { key -> onAnswerChanged(key, "") }
+                        val slots = targets.filter { it.optionAt(col) != null }
+                        val unanswered = slots.filter { it.answer(answers) == null }
+                        val overwrite = slots.count { t ->
+                            val a = t.answer(answers)
+                            a != null && inspectionOptionColumn(InspectionV2.canonicalAnswer(t.item, a) ?: "") != col
+                        }
+                        if (overwrite == 0) {
+                            if (unanswered.isNotEmpty()) runQuickFill(col, label, unanswered)
                         } else {
-                            pendingQuickFill = QuickFillRequest(col, label)
+                            pendingQuickFill = QuickFillRequest(col, label, overwrite, unanswered.size)
                         }
                     },
                 )
@@ -274,66 +321,62 @@ private fun InspectionSectionBlock(
         }
     }
 
-    // One tap here can silently overwrite every answer in the section, so
-    // confirm before applying — mirrors iOS's AVInspectionSectionView.quickFillTapped().
+    // Answered items are only overwritten after an explicit choice — web/iOS parity.
     pendingQuickFill?.let { request ->
         AlertDialog(
             onDismissRequest = { pendingQuickFill = null },
-            title = { Text("Mark All as ${request.label}?") },
-            text = {
-                Text("This will set every item in \"${section.title}\" to \"${request.label}\" and overwrite any existing answers.")
-            },
+            title = { Text(stringResource(R.string.log_inspection_mark_all_title, request.label)) },
+            text = { Text(stringResource(R.string.log_inspection_mark_all_message, request.answered, section.title)) },
             confirmButton = {
-                TextButton(onClick = {
-                    // Snapshot previous values before overwriting so an "Undo" snackbar can restore them.
-                    val previous = quickFillKeys.associateWith { key -> answers[key] ?: "" }
-                    applySectionQuickFill(section, request.col, onAnswerChanged)
-                    activeQuickFillCol = request.col
-                    pendingQuickFill = null
-                    if (snackbarHostState != null) {
-                        scope.launch {
-                            val result = snackbarHostState.showSnackbar(
-                                message = "Marked all as ${request.label}",
-                                actionLabel = "Undo",
-                                duration = SnackbarDuration.Short,
+                Column(horizontalAlignment = Alignment.End) {
+                    TextButton(onClick = {
+                        pendingQuickFill = null
+                        runQuickFill(request.col, request.label, targets.filter { it.optionAt(request.col) != null })
+                    }) { Text(stringResource(R.string.log_inspection_mark_all_overwrite)) }
+                    if (request.unanswered > 0) {
+                        TextButton(onClick = {
+                            pendingQuickFill = null
+                            runQuickFill(
+                                request.col,
+                                request.label,
+                                targets.filter { it.optionAt(request.col) != null && it.answer(answers) == null },
                             )
-                            if (result == SnackbarResult.ActionPerformed) {
-                                previous.forEach { (key, value) -> onAnswerChanged(key, value) }
-                                activeQuickFillCol = null
-                            }
-                        }
+                        }) { Text(stringResource(R.string.log_inspection_mark_all_unanswered)) }
                     }
-                }) { Text("Mark All") }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingQuickFill = null }) { Text("Cancel") }
+                    TextButton(onClick = { pendingQuickFill = null }) {
+                        Text(stringResource(com.avago.core.ui.R.string.common_cancel))
+                    }
+                }
             },
         )
     }
 }
 
-/** Small NR/M/N quick-fill buttons — mirrors iOS's AVInspectionSectionView quick-fill row. */
+/** N / M / NR / N/A quick-fill buttons — mirrors iOS's AVInspectionSectionView quick-fill row. */
 @Composable
 private fun SectionQuickFillRow(
     activeCol: Int?,
     onRequested: (col: Int, label: String) -> Unit,
 ) {
-    // Ascending column order (Normal=0, Monitor=1, Needs Repair=2) and the
-    // *same* button width/height/spacing as FixedColumnOptionRow's answer
-    // buttons below — this row is left-aligned in the same Column with no
-    // extra indent, so each quick-fill button sits directly above its
-    // matching answer column on every question in the section.
-    val defs = listOf(Triple(0, "N", "Normal"), Triple(1, "M", "Monitor"), Triple(2, "NR", "Needs Repair"))
+    // Same column order and button width/spacing as FixedColumnOptionRow's answer buttons, so
+    // each quick-fill button sits directly above its matching answer column.
+    val defs = listOf(
+        Triple(0, "insp.opt.normal", stringResource(R.string.log_inspection_opt_normal)),
+        Triple(1, "insp.opt.monitor", stringResource(R.string.log_inspection_opt_monitor)),
+        Triple(2, "insp.opt.needs_repair", stringResource(R.string.log_inspection_opt_needs_repair)),
+        Triple(3, "insp.opt.na", stringResource(R.string.log_inspection_opt_na)),
+    )
+    val cdTemplate = stringResource(R.string.log_inspection_mark_all_cd)
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        defs.forEach { (col, short, full) ->
-            val color = INSPECTION_OPTION_COLORS.getValue(colorKeyFor(full))
+        defs.forEach { (col, raw, full) ->
+            val color = INSPECTION_OPTION_COLORS.getValue(colorKeyFor(raw))
             val isActive = activeCol == col
             OutlinedButton(
                 onClick = { onRequested(col, full) },
                 modifier = Modifier
                     .width(OPTION_BUTTON_WIDTH)
                     .height(36.dp)
-                    .semantics { contentDescription = "Mark all as $full" },
+                    .semantics { contentDescription = String.format(cdTemplate, full) },
                 contentPadding = PaddingValues(0.dp),
                 colors = if (isActive) {
                     ButtonDefaults.outlinedButtonColors(containerColor = color, contentColor = Color.White)
@@ -341,7 +384,7 @@ private fun SectionQuickFillRow(
                     ButtonDefaults.outlinedButtonColors(contentColor = color)
                 },
             ) {
-                Text(short, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                Text(inspectionOptionShortLabel(raw), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -354,7 +397,7 @@ private fun InspectionItemBlock(
     onAnswerChanged: (key: String, value: String) -> Unit,
 ) {
     when (item.type) {
-        "select" -> InspectionSelectItem(item, answers[item.id] ?: "", onAnswerChanged)
+        "select" -> InspectionSelectItem(item, answers, onAnswerChanged)
         "corner-select" -> InspectionCornerSelectItem(item, answers, onAnswerChanged)
         "wheel-data", "measurement", "number", "number-input" ->
             InspectionNumberItem(item, answers[item.id] ?: "", onAnswerChanged)
@@ -370,23 +413,24 @@ private fun InspectionItemBlock(
 @Composable
 private fun InspectionSelectItem(
     item: InspectionItem,
-    selected: String,
+    answers: Map<String, String>,
     onAnswerChanged: (key: String, value: String) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         InspectionQuestionHeader(text = item.text, note = item.note)
         FixedColumnOptionRow(
             options = item.options,
-            selected = selected,
+            selected = answers[item.id] ?: "",
             onSelect = { onAnswerChanged(item.id, it) },
         )
+        InspectionDefectDetails(item, answers, onAnswerChanged)
     }
 }
 
 /**
  * "corner-select" layout: one column-aligned option row per corner (e.g. LF/RF/LR/RR tire
- * positions), each corner's label shown above its own answer row. Answers are stored
- * under "{itemId}.{cornerId}" keys.
+ * positions). Answers are stored under the corner id (contract v2); answers written by older
+ * Android builds under "{itemId}.{cornerId}" are still read and cleared on change.
  */
 @Composable
 private fun InspectionCornerSelectItem(
@@ -397,7 +441,8 @@ private fun InspectionCornerSelectItem(
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         InspectionQuestionHeader(text = item.text, note = item.note)
         item.corners.forEach { corner ->
-            val key = "${item.id}.${corner.id}"
+            val key = InspectionV2.cornerKey(corner)
+            val legacyKey = InspectionV2.legacyCornerKey(item, corner)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     text = corner.label,
@@ -406,11 +451,141 @@ private fun InspectionCornerSelectItem(
                 )
                 FixedColumnOptionRow(
                     options = item.options,
-                    selected = answers[key] ?: "",
-                    onSelect = { onAnswerChanged(key, it) },
+                    selected = InspectionV2.answerOf(answers, item, corner) ?: "",
+                    onSelect = {
+                        onAnswerChanged(key, it)
+                        if (!answers[legacyKey].isNullOrEmpty()) onAnswerChanged(legacyKey, "")
+                    },
                 )
             }
         }
+        InspectionDefectDetails(item, answers, onAnswerChanged)
+    }
+}
+
+@Composable
+private fun inspectionSeverityLabel(severity: String): String = when (severity) {
+    InspectionV2.SEV_MINOR -> stringResource(R.string.log_inspection_severity_minor)
+    InspectionV2.SEV_OUT_OF_SERVICE -> stringResource(R.string.log_inspection_severity_out_of_service)
+    else -> stringResource(R.string.log_inspection_severity_major)
+}
+
+/** Localized name for a contract location id (fl, fr, rl, rr, front, …); null for unknown ids. */
+@Composable
+fun inspectionLocationLabel(location: String?): String? = when (location) {
+    "fl" -> stringResource(R.string.log_inspection_loc_fl)
+    "fr" -> stringResource(R.string.log_inspection_loc_fr)
+    "rl" -> stringResource(R.string.log_inspection_loc_rl)
+    "rr" -> stringResource(R.string.log_inspection_loc_rr)
+    "front" -> stringResource(R.string.log_inspection_loc_front)
+    "rear" -> stringResource(R.string.log_inspection_loc_rear)
+    "left" -> stringResource(R.string.log_inspection_loc_left)
+    "right" -> stringResource(R.string.log_inspection_loc_right)
+    "cab" -> stringResource(R.string.log_inspection_loc_cab)
+    "bed" -> stringResource(R.string.log_inspection_loc_bed)
+    "roof" -> stringResource(R.string.log_inspection_loc_roof)
+    "under" -> stringResource(R.string.log_inspection_loc_under)
+    "interior" -> stringResource(R.string.log_inspection_loc_interior)
+    "engine" -> stringResource(R.string.log_inspection_loc_engine)
+    else -> null
+}
+
+/** Localized severity name for the read-only detail screen. */
+@Composable
+fun inspectionSeverityName(severity: String): String = inspectionSeverityLabel(severity)
+
+/**
+ * Severity / location / note inputs shown under an item answered Monitor or Needs Repair.
+ * Values are stored under `<itemId>__sev`, `<itemId>__loc`, `<itemId>__note` (contract v2).
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun InspectionDefectDetails(
+    item: InspectionItem,
+    answers: Map<String, String>,
+    onAnswerChanged: (key: String, value: String) -> Unit,
+) {
+    val buckets = if (item.type == "corner-select") {
+        item.corners.mapNotNull { InspectionV2.bucketOf(item, InspectionV2.answerOf(answers, item, it)) }
+    } else {
+        listOfNotNull(InspectionV2.bucketOf(item, answers[item.id]))
+    }
+    val bucket = when {
+        InspectionV2.Bucket.NR in buckets -> InspectionV2.Bucket.NR
+        InspectionV2.Bucket.M in buckets -> InspectionV2.Bucket.M
+        else -> return
+    }
+    val severity = InspectionV2.severityOf(answers, item.id, bucket)
+    val location = InspectionV2.locationOf(answers, item.id)
+    var locationMenuOpen by remember(item.id) { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(8.dp),
+            )
+            .padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.log_inspection_defect_severity),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            InspectionV2.SEVERITIES.forEach { sev ->
+                val chipColor = when (sev) {
+                    InspectionV2.SEV_MINOR -> INSPECTION_OPTION_COLORS.getValue("monitor")
+                    else -> INSPECTION_OPTION_COLORS.getValue("needs_repair")
+                }
+                FilterChip(
+                    selected = severity == sev,
+                    onClick = { onAnswerChanged(InspectionV2.sevKey(item.id), sev) },
+                    label = { Text(inspectionSeverityLabel(sev)) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = chipColor,
+                        selectedLabelColor = Color.White,
+                    ),
+                )
+            }
+        }
+        Text(
+            text = stringResource(R.string.log_inspection_defect_location),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Box {
+            OutlinedButton(onClick = { locationMenuOpen = true }) {
+                Text(inspectionLocationLabel(location) ?: stringResource(R.string.log_inspection_defect_location_none))
+            }
+            DropdownMenu(expanded = locationMenuOpen, onDismissRequest = { locationMenuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.log_inspection_defect_location_none)) },
+                    onClick = {
+                        locationMenuOpen = false
+                        onAnswerChanged(InspectionV2.locKey(item.id), "")
+                    },
+                )
+                InspectionV2.LOCATIONS.forEach { loc ->
+                    DropdownMenuItem(
+                        text = { Text(inspectionLocationLabel(loc) ?: loc) },
+                        onClick = {
+                            locationMenuOpen = false
+                            onAnswerChanged(InspectionV2.locKey(item.id), loc)
+                        },
+                    )
+                }
+            }
+        }
+        OutlinedTextField(
+            value = answers[InspectionV2.noteKey(item.id)] ?: "",
+            onValueChange = { onAnswerChanged(InspectionV2.noteKey(item.id), it) },
+            label = { Text(stringResource(R.string.log_inspection_defect_note)) },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 1,
+        )
     }
 }
 
@@ -533,8 +708,9 @@ private fun FixedColumnOptionRow(
             } else {
                 InspectionOptionButton(
                     option = opt,
-                    isSelected = opt.value == selected,
-                    onClick = { onSelect(opt.value) },
+                    // Older Android builds stored the localized display text; v2 stores rawValue.
+                    isSelected = selected.isNotEmpty() && (opt.rawValue == selected || opt.value == selected),
+                    onClick = { onSelect(opt.rawValue) },
                 )
             }
         }

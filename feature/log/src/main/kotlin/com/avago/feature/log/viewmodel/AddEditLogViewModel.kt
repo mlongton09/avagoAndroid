@@ -11,10 +11,18 @@ import com.avago.core.data.db.entity.LogEntity
 import com.avago.core.data.db.entity.PhotoEntity
 import com.avago.core.data.db.entity.SyncQueueEntity
 import com.avago.core.data.repository.UserPreferencesRepository
+import com.avago.core.network.AvagoServiceClient
+import com.avago.core.network.NetworkResult
 import com.avago.core.sync.SyncEngine
 import com.avago.feature.log.model.InspectionChecklist
 import com.avago.feature.log.model.InspectionFieldDef
+import com.avago.feature.log.model.InspectionGroup
+import com.avago.feature.log.model.InspectionItem
+import com.avago.feature.log.model.InspectionOption
+import com.avago.feature.log.model.InspectionSection
+import com.avago.feature.log.model.InspectionV2
 import com.avago.feature.log.model.LogCostLineDraft
+import com.avago.feature.log.model.humanizeIfKey
 import com.avago.feature.log.model.parseInspectionChecklist
 import com.avago.feature.log.model.parseInspectionFields
 import com.avago.feature.log.model.parseInspectionLocaleStrings
@@ -27,7 +35,15 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonPrimitive
 import timber.log.Timber
+import java.time.Instant
+import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.UUID
 import javax.inject.Inject
 
@@ -109,6 +125,18 @@ data class AddEditLogFormState(
     // config. Preferred over [inspectionFields] when the config uses the newer schema (matches iOS).
     val inspectionChecklist: InspectionChecklist? = null,
 
+    // `insp.*` key -> localized text for the active locale (labels of carried-forward defects).
+    val inspectionStrings: Map<String, String> = emptyMap(),
+
+    // Open defects from previous inspections of this asset (new inspections only, contract §3.2).
+    val inspectionOpenDefects: List<InspectionV2.OpenDefect> = emptyList(),
+    val openDefectsLoading: Boolean = false,
+    // OpenDefect.key -> "repaired" | "still_present"; written to data.resolvedDefects on save.
+    val openDefectResolutions: Map<String, String> = emptyMap(),
+
+    // Set when an inspection update was rejected with 409 — holds the server's current row.
+    val inspectionConflict: JsonObject? = null,
+
     // Category-specific item attributes
     val itemAttributes: Map<String, String> = emptyMap(),
     val itemAttributeDefs: List<ItemAttributeDef> = emptyList(),
@@ -148,6 +176,7 @@ class AddEditLogViewModel @Inject constructor(
     private val syncEngine: SyncEngine,
     private val userPrefsRepository: UserPreferencesRepository,
     private val formFillRouter: FormFillRouter,
+    private val serviceClient: AvagoServiceClient,
 ) : ViewModel() {
 
     init {
@@ -197,6 +226,15 @@ class AddEditLogViewModel @Inject constructor(
     private var originalCreatedAt: Long? = null
     private var originalServerVersion: Long = 0L
 
+    /** The stored `data` object of the entry being edited — the base every save merges into. */
+    private var storedData: JsonObject? = null
+    /** Raw JSON of the inspection config in use (snapshotted into data.configSnapshot on save). */
+    private var inspectionConfigRaw: String? = null
+    /** True once the checklist came from the entry's own configSnapshot (don't replace it). */
+    private var snapshotChecklistApplied = false
+    private var pendingOnSuccess: ((String) -> Unit)? = null
+    private var openDefectsLoadedFor: String? = null
+
     // ---------------------------------------------------------------------------
     // Load for edit
     // ---------------------------------------------------------------------------
@@ -214,9 +252,31 @@ class AddEditLogViewModel @Inject constructor(
                 originalCreatedAt = entity.createdAt
                 originalServerVersion = entity.serverVersion
 
-                val inspectionAnswers = parseJsonMap(entity.data)
-                val inspectionSubtype = entity.data?.let { parseJsonField(it, "inspection_subtype") }
-                val inspectionMode = entity.data?.let { parseJsonField(it, "inspection_mode") }
+                val dataObj = InspectionV2.parseDataObject(entity.data)
+                storedData = dataObj
+                val storedLogType = (dataObj?.get("log_type") as? JsonPrimitive)?.takeIf { it.isString }?.content
+                val isInspection = storedLogType == "inspection" ||
+                    (storedLogType == null && entity.category?.lowercase()?.contains("inspect") == true)
+                val envelope = if (isInspection) InspectionV2.parseEnvelope(dataObj) else null
+                val inspectionAnswers = envelope?.values ?: emptyMap()
+                val inspectionSubtype = envelope?.subtype
+                val inspectionMode = envelope?.mode
+
+                // Prefer the checklist the inspection was filled against (configSnapshot) so edits
+                // render the same questions even if the live config changed since.
+                var snapshotChecklist: InspectionChecklist? = null
+                var inspectionStrings: Map<String, String> = emptyMap()
+                if (envelope != null) {
+                    inspectionStrings = loadInspectionLocaleStrings(db)
+                    val snapshotCfg = envelope.configSnapshot?.get("inspectionChecklist") as? JsonObject
+                    if (snapshotCfg != null) {
+                        snapshotChecklist = parseInspectionChecklist(snapshotCfg.toString(), inspectionStrings)
+                        if (snapshotChecklist != null) {
+                            inspectionConfigRaw = snapshotCfg.toString()
+                            snapshotChecklistApplied = true
+                        }
+                    }
+                }
 
                 // One-shot read of cost lines for this entry
                 val drafts = db.logCostLineDao().observeAll(accountId)
@@ -264,7 +324,7 @@ class AddEditLogViewModel @Inject constructor(
                         assetType = assetType,
                         title = entity.title,
                         category = entity.category,
-                        logType = entity.data?.let { parseJsonField(it, "log_type") } ?: "service",
+                        logType = storedLogType ?: if (isInspection) "inspection" else "service",
                         entryDate = entity.entryDate,
                         notes = entity.notes ?: "",
                         performedByUserId = entity.performedByUserId,
@@ -282,9 +342,15 @@ class AddEditLogViewModel @Inject constructor(
                         inspectionMode = inspectionMode,
                         inspectionConfigId = entity.configId,
                         inspectionConfigVersion = entity.configVersion ?: 0L,
+                        inspectionChecklist = snapshotChecklist ?: state.inspectionChecklist,
+                        inspectionFields = if (snapshotChecklist != null) emptyList() else state.inspectionFields,
+                        inspectionStrings = inspectionStrings.ifEmpty { state.inspectionStrings },
                         itemAttributes = savedItemAttributes,
                         isLoadingExisting = false,
                     )
+                }
+                if (envelope != null && snapshotChecklist == null && !inspectionSubtype.isNullOrBlank()) {
+                    setInspectionSubtype(inspectionSubtype, inspectionMode, assetType)
                 }
                 // Load item attribute defs for the restored category (so Add Details is shown for edits)
                 if (!entity.category.isNullOrBlank()) {
@@ -353,7 +419,7 @@ class AddEditLogViewModel @Inject constructor(
                 }.distinct()
                 _form.update { it.copy(availableInspectionSubtypes = subtypes) }
                 // Auto-load "Base" subtype if available and none selected
-                if (_form.value.inspectionSubtype == null) {
+                if (_form.value.inspectionSubtype == null && !snapshotChecklistApplied) {
                     val defaultSubtype = when {
                         subtypes.contains("Base") -> "Base"
                         subtypes.isNotEmpty() -> subtypes.first()
@@ -380,6 +446,8 @@ class AddEditLogViewModel @Inject constructor(
                 val localeStrings = loadInspectionLocaleStrings(db)
                 val checklist = parseInspectionChecklist(config?.value, localeStrings)
                 val fields = if (checklist == null) parseInspectionFields(config?.value) else emptyList()
+                inspectionConfigRaw = config?.value
+                snapshotChecklistApplied = false
                 _form.update {
                     it.copy(
                         inspectionSubtype = subtype,
@@ -388,6 +456,7 @@ class AddEditLogViewModel @Inject constructor(
                         inspectionConfigVersion = config?.version ?: 0L,
                         inspectionFields = fields,
                         inspectionChecklist = checklist,
+                        inspectionStrings = localeStrings,
                     )
                 }
             } catch (e: Exception) {
@@ -416,6 +485,9 @@ class AddEditLogViewModel @Inject constructor(
                 val localeStrings = if (config?.scope == "Inspection") loadInspectionLocaleStrings(db) else emptyMap()
                 val checklist = parseInspectionChecklist(config?.value, localeStrings)
                 val fields = if (checklist == null) parseInspectionFields(config?.value) else emptyList()
+                // An edited inspection already renders the checklist it was filled against.
+                if (snapshotChecklistApplied) return@launch
+                inspectionConfigRaw = config?.value
                 if (config != null && config.scope == "Inspection") {
                     _form.update {
                         it.copy(
@@ -423,6 +495,7 @@ class AddEditLogViewModel @Inject constructor(
                             inspectionChecklist = checklist,
                             inspectionConfigId = config.configId,
                             inspectionConfigVersion = config.version,
+                            inspectionStrings = localeStrings,
                         )
                     }
                 } else {
@@ -690,8 +763,104 @@ class AddEditLogViewModel @Inject constructor(
 
     fun onInspectionAnswerChanged(key: String, value: String) {
         _form.update { state ->
-            state.copy(inspectionAnswers = state.inspectionAnswers + (key to value))
+            // An empty value removes the key so cleared answers / notes don't linger in data.values.
+            val answers = if (value.isEmpty()) state.inspectionAnswers - key else state.inspectionAnswers + (key to value)
+            state.copy(inspectionAnswers = answers)
         }
+    }
+
+    /** Marks a carried-forward defect "repaired" / "still_present"; tapping the active choice clears it. */
+    fun setOpenDefectResolution(key: String, resolution: String?) {
+        _form.update { state ->
+            val current = state.openDefectResolutions[key]
+            val next = if (resolution == null || current == resolution) {
+                state.openDefectResolutions - key
+            } else {
+                state.openDefectResolutions + (key to resolution)
+            }
+            state.copy(openDefectResolutions = next)
+        }
+    }
+
+    /**
+     * Loads open defects for [assetId] when starting a NEW inspection: the service's defect register
+     * first (GET /defects), falling back to replaying cached inspection history (contract §2) when
+     * the endpoint is unavailable (404/405), offline or failing.
+     */
+    fun loadOpenDefects(assetId: String?, isNewEntry: Boolean) {
+        if (!isNewEntry || assetId.isNullOrBlank()) {
+            openDefectsLoadedFor = null
+            _form.update { it.copy(inspectionOpenDefects = emptyList(), openDefectResolutions = emptyMap(), openDefectsLoading = false) }
+            return
+        }
+        if (openDefectsLoadedFor == assetId) return
+        openDefectsLoadedFor = assetId
+        val accountId = identity.getActiveAccountId() ?: return
+        _form.update { it.copy(openDefectsLoading = true, inspectionOpenDefects = emptyList(), openDefectResolutions = emptyMap()) }
+        viewModelScope.launch {
+            val defects = try {
+                when (val res = serviceClient.getDefects(accountId, assetId)) {
+                    is NetworkResult.Success -> InspectionV2.sortOpen(
+                        res.data.mapNotNull { it as? JsonObject }
+                            .map { InspectionV2.fromServerDefect(it) }
+                            .filter { it.status == "open" || it.status == "monitoring" || it.status == "deferred" },
+                    )
+                    else -> deriveOpenDefectsLocally(accountId, assetId)
+                }
+            } catch (e: Exception) {
+                Timber.w(e, "[AddEditLogViewModel] getDefects failed — deriving from local history")
+                runCatching { deriveOpenDefectsLocally(accountId, assetId) }.getOrDefault(emptyList())
+            }
+            if (openDefectsLoadedFor != assetId) return@launch
+            _form.update { it.copy(inspectionOpenDefects = defects, openDefectsLoading = false) }
+        }
+    }
+
+    private suspend fun deriveOpenDefectsLocally(accountId: String, assetId: String): List<InspectionV2.OpenDefect> {
+        val logs = dbFactory.get(accountId).logDao().observeAll(accountId).first()
+        val history = logs.filter { it.assetId == assetId && it.deletedAt == null }.map { log ->
+            InspectionV2.HistoryEntry(
+                logId = log.entryId,
+                assetId = log.assetId,
+                logDate = Instant.ofEpochMilli(log.entryDate).toString(),
+                category = log.category,
+                data = InspectionV2.parseDataObject(log.data),
+            )
+        }
+        return InspectionV2.deriveOpenDefects(history, excludeLogId = _form.value.entryId)
+    }
+
+    /** Localized display label for an `insp.*` key (defect labels, corner labels, section titles). */
+    fun inspectionLabel(key: String?): String? =
+        key?.let { _form.value.inspectionStrings[it] ?: humanizeIfKey(it) }
+
+    /** 409 → "Reload theirs": adopt the server row locally and reload the form from it. */
+    fun resolveConflictReloadTheirs() {
+        val current = _form.value.inspectionConflict ?: return
+        val accountId = identity.getActiveAccountId() ?: return
+        val entryId = _form.value.entryId
+        _form.update { it.copy(inspectionConflict = null) }
+        pendingOnSuccess = null
+        viewModelScope.launch {
+            try {
+                syncEngine.logEntityFromJson(current, accountId)?.let { dbFactory.get(accountId).logDao().upsert(it) }
+            } catch (e: Exception) {
+                Timber.e(e, "[AddEditLogViewModel] reload theirs: local upsert failed")
+            }
+            snapshotChecklistApplied = false
+            loadForEdit(entryId)
+        }
+    }
+
+    /** 409 → "Overwrite with mine": resend without expected_server_version. */
+    fun resolveConflictOverwrite() {
+        val onSuccess: (String) -> Unit = pendingOnSuccess ?: { _ -> }
+        _form.update { it.copy(inspectionConflict = null) }
+        save(onSuccess, overwrite = true)
+    }
+
+    fun dismissConflict() {
+        _form.update { it.copy(inspectionConflict = null) }
     }
 
     fun clearValidationError() {
@@ -752,7 +921,7 @@ class AddEditLogViewModel @Inject constructor(
     // Save
     // ---------------------------------------------------------------------------
 
-    fun save(onSuccess: (entryId: String) -> Unit) {
+    fun save(onSuccess: (entryId: String) -> Unit, overwrite: Boolean = false) {
         val current = _form.value
         val accountId = identity.getActiveAccountId()
 
@@ -777,14 +946,7 @@ class AddEditLogViewModel @Inject constructor(
                 val now = System.currentTimeMillis()
                 val entryId = current.entryId
 
-                val dataJson = buildDataJson(
-                    logType = current.logType,
-                    inspectionAnswers = current.inspectionAnswers,
-                    inspectionSubtype = current.inspectionSubtype,
-                    inspectionMode = current.inspectionMode,
-                    inspectionFields = current.inspectionFields,
-                    inspectionChecklist = current.inspectionChecklist,
-                )
+                val dataJson = buildDataJson(current)
 
                 val costMode = if (current.costMode == CostMode.ITEMIZED) "itemized" else "total"
                 val cost = when (current.costMode) {
@@ -842,8 +1004,36 @@ class AddEditLogViewModel @Inject constructor(
                     seq = null,
                 )
 
-                db.logDao().upsert(entity)
-                enqueueLogSync(accountId, entryId, now)
+                // Inspection updates go straight to the service with expected_server_version so a
+                // concurrent edit from another device/web surfaces as a 409 instead of being
+                // silently overwritten. Offline / other failures fall back to the queued sync path.
+                var remoteRow: JsonObject? = null
+                if (current.logType == "inspection" && originalServerVersion > 0L) {
+                    val body = buildUpdateBody(entity, expectedServerVersion = if (overwrite) null else originalServerVersion)
+                    when (val res = serviceClient.updateLog(accountId, entryId, body)) {
+                        is NetworkResult.Success -> remoteRow = res.data
+                        is NetworkResult.Error -> {
+                            val theirs = if (res.code == 409) conflictCurrentRow(res.message) else null
+                            if (theirs != null) {
+                                pendingOnSuccess = onSuccess
+                                _form.update { it.copy(isSaving = false, inspectionConflict = theirs) }
+                                return@launch
+                            }
+                            Timber.w("[AddEditLogViewModel] inspection PUT failed (${res.code}) — queuing sync")
+                        }
+                        else -> Timber.w("[AddEditLogViewModel] inspection PUT unauthorized — queuing sync")
+                    }
+                }
+
+                val stored = remoteRow?.let { syncEngine.logEntityFromJson(it, accountId) } ?: entity
+                db.logDao().upsert(stored)
+                if (remoteRow == null) {
+                    enqueueLogSync(accountId, entryId, now)
+                } else {
+                    originalServerVersion = stored.serverVersion
+                    storedData = InspectionV2.parseDataObject(stored.data)
+                }
+                pendingOnSuccess = null
 
                 // Upsert cost lines if itemized
                 if (current.costMode == CostMode.ITEMIZED) {
@@ -954,47 +1144,112 @@ class AddEditLogViewModel @Inject constructor(
     // JSON helpers (no external dep — plain string building)
     // ---------------------------------------------------------------------------
 
-    private fun buildDataJson(
-        logType: String,
-        inspectionAnswers: Map<String, String>,
-        inspectionSubtype: String? = null,
-        inspectionMode: String? = null,
-        inspectionFields: List<InspectionFieldDef> = emptyList(),
-        inspectionChecklist: InspectionChecklist? = null,
-    ): String? {
-        val parts = mutableListOf<String>()
-        parts += "\"log_type\":\"$logType\""
-        if (!inspectionSubtype.isNullOrBlank()) {
-            parts += "\"inspection_subtype\":\"${inspectionSubtype.replace("\"", "\\\"")}\""
+    /**
+     * Builds the `data` JSON for the entry. Always starts from the stored object (the entry being
+     * edited) so keys written by web/iOS/newer clients survive (contract rule 1).
+     *
+     * Inspections are written as the v2 envelope: answers under `values`, `envelopeVersion: 2`,
+     * recomputed `defects` / `result` / `outOfService`, `configSnapshot.inspectionChecklist` and any
+     * carried-forward defect resolutions in `resolvedDefects`.
+     */
+    private fun buildDataJson(current: AddEditLogFormState): String? {
+        val stored = storedData
+        if (current.logType != "inspection") {
+            if (stored == null) return null
+            val merged = LinkedHashMap<String, JsonElement>(stored)
+            merged["log_type"] = JsonPrimitive(current.logType)
+            return JsonObject(merged).toString()
         }
-        if (!inspectionMode.isNullOrBlank()) {
-            parts += "\"inspection_mode\":\"${inspectionMode.replace("\"", "\\\"")}\""
+
+        val checklist = current.inspectionChecklist ?: legacyChecklist(current.inspectionFields)
+        val values = current.inspectionAnswers
+        val defects = InspectionV2.collectDefects(checklist, values)
+        val summary = InspectionV2.computeResult(checklist, values)
+
+        // Older Android builds rendered read-only detail from configSnapshot.fields — keep feeding it.
+        val legacySnapshotFields = (checklist?.allItems() ?: emptyList()).map { item ->
+            JsonObject(
+                mapOf(
+                    "key" to JsonPrimitive(item.id),
+                    "label" to JsonPrimitive(item.text),
+                    "type" to JsonPrimitive(item.type),
+                ),
+            )
         }
-        inspectionAnswers.forEach { (k, v) ->
-            val escaped = v.replace("\\", "\\\\").replace("\"", "\\\"")
-            parts += "\"$k\":\"$escaped\""
+        val previousSnapshot = stored?.get("configSnapshot") as? JsonObject
+        val snapshot = InspectionV2.buildConfigSnapshot(
+            rawConfig = inspectionConfigRaw,
+            previous = previousSnapshot,
+            extra = if (legacySnapshotFields.isEmpty()) emptyMap()
+            else mapOf("fields" to kotlinx.serialization.json.JsonArray(legacySnapshotFields)),
+        )
+
+        val at = Instant.now().toString()
+        val resolved = current.inspectionOpenDefects.mapNotNull { d ->
+            current.openDefectResolutions[d.key]?.let { InspectionV2.resolvedEntry(d, it, at) }
         }
-        // Embed a stripped config snapshot so read mode can render without the configs table.
-        // Only embed when we have actual inspection fields (mirrors iOS AVRenderableConfigSnapshot).
-        // Prefer the resolved (localized) nested checklist so LogDetailScreen can show real question
-        // text instead of raw "insp.*" keys or item ids — this is the Android-side equivalent of the
-        // iOS raw-key bug fix (LogDetailScreen previously had no snapshot to read labels from at all).
-        if (logType == "inspection" && inspectionChecklist != null) {
-            val itemJsons = inspectionChecklist.allItems().joinToString(",") { item ->
-                "{\"key\":\"${item.id}\",\"label\":\"${item.text.replace("\"", "\\\"")}\",\"type\":\"${item.type}\"}"
-            }
-            parts += "\"configSnapshot\":{\"fields\":[$itemJsons]}"
-        } else if (logType == "inspection" && inspectionFields.isNotEmpty()) {
-            val fieldJsons = inspectionFields.joinToString(",") { field ->
-                val optStr = if (field.options.isEmpty()) "" else
-                    ",\"options\":[${field.options.joinToString(",") { "\"${it.replace("\"", "\\\"")}\"" }}]"
-                "{\"key\":\"${field.key}\",\"label\":\"${field.label.replace("\"", "\\\"")}\",\"type\":\"${field.type}\"$optStr}"
-            }
-            parts += "\"configSnapshot\":{\"fields\":[$fieldJsons]}"
-        }
-        return if (parts.size <= 1 && inspectionAnswers.isEmpty()) null else "{${parts.joinToString(",")}}"
+
+        return InspectionV2.buildEnvelope(
+            stored = stored,
+            values = values,
+            subtype = current.inspectionSubtype,
+            mode = current.inspectionMode,
+            configSnapshot = snapshot,
+            defects = defects,
+            result = summary.result,
+            outOfService = summary.outOfService,
+            newResolved = resolved,
+        ).toString()
     }
 
+    /** Wraps a legacy flat field list as a one-section checklist so defects/result can be computed. */
+    private fun legacyChecklist(fields: List<InspectionFieldDef>): InspectionChecklist? {
+        if (fields.isEmpty()) return null
+        val items = fields.map { f ->
+            InspectionItem(
+                id = f.key,
+                text = f.label,
+                type = if (f.type == "select") "select" else f.type,
+                options = if (f.type == "select") f.options.map { InspectionOption(value = it) } else emptyList(),
+            )
+        }
+        return InspectionChecklist(
+            title = "",
+            groups = listOf(InspectionGroup(id = "legacy", title = "", sections = listOf(InspectionSection("legacy", "", items)))),
+        )
+    }
+
+    /** PUT /log/:id body (service UpdateLogRequest) — `data` / `attributes` sent as JSON objects. */
+    private fun buildUpdateBody(entity: LogEntity, expectedServerVersion: Long?): JsonObject {
+        val body = LinkedHashMap<String, JsonElement>()
+        body["title"] = JsonPrimitive(entity.title)
+        val logDate = Instant.ofEpochMilli(entity.entryDate).atZone(ZoneId.systemDefault())
+            .toLocalDate().atTime(12, 0).toInstant(ZoneOffset.UTC)
+        body["log_date"] = JsonPrimitive(logDate.toString())
+        entity.odometerValue?.let { m ->
+            body["meter"] = JsonPrimitive(if (m % 1.0 == 0.0) m.toLong().toString() else m.toString())
+        }
+        entity.category?.let { body["category"] = JsonPrimitive(it) }
+        entity.cost?.let { body["cost"] = JsonPrimitive(it) }
+        entity.costMode?.let { body["cost_mode"] = JsonPrimitive(it) }
+        entity.performedBy?.let { body["performed_by"] = JsonPrimitive(it) }
+        body["performed_by_user_id"] = entity.performedByUserId?.let { JsonPrimitive(it) } ?: JsonNull
+        body["notes"] = JsonPrimitive(entity.notes ?: "")
+        InspectionV2.parseDataObject(entity.data)?.let { body["data"] = it }
+        InspectionV2.parseDataObject(entity.attributes)?.let { body["attributes"] = it }
+        entity.currency?.let { body["currency"] = JsonPrimitive(it) }
+        entity.baseAmount?.let { body["base_amount"] = JsonPrimitive(it) }
+        entity.exchangeRateUsed?.let { body["exchange_rate_used"] = JsonPrimitive(it) }
+        if (expectedServerVersion != null) body["expected_server_version"] = JsonPrimitive(expectedServerVersion)
+        return JsonObject(body)
+    }
+
+    /** The `current` row from a 409 VersionConflict body; null for other 409s (no `current`). */
+    private fun conflictCurrentRow(body: String): JsonObject? {
+        val obj = InspectionV2.parseDataObject(body) ?: return null
+        val error = (obj["error"] as? JsonPrimitive)?.content
+        return (obj["current"] as? JsonObject)?.takeIf { error == null || error == "conflict" }
+    }
 
     private fun buildAttributesJson(form: AddEditLogFormState): String? {
         val parts = mutableMapOf<String, String>()

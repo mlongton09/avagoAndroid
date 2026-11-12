@@ -10,6 +10,7 @@ import com.avago.core.data.db.entity.LogEntity
 import com.avago.core.data.db.entity.PhotoEntity
 import com.avago.core.data.repository.UserPreferencesRepository
 import com.avago.core.sync.SyncEngine
+import com.avago.feature.log.model.parseInspectionLocaleStrings
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -100,6 +101,29 @@ class LogDetailViewModel @Inject constructor(
     fun setEntryId(entryId: String) {
         _entryId.value = entryId
     }
+
+    /**
+     * Flat `insp.*` -> localized text map for the device locale (scope "Locale", key
+     * "Inspection_{locale}", falling back to en-us) — resolves defect / item labels in the
+     * read-only inspection card.
+     */
+    val inspectionStrings: StateFlow<Map<String, String>> = identity.activeAccountId.filterNotNull()
+        .flatMapLatest { accountId ->
+            flow {
+                val strings = try {
+                    val rows = dbFactory.get(accountId).configDao().getByPattern("Locale", "Inspection%")
+                    val locale = java.util.Locale.getDefault().toLanguageTag().lowercase()
+                    val row = rows.firstOrNull { it.key == "Inspection_$locale" }
+                        ?: rows.firstOrNull { it.key == "Inspection_en-us" }
+                        ?: rows.maxByOrNull { it.version }
+                    parseInspectionLocaleStrings(row?.value)
+                } catch (e: Exception) {
+                    Timber.e(e, "[LogDetailViewModel] inspection locale strings failed")
+                    emptyMap()
+                }
+                emit(strings)
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     fun deleteLog(onDeleted: () -> Unit) {
         val accountId = identity.getActiveAccountId() ?: return

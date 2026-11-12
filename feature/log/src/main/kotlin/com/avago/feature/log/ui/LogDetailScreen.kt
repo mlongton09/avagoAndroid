@@ -62,7 +62,9 @@ import coil3.compose.AsyncImage
 import com.avago.core.data.db.entity.LogCostLineEntity
 import com.avago.core.ui.categoryBadgeColor
 import com.avago.core.ui.categoryIconName
+import com.avago.feature.log.model.InspectionV2
 import com.avago.feature.log.viewmodel.LogDetailViewModel
+import kotlinx.serialization.json.JsonPrimitive
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -88,6 +90,7 @@ fun LogDetailScreen(
     val currencyCode by viewModel.currencyCode.collectAsState()
     val currencyRate by viewModel.currencyRate.collectAsState()
     val distanceUnit by viewModel.distanceUnit.collectAsState()
+    val inspectionStrings by viewModel.inspectionStrings.collectAsState()
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.isDeleted) {
@@ -166,16 +169,15 @@ fun LogDetailScreen(
                 // Conversion helper: multiply a USD base amount by the live rate.
                 fun convertUSD(usdAmount: Double) = usdAmount * currencyRate
 
-                val logType = remember(log.data) { parseJsonField(log.data, "log_type") ?: "service" }
-                // Strip the embedded configSnapshot before parsing top-level answers so its nested
-                // "key"/"label" pairs aren't picked up as bogus answer entries by the flat regex parser.
-                val inspectionItemLabels = remember(log.data) { parseInspectionItemLabels(log.data) }
-                val inspectionAnswers = remember(log.data) {
-                    val snapshot = log.data?.let { extractJsonObject(it, "configSnapshot") }
-                    val stripped = if (snapshot != null) log.data?.replace(snapshot, "") else log.data
-                    parseJsonMap(stripped).filterKeys {
-                        it != "log_type" && it != "inspection_subtype" && it != "inspection_mode"
-                    }
+                val inspectionData = remember(log.data) { InspectionV2.parseDataObject(log.data) }
+                val logType = remember(log.data, log.category) {
+                    (inspectionData?.get("log_type") as? JsonPrimitive)?.content
+                        ?: if (log.category?.lowercase()?.contains("inspect") == true) "inspection" else "service"
+                }
+                val hasInspectionContent = remember(log.data) {
+                    val env = InspectionV2.parseEnvelope(inspectionData)
+                    env.values.isNotEmpty() || env.defects.isNotEmpty() || env.signOff != null ||
+                        env.resolvedDefects.isNotEmpty() || env.certification != null || env.result != null
                 }
 
                 val isHoursMeter = distanceUnit.lowercase().let { it == "hrs" || it == "hours" || it == "hr" }
@@ -670,7 +672,7 @@ fun LogDetailScreen(
                     }
 
                     // ── 9. Inspection card ────────────────────────────────────────
-                    if (logType == "inspection" && inspectionAnswers.isNotEmpty()) {
+                    if (logType == "inspection" && hasInspectionContent) {
                         Spacer(Modifier.height(16.dp))
                         DetailCard(modifier = Modifier.padding(horizontal = 16.dp)) {
                             Row(
@@ -696,29 +698,7 @@ fun LogDetailScreen(
                                 color = MaterialTheme.colorScheme.outline,
                             )
                             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                                inspectionAnswers.entries
-                                    .filter { (k, _) -> k != "log_type" }
-                                    .forEach { (key, value) ->
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(vertical = 4.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                        ) {
-                                            Text(
-                                                text = inspectionItemLabels[key]
-                                                    ?: key.replace('_', ' ')
-                                                        .replaceFirstChar { it.uppercase() },
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                            Text(
-                                                text = value,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                fontWeight = FontWeight.Medium,
-                                            )
-                                        }
-                                    }
+                                InspectionEnvelopeDetail(data = inspectionData, strings = inspectionStrings)
                             }
                         }
                     }

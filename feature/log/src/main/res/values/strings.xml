@@ -101,5 +101,73 @@
 
     <!-- Itemize CTA with count (mirrors iOS log_cost.itemize_cta_count) -->
     <string name="log_cost_itemize_cta_count">Itemize parts &amp; labor (%1$d)</string>
+
+    <!-- Inspection v2: section "mark all" -->
+    <string name="log_inspection_opt_normal">Normal</string>
+    <string name="log_inspection_opt_monitor">Monitor</string>
+    <string name="log_inspection_opt_needs_repair">Needs Repair</string>
+    <string name="log_inspection_opt_na">N/A</string>
+    <string name="log_inspection_mark_all_cd">Mark all unanswered items as %1$s</string>
+    <string name="log_inspection_mark_all_title">Mark all as %1$s?</string>
+    <string name="log_inspection_mark_all_message">%1$d of the items in \"%2$s\" already have an answer. Overwrite them too, or only fill the unanswered items?</string>
+    <string name="log_inspection_mark_all_overwrite">Overwrite all</string>
+    <string name="log_inspection_mark_all_unanswered">Only unanswered</string>
+    <string name="log_inspection_mark_all_done">Marked %1$d items as %2$s</string>
+    <string name="log_inspection_mark_all_cleared">Cleared %1$d answers</string>
+    <string name="log_inspection_undo">Undo</string>
+
+    <!-- Inspection v2: per-defect details -->
+    <string name="log_inspection_defect_details">Defect details</string>
+    <string name="log_inspection_defect_severity">Severity</string>
+    <string name="log_inspection_severity_minor">Minor</string>
+    <string name="log_inspection_severity_major">Major</string>
+    <string name="log_inspection_severity_out_of_service">Out of service</string>
+    <string name="log_inspection_defect_location">Location</string>
+    <string name="log_inspection_defect_location_none">Not specified</string>
+    <string name="log_inspection_defect_note">Defect note</string>
+    <string name="log_inspection_loc_fl">Front-left wheel</string>
+    <string name="log_inspection_loc_fr">Front-right wheel</string>
+    <string name="log_inspection_loc_rl">Rear-left wheel</string>
+    <string name="log_inspection_loc_rr">Rear-right wheel</string>
+    <string name="log_inspection_loc_front">Front</string>
+    <string name="log_inspection_loc_rear">Rear</string>
+    <string name="log_inspection_loc_left">Left side</string>
+    <string name="log_inspection_loc_right">Right side</string>
+    <string name="log_inspection_loc_cab">Cab</string>
+    <string name="log_inspection_loc_bed">Bed</string>
+    <string name="log_inspection_loc_roof">Roof</string>
+    <string name="log_inspection_loc_under">Underside</string>
+    <string name="log_inspection_loc_interior">Interior</string>
+    <string name="log_inspection_loc_engine">Engine</string>
+
+    <!-- Inspection v2: open defects carried forward -->
+    <string name="log_inspection_open_defects_title">Open defects from previous inspections (%1$d)</string>
+    <string name="log_inspection_open_defects_reported">Reported %1$s</string>
+    <string name="log_inspection_defect_repaired">Repaired</string>
+    <string name="log_inspection_defect_still_present">Still present</string>
+    <string name="log_inspection_status_open">Open</string>
+    <string name="log_inspection_status_monitoring">Monitoring</string>
+    <string name="log_inspection_status_deferred">Deferred</string>
+
+    <!-- Inspection v2: optimistic concurrency -->
+    <string name="log_inspection_conflict_title">This inspection was changed by someone else</string>
+    <string name="log_inspection_conflict_message">Someone saved this inspection after you opened it. Reload their version (your changes are discarded) or overwrite it with yours.</string>
+    <string name="log_inspection_conflict_reload">Reload theirs</string>
+    <string name="log_inspection_conflict_overwrite">Overwrite with mine</string>
+
+    <!-- Inspection v2: read-only detail -->
+    <string name="log_detail_inspection_result">Result</string>
+    <string name="log_detail_inspection_result_pass">Pass</string>
+    <string name="log_detail_inspection_result_pass_with_defects">Pass with defects</string>
+    <string name="log_detail_inspection_result_fail">Fail</string>
+    <string name="log_detail_inspection_out_of_service">Vehicle out of service</string>
+    <string name="log_detail_inspection_defects">Defects (%1$d)</string>
+    <string name="log_detail_inspection_resolved">Previous defects re-checked (%1$d)</string>
+    <string name="log_detail_inspection_certification">Repair certification</string>
+    <string name="log_detail_inspection_cert_corrected">Defects corrected</string>
+    <string name="log_detail_inspection_cert_not_needed">Correction not needed for safe operation</string>
+    <string name="log_detail_inspection_signoff">Inspector sign-off</string>
+    <string name="log_detail_inspection_signed_by">Signed by %1$s</string>
+    <string name="log_detail_inspection_signed_by_on">Signed by %1$s on %2$s</string>
 </resources>
 

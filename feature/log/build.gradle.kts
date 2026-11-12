@@ -49,4 +49,11 @@ dependencies {
     implementation(project(":core:sync"))
     implementation(project(":core:network"))
     implementation(project(":feature:assets"))
+
+    testImplementation(libs.junit5)
+    testRuntimeOnly(libs.junit5.engine)
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
 }

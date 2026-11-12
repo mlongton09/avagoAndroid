@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Inspection v2: section "mark all" -->
+    <string name="log_inspection_opt_normal">Normal</string>
+    <string name="log_inspection_opt_monitor">Beobachten</string>
+    <string name="log_inspection_opt_needs_repair">Reparatur nötig</string>
+    <string name="log_inspection_opt_na">k. A.</string>
+    <string name="log_inspection_mark_all_cd">Alle unbeantworteten Punkte als %1$s markieren</string>
+    <string name="log_inspection_mark_all_title">Alle als %1$s markieren?</string>
+    <string name="log_inspection_mark_all_message">%1$d Punkte in „%2$s“ sind bereits beantwortet. Sollen diese ebenfalls überschrieben oder nur die unbeantworteten Punkte ausgefüllt werden?</string>
+    <string name="log_inspection_mark_all_overwrite">Alle überschreiben</string>
+    <string name="log_inspection_mark_all_unanswered">Nur unbeantwortete</string>
+    <string name="log_inspection_mark_all_done">%1$d Punkte als %2$s markiert</string>
+    <string name="log_inspection_mark_all_cleared">%1$d Antworten gelöscht</string>
+    <string name="log_inspection_undo">Rückgängig</string>
+
+    <!-- Inspection v2: per-defect details -->
+    <string name="log_inspection_defect_details">Mangeldetails</string>
+    <string name="log_inspection_defect_severity">Schweregrad</string>
+    <string name="log_inspection_severity_minor">Gering</string>
+    <string name="log_inspection_severity_major">Erheblich</string>
+    <string name="log_inspection_severity_out_of_service">Außer Betrieb</string>
+    <string name="log_inspection_defect_location">Position</string>
+    <string name="log_inspection_defect_location_none">Nicht angegeben</string>
+    <string name="log_inspection_defect_note">Notiz zum Mangel</string>
+    <string name="log_inspection_loc_fl">Rad vorne links</string>
+    <string name="log_inspection_loc_fr">Rad vorne rechts</string>
+    <string name="log_inspection_loc_rl">Rad hinten links</string>
+    <string name="log_inspection_loc_rr">Rad hinten rechts</string>
+    <string name="log_inspection_loc_front">Vorne</string>
+    <string name="log_inspection_loc_rear">Hinten</string>
+    <string name="log_inspection_loc_left">Linke Seite</string>
+    <string name="log_inspection_loc_right">Rechte Seite</string>
+    <string name="log_inspection_loc_cab">Kabine</string>
+    <string name="log_inspection_loc_bed">Ladefläche</string>
+    <string name="log_inspection_loc_roof">Dach</string>
+    <string name="log_inspection_loc_under">Unterboden</string>
+    <string name="log_inspection_loc_interior">Innenraum</string>
+    <string name="log_inspection_loc_engine">Motor</string>
+
+    <!-- Inspection v2: open defects carried forward -->
+    <string name="log_inspection_open_defects_title">Offene Mängel aus früheren Inspektionen (%1$d)</string>
+    <string name="log_inspection_open_defects_reported">Gemeldet am %1$s</string>
+    <string name="log_inspection_defect_repaired">Repariert</string>
+    <string name="log_inspection_defect_still_present">Weiterhin vorhanden</string>
+    <string name="log_inspection_status_open">Offen</string>
+    <string name="log_inspection_status_monitoring">Beobachtung</string>
+    <string name="log_inspection_status_deferred">Zurückgestellt</string>
+
+    <!-- Inspection v2: optimistic concurrency -->
+    <string name="log_inspection_conflict_title">Diese Inspektion wurde von jemand anderem geändert</string>
+    <string name="log_inspection_conflict_message">Jemand hat diese Inspektion gespeichert, nachdem Sie sie geöffnet haben. Laden Sie deren Version neu (Ihre Änderungen werden verworfen) oder überschreiben Sie sie mit Ihrer Version.</string>
+    <string name="log_inspection_conflict_reload">Deren Version laden</string>
+    <string name="log_inspection_conflict_overwrite">Mit meiner überschreiben</string>
+
+    <!-- Inspection v2: read-only detail -->
+    <string name="log_detail_inspection_result">Ergebnis</string>
+    <string name="log_detail_inspection_result_pass">Bestanden</string>
+    <string name="log_detail_inspection_result_pass_with_defects">Bestanden mit Mängeln</string>
+    <string name="log_detail_inspection_result_fail">Nicht bestanden</string>
+    <string name="log_detail_inspection_out_of_service">Fahrzeug außer Betrieb</string>
+    <string name="log_detail_inspection_defects">Mängel (%1$d)</string>
+    <string name="log_detail_inspection_resolved">Erneut geprüfte frühere Mängel (%1$d)</string>
+    <string name="log_detail_inspection_certification">Reparaturbescheinigung</string>
+    <string name="log_detail_inspection_cert_corrected">Mängel behoben</string>
+    <string name="log_detail_inspection_cert_not_needed">Behebung für den sicheren Betrieb nicht erforderlich</string>
+    <string name="log_detail_inspection_signoff">Abnahme durch Prüfer</string>
+    <string name="log_detail_inspection_signed_by">Unterzeichnet von %1$s</string>
+    <string name="log_detail_inspection_signed_by_on">Unterzeichnet von %1$s am %2$s</string>
+</resources>
