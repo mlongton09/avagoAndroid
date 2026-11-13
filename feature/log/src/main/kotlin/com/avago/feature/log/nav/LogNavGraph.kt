@@ -47,6 +47,8 @@ data class DefectWorkOrderRequest(
     val description: String?,
     val defectIds: List<String>,
     val inspectionLogId: String?,
+    /** Web `severityToPriority`: critical / high / medium. */
+    val priority: String? = null,
 )
 
 /**

@@ -30,7 +30,7 @@ object WorkOrderRoute {
     const val LIST = "workorders/list"
     const val DETAIL = "workorders/detail/{woId}"
     const val CREATE_EDIT = "workorders/create_edit?woId={woId}&assetId={assetId}&title={title}" +
-        "&description={description}&defectIds={defectIds}&inspectionLogId={inspectionLogId}"
+        "&description={description}&defectIds={defectIds}&inspectionLogId={inspectionLogId}&priority={priority}"
     const val DISPATCH_BOARD = "workorders/dispatch_board"
     const val CALENDAR = "workorders/calendar"
     const val AVAILABLE_JOBS = "workorders/available_jobs"
@@ -56,6 +56,7 @@ object WorkOrderRoute {
         description: String?,
         defectIds: List<String>,
         inspectionLogId: String?,
+        priority: String? = null,
     ): String = buildString {
         append("workorders/create_edit?woId=")
         assetId?.let { append("&assetId=").append(android.net.Uri.encode(it)) }
@@ -63,6 +64,7 @@ object WorkOrderRoute {
         description?.let { append("&description=").append(android.net.Uri.encode(it)) }
         if (defectIds.isNotEmpty()) append("&defectIds=").append(android.net.Uri.encode(defectIds.joinToString(",")))
         inspectionLogId?.let { append("&inspectionLogId=").append(android.net.Uri.encode(it)) }
+        priority?.let { append("&priority=").append(android.net.Uri.encode(it)) }
     }
     fun techProfile(techId: String) = "workorders/tech/$techId"
     fun costLinesEditor(woId: String) = "workorders/cost_lines/$woId"
@@ -154,7 +156,7 @@ fun NavGraphBuilder.workOrderNavGraph(
                     nullable = true
                     defaultValue = null
                 },
-            ) + listOf("assetId", "title", "description", "defectIds", "inspectionLogId").map { name ->
+            ) + listOf("assetId", "title", "description", "defectIds", "inspectionLogId", "priority").map { name ->
                 navArgument(name) {
                     type = NavType.StringType
                     nullable = true

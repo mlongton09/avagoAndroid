@@ -144,6 +144,7 @@ fun AvagoNavHost(
                             description = req.description,
                             defectIds = req.defectIds,
                             inspectionLogId = req.inspectionLogId,
+                            priority = req.priority,
                         ),
                     )
                 },

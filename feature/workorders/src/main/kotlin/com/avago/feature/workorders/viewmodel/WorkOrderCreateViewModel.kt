@@ -166,6 +166,7 @@ class WorkOrderCreateViewModel @Inject constructor(
             }
             savedStateHandle.get<String>("title")?.takeIf { it.isNotBlank() }?.let { title.value = it }
             savedStateHandle.get<String>("description")?.takeIf { it.isNotBlank() }?.let { description.value = it }
+            savedStateHandle.get<String>("priority")?.takeIf { it.isNotBlank() }?.let { priority.value = WoPriority.fromKey(it) }
             savedStateHandle.get<String>("assetId")?.takeIf { it.isNotBlank() }?.let { onAssetSelected(it) }
         }
         if (editingWoId != null) {
