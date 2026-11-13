@@ -335,10 +335,11 @@
     <string name="log_insp_ok">OK</string>
     <string name="log_insp_pass">Pass</string>
     <string name="log_insp_fail">Fail</string>
-    <string name="log_scan_asset">Scan asset barcode or VIN</string>
     <string name="log_share_report">Share report</string>
     <string name="log_share_report_subject">Inspection report: %1$s</string>
     <string name="log_insp_wo_location">Location</string>
     <string name="log_insp_wo_note">Note</string>
+    <string name="log_shortcut_start_inspection">Start inspection</string>
+    <string name="log_shortcut_start_inspection_long">Start a new inspection</string>
 </resources>
 

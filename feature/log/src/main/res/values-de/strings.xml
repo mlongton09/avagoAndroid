@@ -235,9 +235,10 @@
     <string name="log_insp_ok">OK</string>
     <string name="log_insp_pass">Bestanden</string>
     <string name="log_insp_fail">Nicht bestanden</string>
-    <string name="log_scan_asset">Barcode oder FIN scannen</string>
     <string name="log_share_report">Bericht teilen</string>
     <string name="log_share_report_subject">Prüfbericht: %1$s</string>
     <string name="log_insp_wo_location">Position</string>
     <string name="log_insp_wo_note">Notiz</string>
+    <string name="log_shortcut_start_inspection">Inspektion starten</string>
+    <string name="log_shortcut_start_inspection_long">Neue Inspektion starten</string>
 </resources>

@@ -29,6 +29,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.CircularProgressIndicator
@@ -64,6 +66,8 @@ import com.avago.core.ui.categoryBadgeColor
 import com.avago.core.ui.categoryIconName
 import com.avago.feature.log.model.InspectionV2
 import com.avago.feature.log.viewmodel.LogDetailViewModel
+import androidx.compose.ui.res.stringResource
+import com.avago.feature.log.R
 import kotlinx.serialization.json.JsonPrimitive
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
@@ -126,6 +130,17 @@ fun LogDetailScreen(
                     }
                 },
                 actions = {
+                    val log = state.log
+                    val shareContext = LocalContext.current
+                    val isInspection = log != null && (
+                        log.category?.lowercase()?.contains("inspect") == true ||
+                            ((InspectionV2.parseDataObject(log.data)?.get("log_type") as? JsonPrimitive)?.content == "inspection")
+                        )
+                    if (log != null && isInspection) {
+                        IconButton(onClick = { InspectionReportShare.share(shareContext, log.assetId, log.entryId, log.title) }) {
+                            Icon(Icons.Default.Share, contentDescription = stringResource(R.string.log_share_report))
+                        }
+                    }
                     IconButton(onClick = { onEdit(entryId) }) {
                         Icon(Icons.Default.Edit, contentDescription = "Edit")
                     }

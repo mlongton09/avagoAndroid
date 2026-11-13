@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -650,6 +651,12 @@ fun AddEditLogScreen(
                     }
                 },
                 actions = {
+                    val shareAssetId = form.assetId
+                    if (entryId != null && form.logType == "inspection" && shareAssetId != null) {
+                        IconButton(onClick = { InspectionReportShare.share(context, shareAssetId, form.entryId, form.title) }) {
+                            Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.log_share_report))
+                        }
+                    }
                     if (form.logType == "inspection" && form.inspectionChecklist != null) {
                         IconButton(onClick = { showVoiceFill = true }) {
                             Icon(Icons.Filled.Mic, contentDescription = stringResource(R.string.log_insp_voice_title))
