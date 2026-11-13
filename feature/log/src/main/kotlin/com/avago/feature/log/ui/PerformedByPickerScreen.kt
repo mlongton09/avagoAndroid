@@ -36,7 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.db.entity.UserEntity
 import com.avago.feature.log.viewmodel.PerformedByPickerViewModel

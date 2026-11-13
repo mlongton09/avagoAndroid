@@ -2,7 +2,7 @@ package com.avago.core.permissions.compose
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 
 /**
  * Returns true if the current user has the given [permission].

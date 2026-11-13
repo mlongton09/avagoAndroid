@@ -1,6 +1,5 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.ksp)
@@ -11,7 +10,7 @@ plugins {
 
 android {
     namespace = "com.avago"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.avago"
@@ -56,10 +55,6 @@ android {
         isCoreLibraryDesugaringEnabled = true
     }
 
-    kotlinOptions {
-        jvmTarget = "21"
-    }
-
     buildFeatures {
         compose = true
         buildConfig = true
@@ -91,7 +86,7 @@ dependencies {
     implementation(libs.lifecycle.process)
 
     implementation(libs.hilt.android)
-    implementation(libs.hilt.nav.compose)
+    implementation(libs.hilt.lifecycle.viewmodel.compose)
     ksp(libs.hilt.compiler)
 
     implementation(libs.work.runtime)

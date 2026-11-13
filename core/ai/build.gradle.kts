@@ -1,6 +1,5 @@
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
@@ -9,14 +8,13 @@ plugins {
 
 android {
     namespace = "com.avago.core.ai"
-    compileSdk = 36
+    compileSdk = 37
     defaultConfig { minSdk = 26 }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
     }
-    kotlinOptions { jvmTarget = "21" }
 
     buildFeatures { compose = true }
 }
@@ -41,13 +39,20 @@ dependencies {
 
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.lifecycle.runtime.compose)
-    implementation(libs.hilt.nav.compose)
+    implementation(libs.hilt.lifecycle.viewmodel.compose)
+    implementation(libs.activity.compose)
     implementation(libs.coroutines.android)
     implementation(libs.timber)
 
     testImplementation(libs.junit5)
+    testImplementation(platform(libs.junit.bom))
     testRuntimeOnly(libs.junit5.engine)
+    testRuntimeOnly(libs.junit.platform.launcher)
     testImplementation(libs.mockk)
     testImplementation(libs.coroutines.test)
     testImplementation(libs.turbine)
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
 }

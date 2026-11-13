@@ -1,6 +1,5 @@
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
@@ -8,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.avago.feature.settings"
-    compileSdk = 36
+    compileSdk = 37
     defaultConfig {
         minSdk = 26
         val baseUrl = project.findProperty("avago.base.url") as? String ?: "https://api.avagomate.com"
@@ -22,7 +21,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
     }
-    kotlinOptions { jvmTarget = "21" }
     buildFeatures {
         compose = true
         buildConfig = true
@@ -38,7 +36,7 @@ dependencies {
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.hilt.android)
-    implementation(libs.hilt.nav.compose)
+    implementation(libs.hilt.lifecycle.viewmodel.compose)
     ksp(libs.hilt.compiler)
     implementation(libs.coroutines.android)
     implementation(libs.timber)
