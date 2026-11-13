@@ -1,6 +1,7 @@
 package com.avago.feature.log.viewmodel
 
 import android.net.Uri
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
@@ -14,7 +15,10 @@ import com.avago.core.data.repository.UserPreferencesRepository
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
 import com.avago.core.sync.SyncEngine
+import com.avago.feature.log.data.InspectionDraftStore
 import com.avago.feature.log.model.InspectionChecklist
+import com.avago.feature.log.model.InspectionDraft
+import com.avago.feature.log.model.InspectionValidation
 import com.avago.feature.log.model.InspectionFieldDef
 import com.avago.feature.log.model.InspectionGroup
 import com.avago.feature.log.model.InspectionItem
@@ -35,6 +39,8 @@ import com.avago.feature.log.model.parseInspectionChecklist
 import com.avago.feature.log.model.parseInspectionFields
 import com.avago.feature.log.model.parseInspectionLocaleStrings
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -62,6 +68,18 @@ enum class CostMode { TOTAL, ITEMIZED }
 enum class LogValidationError { TITLE_REQUIRED, NO_ASSET, NO_ACCOUNT, FUEL_VOLUME_REQUIRED }
 
 data class LogVendorOption(val vendorId: String, val name: String)
+
+/** Inspection items blocking save (web requiredMissing / notesMissing), plus certification name. */
+data class InspectionSaveIssues(
+    val required: List<InspectionValidation.FocusTarget> = emptyList(),
+    val notes: List<InspectionValidation.FocusTarget> = emptyList(),
+    val certificationNameMissing: Boolean = false,
+) {
+    val isEmpty: Boolean get() = required.isEmpty() && notes.isEmpty() && !certificationNameMissing
+}
+
+/** Sync state of the entry being edited, from the sync queue row log_<entryId>. */
+enum class LogSyncStatus { SAVED, PENDING, CONFLICT }
 
 data class LogWoOption(val woId: String, val title: String, val status: String?)
 
@@ -182,6 +200,22 @@ data class AddEditLogFormState(
     // Number of value keys this device changed (applied on top of the server version on "keep mine").
     val conflictMineCount: Int = 0,
 
+    // Inspector sign-off and DVIR certification (web signOff / certification envelope keys).
+    val signOff: InspectionV2.SignOff? = null,
+    val certification: InspectionV2.Certification? = null,
+    // Blocking validation shown before save (missing required answers / defect notes).
+    val inspectionIssues: InspectionSaveIssues? = null,
+    // Non-blocking meter sanity warning; "Save anyway" re-runs save without the check.
+    val meterIssue: InspectionValidation.MeterIssue? = null,
+    // Latest earlier meter reading of this asset (hint + sanity check).
+    val lastMeter: InspectionValidation.MeterPoint? = null,
+    // Draft autosave: epoch millis of the restored draft (banner) and a newer server draft offer.
+    val restoredDraftAt: Long? = null,
+    val serverDraftOffer: InspectionDraft? = null,
+    val syncStatus: LogSyncStatus? = null,
+    // High-contrast "sunlight mode" (persisted in DataStore via UserPreferencesRepository).
+    val sunlightMode: Boolean = false,
+
     // Category-specific item attributes
     val itemAttributes: Map<String, String> = emptyMap(),
     val itemAttributeDefs: List<ItemAttributeDef> = emptyList(),
@@ -225,6 +259,8 @@ class AddEditLogViewModel @Inject constructor(
     private val formFillRouter: FormFillRouter,
     private val serviceClient: AvagoServiceClient,
     private val textRecognizer: AvagoTextRecognizer,
+    private val draftStore: InspectionDraftStore,
+    private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
     /** Attributes as last stored (edit mode). Every key not edited by this form is preserved on save. */
@@ -238,6 +274,9 @@ class AddEditLogViewModel @Inject constructor(
             val distanceUnit = userPrefsRepository.distanceUnitFlow.first()
             val fuelUnit = userPrefsRepository.fuelVolumeUnitFlow.first()
             _form.update { it.copy(distanceUnit = distanceUnit, fuelVolumeUnit = fuelUnit) }
+        }
+        viewModelScope.launch {
+            userPrefsRepository.sunlightModeFlow.collect { on -> _form.update { it.copy(sunlightMode = on) } }
         }
     }
 
@@ -273,7 +312,9 @@ class AddEditLogViewModel @Inject constructor(
         return touched
     }
 
-    private val _form = MutableStateFlow(AddEditLogFormState())
+    private val _form = MutableStateFlow(
+        savedStateHandle.get<String>(KEY_NEW_ENTRY_ID)?.let { AddEditLogFormState(entryId = it) } ?: AddEditLogFormState(),
+    )
     val form: StateFlow<AddEditLogFormState> = _form.asStateFlow()
 
     init {
@@ -309,6 +350,7 @@ class AddEditLogViewModel @Inject constructor(
                     return@launch
                 }
                 originalCreatedAt = entity.createdAt
+                originalMeterText = entity.odometerValue?.toString() ?: ""
                 originalServerVersion = entity.serverVersion
 
                 val dataObj = InspectionV2.parseDataObject(entity.data)
@@ -321,6 +363,10 @@ class AddEditLogViewModel @Inject constructor(
                 originalValues = inspectionAnswers
                 val inspectionSubtype = envelope?.subtype
                 val inspectionMode = envelope?.mode
+                storedSignOff = envelope?.signOff
+                storedCertification = envelope?.certification
+                signOffDirty = false
+                certificationDirty = false
 
                 // Prefer the checklist the inspection was filled against (configSnapshot) so edits
                 // render the same questions even if the live config changed since.
@@ -421,6 +467,8 @@ class AddEditLogViewModel @Inject constructor(
                         inspectionFields = if (snapshotChecklist != null) emptyList() else state.inspectionFields,
                         inspectionStrings = inspectionStrings.ifEmpty { state.inspectionStrings },
                         itemAttributes = savedItemAttributes,
+                        signOff = envelope?.signOff,
+                        certification = envelope?.certification,
                         isLoadingExisting = false,
                     )
                 }
@@ -434,6 +482,9 @@ class AddEditLogViewModel @Inject constructor(
                 // Load available categories so the category picker is populated for edits
                 loadCategories(assetType)
                 loadAssetContext(entity.assetId)
+                loadMeterHistory(entity.assetId)
+                observeSyncStatus(accountId, entity.entryId)
+                if (envelope != null) restoreDraft(accountId, entity.assetId, entity.entryId)
             } catch (e: Exception) {
                 Timber.e(e, "[AddEditLogViewModel] loadForEdit failed")
                 _form.update { it.copy(isLoadingExisting = false) }
@@ -731,6 +782,7 @@ class AddEditLogViewModel @Inject constructor(
 
     fun onAssetSelected(assetId: String, assetName: String?) {
         _form.update { it.copy(assetId = assetId, assetName = assetName) }
+        loadMeterHistory(assetId)
         val accountId = identity.getActiveAccountId() ?: return
         // Load asset details first so assetType is known before reloading categories/inspection
         viewModelScope.launch {
@@ -1034,6 +1086,18 @@ class AddEditLogViewModel @Inject constructor(
             val answers = if (value.isEmpty()) state.inspectionAnswers - key else state.inspectionAnswers + (key to value)
             state.copy(inspectionAnswers = answers)
         }
+        scheduleDraftSave()
+    }
+
+    /** Applies several value writes at once (measurements + their severity, mark all, voice fill). */
+    fun onInspectionAnswersChanged(writes: List<Pair<String, String>>) {
+        if (writes.isEmpty()) return
+        _form.update { state ->
+            var answers = state.inspectionAnswers
+            writes.forEach { (k, v) -> answers = if (v.isEmpty()) answers - k else answers + (k to v) }
+            state.copy(inspectionAnswers = answers)
+        }
+        scheduleDraftSave()
     }
 
     /** Marks a carried-forward defect "repaired" / "still_present"; tapping the active choice clears it. */
@@ -1047,6 +1111,7 @@ class AddEditLogViewModel @Inject constructor(
             }
             state.copy(openDefectResolutions = next)
         }
+        scheduleDraftSave()
     }
 
     /**
@@ -1144,7 +1209,7 @@ class AddEditLogViewModel @Inject constructor(
                 inspectionAnswers = InspectionV2.rebaseValues(theirsValues, mine),
             )
         }
-        save(onSuccess)
+        save(onSuccess, skipMeterCheck = true)
     }
 
     fun dismissConflict() {
@@ -1156,6 +1221,268 @@ class AddEditLogViewModel @Inject constructor(
 
     fun clearValidationError() {
         _form.update { it.copy(validationError = null) }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Sign-off / certification
+    // ---------------------------------------------------------------------------
+
+    private var storedSignOff: InspectionV2.SignOff? = null
+    private var storedCertification: InspectionV2.Certification? = null
+    /** Only a touched sign-off / certification is written, so a web-set value is never clobbered. */
+    private var signOffDirty = false
+    private var certificationDirty = false
+
+    fun setSignOff(value: InspectionV2.SignOff?) {
+        signOffDirty = true
+        _form.update { it.copy(signOff = value) }
+        scheduleDraftSave()
+    }
+
+    fun setCertification(value: InspectionV2.Certification?) {
+        certificationDirty = true
+        _form.update { it.copy(certification = value) }
+        scheduleDraftSave()
+    }
+
+    // ---------------------------------------------------------------------------
+    // Validation / meter sanity
+    // ---------------------------------------------------------------------------
+
+    private var meterPoints: List<InspectionValidation.MeterPoint> = emptyList()
+    private var originalMeterText: String? = null
+    private var meterPendingOnSuccess: ((String) -> Unit)? = null
+
+    fun clearInspectionIssues() = _form.update { it.copy(inspectionIssues = null) }
+
+    fun dismissMeterIssue() {
+        meterPendingOnSuccess = null
+        _form.update { it.copy(meterIssue = null) }
+    }
+
+    fun saveIgnoringMeter() {
+        val cb = meterPendingOnSuccess ?: return
+        meterPendingOnSuccess = null
+        _form.update { it.copy(meterIssue = null) }
+        save(cb, skipMeterCheck = true)
+    }
+
+    fun setSunlightMode(enabled: Boolean) {
+        viewModelScope.launch { userPrefsRepository.setSunlightMode(enabled) }
+    }
+
+    private fun loadMeterHistory(assetId: String) {
+        val accountId = identity.getActiveAccountId() ?: return
+        viewModelScope.launch {
+            runCatching {
+                val logs = dbFactory.get(accountId).logDao().observeAll(accountId).first()
+                meterPoints = logs.filter { it.assetId == assetId && it.deletedAt == null }
+                    .mapNotNull { l -> l.odometerValue?.let { InspectionValidation.MeterPoint(it, l.entryDate, l.entryId) } }
+                val entryId = _form.value.entryId
+                val last = meterPoints.filter { it.logId != entryId && it.value > 0 }.maxByOrNull { it.atMs }
+                _form.update { it.copy(lastMeter = last) }
+            }.onFailure { Timber.w(it, "[AddEditLogViewModel] meter history failed") }
+        }
+    }
+
+    private fun meterIssueFor(s: AddEditLogFormState): InspectionValidation.MeterIssue? {
+        if (s.meterReading == originalMeterText) return null
+        val kind = if (s.meterType?.lowercase() in setOf("hours", "hour", "hr", "engine_hours")) {
+            InspectionValidation.METER_ENGINE_HOURS
+        } else {
+            InspectionValidation.METER_ODOMETER
+        }
+        val zone = ZoneId.systemDefault()
+        val cutoff = Instant.ofEpochMilli(s.entryDate).atZone(zone).toLocalDate().plusDays(1)
+            .atStartOfDay(zone).toInstant().toEpochMilli() - 1
+        return InspectionValidation.checkMeterSanity(
+            entered = InspectionValidation.parseMeterValue(s.meterReading),
+            enteredAtMs = s.entryDate,
+            cutoffMs = cutoff,
+            points = meterPoints,
+            kind = kind,
+            excludeLogId = s.entryId,
+        )
+    }
+
+    // ---------------------------------------------------------------------------
+    // Drafts (DataStore + SavedStateHandle, mirrored to the server drafts API)
+    // ---------------------------------------------------------------------------
+
+    private var draftJob: Job? = null
+    private var serverDraftJob: Job? = null
+    private var draftRestoreAttempted = false
+    private val draftKeysToClear = mutableSetOf<String>()
+
+    private val isExistingEntry: Boolean get() = originalCreatedAt != null
+
+    private fun currentDraft(): InspectionDraft? {
+        val s = _form.value
+        val acct = identity.getActiveAccountId() ?: return null
+        if (s.logType != "inspection") return null
+        val logId = if (isExistingEntry) s.entryId else null
+        return InspectionDraft(
+            acct = acct,
+            assetId = s.assetId,
+            logId = logId,
+            savedAt = System.currentTimeMillis(),
+            baseServerVersion = originalServerVersion.takeIf { it > 0 },
+            category = s.category,
+            configId = s.inspectionConfigId,
+            mode = s.inspectionMode,
+            subtype = s.inspectionSubtype,
+            values = s.inspectionAnswers,
+            resolutions = s.openDefectResolutions,
+            signOff = s.signOff.takeIf { signOffDirty },
+            certification = s.certification.takeIf { certificationDirty },
+            form = buildMap {
+                if (s.title.isNotBlank() && !s.isTitleHint) put("title", s.title)
+                put("log_date", Instant.ofEpochMilli(s.entryDate).atZone(ZoneId.systemDefault()).toLocalDate().toString())
+                if (s.meterReading.isNotBlank()) put("meter", s.meterReading)
+                if (s.notes.isNotBlank()) put("notes", s.notes)
+                s.performedByName?.let { put("performed_by", it) }
+                s.performedByUserId?.let { put("performed_by_user_id", it) }
+            },
+            entryId = if (isExistingEntry) null else s.entryId,
+            edits = if (isExistingEntry) InspectionV2.diffValues(originalValues, s.inspectionAnswers) else null,
+        )
+    }
+
+    private fun isMeaningful(d: InspectionDraft): Boolean =
+        (d.edits?.let { !it.isEmpty() } ?: (d.values != originalValues)) ||
+            d.resolutions.isNotEmpty() || d.signOff != null || d.certification != null
+
+    private fun scheduleDraftSave() {
+        draftJob?.cancel()
+        draftJob = viewModelScope.launch {
+            delay(1_500)
+            val d = currentDraft()?.takeIf { isMeaningful(it) } ?: return@launch
+            if (!isExistingEntry) savedStateHandle[KEY_NEW_ENTRY_ID] = _form.value.entryId
+            savedStateHandle[KEY_DRAFT] = d.toJson().toString()
+            draftKeysToClear += d.key
+            draftStore.save(d)
+        }
+        serverDraftJob?.cancel()
+        serverDraftJob = viewModelScope.launch {
+            delay(10_000)
+            currentDraft()?.takeIf { isMeaningful(it) }?.let { draftStore.pushServer(it) }
+        }
+    }
+
+    /** New entries: restores a local draft for this account / asset (called once from the screen). */
+    fun restoreNewDraft(assetId: String?) {
+        val acct = identity.getActiveAccountId() ?: return
+        viewModelScope.launch { restoreDraft(acct, assetId, null) }
+    }
+
+    private suspend fun restoreDraft(acct: String, assetId: String?, logId: String?) {
+        if (draftRestoreAttempted) return
+        draftRestoreAttempted = true
+        val key = InspectionDraft.draftKey(acct, assetId, logId)
+        draftKeysToClear += key
+        val fromState = savedStateHandle.get<String>(KEY_DRAFT)?.let { raw ->
+            runCatching { InspectionDraft.fromJson(draftJson.parseToJsonElement(raw) as? JsonObject) }.getOrNull()
+        }?.takeIf { it.key == key }
+        val local = listOfNotNull(fromState, draftStore.load(key)).maxByOrNull { it.savedAt }
+        if (local != null && isMeaningful(local)) applyDraft(local)
+        if (assetId != null) {
+            val server = draftStore.fetchServer(acct, assetId, logId)
+            if (server != null && server.savedAt > (local?.savedAt ?: 0L) + 5_000 &&
+                server.values.isNotEmpty() && isMeaningful(server)
+            ) {
+                _form.update { it.copy(serverDraftOffer = server) }
+            }
+        }
+    }
+
+    private fun applyDraft(d: InspectionDraft) {
+        val before = _form.value
+        // Android drafts carry the edit diff, so a draft restored onto a newer server version only
+        // re-applies this device's changes; web drafts carry full values.
+        val values = d.edits?.let { InspectionV2.rebaseValues(originalValues, it) } ?: d.values
+        if (d.signOff != null) signOffDirty = true
+        if (d.certification != null) certificationDirty = true
+        _form.update { s ->
+            s.copy(
+                entryId = if (!isExistingEntry) d.entryId ?: s.entryId else s.entryId,
+                logType = "inspection",
+                category = d.category ?: s.category,
+                inspectionSubtype = if (isExistingEntry) s.inspectionSubtype else d.subtype ?: s.inspectionSubtype,
+                inspectionMode = if (isExistingEntry) s.inspectionMode else d.mode ?: s.inspectionMode,
+                inspectionAnswers = values,
+                openDefectResolutions = d.resolutions,
+                signOff = d.signOff ?: s.signOff,
+                certification = d.certification ?: s.certification,
+                title = d.form["title"]?.takeIf { it.isNotBlank() } ?: s.title,
+                isTitleHint = if (d.form["title"].isNullOrBlank()) s.isTitleHint else false,
+                notes = d.form["notes"] ?: s.notes,
+                meterReading = d.form["meter"] ?: s.meterReading,
+                restoredDraftAt = d.savedAt,
+                serverDraftOffer = null,
+            )
+        }
+        val subtype = d.subtype
+        if (!isExistingEntry && !subtype.isNullOrBlank() && (subtype != before.inspectionSubtype || before.inspectionChecklist == null)) {
+            setInspectionSubtype(subtype, d.mode, before.assetType)
+        }
+    }
+
+    fun acceptServerDraft() {
+        _form.value.serverDraftOffer?.let { applyDraft(it); scheduleDraftSave() }
+    }
+
+    fun dismissServerDraft() = _form.update { it.copy(serverDraftOffer = null) }
+
+    fun dismissRestoredDraftBanner() = _form.update { it.copy(restoredDraftAt = null) }
+
+    /** Drops the restored draft and returns the form to the stored entry (or a blank inspection). */
+    fun discardDraft() {
+        draftJob?.cancel()
+        serverDraftJob?.cancel()
+        clearStoredDrafts()
+        signOffDirty = false
+        certificationDirty = false
+        _form.update {
+            it.copy(
+                inspectionAnswers = originalValues,
+                openDefectResolutions = emptyMap(),
+                signOff = storedSignOff,
+                certification = storedCertification,
+                restoredDraftAt = null,
+                serverDraftOffer = null,
+            )
+        }
+    }
+
+    private fun clearStoredDrafts() {
+        savedStateHandle.remove<String>(KEY_DRAFT)
+        savedStateHandle.remove<String>(KEY_NEW_ENTRY_ID)
+        currentDraft()?.key?.let { draftKeysToClear += it }
+        val keys = draftKeysToClear.toList()
+        draftKeysToClear.clear()
+        viewModelScope.launch { keys.forEach { draftStore.remove(it) } }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Sync status
+    // ---------------------------------------------------------------------------
+
+    private var syncStatusJob: Job? = null
+
+    private fun observeSyncStatus(accountId: String, entryId: String) {
+        syncStatusJob?.cancel()
+        syncStatusJob = viewModelScope.launch {
+            runCatching {
+                dbFactory.get(accountId).syncQueueDao().observeById("log_").collect { row ->
+                    val status = when (row?.syncStatus) {
+                        null -> LogSyncStatus.SAVED
+                        "conflict" -> LogSyncStatus.CONFLICT
+                        else -> LogSyncStatus.PENDING
+                    }
+                    _form.update { it.copy(syncStatus = status) }
+                }
+            }.onFailure { Timber.w(it, "[AddEditLogViewModel] sync status observe failed") }
+        }
     }
 
     // ---------------------------------------------------------------------------
@@ -1212,7 +1539,7 @@ class AddEditLogViewModel @Inject constructor(
     // Save
     // ---------------------------------------------------------------------------
 
-    fun save(onSuccess: (entryId: String) -> Unit) {
+    fun save(onSuccess: (entryId: String) -> Unit, skipMeterCheck: Boolean = false) {
         val current = _form.value
         val accountId = identity.getActiveAccountId()
 
@@ -1232,6 +1559,25 @@ class AddEditLogViewModel @Inject constructor(
         if (current.isFuel && current.fuelVolume.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 } == null) {
             _form.update { it.copy(validationError = LogValidationError.FUEL_VOLUME_REQUIRED) }
             return
+        }
+        if (current.logType == "inspection") {
+            val checklist = current.inspectionChecklist ?: legacyChecklist(current.inspectionFields)
+            val issues = InspectionSaveIssues(
+                required = InspectionValidation.missingRequired(checklist, current.inspectionAnswers),
+                notes = InspectionValidation.missingDefectNotes(checklist, current.inspectionAnswers),
+                certificationNameMissing = current.certification != null && current.certification.name.isBlank(),
+            )
+            if (!issues.isEmpty) {
+                _form.update { it.copy(inspectionIssues = issues) }
+                return
+            }
+        }
+        if (!skipMeterCheck) {
+            meterIssueFor(current)?.let { issue ->
+                meterPendingOnSuccess = onSuccess
+                _form.update { it.copy(meterIssue = issue) }
+                return
+            }
         }
 
         _form.update { it.copy(isSaving = true, saveError = null) }
@@ -1396,6 +1742,9 @@ class AddEditLogViewModel @Inject constructor(
                 // Trigger push
                 syncEngine.pushIfNeeded()
 
+                draftJob?.cancel()
+                serverDraftJob?.cancel()
+                clearStoredDrafts()
                 _form.update { it.copy(isSaving = false, savedEntryId = entryId) }
                 Timber.d("[AddEditLogViewModel] Saved log $entryId")
                 onSuccess(entryId)
@@ -1512,6 +1861,12 @@ class AddEditLogViewModel @Inject constructor(
             outOfService = summary.outOfService,
             newResolved = resolved,
             clearedKeys = cleared,
+            signOff = if (signOffDirty) with(InspectionV2) { current.signOff?.toJson() } ?: JsonNull else null,
+            certification = if (certificationDirty) {
+                with(InspectionV2) { current.certification?.toJson(stored?.get("certification") as? JsonObject) } ?: JsonNull
+            } else {
+                null
+            },
         ).toString()
     }
 
@@ -1794,3 +2149,7 @@ internal fun toContractVolumeUnit(u: String): String = LogPacks.normalizeVolumeU
 
 /** Stored fuel_volume_unit (incl. legacy gal / L) → form unit. */
 internal fun fromContractVolumeUnit(u: String): String = LogPacks.normalizeVolumeUnit(u) ?: u
+
+private const val KEY_DRAFT = "inspection_draft"
+private const val KEY_NEW_ENTRY_ID = "inspection_new_entry_id"
+private val draftJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true; isLenient = true }

@@ -7,6 +7,10 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -39,6 +43,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.UnfoldMore
+import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
@@ -55,6 +61,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Button
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -78,6 +87,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -107,6 +120,9 @@ import com.avago.feature.log.viewmodel.AddEditLogViewModel
 import com.avago.feature.log.viewmodel.CostMode
 import com.avago.feature.log.viewmodel.ItemAttributeDef
 import com.avago.feature.log.viewmodel.LogValidationError
+import com.avago.feature.log.model.DefectPrefill
+import com.avago.feature.log.model.InspectionV2
+import com.avago.feature.log.model.InspectionValidation
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
@@ -147,6 +163,7 @@ fun AddEditLogScreen(
         if (preselectedAssetId != null && entryId == null) {
             viewModel.onAssetSelected(preselectedAssetId, null)
         }
+        if (entryId == null) viewModel.restoreNewDraft(preselectedAssetId)
     }
 
     LaunchedEffect(initialCategory) {
@@ -189,9 +206,34 @@ fun AddEditLogScreen(
         }
     }
 
+    val haptic = LocalHapticFeedback.current
+    val woSeverityNames = InspectionV2.SEVERITIES.associateWith { inspectionSeverityName(it) }
+    val woLocationNames = InspectionV2.LOCATIONS.associateWith { inspectionLocationLabel(it) ?: it }
+    val woLocationWord = stringResource(R.string.log_insp_wo_location)
+    val woNoteWord = stringResource(R.string.log_insp_wo_note)
+    // Web CreateWoFromDefectButton: title / description / priority prefill + defect source link.
+    fun woRequest(defects: List<DefectPrefill.Defect>, assetId: String?): DefectWorkOrderRequest? =
+        DefectPrefill.build(defects, { woSeverityNames[it] ?: it }, { woLocationNames[it] ?: it }, woLocationWord, woNoteWord)
+            ?.let { r ->
+                DefectWorkOrderRequest(
+                    assetId = assetId ?: form.assetId,
+                    title = r.title,
+                    description = r.description,
+                    defectIds = r.defectIds,
+                    inspectionLogId = r.inspectionLogId,
+                    priority = r.priority,
+                )
+            }
+    val jump = rememberInspectionJumpController()
+    var showSectionSheet by remember { mutableStateOf(false) }
+    val onSavedWithHaptic: (String) -> Unit = { id ->
+        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+        onSaved(id)
+    }
     val saveFailedMessage = stringResource(R.string.log_entry_alert_save_failed_message)
     LaunchedEffect(form.saveError) {
         form.saveError?.let { code ->
+            haptic.performHapticFeedback(HapticFeedbackType.Reject)
             val message = if (code == "save_failed") saveFailedMessage else code
             scope.launch { snackbarHostState.showSnackbar(message) }
         }
@@ -336,6 +378,44 @@ fun AddEditLogScreen(
         else -> if (form.distanceUnit == "km") "km" else "mi"
     }
     val isDateMeter = form.meterType?.lowercase() == "date"
+
+    // ---- Inspection save blockers (required answers, defect notes, certification) ----
+    form.inspectionIssues?.let { issues ->
+        LaunchedEffect(issues) { haptic.performHapticFeedback(HapticFeedbackType.Reject) }
+        InspectionIssuesDialog(
+            issues = issues,
+            labelFor = { key -> viewModel.inspectionLabel(key) ?: key },
+            onJump = { target ->
+                viewModel.clearInspectionIssues()
+                scope.launch { jump.jumpTo(target) }
+            },
+            onDismiss = { viewModel.clearInspectionIssues() },
+        )
+    }
+    form.meterIssue?.let { issue ->
+        MeterIssueDialog(
+            issue = issue,
+            onSaveAnyway = { viewModel.saveIgnoringMeter() },
+            onEdit = { viewModel.dismissMeterIssue() },
+        )
+    }
+    val checklist = form.inspectionChecklist
+    val isInspectionWorkspace = form.logType == "inspection" && checklist != null
+    val sectionProgress = remember(checklist, form.inspectionAnswers) {
+        InspectionValidation.sectionProgress(checklist, form.inspectionAnswers)
+    }
+    if (showSectionSheet && isInspectionWorkspace) {
+        ModalBottomSheet(onDismissRequest = { showSectionSheet = false }) {
+            InspectionSectionNavigator(
+                sections = sectionProgress,
+                onSelect = { id ->
+                    showSectionSheet = false
+                    scope.launch { jump.jumpTo(InspectionJumpController.sectionKey(id)) }
+                },
+                modifier = Modifier.navigationBarsPadding().padding(bottom = 16.dp),
+            )
+        }
+    }
 
     // ---- Validation alert ----
     val validationError = form.validationError
@@ -507,6 +587,12 @@ fun AddEditLogScreen(
         )
     }
 
+    val baseScheme = MaterialTheme.colorScheme
+    MaterialTheme(
+        colorScheme = if (form.sunlightMode) sunlightColorScheme() else baseScheme,
+        typography = MaterialTheme.typography,
+        shapes = MaterialTheme.shapes,
+    ) {
     Scaffold(
         topBar = {
             // iOS: nav bar with stacked title + asset name subtitle, green Save button on right
@@ -527,6 +613,7 @@ fun AddEditLogScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
+                        if (form.syncStatus != null) SyncStatusChip(form.syncStatus)
                     }
                 },
                 navigationIcon = {
@@ -538,10 +625,22 @@ fun AddEditLogScreen(
                     }
                 },
                 actions = {
+                    if (form.logType == "inspection") {
+                        val sunCd = stringResource(
+                            if (form.sunlightMode) R.string.log_sunlight_mode_cd_on else R.string.log_sunlight_mode_cd_off,
+                        )
+                        IconButton(onClick = { viewModel.setSunlightMode(!form.sunlightMode) }) {
+                            Icon(
+                                if (form.sunlightMode) Icons.Filled.WbSunny else Icons.Outlined.WbSunny,
+                                contentDescription = sunCd,
+                            )
+                        }
+                    }
                     // iOS: "Save" in green (accentGreen = secondary token) on nav bar right
                     TextButton(
-                        onClick = { focusManager.clearFocus(); viewModel.save(onSuccess = onSaved) },
+                        onClick = { focusManager.clearFocus(); viewModel.save(onSuccess = onSavedWithHaptic) },
                         enabled = !form.isSaving,
+                        modifier = Modifier.heightIn(min = 48.dp),
                     ) {
                         if (form.isSaving) {
                             CircularProgressIndicator(
@@ -563,6 +662,17 @@ fun AddEditLogScreen(
                 ),
             )
         },
+        bottomBar = {
+            if (isInspectionWorkspace && checklist != null) {
+                InspectionReachBar(
+                    checklist = checklist,
+                    answers = form.inspectionAnswers,
+                    isSaving = form.isSaving,
+                    onJump = { target -> scope.launch { jump.jumpTo(target) } },
+                    onSave = { focusManager.clearFocus(); viewModel.save(onSuccess = onSavedWithHaptic) },
+                )
+            }
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier,
@@ -575,10 +685,51 @@ fun AddEditLogScreen(
             return@Scaffold
         }
 
+        BoxWithConstraints(
+            Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .consumeWindowInsets(innerPadding)
+                .imePadding(),
+        ) {
+        // Tablets / unfolded foldables (WindowSizeClass expanded, >= 840dp): navigator pane on the left.
+        val twoPane = isInspectionWorkspace && maxWidth >= 840.dp
+        Row(Modifier.fillMaxSize()) {
+        if (twoPane) {
+            Column(
+                Modifier
+                    .width(300.dp)
+                    .fillMaxHeight()
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                InspectionSectionNavigator(
+                    sections = sectionProgress,
+                    onSelect = { id -> scope.launch { jump.jumpTo(InspectionJumpController.sectionKey(id)) } },
+                )
+            }
+            VerticalDivider()
+        }
+        Column(Modifier.weight(1f).fillMaxHeight()) {
+        if (isInspectionWorkspace && checklist != null) {
+            InspectionSummaryBar(
+                checklist = checklist,
+                answers = form.inspectionAnswers,
+                onJump = { target -> scope.launch { jump.jumpTo(target) } },
+                onOpenSections = if (twoPane || sectionProgress.size < 2) null else ({ showSectionSheet = true }),
+            )
+        }
+        DraftBanner(
+            restoredAt = form.restoredDraftAt,
+            serverOffer = form.serverDraftOffer,
+            onDiscard = { viewModel.discardDraft() },
+            onKeep = { viewModel.dismissRestoredDraftBanner() },
+            onRestoreServer = { viewModel.acceptServerDraft() },
+            onDismissServer = { viewModel.dismissServerDraft() },
+        )
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .onSizeChanged { jump.viewportHeightPx = it.height.toFloat() }
                 // iOS: contentStack leading/trailing inset = 16, spacing = 16
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState()),
@@ -826,6 +977,7 @@ fun AddEditLogScreen(
                     }
                 }
             }
+            if (!isDateMeter && form.lastMeter != null) LastMeterHint(form.lastMeter)
 
             Spacer(Modifier.height(16.dp))
 
@@ -1114,20 +1266,18 @@ fun AddEditLogScreen(
                                 defects = form.inspectionOpenDefects,
                                 resolutions = form.openDefectResolutions,
                                 labelOf = { key -> viewModel.inspectionLabel(key) },
-                                onResolve = { key, resolution -> viewModel.setOpenDefectResolution(key, resolution) },
+                                onResolve = { key, resolution ->
+                                    haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                    viewModel.setOpenDefectResolution(key, resolution)
+                                },
                                 onCreateWorkOrder = onCreateWorkOrderFromDefect?.let { cb ->
                                     { d ->
-                                        val label = viewModel.inspectionLabel(d.label) ?: d.label
-                                        val corner = viewModel.inspectionLabel(d.cornerLabel)
-                                        cb(
-                                            DefectWorkOrderRequest(
-                                                assetId = d.assetId ?: form.assetId,
-                                                title = listOfNotNull(label, corner).joinToString(" · "),
-                                                description = d.note?.takeIf { it.isNotBlank() },
-                                                defectIds = listOf(d.id),
-                                                inspectionLogId = d.sourceLogId,
-                                            ),
+                                        val defect = DefectPrefill.of(d).copy(
+                                            label = viewModel.inspectionLabel(d.label) ?: d.label,
+                                            cornerLabel = viewModel.inspectionLabel(d.cornerLabel) ?: d.cornerLabel,
+                                            sectionTitle = viewModel.inspectionLabel(d.sectionTitle) ?: d.sectionTitle,
                                         )
+                                        woRequest(listOf(defect), d.assetId)?.let(cb)
                                     }
                                 },
                             )
@@ -1140,7 +1290,34 @@ fun AddEditLogScreen(
                                 answers = form.inspectionAnswers,
                                 onAnswerChanged = { key, value -> viewModel.onInspectionAnswerChanged(key, value) },
                                 snackbarHostState = snackbarHostState,
+                                onAnswersChanged = { writes -> viewModel.onInspectionAnswersChanged(writes) },
+                                jumpController = jump,
+                                assetType = form.assetType,
+                                onCreateWorkOrder = onCreateWorkOrderFromDefect?.let { cb ->
+                                    { defects ->
+                                        woRequest(defects.map { DefectPrefill.of(it, entryId) }, null)?.let(cb)
+                                    }
+                                },
                             )
+                            if (checklist != null) {
+                                Spacer(Modifier.height(16.dp))
+                                HorizontalDivider()
+                                Spacer(Modifier.height(12.dp))
+                                val hasDefects = InspectionV2.collectDefects(checklist, form.inspectionAnswers).isNotEmpty()
+                                if (hasDefects || form.openDefectResolutions.isNotEmpty() || form.certification != null) {
+                                    InspectionCertificationSection(
+                                        certification = form.certification,
+                                        defaultName = form.performedByName,
+                                        onChange = { viewModel.setCertification(it) },
+                                    )
+                                    Spacer(Modifier.height(16.dp))
+                                }
+                                InspectionSignOffSection(
+                                    signOff = form.signOff,
+                                    defaultName = form.performedByName,
+                                    onChange = { viewModel.setSignOff(it) },
+                                )
+                            }
                         } else {
                             Text(
                                 text = stringResource(R.string.log_entry_inspection_no_fields),
@@ -1153,6 +1330,64 @@ fun AddEditLogScreen(
             }
 
             Spacer(Modifier.height(32.dp))
+        }
+        }
+        }
+        }
+    }
+    }
+}
+
+/**
+ * Bottom action bar for one-handed use: "next required" and Save sit in the thumb zone
+ * instead of only in the top app bar.
+ */
+@Composable
+private fun InspectionReachBar(
+    checklist: com.avago.feature.log.model.InspectionChecklist,
+    answers: Map<String, String>,
+    isSaving: Boolean,
+    onJump: (InspectionValidation.FocusTarget) -> Unit,
+    onSave: () -> Unit,
+) {
+    val required = remember(checklist, answers) { InspectionValidation.missingRequired(checklist, answers) }
+    val notes = remember(checklist, answers) { InspectionValidation.missingDefectNotes(checklist, answers) }
+    Surface(tonalElevation = 3.dp, shadowElevation = 4.dp) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val next = required.firstOrNull() ?: notes.firstOrNull()
+            if (next != null) {
+                OutlinedButton(
+                    onClick = { onJump(next) },
+                    modifier = Modifier.weight(1f).heightIn(min = 56.dp),
+                ) {
+                    Text(
+                        stringResource(
+                            if (required.isNotEmpty()) R.string.log_insp_go_to_required else R.string.log_insp_go_to_note,
+                        ),
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            } else {
+                Spacer(Modifier.weight(1f))
+            }
+            Button(
+                onClick = onSave,
+                enabled = !isSaving,
+                modifier = Modifier.weight(1f).heightIn(min = 56.dp),
+            ) {
+                if (isSaving) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                } else {
+                    Text(stringResource(com.avago.core.ui.R.string.common_save))
+                }
+            }
         }
     }
 }

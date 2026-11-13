@@ -71,6 +71,20 @@ import com.avago.feature.log.model.inspectionOptionColumn
 import com.avago.feature.log.model.inspectionOptionShortLabel
 import com.avago.feature.log.model.isScoreEligible
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.stateDescription
+import com.avago.feature.log.model.InspectionValidation
 
 /**
  * Color map for well-known inspection option values.
@@ -113,12 +127,17 @@ private fun inspectionOptionIcon(rawValue: String) = when (rawValue) {
 // aligned across every question — matches iOS's AVInspectionFormView redesign (avOptionColumn).
 private val OPTION_BUTTON_WIDTH = 76.dp
 private val OPTION_BUTTON_HEIGHT = 48.dp
+private val MIN_TOUCH = 48.dp
 private const val OPTION_STD_COLS = 4
 
 /**
  * Renders an inspection form. Prefers the full nested [checklist] (groups -> sections -> items,
  * matching iOS's schema); falls back to the legacy flat [fields] list for older configs that
  * don't have the nested groups/sections/notes/localization shape.
+ *
+ * [onAnswersChanged] applies several writes atomically (measurement + its severity, mark all);
+ * [jumpController] lets the summary bar / navigator / validation dialog scroll to an item;
+ * [onCreateWorkOrder] adds a "Create work order" action to each current defect.
  */
 @Composable
 fun InspectionFormRenderer(
@@ -128,31 +147,59 @@ fun InspectionFormRenderer(
     onAnswerChanged: (key: String, value: String) -> Unit,
     modifier: Modifier = Modifier,
     snackbarHostState: SnackbarHostState? = null,
+    onAnswersChanged: ((List<Pair<String, String>>) -> Unit)? = null,
+    jumpController: InspectionJumpController? = null,
+    assetType: String? = null,
+    onCreateWorkOrder: ((List<InspectionV2.EnvelopeDefect>) -> Unit)? = null,
 ) {
     if (checklist != null) {
-        InspectionChecklistRenderer(checklist, answers, onAnswerChanged, modifier, snackbarHostState)
+        val ctx = InspectionRenderContext(
+            checklist = checklist,
+            answers = answers,
+            onAnswerChanged = onAnswerChanged,
+            onAnswersChanged = onAnswersChanged ?: { writes -> writes.forEach { (k, v) -> onAnswerChanged(k, v) } },
+            snackbarHostState = snackbarHostState,
+            jump = jumpController,
+            assetType = assetType,
+            onCreateWorkOrder = onCreateWorkOrder,
+            missingNotes = InspectionValidation.missingDefectNotes(checklist, answers).map { it.itemId }.toSet(),
+            missingRequired = InspectionValidation.missingRequired(checklist, answers).map { it.key }.toSet(),
+            defects = InspectionV2.collectDefects(checklist, answers).groupBy { it.itemId },
+        )
+        InspectionChecklistRenderer(ctx, modifier)
     } else {
         LegacyInspectionFieldsRenderer(fields, answers, onAnswerChanged, modifier)
     }
 }
+
+/** Everything an item needs to render and write; rebuilt on every answers change. */
+private class InspectionRenderContext(
+    val checklist: InspectionChecklist,
+    val answers: Map<String, String>,
+    val onAnswerChanged: (String, String) -> Unit,
+    val onAnswersChanged: (List<Pair<String, String>>) -> Unit,
+    val snackbarHostState: SnackbarHostState?,
+    val jump: InspectionJumpController?,
+    val assetType: String?,
+    val onCreateWorkOrder: ((List<InspectionV2.EnvelopeDefect>) -> Unit)?,
+    /** Item ids whose defect / out-of-service note is missing. */
+    val missingNotes: Set<String>,
+    /** Answer keys (item, corner or input ids) of required items still unanswered. */
+    val missingRequired: Set<String>,
+    val defects: Map<String, List<InspectionV2.EnvelopeDefect>>,
+)
 
 // ---------------------------------------------------------------------------
 // Nested checklist renderer (groups -> sections -> items) — the new, iOS-parity layout.
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun InspectionChecklistRenderer(
-    checklist: InspectionChecklist,
-    answers: Map<String, String>,
-    onAnswerChanged: (key: String, value: String) -> Unit,
-    modifier: Modifier = Modifier,
-    snackbarHostState: SnackbarHostState?,
-) {
+private fun InspectionChecklistRenderer(ctx: InspectionRenderContext, modifier: Modifier = Modifier) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        InspectionScoreBar(checklist, answers)
+        InspectionScoreBar(ctx.checklist, ctx.answers)
 
-        checklist.groups.forEach { group ->
-            InspectionGroupBlock(group, answers, onAnswerChanged, snackbarHostState)
+        ctx.checklist.groups.forEach { group ->
+            InspectionGroupBlock(group, ctx)
         }
     }
 }
@@ -165,7 +212,7 @@ private fun InspectionScoreBar(checklist: InspectionChecklist, answers: Map<Stri
     val normalLabel = stringResource(R.string.log_inspection_opt_normal)
     val monitorLabel = stringResource(R.string.log_inspection_opt_monitor)
     val repairLabel = stringResource(R.string.log_inspection_opt_needs_repair)
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (progress.n > 0) InspectionSummaryPill("$normalLabel ${progress.n}", INSPECTION_OPTION_COLORS.getValue("normal"))
         if (progress.m > 0) InspectionSummaryPill("$monitorLabel ${progress.m}", INSPECTION_OPTION_COLORS.getValue("monitor"))
         if (progress.nr > 0) InspectionSummaryPill("$repairLabel ${progress.nr}", INSPECTION_OPTION_COLORS.getValue("needs_repair"))
@@ -173,20 +220,16 @@ private fun InspectionScoreBar(checklist: InspectionChecklist, answers: Map<Stri
 }
 
 @Composable
-private fun InspectionGroupBlock(
-    group: InspectionGroup,
-    answers: Map<String, String>,
-    onAnswerChanged: (key: String, value: String) -> Unit,
-    snackbarHostState: SnackbarHostState?,
-) {
+private fun InspectionGroupBlock(group: InspectionGroup, ctx: InspectionRenderContext) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text(
             text = group.title,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
+            modifier = Modifier.semantics { heading() },
         )
         group.sections.forEach { section ->
-            InspectionSectionBlock(section, answers, onAnswerChanged, snackbarHostState)
+            InspectionSectionBlock(section, ctx)
         }
     }
 }
@@ -199,9 +242,9 @@ private data class QuickFillTarget(val item: InspectionItem, val corner: Inspect
 /** Pending "mark all" confirmation: column (0=N, 1=M, 2=NR, 3=N/A), its label and the answered-count. */
 private data class QuickFillRequest(val col: Int, val label: String, val answered: Int, val unanswered: Int)
 
-/** Score-eligible select / corner-select answer slots in this section. */
+/** Score-eligible select / corner-select answer slots in this section (numeric and wheel items are skipped). */
 private fun sectionQuickFillTargets(section: InspectionSection): List<QuickFillTarget> =
-    section.items.filter { it.isScoreEligible() }.flatMap { item ->
+    section.items.filter { it.isScoreEligible() && !InspectionValidation.isNumericType(it.type) }.flatMap { item ->
         if (item.type == "corner-select" && item.corners.isNotEmpty()) {
             item.corners.map { QuickFillTarget(item, it) }
         } else {
@@ -215,44 +258,41 @@ private fun QuickFillTarget.optionAt(col: Int): InspectionOption? =
 private fun QuickFillTarget.answer(answers: Map<String, String>): String? = InspectionV2.answerOf(answers, item, corner)
 
 /**
- * Applies a section "mark all" to [targets] and returns the previous values of every key it touched
- * (for undo). Stores the option's raw value under the contract key; a pre-v2 "item.corner" key is
- * cleared so the old answer can't shadow the new one.
+ * Writes for a section "mark all" over [targets] (or a clear when [col] is null), plus the previous
+ * value of every touched key (for undo). A pre-v2 "item.corner" key is cleared so the old answer
+ * can't shadow the new one.
  */
-private fun applySectionQuickFill(
+private fun sectionQuickFillWrites(
     targets: List<QuickFillTarget>,
-    col: Int,
+    col: Int?,
     answers: Map<String, String>,
-    onAnswerChanged: (String, String) -> Unit,
-): Map<String, String> {
-    val previous = LinkedHashMap<String, String>()
+): Pair<List<Pair<String, String>>, List<Pair<String, String>>> {
+    val writes = mutableListOf<Pair<String, String>>()
+    val previous = mutableListOf<Pair<String, String>>()
     targets.forEach { target ->
-        val option = target.optionAt(col) ?: return@forEach
-        previous[target.key] = answers[target.key] ?: ""
-        onAnswerChanged(target.key, option.rawValue)
+        val value = if (col == null) "" else target.optionAt(col)?.rawValue ?: return@forEach
+        previous += target.key to (answers[target.key] ?: "")
+        writes += target.key to value
         if (target.corner != null) {
             val legacy = InspectionV2.legacyCornerKey(target.item, target.corner)
             if (!answers[legacy].isNullOrEmpty()) {
-                previous[legacy] = answers[legacy] ?: ""
-                onAnswerChanged(legacy, "")
+                previous += legacy to (answers[legacy] ?: "")
+                writes += legacy to ""
             }
         }
     }
-    return previous
+    return writes to previous
 }
 
 @Composable
-private fun InspectionSectionBlock(
-    section: InspectionSection,
-    answers: Map<String, String>,
-    onAnswerChanged: (key: String, value: String) -> Unit,
-    snackbarHostState: SnackbarHostState?,
-) {
+private fun InspectionSectionBlock(section: InspectionSection, ctx: InspectionRenderContext) {
+    val answers = ctx.answers
     val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
     var pendingQuickFill by remember { mutableStateOf<QuickFillRequest?>(null) }
     val targets = remember(section) { sectionQuickFillTargets(section) }
     val doneTemplate = stringResource(R.string.log_inspection_mark_all_done)
+    val clearedTemplate = stringResource(R.string.log_inspection_mark_all_cleared)
     val undoLabel = stringResource(R.string.log_inspection_undo)
 
     // A column is "active" when every slot that offers it is already answered with it.
@@ -263,33 +303,34 @@ private fun InspectionSectionBlock(
         }
     }
 
-    fun runQuickFill(col: Int, label: String, slots: List<QuickFillTarget>) {
-        val previous = applySectionQuickFill(slots, col, answers, onAnswerChanged)
-        val count = slots.count { it.optionAt(col) != null }
-        if (snackbarHostState != null && previous.isNotEmpty()) {
+    fun runQuickFill(col: Int?, label: String, slots: List<QuickFillTarget>) {
+        val (writes, previous) = sectionQuickFillWrites(slots, col, answers)
+        if (writes.isEmpty()) return
+        ctx.onAnswersChanged(writes)
+        val count = slots.size
+        if (ctx.snackbarHostState != null) {
             scope.launch {
-                val result = snackbarHostState.showSnackbar(
-                    message = String.format(doneTemplate, count, label),
+                val result = ctx.snackbarHostState.showSnackbar(
+                    message = if (col == null) String.format(clearedTemplate, count) else String.format(doneTemplate, count, label),
                     actionLabel = undoLabel,
                     duration = SnackbarDuration.Short,
                 )
-                if (result == SnackbarResult.ActionPerformed) {
-                    previous.forEach { (key, value) -> onAnswerChanged(key, value) }
-                }
+                if (result == SnackbarResult.ActionPerformed) ctx.onAnswersChanged(previous)
             }
         }
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        modifier = Modifier.inspectionJumpTarget(ctx.jump, InspectionJumpController.sectionKey(section.id)),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
                 text = section.title,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.primary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().semantics { heading() },
             )
             if (targets.isNotEmpty()) {
                 // Quick-fill buttons sit on their own row below the title using the same
@@ -300,6 +341,11 @@ private fun InspectionSectionBlock(
                     onRequested = { col, label ->
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         val slots = targets.filter { it.optionAt(col) != null }
+                        if (activeCol == col) {
+                            // Web parity: tapping the active column clears the section.
+                            runQuickFill(null, label, slots)
+                            return@SectionQuickFillRow
+                        }
                         val unanswered = slots.filter { it.answer(answers) == null }
                         val overwrite = slots.count { t ->
                             val a = t.answer(answers)
@@ -316,34 +362,40 @@ private fun InspectionSectionBlock(
         }
         HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
         section.items.forEach { item ->
-            InspectionItemBlock(item, answers, onAnswerChanged)
+            InspectionItemBlock(item, ctx)
             HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
         }
     }
 
-    // Answered items are only overwritten after an explicit choice — web/iOS parity.
+    // Answered items are only overwritten after an explicit choice — web MarkAllBar parity:
+    // [Overwrite all] / [Only empty (n)] / [Cancel].
     pendingQuickFill?.let { request ->
         AlertDialog(
             onDismissRequest = { pendingQuickFill = null },
             title = { Text(stringResource(R.string.log_inspection_mark_all_title, request.label)) },
-            text = { Text(stringResource(R.string.log_inspection_mark_all_message, request.answered, section.title)) },
+            text = { Text(stringResource(R.string.log_inspection_mark_all_message, request.answered, request.label)) },
             confirmButton = {
                 Column(horizontalAlignment = Alignment.End) {
-                    TextButton(onClick = {
-                        pendingQuickFill = null
-                        runQuickFill(request.col, request.label, targets.filter { it.optionAt(request.col) != null })
-                    }) { Text(stringResource(R.string.log_inspection_mark_all_overwrite)) }
-                    if (request.unanswered > 0) {
-                        TextButton(onClick = {
+                    TextButton(
+                        onClick = {
+                            pendingQuickFill = null
+                            runQuickFill(request.col, request.label, targets.filter { it.optionAt(request.col) != null })
+                        },
+                        modifier = Modifier.heightIn(min = 48.dp),
+                    ) { Text(stringResource(R.string.log_inspection_mark_all_overwrite)) }
+                    TextButton(
+                        enabled = request.unanswered > 0,
+                        onClick = {
                             pendingQuickFill = null
                             runQuickFill(
                                 request.col,
                                 request.label,
                                 targets.filter { it.optionAt(request.col) != null && it.answer(answers) == null },
                             )
-                        }) { Text(stringResource(R.string.log_inspection_mark_all_unanswered)) }
-                    }
-                    TextButton(onClick = { pendingQuickFill = null }) {
+                        },
+                        modifier = Modifier.heightIn(min = 48.dp),
+                    ) { Text(stringResource(R.string.log_inspection_mark_all_unanswered, request.unanswered)) }
+                    TextButton(onClick = { pendingQuickFill = null }, modifier = Modifier.heightIn(min = 48.dp)) {
                         Text(stringResource(com.avago.core.ui.R.string.common_cancel))
                     }
                 }
@@ -353,6 +405,7 @@ private fun InspectionSectionBlock(
 }
 
 /** N / M / NR / N/A quick-fill buttons — mirrors iOS's AVInspectionSectionView quick-fill row. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SectionQuickFillRow(
     activeCol: Int?,
@@ -367,41 +420,60 @@ private fun SectionQuickFillRow(
         Triple(3, "insp.opt.na", stringResource(R.string.log_inspection_opt_na)),
     )
     val cdTemplate = stringResource(R.string.log_inspection_mark_all_cd)
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         defs.forEach { (col, raw, full) ->
             val color = INSPECTION_OPTION_COLORS.getValue(colorKeyFor(raw))
             val isActive = activeCol == col
             OutlinedButton(
                 onClick = { onRequested(col, full) },
                 modifier = Modifier
-                    .width(OPTION_BUTTON_WIDTH)
-                    .height(36.dp)
-                    .semantics { contentDescription = String.format(cdTemplate, full) },
-                contentPadding = PaddingValues(0.dp),
+                    .widthIn(min = OPTION_BUTTON_WIDTH)
+                    .heightIn(min = MIN_TOUCH)
+                    .semantics {
+                        contentDescription = String.format(cdTemplate, full)
+                        selected = isActive
+                    },
+                contentPadding = PaddingValues(horizontal = 4.dp),
                 colors = if (isActive) {
                     ButtonDefaults.outlinedButtonColors(containerColor = color, contentColor = Color.White)
                 } else {
                     ButtonDefaults.outlinedButtonColors(contentColor = color)
                 },
             ) {
-                Text(inspectionOptionShortLabel(raw), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                Text(inspectionOptionShortLabel(raw), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
             }
         }
     }
 }
 
 @Composable
-private fun InspectionItemBlock(
-    item: InspectionItem,
-    answers: Map<String, String>,
-    onAnswerChanged: (key: String, value: String) -> Unit,
-) {
-    when (item.type) {
-        "select" -> InspectionSelectItem(item, answers, onAnswerChanged)
-        "corner-select" -> InspectionCornerSelectItem(item, answers, onAnswerChanged)
-        "wheel-data", "measurement", "number", "number-input" ->
-            InspectionNumberItem(item, answers[item.id] ?: "", onAnswerChanged)
-        else -> InspectionTextItem(item, answers[item.id] ?: "", onAnswerChanged)
+private fun InspectionItemBlock(item: InspectionItem, ctx: InspectionRenderContext) {
+    val highlight = ctx.jump?.highlightKey
+    val keys = buildList {
+        add(item.id)
+        item.corners.forEach { add(it.id) }
+        item.inputs.forEach { add(it.id) }
+    }
+    val highlighted = highlight != null && highlight in keys
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .inspectionJumpTarget(ctx.jump, *keys.toTypedArray())
+            .then(
+                if (highlighted) {
+                    Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp)).padding(6.dp)
+                } else {
+                    Modifier
+                },
+            ),
+    ) {
+        when (item.type) {
+            "select" -> InspectionSelectItem(item, ctx)
+            "corner-select" -> InspectionCornerSelectItem(item, ctx)
+            "wheel-data", "measurement", "number-input" -> InspectionMeasureItem(item, ctx)
+            "number" -> InspectionNumberItem(item, ctx)
+            else -> InspectionTextItem(item, ctx)
+        }
     }
 }
 
@@ -411,19 +483,16 @@ private fun InspectionItemBlock(
  * AVInspectionFormView.buildSelectLayout().
  */
 @Composable
-private fun InspectionSelectItem(
-    item: InspectionItem,
-    answers: Map<String, String>,
-    onAnswerChanged: (key: String, value: String) -> Unit,
-) {
+private fun InspectionSelectItem(item: InspectionItem, ctx: InspectionRenderContext) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        InspectionQuestionHeader(text = item.text, note = item.note)
+        InspectionQuestionHeader(text = item.text, note = item.note, requiredMissing = item.id in ctx.missingRequired)
         FixedColumnOptionRow(
             options = item.options,
-            selected = answers[item.id] ?: "",
-            onSelect = { onAnswerChanged(item.id, it) },
+            selected = ctx.answers[item.id] ?: "",
+            question = item.text,
+            onSelect = { ctx.onAnswerChanged(item.id, it) },
         )
-        InspectionDefectDetails(item, answers, onAnswerChanged)
+        InspectionDefectDetails(item, ctx)
     }
 }
 
@@ -433,13 +502,13 @@ private fun InspectionSelectItem(
  * Android builds under "{itemId}.{cornerId}" are still read and cleared on change.
  */
 @Composable
-private fun InspectionCornerSelectItem(
-    item: InspectionItem,
-    answers: Map<String, String>,
-    onAnswerChanged: (key: String, value: String) -> Unit,
-) {
+private fun InspectionCornerSelectItem(item: InspectionItem, ctx: InspectionRenderContext) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        InspectionQuestionHeader(text = item.text, note = item.note)
+        InspectionQuestionHeader(
+            text = item.text,
+            note = item.note,
+            requiredMissing = item.corners.any { it.id in ctx.missingRequired },
+        )
         item.corners.forEach { corner ->
             val key = InspectionV2.cornerKey(corner)
             val legacyKey = InspectionV2.legacyCornerKey(item, corner)
@@ -451,15 +520,17 @@ private fun InspectionCornerSelectItem(
                 )
                 FixedColumnOptionRow(
                     options = item.options,
-                    selected = InspectionV2.answerOf(answers, item, corner) ?: "",
+                    selected = InspectionV2.answerOf(ctx.answers, item, corner) ?: "",
+                    question = "${item.text} · ${corner.label}",
                     onSelect = {
-                        onAnswerChanged(key, it)
-                        if (!answers[legacyKey].isNullOrEmpty()) onAnswerChanged(legacyKey, "")
+                        val writes = mutableListOf(key to it)
+                        if (!ctx.answers[legacyKey].isNullOrEmpty()) writes += legacyKey to ""
+                        ctx.onAnswersChanged(writes)
                     },
                 )
             }
         }
-        InspectionDefectDetails(item, answers, onAnswerChanged)
+        InspectionDefectDetails(item, ctx)
     }
 }
 
@@ -494,30 +565,58 @@ fun inspectionLocationLabel(location: String?): String? = when (location) {
 @Composable
 fun inspectionSeverityName(severity: String): String = inspectionSeverityLabel(severity)
 
+@Composable
+private fun quickPhraseLabel(phrase: String): String = when (phrase) {
+    "low" -> stringResource(R.string.log_insp_phrase_low)
+    "worn" -> stringResource(R.string.log_insp_phrase_worn)
+    "cracked" -> stringResource(R.string.log_insp_phrase_cracked)
+    "leaking" -> stringResource(R.string.log_insp_phrase_leaking)
+    "missing" -> stringResource(R.string.log_insp_phrase_missing)
+    "loose" -> stringResource(R.string.log_insp_phrase_loose)
+    "damaged" -> stringResource(R.string.log_insp_phrase_damaged)
+    "dirty" -> stringResource(R.string.log_insp_phrase_dirty)
+    "inoperative" -> stringResource(R.string.log_insp_phrase_inoperative)
+    else -> phrase
+}
+
+/** Locations offered next to the vehicle sketch (not drawn as sketch zones). */
+private val NON_SKETCH_LOCATIONS = listOf("roof", "under", "interior", "engine")
+
 /**
- * Severity / location / note inputs shown under an item answered Monitor or Needs Repair.
- * Values are stored under `<itemId>__sev`, `<itemId>__loc`, `<itemId>__note` (contract v2).
+ * Severity / location / note inputs shown under an item answered Monitor or Needs Repair, or a
+ * measurement outside its acceptable range. Values are stored under `<itemId>__sev`,
+ * `<itemId>__loc`, `<itemId>__note` (contract v2). The note is required for Needs Repair and
+ * anything out of service (web `notesMissing`).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun InspectionDefectDetails(
-    item: InspectionItem,
-    answers: Map<String, String>,
-    onAnswerChanged: (key: String, value: String) -> Unit,
-) {
-    val buckets = if (item.type == "corner-select") {
-        item.corners.mapNotNull { InspectionV2.bucketOf(item, InspectionV2.answerOf(answers, item, it)) }
-    } else {
-        listOfNotNull(InspectionV2.bucketOf(item, answers[item.id]))
+private fun InspectionDefectDetails(item: InspectionItem, ctx: InspectionRenderContext) {
+    val answers = ctx.answers
+    val haptic = LocalHapticFeedback.current
+    val rangeSeverity = if (InspectionValidation.isNumericType(item.type)) InspectionValidation.itemRangeSeverity(item, answers) else null
+    val buckets = when (item.type) {
+        "corner-select" -> item.corners.mapNotNull { InspectionV2.bucketOf(item, InspectionV2.answerOf(answers, item, it)) }
+        "select" -> listOfNotNull(InspectionV2.bucketOf(item, answers[item.id]))
+        else -> emptyList()
     }
     val bucket = when {
         InspectionV2.Bucket.NR in buckets -> InspectionV2.Bucket.NR
         InspectionV2.Bucket.M in buckets -> InspectionV2.Bucket.M
+        rangeSeverity != null -> null
         else -> return
     }
-    val severity = InspectionV2.severityOf(answers, item.id, bucket)
+    val severity = if (bucket != null) {
+        InspectionV2.severityOf(answers, item.id, bucket)
+    } else {
+        answers[InspectionV2.sevKey(item.id)]?.takeIf { it.isNotEmpty() } ?: rangeSeverity!!
+    }
     val location = InspectionV2.locationOf(answers, item.id)
-    var locationMenuOpen by remember(item.id) { mutableStateOf(false) }
+    val noteKey = InspectionV2.noteKey(item.id)
+    val note = answers[noteKey] ?: ""
+    val noteMissing = item.id in ctx.missingNotes
+    val isOos = severity == InspectionV2.SEV_OUT_OF_SERVICE
+    var locationDialogOpen by remember(item.id) { mutableStateOf(false) }
+    val phraseHint = stringResource(R.string.log_insp_phrase_add_hint)
 
     Column(
         modifier = Modifier
@@ -534,16 +633,26 @@ private fun InspectionDefectDetails(
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(
+            modifier = Modifier.selectableGroup(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             InspectionV2.SEVERITIES.forEach { sev ->
                 val chipColor = when (sev) {
                     InspectionV2.SEV_MINOR -> INSPECTION_OPTION_COLORS.getValue("monitor")
                     else -> INSPECTION_OPTION_COLORS.getValue("needs_repair")
                 }
+                val label = inspectionSeverityLabel(sev)
                 FilterChip(
                     selected = severity == sev,
-                    onClick = { onAnswerChanged(InspectionV2.sevKey(item.id), sev) },
-                    label = { Text(inspectionSeverityLabel(sev)) },
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                        ctx.onAnswerChanged(InspectionV2.sevKey(item.id), sev)
+                    },
+                    label = { Text(label) },
+                    modifier = Modifier
+                        .heightIn(min = MIN_TOUCH)
+                        .semantics { role = Role.RadioButton },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = chipColor,
                         selectedLabelColor = Color.White,
@@ -556,50 +665,199 @@ private fun InspectionDefectDetails(
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Box {
-            OutlinedButton(onClick = { locationMenuOpen = true }) {
-                Text(inspectionLocationLabel(location) ?: stringResource(R.string.log_inspection_defect_location_none))
-            }
-            DropdownMenu(expanded = locationMenuOpen, onDismissRequest = { locationMenuOpen = false }) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.log_inspection_defect_location_none)) },
-                    onClick = {
-                        locationMenuOpen = false
-                        onAnswerChanged(InspectionV2.locKey(item.id), "")
-                    },
-                )
-                InspectionV2.LOCATIONS.forEach { loc ->
-                    DropdownMenuItem(
-                        text = { Text(inspectionLocationLabel(loc) ?: loc) },
-                        onClick = {
-                            locationMenuOpen = false
-                            onAnswerChanged(InspectionV2.locKey(item.id), loc)
-                        },
-                    )
-                }
-            }
+        OutlinedButton(onClick = { locationDialogOpen = true }, modifier = Modifier.heightIn(min = MIN_TOUCH)) {
+            Text(inspectionLocationLabel(location) ?: stringResource(R.string.log_inspection_defect_location_none))
         }
         OutlinedTextField(
-            value = answers[InspectionV2.noteKey(item.id)] ?: "",
-            onValueChange = { onAnswerChanged(InspectionV2.noteKey(item.id), it) },
-            label = { Text(stringResource(R.string.log_inspection_defect_note)) },
-            modifier = Modifier.fillMaxWidth(),
+            value = note,
+            onValueChange = { ctx.onAnswerChanged(noteKey, it) },
+            label = {
+                Text(
+                    stringResource(
+                        when {
+                            noteMissing && isOos -> R.string.log_insp_oos_reason
+                            noteMissing -> R.string.log_insp_note_required
+                            else -> R.string.log_inspection_defect_note
+                        },
+                    ),
+                )
+            },
+            placeholder = if (noteMissing) ({ Text(stringResource(R.string.log_insp_note_required_placeholder)) }) else null,
+            isError = noteMissing,
+            modifier = Modifier.fillMaxWidth().inspectionJumpTarget(ctx.jump, noteKey),
             minLines = 1,
+        )
+        Text(
+            text = stringResource(R.string.log_insp_phrases_label),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            InspectionValidation.QUICK_PHRASES.forEach { key ->
+                val label = quickPhraseLabel(key)
+                SuggestionChip(
+                    onClick = { ctx.onAnswerChanged(noteKey, InspectionValidation.appendPhrase(note, label)) },
+                    label = { Text(label) },
+                    modifier = Modifier
+                        .heightIn(min = MIN_TOUCH)
+                        .semantics { contentDescription = String.format(phraseHint, label) },
+                )
+            }
+        }
+        val itemDefects = ctx.defects[item.id].orEmpty()
+        if (ctx.onCreateWorkOrder != null && itemDefects.isNotEmpty()) {
+            TextButton(
+                onClick = { ctx.onCreateWorkOrder.invoke(itemDefects) },
+                modifier = Modifier.heightIn(min = MIN_TOUCH),
+            ) {
+                Icon(Icons.Filled.Build, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text(stringResource(R.string.log_inspection_defect_create_wo), modifier = Modifier.padding(start = 6.dp))
+            }
+        }
+    }
+
+    if (locationDialogOpen) {
+        AlertDialog(
+            onDismissRequest = { locationDialogOpen = false },
+            title = { Text(stringResource(R.string.log_inspection_defect_location)) },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(stringResource(R.string.log_insp_sketch_label), style = MaterialTheme.typography.bodySmall)
+                    VehicleSketch(
+                        assetType = ctx.assetType,
+                        selected = location,
+                        onSelect = {
+                            haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                            ctx.onAnswerChanged(InspectionV2.locKey(item.id), it ?: "")
+                            locationDialogOpen = false
+                        },
+                    )
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        NON_SKETCH_LOCATIONS.forEach { loc ->
+                            FilterChip(
+                                selected = location == loc,
+                                onClick = {
+                                    ctx.onAnswerChanged(InspectionV2.locKey(item.id), if (location == loc) "" else loc)
+                                    locationDialogOpen = false
+                                },
+                                label = { Text(inspectionLocationLabel(loc) ?: loc) },
+                                modifier = Modifier.heightIn(min = MIN_TOUCH),
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { locationDialogOpen = false }, modifier = Modifier.heightIn(min = MIN_TOUCH)) {
+                    Text(stringResource(R.string.log_insp_ok))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        ctx.onAnswerChanged(InspectionV2.locKey(item.id), "")
+                        locationDialogOpen = false
+                    },
+                    modifier = Modifier.heightIn(min = MIN_TOUCH),
+                ) { Text(stringResource(R.string.log_inspection_defect_location_none)) }
+            },
         )
     }
 }
 
+private fun formatBound(v: Double): String = if (v % 1.0 == 0.0) v.toLong().toString() else v.toString()
+
+private fun rangeText(min: Double?, max: Double?, unit: String?): String? {
+    val u = unit?.let { " $it" }.orEmpty()
+    return when {
+        min != null && max != null -> "${formatBound(min)}–${formatBound(max)}$u"
+        min != null -> "≥ ${formatBound(min)}$u"
+        max != null -> "≤ ${formatBound(max)}$u"
+        else -> null
+    }
+}
+
+/**
+ * Numeric items (web `NumericField`): one field per measurement slot — a single value, each
+ * `number-input` input, or the four wheel-data corners (merged into the item's JSON dict). An
+ * out-of-range value auto-sets `<id>__sev` (minor / major, never overriding out of service) and
+ * opens the defect details so a note can be added.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun InspectionNumberItem(
-    item: InspectionItem,
-    value: String,
-    onAnswerChanged: (key: String, value: String) -> Unit,
-) {
+private fun InspectionMeasureItem(item: InspectionItem, ctx: InspectionRenderContext) {
+    val slots = remember(item) { InspectionValidation.measureSlots(item) }
+    val scope = rememberCoroutineScope()
+    val sevTemplate = stringResource(R.string.log_insp_range_sev_set)
+    val minorLabel = stringResource(R.string.log_inspection_severity_minor)
+    val majorLabel = stringResource(R.string.log_inspection_severity_major)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        InspectionQuestionHeader(text = item.text, note = item.note)
+        InspectionQuestionHeader(
+            text = item.text,
+            note = item.note,
+            requiredMissing = item.id in ctx.missingRequired || slots.any { it.key in ctx.missingRequired },
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            slots.forEach { slot ->
+                val raw = InspectionValidation.measureValue(ctx.answers, slot)
+                val status = InspectionV2.rangeStatus(raw, slot.min, slot.max)
+                val range = rangeText(slot.min, slot.max, item.unit)
+                val label = slot.corner?.let { inspectionLocationLabel(it) } ?: slot.label
+                OutlinedTextField(
+                    value = raw,
+                    onValueChange = { v ->
+                        val writes = InspectionValidation.measureWrites(
+                            item,
+                            ctx.answers,
+                            listOf(InspectionValidation.slotWrite(ctx.answers, slot, v)),
+                        )
+                        ctx.onAnswersChanged(writes)
+                        val sev = writes.firstOrNull { it.first == InspectionV2.sevKey(item.id) }?.second
+                        if (!sev.isNullOrEmpty() && ctx.snackbarHostState != null) {
+                            scope.launch {
+                                ctx.snackbarHostState.showSnackbar(
+                                    String.format(sevTemplate, if (sev == InspectionV2.SEV_MAJOR) majorLabel else minorLabel),
+                                    duration = SnackbarDuration.Short,
+                                )
+                            }
+                        }
+                    },
+                    label = label?.let { { Text(it) } },
+                    modifier = Modifier
+                        .then(if (slots.size > 1) Modifier.widthIn(min = 140.dp, max = 220.dp) else Modifier.fillMaxWidth())
+                        .inspectionJumpTarget(ctx.jump, if (slot.corner != null) "${slot.key}:${slot.corner}" else slot.key),
+                    placeholder = item.placeholder?.let { ph -> { Text(ph) } },
+                    suffix = item.unit?.let { unit -> { Text(unit) } },
+                    isError = status != null,
+                    supportingText = when {
+                        status == "low" -> ({ Text(stringResource(R.string.log_insp_range_low, formatBound(slot.min!!))) })
+                        status == "high" -> ({ Text(stringResource(R.string.log_insp_range_high, formatBound(slot.max!!))) })
+                        range != null -> ({ Text(stringResource(R.string.log_insp_range_hint, range)) })
+                        else -> null
+                    },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal,
+                    ),
+                    singleLine = true,
+                )
+            }
+        }
+        InspectionDefectDetails(item, ctx)
+    }
+}
+
+/** Legacy "number" items (no range metadata). */
+@Composable
+private fun InspectionNumberItem(item: InspectionItem, ctx: InspectionRenderContext) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        InspectionQuestionHeader(text = item.text, note = item.note, requiredMissing = item.id in ctx.missingRequired)
         OutlinedTextField(
-            value = value,
-            onValueChange = { onAnswerChanged(item.id, it) },
+            value = ctx.answers[item.id] ?: "",
+            onValueChange = { ctx.onAnswerChanged(item.id, it) },
             modifier = Modifier.fillMaxWidth(),
             placeholder = item.placeholder?.let { ph -> { Text(ph) } },
             suffix = item.unit?.let { unit -> { Text(unit) } },
@@ -612,16 +870,12 @@ private fun InspectionNumberItem(
 }
 
 @Composable
-private fun InspectionTextItem(
-    item: InspectionItem,
-    value: String,
-    onAnswerChanged: (key: String, value: String) -> Unit,
-) {
+private fun InspectionTextItem(item: InspectionItem, ctx: InspectionRenderContext) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        InspectionQuestionHeader(text = item.text, note = item.note)
+        InspectionQuestionHeader(text = item.text, note = item.note, requiredMissing = item.id in ctx.missingRequired)
         OutlinedTextField(
-            value = value,
-            onValueChange = { onAnswerChanged(item.id, it) },
+            value = ctx.answers[item.id] ?: "",
+            onValueChange = { ctx.onAnswerChanged(item.id, it) },
             modifier = Modifier.fillMaxWidth(),
             minLines = 2,
         )
@@ -634,24 +888,34 @@ private fun InspectionTextItem(
  * [note] is resolved via parseInspectionChecklist(...) before this composable ever sees it.
  */
 @Composable
-private fun InspectionQuestionHeader(text: String, note: String?) {
+private fun InspectionQuestionHeader(text: String, note: String?, requiredMissing: Boolean = false) {
     var showNote by remember(text) { mutableStateOf(false) }
     Row(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Top,
+        verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyLarge.copy(fontSize = 18.sp),
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.weight(1f),
-        )
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyLarge.copy(fontSize = 18.sp),
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.semantics { heading() },
+            )
+            if (requiredMissing) {
+                Text(
+                    text = stringResource(R.string.log_insp_required_mark),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
         if (!note.isNullOrBlank()) {
-            IconButton(onClick = { showNote = true }, modifier = Modifier.size(24.dp)) {
+            val infoCd = stringResource(R.string.log_insp_more_info)
+            IconButton(onClick = { showNote = true }, modifier = Modifier.size(MIN_TOUCH)) {
                 Icon(
                     imageVector = Icons.Filled.Info,
-                    contentDescription = note,
+                    contentDescription = infoCd,
                     tint = MaterialTheme.colorScheme.primary,
                 )
             }
@@ -661,7 +925,7 @@ private fun InspectionQuestionHeader(text: String, note: String?) {
         AlertDialog(
             onDismissRequest = { showNote = false },
             confirmButton = {
-                TextButton(onClick = { showNote = false }) { Text("OK") }
+                TextButton(onClick = { showNote = false }) { Text(stringResource(R.string.log_insp_ok)) }
             },
             text = { Text(note) },
         )
@@ -678,6 +942,7 @@ private fun InspectionQuestionHeader(text: String, note: String?) {
 private fun FixedColumnOptionRow(
     options: List<InspectionOption>,
     selected: String,
+    question: String,
     onSelect: (String) -> Unit,
 ) {
     var nextExtraCol = OPTION_STD_COLS
@@ -696,11 +961,20 @@ private fun FixedColumnOptionRow(
     }
     val maxCol = colToOption.keys.maxOrNull() ?: -1
     if (maxCol < 0) return
+    val selectedOption = colToOption.values.firstOrNull { selected.isNotEmpty() && (it.rawValue == selected || it.value == selected) }
+    val stateText = selectedOption?.value ?: stringResource(R.string.log_insp_not_answered)
+    val stateTemplate = stringResource(R.string.log_insp_answer_state)
 
     // FlowRow instead of a plain Row so extra custom options beyond the
     // standard 4 columns wrap onto additional lines rather than running off
-    // narrow screens.
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    // narrow screens (and at large font scales).
+    FlowRow(
+        modifier = Modifier
+            .selectableGroup()
+            .semantics { stateDescription = String.format(stateTemplate, question, stateText) },
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
         for (col in 0..maxCol) {
             val opt = colToOption[col]
             if (opt == null) {
@@ -708,8 +982,9 @@ private fun FixedColumnOptionRow(
             } else {
                 InspectionOptionButton(
                     option = opt,
+                    question = question,
                     // Older Android builds stored the localized display text; v2 stores rawValue.
-                    isSelected = selected.isNotEmpty() && (opt.rawValue == selected || opt.value == selected),
+                    isSelected = opt === selectedOption,
                     onClick = { onSelect(opt.rawValue) },
                 )
             }
@@ -720,6 +995,7 @@ private fun FixedColumnOptionRow(
 @Composable
 private fun InspectionOptionButton(
     option: InspectionOption,
+    question: String,
     isSelected: Boolean,
     onClick: () -> Unit,
 ) {
@@ -727,6 +1003,7 @@ private fun InspectionOptionButton(
     val icon = inspectionOptionIcon(option.rawValue)
     var showGuide by remember(option.value) { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
+    val cd = String.format(stringResource(R.string.log_insp_answer_state), question, option.value)
 
     // Animate the selected-state color transition so tapping an answer feels
     // responsive instead of an instant, jarring color swap.
@@ -742,14 +1019,19 @@ private fun InspectionOptionButton(
     Box {
         OutlinedButton(
             onClick = {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                 if (!option.guide.isNullOrBlank() && isSelected) showGuide = true
                 onClick()
             },
             modifier = Modifier
-                .width(OPTION_BUTTON_WIDTH)
-                .height(OPTION_BUTTON_HEIGHT)
-                .semantics { contentDescription = option.value },
+                .widthIn(min = OPTION_BUTTON_WIDTH)
+                .heightIn(min = OPTION_BUTTON_HEIGHT)
+                .semantics {
+                    contentDescription = cd
+                    role = Role.RadioButton
+                    selected = isSelected
+                },
+            contentPadding = PaddingValues(horizontal = 6.dp),
             colors = ButtonDefaults.outlinedButtonColors(
                 containerColor = containerColor,
                 contentColor = contentColor,
@@ -781,7 +1063,7 @@ private fun InspectionOptionButton(
         if (!option.guide.isNullOrBlank() && showGuide) {
             AlertDialog(
                 onDismissRequest = { showGuide = false },
-                confirmButton = { TextButton(onClick = { showGuide = false }) { Text("OK") } },
+                confirmButton = { TextButton(onClick = { showGuide = false }) { Text(stringResource(R.string.log_insp_ok)) } },
                 text = { Text(option.guide) },
             )
         }
@@ -820,19 +1102,19 @@ private fun LegacyInspectionFieldsRenderer(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (normalCount > 0) {
                     InspectionSummaryPill(
-                        label = "Normal $normalCount",
+                        label = "${stringResource(R.string.log_inspection_opt_normal)} $normalCount",
                         containerColor = INSPECTION_OPTION_COLORS["normal"] ?: Color(0xFF4CAF50),
                     )
                 }
                 if (monitorCount > 0) {
                     InspectionSummaryPill(
-                        label = "Monitor $monitorCount",
+                        label = "${stringResource(R.string.log_inspection_opt_monitor)} $monitorCount",
                         containerColor = INSPECTION_OPTION_COLORS["monitor"] ?: Color(0xFFFF9800),
                     )
                 }
                 if (repairCount > 0) {
                     InspectionSummaryPill(
-                        label = "Needs Repair $repairCount",
+                        label = "${stringResource(R.string.log_inspection_opt_needs_repair)} $repairCount",
                         containerColor = INSPECTION_OPTION_COLORS["needs_repair"] ?: Color(0xFFF44336),
                     )
                 }
@@ -1024,7 +1306,7 @@ private fun PassFailChipField(
             FilterChip(
                 selected = value == "pass",
                 onClick = { onValueChanged("pass") },
-                label = { Text("Pass") },
+                label = { Text(stringResource(R.string.log_insp_pass)) },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = INSPECTION_OPTION_COLORS["pass"] ?: Color(0xFF4CAF50),
                     selectedLabelColor = Color.White,
@@ -1034,7 +1316,7 @@ private fun PassFailChipField(
             FilterChip(
                 selected = value == "fail",
                 onClick = { onValueChanged("fail") },
-                label = { Text("Fail") },
+                label = { Text(stringResource(R.string.log_insp_fail)) },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = INSPECTION_OPTION_COLORS["fail"] ?: Color(0xFFF44336),
                     selectedLabelColor = Color.White,
