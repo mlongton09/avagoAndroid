@@ -266,7 +266,8 @@ object InspectionV2 {
         val ranges = outOfRange(checklist, values).size
         val nr = defects.count { it.bucket == Bucket.NR }
         val m = defects.size - nr
-        val oos = defects.any { it.severity == SEV_OUT_OF_SERVICE }
+        val oos = defects.any { it.severity == SEV_OUT_OF_SERVICE } ||
+            outOfRange(checklist, values).any { values[sevKey(it.itemId)] == SEV_OUT_OF_SERVICE }
         val result = when {
             nr > 0 || oos -> RESULT_FAIL
             m > 0 || ranges > 0 -> RESULT_PASS_WITH_DEFECTS
@@ -299,7 +300,8 @@ object InspectionV2 {
 
     data class SignOff(val name: String, val signature: String?, val typed: String?, val signedAt: String)
 
-    data class Certification(val status: String, val name: String, val signedAt: String, val note: String?)
+    /** Web `certification`; [signature] is an Android-only extra (mechanic's drawn signature, PNG data URL). */
+    data class Certification(val status: String, val name: String, val signedAt: String, val note: String?, val signature: String? = null)
 
     data class ParsedEnvelope(
         /** Every values entry as a string (non-string JSON is kept as its JSON text). */
@@ -364,7 +366,7 @@ object InspectionV2 {
         }
         val certification = (data["certification"] as? JsonObject)?.let { c ->
             val status = c["status"].textOrNull()?.takeIf { it == "corrected" || it == "not_needed" } ?: return@let null
-            Certification(status, c["name"].textOrNull().orEmpty(), c["signedAt"].textOrNull().orEmpty(), c["note"].textOrNull())
+            Certification(status, c["name"].textOrNull().orEmpty(), c["signedAt"].textOrNull().orEmpty(), c["note"].textOrNull(), c["signature"].textOrNull())
         }
         return ParsedEnvelope(
             values = values,
@@ -405,12 +407,16 @@ object InspectionV2 {
      * Writes the v2 envelope. Starts from [stored] (the previously saved `data` object) and only
      * overwrites keys this client owns, so keys written by web/iOS/newer clients survive an edit.
      *
-     * [values] is the complete answer map as edited in the form (it was seeded from the stored
-     * values, so a stored key missing here was removed on purpose). Entries whose text is unchanged
-     * keep their original JSON element (numbers / objects stay as-is).
+     * Values are merged, never replaced: every stored `values` entry survives (including keys this
+     * client doesn't render, `null`s and non-string JSON), [values] is overlaid on top, and a key is
+     * dropped only when it is in [clearedKeys] (the user explicitly cleared it). Entries whose text
+     * is unchanged keep their original JSON element (numbers / objects stay as-is).
      *
      * [newResolved] entries replace stored `resolvedDefects` entries with the same key; other stored
-     * entries are kept verbatim.
+     * entries are kept verbatim, and with no new resolutions the stored array is untouched.
+     *
+     * [signOff] / [certification]: `null` keeps whatever is stored; [JsonNull] writes an explicit
+     * `null` (what web writes once the block is cleared); an object replaces the stored value.
      */
     fun buildEnvelope(
         stored: JsonObject?,
@@ -423,6 +429,9 @@ object InspectionV2 {
         outOfService: Boolean,
         newResolved: List<ResolvedDefect> = emptyList(),
         logType: String = "inspection",
+        clearedKeys: Set<String> = emptySet(),
+        signOff: JsonElement? = null,
+        certification: JsonElement? = null,
     ): JsonObject {
         val base = LinkedHashMap<String, JsonElement>(stored ?: emptyMap())
         val parsed = parseEnvelope(stored)
@@ -432,12 +441,15 @@ object InspectionV2 {
 
         val mergedValues = LinkedHashMap<String, JsonElement>()
         storedValues.forEach { (k, el) ->
-            val v = values[k] ?: return@forEach
-            mergedValues[k] = if (el.valueText() == v) el else JsonPrimitive(v)
+            if (k in clearedKeys && k !in values) return@forEach
+            val v = values[k]
+            mergedValues[k] = if (v == null || el.valueText() == v) el else JsonPrimitive(v)
         }
         values.forEach { (k, v) -> if (k !in mergedValues) mergedValues[k] = JsonPrimitive(v) }
 
         base["values"] = JsonObject(mergedValues)
+        if (signOff != null) base["signOff"] = signOff
+        if (certification != null) base["certification"] = certification
         base["envelopeVersion"] = JsonPrimitive(ENVELOPE_VERSION)
         base["log_type"] = JsonPrimitive(logType)
         if (!subtype.isNullOrBlank()) {
@@ -461,6 +473,73 @@ object InspectionV2 {
             base["resolvedDefects"] = JsonArray(kept + newResolved.map { it.toJson() })
         }
         return JsonObject(base)
+    }
+
+    /** Human label for a values key (item, corner, numeric input, or `__note`/`__sev`/`__loc` extra). */
+    fun keyLabel(checklist: InspectionChecklist?, key: String): String {
+        val base = listOf(NOTE_SUFFIX, SEVERITY_SUFFIX, LOCATION_SUFFIX).firstOrNull { key.endsWith(it) }
+            ?.let { key.removeSuffix(it) } ?: key
+        checklist?.allItems()?.forEach { item ->
+            if (item.id == base) return item.text
+            item.corners.firstOrNull { it.id == base }?.let { return "${item.text} · ${it.label}" }
+            item.inputs.firstOrNull { it.id == base }?.let { return "${item.text} · ${it.label}" }
+        }
+        return humanizeIfKey(base)
+    }
+
+    /** Stored values with [edits] overlaid and [cleared] keys removed — what [buildEnvelope] writes, as text. */
+    fun mergeValues(stored: Map<String, String>, edits: Map<String, String>, cleared: Set<String>): Map<String, String> {
+        val out = LinkedHashMap(stored)
+        cleared.forEach { if (it !in edits) out.remove(it) }
+        out.putAll(edits)
+        return out
+    }
+
+    /** This client's edits relative to the values it started from: changed/added keys and removed keys. */
+    data class ValueEdits(val changed: Map<String, String>, val cleared: Set<String>) {
+        val keys: Set<String> get() = changed.keys + cleared
+        fun isEmpty() = changed.isEmpty() && cleared.isEmpty()
+    }
+
+    fun diffValues(original: Map<String, String>, current: Map<String, String>): ValueEdits = ValueEdits(
+        changed = current.filter { (k, v) -> original[k] != v },
+        cleared = original.keys.filter { it !in current }.toSet(),
+    )
+
+    /**
+     * Keys both sides changed to different results since [original]: "mine" is [mine], "theirs"
+     * is the server's current values. These need a human decision before "keep mine" re-sends.
+     */
+    data class ConflictKey(val key: String, val original: String?, val mine: String?, val theirs: String?)
+
+    fun conflictingKeys(original: Map<String, String>, mine: ValueEdits, theirs: Map<String, String>): List<ConflictKey> =
+        mine.keys.mapNotNull { k ->
+            val theirsV = theirs[k]
+            val mineV = mine.changed[k]
+            if (theirsV == original[k] || theirsV == mineV) null
+            else ConflictKey(k, original[k], mineV, theirsV)
+        }.sortedBy { it.key }
+
+    /** Re-applies [mine] on top of the server's current values (the "keep mine" merge). */
+    fun rebaseValues(theirs: Map<String, String>, mine: ValueEdits): Map<String, String> =
+        mergeValues(theirs, mine.changed, mine.cleared)
+
+    fun SignOff.toJson(): JsonObject = buildJsonObject {
+        put("name", name)
+        put("signature", signature)
+        put("typed", typed)
+        put("signedAt", signedAt)
+    }
+
+    /** Web shape plus optional Android extras (`signature`, mechanic's drawn signature) kept when present. */
+    fun Certification.toJson(extra: JsonObject? = null): JsonObject {
+        val out = LinkedHashMap<String, JsonElement>(extra ?: emptyMap())
+        out["status"] = JsonPrimitive(status)
+        out["name"] = JsonPrimitive(name)
+        out["signedAt"] = JsonPrimitive(signedAt)
+        out["note"] = note?.let { JsonPrimitive(it) } ?: JsonNull
+        if (signature != null) out["signature"] = JsonPrimitive(signature) else out.remove("signature")
+        return JsonObject(out)
     }
 
     /** Adds `inspectionChecklist` (raw config JSON) to a snapshot, keeping any extra snapshot keys. */

@@ -50,9 +50,9 @@
 
     <!-- Inspection v2: optimistic concurrency -->
     <string name="log_inspection_conflict_title">Diese Inspektion wurde von jemand anderem geändert</string>
-    <string name="log_inspection_conflict_message">Jemand hat diese Inspektion gespeichert, nachdem Sie sie geöffnet haben. Laden Sie deren Version neu (Ihre Änderungen werden verworfen) oder überschreiben Sie sie mit Ihrer Version.</string>
+    <string name="log_inspection_conflict_message">Jemand hat diese Inspektion gespeichert, nachdem Sie sie geöffnet haben. Laden Sie deren Version (Ihre Änderungen werden verworfen) oder behalten Sie Ihre: Ihre Änderungen werden auf deren Version angewendet, alle anderen Änderungen bleiben erhalten.</string>
     <string name="log_inspection_conflict_reload">Deren Version laden</string>
-    <string name="log_inspection_conflict_overwrite">Mit meiner überschreiben</string>
+    <string name="log_inspection_conflict_overwrite">Meine behalten</string>
 
     <!-- Inspection v2: read-only detail -->
     <string name="log_detail_inspection_result">Ergebnis</string>
@@ -124,4 +124,11 @@
     <string name="log_pack_scan_receipt">Beleg scannen</string>
     <string name="log_pack_receipt_applied">Belegdaten übernommen</string>
     <string name="log_pack_receipt_attached">Beleg angehängt</string>
+    <string name="log_inspection_conflict_both_changed">Auf beiden Seiten geändert. „Meine behalten“ ersetzt deren Werte:</string>
+    <string name="log_inspection_conflict_mine_theirs">Ihre: %1$s · Deren: %2$s</string>
+    <string name="log_inspection_conflict_empty_value">(leer)</string>
+    <plurals name="log_inspection_conflict_no_overlap">
+        <item quantity="one">Keine überschneidenden Änderungen. Ihre %1$d Änderung wird auf deren Version angewendet.</item>
+        <item quantity="other">Keine überschneidenden Änderungen. Ihre %1$d Änderungen werden auf deren Version angewendet.</item>
+    </plurals>
 </resources>

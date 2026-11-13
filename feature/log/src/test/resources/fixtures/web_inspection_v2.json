@@ -1,0 +1,42 @@
+{
+  "log_type": "inspection",
+  "envelopeVersion": 2,
+  "subtype": "Base",
+  "mode": "Full",
+  "inspection_subtype": "Base",
+  "inspection_mode": "Full",
+  "durationSec": 412,
+  "webOnlyTopLevel": {"layout": "wide", "version": 7},
+  "values": {
+    "pads": "Needs Repair",
+    "pads__sev": "out_of_service",
+    "pads__loc": "fl",
+    "pads__note": "Pad worn to backing plate",
+    "fluid": "Monitor",
+    "fluid__sev": "minor",
+    "fluid__loc": "engine",
+    "t_fl": "Normal",
+    "t_fr": "Needs Repair",
+    "tires__note": "Sidewall cracked",
+    "depth": 2.5,
+    "depth__sev": "major",
+    "wheel": "{\"fl\":\"8\",\"fr\":\"9\",\"rl\":\"7\",\"rr\":\"8\"}",
+    "web_only_item": "Normal",
+    "web_only_item__note": "Added on web",
+    "photo_meta": {"count": 2, "ids": ["a", "b"]},
+    "nullable_key": null
+  },
+  "defects": [
+    {"itemId": "pads", "key": "pads", "label": "Brake pads", "cornerLabel": null, "sectionTitle": "Brakes",
+     "answer": "Needs Repair", "bucket": "NR", "severity": "out_of_service", "note": "Pad worn to backing plate", "location": "fl"}
+  ],
+  "result": "fail",
+  "outOfService": true,
+  "resolvedDefects": [
+    {"sourceLogId": "11111111-1111-4111-8111-111111111111", "itemId": "lights", "key": "lights",
+     "resolution": "repaired", "note": "Bulb replaced", "at": "2026-01-02T10:00:00.000Z"}
+  ],
+  "certification": {"status": "corrected", "name": "Max Mechanic", "signedAt": "2026-01-02T11:00:00.000Z", "note": null},
+  "signOff": {"name": "Ina Inspector", "signature": "data:image/png;base64,iVBORw0KGgo=", "typed": null, "signedAt": "2026-01-02T11:05:00.000Z"},
+  "configSnapshot": {"inspectionChecklist": {"groups": []}, "webExtra": true}
+}

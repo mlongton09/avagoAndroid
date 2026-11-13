@@ -177,6 +177,10 @@ data class AddEditLogFormState(
 
     // Set when an inspection update was rejected with 409 — holds the server's current row.
     val inspectionConflict: JsonObject? = null,
+    // Keys both this device and the newer server version changed (shown for review before "keep mine").
+    val conflictKeys: List<InspectionV2.ConflictKey> = emptyList(),
+    // Number of value keys this device changed (applied on top of the server version on "keep mine").
+    val conflictMineCount: Int = 0,
 
     // Category-specific item attributes
     val itemAttributes: Map<String, String> = emptyMap(),
@@ -287,6 +291,8 @@ class AddEditLogViewModel @Inject constructor(
     private var snapshotChecklistApplied = false
     private var pendingOnSuccess: ((String) -> Unit)? = null
     private var openDefectsLoadedFor: String? = null
+    /** `data.values` as loaded (text form). Keys missing from the form's answers were cleared by the user. */
+    private var originalValues: Map<String, String> = emptyMap()
 
     // ---------------------------------------------------------------------------
     // Load for edit
@@ -312,6 +318,7 @@ class AddEditLogViewModel @Inject constructor(
                     (storedLogType == null && entity.category?.lowercase()?.contains("inspect") == true)
                 val envelope = if (isInspection) InspectionV2.parseEnvelope(dataObj) else null
                 val inspectionAnswers = envelope?.values ?: emptyMap()
+                originalValues = inspectionAnswers
                 val inspectionSubtype = envelope?.subtype
                 val inspectionMode = envelope?.mode
 
@@ -1099,7 +1106,7 @@ class AddEditLogViewModel @Inject constructor(
         val current = _form.value.inspectionConflict ?: return
         val accountId = identity.getActiveAccountId() ?: return
         val entryId = _form.value.entryId
-        _form.update { it.copy(inspectionConflict = null) }
+        _form.update { it.copy(inspectionConflict = null, conflictKeys = emptyList(), conflictMineCount = 0) }
         pendingOnSuccess = null
         viewModelScope.launch {
             try {
@@ -1112,16 +1119,40 @@ class AddEditLogViewModel @Inject constructor(
         }
     }
 
-    /** 409 → "Overwrite with mine": resend without expected_server_version. */
+    /**
+     * 409 → "Keep mine" after the user reviewed [AddEditLogFormState.conflictKeys]: rebases this
+     * device's edits onto the server's current row (their other changes survive) and re-sends with
+     * the server's current version as `expected_server_version`, so a further concurrent write
+     * raises a new conflict instead of being overwritten.
+     */
     fun resolveConflictOverwrite() {
+        val theirs = _form.value.inspectionConflict ?: return
+        val accountId = identity.getActiveAccountId() ?: return
         val onSuccess: (String) -> Unit = pendingOnSuccess ?: { _ -> }
-        _form.update { it.copy(inspectionConflict = null) }
-        save(onSuccess, overwrite = true)
+        val theirsEntity = syncEngine.logEntityFromJson(theirs, accountId)
+        val theirsData = InspectionV2.parseDataObject(theirsEntity?.data)
+        val theirsValues = InspectionV2.parseEnvelope(theirsData).values
+        val mine = InspectionV2.diffValues(originalValues, _form.value.inspectionAnswers)
+        storedData = theirsData
+        originalValues = theirsValues
+        theirsEntity?.let { originalServerVersion = it.serverVersion }
+        _form.update {
+            it.copy(
+                inspectionConflict = null,
+                conflictKeys = emptyList(),
+                conflictMineCount = 0,
+                inspectionAnswers = InspectionV2.rebaseValues(theirsValues, mine),
+            )
+        }
+        save(onSuccess)
     }
 
     fun dismissConflict() {
-        _form.update { it.copy(inspectionConflict = null) }
+        _form.update { it.copy(inspectionConflict = null, conflictKeys = emptyList(), conflictMineCount = 0) }
     }
+
+    /** Label for a conflicting values key, for the review list. */
+    fun conflictKeyLabel(key: String): String = InspectionV2.keyLabel(_form.value.inspectionChecklist, key)
 
     fun clearValidationError() {
         _form.update { it.copy(validationError = null) }
@@ -1181,7 +1212,7 @@ class AddEditLogViewModel @Inject constructor(
     // Save
     // ---------------------------------------------------------------------------
 
-    fun save(onSuccess: (entryId: String) -> Unit, overwrite: Boolean = false) {
+    fun save(onSuccess: (entryId: String) -> Unit) {
         val current = _form.value
         val accountId = identity.getActiveAccountId()
 
@@ -1275,14 +1306,25 @@ class AddEditLogViewModel @Inject constructor(
                 // silently overwritten. Offline / other failures fall back to the queued sync path.
                 var remoteRow: JsonObject? = null
                 if (current.logType == "inspection" && originalServerVersion > 0L) {
-                    val body = buildUpdateBody(entity, expectedServerVersion = if (overwrite) null else originalServerVersion)
+                    val body = buildUpdateBody(entity, expectedServerVersion = originalServerVersion)
                     when (val res = serviceClient.updateLog(accountId, entryId, body)) {
                         is NetworkResult.Success -> remoteRow = res.data
                         is NetworkResult.Error -> {
                             val theirs = if (res.code == 409) conflictCurrentRow(res.message) else null
                             if (theirs != null) {
                                 pendingOnSuccess = onSuccess
-                                _form.update { it.copy(isSaving = false, inspectionConflict = theirs) }
+                                val theirsValues = InspectionV2.parseEnvelope(
+                                    InspectionV2.parseDataObject(syncEngine.logEntityFromJson(theirs, accountId)?.data),
+                                ).values
+                                val mine = InspectionV2.diffValues(originalValues, current.inspectionAnswers)
+                                _form.update {
+                                    it.copy(
+                                        isSaving = false,
+                                        inspectionConflict = theirs,
+                                        conflictKeys = InspectionV2.conflictingKeys(originalValues, mine, theirsValues),
+                                        conflictMineCount = mine.keys.size,
+                                    )
+                                }
                                 return@launch
                             }
                             Timber.w("[AddEditLogViewModel] inspection PUT failed (${res.code}) — queuing sync")
@@ -1298,6 +1340,7 @@ class AddEditLogViewModel @Inject constructor(
                 } else {
                     originalServerVersion = stored.serverVersion
                     storedData = InspectionV2.parseDataObject(stored.data)
+                    originalValues = InspectionV2.parseEnvelope(storedData).values
                 }
                 pendingOnSuccess = null
 
@@ -1428,7 +1471,10 @@ class AddEditLogViewModel @Inject constructor(
         }
 
         val checklist = current.inspectionChecklist ?: legacyChecklist(current.inspectionFields)
-        val values = current.inspectionAnswers
+        // Only keys the user removed are dropped; every other stored key survives (contract rule 1).
+        val cleared = originalValues.keys.filter { it !in current.inspectionAnswers }.toSet()
+        val storedValues = InspectionV2.parseEnvelope(stored).values
+        val values = InspectionV2.mergeValues(storedValues, current.inspectionAnswers, cleared)
         val defects = InspectionV2.collectDefects(checklist, values)
         val summary = InspectionV2.computeResult(checklist, values)
 
@@ -1465,6 +1511,7 @@ class AddEditLogViewModel @Inject constructor(
             result = summary.result,
             outOfService = summary.outOfService,
             newResolved = resolved,
+            clearedKeys = cleared,
         ).toString()
     }
 

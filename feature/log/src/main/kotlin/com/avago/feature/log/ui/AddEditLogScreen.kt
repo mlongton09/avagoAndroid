@@ -85,6 +85,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -272,7 +274,42 @@ fun AddEditLogScreen(
         AlertDialog(
             onDismissRequest = { viewModel.dismissConflict() },
             title = { Text(stringResource(R.string.log_inspection_conflict_title)) },
-            text = { Text(stringResource(R.string.log_inspection_conflict_message)) },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    Text(stringResource(R.string.log_inspection_conflict_message))
+                    Spacer(Modifier.height(12.dp))
+                    if (form.conflictKeys.isEmpty()) {
+                        Text(
+                            pluralStringResource(
+                                R.plurals.log_inspection_conflict_no_overlap,
+                                form.conflictMineCount,
+                                form.conflictMineCount,
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    } else {
+                        Text(
+                            stringResource(R.string.log_inspection_conflict_both_changed),
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                        val empty = stringResource(R.string.log_inspection_conflict_empty_value)
+                        form.conflictKeys.forEach { c ->
+                            Column(Modifier.padding(top = 8.dp).semantics(mergeDescendants = true) {}) {
+                                Text(viewModel.conflictKeyLabel(c.key), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    stringResource(
+                                        R.string.log_inspection_conflict_mine_theirs,
+                                        c.mine?.takeIf { it.isNotEmpty() } ?: empty,
+                                        c.theirs?.takeIf { it.isNotEmpty() } ?: empty,
+                                    ),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
+            },
             confirmButton = {
                 TextButton(onClick = { viewModel.resolveConflictOverwrite() }) {
                     Text(stringResource(R.string.log_inspection_conflict_overwrite))

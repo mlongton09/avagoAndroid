@@ -206,9 +206,9 @@
 
     <!-- Inspection v2: optimistic concurrency -->
     <string name="log_inspection_conflict_title">This inspection was changed by someone else</string>
-    <string name="log_inspection_conflict_message">Someone saved this inspection after you opened it. Reload their version (your changes are discarded) or overwrite it with yours.</string>
+    <string name="log_inspection_conflict_message">Someone saved this inspection after you opened it. Reload their version (your changes are discarded) or keep yours: your changes are applied on top of their version, and everything else they changed is kept.</string>
     <string name="log_inspection_conflict_reload">Reload theirs</string>
-    <string name="log_inspection_conflict_overwrite">Overwrite with mine</string>
+    <string name="log_inspection_conflict_overwrite">Keep mine</string>
 
     <!-- Inspection v2: read-only detail -->
     <string name="log_detail_inspection_result">Result</string>
@@ -224,5 +224,12 @@
     <string name="log_detail_inspection_signoff">Inspector sign-off</string>
     <string name="log_detail_inspection_signed_by">Signed by %1$s</string>
     <string name="log_detail_inspection_signed_by_on">Signed by %1$s on %2$s</string>
+    <string name="log_inspection_conflict_both_changed">Changed on both sides. Keeping yours replaces theirs:</string>
+    <string name="log_inspection_conflict_mine_theirs">Yours: %1$s · Theirs: %2$s</string>
+    <string name="log_inspection_conflict_empty_value">(empty)</string>
+    <plurals name="log_inspection_conflict_no_overlap">
+        <item quantity="one">No overlapping changes. Your %1$d change will be applied on top of their version.</item>
+        <item quantity="other">No overlapping changes. Your %1$d changes will be applied on top of their version.</item>
+    </plurals>
 </resources>
 
