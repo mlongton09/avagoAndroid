@@ -67,6 +67,8 @@ import com.avago.feature.log.model.InspectionItem
 import com.avago.feature.log.model.InspectionOption
 import com.avago.feature.log.model.InspectionSection
 import com.avago.feature.log.model.InspectionV2
+import com.avago.feature.log.model.VehicleSketchModel
+import com.avago.feature.log.model.humanizeIfKey
 import com.avago.feature.log.model.inspectionOptionColumn
 import com.avago.feature.log.model.inspectionOptionShortLabel
 import com.avago.feature.log.model.isScoreEligible
@@ -579,9 +581,6 @@ private fun quickPhraseLabel(phrase: String): String = when (phrase) {
     else -> phrase
 }
 
-/** Locations offered next to the vehicle sketch (not drawn as sketch zones). */
-private val NON_SKETCH_LOCATIONS = listOf("roof", "under", "interior", "engine")
-
 /**
  * Severity / location / note inputs shown under an item answered Monitor or Needs Repair, or a
  * measurement outside its acceptable range. Values are stored under `<itemId>__sev`,
@@ -717,54 +716,23 @@ private fun InspectionDefectDetails(item: InspectionItem, ctx: InspectionRenderC
     }
 
     if (locationDialogOpen) {
-        AlertDialog(
-            onDismissRequest = { locationDialogOpen = false },
-            title = { Text(stringResource(R.string.log_inspection_defect_location)) },
-            text = {
-                Column(
-                    modifier = Modifier.verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(stringResource(R.string.log_insp_sketch_label), style = MaterialTheme.typography.bodySmall)
-                    VehicleSketch(
-                        assetType = ctx.assetType,
-                        selected = location,
-                        onSelect = {
-                            haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                            ctx.onAnswerChanged(InspectionV2.locKey(item.id), it ?: "")
-                            locationDialogOpen = false
-                        },
-                    )
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        NON_SKETCH_LOCATIONS.forEach { loc ->
-                            FilterChip(
-                                selected = location == loc,
-                                onClick = {
-                                    ctx.onAnswerChanged(InspectionV2.locKey(item.id), if (location == loc) "" else loc)
-                                    locationDialogOpen = false
-                                },
-                                label = { Text(inspectionLocationLabel(loc) ?: loc) },
-                                modifier = Modifier.heightIn(min = MIN_TOUCH),
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { locationDialogOpen = false }, modifier = Modifier.heightIn(min = MIN_TOUCH)) {
-                    Text(stringResource(R.string.log_insp_ok))
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        ctx.onAnswerChanged(InspectionV2.locKey(item.id), "")
-                        locationDialogOpen = false
-                    },
-                    modifier = Modifier.heightIn(min = MIN_TOUCH),
-                ) { Text(stringResource(R.string.log_inspection_defect_location_none)) }
-            },
+        // Damage map picker: every located defect of this inspection is drawn for context; only this
+        // item's pin is placed / dragged / edited. Writes `<itemId>__loc` / `__sev` like web.
+        val labelById = remember(ctx.checklist) { ctx.checklist.allItems().associate { it.id to it.text } }
+        val allMarks = VehicleSketchModel.marksFromDefects(ctx.defects.values.flatten()) { d ->
+            labelById[d.itemId] ?: humanizeIfKey(d.label)
+        }
+        VehicleSketchPickerDialog(
+            assetType = ctx.assetType,
+            itemId = item.id,
+            itemLabel = item.text,
+            location = location,
+            severity = severity,
+            otherMarks = allMarks,
+            activeNumber = allMarks.firstOrNull { it.id == item.id }?.number ?: (allMarks.size + 1),
+            onLocation = { ctx.onAnswerChanged(InspectionV2.locKey(item.id), it) },
+            onSeverity = { ctx.onAnswerChanged(InspectionV2.sevKey(item.id), it) },
+            onDismiss = { locationDialogOpen = false },
         )
     }
 }

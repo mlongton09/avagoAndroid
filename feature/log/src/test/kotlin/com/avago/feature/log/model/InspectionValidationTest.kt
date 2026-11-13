@@ -150,13 +150,13 @@ class InspectionValidationTest {
 
     @Test
     fun `sketch hit test prefers wheels and splits cab and bed`() {
-        assertTrue(InspectionValidation.hasBed("Commercial Vehicle"))
-        assertFalse(InspectionValidation.hasBed("car"))
-        val bed = InspectionValidation.sketchZones(true)
-        assertEquals("fl", InspectionValidation.hitZone(bed, 15f, 40f))
-        assertEquals("left", InspectionValidation.hitZone(bed, 5f, 100f))
-        assertEquals("bed", InspectionValidation.hitZone(bed, 60f, 150f))
-        assertEquals("cab", InspectionValidation.hitZone(InspectionValidation.sketchZones(false), 60f, 150f))
-        assertEquals("front", InspectionValidation.hitZone(bed, 60f, 10f))
+        assertTrue(VehicleSketchModel.hasBed("Commercial Vehicle"))
+        assertFalse(VehicleSketchModel.hasBed("car"))
+        val bed = VehicleSketchModel.zones(VehicleSketchModel.Kind.PICKUP)
+        assertEquals("fl", VehicleSketchModel.hitZone(bed, 15f, 40f))
+        assertEquals("left", VehicleSketchModel.hitZone(bed, 5f, 100f))
+        assertEquals("bed", VehicleSketchModel.hitZone(bed, 60f, 150f))
+        assertEquals("cab", VehicleSketchModel.hitZone(VehicleSketchModel.zones(VehicleSketchModel.Kind.SEDAN), 60f, 150f))
+        assertEquals("front", VehicleSketchModel.hitZone(bed, 60f, 10f))
     }
 }

@@ -257,41 +257,4 @@ object InspectionValidation {
         val sep = if (base.last() in ".,;:!?") " " else ", "
         return base + sep + p.lowercase()
     }
-
-    // ------------------------------------------------------------------
-    // Vehicle sketch (web `VehicleSketch.tsx`, viewBox 120x220, front at top)
-    // ------------------------------------------------------------------
-
-    data class Zone(val id: String, val x: Float, val y: Float, val w: Float, val h: Float) {
-        fun contains(px: Float, py: Float) = px >= x && px <= x + w && py >= y && py <= y + h
-    }
-
-    const val SKETCH_W = 120f
-    const val SKETCH_H = 220f
-
-    private val BED_TYPES = setOf("truck", "commercialvehicle", "atvutv")
-
-    fun hasBed(assetType: String?): Boolean =
-        assetType?.lowercase()?.filter { it in 'a'..'z' }?.let { it in BED_TYPES } ?: false
-
-    /** Wheels first so they win the hit test over the side zones. */
-    fun sketchZones(withBed: Boolean): List<Zone> = buildList {
-        add(Zone("fl", 10f, 32f, 20f, 34f))
-        add(Zone("fr", 90f, 32f, 20f, 34f))
-        add(Zone("rl", 10f, 146f, 20f, 34f))
-        add(Zone("rr", 90f, 146f, 20f, 34f))
-        add(Zone("front", 26f, 0f, 68f, 34f))
-        add(Zone("rear", 26f, 186f, 68f, 34f))
-        add(Zone("left", 0f, 34f, 30f, 152f))
-        add(Zone("right", 90f, 34f, 30f, 152f))
-        if (withBed) {
-            add(Zone("cab", 30f, 34f, 60f, 78f))
-            add(Zone("bed", 30f, 112f, 60f, 74f))
-        } else {
-            add(Zone("cab", 30f, 34f, 60f, 152f))
-        }
-    }
-
-    /** Zone id under a point in sketch (viewBox) coordinates. */
-    fun hitZone(zones: List<Zone>, x: Float, y: Float): String? = zones.firstOrNull { it.contains(x, y) }?.id
 }

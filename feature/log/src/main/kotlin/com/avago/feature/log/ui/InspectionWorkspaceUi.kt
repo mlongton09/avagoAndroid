@@ -68,7 +68,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
@@ -81,15 +80,12 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -825,74 +821,6 @@ fun InspectionCertificationSection(
             OutlinedButton(onClick = { onChange(null) }, modifier = Modifier.heightIn(min = 48.dp)) {
                 Text(stringResource(R.string.log_insp_cert_clear))
             }
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Vehicle sketch (web `VehicleSketch.tsx`)
-// ---------------------------------------------------------------------------
-
-/**
- * Top-down vehicle outline with tappable zones (front at top). Tapping a zone writes its id to
- * `<itemId>__loc`; tapping the selected zone clears it. Zones are exposed to TalkBack as custom
- * actions.
- */
-@Composable
-fun VehicleSketch(
-    assetType: String?,
-    selected: String?,
-    onSelect: (String?) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val zones = remember(assetType) { InspectionValidation.sketchZones(InspectionValidation.hasBed(assetType)) }
-    val primary = MaterialTheme.colorScheme.primary
-    val outline = MaterialTheme.colorScheme.outline
-    val body = MaterialTheme.colorScheme.surfaceVariant
-    val labels = zones.associate { it.id to (inspectionLocationLabel(it.id) ?: it.id) }
-    val selectedLabel = selected?.let { inspectionLocationLabel(it) ?: it } ?: stringResource(R.string.log_inspection_defect_location_none)
-    val sketchCd = stringResource(R.string.log_insp_sketch_cd, selectedLabel)
-    val zoneCdTemplate = stringResource(R.string.log_insp_sketch_zone_cd)
-    Canvas(
-        modifier = modifier
-            .width(200.dp)
-            .aspectRatio(InspectionValidation.SKETCH_W / InspectionValidation.SKETCH_H)
-            .semantics {
-                contentDescription = sketchCd
-                stateDescription = selectedLabel
-                customActions = zones.map { z ->
-                    CustomAccessibilityAction(String.format(zoneCdTemplate, labels[z.id])) {
-                        onSelect(if (selected == z.id) null else z.id); true
-                    }
-                }
-            }
-            .pointerInput(zones, selected) {
-                detectTapGestures { pos ->
-                    val sx = pos.x / size.width * InspectionValidation.SKETCH_W
-                    val sy = pos.y / size.height * InspectionValidation.SKETCH_H
-                    val hit = InspectionValidation.hitZone(zones, sx, sy) ?: return@detectTapGestures
-                    onSelect(if (hit == selected) null else hit)
-                }
-            },
-    ) {
-        val k = size.width / InspectionValidation.SKETCH_W
-        fun rectOf(z: InspectionValidation.Zone) = Pair(Offset(z.x * k, z.y * k), Size(z.w * k, z.h * k))
-        // Body outline.
-        drawRoundRect(
-            color = body,
-            topLeft = Offset(26f * k, 4f * k),
-            size = Size(68f * k, 212f * k),
-            cornerRadius = androidx.compose.ui.geometry.CornerRadius(14f * k),
-        )
-        zones.asReversed().forEach { z ->
-            val (o, s) = rectOf(z)
-            val isWheel = z.id in InspectionValidation.WHEEL_CORNERS
-            if (z.id == selected) {
-                drawRect(primary.copy(alpha = 0.45f), o, s)
-            } else if (isWheel) {
-                drawRoundRect(Color(0xFF424242), o, s, androidx.compose.ui.geometry.CornerRadius(4f * k))
-            }
-            drawRect(outline.copy(alpha = 0.6f), o, s, style = Stroke(width = 1.dp.toPx()))
         }
     }
 }
