@@ -7,8 +7,9 @@ import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
 import com.avago.core.reports.model.ReportRange
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.number
 import kotlinx.datetime.toLocalDateTime
 import java.io.ByteArrayOutputStream
 import javax.inject.Inject
@@ -71,7 +72,7 @@ class ReportPdfGenerator @Inject constructor(
 
         val generatedDate = run {
             val dt = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
-            "${dt.year}-${dt.monthNumber.toString().padStart(2, '0')}-${dt.dayOfMonth.toString().padStart(2, '0')}"
+            "${dt.year}-${dt.month.number.toString().padStart(2, '0')}-${dt.day.toString().padStart(2, '0')}"
         }
         val footerText = "Generated $generatedDate | Avago | $subtitle"
 

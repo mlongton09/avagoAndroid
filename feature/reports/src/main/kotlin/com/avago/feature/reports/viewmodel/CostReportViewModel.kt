@@ -23,11 +23,12 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
+import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.Month
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.number
 import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.toLocalDateTime
 import javax.inject.Inject
@@ -132,7 +133,7 @@ class CostReportViewModel @Inject constructor(
                 }
             }
             CostPeriodMode.MONTH -> {
-                val nowMonthIdx = now.year * 12 + (now.monthNumber - 1)
+                val nowMonthIdx = now.year * 12 + (now.month.number - 1)
                 val endMonthIdx = nowMonthIdx - offset
                 (2 downTo 0).map { i ->
                     val idx = endMonthIdx - i

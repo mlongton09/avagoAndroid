@@ -1,7 +1,7 @@
 package com.avago.core.sync
 
 import com.avago.core.data.DatabaseFactory
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
@@ -890,7 +890,7 @@ class SyncPayloadBuilder @Inject constructor(
     private fun msToDateOnly(ms: Long): String {
         val local = Instant.fromEpochMilliseconds(ms)
             .toLocalDateTime(TimeZone.currentSystemDefault())
-        val noon = LocalDateTime(local.year, local.month, local.dayOfMonth, 12, 0, 0)
+        val noon = LocalDateTime(local.year, local.month, local.day, 12, 0, 0)
         return noon.toInstant(TimeZone.UTC).toString()
     }
 }

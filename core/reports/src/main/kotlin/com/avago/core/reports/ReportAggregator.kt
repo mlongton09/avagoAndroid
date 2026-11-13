@@ -36,10 +36,11 @@ import com.avago.core.reports.model.VendorSummaryRow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
+import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.number
 import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.toLocalDateTime
 import javax.inject.Inject
@@ -162,7 +163,7 @@ class ReportAggregator @Inject constructor(
 
             fun periodLabel(ms: Long): String {
                 val dt = Instant.fromEpochMilliseconds(ms).toLocalDateTime(tz)
-                return "${dt.year}-${dt.monthNumber.toString().padStart(2, '0')}"
+                return "${dt.year}-${dt.month.number.toString().padStart(2, '0')}"
             }
 
             val byPeriod = rangeWos.groupBy { periodLabel(it.createdAt) }
@@ -415,7 +416,7 @@ class ReportAggregator @Inject constructor(
 
             fun periodOf(ms: Long): String {
                 val dt = Instant.fromEpochMilliseconds(ms).toLocalDateTime(tz)
-                return "${dt.year}-${dt.monthNumber.toString().padStart(2, '0')}"
+                return "${dt.year}-${dt.month.number.toString().padStart(2, '0')}"
             }
 
             logs.groupBy { periodOf(it.entryDate) }.entries.sortedBy { it.key }.map { (period, list) ->
@@ -542,7 +543,7 @@ class ReportAggregator @Inject constructor(
 
             fun periodOf(ms: Long): String {
                 val dt = Instant.fromEpochMilliseconds(ms).toLocalDateTime(tz)
-                return "${dt.year}-${dt.monthNumber.toString().padStart(2, '0')}"
+                return "${dt.year}-${dt.month.number.toString().padStart(2, '0')}"
             }
 
             txns.groupBy { periodOf(it.createdAt) }.entries.sortedBy { it.key }.map { (period, list) ->

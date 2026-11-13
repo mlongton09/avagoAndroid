@@ -20,8 +20,9 @@ import androidx.core.content.FileProvider
 import com.avago.core.csv.CsvWriter
 import com.avago.core.pdf.ReportPdfGenerator
 import com.avago.core.reports.model.ReportRange
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.number
 import kotlinx.datetime.toLocalDateTime
 import java.io.File
 
@@ -95,7 +96,7 @@ private fun buildRangeSubtitle(range: ReportRange): String {
     fun fmt(ms: Long): String {
         val dt = Instant.fromEpochMilliseconds(ms)
             .toLocalDateTime(TimeZone.currentSystemDefault())
-        return "${dt.year}-${dt.monthNumber.toString().padStart(2, '0')}-${dt.dayOfMonth.toString().padStart(2, '0')}"
+        return "${dt.year}-${dt.month.number.toString().padStart(2, '0')}-${dt.day.toString().padStart(2, '0')}"
     }
     return "${fmt(range.start.toEpochMilliseconds())} – ${fmt(range.end.toEpochMilliseconds())}"
 }

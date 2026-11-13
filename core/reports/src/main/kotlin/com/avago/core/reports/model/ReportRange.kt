@@ -1,9 +1,10 @@
 package com.avago.core.reports.model
 
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
+import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.number
 import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.toLocalDateTime
 
@@ -23,34 +24,34 @@ data class ReportRange(val start: Instant, val end: Instant) {
 
         fun thisMonth(): ReportRange {
             val now = Clock.System.now().toLocalDateTime(zone)
-            val start = LocalDate(now.year, now.monthNumber, 1).atStartOfDayIn(zone)
+            val start = LocalDate(now.year, now.month.number, 1).atStartOfDayIn(zone)
             val end = Clock.System.now()
             return ReportRange(start, end)
         }
 
         fun lastMonth(): ReportRange {
             val now = Clock.System.now().toLocalDateTime(zone)
-            val (year, month) = if (now.monthNumber == 1) {
+            val (year, month) = if (now.month.number == 1) {
                 Pair(now.year - 1, 12)
             } else {
-                Pair(now.year, now.monthNumber - 1)
+                Pair(now.year, now.month.number - 1)
             }
             val start = LocalDate(year, month, 1).atStartOfDayIn(zone)
-            val endLocal = LocalDate(now.year, now.monthNumber, 1).atStartOfDayIn(zone)
+            val endLocal = LocalDate(now.year, now.month.number, 1).atStartOfDayIn(zone)
             val end = Instant.fromEpochMilliseconds(endLocal.toEpochMilliseconds() - 1)
             return ReportRange(start, end)
         }
 
         fun thisQuarter(): ReportRange {
             val now = Clock.System.now().toLocalDateTime(zone)
-            val quarterStartMonth = ((now.monthNumber - 1) / 3) * 3 + 1
+            val quarterStartMonth = ((now.month.number - 1) / 3) * 3 + 1
             val start = LocalDate(now.year, quarterStartMonth, 1).atStartOfDayIn(zone)
             return ReportRange(start, Clock.System.now())
         }
 
         fun lastQuarter(): ReportRange {
             val now = Clock.System.now().toLocalDateTime(zone)
-            val currentQStartMonth = ((now.monthNumber - 1) / 3) * 3 + 1
+            val currentQStartMonth = ((now.month.number - 1) / 3) * 3 + 1
             val (prevQYear, prevQStartMonth) = if (currentQStartMonth == 1) {
                 Pair(now.year - 1, 10)
             } else {
