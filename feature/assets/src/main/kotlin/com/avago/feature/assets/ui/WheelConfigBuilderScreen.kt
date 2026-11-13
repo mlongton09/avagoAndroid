@@ -29,7 +29,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -318,7 +318,7 @@ private fun AxleRow(
                     readOnly = true,
                     label = { Text("Role") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(roleExpanded) },
-                    modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                    modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
                     singleLine = true,
                 )
                 ExposedDropdownMenu(expanded = roleExpanded, onDismissRequest = { roleExpanded = false }) {

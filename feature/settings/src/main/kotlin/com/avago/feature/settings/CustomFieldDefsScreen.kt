@@ -22,6 +22,7 @@ import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FloatingActionButton
@@ -209,7 +210,7 @@ private fun AddCustomFieldSheet(
                 readOnly = true,
                 label = { Text("Entity Type") },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = entityExpanded) },
-                modifier = Modifier.fillMaxWidth().menuAnchor(),
+                modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
             )
             ExposedDropdownMenu(expanded = entityExpanded, onDismissRequest = { entityExpanded = false }) {
                 ENTITY_TYPES.forEach { type ->
@@ -229,7 +230,7 @@ private fun AddCustomFieldSheet(
                 readOnly = true,
                 label = { Text("Field Type") },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeExpanded) },
-                modifier = Modifier.fillMaxWidth().menuAnchor(),
+                modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
             )
             ExposedDropdownMenu(expanded = typeExpanded, onDismissRequest = { typeExpanded = false }) {
                 FIELD_TYPES.forEach { type ->

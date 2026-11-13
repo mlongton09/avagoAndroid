@@ -29,7 +29,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -486,7 +486,7 @@ private fun PaymentBottomSheet(
                     label = { Text(stringResource(R.string.rental_invoice_payment_method)) },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                     modifier = Modifier
-                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                         .fillMaxWidth(),
                 )
                 ExposedDropdownMenu(

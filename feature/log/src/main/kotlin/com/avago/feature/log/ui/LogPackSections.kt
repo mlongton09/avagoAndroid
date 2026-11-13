@@ -18,7 +18,7 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
@@ -245,7 +245,7 @@ internal fun LogVendorWoSection(
                 label = { Text(stringResource(R.string.log_pack_vendor)) },
                 singleLine = true,
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = vendorOpen) },
-                modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryEditable),
+                modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable),
             )
             ExposedDropdownMenu(expanded = vendorOpen && matches.isNotEmpty(), onDismissRequest = { vendorOpen = false }) {
                 matches.forEach { v ->
@@ -265,7 +265,7 @@ internal fun LogVendorWoSection(
                     readOnly = true,
                     label = { Text(stringResource(R.string.log_pack_wo_link)) },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = woOpen) },
-                    modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                    modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
                 )
                 ExposedDropdownMenu(expanded = woOpen, onDismissRequest = { woOpen = false }) {
                     DropdownMenuItem(text = { Text(none) }, onClick = { viewModel.onLinkedWorkOrderSelected(null); woOpen = false })
@@ -367,7 +367,7 @@ private fun EnumDropdown(
             label = { Text(label) },
             singleLine = true,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = open) },
-            modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
+            modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
         )
         ExposedDropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(text = { Text("—") }, onClick = { onSelected(""); open = false })
