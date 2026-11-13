@@ -212,6 +212,10 @@ data class AddEditLogFormState(
     // Draft autosave: epoch millis of the restored draft (banner) and a newer server draft offer.
     val restoredDraftAt: Long? = null,
     val serverDraftOffer: InspectionDraft? = null,
+    /** Open defects came from the server register (lifecycle actions available). */
+    val openDefectsServerBacked: Boolean = false,
+    /** Result of the last defect lifecycle PATCH (snackbar), null when shown. */
+    val defectUpdateOk: Boolean? = null,
     val syncStatus: LogSyncStatus? = null,
     // High-contrast "sunlight mode" (persisted in DataStore via UserPreferencesRepository).
     val sunlightMode: Boolean = false,
@@ -1130,13 +1134,14 @@ class AddEditLogViewModel @Inject constructor(
         val accountId = identity.getActiveAccountId() ?: return
         _form.update { it.copy(openDefectsLoading = true, inspectionOpenDefects = emptyList(), openDefectResolutions = emptyMap()) }
         viewModelScope.launch {
+            var serverBacked = false
             val defects = try {
                 when (val res = serviceClient.getDefects(accountId, assetId)) {
                     is NetworkResult.Success -> InspectionV2.sortOpen(
                         res.data.mapNotNull { it as? JsonObject }
                             .map { InspectionV2.fromServerDefect(it) }
                             .filter { it.status == "open" || it.status == "monitoring" || it.status == "deferred" },
-                    )
+                    ).also { serverBacked = true }
                     else -> deriveOpenDefectsLocally(accountId, assetId)
                 }
             } catch (e: Exception) {
@@ -1144,9 +1149,40 @@ class AddEditLogViewModel @Inject constructor(
                 runCatching { deriveOpenDefectsLocally(accountId, assetId) }.getOrDefault(emptyList())
             }
             if (openDefectsLoadedFor != assetId) return@launch
-            _form.update { it.copy(inspectionOpenDefects = defects, openDefectsLoading = false) }
+            _form.update { it.copy(inspectionOpenDefects = defects, openDefectsLoading = false, openDefectsServerBacked = serverBacked) }
         }
     }
+
+    /**
+     * Web OpenDefectsPanel lifecycle: PATCH the server register to repaired (with an optional
+     * resolution note), deferred or open. Only offered when the list came from the server.
+     */
+    fun updateDefectStatus(defect: InspectionV2.OpenDefect, status: String, note: String? = null) {
+        val accountId = identity.getActiveAccountId() ?: return
+        viewModelScope.launch {
+            val ok = try {
+                serviceClient.patchDefect(accountId, defect.id, status, note?.trim()?.takeIf { it.isNotEmpty() }) is NetworkResult.Success
+            } catch (e: Exception) {
+                Timber.w(e, "[AddEditLogViewModel] patchDefect failed")
+                false
+            }
+            _form.update { state ->
+                if (!ok) return@update state.copy(defectUpdateOk = false)
+                val list = if (status == InspectionV2.RESOLUTION_REPAIRED) {
+                    state.inspectionOpenDefects.filterNot { it.id == defect.id }
+                } else {
+                    state.inspectionOpenDefects.map { if (it.id == defect.id) it.copy(status = status) else it }
+                }
+                state.copy(
+                    inspectionOpenDefects = list,
+                    openDefectResolutions = if (status == InspectionV2.RESOLUTION_REPAIRED) state.openDefectResolutions - defect.key else state.openDefectResolutions,
+                    defectUpdateOk = true,
+                )
+            }
+        }
+    }
+
+    fun clearDefectUpdateResult() = _form.update { it.copy(defectUpdateOk = null) }
 
     private suspend fun deriveOpenDefectsLocally(accountId: String, assetId: String): List<InspectionV2.OpenDefect> {
         val logs = dbFactory.get(accountId).logDao().observeAll(accountId).first()

@@ -239,6 +239,15 @@ fun AddEditLogScreen(
         }
     }
 
+    val defectUpdatedMsg = stringResource(R.string.log_insp_defect_updated)
+    val defectUpdateFailedMsg = stringResource(R.string.log_insp_defect_update_failed)
+    LaunchedEffect(form.defectUpdateOk) {
+        val ok = form.defectUpdateOk ?: return@LaunchedEffect
+        haptic.performHapticFeedback(if (ok) HapticFeedbackType.Confirm else HapticFeedbackType.Reject)
+        viewModel.clearDefectUpdateResult()
+        snackbarHostState.showSnackbar(if (ok) defectUpdatedMsg else defectUpdateFailedMsg)
+    }
+
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
     ) { uris: List<Uri> -> uris.forEach { viewModel.addPhotoUri(it) } }
@@ -1279,6 +1288,11 @@ fun AddEditLogScreen(
                                         )
                                         woRequest(listOf(defect), d.assetId)?.let(cb)
                                     }
+                                },
+                                onSetStatus = if (form.openDefectsServerBacked) {
+                                    { d, status, note -> viewModel.updateDefectStatus(d, status, note) }
+                                } else {
+                                    null
                                 },
                             )
                             Spacer(Modifier.height(12.dp))

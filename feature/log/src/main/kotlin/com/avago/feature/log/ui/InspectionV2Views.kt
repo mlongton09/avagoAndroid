@@ -18,7 +18,11 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -59,6 +63,7 @@ private fun severityColor(severity: String): Color = when (severity) {
 private fun inspectionStatusLabel(status: String): String = when (status) {
     "monitoring" -> stringResource(R.string.log_inspection_status_monitoring)
     "deferred" -> stringResource(R.string.log_inspection_status_deferred)
+    "repaired" -> stringResource(R.string.log_inspection_status_repaired)
     else -> stringResource(R.string.log_inspection_status_open)
 }
 
@@ -118,7 +123,10 @@ internal fun InspectionOpenDefectsCard(
     onResolve: (key: String, resolution: String) -> Unit,
     modifier: Modifier = Modifier,
     onCreateWorkOrder: ((InspectionV2.OpenDefect) -> Unit)? = null,
+    /** Server-register lifecycle (web OpenDefectsPanel): repaired (+ note), deferred, open. */
+    onSetStatus: ((InspectionV2.OpenDefect, status: String, note: String?) -> Unit)? = null,
 ) {
+    var resolving by remember { mutableStateOf<InspectionV2.OpenDefect?>(null) }
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -152,6 +160,7 @@ internal fun InspectionOpenDefectsCard(
                     selected = current == InspectionV2.RESOLUTION_REPAIRED,
                     onClick = { onResolve(d.key, InspectionV2.RESOLUTION_REPAIRED) },
                     label = { Text(stringResource(R.string.log_inspection_defect_repaired)) },
+                    modifier = Modifier.heightIn(min = 48.dp),
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = INSPECTION_OPTION_COLORS.getValue("normal"),
                         selectedLabelColor = Color.White,
@@ -161,18 +170,69 @@ internal fun InspectionOpenDefectsCard(
                     selected = current == InspectionV2.RESOLUTION_STILL_PRESENT,
                     onClick = { onResolve(d.key, InspectionV2.RESOLUTION_STILL_PRESENT) },
                     label = { Text(stringResource(R.string.log_inspection_defect_still_present)) },
+                    modifier = Modifier.heightIn(min = 48.dp),
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = INSPECTION_OPTION_COLORS.getValue("needs_repair"),
                         selectedLabelColor = Color.White,
                     ),
                 )
-                if (onCreateWorkOrder != null) {
-                    androidx.compose.material3.TextButton(onClick = { onCreateWorkOrder(d) }) {
+                if (onCreateWorkOrder != null && d.status != "repaired") {
+                    androidx.compose.material3.TextButton(
+                        onClick = { onCreateWorkOrder(d) },
+                        modifier = Modifier.heightIn(min = 48.dp),
+                    ) {
                         Text(stringResource(R.string.log_inspection_defect_create_wo))
                     }
                 }
+                if (onSetStatus != null) {
+                    if (d.status == "deferred") {
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = { onSetStatus(d, "open", null) },
+                            modifier = Modifier.heightIn(min = 48.dp),
+                        ) { Text(stringResource(R.string.log_insp_defect_action_reopen)) }
+                    } else {
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = { onSetStatus(d, "deferred", null) },
+                            modifier = Modifier.heightIn(min = 48.dp),
+                        ) { Text(stringResource(R.string.log_insp_defect_action_defer)) }
+                    }
+                    androidx.compose.material3.Button(
+                        onClick = { resolving = d },
+                        modifier = Modifier.heightIn(min = 48.dp),
+                    ) { Text(stringResource(R.string.log_insp_defect_action_repaired)) }
+                }
             }
         }
+    }
+
+    resolving?.let { d ->
+        var note by remember(d.id) { mutableStateOf("") }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { resolving = null },
+            title = { Text(stringResource(R.string.log_insp_defect_action_repaired)) },
+            text = {
+                androidx.compose.material3.OutlinedTextField(
+                    value = note,
+                    onValueChange = { note = it },
+                    label = { Text(stringResource(R.string.log_insp_defect_resolution_prompt)) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        onSetStatus?.invoke(d, "repaired", note)
+                        resolving = null
+                    },
+                    modifier = Modifier.heightIn(min = 48.dp),
+                ) { Text(stringResource(R.string.log_insp_defect_action_repaired)) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { resolving = null }, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text(stringResource(com.avago.core.ui.R.string.common_cancel))
+                }
+            },
+        )
     }
 }
 

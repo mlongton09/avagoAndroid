@@ -210,7 +210,6 @@
     <string name="log_inspection_status_repaired">Repariert</string>
     <string name="log_insp_defect_action_repaired">Als repariert markieren</string>
     <string name="log_insp_defect_action_defer">Zurückstellen</string>
-    <string name="log_insp_defect_action_monitor">Beobachten</string>
     <string name="log_insp_defect_action_reopen">Wieder öffnen</string>
     <string name="log_insp_defect_resolution_prompt">Reparaturnotiz (optional)</string>
     <string name="log_insp_defect_updated">Mangel aktualisiert</string>

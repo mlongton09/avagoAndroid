@@ -310,7 +310,6 @@
     <string name="log_inspection_status_repaired">Repaired</string>
     <string name="log_insp_defect_action_repaired">Mark repaired</string>
     <string name="log_insp_defect_action_defer">Defer</string>
-    <string name="log_insp_defect_action_monitor">Monitor</string>
     <string name="log_insp_defect_action_reopen">Reopen</string>
     <string name="log_insp_defect_resolution_prompt">Repair note (optional)</string>
     <string name="log_insp_defect_updated">Defect updated</string>
