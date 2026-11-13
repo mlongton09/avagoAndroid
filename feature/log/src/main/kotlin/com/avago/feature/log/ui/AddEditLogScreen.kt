@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -226,6 +227,7 @@ fun AddEditLogScreen(
             }
     val jump = rememberInspectionJumpController()
     var showSectionSheet by remember { mutableStateOf(false) }
+    var showVoiceFill by remember { mutableStateOf(false) }
     val onSavedWithHaptic: (String) -> Unit = { id ->
         haptic.performHapticFeedback(HapticFeedbackType.Confirm)
         onSaved(id)
@@ -297,6 +299,20 @@ fun AddEditLogScreen(
     }
 
     val costSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val voiceChecklist = form.inspectionChecklist
+    if (showVoiceFill && voiceChecklist != null) {
+        val voiceAppliedFmt = stringResource(R.string.log_insp_voice_applied)
+        VoiceFillDialog(
+            checklist = voiceChecklist,
+            values = form.inspectionAnswers,
+            onDismiss = { showVoiceFill = false },
+            onApply = { writes, count ->
+                showVoiceFill = false
+                viewModel.onInspectionAnswersChanged(writes)
+                scope.launch { snackbarHostState.showSnackbar(String.format(voiceAppliedFmt, count)) }
+            },
+        )
+    }
     var showCostSheet by remember { mutableStateOf(false) }
     var showCategoryPicker by remember { mutableStateOf(false) }
     var showInspectionSubtypePicker by remember { mutableStateOf(false) }
@@ -634,6 +650,11 @@ fun AddEditLogScreen(
                     }
                 },
                 actions = {
+                    if (form.logType == "inspection" && form.inspectionChecklist != null) {
+                        IconButton(onClick = { showVoiceFill = true }) {
+                            Icon(Icons.Filled.Mic, contentDescription = stringResource(R.string.log_insp_voice_title))
+                        }
+                    }
                     if (form.logType == "inspection") {
                         val sunCd = stringResource(
                             if (form.sunlightMode) R.string.log_sunlight_mode_cd_on else R.string.log_sunlight_mode_cd_off,
