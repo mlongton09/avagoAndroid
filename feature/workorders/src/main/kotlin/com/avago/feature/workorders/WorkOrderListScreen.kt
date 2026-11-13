@@ -63,6 +63,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -73,6 +81,8 @@ import com.avago.core.ui.rememberScrollAwareHeaderState
 import com.avago.feature.workorders.model.WoStatus
 import com.avago.feature.workorders.ui.components.WoCard
 import com.avago.feature.workorders.ui.sheets.RescheduleSheet
+import com.avago.feature.workorders.ui.components.woStatusLabel
+import com.avago.feature.workorders.viewmodel.WoBucketKey
 import com.avago.feature.workorders.viewmodel.WoHorizon
 import com.avago.feature.workorders.viewmodel.WoListFilter
 import com.avago.feature.workorders.viewmodel.WorkOrderListViewModel
@@ -97,6 +107,8 @@ fun WorkOrderListScreen(
     val syncError by viewModel.syncError.collectAsStateWithLifecycle()
     val canCreateWo by viewModel.canCreateWo.collectAsStateWithLifecycle()
     val canOpenDispatch by viewModel.canOpenDispatch.collectAsStateWithLifecycle()
+    val isFilteredEmpty by viewModel.isFilteredEmpty.collectAsStateWithLifecycle()
+    val haptic = LocalHapticFeedback.current
 
     val horizonOptions = listOf(
         WoHorizon.NOW  to stringResource(R.string.wo_horizon_now),
@@ -160,14 +172,43 @@ fun WorkOrderListScreen(
                 if (buckets.isEmpty()) {
                     Column(modifier = Modifier.fillMaxSize()) {
                         Spacer(modifier = Modifier.height(with(density) { (headerHeightPx * headerProgress).toDp() }))
-                        EmptyState(
-                            message = if (filter == WoListFilter.MINE) {
-                                stringResource(R.string.wo_all_caught_up)
-                            } else {
-                                stringResource(R.string.wo_no_open)
-                            },
-                            modifier = Modifier.fillMaxSize(),
-                        )
+                        if (isFilteredEmpty) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.wo_list_no_matches_title),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    modifier = Modifier.semantics { heading() },
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = stringResource(R.string.wo_list_no_matches_body),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                OutlinedButton(
+                                    onClick = viewModel::clearSearchAndFilters,
+                                    modifier = Modifier.heightIn(min = 48.dp),
+                                ) {
+                                    Text(stringResource(R.string.wo_list_clear_filters))
+                                }
+                            }
+                        } else {
+                            EmptyState(
+                                message = if (filter == WoListFilter.MINE) {
+                                    stringResource(R.string.wo_all_caught_up)
+                                } else {
+                                    stringResource(R.string.wo_no_open)
+                                },
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
                     }
                 } else {
                     LazyColumn(
@@ -207,9 +248,9 @@ fun WorkOrderListScreen(
                         }
 
                         buckets.forEach { bucket ->
-                            stickyHeader(key = "header_${bucket.label}") {
+                            stickyHeader(key = "header_${bucket.key.name}") {
                                 BucketHeader(
-                                    label = bucket.label,
+                                    label = bucketLabel(bucket.key),
                                     count = bucket.items.size,
                                 )
                             }
@@ -219,6 +260,7 @@ fun WorkOrderListScreen(
                                     state = rememberSwipeToDismissBoxState(
                                         confirmValueChange = { value ->
                                             if (value == SwipeToDismissBoxValue.EndToStart) {
+                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                                 rescheduleTarget = wo.woId
                                             }
                                             false // don't actually dismiss — just reveal the action
@@ -247,7 +289,7 @@ fun WorkOrderListScreen(
                                                     modifier = Modifier.size(20.dp),
                                                 )
                                                 Text(
-                                                    text = "Reschedule",
+                                                    text = stringResource(R.string.reschedule_title),
                                                     style = MaterialTheme.typography.labelSmall,
                                                     color = Color.White,
                                                 )
@@ -255,10 +297,20 @@ fun WorkOrderListScreen(
                                         }
                                     },
                                 ) {
+                                    val rescheduleLabel = stringResource(R.string.reschedule_title)
                                     WoCard(
                                         wo = wo,
                                         onClick = { onWoClick(wo.woId) },
                                         assetLabel = assetLabels[wo.assetId],
+                                        // TalkBack can't swipe ? expose reschedule as a custom action.
+                                        modifier = Modifier.semantics {
+                                            customActions = listOf(
+                                                CustomAccessibilityAction(rescheduleLabel) {
+                                                    rescheduleTarget = wo.woId
+                                                    true
+                                                },
+                                            )
+                                        },
                                     )
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))
@@ -359,7 +411,7 @@ fun WorkOrderListScreen(
                                 WoStatus.entries.forEach { status ->
                                     val isSelected = status.key in statusFilter
                                     DropdownMenuItem(
-                                        text = { Text(status.displayName) },
+                                        text = { Text(woStatusLabel(status.key)) },
                                         leadingIcon = {
                                             Checkbox(
                                                 checked = isSelected,
@@ -442,6 +494,18 @@ fun WorkOrderListScreen(
 }
 
 @Composable
+private fun bucketLabel(key: WoBucketKey): String = stringResource(
+    when (key) {
+        WoBucketKey.OVERDUE -> R.string.wo_bucket_overdue
+        WoBucketKey.DUE_TODAY -> R.string.wo_bucket_due_today
+        WoBucketKey.THIS_WEEK -> R.string.wo_bucket_this_week
+        WoBucketKey.THIS_MONTH -> R.string.wo_bucket_this_month
+        WoBucketKey.LATER -> R.string.wo_bucket_later
+        WoBucketKey.COMPLETED -> R.string.wo_bucket_completed
+    },
+)
+
+@Composable
 private fun BucketHeader(
     label: String,
     count: Int,
@@ -454,7 +518,8 @@ private fun BucketHeader(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 8.dp, horizontal = 4.dp),
+                .padding(vertical = 8.dp, horizontal = 4.dp)
+                .semantics(mergeDescendants = true) { heading() },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {

@@ -2,7 +2,8 @@ package com.avago.feature.workorders.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,19 +50,26 @@ import java.time.format.DateTimeFormatter
 // — Row 1: title (1 line) + due date (right, short "MMM d") — no status chip
 // — Row 2: P1 · asset · effort | tech · Repeats
 // Status is communicated via section bucket headers, not a chip.
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun WoCard(
     wo: WorkOrderEntity,
     onClick: () -> Unit,
     assetLabel: String? = null,
     modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
+    onLongClickLabel: String? = null,
 ) {
     val priorityBarColor = priorityBarColor(wo.priority)
 
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+                onLongClickLabel = onLongClickLabel,
+            ),
         shape = MaterialTheme.shapes.small,
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 0.dp,
@@ -142,7 +150,7 @@ fun WoCard(
                             .padding(horizontal = 8.dp, vertical = 3.dp),
                     ) {
                         Text(
-                            text = "⏳ Awaiting approval",
+                            text = "⏳ " + stringResource(R.string.status_awaiting_approval),
                             style = MaterialTheme.typography.labelSmall,
                             color = Color(0xFFC2410C),
                         )
@@ -159,6 +167,7 @@ private fun WoSubtitleLine(wo: WorkOrderEntity, assetLabel: String? = null) {
     val sepColor = mutedColor.copy(alpha = 0.5f)
     val priorityTextColor = priorityTextColor(wo.priority)
     val repeatsColor = Color(0xFF7C3AED)
+    val repeatsLabel = stringResource(R.string.wo_field_repeats)
 
     val dot  = "  ·  "   // "  ·  "
     val pipe = "  |  "
@@ -206,7 +215,7 @@ private fun WoSubtitleLine(wo: WorkOrderEntity, assetLabel: String? = null) {
         if (!wo.rrule.isNullOrBlank()) {
             sep(dot)
             withStyle(SpanStyle(color = repeatsColor, fontWeight = FontWeight.Bold)) {
-                append("Repeats")
+                append(repeatsLabel)
             }
         }
     }
@@ -230,7 +239,7 @@ fun WoStatusChip(status: WoStatus, modifier: Modifier = Modifier) {
         color = color.copy(alpha = 0.15f),
     ) {
         Text(
-            text = status.displayName,
+            text = woStatusLabel(status.key),
             style = MaterialTheme.typography.labelMedium,
             color = color,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),

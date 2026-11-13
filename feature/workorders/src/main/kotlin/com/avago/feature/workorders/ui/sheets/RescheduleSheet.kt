@@ -65,7 +65,7 @@ fun RescheduleSheet(
 
             if (currentDueDate != null) {
                 Text(
-                    text = "Current due date: ${currentDueDate.format(DateTimeFormatter.ofPattern("MMM d, yyyy"))}",
+                    text = stringResource(R.string.reschedule_current_due, currentDueDate.format(DateTimeFormatter.ofLocalizedDate(java.time.format.FormatStyle.MEDIUM))),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

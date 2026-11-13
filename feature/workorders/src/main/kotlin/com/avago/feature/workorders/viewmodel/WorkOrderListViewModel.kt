@@ -1,5 +1,6 @@
 package com.avago.feature.workorders.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
@@ -7,8 +8,11 @@ import com.avago.core.data.db.entity.WorkOrderEntity
 import com.avago.core.permissions.Permissions
 import com.avago.core.permissions.PermissionsManager
 import com.avago.core.sync.SyncEngine
+import com.avago.feature.workorders.R
+import com.avago.feature.workorders.model.WoSearch
 import com.avago.feature.workorders.repository.WorkOrderRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -33,7 +37,10 @@ enum class WoListFilter { MINE, ALL }
 /** Horizon selector — matches iOS "Now / Next / Later" segmented control. */
 enum class WoHorizon { NOW, NEXT, LATER }
 
-data class WoBucket(val label: String, val items: List<WorkOrderEntity>)
+/** Due-date bucket ? the UI maps each key to a localized `wo_bucket_*` string. */
+enum class WoBucketKey { OVERDUE, DUE_TODAY, THIS_WEEK, THIS_MONTH, LATER, COMPLETED }
+
+data class WoBucket(val key: WoBucketKey, val items: List<WorkOrderEntity>)
 
 @HiltViewModel
 class WorkOrderListViewModel @Inject constructor(
@@ -41,6 +48,7 @@ class WorkOrderListViewModel @Inject constructor(
     private val identityManager: IdentityManager,
     private val syncEngine: SyncEngine,
     private val permissionsManager: PermissionsManager,
+    @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
     private val _searchQuery = MutableStateFlow("")
@@ -104,10 +112,26 @@ class WorkOrderListViewModel @Inject constructor(
                 initialValue = emptyList(),
             )
 
+    // Asset subtitle labels keyed by assetId — populated from local DB whenever
+    // the WO list changes. Mirrors iOS UnifiedWorkOrderCell.assetSubtitle().
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val assetLabels: StateFlow<Map<String, String?>> = _allWos
+        .flatMapLatest { wos ->
+            val accountId = identityManager.getActiveAccountId()
+                ?: return@flatMapLatest flowOf(emptyMap())
+            flow {
+                val uniqueIds = wos.mapNotNull { it.assetId }.distinct()
+                emit(uniqueIds.associateWith { id -> repository.assetLabelFor(id, accountId) })
+            }
+        }
+        .catch { emit(emptyMap()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
     val buckets: StateFlow<List<WoBucket>> = combine(
         combine(_allWos, _searchQuery, _scopeFilter, _horizon) { a, b, c, d -> Quad(a, b, c, d) },
         _statusFilter,
-    ) { (all, query, scope, horizon), statusFilter ->
+        assetLabels,
+    ) { (all, query, scope, horizon), statusFilter, labels ->
         val myUserId = identityManager.getActiveUserId() ?: identityManager.getActiveAccountId()
         val zone = ZoneId.systemDefault()
         val today = LocalDate.now(zone)
@@ -147,11 +171,10 @@ class WorkOrderListViewModel @Inject constructor(
         val statusFiltered = if (statusFilter.isEmpty()) scopeFiltered
         else scopeFiltered.filter { wo -> wo.status in statusFilter }
 
-        // 4. Search filter
-        val searched = statusFiltered.filter { wo ->
-            if (query.isBlank()) true
-            else wo.title.contains(query, ignoreCase = true) ||
-                wo.description?.contains(query, ignoreCase = true) == true
+        // 4. Search filter ? web woSearch parity: every term must match title, id,
+        //    description, asset label, assignee or category (case/diacritic-insensitive).
+        val searched = WoSearch.filter(statusFiltered, query) { wo ->
+            listOf(wo.title, wo.woId, wo.description, wo.assetId?.let { labels[it] }, wo.assignedTo, wo.category)
         }
 
         // 5. Group into buckets
@@ -190,14 +213,14 @@ class WorkOrderListViewModel @Inject constructor(
         fun List<WorkOrderEntity>.byDueDesc() = sortedByDescending { it.dueDate }
 
         val result = mutableListOf<WoBucket>()
-        if (overdue.isNotEmpty()) result.add(WoBucket("Overdue", overdue.byDueAsc()))
-        if (dueToday.isNotEmpty()) result.add(WoBucket("Due Today", dueToday.byDueAsc()))
-        if (thisWeek.isNotEmpty()) result.add(WoBucket("This Week", thisWeek.byDueAsc()))
-        if (thisMonth.isNotEmpty()) result.add(WoBucket("This Month", thisMonth.byDueAsc()))
+        if (overdue.isNotEmpty()) result.add(WoBucket(WoBucketKey.OVERDUE, overdue.byDueAsc()))
+        if (dueToday.isNotEmpty()) result.add(WoBucket(WoBucketKey.DUE_TODAY, dueToday.byDueAsc()))
+        if (thisWeek.isNotEmpty()) result.add(WoBucket(WoBucketKey.THIS_WEEK, thisWeek.byDueAsc()))
+        if (thisMonth.isNotEmpty()) result.add(WoBucket(WoBucketKey.THIS_MONTH, thisMonth.byDueAsc()))
         val laterWithNoDueDate = later.byDueAsc() + noDueDate.sortedByDescending { it.updatedAt }
-        if (laterWithNoDueDate.isNotEmpty()) result.add(WoBucket("Later", laterWithNoDueDate))
+        if (laterWithNoDueDate.isNotEmpty()) result.add(WoBucket(WoBucketKey.LATER, laterWithNoDueDate))
         val completedSorted = completed.sortedByDescending { it.updatedAt }.take(20)
-        if (completedSorted.isNotEmpty()) result.add(WoBucket("Completed", completedSorted))
+        if (completedSorted.isNotEmpty()) result.add(WoBucket(WoBucketKey.COMPLETED, completedSorted))
 
         result
     }
@@ -207,22 +230,18 @@ class WorkOrderListViewModel @Inject constructor(
             initialValue = emptyList(),
         )
 
-    // Asset subtitle labels keyed by assetId — populated from local DB whenever
-    // the WO list changes. Mirrors iOS UnifiedWorkOrderCell.assetSubtitle().
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val assetLabels: StateFlow<Map<String, String?>> = _allWos
-        .flatMapLatest { wos ->
-            val accountId = identityManager.getActiveAccountId()
-                ?: return@flatMapLatest flowOf(emptyMap())
-            flow {
-                val uniqueIds = wos.mapNotNull { it.assetId }.distinct()
-                emit(uniqueIds.associateWith { id -> repository.assetLabelFor(id, accountId) })
-            }
-        }
-        .catch { emit(emptyMap()) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+    /** True when the scoped list has rows but the active search / status filter hides them all. */
+    val isFilteredEmpty: StateFlow<Boolean> = combine(buckets, _searchQuery, _statusFilter) { b, q, s ->
+        b.isEmpty() && (WoSearch.terms(q).isNotEmpty() || s.isNotEmpty())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     fun onSearchQueryChanged(q: String) { _searchQuery.value = q }
+
+    /** Clears search text and status filters (empty-state "Clear filters" action). */
+    fun clearSearchAndFilters() {
+        _searchQuery.value = ""
+        _statusFilter.value = emptySet()
+    }
 
     fun onFilterChanged(f: WoListFilter) { _scopeFilter.value = f }
 
@@ -249,7 +268,7 @@ class WorkOrderListViewModel @Inject constructor(
                 syncEngine.sync()
             } catch (e: Exception) {
                 Timber.e(e, "[WoListVM] Sync failed")
-                _syncError.value = "Couldn't sync. Tap to retry."
+                _syncError.value = appContext.getString(R.string.wo_list_sync_failed)
             } finally {
                 _isRefreshing.value = false
             }

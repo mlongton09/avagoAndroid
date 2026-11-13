@@ -207,7 +207,7 @@ fun WorkOrderLogScreen(
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = Color.White,
             ) {
-                Icon(Icons.Default.AutoAwesome, contentDescription = "Scout")
+                Icon(Icons.Default.AutoAwesome, contentDescription = stringResource(R.string.wo_action_scout))
             }
         },
         topBar = {

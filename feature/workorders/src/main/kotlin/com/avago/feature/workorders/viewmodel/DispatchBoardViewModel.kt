@@ -6,6 +6,7 @@ import com.avago.core.auth.IdentityManager
 import com.avago.core.data.FeatureFlags
 import com.avago.core.data.db.entity.WorkOrderEntity
 import com.avago.core.sync.SyncEngine
+import com.avago.feature.workorders.model.WoSearch
 import com.avago.feature.workorders.model.WoStatus
 import com.avago.feature.workorders.repository.WorkOrderRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -79,11 +80,11 @@ class DispatchBoardViewModel @Inject constructor(
             val active = wos
                 .filter { it.status != WoStatus.CANCELLED.key }
                 .let { list ->
-                    if (query.isBlank()) list
-                    else list.filter { it.title.contains(query, ignoreCase = true) }
+                    WoSearch.filter(list, query) { listOf(it.title, it.woId, it.description, it.assignedTo, it.category) }
                 }
             DISPATCH_COLUMNS.associateWith { status ->
-                active.filter { it.status == status.key }
+                // fromKey maps the legacy "complete" alias into the COMPLETE column.
+                active.filter { it.status == status.key || (status == WoStatus.COMPLETE && it.status == "complete") }
                     .sortedBy { it.dueDate ?: Long.MAX_VALUE }
             }
         }
@@ -136,6 +137,7 @@ class DispatchBoardViewModel @Inject constructor(
      */
     fun moveToStatus(wo: WorkOrderEntity, targetStatus: WoStatus) {
         val accountId = identityManager.getActiveAccountId() ?: return
+        if (WoStatus.fromKey(wo.status) == targetStatus) return
         viewModelScope.launch {
             try {
                 val now = System.currentTimeMillis()
@@ -149,6 +151,18 @@ class DispatchBoardViewModel @Inject constructor(
                 repository.upsert(accountId, updated)
             } catch (e: Exception) {
                 Timber.e(e, "[DispatchBoardVM] moveToStatus failed for ${wo.woId}")
+            }
+        }
+    }
+
+    /** Undo for a board move: restores the snapshot taken before [moveToStatus]. */
+    fun restore(original: WorkOrderEntity) {
+        val accountId = identityManager.getActiveAccountId() ?: return
+        viewModelScope.launch {
+            try {
+                repository.upsert(accountId, original.copy(updatedAt = System.currentTimeMillis()))
+            } catch (e: Exception) {
+                Timber.e(e, "[DispatchBoardVM] restore failed for ${original.woId}")
             }
         }
     }

@@ -339,7 +339,7 @@ fun WorkOrderCreateScreen(
                 )
                 effortHint?.let { hint ->
                     Text(
-                        text = "Typical: ${hint.typicalMinutes} min  ·  fast: ${hint.fastMinutes}  ·  slow: ${hint.slowMinutes}  ·  ${hint.sampleCount} jobs",
+                        text = stringResource(R.string.wo_create_effort_hint, hint.typicalMinutes, hint.fastMinutes, hint.slowMinutes, hint.sampleCount),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
                         modifier = Modifier.padding(start = 4.dp, top = 8.dp),
@@ -414,7 +414,7 @@ fun WorkOrderCreateScreen(
                     trailingContent = {
                         if (jobId != null) {
                             IconButton(onClick = viewModel::clearJob) {
-                                Icon(Icons.Default.Close, contentDescription = "Remove job")
+                                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.wo_create_remove_job))
                             }
                         }
                     },

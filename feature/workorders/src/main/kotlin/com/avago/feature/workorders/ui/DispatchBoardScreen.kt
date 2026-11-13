@@ -1,50 +1,68 @@
-﻿package com.avago.feature.workorders.ui
+package com.avago.feature.workorders.ui
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -55,10 +73,17 @@ import com.avago.feature.workorders.model.WoStatus
 import com.avago.feature.workorders.model.statusColor
 import com.avago.feature.workorders.ui.components.WoCard
 import com.avago.feature.workorders.ui.components.WoRebalanceBanner
+import com.avago.feature.workorders.ui.components.woStatusLabel
 import com.avago.feature.workorders.viewmodel.DISPATCH_COLUMNS
 import com.avago.feature.workorders.viewmodel.DispatchBoardViewModel
 import kotlinx.coroutines.launch
 
+/**
+ * Kanban dispatch board. Mobile adaptation of the web drag-and-drop board:
+ * long-press a card (or use the TalkBack "Move to…" action) to open a bottom sheet
+ * listing the target columns. Moving to Complete opens the WO detail so the
+ * close-out (codes, notes, meter) is captured instead of a bare status flip.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DispatchBoardScreen(
@@ -70,15 +95,39 @@ fun DispatchBoardScreen(
     val columns by viewModel.columns.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val showRebalanceBanner by viewModel.showRebalanceBanner.collectAsStateWithLifecycle()
+    val query by viewModel.searchQuery.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
+    val focusManager = LocalFocusManager.current
+
+    var showSearch by remember { mutableStateOf(false) }
+    var moveTarget by remember { mutableStateOf<WorkOrderEntity?>(null) }
+    // Resolved in composition so they follow configuration (locale) changes.
+    val movedMessages = DISPATCH_COLUMNS.associateWith {
+        stringResource(R.string.dispatch_moved_to, woStatusLabel(it.key))
+    }
+    val undoLabel = stringResource(R.string.dispatch_undo)
+    val rebalanceSoon = stringResource(R.string.dispatch_rebalance_coming_soon)
 
     Scaffold(
         modifier = modifier,
         topBar = {
-            CenterAlignedTopAppBar(title = { Text(stringResource(R.string.dispatch_board_title)) })
+            CenterAlignedTopAppBar(
+                title = { Text(stringResource(R.string.dispatch_board_title)) },
+                actions = {
+                    IconButton(onClick = {
+                        showSearch = !showSearch
+                        if (!showSearch) viewModel.searchQuery.value = ""
+                    }) {
+                        Icon(
+                            imageVector = if (showSearch) Icons.Default.Close else Icons.Default.Search,
+                            contentDescription = stringResource(R.string.dispatch_board_search_hint),
+                        )
+                    }
+                },
+            )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
@@ -95,12 +144,39 @@ fun DispatchBoardScreen(
                 .padding(innerPadding)
                 .fillMaxSize(),
         ) {
+            if (showSearch) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { viewModel.searchQuery.value = it },
+                    placeholder = { Text(stringResource(R.string.dispatch_board_search_placeholder)) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    trailingIcon = {
+                        if (query.isNotEmpty()) {
+                            IconButton(onClick = { viewModel.searchQuery.value = "" }) {
+                                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.wo_search_clear))
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                )
+            }
+            Text(
+                text = stringResource(R.string.dispatch_board_move_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
             if (showRebalanceBanner) {
                 WoRebalanceBanner(
                     onRebalance = {
                         viewModel.rebalance()
                         scope.launch {
-                            snackbarHostState.showSnackbar(context.getString(R.string.dispatch_rebalance_coming_soon))
+                            snackbarHostState.showSnackbar(rebalanceSoon)
                         }
                     },
                     onDismiss = viewModel::dismissBanner,
@@ -119,15 +195,88 @@ fun DispatchBoardScreen(
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     items(DISPATCH_COLUMNS) { status ->
-                        val wos = columns[status] ?: emptyList()
                         DispatchColumn(
                             status = status,
-                            workOrders = wos,
+                            workOrders = columns[status] ?: emptyList(),
                             onWoClick = onWoClick,
-                            onDrop = { wo -> viewModel.moveToStatus(wo, status) },
+                            onRequestMove = { wo ->
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                moveTarget = wo
+                            },
                         )
                     }
                 }
+            }
+        }
+    }
+
+    moveTarget?.let { wo ->
+        MoveToSheet(
+            wo = wo,
+            onDismiss = { moveTarget = null },
+            onMove = { target ->
+                moveTarget = null
+                if (target == WoStatus.COMPLETE) {
+                    // Completion needs close-out data — hand off to the detail screen.
+                    onWoClick(wo.woId)
+                } else {
+                    viewModel.moveToStatus(wo, target)
+                    val message = movedMessages.getValue(target)
+                    scope.launch {
+                        val result = snackbarHostState.showSnackbar(
+                            message = message,
+                            actionLabel = undoLabel,
+                            withDismissAction = true,
+                        )
+                        if (result == SnackbarResult.ActionPerformed) viewModel.restore(wo)
+                    }
+                }
+            },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MoveToSheet(
+    wo: WorkOrderEntity,
+    onDismiss: () -> Unit,
+    onMove: (WoStatus) -> Unit,
+) {
+    val current = WoStatus.fromKey(wo.status)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
+        Column(modifier = Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
+            Text(
+                text = stringResource(R.string.dispatch_move_title, wo.title),
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .padding(horizontal = 24.dp, vertical = 8.dp)
+                    .semantics { heading() },
+            )
+            DISPATCH_COLUMNS.filter { it != current }.forEach { status ->
+                val color = status.statusColor()
+                ListItem(
+                    headlineContent = { Text(woStatusLabel(status.key)) },
+                    supportingContent = if (status == WoStatus.COMPLETE) {
+                        { Text(stringResource(R.string.dispatch_complete_via_detail)) }
+                    } else null,
+                    leadingContent = {
+                        Box(
+                            modifier = Modifier
+                                .size(12.dp)
+                                .clip(CircleShape)
+                                .background(color),
+                        )
+                    },
+                    modifier = Modifier
+                        .heightIn(min = 56.dp)
+                        .clickable { onMove(status) },
+                )
             }
         }
     }
@@ -138,93 +287,71 @@ private fun DispatchColumn(
     status: WoStatus,
     workOrders: List<WorkOrderEntity>,
     onWoClick: (woId: String) -> Unit,
-    onDrop: (WorkOrderEntity) -> Unit,
+    onRequestMove: (WorkOrderEntity) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val statusColor = status.statusColor()
+    val label = woStatusLabel(status.key)
+    val countLabel = pluralStringResource(R.plurals.dispatch_column_count, workOrders.size, workOrders.size)
 
     Column(
         modifier = modifier
-            .width(220.dp)
+            .width(240.dp)
             .fillMaxHeight()
             .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
             .padding(8.dp),
     ) {
-        // Column header
-        Text(
-            text = status.displayName,
-            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-            color = statusColor,
-            modifier = Modifier.padding(bottom = 6.dp),
-        )
-        Text(
-            text = "${workOrders.size}",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp)
+                .semantics(mergeDescendants = true) { heading() },
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                color = statusColor,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = countLabel,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        if (workOrders.isEmpty()) {
+            Text(
+                text = stringResource(R.string.dispatch_board_empty_column),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp),
+            )
+        }
 
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
             items(workOrders, key = { it.woId }) { wo ->
-                DraggableWoCard(
+                val moveLabel = stringResource(R.string.dispatch_move_action)
+                WoCard(
                     wo = wo,
                     onClick = { onWoClick(wo.woId) },
-                    onDragEnd = { targetOffset ->
-                        // Column detection by x-offset is handled by the parent LazyRow.
-                        // Here we pass the drag event up so the parent VM can route it.
-                        // For a full production drag-and-drop we'd use DragAndDropHost
-                        // (API 35+) or a third-party library. This implementation uses
-                        // pointerInput to detect gesture and a simplified column drop.
-                        onDrop(wo)
-                    },
+                    onLongClick = { onRequestMove(wo) },
+                    onLongClickLabel = moveLabel,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics {
+                            customActions = listOf(
+                                CustomAccessibilityAction(moveLabel) { onRequestMove(wo); true },
+                            )
+                        },
                 )
             }
+            item { Spacer(modifier = Modifier.height(8.dp)) }
         }
-    }
-}
-
-@Composable
-private fun DraggableWoCard(
-    wo: WorkOrderEntity,
-    onClick: () -> Unit,
-    onDragEnd: (Offset) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    var dragOffset by remember { mutableStateOf(Offset.Zero) }
-    var isDragging by remember { mutableStateOf(false) }
-
-    Box(
-        modifier = modifier
-            .pointerInput(wo.woId) {
-                detectDragGestures(
-                    onDragStart = { isDragging = true },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        dragOffset += dragAmount
-                    },
-                    onDragEnd = {
-                        // Only trigger status move when drag distance exceeds 120 dp
-                        if (dragOffset.x.toDouble() > 120.0) {
-                            onDragEnd(dragOffset)
-                        }
-                        dragOffset = Offset.Zero
-                        isDragging = false
-                    },
-                    onDragCancel = {
-                        dragOffset = Offset.Zero
-                        isDragging = false
-                    },
-                )
-            },
-    ) {
-        WoCard(
-            wo = wo,
-            onClick = onClick,
-            modifier = Modifier.fillMaxWidth(),
-        )
     }
 }

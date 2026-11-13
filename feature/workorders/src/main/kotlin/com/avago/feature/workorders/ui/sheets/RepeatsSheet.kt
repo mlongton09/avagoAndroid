@@ -97,7 +97,7 @@ fun RepeatsSheet(
 
             // ── Frequency picker ──
             Text(
-                text = "Frequency",
+                text = stringResource(R.string.repeats_frequency),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -145,7 +145,7 @@ fun RepeatsSheet(
 
             // ── End type ──
             Text(
-                text = "Ends",
+                text = stringResource(R.string.repeats_ends),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

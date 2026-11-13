@@ -39,10 +39,17 @@ import com.avago.feature.workorders.model.SlaWindow
 import com.avago.feature.workorders.model.WO_HOLD_REASONS
 import com.avago.feature.workorders.model.WoHold
 import com.avago.feature.workorders.model.WoVendor
+import com.avago.feature.workorders.model.WoVendorMath
 import com.avago.feature.workorders.model.parseWoAttributes
 import com.avago.feature.workorders.model.slaState
 import kotlinx.coroutines.delay
 import kotlin.math.abs
+import java.text.NumberFormat
+import java.util.Currency
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
 
 /** Localized label for a WO status key (accepts the legacy "complete" alias). */
 @Composable
@@ -178,6 +185,9 @@ fun WoVendorEditor(vendor: WoVendor, enabled: Boolean, onSave: (WoVendor) -> Uni
     var invoiceRef by rememberSaveable(vendor.invoiceRef) { mutableStateOf(vendor.invoiceRef.orEmpty()) }
     var invoiceTotal by rememberSaveable(vendor.invoiceTotal) { mutableStateOf(vendor.invoiceTotal?.toString().orEmpty()) }
     fun money(s: String) = s.trim().replace(',', '.').toDoubleOrNull()
+    val estimateInvalid = estimate.isNotBlank() && money(estimate) == null
+    val invoiceInvalid = invoiceTotal.isNotBlank() && money(invoiceTotal) == null
+    val invalidMsg = stringResource(R.string.wo_vendor_invalid_amount)
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(stringResource(R.string.wo_vendor_title), style = MaterialTheme.typography.titleSmall)
         OutlinedTextField(
@@ -192,13 +202,17 @@ fun WoVendorEditor(vendor: WoVendor, enabled: Boolean, onSave: (WoVendor) -> Uni
             OutlinedTextField(
                 value = estimate, onValueChange = { estimate = it }, enabled = enabled, singleLine = true,
                 label = { Text(stringResource(R.string.wo_vendor_estimate)) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                isError = estimateInvalid,
+                supportingText = if (estimateInvalid) { { Text(invalidMsg) } } else null,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
                 modifier = Modifier.weight(1f),
             )
             OutlinedTextField(
                 value = invoiceTotal, onValueChange = { invoiceTotal = it }, enabled = enabled, singleLine = true,
                 label = { Text(stringResource(R.string.wo_vendor_invoice_total)) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                isError = invoiceInvalid,
+                supportingText = if (invoiceInvalid) { { Text(invalidMsg) } } else null,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
                 modifier = Modifier.weight(1f),
             )
         }
@@ -207,7 +221,7 @@ fun WoVendorEditor(vendor: WoVendor, enabled: Boolean, onSave: (WoVendor) -> Uni
             label = { Text(stringResource(R.string.wo_vendor_invoice_ref)) }, modifier = Modifier.fillMaxWidth(),
         )
         OutlinedButton(
-            enabled = enabled,
+            enabled = enabled && !estimateInvalid && !invoiceInvalid,
             onClick = {
                 val trimmedName = name.trim().ifBlank { null }
                 onSave(
@@ -222,5 +236,112 @@ fun WoVendorEditor(vendor: WoVendor, enabled: Boolean, onSave: (WoVendor) -> Uni
                 )
             },
         ) { Text(stringResource(R.string.wo_save)) }
+    }
+}
+
+private fun formatMoney(amount: Double, currency: String?): String {
+    val fmt = NumberFormat.getCurrencyInstance()
+    runCatching { fmt.currency = Currency.getInstance(currency?.uppercase() ?: "USD") }
+    return fmt.format(amount)
+}
+
+/**
+ * Estimate vs actual (web `EstimateVsActual`, W5). Actual = vendor invoice, else
+ * cost-line total, else WO total. Variance is colored under / on / over (?5 %).
+ * Hidden when there is neither an estimate nor an invoice.
+ */
+@Composable
+fun WoEstimateVsActual(
+    vendor: WoVendor,
+    linesTotal: Double?,
+    woTotal: Double?,
+    currency: String?,
+    modifier: Modifier = Modifier,
+) {
+    val estimate = vendor.estimateTotal
+    if (estimate == null && vendor.invoiceTotal == null) return
+    val actual = WoVendorMath.actualCost(vendor.invoiceTotal, linesTotal, woTotal)
+    val variance = actual?.let { WoVendorMath.costVariance(estimate, it.amount) }
+    val linesVsInvoice = if (vendor.invoiceTotal != null && (linesTotal ?: 0.0) > 0) {
+        WoVendorMath.costVariance(linesTotal, vendor.invoiceTotal)
+    } else null
+
+    val levelColor = when (variance?.level) {
+        WoVendorMath.Level.UNDER -> Color(0xFF15803D)
+        WoVendorMath.Level.OVER -> MaterialTheme.colorScheme.error
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+    val levelLabel = when (variance?.level) {
+        WoVendorMath.Level.UNDER -> stringResource(R.string.wo_cost_level_under)
+        WoVendorMath.Level.ON -> stringResource(R.string.wo_cost_level_on)
+        WoVendorMath.Level.OVER -> stringResource(R.string.wo_cost_level_over)
+        null -> ""
+    }
+    val sourceLabel = when (actual?.source) {
+        WoVendorMath.ActualSource.INVOICE -> stringResource(R.string.wo_cost_source_invoice)
+        WoVendorMath.ActualSource.LINES -> stringResource(R.string.wo_cost_source_lines)
+        WoVendorMath.ActualSource.WO -> stringResource(R.string.wo_cost_source_wo)
+        null -> ""
+    }
+    val dash = "\u2014"
+    val estimateText = estimate?.let { formatMoney(it, currency) } ?: dash
+    val actualText = actual?.let { formatMoney(it.amount, currency) } ?: dash
+    val diffText = variance?.let { (if (it.diff > 0) "+" else "") + formatMoney(it.diff, currency) } ?: dash
+    val pctText = variance?.pct?.let { (if (it > 0) "+" else "") + "%.1f".format(it) + " %" } ?: dash
+
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            text = stringResource(R.string.wo_cost_estimate_vs_actual),
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.semantics { heading() },
+        )
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            CostCell(stringResource(R.string.wo_cost_estimate), estimateText, null, Modifier.weight(1f))
+            CostCell(
+                stringResource(R.string.wo_cost_actual),
+                actualText,
+                sourceLabel.takeIf { actual != null },
+                Modifier.weight(1f),
+            )
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .semantics(mergeDescendants = true) {
+                    if (variance != null) contentDescription = "$diffText, $pctText, $levelLabel"
+                },
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            CostCell(stringResource(R.string.wo_cost_variance), diffText, null, Modifier.weight(1f), levelColor)
+            CostCell(stringResource(R.string.wo_cost_variance_pct), pctText, levelLabel.ifEmpty { null }, Modifier.weight(1f), levelColor)
+        }
+        if (linesVsInvoice != null && linesVsInvoice.level != WoVendorMath.Level.ON) {
+            Text(
+                text = stringResource(
+                    R.string.wo_cost_invoice_mismatch,
+                    formatMoney(linesTotal ?: 0.0, currency),
+                    formatMoney(vendor.invoiceTotal ?: 0.0, currency),
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF92400E),
+            )
+        }
+    }
+}
+
+@Composable
+private fun CostCell(
+    label: String,
+    value: String,
+    hint: String?,
+    modifier: Modifier = Modifier,
+    valueColor: Color = MaterialTheme.colorScheme.onSurface,
+) {
+    Column(modifier = modifier.semantics(mergeDescendants = true) {}) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = valueColor)
+        if (hint != null) {
+            Text(hint, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }

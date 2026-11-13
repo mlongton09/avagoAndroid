@@ -2,6 +2,9 @@ package com.avago.feature.workorders.viewmodel
 
 import android.app.Activity
 import android.content.Context
+import androidx.annotation.StringRes
+import com.avago.feature.workorders.R
+import dagger.hilt.android.qualifiers.ApplicationContext
 import android.content.Intent
 import android.graphics.Paint
 import android.graphics.Typeface
@@ -85,7 +88,21 @@ class WorkOrderDetailViewModel @Inject constructor(
     private val screenContextStore: ScreenContextStore,
     private val formFillRouter: FormFillRouter,
     private val woV3: WoV3Service,
+    @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
+
+    private fun str(@StringRes id: Int, vararg args: Any): String = appContext.getString(id, *args)
+
+    private fun closeoutMissingRes(key: String): Int = when (key) {
+        "failure_code" -> R.string.wo_closeout_failure_code
+        "cause_code" -> R.string.wo_closeout_cause_code
+        "remedy_code" -> R.string.wo_closeout_remedy_code
+        "resolution_notes" -> R.string.wo_closeout_resolution_notes
+        "meter_reading" -> R.string.wo_closeout_meter_reading
+        "checklist" -> R.string.wo_closeout_missing_checklist
+        "downtime" -> R.string.wo_closeout_downtime
+        else -> R.string.wo_closeout_signoff
+    }
 
     private val woId: String = requireNotNull(savedStateHandle["woId"]) {
         "WorkOrderDetailViewModel requires woId in SavedStateHandle"
@@ -219,7 +236,7 @@ class WorkOrderDetailViewModel @Inject constructor(
         val wo = workOrder.value ?: return
         val check = validateCloseout(closeout, !wo.assetId.isNullOrBlank(), checklistStates(), closeoutOptions.value)
         if (!check.ok) {
-            _error.value = "Missing: ${check.missing.joinToString()}"
+            _error.value = str(R.string.wo_closeout_missing, check.missing.joinToString(", ") { str(closeoutMissingRes(it)) })
             return
         }
         viewModelScope.launch {
@@ -292,7 +309,7 @@ class WorkOrderDetailViewModel @Inject constructor(
                 ))
             } catch (e: Exception) {
                 Timber.e(e, "approveWorkOrder failed")
-                _error.value = "Failed to approve"
+                _error.value = str(R.string.wo_error_approve_failed)
             }
         }
     }
@@ -308,7 +325,7 @@ class WorkOrderDetailViewModel @Inject constructor(
                 ))
             } catch (e: Exception) {
                 Timber.e(e, "rejectWorkOrder failed")
-                _error.value = "Failed to reject"
+                _error.value = str(R.string.wo_error_reject_failed)
             }
         }
     }
@@ -371,7 +388,7 @@ class WorkOrderDetailViewModel @Inject constructor(
                     .onFailure { Timber.w(it, "[WoDetailVM] sync after saveHeader failed") }
             } catch (e: Exception) {
                 Timber.e(e, "[WoDetailVM] saveHeader failed")
-                _error.value = "Failed to save"
+                _error.value = str(R.string.wo_error_save_failed)
             }
         }
     }
@@ -559,14 +576,14 @@ class WorkOrderDetailViewModel @Inject constructor(
                         repository.upsert(accountId, wo)
                         if (result.code == 409) {
                             onConflict()
-                            _error.value = "This work order was just claimed by someone else."
+                            _error.value = str(R.string.wo_error_claimed_by_other)
                         } else {
-                            _error.value = "Could not claim the work order. Please try again."
+                            _error.value = str(R.string.wo_error_claim_failed)
                         }
                     }
                     else -> {
                         repository.upsert(accountId, wo)
-                        _error.value = "Could not claim the work order. Please try again."
+                        _error.value = str(R.string.wo_error_claim_failed)
                     }
                 }
             } catch (e: Exception) {
@@ -787,7 +804,7 @@ class WorkOrderDetailViewModel @Inject constructor(
                 onSkipped()
             } catch (e: Exception) {
                 Timber.e(e, "[WoDetailVM] skipOccurrence failed")
-                _error.value = "Failed to skip occurrence: ${e.message}"
+                _error.value = str(R.string.wo_error_skip_failed)
             }
         }
     }
@@ -800,7 +817,7 @@ class WorkOrderDetailViewModel @Inject constructor(
                 onDeleted()
             } catch (e: Exception) {
                 Timber.e(e, "[WoDetailVM] deleteWorkOrder failed")
-                _error.value = e.message
+                _error.value = str(R.string.wo_error_delete_failed)
             }
         }
     }
@@ -858,7 +875,7 @@ class WorkOrderDetailViewModel @Inject constructor(
                 context.startActivity(chooser)
             } catch (e: Exception) {
                 Timber.e(e, "[WoDetailVM] exportPdf failed")
-                _error.value = "Failed to export PDF"
+                _error.value = str(R.string.wo_error_export_pdf_failed)
             }
         }
     }

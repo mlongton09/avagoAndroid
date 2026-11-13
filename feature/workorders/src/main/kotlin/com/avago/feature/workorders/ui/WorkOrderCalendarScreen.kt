@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -57,7 +58,6 @@ import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -104,12 +104,12 @@ fun WorkOrderCalendarScreen(
                     FilterChip(
                         selected = !showAll,
                         onClick = { if (showAll) viewModel.toggleScope() },
-                        label = { Text("Mine") },
+                        label = { Text(stringResource(R.string.wo_scope_mine)) },
                     )
                     FilterChip(
                         selected = showAll,
                         onClick = { if (!showAll) viewModel.toggleScope() },
-                        label = { Text("All") },
+                        label = { Text(stringResource(R.string.wo_scope_all)) },
                     )
                 }
             }
@@ -133,9 +133,8 @@ fun WorkOrderCalendarScreen(
                     if (displayMonth.withDayOfMonth(1) != LocalDate.now().withDayOfMonth(1)) {
                         TextButton(
                             onClick = { viewModel.navigateToToday() },
-                            modifier = Modifier.height(28.dp),
                         ) {
-                            Text("Today", style = MaterialTheme.typography.labelSmall)
+                            Text(stringResource(R.string.wo_calendar_today), style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 }
@@ -145,8 +144,9 @@ fun WorkOrderCalendarScreen(
             }
 
             // Day-of-week header
+            val locale = LocalConfiguration.current.locales[0]
             val dayNames = DayOfWeek.values().map {
-                it.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+                it.getDisplayName(TextStyle.SHORT, locale)
             }
             Row(modifier = Modifier.fillMaxWidth()) {
                 dayNames.forEach { name ->

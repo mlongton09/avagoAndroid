@@ -88,6 +88,7 @@ import com.avago.feature.workorders.model.parseWoAttributes
 import com.avago.feature.workorders.ui.components.WoHoldEditor
 import com.avago.feature.workorders.ui.components.WoSlaChip
 import com.avago.feature.workorders.ui.components.WoVendorEditor
+import com.avago.feature.workorders.ui.components.WoEstimateVsActual
 import com.avago.feature.workorders.ui.components.woStatusLabel
 import com.avago.feature.workorders.ui.sheets.WoCloseoutSheet
 import com.avago.feature.workorders.ui.components.AssigneeAvatar
@@ -269,7 +270,7 @@ fun WorkOrderDetailScreen(
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = Color.White,
                 ) {
-                    Icon(Icons.Default.AutoAwesome, contentDescription = "Scout")
+                    Icon(Icons.Default.AutoAwesome, contentDescription = stringResource(R.string.wo_action_scout))
                 }
                 if (onLogWork != null) {
                     FloatingActionButton(
@@ -277,7 +278,7 @@ fun WorkOrderDetailScreen(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = Color.White,
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = "Log work")
+                        Icon(Icons.Default.Add, contentDescription = stringResource(R.string.wo_action_log_work))
                     }
                 }
             }
@@ -324,7 +325,7 @@ fun WorkOrderDetailScreen(
                             )
                             if (!wo?.rrule.isNullOrBlank()) {
                                 DropdownMenuItem(
-                                    text = { Text("Skip This Occurrence") },
+                                    text = { Text(stringResource(R.string.wo_skip_title)) },
                                     leadingIcon = {
                                         Icon(Icons.Default.SkipNext, contentDescription = null)
                                     },
@@ -371,12 +372,18 @@ fun WorkOrderDetailScreen(
         if (showSkipDialog) {
             AlertDialog(
                 onDismissRequest = { showSkipDialog = false },
-                title = { Text("Skip This Occurrence") },
+                title = { Text(stringResource(R.string.wo_skip_title)) },
                 text = {
                     Column {
-                        Text("Select a reason for skipping this occurrence:")
+                        Text(stringResource(R.string.wo_skip_message))
                         Spacer(Modifier.height(8.dp))
-                        listOf("No Access", "Part Unavailable", "Rescheduled", "Other").forEach { reason ->
+                        // Reason values stay English (stored server-side); labels are localized.
+                        listOf(
+                            "No Access" to R.string.wo_skip_reason_no_access,
+                            "Part Unavailable" to R.string.wo_skip_reason_part_unavailable,
+                            "Rescheduled" to R.string.wo_skip_reason_rescheduled,
+                            "Other" to R.string.wo_skip_reason_other,
+                        ).forEach { (reason, labelRes) ->
                             TextButton(
                                 onClick = {
                                     skipReason = reason
@@ -384,14 +391,14 @@ fun WorkOrderDetailScreen(
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
-                                Text(reason)
+                                Text(stringResource(labelRes))
                             }
                         }
                     }
                 },
                 confirmButton = {},
                 dismissButton = {
-                    TextButton(onClick = { showSkipDialog = false }) { Text("Cancel") }
+                    TextButton(onClick = { showSkipDialog = false }) { Text(stringResource(R.string.wo_cancel)) }
                 },
             )
         }
@@ -495,13 +502,25 @@ fun WorkOrderDetailScreen(
                         )
                     }
 
+                    val vendorInfo = remember(v3Attrs) { WoVendor.from(v3Attrs) }
+                    if (vendorInfo.estimateTotal != null || vendorInfo.invoiceTotal != null) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        val linesTotal = (currentWo.laborCost ?: 0.0) + (currentWo.partsCost ?: 0.0)
+                        WoEstimateVsActual(
+                            vendor = vendorInfo,
+                            linesTotal = linesTotal.takeIf { it > 0 },
+                            woTotal = currentWo.totalCost,
+                            currency = currentWo.currency,
+                        )
+                    }
+
                     Spacer(modifier = Modifier.height(12.dp))
                     CollapsibleDetailSection(
                         title = stringResource(R.string.wo_vendor_title),
                         initiallyExpanded = false,
                     ) {
                         WoVendorEditor(
-                            vendor = WoVendor.from(v3Attrs),
+                            vendor = vendorInfo,
                             enabled = canEdit && !isSaving,
                             onSave = viewModel::saveVendor,
                         )
@@ -852,7 +871,7 @@ private fun WorkOrderMapCard(
                     tint = MaterialTheme.colorScheme.primary,
                 )
                 Text(
-                    text = "Location",
+                    text = stringResource(R.string.wo_detail_location),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -877,7 +896,7 @@ private fun WorkOrderMapCard(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Map preview",
+                            text = stringResource(R.string.wo_detail_map_preview),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -892,7 +911,7 @@ private fun WorkOrderMapCard(
                         }
                     }
                     TextButton(onClick = onOpenMaps) {
-                        Text("Open in Maps")
+                        Text(stringResource(R.string.wo_detail_open_in_maps))
                     }
                 }
             }
@@ -926,8 +945,8 @@ private fun ApprovalBanner(
             )
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onReject) { Text("Reject") }
-                Button(onClick = onApprove) { Text("Approve") }
+                OutlinedButton(onClick = onReject) { Text(stringResource(R.string.wo_reject)) }
+                Button(onClick = onApprove) { Text(stringResource(R.string.wo_approve)) }
             }
         }
     }
@@ -992,7 +1011,7 @@ private fun HeaderCard(
                         ) {
                             Icon(
                                 Icons.Default.Edit,
-                                contentDescription = "Edit title and description",
+                                contentDescription = stringResource(R.string.wo_detail_edit_header),
                             )
                         }
                     }

@@ -1,5 +1,7 @@
 package com.avago.feature.workorders.ui.components
 
+import androidx.compose.ui.res.stringResource
+import com.avago.feature.workorders.R
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
@@ -52,7 +54,7 @@ fun WoTimerView(
     ) {
         Icon(
             imageVector = Icons.Default.PlayArrow,
-            contentDescription = "Timer running",
+            contentDescription = stringResource(R.string.wo_timer_running),
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(16.dp),
         )
