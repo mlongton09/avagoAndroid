@@ -6,11 +6,11 @@ plugins {
 
 android {
     namespace = "com.avago.macrobenchmark"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         minSdk = 28 // Macrobenchmark requires API 28+
-        targetSdk = 35
+        targetSdk = 36
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

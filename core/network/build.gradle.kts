@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.avago.core.network"
-    compileSdk = 35
+    compileSdk = 36
     defaultConfig {
         minSdk = 26
         buildConfigField("String", "BASE_URL", "\"https://api.avagomate.com\"")

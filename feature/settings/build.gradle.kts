@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.avago.feature.settings"
-    compileSdk = 35
+    compileSdk = 36
     defaultConfig {
         minSdk = 26
         val baseUrl = project.findProperty("avago.base.url") as? String ?: "https://api.avagomate.com"

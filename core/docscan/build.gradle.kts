@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.avago.core.docscan"
-    compileSdk = 35
+    compileSdk = 36
     defaultConfig { minSdk = 26 }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
