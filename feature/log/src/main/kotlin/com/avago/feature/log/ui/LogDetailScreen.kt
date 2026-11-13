@@ -101,6 +101,7 @@ fun LogDetailScreen(
     val currencyRate by viewModel.currencyRate.collectAsState()
     val distanceUnit by viewModel.distanceUnit.collectAsState()
     val inspectionStrings by viewModel.inspectionStrings.collectAsState()
+    val assetType by viewModel.assetType.collectAsState()
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.isDeleted) {
@@ -676,7 +677,7 @@ fun LogDetailScreen(
                                 color = MaterialTheme.colorScheme.outline,
                             )
                             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                                InspectionEnvelopeDetail(data = inspectionData, strings = inspectionStrings)
+                                InspectionEnvelopeDetail(data = inspectionData, strings = inspectionStrings, assetType = assetType)
                             }
                         }
                     }

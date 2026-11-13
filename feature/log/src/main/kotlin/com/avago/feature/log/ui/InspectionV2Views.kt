@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import com.avago.feature.log.R
 import com.avago.feature.log.model.InspectionChecklist
 import com.avago.feature.log.model.InspectionV2
+import com.avago.feature.log.model.VehicleSketchModel
 import com.avago.feature.log.model.humanizeIfKey
 import com.avago.feature.log.model.parseInspectionChecklist
 import kotlinx.serialization.json.JsonArray
@@ -246,6 +247,8 @@ internal fun InspectionEnvelopeDetail(
     data: JsonObject?,
     strings: Map<String, String>,
     modifier: Modifier = Modifier,
+    /** Asset type for the damage-map outline (web `sketchKindFor`); null = sedan. */
+    assetType: String? = null,
 ) {
     val envelope = remember(data) { InspectionV2.parseEnvelope(data) }
     val checklist: InspectionChecklist? = remember(data, strings) {
@@ -312,6 +315,11 @@ internal fun InspectionEnvelopeDetail(
                     location = d.location,
                     note = d.note,
                 )
+            }
+            // Located defects drawn on the vehicle outline (same zones / numbering as the picker).
+            val marks = VehicleSketchModel.marksFromDefects(defects) { d -> label(d.label) ?: d.itemId }
+            if (marks.isNotEmpty()) {
+                VehicleDamageMap(assetType = assetType, marks = marks, modifier = Modifier.padding(top = 4.dp))
             }
         }
 

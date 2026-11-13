@@ -98,6 +98,24 @@ class LogDetailViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LogDetailUiState())
 
+    /** Asset type of the log's asset (damage-map outline, web `sketchKindFor`); null until known. */
+    val assetType: StateFlow<String?> = combine(
+        identity.activeAccountId.filterNotNull(),
+        _entryId.filterNotNull(),
+    ) { accountId, entryId -> accountId to entryId }
+        .flatMapLatest { (accountId, entryId) ->
+            flow {
+                val type = try {
+                    val db = dbFactory.get(accountId)
+                    db.logDao().getById(entryId)?.assetId?.let { db.assetDao().getById(it)?.assetType }
+                } catch (e: Exception) {
+                    Timber.w(e, "[LogDetailViewModel] asset type lookup failed")
+                    null
+                }
+                emit(type)
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
     fun setEntryId(entryId: String) {
         _entryId.value = entryId
     }
