@@ -3552,7 +3552,7 @@ setBody(patch)
     ): NetworkResult<PmPlan> =
         safeNetworkCall {
             client.post("$baseUrl/accounts/$accountId/pm-plans") {
-                setBody(plan)
+                setBody(plan.forWrite())
             }.body()
         }
 
@@ -3563,7 +3563,7 @@ setBody(patch)
     ): NetworkResult<PmPlan> =
         safeNetworkCall {
             client.patch("$baseUrl/accounts/$accountId/pm-plans/$planId") {
-                setBody(plan)
+                setBody(plan.forWrite())
             }.body()
         }
 
@@ -3573,6 +3573,51 @@ setBody(patch)
     ): NetworkResult<Unit> =
         safeNetworkCall {
             client.delete("$baseUrl/accounts/$accountId/pm-plans/$planId").body()
+        }
+
+    // ---------------------------------------------------------------------------
+    // Work-order v3 (optional endpoints; callers fall back to local defaults on
+    // 404/405/501 or offline)
+    // ---------------------------------------------------------------------------
+
+    /** GET /accounts/:accountId/wo-codes?kind= -> `{codes:[...]}` (empty = use client defaults). */
+    suspend fun getWoCodes(accountId: String, kind: String? = null): NetworkResult<kotlinx.serialization.json.JsonElement> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/wo-codes") {
+                if (kind != null) parameter("kind", kind)
+            }.body()
+        }
+
+    /** GET /accounts/:accountId/wo-sla-policy -> `{policy:{priority:{respond_hours,resolve_hours}}}`. */
+    suspend fun getWoSlaPolicy(accountId: String): NetworkResult<kotlinx.serialization.json.JsonElement> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/wo-sla-policy").body()
+        }
+
+    /** GET /accounts/:accountId/work-orders/:woId/timer -> `{running, started_at, total_seconds, events[]}`. */
+    suspend fun getWoTimer(accountId: String, woId: String): NetworkResult<kotlinx.serialization.json.JsonElement> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/work-orders/$woId/timer").body()
+        }
+
+    /** POST /accounts/:accountId/work-orders/:woId/timer `{action: start|stop, at}`. */
+    suspend fun postWoTimer(
+        accountId: String,
+        woId: String,
+        action: String,
+        atIso: String? = null,
+    ): NetworkResult<kotlinx.serialization.json.JsonElement> =
+        safeNetworkCall {
+            client.post("$baseUrl/accounts/$accountId/work-orders/$woId/timer") {
+                setBody(
+                    JsonObject(
+                        buildMap {
+                            put("action", kotlinx.serialization.json.JsonPrimitive(action))
+                            if (atIso != null) put("at", kotlinx.serialization.json.JsonPrimitive(atIso))
+                        },
+                    ),
+                )
+            }.body()
         }
 
     // ---------------------------------------------------------------------------

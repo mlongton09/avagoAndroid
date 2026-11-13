@@ -22,6 +22,14 @@ import com.avago.feature.log.model.InspectionOption
 import com.avago.feature.log.model.InspectionSection
 import com.avago.feature.log.model.InspectionV2
 import com.avago.feature.log.model.LogCostLineDraft
+import com.avago.feature.log.model.LogPacks
+import com.avago.feature.log.model.LogPacks.readBool
+import com.avago.feature.log.model.LogPacks.readDouble
+import com.avago.feature.log.model.LogPacks.readNumMap
+import com.avago.feature.log.model.LogPacks.readString
+import com.avago.feature.log.model.LogPacks.readStringList
+import com.avago.core.ocr.AvagoTextRecognizer
+import android.content.Context
 import com.avago.feature.log.model.humanizeIfKey
 import com.avago.feature.log.model.parseInspectionChecklist
 import com.avago.feature.log.model.parseInspectionFields
@@ -51,7 +59,11 @@ import javax.inject.Inject
 enum class CostMode { TOTAL, ITEMIZED }
 
 /** Typed validation failures shown as alert dialogs — mirrors iOS UIAlertController usage. */
-enum class LogValidationError { TITLE_REQUIRED, NO_ASSET, NO_ACCOUNT }
+enum class LogValidationError { TITLE_REQUIRED, NO_ASSET, NO_ACCOUNT, FUEL_VOLUME_REQUIRED }
+
+data class LogVendorOption(val vendorId: String, val name: String)
+
+data class LogWoOption(val woId: String, val title: String, val status: String?)
 
 /**
  * Defines a single category-specific item attribute field shown in the "Item Details" section.
@@ -92,8 +104,37 @@ data class AddEditLogFormState(
 
     // Fuel (shown when category is "fuel")
     val fuelVolume: String = "",
-    /** "gallon" or "liter" — mirrors iOS AVDefaultsKeyFuelVolumeUnit. */
+    /** "gallon" or "liter" — mirrors iOS AVDefaultsKeyFuelVolumeUnit. "kWh" for EVs. */
     val fuelVolumeUnit: String = "gallon",
+    /** Contract §1 fuel_price_per_unit (string form value). */
+    val fuelPrice: String = "",
+    /** Which of "price" | "volume" | "total" was auto-computed from the other two. */
+    val fuelDerived: String? = null,
+    val fuelFullFill: Boolean = true,
+    /** Preview of fuel_economy computed from the previous full fill (null = not computable). */
+    val fuelEconomyPreview: Double? = null,
+    val fuelEconomyUnit: String? = null,
+
+    // Contract §1 field packs (oil/tire/battery/brake + fuel grade/station/card + warranty):
+    // scalar values keyed by the attribute key.
+    val packFields: Map<String, String> = emptyMap(),
+    val tirePositions: Set<String> = emptySet(),
+    /** Per-position numeric maps: tire_tread, tire_psi, brake_pad_mm, brake_rotor_mm. */
+    val packMaps: Map<String, Map<String, String>> = emptyMap(),
+
+    // Vendor (any category) — vendor_id / vendor_name attributes
+    val vendorId: String? = null,
+    val vendorName: String = "",
+    val vendorOptions: List<LogVendorOption> = emptyList(),
+
+    // Link to a work order (log.wo_id)
+    val linkedWoId: String? = null,
+    val woOptions: List<LogWoOption> = emptyList(),
+
+    // Receipt OCR
+    val receiptOcrRunning: Boolean = false,
+    /** "applied" | "attached" | null — outcome of the last receipt scan. */
+    val receiptOcrOutcome: String? = null,
 
     // Cost
     val costMode: CostMode = CostMode.TOTAL,
@@ -158,6 +199,8 @@ data class AddEditLogFormState(
     val timerStartedAt: Long? = null,
 ) {
     val itemizedTotal: Double get() = pendingCostLines.sumOf { it.quantity * it.unitCost + (it.taxAmount ?: 0.0) }
+    val packs: Set<LogPacks.Pack> get() = LogPacks.packsFor(category)
+    val isFuel: Boolean get() = LogPacks.Pack.FUEL in packs
     val costLineCount: Int get() = pendingCostLines.size
     val isEdit: Boolean get() = savedEntryId == null && isLoadingExisting // simple heuristic
 
@@ -177,7 +220,13 @@ class AddEditLogViewModel @Inject constructor(
     private val userPrefsRepository: UserPreferencesRepository,
     private val formFillRouter: FormFillRouter,
     private val serviceClient: AvagoServiceClient,
+    private val textRecognizer: AvagoTextRecognizer,
 ) : ViewModel() {
+
+    /** Attributes as last stored (edit mode). Every key not edited by this form is preserved on save. */
+    private var storedAttributes: JsonObject = JsonObject(emptyMap())
+    private var storedWoId: String? = null
+    private var fuelHistory: List<LogPacks.FuelFill> = emptyList()
 
     init {
         formFillRouter.register("add_log_entry") { fields -> applyScoutFields(fields) }
@@ -222,6 +271,10 @@ class AddEditLogViewModel @Inject constructor(
 
     private val _form = MutableStateFlow(AddEditLogFormState())
     val form: StateFlow<AddEditLogFormState> = _form.asStateFlow()
+
+    init {
+        loadVendors()
+    }
 
     private var originalCreatedAt: Long? = null
     private var originalServerVersion: Long = 0L
@@ -307,15 +360,20 @@ class AddEditLogViewModel @Inject constructor(
                 val meterType = asset?.meterType
                 val assetType = asset?.assetType
 
-                // Restore fuel attributes from entity.attributes JSON
-                val savedFuelVolume = entity.attributes?.let { parseJsonField(it, "fuel_volume") } ?: ""
-                val savedFuelUnit = entity.attributes?.let { parseJsonField(it, "fuel_volume_unit") }
+                // Restore §1 attributes from entity.attributes JSON (typed; unknown keys kept in storedAttributes)
+                val attrs = LogPacks.parse(entity.attributes)
+                storedAttributes = attrs
+                storedWoId = entity.woId
+                val savedFuelVolume = attrs.readString("fuel_volume") ?: ""
+                val savedFuelUnit = attrs.readString("fuel_volume_unit")?.let(::fromContractVolumeUnit)
                     ?: userPrefsRepository.fuelVolumeUnitFlow.first()
                 val savedDistanceUnit = userPrefsRepository.distanceUnitFlow.first()
-                // Restore category-specific item attributes (excludes known fuel keys)
-                val savedItemAttributes = entity.attributes?.let { attrs ->
-                    parseJsonMap(attrs).filterKeys { it != "fuel_volume" && it != "fuel_volume_unit" }
-                } ?: emptyMap()
+                val packScalarKeys = PACK_SCALAR_KEYS
+                val savedPackFields = packScalarKeys.mapNotNull { k -> attrs.readString(k)?.let { k to it } }.toMap()
+                val savedPackMaps = PACK_MAP_KEYS.associateWith { attrs.readNumMap(it) }.filterValues { it.isNotEmpty() }
+                // Restore server-defined item attribute values (all scalar keys; only keys with a
+                // matching def are edited/written back).
+                val savedItemAttributes = attrs.keys.mapNotNull { k -> attrs.readString(k)?.let { k to it } }.toMap()
 
                 _form.update { state ->
                     state.copy(
@@ -334,6 +392,16 @@ class AddEditLogViewModel @Inject constructor(
                         distanceUnit = savedDistanceUnit,
                         fuelVolume = savedFuelVolume,
                         fuelVolumeUnit = savedFuelUnit,
+                        fuelPrice = attrs.readString("fuel_price_per_unit") ?: "",
+                        fuelFullFill = attrs.readBool("fuel_full_fill") ?: true,
+                        fuelEconomyPreview = attrs.readDouble("fuel_economy"),
+                        fuelEconomyUnit = attrs.readString("fuel_economy_unit"),
+                        packFields = savedPackFields,
+                        tirePositions = attrs.readStringList("tire_positions").toSet(),
+                        packMaps = savedPackMaps,
+                        vendorId = attrs.readString("vendor_id"),
+                        vendorName = attrs.readString("vendor_name") ?: "",
+                        linkedWoId = entity.woId,
                         costMode = if (entity.costMode == "itemized") CostMode.ITEMIZED else CostMode.TOTAL,
                         totalCost = entity.cost?.toString() ?: "",
                         pendingCostLines = drafts,
@@ -358,6 +426,7 @@ class AddEditLogViewModel @Inject constructor(
                 }
                 // Load available categories so the category picker is populated for edits
                 loadCategories(assetType)
+                loadAssetContext(entity.assetId)
             } catch (e: Exception) {
                 Timber.e(e, "[AddEditLogViewModel] loadForEdit failed")
                 _form.update { it.copy(isLoadingExisting = false) }
@@ -669,6 +738,7 @@ class AddEditLogViewModel @Inject constructor(
             }
         }
         prefillMeterFromPriorEntry(assetId)
+        loadAssetContext(assetId)
     }
 
     fun onTitleChanged(value: String) = _form.update { it.copy(title = value, isTitleHint = false) }
@@ -684,7 +754,7 @@ class AddEditLogViewModel @Inject constructor(
         // Derive logType from category key — mirrors iOS behaviour where log type
         // is implicitly set by the category rather than a separate picker.
         val derivedLogType = when {
-            value?.lowercase()?.contains("fuel") == true -> "fuel"
+            LogPacks.isFuel(value) -> "fuel"
             value?.lowercase()?.contains("inspection") == true -> "inspection"
             value?.lowercase()?.contains("note") == true -> "note"
             else -> "service"
@@ -707,11 +777,201 @@ class AddEditLogViewModel @Inject constructor(
     fun onLogTypeChanged(value: String) = _form.update { it.copy(logType = value) }
     fun onEntryDateChanged(value: Long) = _form.update { it.copy(entryDate = value) }
     fun onNotesChanged(value: String) = _form.update { it.copy(notes = value) }
-    fun onMeterReadingChanged(value: String) = _form.update { it.copy(meterReading = value) }
-    fun onFuelVolumeChanged(value: String) = _form.update { it.copy(fuelVolume = value) }
-    fun onFuelVolumeUnitChanged(unit: String) = _form.update { it.copy(fuelVolumeUnit = unit) }
-    fun onTotalCostChanged(value: String) = _form.update { it.copy(totalCost = value) }
+    fun onMeterReadingChanged(value: String) {
+        _form.update { it.copy(meterReading = value) }
+        refreshFuelEconomy()
+    }
+    fun onFuelVolumeChanged(value: String) {
+        applyFuelEdit("volume", value)
+        refreshFuelEconomy()
+    }
+    fun onFuelVolumeUnitChanged(unit: String) {
+        _form.update { it.copy(fuelVolumeUnit = unit) }
+        refreshFuelEconomy()
+    }
+    fun onFuelPriceChanged(value: String) = applyFuelEdit("price", value)
+    fun onFuelFullFillChanged(value: Boolean) {
+        _form.update { it.copy(fuelFullFill = value) }
+        refreshFuelEconomy()
+    }
+    fun onTotalCostChanged(value: String) {
+        if (_form.value.isFuel && _form.value.costMode == CostMode.TOTAL) applyFuelEdit("total", value)
+        else _form.update { it.copy(totalCost = value) }
+    }
     fun onCostModeChanged(mode: CostMode) = _form.update { it.copy(costMode = mode) }
+
+    /** Any two of price / volume / total compute the third (contract §1). */
+    private fun applyFuelEdit(field: String, value: String) {
+        _form.update { s ->
+            if (!s.isFuel || s.costMode != CostMode.TOTAL) {
+                return@update when (field) {
+                    "price" -> s.copy(fuelPrice = value)
+                    "volume" -> s.copy(fuelVolume = value)
+                    else -> s.copy(totalCost = value)
+                }
+            }
+            val r = LogPacks.applyFuelEdit(
+                LogPacks.FuelInputs(s.fuelPrice, s.fuelVolume, s.totalCost, s.fuelDerived), field, value,
+            )
+            s.copy(fuelPrice = r.price, fuelVolume = r.volume, totalCost = r.total, fuelDerived = r.derived)
+        }
+    }
+
+    fun onPackFieldChanged(key: String, value: String) {
+        _form.update { it.copy(packFields = it.packFields + (key to value)) }
+    }
+
+    fun onTirePositionToggled(position: String) {
+        _form.update {
+            val next = if (position in it.tirePositions) it.tirePositions - position else it.tirePositions + position
+            it.copy(tirePositions = next)
+        }
+    }
+
+    fun onPackMapValueChanged(key: String, position: String, value: String) {
+        _form.update {
+            val inner = (it.packMaps[key] ?: emptyMap()) + (position to value)
+            it.copy(packMaps = it.packMaps + (key to inner))
+        }
+    }
+
+    fun onVendorSelected(option: LogVendorOption?) {
+        _form.update { it.copy(vendorId = option?.vendorId, vendorName = option?.name ?: "") }
+    }
+
+    /** Free-text vendor name clears the linked vendor_id. */
+    fun onVendorNameChanged(name: String) {
+        _form.update { it.copy(vendorName = name, vendorId = null) }
+    }
+
+    fun onLinkedWorkOrderSelected(woId: String?) {
+        _form.update { it.copy(linkedWoId = woId) }
+    }
+
+    fun clearReceiptOcrOutcome() = _form.update { it.copy(receiptOcrOutcome = null) }
+
+    /**
+     * Receipt OCR (contract §5): attaches the photo, runs on-device text recognition and the
+     * service extractor, then pre-fills vendor / total / date when available. Falls back to
+     * attach-only when OCR or extraction is unavailable.
+     */
+    fun scanReceipt(uri: Uri, context: Context) {
+        addPhotoUri(uri)
+        val accountId = identity.getActiveAccountId() ?: return
+        _form.update { it.copy(receiptOcrRunning = true, receiptOcrOutcome = null) }
+        viewModelScope.launch {
+            var applied = false
+            try {
+                val raw = textRecognizer.recognize(uri, context).getOrNull()
+                if (!raw.isNullOrBlank()) {
+                    val res = serviceClient.extractDocOcr(
+                        accountId = accountId,
+                        ocrRawText = raw,
+                        documentType = "receipt",
+                        assetId = _form.value.assetId,
+                    )
+                    if (res is NetworkResult.Success) {
+                        val ocr = res.data
+                        _form.update { s ->
+                            var n = s
+                            ocr.vendor?.takeIf { it.isNotBlank() && s.vendorName.isBlank() }?.let { v ->
+                                val match = s.vendorOptions.firstOrNull { it.name.equals(v.trim(), ignoreCase = true) }
+                                n = n.copy(vendorName = match?.name ?: v.trim(), vendorId = match?.vendorId)
+                                applied = true
+                            }
+                            ocr.total?.takeIf { it > 0 && s.costMode == CostMode.TOTAL && s.totalCost.isBlank() }?.let {
+                                n = n.copy(totalCost = LogPacks.formatNumber(it))
+                                applied = true
+                            }
+                            ocr.date?.let { parseOcrDate(it) }?.let {
+                                n = n.copy(entryDate = it)
+                                applied = true
+                            }
+                            n
+                        }
+                        if (_form.value.isFuel) applyFuelEdit("total", _form.value.totalCost)
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.w(e, "[AddEditLogViewModel] receipt OCR failed — attach only")
+            }
+            _form.update { it.copy(receiptOcrRunning = false, receiptOcrOutcome = if (applied) "applied" else "attached") }
+        }
+    }
+
+    private fun parseOcrDate(s: String): Long? = runCatching {
+        java.time.LocalDate.parse(s.take(10)).atTime(12, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    }.getOrNull()
+
+    private fun loadVendors() {
+        val accountId = identity.getActiveAccountId() ?: return
+        viewModelScope.launch {
+            try {
+                val vendors = dbFactory.get(accountId).vendorDao().observeAll(accountId).first()
+                    .filter { it.deletedAt == null && it.active }
+                    .sortedWith(compareByDescending<com.avago.core.data.db.entity.VendorEntity> { it.preferred }.thenBy { it.name.lowercase() })
+                    .map { LogVendorOption(it.vendorId, it.name) }
+                _form.update { it.copy(vendorOptions = vendors) }
+            } catch (e: Exception) {
+                Timber.w(e, "[AddEditLogViewModel] loadVendors failed")
+            }
+        }
+    }
+
+    /** Loads open work orders (WO link picker) and fuel history (economy) for the asset. */
+    private fun loadAssetContext(assetId: String) {
+        val accountId = identity.getActiveAccountId() ?: return
+        viewModelScope.launch {
+            try {
+                val db = dbFactory.get(accountId)
+                val closed = setOf("completed", "complete", "cancelled")
+                val wos = db.workOrderDao().observeByAsset(assetId).first()
+                    .filter { it.deletedAt == null && (it.status?.lowercase() !in closed || it.woId == _form.value.linkedWoId) }
+                    .sortedByDescending { it.updatedAt }
+                    .map { LogWoOption(it.woId, it.title, it.status) }
+                val logs = db.logDao().observeAll(accountId).first()
+                    .filter { it.assetId == assetId && it.deletedAt == null && LogPacks.isFuel(it.category) }
+                fuelHistory = logs.map { l ->
+                    val a = LogPacks.parse(l.attributes)
+                    LogPacks.FuelFill(
+                        entryId = l.entryId,
+                        dateMs = l.entryDate,
+                        meter = l.odometerValue,
+                        volume = a.readDouble("fuel_volume"),
+                        fullFill = a.readBool("fuel_full_fill") ?: true,
+                    )
+                }
+                _form.update { it.copy(woOptions = wos) }
+                refreshFuelEconomy()
+            } catch (e: Exception) {
+                Timber.w(e, "[AddEditLogViewModel] loadAssetContext failed")
+            }
+        }
+    }
+
+    private fun computeEconomy(s: AddEditLogFormState): Pair<Double, String>? {
+        if (!s.isFuel) return null
+        val unit = LogPacks.economyUnitFor(toContractVolumeUnit(s.fuelVolumeUnit), s.distanceUnit)
+        val econ = LogPacks.computeEconomy(
+            LogPacks.FuelFill(
+                entryId = s.entryId,
+                dateMs = s.entryDate,
+                meter = s.meterReading.toDoubleOrNull(),
+                volume = s.fuelVolume.trim().replace(',', '.').toDoubleOrNull(),
+                fullFill = s.fuelFullFill,
+            ),
+            fuelHistory,
+            unit,
+        ) ?: return null
+        return econ to unit
+    }
+
+    private fun refreshFuelEconomy() {
+        _form.update { s ->
+            val e = computeEconomy(s)
+            s.copy(fuelEconomyPreview = e?.first, fuelEconomyUnit = e?.second)
+        }
+    }
 
     fun onPerformedBySelected(userId: String?, name: String?) {
         _form.update { it.copy(performedByUserId = userId, performedByName = name) }
@@ -937,6 +1197,11 @@ class AddEditLogViewModel @Inject constructor(
             _form.update { it.copy(validationError = LogValidationError.TITLE_REQUIRED) }
             return
         }
+        // Contract §1: fuel_volume is required for fuel logs.
+        if (current.isFuel && current.fuelVolume.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 } == null) {
+            _form.update { it.copy(validationError = LogValidationError.FUEL_VOLUME_REQUIRED) }
+            return
+        }
 
         _form.update { it.copy(isSaving = true, saveError = null) }
 
@@ -1002,6 +1267,7 @@ class AddEditLogViewModel @Inject constructor(
                     deletedAt = null,
                     serverVersion = originalServerVersion,
                     seq = null,
+                    woId = current.linkedWoId ?: current.workOrderId ?: storedWoId,
                 )
 
                 // Inspection updates go straight to the service with expected_server_version so a
@@ -1237,6 +1503,7 @@ class AddEditLogViewModel @Inject constructor(
         body["notes"] = JsonPrimitive(entity.notes ?: "")
         InspectionV2.parseDataObject(entity.data)?.let { body["data"] = it }
         InspectionV2.parseDataObject(entity.attributes)?.let { body["attributes"] = it }
+        entity.woId?.let { body["wo_id"] = JsonPrimitive(it) }
         entity.currency?.let { body["currency"] = JsonPrimitive(it) }
         entity.baseAmount?.let { body["base_amount"] = JsonPrimitive(it) }
         entity.exchangeRateUsed?.let { body["exchange_rate_used"] = JsonPrimitive(it) }
@@ -1251,21 +1518,74 @@ class AddEditLogViewModel @Inject constructor(
         return (obj["current"] as? JsonObject)?.takeIf { error == null || error == "conflict" }
     }
 
+    /**
+     * Builds the attributes JSON by merging this form's §1 keys over the attributes as stored,
+     * so unknown keys (other platforms / future packs) survive the write. Packs that don't apply
+     * to the current category are left untouched.
+     */
     private fun buildAttributesJson(form: AddEditLogFormState): String? {
-        val parts = mutableMapOf<String, String>()
-        val isFuel = form.category?.lowercase()?.contains("fuel") == true
-        if (isFuel && form.fuelVolume.isNotBlank()) {
-            parts["fuel_volume"] = form.fuelVolume
-            parts["fuel_volume_unit"] = form.fuelVolumeUnit
+        val patch = LinkedHashMap<String, JsonElement?>()
+        // Server-defined item attribute defs take precedence over the built-in packs for their keys.
+        val defKeys = form.itemAttributeDefs.map { it.key }.toSet() - FUEL_CORE_KEYS
+        form.itemAttributeDefs.filter { it.key in defKeys }.forEach { def ->
+            val v = form.itemAttributes[def.key]
+            patch[def.key] = when (def.fieldType) {
+                "number" -> LogPacks.num(v) ?: LogPacks.str(v)
+                "checkbox" -> v?.takeIf { it.isNotBlank() }?.let { JsonPrimitive(it.equals("true", true)) }
+                else -> LogPacks.str(v)
+            }
         }
-        form.itemAttributes.forEach { (k, v) ->
-            if (v.isNotBlank()) parts[k] = v
+        val packs = form.packs
+        val f = form.packFields
+        fun scalar(key: String) {
+            if (key in defKeys) return
+            patch[key] = if (key in NUMERIC_PACK_KEYS) LogPacks.num(f[key]) else LogPacks.str(f[key])
         }
-        if (parts.isEmpty()) return null
-        val json = parts.entries.joinToString(",") {
-            "\"${it.key.replace("\"", "\\\"")}\":\"${it.value.replace("\"", "\\\"")}\""
+        if (LogPacks.Pack.FUEL in packs) {
+            patch["fuel_volume"] = LogPacks.num(form.fuelVolume)
+            patch["fuel_volume_unit"] = JsonPrimitive(toContractVolumeUnit(form.fuelVolumeUnit))
+            patch["fuel_price_per_unit"] = LogPacks.num(form.fuelPrice)
+            patch["fuel_full_fill"] = JsonPrimitive(form.fuelFullFill)
+            listOf("fuel_grade", "fuel_station", "fuel_card_last4").forEach(::scalar)
+            val econ = computeEconomy(form)
+            when {
+                econ != null -> {
+                    patch["fuel_economy"] = JsonPrimitive(econ.first)
+                    patch["fuel_economy_unit"] = JsonPrimitive(econ.second)
+                }
+                !form.fuelFullFill -> {
+                    patch["fuel_economy"] = null
+                    patch["fuel_economy_unit"] = null
+                }
+            }
         }
-        return "{$json}"
+        if (LogPacks.Pack.OIL in packs) {
+            listOf("oil_type", "oil_viscosity", "oil_quantity", "oil_quantity_unit", "oil_filter_part",
+                "oil_next_due_meter", "oil_next_due_date").forEach(::scalar)
+        }
+        if (LogPacks.Pack.TIRE in packs) {
+            listOf("tire_action", "tire_brand", "tire_size", "tire_dot_date", "tire_tread_unit",
+                "tire_pressure_unit").forEach(::scalar)
+            patch["tire_positions"] = LogPacks.strList(LogPacks.TIRE_POSITIONS.filter { it in form.tirePositions })
+            patch["tire_tread"] = LogPacks.numMap(form.packMaps["tire_tread"] ?: emptyMap())
+            patch["tire_psi"] = LogPacks.numMap(form.packMaps["tire_psi"] ?: emptyMap())
+        }
+        if (LogPacks.Pack.BATTERY in packs) {
+            listOf("battery_action", "battery_rated_cca", "battery_measured_cca", "battery_voltage",
+                "battery_test_result", "battery_date_code").forEach(::scalar)
+        }
+        if (LogPacks.Pack.BRAKE in packs) {
+            listOf("brake_axle", "brake_fluid").forEach(::scalar)
+            patch["brake_pad_mm"] = LogPacks.numMap(form.packMaps["brake_pad_mm"] ?: emptyMap())
+            patch["brake_rotor_mm"] = LogPacks.numMap(form.packMaps["brake_rotor_mm"] ?: emptyMap())
+        }
+        // Any category
+        patch["vendor_id"] = LogPacks.str(form.vendorId)
+        patch["vendor_name"] = LogPacks.str(form.vendorName)
+        listOf("warranty_until", "warranty_provider").forEach(::scalar)
+
+        val merged = LogPacks.merge(storedAttributes, patch)
+        return if (merged.isEmpty()) null else merged.toString()
     }
 
     private fun parseJsonField(json: String, key: String): String? {
@@ -1400,3 +1720,30 @@ class AddEditLogViewModel @Inject constructor(
         }
     }
 }
+
+/** Fuel keys with dedicated editors; never routed through server item-attribute defs. */
+private val FUEL_CORE_KEYS = setOf("fuel_volume", "fuel_volume_unit", "fuel_price_per_unit", "fuel_full_fill")
+
+/** Scalar §1 keys edited through [AddEditLogFormState.packFields]. */
+internal val PACK_SCALAR_KEYS = listOf(
+    "fuel_grade", "fuel_station", "fuel_card_last4",
+    "oil_type", "oil_viscosity", "oil_quantity", "oil_quantity_unit", "oil_filter_part",
+    "oil_next_due_meter", "oil_next_due_date",
+    "tire_action", "tire_brand", "tire_size", "tire_dot_date", "tire_tread_unit", "tire_pressure_unit",
+    "battery_action", "battery_rated_cca", "battery_measured_cca", "battery_voltage",
+    "battery_test_result", "battery_date_code",
+    "brake_axle", "brake_fluid",
+    "warranty_until", "warranty_provider",
+)
+
+internal val PACK_MAP_KEYS = listOf("tire_tread", "tire_psi", "brake_pad_mm", "brake_rotor_mm")
+
+private val NUMERIC_PACK_KEYS = setOf(
+    "oil_quantity", "oil_next_due_meter", "battery_rated_cca", "battery_measured_cca", "battery_voltage",
+)
+
+/** Form/pref volume unit → contract §1 fuel_volume_unit (gallon | liter | kWh). */
+internal fun toContractVolumeUnit(u: String): String = LogPacks.normalizeVolumeUnit(u) ?: u
+
+/** Stored fuel_volume_unit (incl. legacy gal / L) → form unit. */
+internal fun fromContractVolumeUnit(u: String): String = LogPacks.normalizeVolumeUnit(u) ?: u

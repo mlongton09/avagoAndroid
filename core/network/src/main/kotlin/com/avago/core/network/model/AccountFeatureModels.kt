@@ -17,6 +17,8 @@ data class AccountFeaturesResponse(
     @SerialName("ai_transcription_enabled")        val aiTranscriptionEnabled: Boolean = false,
     @SerialName("asset_qr_bulk_generation_enabled") val assetQrBulkGenerationEnabled: Boolean = true,
     @SerialName("rentals_enabled")                   val rentals_enabled: Boolean = true,
+    @SerialName("wo_closeout_require_signature")   val woCloseoutRequireSignature: Boolean = false,
+    @SerialName("wo_closeout_require_downtime")    val woCloseoutRequireDowntime: Boolean = false,
 )
 
 @Serializable

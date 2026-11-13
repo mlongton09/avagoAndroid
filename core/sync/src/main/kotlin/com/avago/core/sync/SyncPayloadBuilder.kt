@@ -103,6 +103,7 @@ class SyncPayloadBuilder @Inject constructor(
                         e.configVersion?.let { put("config_version", it) }
                         e.serviceId?.let { put("service_id", it) }
                         e.parentId?.let { put("parent_id", it) }
+                        e.woId?.let { put("wo_id", it) }
                         put("created_at", msToIso(e.createdAt))
                         put("updated_at", msToIso(e.updatedAt))
                         e.deletedAt?.let { put("deleted_at", msToIso(it)) }

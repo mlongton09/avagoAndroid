@@ -136,6 +136,17 @@ fun AvagoNavHost(
                 onOpenAssetPicker = {
                     navController.navigate(AssetsRoute.PICKER)
                 },
+                onCreateWorkOrderFromDefect = { req ->
+                    navController.navigate(
+                        com.avago.feature.workorders.nav.WorkOrderRoute.createFromDefect(
+                            assetId = req.assetId,
+                            title = req.title,
+                            description = req.description,
+                            defectIds = req.defectIds,
+                            inspectionLogId = req.inspectionLogId,
+                        ),
+                    )
+                },
             )
 
             // ── Work Orders ───────────────────────────────────────────────────────

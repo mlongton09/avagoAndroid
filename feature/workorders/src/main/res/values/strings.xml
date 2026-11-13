@@ -329,4 +329,46 @@
     <string name="wo_templates_cancel">Cancel</string>
     <string name="wo_templates_delete">Delete</string>
 
+    <!-- v3: statuses, close-out, SLA, hold, vendor -->
+    <string name="wo_status_pending_review">Pending Review</string>
+    <string name="wo_status_reviewed">Reviewed</string>
+    <string name="wo_checklist_required">Required</string>
+    <string name="wo_closeout_title">Close out work order</string>
+    <string name="wo_closeout_details">Completion Details</string>
+    <string name="wo_closeout_failure_code">Failure code</string>
+    <string name="wo_closeout_cause_code">Cause code</string>
+    <string name="wo_closeout_remedy_code">Remedy code</string>
+    <string name="wo_closeout_resolution_notes">Resolution notes</string>
+    <string name="wo_closeout_meter_reading">Meter reading</string>
+    <string name="wo_closeout_downtime_start">Downtime start (yyyy-MM-dd HH:mm)</string>
+    <string name="wo_closeout_downtime_end">Downtime end (yyyy-MM-dd HH:mm)</string>
+    <string name="wo_closeout_downtime_end_now">End now</string>
+    <string name="wo_closeout_downtime">Downtime</string>
+    <string name="wo_closeout_signoff">Signed off by</string>
+    <string name="wo_closeout_signoff_required">Signed off by (required)</string>
+    <string name="wo_closeout_missing">Still needed: %1$s</string>
+    <string name="wo_closeout_missing_checklist">required checklist items</string>
+    <string name="wo_closeout_complete">Complete work order</string>
+    <string name="wo_sla_met">SLA met</string>
+    <string name="wo_sla_missed">SLA missed</string>
+    <string name="wo_sla_respond_in">Respond in %1$s</string>
+    <string name="wo_sla_resolve_in">Resolve in %1$s</string>
+    <string name="wo_sla_respond_overdue">Response overdue by %1$s</string>
+    <string name="wo_sla_resolve_overdue">Resolution overdue by %1$s</string>
+    <string name="wo_hold_title">On hold</string>
+    <string name="wo_hold_waiting_on">Waiting on %1$s</string>
+    <string name="wo_hold_note">Hold note</string>
+    <string name="wo_hold_clear">Clear hold</string>
+    <string name="wo_hold_reason_parts">Parts</string>
+    <string name="wo_hold_reason_vendor">Vendor</string>
+    <string name="wo_hold_reason_approval">Approval</string>
+    <string name="wo_hold_reason_customer">Customer</string>
+    <string name="wo_hold_reason_other">Other</string>
+    <string name="wo_vendor_title">Vendor &amp; invoice</string>
+    <string name="wo_vendor_name">Vendor</string>
+    <string name="wo_vendor_po">PO number</string>
+    <string name="wo_vendor_estimate">Estimate total</string>
+    <string name="wo_vendor_invoice_total">Invoice total</string>
+    <string name="wo_vendor_invoice_ref">Invoice reference</string>
+
 </resources>

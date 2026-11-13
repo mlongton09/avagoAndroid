@@ -100,6 +100,7 @@ import com.avago.core.ui.categoryBadgeColor
 import com.avago.core.ui.categoryGroup
 import com.avago.core.ui.categoryIconName
 import com.avago.feature.log.R
+import com.avago.feature.log.nav.DefectWorkOrderRequest
 import com.avago.feature.log.viewmodel.AddEditLogViewModel
 import com.avago.feature.log.viewmodel.CostMode
 import com.avago.feature.log.viewmodel.ItemAttributeDef
@@ -129,6 +130,8 @@ fun AddEditLogScreen(
     onOpenPerformedByPicker: () -> Unit,
     /** Opens the MaintenanceScannerScreen to scan an asset tag or part barcode. */
     onOpenMaintenanceScanner: () -> Unit = {},
+    /** Create-WO-from-defect (contract §5); null hides the action. */
+    onCreateWorkOrderFromDefect: ((DefectWorkOrderRequest) -> Unit)? = null,
     modifier: Modifier = Modifier,
     viewModel: AddEditLogViewModel = hiltViewModel(),
 ) {
@@ -195,6 +198,10 @@ fun AddEditLogScreen(
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
     ) { uris: List<Uri> -> uris.forEach { viewModel.addPhotoUri(it) } }
+
+    val receiptLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? -> uri?.let { viewModel.scanReceipt(it, context) } }
 
     var captureUri by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<Uri?>(null) }
     val cameraLauncher = rememberLauncherForActivityResult(
@@ -308,6 +315,10 @@ fun AddEditLogScreen(
             LogValidationError.NO_ACCOUNT -> Pair(
                 stringResource(R.string.log_entry_alert_save_failed_title),
                 stringResource(R.string.log_entry_alert_save_failed_message),
+            )
+            LogValidationError.FUEL_VOLUME_REQUIRED -> Pair(
+                stringResource(R.string.log_entry_alert_fuel_volume_required_title),
+                stringResource(R.string.log_entry_alert_fuel_volume_required_message),
             )
         }
         AlertDialog(
@@ -609,51 +620,21 @@ fun AddEditLogScreen(
             }
 
             // ==================================================================
-            // FUEL CARD — only shown for fuel_log category
+            // FUEL CARD — contract §1 fuel pack (fuel categories only)
             // ==================================================================
-            if (form.category?.lowercase()?.contains("fuel") == true) {
+            if (form.isFuel) {
                 Spacer(Modifier.height(16.dp))
                 FormCard {
-                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                        Text(
-                            text = stringResource(R.string.log_entry_fuel_volume_label),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            OutlinedTextField(
-                                value = form.fuelVolume,
-                                onValueChange = { viewModel.onFuelVolumeChanged(it) },
-                                label = { Text(stringResource(R.string.log_entry_fuel_volume_optional)) },
-                                modifier = Modifier.weight(1f),
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            )
-                            SingleChoiceSegmentedButtonRow {
-                                listOf("gallon", "liter").forEachIndexed { idx, unit ->
-                                    SegmentedButton(
-                                        selected = form.fuelVolumeUnit == unit,
-                                        onClick = { viewModel.onFuelVolumeUnitChanged(unit) },
-                                        shape = SegmentedButtonDefaults.itemShape(index = idx, count = 2),
-                                        label = {
-                                            Text(
-                                                if (unit == "gallon")
-                                                    stringResource(R.string.log_entry_fuel_unit_gallon)
-                                                else
-                                                    stringResource(R.string.log_entry_fuel_unit_liter)
-                                            )
-                                        },
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    FuelPackSection(form, viewModel)
                 }
             }
+
+            MaintenancePackSections(form, viewModel)
+            LogVendorWoSection(
+                form = form,
+                viewModel = viewModel,
+                onScanReceipt = { receiptLauncher.launch("image/*") },
+            )
 
             Spacer(Modifier.height(16.dp))
 
@@ -1097,6 +1078,21 @@ fun AddEditLogScreen(
                                 resolutions = form.openDefectResolutions,
                                 labelOf = { key -> viewModel.inspectionLabel(key) },
                                 onResolve = { key, resolution -> viewModel.setOpenDefectResolution(key, resolution) },
+                                onCreateWorkOrder = onCreateWorkOrderFromDefect?.let { cb ->
+                                    { d ->
+                                        val label = viewModel.inspectionLabel(d.label) ?: d.label
+                                        val corner = viewModel.inspectionLabel(d.cornerLabel)
+                                        cb(
+                                            DefectWorkOrderRequest(
+                                                assetId = d.assetId ?: form.assetId,
+                                                title = listOfNotNull(label, corner).joinToString(" · "),
+                                                description = d.note?.takeIf { it.isNotBlank() },
+                                                defectIds = listOf(d.id),
+                                                inspectionLogId = d.sourceLogId,
+                                            ),
+                                        )
+                                    }
+                                },
                             )
                             Spacer(Modifier.height(12.dp))
                         }
@@ -1130,7 +1126,7 @@ fun AddEditLogScreen(
 
 /** White surface with hairline border and 10dp corners — mirrors iOS makeCard(). */
 @Composable
-private fun FormCard(
+internal fun FormCard(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {

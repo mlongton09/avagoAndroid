@@ -155,7 +155,7 @@ class WorkOrderListViewModel @Inject constructor(
         }
 
         // 5. Group into buckets
-        val completedStatuses = listOf("complete", "cancelled")
+        val completedStatuses = listOf("completed", "complete", "cancelled")
 
         val overdue = mutableListOf<WorkOrderEntity>()
         val dueToday = mutableListOf<WorkOrderEntity>()

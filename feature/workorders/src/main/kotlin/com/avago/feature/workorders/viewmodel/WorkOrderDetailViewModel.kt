@@ -27,7 +27,23 @@ import com.avago.core.data.FormFillRouter
 import com.avago.core.permissions.Permissions
 import com.avago.core.permissions.PermissionsManager
 import com.avago.core.sync.SyncEngine
+import com.avago.feature.workorders.model.ChecklistRowState
+import com.avago.feature.workorders.model.DEFAULT_SLA_POLICY
+import com.avago.feature.workorders.model.DEFAULT_WO_CODES
+import com.avago.feature.workorders.model.SlaWindow
+import com.avago.feature.workorders.model.WO_KEY_HOLD
+import com.avago.feature.workorders.model.WO_KEY_VENDOR
+import com.avago.feature.workorders.model.WoCloseout
+import com.avago.feature.workorders.model.WoCloseoutOptions
+import com.avago.feature.workorders.model.WoCode
+import com.avago.feature.workorders.model.WoCodeKind
+import com.avago.feature.workorders.model.WoHold
 import com.avago.feature.workorders.model.WoStatus
+import com.avago.feature.workorders.model.WoVendor
+import com.avago.feature.workorders.model.isChecklistRowRequired
+import com.avago.feature.workorders.model.parseWoAttributes
+import com.avago.feature.workorders.model.validateCloseout
+import com.avago.feature.workorders.repository.WoV3Service
 import com.avago.feature.workorders.repository.WorkOrderRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -68,6 +84,7 @@ class WorkOrderDetailViewModel @Inject constructor(
     private val permissionsManager: PermissionsManager,
     private val screenContextStore: ScreenContextStore,
     private val formFillRouter: FormFillRouter,
+    private val woV3: WoV3Service,
 ) : ViewModel() {
 
     private val woId: String = requireNotNull(savedStateHandle["woId"]) {
@@ -164,6 +181,84 @@ class WorkOrderDetailViewModel @Inject constructor(
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
+
+    // ---------------------------------------------------------------------------
+    // v3: close-out gate, codes, SLA, hold, vendor (contract §2)
+    // ---------------------------------------------------------------------------
+
+    private val _codes = MutableStateFlow(DEFAULT_WO_CODES)
+    val codes: StateFlow<Map<WoCodeKind, List<WoCode>>> = _codes.asStateFlow()
+
+    private val _slaPolicy = MutableStateFlow(DEFAULT_SLA_POLICY)
+    val slaPolicy: StateFlow<Map<String, SlaWindow>> = _slaPolicy.asStateFlow()
+
+    /** Close-out opt-ins from account features (default false until loaded). */
+    private val _closeoutOptions = MutableStateFlow(WoCloseoutOptions())
+    val closeoutOptions: StateFlow<WoCloseoutOptions> = _closeoutOptions.asStateFlow()
+
+    private val _showCloseout = MutableStateFlow(false)
+    val showCloseout: StateFlow<Boolean> = _showCloseout.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            val accountId = identityManager.getActiveAccountId() ?: return@launch
+            _codes.value = woV3.codes(accountId)
+            _slaPolicy.value = woV3.slaPolicy(accountId)
+            _closeoutOptions.value = woV3.closeoutOptions(accountId)
+        }
+    }
+
+    fun checklistStates(): List<ChecklistRowState> = checklistItems.value.map {
+        ChecklistRowState(required = isChecklistRowRequired(it.rowType), completed = it.isCompleted)
+    }
+
+    fun dismissCloseout() { _showCloseout.value = false }
+
+    fun completeWithCloseout(closeout: WoCloseout) {
+        val accountId = _accountId.value ?: return
+        val wo = workOrder.value ?: return
+        val check = validateCloseout(closeout, !wo.assetId.isNullOrBlank(), checklistStates(), closeoutOptions.value)
+        if (!check.ok) {
+            _error.value = "Missing: ${check.missing.joinToString()}"
+            return
+        }
+        viewModelScope.launch {
+            _isSaving.value = true
+            try {
+                woV3.complete(accountId, wo, closeout)
+                _showCloseout.value = false
+            } catch (e: Exception) {
+                Timber.e(e, "[WoDetailVM] completeWithCloseout failed")
+                _error.value = e.message
+            } finally {
+                _isSaving.value = false
+            }
+        }
+    }
+
+    fun setHold(reason: String, note: String?) {
+        val wo = workOrder.value ?: return
+        val since = WoHold.from(parseWoAttributes(wo.attributes))?.since ?: java.time.Instant.now().toString()
+        patchAttributes(mapOf(WO_KEY_HOLD to WoHold(reason, since, note).toJson()))
+    }
+
+    fun clearHold() = patchAttributes(mapOf(WO_KEY_HOLD to null))
+
+    fun saveVendor(vendor: WoVendor) =
+        patchAttributes(mapOf(WO_KEY_VENDOR to if (vendor.isEmpty && vendor.extra.isEmpty()) null else vendor.toJson()))
+
+    private fun patchAttributes(patch: Map<String, kotlinx.serialization.json.JsonElement?>) {
+        val accountId = _accountId.value ?: return
+        val wo = workOrder.value ?: return
+        viewModelScope.launch {
+            try {
+                woV3.patchAttributes(accountId, wo, patch)
+            } catch (e: Exception) {
+                Timber.e(e, "[WoDetailVM] patchAttributes failed")
+                _error.value = e.message
+            }
+        }
+    }
 
     // ---------------------------------------------------------------------------
     // Pull-to-refresh
@@ -400,6 +495,11 @@ class WorkOrderDetailViewModel @Inject constructor(
     fun transitionStatus(targetStatus: WoStatus) {
         val accountId = _accountId.value ?: return
         val wo = workOrder.value ?: return
+        // Completion gate: completing always goes through the close-out sheet.
+        if (targetStatus == WoStatus.COMPLETE) {
+            _showCloseout.value = true
+            return
+        }
         viewModelScope.launch {
             _isSaving.value = true
             try {

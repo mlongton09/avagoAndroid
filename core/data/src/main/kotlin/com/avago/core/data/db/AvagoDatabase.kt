@@ -210,7 +210,7 @@ import com.avago.core.data.db.entity.WorkPermitSignatureEntity
         PartTransferRequestEntity::class,
         RequestPortalEntity::class,
     ],
-    version = 17,
+    version = 18,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)

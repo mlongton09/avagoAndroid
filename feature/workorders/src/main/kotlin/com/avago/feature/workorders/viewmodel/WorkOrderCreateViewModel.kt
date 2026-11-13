@@ -14,6 +14,9 @@ import com.avago.core.sync.SyncEngine
 import com.avago.core.network.NetworkResult
 import com.avago.core.network.model.VinDecodeResponse
 import com.avago.feature.workorders.model.WoPriority
+import com.avago.feature.workorders.model.WO_KEY_SOURCE
+import com.avago.feature.workorders.model.mergeWoAttributesJson
+import com.avago.feature.workorders.model.woSourceJson
 import com.avago.feature.workorders.repository.WorkOrderRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -67,7 +70,19 @@ class WorkOrderCreateViewModel @Inject constructor(
 ) : ViewModel() {
 
     /** null = create mode; non-null = edit mode */
-    private val editingWoId: String? = savedStateHandle["woId"]
+    private val editingWoId: String? = savedStateHandle.get<String>("woId")?.takeIf { it.isNotBlank() }
+
+    /** Client-generated id for a new WO, stable across save retries so Svc create stays idempotent. */
+    private val newWoId: String = UUID.randomUUID().toString()
+
+    /**
+     * Provenance written to `attributes.source` on create (contract §2). Set from
+     * create-from-defect nav args, or by [applyTemplate] (kind=template).
+     */
+    private var pendingSource: JsonObject? = null
+    private val defectIds: List<String> = savedStateHandle.get<String>("defectIds")
+        ?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
+    private val inspectionLogId: String? = savedStateHandle.get<String>("inspectionLogId")?.takeIf { it.isNotBlank() }
 
     // ---------------------------------------------------------------------------
     // Form state
@@ -144,6 +159,15 @@ class WorkOrderCreateViewModel @Inject constructor(
 
     init {
         loadAvailableCategories()
+        if (editingWoId.isNullOrBlank()) {
+            // Create-from-defect prefill (contract §5): asset/title/notes + source.kind = defect.
+            if (defectIds.isNotEmpty() || inspectionLogId != null) {
+                pendingSource = woSourceJson("defect", defectIds = defectIds, inspectionLogId = inspectionLogId)
+            }
+            savedStateHandle.get<String>("title")?.takeIf { it.isNotBlank() }?.let { title.value = it }
+            savedStateHandle.get<String>("description")?.takeIf { it.isNotBlank() }?.let { description.value = it }
+            savedStateHandle.get<String>("assetId")?.takeIf { it.isNotBlank() }?.let { onAssetSelected(it) }
+        }
         if (editingWoId != null) {
             viewModelScope.launch {
                 val accountId = identityManager.getActiveAccountId() ?: return@launch
@@ -241,6 +265,11 @@ class WorkOrderCreateViewModel @Inject constructor(
 
     fun applyTemplate(template: WoTemplateEntity) {
         selectedTemplateId.value = template.templateId
+        pendingSource = if (pendingSource?.get("kind")?.let { (it as? JsonPrimitive)?.contentOrNull } == "defect") {
+            woSourceJson("defect", defectIds = defectIds, inspectionLogId = inspectionLogId, templateId = template.templateId)
+        } else {
+            woSourceJson("template", templateId = template.templateId)
+        }
         if (title.value.isBlank()) title.value = template.title
         if (description.value.isBlank()) description.value = template.description ?: ""
         if (estimatedHours.value.isBlank()) {
@@ -522,7 +551,7 @@ class WorkOrderCreateViewModel @Inject constructor(
             _isSaving.value = true
             try {
                 val now = System.currentTimeMillis()
-                val woId = editingWoId ?: UUID.randomUUID().toString()
+                val woId = editingWoId ?: newWoId
                 val existing = if (editingWoId != null)
                     repository.getById(accountId, editingWoId) else null
 
@@ -562,7 +591,9 @@ class WorkOrderCreateViewModel @Inject constructor(
                     currency = existing?.currency,
                     baseAmount = existing?.baseAmount,
                     exchangeRateUsed = existing?.exchangeRateUsed,
-                    attributes = existing?.attributes,
+                    attributes = pendingSource?.takeIf { existing == null }
+                        ?.let { mergeWoAttributesJson(null, mapOf(WO_KEY_SOURCE to it)) }
+                        ?: existing?.attributes,
                     createdBy = existing?.createdBy ?: accountId,
                     approvalState = existing?.approvalState,
                     jobId = jobId.value ?: existing?.jobId,

@@ -98,6 +98,12 @@ class FeatureFlags @Inject constructor(
     /** Whether the Rentals feature is enabled for this account. Fail-open (default true). */
     val rentalsEnabled: Boolean get() = getFlag("rentals_enabled", default = true)
 
+    /** WO close-out requires a sign-off (opt-in, default false). */
+    val woCloseoutRequireSignature: Boolean get() = getFlag("wo_closeout_require_signature", default = false)
+
+    /** WO close-out requires a downtime window (opt-in, default false). */
+    val woCloseoutRequireDowntime: Boolean get() = getFlag("wo_closeout_require_downtime", default = false)
+
     val clientBooleanFlags: List<ClientFeatureFlag> = listOf(
         ClientFeatureFlag("feature.scout_enabled", "AI Scout", false),
         ClientFeatureFlag("feature.inspection_enabled", "Inspection checklist", false),

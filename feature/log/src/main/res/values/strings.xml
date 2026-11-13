@@ -52,6 +52,60 @@
     <!-- No-asset validation -->
     <string name="log_entry_alert_no_asset_title">Asset Required</string>
     <string name="log_entry_alert_no_asset_message">Please select an asset for this log entry.</string>
+    <string name="log_entry_alert_fuel_volume_required_title">Volume Required</string>
+    <string name="log_entry_alert_fuel_volume_required_message">Enter the fuel volume for this fill-up.</string>
+
+    <!-- Log attribute packs (contract §1) -->
+    <string name="log_pack_fuel_volume">Volume *</string>
+    <string name="log_pack_fuel_unit_kwh">kWh</string>
+    <string name="log_pack_fuel_price">Price per unit</string>
+    <string name="log_pack_fuel_any_two_hint">Enter any two of price, volume and total</string>
+    <string name="log_pack_fuel_calculated">Calculated</string>
+    <string name="log_pack_fuel_total_calculated">Total calculated: %1$s</string>
+    <string name="log_pack_fuel_grade">Fuel grade</string>
+    <string name="log_pack_fuel_station">Station</string>
+    <string name="log_pack_fuel_card_last4">Fuel card (last 4)</string>
+    <string name="log_pack_fuel_full_fill">Full fill</string>
+    <string name="log_pack_fuel_economy">Fuel economy: %1$s %2$s</string>
+    <string name="log_pack_fuel_economy_unavailable">Fuel economy needs a previous full fill and a meter reading</string>
+    <string name="log_pack_unit">Unit</string>
+    <string name="log_pack_action">Action</string>
+    <string name="log_pack_oil_title">Oil change</string>
+    <string name="log_pack_oil_type">Oil type</string>
+    <string name="log_pack_oil_viscosity">Viscosity</string>
+    <string name="log_pack_oil_quantity">Quantity</string>
+    <string name="log_pack_oil_filter_part">Filter part #</string>
+    <string name="log_pack_oil_next_due_meter">Next due (meter)</string>
+    <string name="log_pack_oil_next_due_date">Next due (date)</string>
+    <string name="log_pack_tire_title">Tires</string>
+    <string name="log_pack_tire_positions">Positions</string>
+    <string name="log_pack_tire_brand">Brand</string>
+    <string name="log_pack_tire_size">Size</string>
+    <string name="log_pack_tire_dot_date">DOT date code</string>
+    <string name="log_pack_tire_tread_unit">Tread unit</string>
+    <string name="log_pack_tire_pressure_unit">Pressure unit</string>
+    <string name="log_pack_tire_tread">Tread</string>
+    <string name="log_pack_tire_psi">Pressure</string>
+    <string name="log_pack_battery_title">Battery</string>
+    <string name="log_pack_battery_rated_cca">Rated CCA</string>
+    <string name="log_pack_battery_measured_cca">Measured CCA</string>
+    <string name="log_pack_battery_voltage">Voltage</string>
+    <string name="log_pack_battery_result">Test result</string>
+    <string name="log_pack_battery_date_code">Date code</string>
+    <string name="log_pack_brake_title">Brakes</string>
+    <string name="log_pack_brake_axle">Axle</string>
+    <string name="log_pack_brake_fluid">Brake fluid</string>
+    <string name="log_pack_brake_pad_mm">Pad (mm)</string>
+    <string name="log_pack_brake_rotor_mm">Rotor (mm)</string>
+    <string name="log_pack_vendor_section">Vendor &amp; work order</string>
+    <string name="log_pack_vendor">Vendor</string>
+    <string name="log_pack_wo_link">Work order</string>
+    <string name="log_pack_wo_none">None</string>
+    <string name="log_pack_warranty_until">Warranty until</string>
+    <string name="log_pack_warranty_provider">Warranty provider</string>
+    <string name="log_pack_scan_receipt">Scan receipt</string>
+    <string name="log_pack_receipt_applied">Receipt details applied</string>
+    <string name="log_pack_receipt_attached">Receipt attached</string>
 
     <!-- Inline UI labels -->
     <string name="log_entry_label_asset">Asset</string>
@@ -145,6 +199,7 @@
     <string name="log_inspection_open_defects_reported">Reported %1$s</string>
     <string name="log_inspection_defect_repaired">Repaired</string>
     <string name="log_inspection_defect_still_present">Still present</string>
+    <string name="log_inspection_defect_create_wo">Create work order</string>
     <string name="log_inspection_status_open">Open</string>
     <string name="log_inspection_status_monitoring">Monitoring</string>
     <string name="log_inspection_status_deferred">Deferred</string>

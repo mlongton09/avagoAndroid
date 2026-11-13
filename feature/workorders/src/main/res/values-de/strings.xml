@@ -2,4 +2,61 @@
 <resources>
     <!-- Priority labels -->
     <string name="wo_priority_critical">P1 · Kritisch</string>
+
+    <!-- Statuses -->
+    <string name="wo_status_draft">Entwurf</string>
+    <string name="wo_status_open">Offen</string>
+    <string name="wo_status_pending_review">Prüfung ausstehend</string>
+    <string name="wo_status_reviewed">Geprüft</string>
+    <string name="wo_status_assigned">Zugewiesen</string>
+    <string name="wo_status_in_progress">In Bearbeitung</string>
+    <string name="wo_status_on_hold">Pausiert</string>
+    <string name="wo_status_complete">Abgeschlossen</string>
+    <string name="wo_status_cancelled">Storniert</string>
+    <string name="wo_transition_assign">Zuweisen</string>
+    <string name="wo_transition_start">Arbeit beginnen</string>
+    <string name="wo_transition_hold">Pausieren</string>
+    <string name="wo_transition_resume">Fortsetzen</string>
+    <string name="wo_transition_complete">Abschließen</string>
+    <string name="wo_transition_cancel">Auftrag stornieren</string>
+
+    <!-- v3: close-out, SLA, hold, vendor -->
+    <string name="wo_checklist_required">Pflicht</string>
+    <string name="wo_closeout_title">Arbeitsauftrag abschließen</string>
+    <string name="wo_closeout_details">Abschlussdetails</string>
+    <string name="wo_closeout_failure_code">Fehlercode</string>
+    <string name="wo_closeout_cause_code">Ursachencode</string>
+    <string name="wo_closeout_remedy_code">Behebungscode</string>
+    <string name="wo_closeout_resolution_notes">Lösungsnotizen</string>
+    <string name="wo_closeout_meter_reading">Zählerstand</string>
+    <string name="wo_closeout_downtime_start">Ausfall Beginn (yyyy-MM-dd HH:mm)</string>
+    <string name="wo_closeout_downtime_end">Ausfall Ende (yyyy-MM-dd HH:mm)</string>
+    <string name="wo_closeout_downtime_end_now">Jetzt beenden</string>
+    <string name="wo_closeout_downtime">Ausfallzeit</string>
+    <string name="wo_closeout_signoff">Abgezeichnet von</string>
+    <string name="wo_closeout_signoff_required">Abgezeichnet von (erforderlich)</string>
+    <string name="wo_closeout_missing">Noch erforderlich: %1$s</string>
+    <string name="wo_closeout_missing_checklist">Pflicht-Checklistenpunkte</string>
+    <string name="wo_closeout_complete">Arbeitsauftrag abschließen</string>
+    <string name="wo_sla_met">SLA eingehalten</string>
+    <string name="wo_sla_missed">SLA verfehlt</string>
+    <string name="wo_sla_respond_in">Reaktion in %1$s</string>
+    <string name="wo_sla_resolve_in">Lösung in %1$s</string>
+    <string name="wo_sla_respond_overdue">Reaktion überfällig seit %1$s</string>
+    <string name="wo_sla_resolve_overdue">Lösung überfällig seit %1$s</string>
+    <string name="wo_hold_title">Pausiert</string>
+    <string name="wo_hold_waiting_on">Wartet auf %1$s</string>
+    <string name="wo_hold_note">Notiz zur Pause</string>
+    <string name="wo_hold_clear">Pause aufheben</string>
+    <string name="wo_hold_reason_parts">Teile</string>
+    <string name="wo_hold_reason_vendor">Lieferant</string>
+    <string name="wo_hold_reason_approval">Genehmigung</string>
+    <string name="wo_hold_reason_customer">Kunde</string>
+    <string name="wo_hold_reason_other">Sonstiges</string>
+    <string name="wo_vendor_title">Lieferant &amp; Rechnung</string>
+    <string name="wo_vendor_name">Lieferant</string>
+    <string name="wo_vendor_po">Bestellnummer</string>
+    <string name="wo_vendor_estimate">Kostenvoranschlag</string>
+    <string name="wo_vendor_invoice_total">Rechnungsbetrag</string>
+    <string name="wo_vendor_invoice_ref">Rechnungsnummer</string>
 </resources>

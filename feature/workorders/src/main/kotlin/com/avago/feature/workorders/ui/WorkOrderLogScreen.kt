@@ -72,6 +72,9 @@ import com.avago.core.ui.GlobalCategoryPickerScreen
 import com.avago.core.ui.buildCategoryItems
 import com.avago.feature.workorders.R
 import com.avago.feature.workorders.model.WoPriority
+import com.avago.feature.workorders.model.WoCloseout
+import com.avago.feature.workorders.model.parseWoAttributes
+import com.avago.feature.workorders.ui.sheets.WoCloseoutSheet
 import com.avago.feature.workorders.ui.components.priorityBarColor
 import com.avago.feature.workorders.viewmodel.WorkOrderLogViewModel
 import java.text.SimpleDateFormat
@@ -130,21 +133,39 @@ fun WorkOrderLogScreen(
     var commentsExpanded by remember { mutableStateOf(true) }   // starts expanded — matches iOS
     var commentDraft by rememberSaveable { mutableStateOf("") }
 
-    // ── Timer tick: updates once/sec when timerStartedAt is set ──────────────
+    // ── Timer tick: server timer when available, else local timerStartedAt ──
+    val timerState by viewModel.timer.collectAsStateWithLifecycle()
     var timerDisplay by remember { mutableStateOf("00:00:00") }
-    LaunchedEffect(wo?.timerStartedAt) {
-        val startMs = wo?.timerStartedAt
-        if (startMs == null) {
-            timerDisplay = "00:00:00"
-            return@LaunchedEffect
-        }
+    LaunchedEffect(timerState) {
         while (true) {
-            val elapsed = System.currentTimeMillis() - startMs
-            val h = elapsed / 3_600_000L
-            val m = (elapsed % 3_600_000L) / 60_000L
-            val s = (elapsed % 60_000L) / 1_000L
+            val elapsed = timerState.elapsedSeconds(System.currentTimeMillis())
+            val h = elapsed / 3_600L
+            val m = (elapsed % 3_600L) / 60L
+            val s = elapsed % 60L
             timerDisplay = "%02d:%02d:%02d".format(h, m, s)
+            if (!timerState.running) break
             delay(1_000L)
+        }
+    }
+
+    val woCodes by viewModel.codes.collectAsStateWithLifecycle()
+    val showCloseout by viewModel.showCloseout.collectAsStateWithLifecycle()
+    val closeoutChecklist by viewModel.checklist.collectAsStateWithLifecycle()
+    val closeoutOptions by viewModel.closeoutOptions.collectAsStateWithLifecycle()
+    if (showCloseout) {
+        wo?.let { current ->
+            WoCloseoutSheet(
+                initial = WoCloseout.from(parseWoAttributes(current.attributes)),
+                codes = woCodes,
+                hasAsset = !current.assetId.isNullOrBlank(),
+                checklist = closeoutChecklist,
+                options = closeoutOptions,
+                defaultMeter = logMeterReading.takeIf { it.isNotBlank() },
+                completedBy = logPerformedBy.takeIf { it.isNotBlank() },
+                isSaving = isCompleting,
+                onSubmit = { viewModel.completeAndClose(it, onCompleted) },
+                onDismiss = viewModel::dismissCloseout,
+            )
         }
     }
 
@@ -224,7 +245,7 @@ fun WorkOrderLogScreen(
                         }
                     }
                     Button(
-                        onClick = { viewModel.completeAndClose(onCompleted) },
+                        onClick = { viewModel.requestComplete() },
                         enabled = !isSaving && !isCompleting,
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
@@ -354,7 +375,7 @@ fun WorkOrderLogScreen(
                     val dateFormatter = remember { SimpleDateFormat("MMM d, yyyy", Locale.getDefault()) }
 
                     // ── Timer — mirrors iOS WOTimerView ───────────────────────
-                    val isRunning = currentWo.timerStartedAt != null
+                    val isRunning = timerState.running
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,

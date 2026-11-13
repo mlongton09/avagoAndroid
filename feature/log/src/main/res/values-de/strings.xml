@@ -43,6 +43,7 @@
     <string name="log_inspection_open_defects_reported">Gemeldet am %1$s</string>
     <string name="log_inspection_defect_repaired">Repariert</string>
     <string name="log_inspection_defect_still_present">Weiterhin vorhanden</string>
+    <string name="log_inspection_defect_create_wo">Arbeitsauftrag erstellen</string>
     <string name="log_inspection_status_open">Offen</string>
     <string name="log_inspection_status_monitoring">Beobachtung</string>
     <string name="log_inspection_status_deferred">Zurückgestellt</string>
@@ -67,4 +68,60 @@
     <string name="log_detail_inspection_signoff">Abnahme durch Prüfer</string>
     <string name="log_detail_inspection_signed_by">Unterzeichnet von %1$s</string>
     <string name="log_detail_inspection_signed_by_on">Unterzeichnet von %1$s am %2$s</string>
+
+    <!-- Fuel validation -->
+    <string name="log_entry_alert_fuel_volume_required_title">Menge erforderlich</string>
+    <string name="log_entry_alert_fuel_volume_required_message">Bitte die getankte Menge eingeben.</string>
+
+    <!-- Log-Attributpakete -->
+    <string name="log_pack_fuel_volume">Menge *</string>
+    <string name="log_pack_fuel_unit_kwh">kWh</string>
+    <string name="log_pack_fuel_price">Preis pro Einheit</string>
+    <string name="log_pack_fuel_any_two_hint">Zwei von Preis, Menge und Gesamt eingeben</string>
+    <string name="log_pack_fuel_calculated">Berechnet</string>
+    <string name="log_pack_fuel_total_calculated">Gesamt berechnet: %1$s</string>
+    <string name="log_pack_fuel_grade">Kraftstoffsorte</string>
+    <string name="log_pack_fuel_station">Tankstelle</string>
+    <string name="log_pack_fuel_card_last4">Tankkarte (letzte 4)</string>
+    <string name="log_pack_fuel_full_fill">Vollgetankt</string>
+    <string name="log_pack_fuel_economy">Verbrauch: %1$s %2$s</string>
+    <string name="log_pack_fuel_economy_unavailable">Für den Verbrauch sind eine vorherige Volltankung und ein Zählerstand nötig</string>
+    <string name="log_pack_unit">Einheit</string>
+    <string name="log_pack_action">Aktion</string>
+    <string name="log_pack_oil_title">Ölwechsel</string>
+    <string name="log_pack_oil_type">Ölsorte</string>
+    <string name="log_pack_oil_viscosity">Viskosität</string>
+    <string name="log_pack_oil_quantity">Menge</string>
+    <string name="log_pack_oil_filter_part">Filter-Teilenr.</string>
+    <string name="log_pack_oil_next_due_meter">Nächste Fälligkeit (Zähler)</string>
+    <string name="log_pack_oil_next_due_date">Nächste Fälligkeit (Datum)</string>
+    <string name="log_pack_tire_title">Reifen</string>
+    <string name="log_pack_tire_positions">Positionen</string>
+    <string name="log_pack_tire_brand">Marke</string>
+    <string name="log_pack_tire_size">Größe</string>
+    <string name="log_pack_tire_dot_date">DOT-Datumscode</string>
+    <string name="log_pack_tire_tread_unit">Profileinheit</string>
+    <string name="log_pack_tire_pressure_unit">Druckeinheit</string>
+    <string name="log_pack_tire_tread">Profil</string>
+    <string name="log_pack_tire_psi">Druck</string>
+    <string name="log_pack_battery_title">Batterie</string>
+    <string name="log_pack_battery_rated_cca">Nenn-CCA</string>
+    <string name="log_pack_battery_measured_cca">Gemessene CCA</string>
+    <string name="log_pack_battery_voltage">Spannung</string>
+    <string name="log_pack_battery_result">Testergebnis</string>
+    <string name="log_pack_battery_date_code">Datumscode</string>
+    <string name="log_pack_brake_title">Bremsen</string>
+    <string name="log_pack_brake_axle">Achse</string>
+    <string name="log_pack_brake_fluid">Bremsflüssigkeit</string>
+    <string name="log_pack_brake_pad_mm">Belag (mm)</string>
+    <string name="log_pack_brake_rotor_mm">Scheibe (mm)</string>
+    <string name="log_pack_vendor_section">Lieferant &amp; Arbeitsauftrag</string>
+    <string name="log_pack_vendor">Lieferant</string>
+    <string name="log_pack_wo_link">Arbeitsauftrag</string>
+    <string name="log_pack_wo_none">Keiner</string>
+    <string name="log_pack_warranty_until">Garantie bis</string>
+    <string name="log_pack_warranty_provider">Garantiegeber</string>
+    <string name="log_pack_scan_receipt">Beleg scannen</string>
+    <string name="log_pack_receipt_applied">Belegdaten übernommen</string>
+    <string name="log_pack_receipt_attached">Beleg angehängt</string>
 </resources>

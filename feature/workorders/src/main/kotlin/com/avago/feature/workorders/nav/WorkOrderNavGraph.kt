@@ -29,7 +29,8 @@ object WorkOrderRoute {
     const val GRAPH = "workorders_graph"
     const val LIST = "workorders/list"
     const val DETAIL = "workorders/detail/{woId}"
-    const val CREATE_EDIT = "workorders/create_edit?woId={woId}"
+    const val CREATE_EDIT = "workorders/create_edit?woId={woId}&assetId={assetId}&title={title}" +
+        "&description={description}&defectIds={defectIds}&inspectionLogId={inspectionLogId}"
     const val DISPATCH_BOARD = "workorders/dispatch_board"
     const val CALENDAR = "workorders/calendar"
     const val AVAILABLE_JOBS = "workorders/available_jobs"
@@ -47,6 +48,22 @@ object WorkOrderRoute {
     fun createEdit(woId: String? = null) =
         if (woId != null) "workorders/create_edit?woId=$woId"
         else "workorders/create_edit?woId="
+
+    /** Create-from-defect (contract §5): prefilled WO with `attributes.source.kind = "defect"`. */
+    fun createFromDefect(
+        assetId: String?,
+        title: String,
+        description: String?,
+        defectIds: List<String>,
+        inspectionLogId: String?,
+    ): String = buildString {
+        append("workorders/create_edit?woId=")
+        assetId?.let { append("&assetId=").append(android.net.Uri.encode(it)) }
+        append("&title=").append(android.net.Uri.encode(title))
+        description?.let { append("&description=").append(android.net.Uri.encode(it)) }
+        if (defectIds.isNotEmpty()) append("&defectIds=").append(android.net.Uri.encode(defectIds.joinToString(",")))
+        inspectionLogId?.let { append("&inspectionLogId=").append(android.net.Uri.encode(it)) }
+    }
     fun techProfile(techId: String) = "workorders/tech/$techId"
     fun costLinesEditor(woId: String) = "workorders/cost_lines/$woId"
 }
@@ -137,7 +154,13 @@ fun NavGraphBuilder.workOrderNavGraph(
                     nullable = true
                     defaultValue = null
                 },
-            ),
+            ) + listOf("assetId", "title", "description", "defectIds", "inspectionLogId").map { name ->
+                navArgument(name) {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            },
         ) { backStackEntry ->
             val woId = backStackEntry.arguments?.getString("woId")
                 ?.takeIf { it.isNotBlank() }

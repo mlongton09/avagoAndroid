@@ -1860,7 +1860,7 @@ class SyncEngine @Inject constructor(
                     val now = System.currentTimeMillis()
                     db.pmPlanDao().upsert(
                         PmPlanEntity(
-                            pmPlanId = item.str("pm_plan_id") ?: return,
+                            pmPlanId = item.str("pm_plan_id") ?: item.str("plan_id") ?: return,
                             accountId = item.str("account_id") ?: accountId,
                             assetId = item.str("asset_id"),
                             title = item.str("title") ?: return,
@@ -1883,7 +1883,7 @@ class SyncEngine @Inject constructor(
                     db.pmPlanIntervalDao().upsert(
                         PmPlanIntervalEntity(
                             intervalId = item.str("interval_id") ?: return,
-                            pmPlanId = item.str("pm_plan_id") ?: return,
+                            pmPlanId = item.str("pm_plan_id") ?: item.str("plan_id") ?: return,
                             cycleNumber = item.lng("cycle_number") ?: return,
                             intervalValue = item.dbl("interval_value") ?: return,
                             intervalUnit = item.str("interval_unit"),
@@ -2309,6 +2309,7 @@ class SyncEngine @Inject constructor(
             serverVersion = item.lng("server_version") ?: 0L,
             seq = item.lng("seq"),
             overtimeMultiplier = item.dbl("overtime_multiplier"),
+            woId = item.str("wo_id"),
         )
     }
 

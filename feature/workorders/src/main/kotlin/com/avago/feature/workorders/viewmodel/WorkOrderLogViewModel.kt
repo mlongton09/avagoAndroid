@@ -15,6 +15,16 @@ import com.avago.feature.workorders.viewmodel.AuditEntry
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
 import com.avago.core.sync.SyncEngine
+import com.avago.feature.workorders.model.ChecklistRowState
+import com.avago.feature.workorders.model.DEFAULT_WO_CODES
+import com.avago.feature.workorders.model.WoCloseout
+import com.avago.feature.workorders.model.WoCloseoutOptions
+import com.avago.feature.workorders.model.WoCode
+import com.avago.feature.workorders.model.WoCodeKind
+import com.avago.feature.workorders.model.WoTimerState
+import com.avago.feature.workorders.model.isChecklistRowRequired
+import com.avago.feature.workorders.model.validateCloseout
+import com.avago.feature.workorders.repository.WoV3Service
 import com.avago.feature.workorders.repository.WorkOrderRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -49,9 +59,24 @@ class WorkOrderLogViewModel @Inject constructor(
     private val serviceClient: AvagoServiceClient,
     private val screenContextStore: ScreenContextStore,
     private val formFillRouter: FormFillRouter,
+    private val woV3: WoV3Service,
 ) : ViewModel() {
 
     val woId: String = requireNotNull(savedStateHandle["woId"])
+
+    // ── v3: close-out gate + server timer (contract §2/§3) ────────────────────
+    private val _codes = MutableStateFlow(DEFAULT_WO_CODES)
+    val codes: StateFlow<Map<WoCodeKind, List<WoCode>>> = _codes.asStateFlow()
+    private val _closeoutOptions = MutableStateFlow(WoCloseoutOptions())
+    val closeoutOptions: StateFlow<WoCloseoutOptions> = _closeoutOptions.asStateFlow()
+    private val _showCloseout = MutableStateFlow(false)
+    val showCloseout: StateFlow<Boolean> = _showCloseout.asStateFlow()
+    private val _checklist = MutableStateFlow<List<ChecklistRowState>>(emptyList())
+    val checklist: StateFlow<List<ChecklistRowState>> = _checklist.asStateFlow()
+
+    /** Timer state; server-backed when `/timer` is available, else derived from local timerStartedAt. */
+    private val _timer = MutableStateFlow(WoTimerState.IDLE)
+    val timer: StateFlow<WoTimerState> = _timer.asStateFlow()
 
     // ── WO context (read-only display) ────────────────────────────────────────
     private val _wo = MutableStateFlow<WorkOrderEntity?>(null)
@@ -107,7 +132,27 @@ class WorkOrderLogViewModel @Inject constructor(
         viewModelScope.launch { load() }
         viewModelScope.launch { observeComments() }
         viewModelScope.launch { loadAuditHistory() }
+        viewModelScope.launch { loadV3() }
     }
+
+    private suspend fun loadV3() {
+        val accountId = identityManager.getActiveAccountId() ?: return
+        try {
+            _codes.value = woV3.codes(accountId)
+            _closeoutOptions.value = woV3.closeoutOptions(accountId)
+            woV3.timer(accountId, woId)?.let { _timer.value = it }
+            repository.observeChecklistForWo(accountId, woId).collect { items ->
+                _checklist.value = items.map {
+                    ChecklistRowState(isChecklistRowRequired(it.rowType), it.isCompleted)
+                }
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "[WoLogVM] loadV3 failed")
+        }
+    }
+
+    private fun localTimer(wo: WorkOrderEntity?): WoTimerState =
+        WoTimerState(wo?.timerStartedAt != null, wo?.timerStartedAt, 0, false)
 
     // ── Data loading ──────────────────────────────────────────────────────────
 
@@ -117,6 +162,7 @@ class WorkOrderLogViewModel @Inject constructor(
             val db = dbFactory.get(accountId)
             val wo = db.workOrderDao().getById(woId) ?: return
             _wo.value = wo
+            if (!_timer.value.serverBacked) _timer.value = localTimer(wo)
 
             // Pre-fill form from WO
             logTitle.value = wo.title
@@ -224,30 +270,40 @@ class WorkOrderLogViewModel @Inject constructor(
         }
     }
 
+    /** Completion gate: completing always goes through the close-out sheet first. */
+    fun requestComplete() {
+        _errorMessage.value = null
+        _showCloseout.value = true
+    }
+
+    fun dismissCloseout() { _showCloseout.value = false }
+
     /**
-     * Saves the log entry AND transitions the WO status to "completed".
+     * Saves the log entry, stores the close-out and transitions the WO to "completed".
      * Mirrors iOS completeWorkOrderTapped() which chains status transitions
      * and saves the log atomically.
      */
-    fun completeAndClose(onSuccess: () -> Unit) {
+    fun completeAndClose(closeout: WoCloseout, onSuccess: () -> Unit) {
+        val current = _wo.value ?: return
+        val check = validateCloseout(closeout, !current.assetId.isNullOrBlank(), _checklist.value, closeoutOptions.value)
+        if (!check.ok) {
+            _errorMessage.value = "Missing: ${check.missing.joinToString()}"
+            return
+        }
         viewModelScope.launch {
             _isCompleting.value = true
             _errorMessage.value = null
             try {
                 val logId = persistLogEntry()
                 val accountId = identityManager.getActiveAccountId() ?: error("no account")
-                val wo = _wo.value ?: error("WO not loaded")
-                val now = System.currentTimeMillis()
-                repository.upsert(
-                    accountId,
-                    wo.copy(
-                        logId = logId,
-                        status = "completed",
-                        completedAt = now,
-                        timerStartedAt = null,   // clear timer on complete (matches iOS clearTimer)
-                        updatedAt = now,
-                    ),
-                )
+                val wo = dbFactory.get(accountId).workOrderDao().getById(woId) ?: current
+                if (_timer.value.running && _timer.value.serverBacked) {
+                    woV3.timerAction(accountId, woId, "stop")?.let { _timer.value = it }
+                }
+                val updated = woV3.complete(accountId, wo, closeout) { it.copy(logId = logId) }
+                _wo.value = updated
+                if (!_timer.value.serverBacked) _timer.value = _timer.value.stop(System.currentTimeMillis())
+                _showCloseout.value = false
                 completedSuccessfully.value = true
                 onSuccess()
             } catch (e: Exception) {
@@ -269,14 +325,19 @@ class WorkOrderLogViewModel @Inject constructor(
 
     // ── Timer (mirrors iOS WOTimerView delegate) ──────────────────────────────
 
-    /** Start timer: set timerStartedAt, auto-advance assigned → in_progress. */
+    /**
+     * Start timer: server `/timer start` when available (contract §3), else local timerStartedAt.
+     * Auto-advances assigned → in_progress either way.
+     */
     fun startTimer() {
         viewModelScope.launch {
             val accountId = identityManager.getActiveAccountId() ?: return@launch
             val wo = _wo.value ?: return@launch
             val now = System.currentTimeMillis()
+            val server = woV3.timerAction(accountId, woId, "start")
+            _timer.value = server ?: _timer.value.start(now)
             val updated = wo.copy(
-                timerStartedAt = now,
+                timerStartedAt = if (server == null) now else wo.timerStartedAt,
                 status = if (wo.status == "assigned") "in_progress" else wo.status,
                 updatedAt = now,
             )
@@ -285,15 +346,19 @@ class WorkOrderLogViewModel @Inject constructor(
         }
     }
 
-    /** Pause timer: clear timerStartedAt but keep status as in_progress. */
+    /** Pause timer: server `/timer stop` when available, else clear timerStartedAt. Status stays in_progress. */
     fun pauseTimer() {
         viewModelScope.launch {
             val accountId = identityManager.getActiveAccountId() ?: return@launch
             val wo = _wo.value ?: return@launch
             val now = System.currentTimeMillis()
-            val updated = wo.copy(timerStartedAt = null, updatedAt = now)
-            repository.upsert(accountId, updated)
-            _wo.value = updated
+            val server = woV3.timerAction(accountId, woId, "stop")
+            _timer.value = server ?: _timer.value.stop(now)
+            if (server == null || wo.timerStartedAt != null) {
+                val updated = wo.copy(timerStartedAt = null, updatedAt = now)
+                repository.upsert(accountId, updated)
+                _wo.value = updated
+            }
         }
     }
 
@@ -373,20 +438,35 @@ class WorkOrderLogViewModel @Inject constructor(
         val existingId = wo.logId?.takeIf { it.isNotBlank() }
         val logId = existingId ?: UUID.randomUUID().toString()
         val existing = existingId?.let { db.logDao().getById(it) }
+        val title = logTitle.value.trim().ifBlank { wo.title }
+        val cost = logCost.value.toDoubleOrNull()
+        val performedBy = logPerformedBy.value.trim().takeIf { it.isNotBlank() }
+        val notes = logNotes.value.trim().takeIf { it.isNotBlank() }
 
-        db.logDao().upsert(
-            LogEntity(
+        // Existing log: update only the fields this screen edits, so attributes/data/cost
+        // breakdown written elsewhere (incl. unknown attribute keys) are preserved.
+        val entity = existing?.copy(
+            title = title,
+            odometerValue = logMeterReading.value.toDoubleOrNull(),
+            category = logCategory.value,
+            cost = cost,
+            performedBy = performedBy,
+            notes = notes,
+            baseAmount = if (existing.costMode == "total" || existing.costMode == null) cost else existing.baseAmount,
+            woId = woId,
+            updatedAt = now,
+        ) ?: LogEntity(
                 entryId = logId,
                 assetId = wo.assetId ?: error("WO has no asset"),
                 accountId = accountId,
-                title = logTitle.value.trim().ifBlank { wo.title },
+                title = title,
                 entryDate = now,
                 odometerValue = logMeterReading.value.toDoubleOrNull(),
                 category = logCategory.value,
-                cost = logCost.value.toDoubleOrNull(),
-                performedBy = logPerformedBy.value.trim().takeIf { it.isNotBlank() },
+                cost = cost,
+                performedBy = performedBy,
                 performedByUserId = null,
-                notes = logNotes.value.trim().takeIf { it.isNotBlank() },
+                notes = notes,
                 data = null,
                 attributes = null,
                 costMode = "total",
@@ -394,20 +474,21 @@ class WorkOrderLogViewModel @Inject constructor(
                 costLabor = null,
                 costTax = null,
                 currency = "USD",
-                baseAmount = logCost.value.toDoubleOrNull(),
+                baseAmount = cost,
                 exchangeRateUsed = 1.0,
                 configId = null,
                 configVersion = null,
                 serviceId = null,
                 costMisc = null,
                 parentId = null,
-                createdAt = existing?.createdAt ?: now,
+                createdAt = now,
                 updatedAt = now,
                 deletedAt = null,
-                serverVersion = existing?.serverVersion ?: 0L,
+                serverVersion = 0L,
                 seq = null,
-            ),
-        )
+                woId = woId,
+            )
+        db.logDao().upsert(entity)
         syncEngine.sync()
         return logId
     }

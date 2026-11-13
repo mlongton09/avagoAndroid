@@ -78,6 +78,18 @@ import com.avago.feature.workorders.model.WoStatus
 import com.avago.feature.workorders.model.WoTransition
 import com.avago.feature.workorders.model.availableTransitions
 import com.avago.feature.workorders.model.summariseRrule
+import com.avago.feature.workorders.model.ChecklistRowState
+import com.avago.feature.workorders.model.WoCloseout
+import com.avago.feature.workorders.model.WoHold
+import com.avago.feature.workorders.model.WoVendor
+import com.avago.feature.workorders.model.downtimeMinutes
+import com.avago.feature.workorders.model.isChecklistRowRequired
+import com.avago.feature.workorders.model.parseWoAttributes
+import com.avago.feature.workorders.ui.components.WoHoldEditor
+import com.avago.feature.workorders.ui.components.WoSlaChip
+import com.avago.feature.workorders.ui.components.WoVendorEditor
+import com.avago.feature.workorders.ui.components.woStatusLabel
+import com.avago.feature.workorders.ui.sheets.WoCloseoutSheet
 import com.avago.feature.workorders.ui.components.AssigneeAvatar
 import com.avago.feature.workorders.ui.components.priorityBarColor
 import com.avago.feature.workorders.ui.sheets.RepeatsSheet
@@ -145,6 +157,29 @@ fun WorkOrderDetailScreen(
     var dispatcherNotesInitialized by rememberSaveable { mutableStateOf(false) }
 
     val shouldShowLogView by viewModel.shouldShowLogView.collectAsStateWithLifecycle()
+    val slaPolicy by viewModel.slaPolicy.collectAsStateWithLifecycle()
+    val woCodes by viewModel.codes.collectAsStateWithLifecycle()
+    val showCloseout by viewModel.showCloseout.collectAsStateWithLifecycle()
+    val closeoutOptions by viewModel.closeoutOptions.collectAsStateWithLifecycle()
+
+    if (showCloseout) {
+        wo?.let { current ->
+            WoCloseoutSheet(
+                initial = WoCloseout.from(parseWoAttributes(current.attributes)),
+                codes = woCodes,
+                hasAsset = !current.assetId.isNullOrBlank(),
+                checklist = checklistItems.map {
+                    ChecklistRowState(isChecklistRowRequired(it.rowType), it.isCompleted)
+                },
+                options = closeoutOptions,
+                defaultMeter = null,
+                completedBy = null,
+                isSaving = isSaving,
+                onSubmit = viewModel::completeWithCloseout,
+                onDismiss = viewModel::dismissCloseout,
+            )
+        }
+    }
     // Auto-route to the merged log screen when the WO status qualifies —
     // mirrors iOS routeToLogItemViewIfNeeded() which replaces the detail VC.
     LaunchedEffect(shouldShowLogView) {
@@ -446,6 +481,32 @@ fun WorkOrderDetailScreen(
                         )
                     }
 
+                    Spacer(modifier = Modifier.height(8.dp))
+                    WoSlaChip(wo = currentWo, policy = slaPolicy)
+
+                    val v3Attrs = remember(currentWo.attributes) { parseWoAttributes(currentWo.attributes) }
+                    if (currentWo.status?.lowercase() in setOf("assigned", "in_progress", "on_hold")) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        WoHoldEditor(
+                            hold = WoHold.from(v3Attrs),
+                            enabled = canEdit && !isSaving,
+                            onSet = viewModel::setHold,
+                            onClear = viewModel::clearHold,
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    CollapsibleDetailSection(
+                        title = stringResource(R.string.wo_vendor_title),
+                        initiallyExpanded = false,
+                    ) {
+                        WoVendorEditor(
+                            vendor = WoVendor.from(v3Attrs),
+                            enabled = canEdit && !isSaving,
+                            onSave = viewModel::saveVendor,
+                        )
+                    }
+
                     budgetPill?.let { pill ->
                         Spacer(modifier = Modifier.height(12.dp))
                         BudgetPillCard(pill = pill)
@@ -595,6 +656,7 @@ fun WorkOrderDetailScreen(
                             initiallyExpanded = true,
                         ) {
                             checklistItems.forEach { item ->
+                                val required = isChecklistRowRequired(item.rowType)
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
@@ -608,6 +670,13 @@ fun WorkOrderDetailScreen(
                                         style = MaterialTheme.typography.bodyMedium,
                                         modifier = Modifier.weight(1f),
                                     )
+                                    if (required && !item.isCompleted) {
+                                        Text(
+                                            text = stringResource(R.string.wo_checklist_required),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.error,
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -661,21 +730,34 @@ fun WorkOrderDetailScreen(
                         HistoryContent(auditHistory = auditHistory)
                     }
 
-                    if (currentWo.status?.lowercase() == "completed") {
+                    if (currentWo.status?.lowercase() == "completed" || currentWo.status?.lowercase() == "complete") {
+                        val closeout = WoCloseout.from(parseWoAttributes(currentWo.attributes))
                         Spacer(modifier = Modifier.height(12.dp))
                         CollapsibleDetailSection(
-                            title = "Completion Details",
+                            title = stringResource(R.string.wo_closeout_details),
                             initiallyExpanded = true,
                         ) {
                             currentWo.completedAt?.let { ts: Long ->
                                 LabeledRow(
-                                    label = "Completed",
+                                    label = stringResource(R.string.wo_status_complete),
                                     value = formatDate(ts),
                                 )
                             }
-                            currentWo.failureCode?.takeIf { it.isNotBlank() }?.let { code ->
-                                LabeledRow(label = "Failure Code", value = code)
+                            (closeout.failureCode ?: currentWo.failureCode)?.takeIf { it.isNotBlank() }?.let { code ->
+                                LabeledRow(label = stringResource(R.string.wo_closeout_failure_code), value = code)
                             }
+                            closeout.causeCode?.let { LabeledRow(label = stringResource(R.string.wo_closeout_cause_code), value = it) }
+                            closeout.remedyCode?.let { LabeledRow(label = stringResource(R.string.wo_closeout_remedy_code), value = it) }
+                            (closeout.resolutionNotes ?: currentWo.completionNotes)?.takeIf { it.isNotBlank() }?.let {
+                                LabeledRow(label = stringResource(R.string.wo_closeout_resolution_notes), value = it)
+                            }
+                            closeout.meterReading?.let {
+                                LabeledRow(label = stringResource(R.string.wo_closeout_meter_reading), value = it.toString())
+                            }
+                            downtimeMinutes(closeout.downtimeStart, closeout.downtimeEnd)?.let {
+                                LabeledRow(label = stringResource(R.string.wo_closeout_downtime), value = stringResource(R.string.wo_detail_minutes_format, it.toString()))
+                            }
+                            closeout.signoff?.let { LabeledRow(label = stringResource(R.string.wo_closeout_signoff), value = it.name) }
                         }
                     }
 
@@ -975,7 +1057,7 @@ private fun StatusBadge(statusKey: String) {
         color = color.copy(alpha = 0.16f),
     ) {
         Text(
-            text = workOrderStatusLabel(statusKey),
+            text = woStatusLabel(statusKey),
             style = MaterialTheme.typography.labelMedium,
             color = color,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -1010,7 +1092,7 @@ private fun TransitionsCard(
                     colors = ButtonDefaults.textButtonColors(contentColor = buttonColor),
                 ) {
                     Text(
-                        text = transition.label,
+                        text = transitionLabel(transition),
                         modifier = Modifier.fillMaxWidth(),
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -1223,12 +1305,14 @@ private fun transitionStatusFor(status: String): WoStatus = when (status.lowerca
     else -> WoStatus.OPEN
 }
 
-private fun workOrderStatusLabel(status: String): String = when (status.lowercase()) {
-    "pending_review" -> "Pending Review"
-    "in_progress" -> "In Progress"
-    "on_hold" -> "On Hold"
-    "completed", "complete" -> "Completed"
-    else -> status.replace('_', ' ').replaceFirstChar { it.titlecase() }
+@Composable
+private fun transitionLabel(t: WoTransition): String = when (t) {
+    WoTransition.Assign -> stringResource(R.string.wo_transition_assign)
+    WoTransition.StartWork -> stringResource(R.string.wo_transition_start)
+    WoTransition.PlaceOnHold -> stringResource(R.string.wo_transition_hold)
+    WoTransition.Resume -> stringResource(R.string.wo_transition_resume)
+    WoTransition.Complete -> stringResource(R.string.wo_transition_complete)
+    WoTransition.Cancel -> stringResource(R.string.wo_transition_cancel)
 }
 
 private fun woStatusColor(status: String): Color = when (status.lowercase()) {

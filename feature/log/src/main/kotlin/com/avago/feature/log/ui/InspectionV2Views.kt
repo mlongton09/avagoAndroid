@@ -117,6 +117,7 @@ internal fun InspectionOpenDefectsCard(
     labelOf: (String?) -> String?,
     onResolve: (key: String, resolution: String) -> Unit,
     modifier: Modifier = Modifier,
+    onCreateWorkOrder: ((InspectionV2.OpenDefect) -> Unit)? = null,
 ) {
     Column(
         modifier = modifier
@@ -165,6 +166,11 @@ internal fun InspectionOpenDefectsCard(
                         selectedLabelColor = Color.White,
                     ),
                 )
+                if (onCreateWorkOrder != null) {
+                    androidx.compose.material3.TextButton(onClick = { onCreateWorkOrder(d) }) {
+                        Text(stringResource(R.string.log_inspection_defect_create_wo))
+                    }
+                }
             }
         }
     }

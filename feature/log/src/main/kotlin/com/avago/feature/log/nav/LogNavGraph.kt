@@ -40,15 +40,26 @@ object LogRoute {
         "log/add_edit?entryId=${entryId ?: ""}&assetId=${assetId ?: ""}&category=${category ?: ""}"
 }
 
+/** Prefill for creating a work order from an open inspection defect (contract §5). */
+data class DefectWorkOrderRequest(
+    val assetId: String?,
+    val title: String,
+    val description: String?,
+    val defectIds: List<String>,
+    val inspectionLogId: String?,
+)
+
 /**
  * Registers the full log navigation sub-graph.
  *
  * [onOpenAssetPicker] — caller opens the global asset picker
  * and writes "selected_asset_id" to the AddEdit entry's SavedStateHandle.
+ * [onCreateWorkOrderFromDefect] — caller opens WO create prefilled from an open defect.
  */
 fun NavGraphBuilder.logNavGraph(
     navController: NavHostController,
     onOpenAssetPicker: () -> Unit = {},
+    onCreateWorkOrderFromDefect: ((DefectWorkOrderRequest) -> Unit)? = null,
 ) {
     navigation(
         startDestination = LogRoute.LIST,
@@ -167,6 +178,7 @@ fun NavGraphBuilder.logNavGraph(
                 onOpenMaintenanceScanner = {
                     navController.navigate(LogRoute.MAINTENANCE_SCANNER)
                 },
+                onCreateWorkOrderFromDefect = onCreateWorkOrderFromDefect,
             )
         }
 

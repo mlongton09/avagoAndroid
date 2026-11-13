@@ -48,6 +48,7 @@ dependencies {
     implementation(project(":core:auth"))
     implementation(project(":core:sync"))
     implementation(project(":core:network"))
+    implementation(project(":core:ocr"))
     implementation(project(":feature:assets"))
 
     testImplementation(libs.junit5)

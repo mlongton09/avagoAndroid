@@ -107,4 +107,7 @@ data class LogEntity(
     // Change 11: overtime multiplier for cost calculations
     @ColumnInfo(name = "overtime_multiplier")
     val overtimeMultiplier: Double? = null,
+
+    @ColumnInfo(name = "wo_id")
+    val woId: String? = null,
 )

@@ -148,6 +148,7 @@ class SyncEngineTest {
         every { mockIdentity.getActiveAccountId() } returns ACCOUNT_ID
 
         engine = SyncEngine(
+            appContext = mockk(relaxed = true),
             identity = mockIdentity,
             dbFactory = mockDbFactory,
             client = mockClient,

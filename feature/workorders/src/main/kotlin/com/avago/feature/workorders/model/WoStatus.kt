@@ -16,12 +16,13 @@ enum class WoStatus(val key: String, val displayName: String) {
     ASSIGNED("assigned", "Assigned"),
     IN_PROGRESS("in_progress", "In Progress"),
     ON_HOLD("on_hold", "On Hold"),
-    COMPLETE("complete", "Complete"),
+    COMPLETE("completed", "Complete"),
     CANCELLED("cancelled", "Cancelled");
 
     companion object {
+        /** Accepts the legacy "complete" alias; the service/contract status is "completed". */
         fun fromKey(key: String): WoStatus =
-            entries.firstOrNull { it.key == key } ?: OPEN
+            if (key == "complete") COMPLETE else entries.firstOrNull { it.key == key } ?: OPEN
     }
 }
 
