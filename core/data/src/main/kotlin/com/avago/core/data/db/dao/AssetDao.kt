@@ -20,6 +20,13 @@ interface AssetDao {
     @Query("SELECT * FROM assets WHERE asset_id = :barcode LIMIT 1")
     suspend fun getByBarcode(barcode: String): AssetEntity?
 
+    /** Candidates for a scanned VIN / serial: exact serial match or the code appearing in attributes. */
+    @Query(
+        "SELECT * FROM assets WHERE account_id = :accountId AND deleted_at IS NULL " +
+            "AND (UPPER(serial_number) = :code OR UPPER(attributes) LIKE '%' || :code || '%') LIMIT 20",
+    )
+    suspend fun findByIdentifierCandidates(accountId: String, code: String): List<AssetEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: AssetEntity)
 

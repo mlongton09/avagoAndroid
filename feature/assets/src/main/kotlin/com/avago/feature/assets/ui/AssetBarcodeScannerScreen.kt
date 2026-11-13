@@ -87,16 +87,33 @@ class AssetBarcodeScannerViewModel @Inject constructor(
 ) : ViewModel() {
 
     /**
-     * Looks up an asset by the scanned barcode value (treated as the asset ID).
-     * Returns the assetId string if found, null otherwise.
+     * Looks up an asset by the scanned barcode value: the asset ID first, then a VIN
+     * (`attributes.vin`) or serial number match. Returns the assetId if found, null otherwise.
      */
     suspend fun lookupByBarcode(barcode: String): String? {
         val accountId = identityManager.getActiveAccountId() ?: return null
         return try {
-            dbFactory.get(accountId).assetDao().getByBarcode(barcode)?.assetId
+            val dao = dbFactory.get(accountId).assetDao()
+            dao.getByBarcode(barcode)?.assetId ?: run {
+                val code = normalizeVin(barcode) ?: return@run null
+                dao.findByIdentifierCandidates(accountId, code).firstOrNull { asset ->
+                    asset.serialNumber?.trim()?.uppercase() == code ||
+                        VIN_ATTR.find(asset.attributes.orEmpty())?.groupValues?.get(1)?.trim()?.uppercase() == code
+                }?.assetId
+            }
         } catch (e: Exception) {
             Timber.e(e, "[AssetBarcodeScannerViewModel] Error looking up barcode: $barcode")
             null
+        }
+    }
+
+    private companion object {
+        val VIN_ATTR = Regex("\"vin\"\\s*:\\s*\"([^\"]*)\"")
+
+        /** Upper-cased code; drops the Code 39 "I" import prefix that 18-char VIN labels carry. */
+        fun normalizeVin(raw: String): String? {
+            val code = raw.trim().uppercase().takeIf { it.length >= 4 } ?: return null
+            return if (code.length == 18 && code.startsWith("I")) code.substring(1) else code
         }
     }
 

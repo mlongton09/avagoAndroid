@@ -56,4 +56,9 @@ class MainViewModel @Inject constructor(
         // dependency on :feature:chat from :app/MainViewModel.
         pendingNavChannel.trySend("chat/thread/$threadId")
     }
+
+    /** Launcher shortcut / NFC tag routes (built by MainActivity from feature route helpers). */
+    fun openRoute(route: String) {
+        pendingNavChannel.trySend(route)
+    }
 }

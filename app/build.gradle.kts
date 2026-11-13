@@ -139,6 +139,9 @@ dependencies {
     debugImplementation(libs.compose.ui.test.manifest)
 
     testImplementation(libs.junit5)
+    testImplementation(platform(libs.junit.bom))
+    testRuntimeOnly(libs.junit5.engine)
+    testRuntimeOnly(libs.junit.platform.launcher)
     testImplementation(libs.mockk)
     testImplementation(libs.coroutines.test)
     androidTestImplementation(platform(libs.compose.bom))
@@ -147,6 +150,10 @@ dependencies {
 
 hilt {
     enableAggregatingTask = true
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
 }
 
 ksp {

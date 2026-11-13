@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.avago.app.AssetTagParser
 import com.avago.app.MainViewModel
 import com.avago.core.auth.IdentityManager
 import com.avago.core.auth.PermissionStore
@@ -101,6 +102,8 @@ class MainActivity : ComponentActivity() {
         // PendingIntent) to MainViewModel so AvagoNavHost can navigate
         // to the relevant chat thread after sign-in is restored.
         forwardChatDeepLink(intent)
+        // Launcher shortcut / NFC tag; skipped on recreation so a rotation doesn't replay it.
+        if (savedInstanceState == null) forwardLaunchIntent(intent)
 
         // Trigger a full sync every time the activity resumes (foreground).
         // Use Dispatchers.IO so network + DB work in sync() never blocks the main thread.
@@ -179,6 +182,41 @@ class MainActivity : ComponentActivity() {
         // notification tap arrives here instead of onCreate, so we need
         // to re-forward the deep link.
         forwardChatDeepLink(intent)
+        forwardLaunchIntent(intent)
+    }
+
+    private fun forwardLaunchIntent(intent: android.content.Intent?) {
+        when (intent?.action) {
+            ACTION_START_INSPECTION ->
+                mainViewModel.openRoute(com.avago.feature.log.nav.LogRoute.addEdit(category = "inspection"))
+            android.nfc.NfcAdapter.ACTION_NDEF_DISCOVERED -> {
+                val assetId = nfcAssetId(intent)
+                Timber.i("MainActivity: NFC tag -> asset ${assetId ?: "(unrecognised)"}")
+                assetId?.let { mainViewModel.openRoute(com.avago.feature.assets.nav.AssetsRoute.detail(it)) }
+            }
+        }
+    }
+
+    /** First asset id found in the tag: intent data URI, then URI / text / MIME records. */
+    private fun nfcAssetId(intent: android.content.Intent): String? {
+        AssetTagParser.assetId(intent.data?.toString())?.let { return it }
+        val messages = androidx.core.content.IntentCompat.getParcelableArrayExtra(
+            intent, android.nfc.NfcAdapter.EXTRA_NDEF_MESSAGES, android.nfc.NdefMessage::class.java,
+        ) ?: return null
+        for (message in messages.filterIsInstance<android.nfc.NdefMessage>()) {
+            for (record in message.records) {
+                val text = record.toUri()?.toString()
+                    ?: when {
+                        record.tnf == android.nfc.NdefRecord.TNF_WELL_KNOWN &&
+                            record.type.contentEquals(android.nfc.NdefRecord.RTD_TEXT) ->
+                            AssetTagParser.decodeRtdText(record.payload)
+                        record.tnf == android.nfc.NdefRecord.TNF_MIME_MEDIA -> String(record.payload, Charsets.UTF_8)
+                        else -> null
+                    }
+                AssetTagParser.assetId(text)?.let { return it }
+            }
+        }
+        return null
     }
 
     private fun forwardChatDeepLink(intent: android.content.Intent?) {
@@ -186,5 +224,10 @@ class MainActivity : ComponentActivity() {
         if (threadId.isBlank()) return
         Timber.i("MainActivity: deep-link to chat thread $threadId")
         mainViewModel.openChatThread(threadId)
+    }
+
+    companion object {
+        /** Static launcher shortcut action (res/xml/shortcuts.xml). */
+        const val ACTION_START_INSPECTION = "com.avago.action.START_INSPECTION"
     }
 }
