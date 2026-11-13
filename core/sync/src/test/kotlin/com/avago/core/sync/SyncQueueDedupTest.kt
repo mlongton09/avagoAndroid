@@ -43,6 +43,7 @@ class SyncQueueDedupTest {
 
         override fun pendingItems(): Flow<List<SyncQueueEntity>> = flowOf(store.values.toList())
         override suspend fun getById(id: String): SyncQueueEntity? = store[id]
+        override fun observeById(id: String): Flow<SyncQueueEntity?> = flowOf(store[id])
         override suspend fun upsertAll(entities: List<SyncQueueEntity>) = entities.forEach { upsert(it) }
         override suspend fun markInFlight(queueIds: List<String>) {}
         override suspend fun markSuccess(queueId: String) { store.remove(queueId) }

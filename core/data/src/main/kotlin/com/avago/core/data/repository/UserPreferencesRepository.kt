@@ -106,6 +106,15 @@ class UserPreferencesRepository @Inject constructor(
 
     // ── Mutators ──────────────────────────────────────────────────────────────
 
+    /** High-contrast "sunlight mode" for outdoor inspections. */
+    val sunlightModeFlow: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[SUNLIGHT_MODE_KEY] ?: false
+    }
+
+    suspend fun setSunlightMode(enabled: Boolean) {
+        dataStore.edit { prefs -> prefs[SUNLIGHT_MODE_KEY] = enabled }
+    }
+
     suspend fun setTheme(value: String) {
         dataStore.edit { prefs -> prefs[THEME_KEY] = value }
     }
@@ -179,6 +188,7 @@ class UserPreferencesRepository @Inject constructor(
 
     companion object {
         val THEME_KEY = stringPreferencesKey("theme_preference")
+        val SUNLIGHT_MODE_KEY = booleanPreferencesKey("sunlight_mode")
         val DISTANCE_UNIT_KEY = stringPreferencesKey("distance_unit")
         val LANGUAGE_KEY = stringPreferencesKey("language_override")
         val CURRENCY_KEY = stringPreferencesKey("currency_preference")

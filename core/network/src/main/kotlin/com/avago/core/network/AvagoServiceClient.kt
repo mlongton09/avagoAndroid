@@ -198,6 +198,8 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.ByteArrayContent
 import io.ktor.http.isSuccess
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import timber.log.Timber
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -889,6 +891,65 @@ class AvagoServiceClient @Inject constructor(
             el as? kotlinx.serialization.json.JsonArray
                 ?: ((el as? JsonObject)?.let { it["defects"] ?: it["data"] } as? kotlinx.serialization.json.JsonArray)
                 ?: kotlinx.serialization.json.JsonArray(emptyList())
+        }
+
+    /**
+     * PATCH /accounts/{accountId}/defects/{defectId} `{ status, resolution_note }` — defect lifecycle
+     * (repaired / deferred / open). Returns the updated register row.
+     */
+    suspend fun patchDefect(
+        accountId: String,
+        defectId: String,
+        status: String,
+        resolutionNote: String?,
+    ): NetworkResult<JsonObject> =
+        safeNetworkCall {
+            val el = client.patch("$baseUrl/accounts/$accountId/defects/$defectId") {
+                setBody(
+                    buildJsonObject {
+                        put("status", status)
+                        if (!resolutionNote.isNullOrBlank()) put("resolution_note", resolutionNote)
+                    },
+                )
+            }.body<kotlinx.serialization.json.JsonElement>()
+            (el as? JsonObject)?.let { (it["data"] as? JsonObject) ?: it } ?: JsonObject(emptyMap())
+        }
+
+    /**
+     * GET /accounts/{accountId}/inspection-drafts?asset_id=&log_id= — the caller's server drafts.
+     * 404/405 means the service predates drafts (callers keep local drafts only).
+     */
+    suspend fun getInspectionDrafts(
+        accountId: String,
+        assetId: String,
+        logId: String?,
+    ): NetworkResult<kotlinx.serialization.json.JsonArray> =
+        safeNetworkCall {
+            val el = client.get("$baseUrl/accounts/$accountId/inspection-drafts") {
+                parameter("asset_id", assetId)
+                if (logId != null) parameter("log_id", logId)
+            }.body<kotlinx.serialization.json.JsonElement>()
+            el as? kotlinx.serialization.json.JsonArray
+                ?: ((el as? JsonObject)?.let { it["drafts"] ?: it["data"] } as? kotlinx.serialization.json.JsonArray)
+                ?: kotlinx.serialization.json.JsonArray(emptyList())
+        }
+
+    /** PUT /accounts/{accountId}/inspection-drafts `{ asset_id, log_id?, config_id?, payload }` — upsert. */
+    suspend fun putInspectionDraft(accountId: String, body: JsonObject): NetworkResult<JsonObject> =
+        safeNetworkCall {
+            val el = client.put("$baseUrl/accounts/$accountId/inspection-drafts") {
+                setBody(body)
+            }.body<kotlinx.serialization.json.JsonElement>()
+            (el as? JsonObject)?.let { (it["data"] as? JsonObject) ?: it } ?: JsonObject(emptyMap())
+        }
+
+    /** DELETE /accounts/{accountId}/inspection-drafts/{draftId} (own drafts only). */
+    suspend fun deleteInspectionDraft(accountId: String, draftId: String): NetworkResult<Unit> =
+        safeNetworkCall {
+            val response: HttpResponse = client.delete("$baseUrl/accounts/$accountId/inspection-drafts/$draftId")
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, response.status.description)
+            }
         }
 
     /** POST /accounts/{accountId}/work-orders/{woId}/assignments/claim — self-claim a WO. */

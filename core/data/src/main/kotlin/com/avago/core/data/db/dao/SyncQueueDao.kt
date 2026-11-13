@@ -17,6 +17,10 @@ interface SyncQueueDao {
     @Query("SELECT * FROM sync_queue WHERE queue_id = :id")
     suspend fun getById(id: String): SyncQueueEntity?
 
+    /** Live queue row for one entity (null once it has synced), for per-entry sync status. */
+    @Query("SELECT * FROM sync_queue WHERE queue_id = :id")
+    fun observeById(id: String): Flow<SyncQueueEntity?>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: SyncQueueEntity)
 
