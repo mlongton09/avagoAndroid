@@ -71,6 +71,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import com.avago.feature.log.viewmodel.LogDetailViewModel
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import com.avago.feature.log.R
 import kotlinx.serialization.json.JsonPrimitive
@@ -389,7 +390,7 @@ fun LogDetailScreen(
                         packSections.forEach { section ->
                             Spacer(Modifier.height(16.dp))
                             DetailCard(modifier = Modifier.padding(horizontal = 16.dp)) {
-                                SectionHeader(section.title.uppercase(Locale.getDefault()))
+                                SectionHeader(section.title.uppercase(LocalConfiguration.current.locales[0]))
                                 KeyValueRows(section.rows.map { it.label to it.value })
                             }
                         }
@@ -927,7 +928,7 @@ private fun CostLineDetailRow(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            val kindLabel = stringResource(if (line.kind == "part") R.string.log_cost_line_part else R.string.log_cost_line_labor).uppercase(Locale.getDefault())
+            val kindLabel = stringResource(if (line.kind == "part") R.string.log_cost_line_part else R.string.log_cost_line_labor).uppercase(LocalConfiguration.current.locales[0])
             val badgeColor = if (line.kind == "part")
                 MaterialTheme.colorScheme.secondaryContainer
             else

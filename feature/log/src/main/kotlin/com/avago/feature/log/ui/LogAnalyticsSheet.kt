@@ -35,6 +35,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -48,7 +49,6 @@ import com.avago.feature.log.R
 import com.avago.feature.log.model.LogAnalytics
 import java.text.NumberFormat
 import java.util.Currency
-import java.util.Locale
 
 /**
  * Asset analytics bottom sheet — mobile adaptation of web `AssetAnalyticsPanel`:
@@ -66,7 +66,7 @@ fun LogAnalyticsSheet(
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val locale = Locale.getDefault()
+    val locale = LocalConfiguration.current.locales[0]
     val money = remember(currencyCode) {
         NumberFormat.getCurrencyInstance(locale).apply {
             runCatching { currency = Currency.getInstance(currencyCode.uppercase()) }
