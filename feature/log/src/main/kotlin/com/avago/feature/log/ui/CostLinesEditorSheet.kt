@@ -36,6 +36,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.avago.feature.log.model.LogCostLineDraft
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
+import com.avago.feature.log.R
+import com.avago.feature.log.model.LogPacks
 import java.util.UUID
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.HorizontalDivider
@@ -73,7 +77,7 @@ fun CostLinesEditorSheet(
                 .padding(horizontal = 16.dp),
         ) {
             Text(
-                text = "Parts & Labor",
+                text = stringResource(R.string.log_cost_lines_title),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -114,7 +118,7 @@ fun CostLinesEditorSheet(
                         )
                     },
                     modifier = Modifier.weight(1f),
-                ) { Text("Add Part") }
+                ) { Text(stringResource(R.string.log_cost_lines_add_part)) }
 
                 Button(
                     onClick = {
@@ -127,7 +131,7 @@ fun CostLinesEditorSheet(
                         )
                     },
                     modifier = Modifier.weight(1f),
-                ) { Text("Add Labor") }
+                ) { Text(stringResource(R.string.log_cost_lines_add_labor)) }
             }
 
             Spacer(Modifier.height(8.dp))
@@ -136,7 +140,7 @@ fun CostLinesEditorSheet(
             TextButton(
                 onClick = onDismiss,
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text("Done") }
+            ) { Text(stringResource(R.string.log_action_done)) }
 
             Spacer(Modifier.height(16.dp))
         }
@@ -161,17 +165,17 @@ private fun CostLineDraftRow(
             FilterChip(
                 selected = draft.kind == "part",
                 onClick = { onUpdate(draft.copy(kind = "part", userId = null, userName = null)) },
-                label = { Text("Part") },
+                label = { Text(stringResource(R.string.log_cost_line_part)) },
             )
             Spacer(Modifier.width(8.dp))
             FilterChip(
                 selected = draft.kind == "labor",
                 onClick = { onUpdate(draft.copy(kind = "labor", inventoryId = null, inventoryName = null)) },
-                label = { Text("Labor") },
+                label = { Text(stringResource(R.string.log_cost_line_labor)) },
             )
             Spacer(Modifier.weight(1f))
             IconButton(onClick = onRemove) {
-                Icon(Icons.Default.Delete, contentDescription = "Remove line")
+                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.log_cost_lines_remove))
             }
         }
 
@@ -182,7 +186,7 @@ private fun CostLineDraftRow(
             OutlinedTextField(
                 value = draft.inventoryName ?: "",
                 onValueChange = { onUpdate(draft.copy(inventoryName = it.ifBlank { null })) },
-                label = { Text("Part name / inventory") },
+                label = { Text(stringResource(R.string.log_cost_lines_part_name)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )
@@ -194,7 +198,7 @@ private fun CostLineDraftRow(
             OutlinedTextField(
                 value = draft.userName ?: "",
                 onValueChange = { onUpdate(draft.copy(userName = it.ifBlank { null })) },
-                label = { Text("Technician name") },
+                label = { Text(stringResource(R.string.log_cost_lines_technician)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )
@@ -205,7 +209,7 @@ private fun CostLineDraftRow(
         OutlinedTextField(
             value = draft.description,
             onValueChange = { onUpdate(draft.copy(description = it)) },
-            label = { Text("Description") },
+            label = { Text(stringResource(R.string.log_cost_lines_description)) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
         )
@@ -216,34 +220,25 @@ private fun CostLineDraftRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            OutlinedTextField(
-                value = if (draft.quantity == draft.quantity.toLong().toDouble())
-                    draft.quantity.toLong().toString()
-                else
-                    draft.quantity.toString(),
-                onValueChange = { str ->
-                    str.toDoubleOrNull()?.let { onUpdate(draft.copy(quantity = it)) }
-                },
-                label = { Text("Qty") },
+            DecimalField(
+                key = draft.lineId + ":qty",
+                value = draft.quantity,
+                onValue = { it?.let { q -> onUpdate(draft.copy(quantity = q)) } },
+                label = stringResource(R.string.log_cost_lines_qty),
                 modifier = Modifier.weight(1f),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             )
-            OutlinedTextField(
-                value = if (draft.unitCost == 0.0) "" else draft.unitCost.toString(),
-                onValueChange = { str ->
-                    onUpdate(draft.copy(unitCost = str.toDoubleOrNull() ?: 0.0))
-                },
-                label = { Text("Unit cost") },
+            DecimalField(
+                key = draft.lineId + ":unit",
+                value = draft.unitCost.takeIf { it != 0.0 },
+                onValue = { onUpdate(draft.copy(unitCost = it ?: 0.0)) },
+                label = stringResource(R.string.log_cost_lines_unit_cost),
                 modifier = Modifier.weight(1f),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             )
         }
 
         // Advanced toggle
         TextButton(onClick = { showAdvanced = !showAdvanced }) {
-            Text(if (showAdvanced) "Hide advanced" else "Advanced (tax, GL)")
+            Text(stringResource(if (showAdvanced) R.string.log_cost_lines_hide_advanced else R.string.log_cost_lines_show_advanced))
         }
 
         if (showAdvanced) {
@@ -251,24 +246,52 @@ private fun CostLineDraftRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                OutlinedTextField(
-                    value = draft.taxAmount?.toString() ?: "",
-                    onValueChange = { str ->
-                        onUpdate(draft.copy(taxAmount = str.toDoubleOrNull()))
-                    },
-                    label = { Text("Tax") },
+                DecimalField(
+                    key = draft.lineId + ":tax",
+                    value = draft.taxAmount,
+                    onValue = { onUpdate(draft.copy(taxAmount = it)) },
+                    label = stringResource(R.string.log_cost_lines_tax),
                     modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 )
                 OutlinedTextField(
                     value = draft.glCode ?: "",
                     onValueChange = { onUpdate(draft.copy(glCode = it.ifBlank { null })) },
-                    label = { Text("GL code") },
+                    label = { Text(stringResource(R.string.log_cost_lines_gl_code)) },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
                 )
             }
         }
     }
+}
+
+/**
+ * Decimal input that keeps the user's raw text (so "1." / "12,5" can be typed) and only
+ * reports parsed values upward. Accepts a comma as decimal separator (German keyboards).
+ * Re-syncs from [value] only when it changes externally.
+ */
+@Composable
+private fun DecimalField(
+    key: String,
+    value: Double?,
+    onValue: (Double?) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    var text by remember(key) { mutableStateOf(value?.let { LogPacks.formatNumber(it) } ?: "") }
+    val parsed = text.trim().replace(',', '.').toDoubleOrNull()
+    OutlinedTextField(
+        value = text,
+        onValueChange = { s ->
+            if (s.isEmpty() || s.matches(Regex("^\\d*([.,]\\d*)?$"))) {
+                text = s
+                onValue(s.trim().replace(',', '.').toDoubleOrNull())
+            }
+        },
+        label = { Text(label) },
+        modifier = modifier,
+        singleLine = true,
+        isError = text.isNotBlank() && parsed == null,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
+    )
 }

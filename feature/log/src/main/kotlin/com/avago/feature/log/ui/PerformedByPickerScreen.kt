@@ -1,4 +1,7 @@
-﻿package com.avago.feature.log.ui
+package com.avago.feature.log.ui
+
+import androidx.compose.ui.res.stringResource
+import com.avago.feature.log.R
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -69,10 +72,10 @@ fun PerformedByPickerScreen(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Performed By") },
+                title = { Text(stringResource(R.string.log_entry_label_performed_by)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.log_action_back))
                     }
                 },
             )
@@ -88,7 +91,7 @@ fun PerformedByPickerScreen(
             OutlinedTextField(
                 value = state.query,
                 onValueChange = { viewModel.onQueryChanged(it) },
-                label = { Text("Search members") },
+                label = { Text(stringResource(R.string.log_performed_by_search)) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -140,7 +143,7 @@ fun PerformedByPickerScreen(
                     HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = "Outside vendor / other",
+                            text = stringResource(R.string.log_performed_by_outside),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -148,13 +151,13 @@ fun PerformedByPickerScreen(
                         OutlinedTextField(
                             value = freeText,
                             onValueChange = { viewModel.onFreeTextChanged(it) },
-                            label = { Text("Type a name") },
+                            label = { Text(stringResource(R.string.log_performed_by_type_name)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             trailingIcon = {
                                 if (freeText.isNotBlank()) {
                                     IconButton(onClick = { onSelected(null, freeText.trim()) }) {
-                                        Icon(Icons.Default.PersonAdd, contentDescription = "Select")
+                                        Icon(Icons.Default.PersonAdd, contentDescription = stringResource(R.string.log_performed_by_select))
                                     }
                                 }
                             },
@@ -164,7 +167,7 @@ fun PerformedByPickerScreen(
                             TextButton(
                                 onClick = { onSelected(null, freeText.trim()) },
                                 modifier = Modifier.fillMaxWidth(),
-                            ) { Text("Use \"${freeText.trim()}\"") }
+                            ) { Text(stringResource(R.string.log_performed_by_use, freeText.trim())) }
                         }
                     }
                 }

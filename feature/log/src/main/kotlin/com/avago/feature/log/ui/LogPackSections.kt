@@ -164,7 +164,7 @@ internal fun MaintenancePackSections(form: AddEditLogFormState, viewModel: AddEd
                     FilterChip(
                         selected = pos in form.tirePositions,
                         onClick = { viewModel.onTirePositionToggled(pos) },
-                        label = { Text(pos.uppercase()) },
+                        label = { Text(tirePositionLabel(pos)) },
                     )
                 }
             }
@@ -183,7 +183,7 @@ internal fun MaintenancePackSections(form: AddEditLogFormState, viewModel: AddEd
             }
             LogPacks.TIRE_POSITIONS.filter { it in form.tirePositions }.forEach { pos ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(pos.uppercase(), modifier = Modifier.width(44.dp))
+                    Text(tirePositionLabel(pos), modifier = Modifier.width(72.dp), style = MaterialTheme.typography.bodySmall)
                     PositionValue(form, viewModel, "tire_tread", pos, R.string.log_pack_tire_tread, Modifier.weight(1f))
                     PositionValue(form, viewModel, "tire_psi", pos, R.string.log_pack_tire_psi, Modifier.weight(1f))
                 }
@@ -216,7 +216,7 @@ internal fun MaintenancePackSections(form: AddEditLogFormState, viewModel: AddEd
             }
             LogPacks.BRAKE_POSITIONS.forEach { pos ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(pos.uppercase(), modifier = Modifier.width(44.dp))
+                    Text(tirePositionLabel(pos), modifier = Modifier.width(72.dp), style = MaterialTheme.typography.bodySmall)
                     PositionValue(form, viewModel, "brake_pad_mm", pos, R.string.log_pack_brake_pad_mm, Modifier.weight(1f))
                     PositionValue(form, viewModel, "brake_rotor_mm", pos, R.string.log_pack_brake_rotor_mm, Modifier.weight(1f))
                 }

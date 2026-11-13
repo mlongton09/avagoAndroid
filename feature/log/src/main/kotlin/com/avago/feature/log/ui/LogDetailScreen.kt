@@ -65,6 +65,11 @@ import com.avago.core.data.db.entity.LogCostLineEntity
 import com.avago.core.ui.categoryBadgeColor
 import com.avago.core.ui.categoryIconName
 import com.avago.feature.log.model.InspectionV2
+import com.avago.feature.log.model.LogPacks
+import com.avago.feature.log.model.PackDisplay
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import com.avago.feature.log.viewmodel.LogDetailViewModel
 import androidx.compose.ui.res.stringResource
 import com.avago.feature.log.R
@@ -104,18 +109,18 @@ fun LogDetailScreen(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Log Entry") },
-            text = { Text("Are you sure you want to delete this log entry? This action cannot be undone.") },
+            title = { Text(stringResource(R.string.log_detail_delete_title)) },
+            text = { Text(stringResource(R.string.log_detail_delete_message)) },
             confirmButton = {
                 TextButton(
                     onClick = {
                         showDeleteDialog = false
                         viewModel.deleteLog(onDeleted)
                     }
-                ) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+                ) { Text(stringResource(R.string.log_action_delete), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") }
+                TextButton(onClick = { showDeleteDialog = false }) { Text(stringResource(R.string.log_action_cancel)) }
             },
         )
     }
@@ -123,10 +128,10 @@ fun LogDetailScreen(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(state.log?.title ?: "Log Entry") },
+                title = { Text(state.log?.title ?: stringResource(R.string.log_detail_title_fallback)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.log_action_back))
                     }
                 },
                 actions = {
@@ -142,12 +147,12 @@ fun LogDetailScreen(
                         }
                     }
                     IconButton(onClick = { onEdit(entryId) }) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit")
+                        Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.log_action_edit))
                     }
                     IconButton(onClick = { showDeleteDialog = true }) {
                         Icon(
                             Icons.Default.Delete,
-                            contentDescription = "Delete",
+                            contentDescription = stringResource(R.string.log_action_delete),
                             tint = MaterialTheme.colorScheme.error,
                         )
                     }
@@ -169,7 +174,7 @@ fun LogDetailScreen(
                     .fillMaxSize()
                     .padding(innerPadding),
                 contentAlignment = Alignment.Center,
-            ) { Text("Log entry not found") }
+            ) { Text(stringResource(R.string.log_detail_not_found)) }
 
             else -> {
                 val log = state.log!!
@@ -196,7 +201,7 @@ fun LogDetailScreen(
                 }
 
                 val isHoursMeter = distanceUnit.lowercase().let { it == "hrs" || it == "hours" || it == "hr" }
-                val meterLabel = if (isHoursMeter) "HOURS" else "ODOMETER"
+                val meterLabel = stringResource(if (isHoursMeter) R.string.log_entry_section_hours else R.string.log_entry_section_odometer)
 
                 Column(
                     modifier = Modifier
@@ -283,7 +288,7 @@ fun LogDetailScreen(
                                 verticalArrangement = Arrangement.Center,
                             ) {
                                 Text(
-                                    text = "COST",
+                                    text = stringResource(R.string.log_entry_section_cost),
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -344,7 +349,7 @@ fun LogDetailScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(
-                                    text = "NOTES",
+                                    text = stringResource(R.string.log_entry_section_notes),
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -368,77 +373,34 @@ fun LogDetailScreen(
                         }
                     }
 
-                    // ── 4. Item attributes (Details) card — matches iOS "ITEM DETAILS" section ──
+                    // ── 4. Item attributes: localized pack sections (web PackFieldsView parity)
+                    //       + any remaining non-pack keys as generic "Item details" rows.
                     log.attributes?.takeIf { it.isNotBlank() }?.let { attrsJson ->
-                        val fuelKeys = setOf("fuel_volume", "fuel_volume_unit")
-                        val attrs = parseJsonMap(attrsJson)
-                            .filterKeys { it !in fuelKeys }
-                            .filter { (_, v) -> v.isNotBlank() && v.lowercase() != "false" }
+                        val attrsObj = remember(attrsJson) { LogPacks.parse(attrsJson) }
+                        val translator = rememberPackTranslator()
+                        val packSections = remember(attrsObj, translator, currencyFormat, currencyRate) {
+                            PackDisplay.build(
+                                attrs = attrsObj,
+                                t = translator,
+                                formatCurrency = { currencyFormat.format(convertUSD(it)) },
+                                formatDate = { iso -> formatIsoDate(iso) },
+                            )
+                        }
+                        packSections.forEach { section ->
+                            Spacer(Modifier.height(16.dp))
+                            DetailCard(modifier = Modifier.padding(horizontal = 16.dp)) {
+                                SectionHeader(section.title.uppercase(Locale.getDefault()))
+                                KeyValueRows(section.rows.map { it.label to it.value })
+                            }
+                        }
+                        val attrs = remember(attrsObj) {
+                            PackDisplay.extraRows(attrsObj).map { (k, v) -> PackDisplay.humanize(k) to v }
+                        }
                         if (attrs.isNotEmpty()) {
                             Spacer(Modifier.height(16.dp))
                             DetailCard(modifier = Modifier.padding(horizontal = 16.dp)) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(36.dp)
-                                        .padding(horizontal = 16.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Text(
-                                        text = "ITEM DETAILS",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        letterSpacing = androidx.compose.ui.unit.TextUnit(
-                                            1.5f,
-                                            androidx.compose.ui.unit.TextUnitType.Sp,
-                                        ),
-                                    )
-                                }
-                                HorizontalDivider(
-                                    thickness = 0.5.dp,
-                                    color = MaterialTheme.colorScheme.outline,
-                                )
-                                Column(
-                                    modifier = Modifier.padding(
-                                        horizontal = 16.dp,
-                                        vertical = 8.dp,
-                                    ),
-                                ) {
-                                    attrs.entries.toList().forEachIndexed { idx, (key, value) ->
-                                        // Convert key → display label: "oil_brand" → "Oil Brand"
-                                        val label = key.replace('_', ' ').split(' ')
-                                            .joinToString(" ") { w ->
-                                                w.replaceFirstChar { it.uppercaseChar() }
-                                            }
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(vertical = 5.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically,
-                                        ) {
-                                            Text(
-                                                text = label,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.weight(1f),
-                                            )
-                                            Text(
-                                                text = value,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                fontWeight = FontWeight.Medium,
-                                                textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                                            )
-                                        }
-                                        if (idx < attrs.size - 1) {
-                                            HorizontalDivider(
-                                                thickness = 0.5.dp,
-                                                color = MaterialTheme.colorScheme.outlineVariant,
-                                            )
-                                        }
-                                    }
-                                }
+                                SectionHeader(stringResource(R.string.log_detail_section_item_details))
+                                KeyValueRows(attrs)
                             }
                         }
                     }
@@ -457,7 +419,7 @@ fun LogDetailScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(
-                                    text = "Performed By",
+                                    text = stringResource(R.string.log_entry_label_performed_by),
                                     style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.width(120.dp),
@@ -466,7 +428,7 @@ fun LogDetailScreen(
                                 Text(
                                     text = when {
                                         !performedByName.isNullOrBlank() -> performedByName
-                                        performedByUserId != null -> "User $performedByUserId"
+                                        performedByUserId != null -> stringResource(R.string.log_detail_user_fallback, performedByUserId)
                                         else -> ""
                                     },
                                     style = MaterialTheme.typography.bodyLarge,
@@ -489,7 +451,7 @@ fun LogDetailScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(
-                                    text = "PHOTOS",
+                                    text = stringResource(R.string.log_detail_section_photos),
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -519,7 +481,7 @@ fun LogDetailScreen(
                                     ) {
                                         AsyncImage(
                                             model = photo.downloadUrl ?: photo.storageKey,
-                                            contentDescription = "Log photo",
+                                            contentDescription = stringResource(R.string.log_detail_photo_cd),
                                             contentScale = ContentScale.Crop,
                                             modifier = Modifier.fillMaxSize(),
                                         )
@@ -548,7 +510,7 @@ fun LogDetailScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(
-                                    text = "COST BREAKDOWN",
+                                    text = stringResource(R.string.log_detail_section_cost_breakdown),
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -585,7 +547,7 @@ fun LogDetailScreen(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                     ) {
-                                        Text("Total", fontWeight = FontWeight.SemiBold)
+                                        Text(stringResource(R.string.log_detail_total), fontWeight = FontWeight.SemiBold)
                                         Text(
                                             text = currencyFormat.format(convertUSD(state.totalCost)),
                                             fontWeight = FontWeight.Bold,
@@ -608,7 +570,7 @@ fun LogDetailScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(
-                                    text = "PARTS",
+                                    text = stringResource(R.string.log_entry_section_parts),
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -632,7 +594,7 @@ fun LogDetailScreen(
                                     ) {
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
-                                                text = line.description ?: "Part",
+                                                text = line.description ?: stringResource(R.string.log_cost_line_part),
                                                 style = MaterialTheme.typography.bodyMedium,
                                             )
                                             Text(
@@ -664,7 +626,7 @@ fun LogDetailScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(
-                                    text = "LABOR",
+                                    text = stringResource(R.string.log_detail_section_labor),
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -698,7 +660,7 @@ fun LogDetailScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(
-                                    text = "INSPECTION",
+                                    text = stringResource(R.string.log_detail_section_inspection),
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -740,7 +702,7 @@ fun LogDetailScreen(
                             ) {
                                 Icon(
                                     Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "Previous entry",
+                                    contentDescription = stringResource(R.string.log_detail_prev_entry),
                                     tint = if (hasPrev) MaterialTheme.colorScheme.secondary
                                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
                                 )
@@ -753,7 +715,7 @@ fun LogDetailScreen(
                             ) {
                                 Icon(
                                     Icons.AutoMirrored.Filled.ArrowForward,
-                                    contentDescription = "Next entry",
+                                    contentDescription = stringResource(R.string.log_detail_next_entry),
                                     tint = if (hasNext) MaterialTheme.colorScheme.secondary
                                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
                                 )
@@ -770,6 +732,139 @@ fun LogDetailScreen(
 // ---------------------------------------------------------------------------
 // Sub-composables
 // ---------------------------------------------------------------------------
+
+/** Uppercase, letter-spaced section header row + hairline divider (iOS section style). */
+@Composable
+private fun SectionHeader(text: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 36.dp)
+            .padding(horizontal = 16.dp)
+            .semantics { heading() },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            letterSpacing = androidx.compose.ui.unit.TextUnit(1.5f, androidx.compose.ui.unit.TextUnitType.Sp),
+        )
+    }
+    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
+}
+
+/** Label / value rows; each row is merged for TalkBack ("Tread depth, FL 6 mm"). */
+@Composable
+private fun KeyValueRows(rows: List<Pair<String, String>>) {
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        rows.forEachIndexed { idx, (label, value) ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 5.dp)
+                    .semantics(mergeDescendants = true) {},
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.weight(1.4f, fill = false),
+                )
+            }
+            if (idx < rows.size - 1) {
+                HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+            }
+        }
+    }
+}
+
+/** Localized label lookup for [PackDisplay] keys (`pack_*`, `f_*`, `pos_*`, …). */
+@Composable
+private fun rememberPackTranslator(): PackDisplay.Translator {
+    val res = LocalContext.current.resources
+    val config = androidx.compose.ui.platform.LocalConfiguration.current
+    return remember(res, config) {
+        PackDisplay.Translator { key, count ->
+            val id = PACK_LABELS[key]
+            when {
+                key == "pm_plans_count" -> res.getQuantityString(R.plurals.log_pack_pm_plans_count, count ?: 0, count ?: 0)
+                id != null -> res.getString(id)
+                else -> PackDisplay.humanize(key.substringAfter('_'))
+            }
+        }
+    }
+}
+
+internal val PACK_LABELS: Map<String, Int> = mapOf(
+    "pack_fuel" to R.string.log_pack_section_fuel,
+    "pack_oil" to R.string.log_pack_section_oil,
+    "pack_tire" to R.string.log_pack_section_tire,
+    "pack_battery" to R.string.log_pack_section_battery,
+    "pack_brake" to R.string.log_pack_section_brake,
+    "pack_common" to R.string.log_pack_section_common,
+    "partial_fill" to R.string.log_pack_partial_fill,
+    "f_fuel_volume" to R.string.log_pack_f_fuel_volume,
+    "f_fuel_price_per_unit" to R.string.log_pack_f_fuel_price_per_unit,
+    "f_fuel_grade" to R.string.log_pack_f_fuel_grade,
+    "f_fuel_station" to R.string.log_pack_f_fuel_station,
+    "f_fuel_full_fill" to R.string.log_pack_f_fuel_full_fill,
+    "f_fuel_card_last4" to R.string.log_pack_f_fuel_card_last4,
+    "f_fuel_economy" to R.string.log_pack_f_fuel_economy,
+    "f_oil_type" to R.string.log_pack_f_oil_type,
+    "f_oil_viscosity" to R.string.log_pack_f_oil_viscosity,
+    "f_oil_quantity" to R.string.log_pack_f_oil_quantity,
+    "f_oil_filter_part" to R.string.log_pack_f_oil_filter_part,
+    "f_oil_next_due_meter" to R.string.log_pack_f_oil_next_due_meter,
+    "f_oil_next_due_date" to R.string.log_pack_f_oil_next_due_date,
+    "f_tire_action" to R.string.log_pack_f_tire_action,
+    "f_tire_positions" to R.string.log_pack_f_tire_positions,
+    "f_tire_brand" to R.string.log_pack_f_tire_brand,
+    "f_tire_size" to R.string.log_pack_f_tire_size,
+    "f_tire_dot_date" to R.string.log_pack_f_tire_dot_date,
+    "f_tire_tread" to R.string.log_pack_f_tire_tread,
+    "f_tire_psi" to R.string.log_pack_f_tire_psi,
+    "f_battery_action" to R.string.log_pack_f_battery_action,
+    "f_battery_rated_cca" to R.string.log_pack_f_battery_rated_cca,
+    "f_battery_measured_cca" to R.string.log_pack_f_battery_measured_cca,
+    "f_battery_voltage" to R.string.log_pack_f_battery_voltage,
+    "f_battery_test_result" to R.string.log_pack_f_battery_test_result,
+    "f_battery_date_code" to R.string.log_pack_f_battery_date_code,
+    "f_brake_axle" to R.string.log_pack_f_brake_axle,
+    "f_brake_pad_mm" to R.string.log_pack_f_brake_pad_mm,
+    "f_brake_rotor_mm" to R.string.log_pack_f_brake_rotor_mm,
+    "f_brake_fluid" to R.string.log_pack_f_brake_fluid,
+    "f_vendor_name" to R.string.log_pack_f_vendor_name,
+    "f_warranty_until" to R.string.log_pack_f_warranty_until,
+    "f_warranty_provider" to R.string.log_pack_f_warranty_provider,
+    "f_pm_plan_ids" to R.string.log_pack_f_pm_plan_ids,
+    "pos_fl" to R.string.log_pack_pos_fl,
+    "pos_fr" to R.string.log_pack_pos_fr,
+    "pos_rl" to R.string.log_pack_pos_rl,
+    "pos_rr" to R.string.log_pack_pos_rr,
+    "pos_rlo" to R.string.log_pack_pos_rlo,
+    "pos_rli" to R.string.log_pack_pos_rli,
+    "pos_rro" to R.string.log_pack_pos_rro,
+    "pos_rri" to R.string.log_pack_pos_rri,
+    "pos_spare" to R.string.log_pack_pos_spare,
+)
+
+/** `yyyy-MM-dd` (or a full ISO timestamp) → localized medium date; falls back to the raw value. */
+private fun formatIsoDate(iso: String): String = runCatching {
+    val parsed = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { isLenient = false }.parse(iso.take(10))
+    java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM, Locale.getDefault()).format(parsed!!)
+}.getOrDefault(iso)
 
 /** White surface card with hairline border and 10dp corners — mirrors iOS makeCard(). */
 @Composable
@@ -801,7 +896,7 @@ private fun CostLineRow(
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = line.description ?: if (line.kind == "part") "Part" else "Labor",
+                text = line.description ?: stringResource(if (line.kind == "part") R.string.log_cost_line_part else R.string.log_cost_line_labor),
                 style = MaterialTheme.typography.bodyMedium,
             )
             Text(
@@ -832,7 +927,7 @@ private fun CostLineDetailRow(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            val kindLabel = if (line.kind == "part") "PART" else "LABOR"
+            val kindLabel = stringResource(if (line.kind == "part") R.string.log_cost_line_part else R.string.log_cost_line_labor).uppercase(Locale.getDefault())
             val badgeColor = if (line.kind == "part")
                 MaterialTheme.colorScheme.secondaryContainer
             else
@@ -855,7 +950,7 @@ private fun CostLineDetailRow(
             }
             Spacer(Modifier.width(8.dp))
             Text(
-                text = line.description ?: if (line.kind == "part") "Part" else "Labor",
+                text = line.description ?: stringResource(if (line.kind == "part") R.string.log_cost_line_part else R.string.log_cost_line_labor),
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(1f),
             )
@@ -876,7 +971,7 @@ private fun CostLineDetailRow(
             val tax = line.taxAmount
             if (tax != null && tax > 0) {
                 Text(
-                    text = "Tax: ${currencyFormat.format(convert(tax))}",
+                    text = stringResource(R.string.log_cost_line_tax, currencyFormat.format(convert(tax))),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -893,16 +988,6 @@ private fun parseJsonField(json: String?, key: String): String? {
     if (json.isNullOrBlank()) return null
     val pattern = Regex("\"$key\"\\s*:\\s*\"([^\"]*)\"")
     return pattern.find(json)?.groupValues?.get(1)
-}
-
-private fun parseJsonMap(json: String?): Map<String, String> {
-    if (json.isNullOrBlank()) return emptyMap()
-    val result = mutableMapOf<String, String>()
-    val pattern = Regex("\"([^\"]+)\"\\s*:\\s*\"([^\"]*)\"")
-    pattern.findAll(json).forEach { match ->
-        result[match.groupValues[1]] = match.groupValues[2]
-    }
-    return result
 }
 
 /** Extracts the raw JSON substring of a nested object value, e.g. extractJsonObject(json, "configSnapshot"). */
@@ -945,3 +1030,8 @@ private fun parseInspectionItemLabels(json: String?): Map<String, String> {
     }
     return result
 }
+
+/** Localized short tire / brake position label (FL -> VL in German). */
+@Composable
+internal fun tirePositionLabel(pos: String): String =
+    PACK_LABELS["pos_$pos"]?.let { stringResource(it) } ?: pos.uppercase()

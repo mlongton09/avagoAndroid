@@ -1,5 +1,8 @@
 package com.avago.feature.log.ui
 
+import androidx.compose.ui.res.stringResource
+import com.avago.feature.log.R
+
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -123,19 +126,19 @@ fun AssetLogHeader(
         if (photo != null) {
             AlertDialog(
                 onDismissRequest = { longPressedIndex = null },
-                title = { Text("Photo options") },
-                text = { Text("What would you like to do with this photo?") },
+                title = { Text(stringResource(R.string.log_photo_options_title)) },
+                text = { Text(stringResource(R.string.log_photo_options_message)) },
                 confirmButton = {
                     TextButton(onClick = {
                         onSetCoverPhoto(photo.photoId)
                         longPressedIndex = null
-                    }) { Text("Set as cover") }
+                    }) { Text(stringResource(R.string.log_photo_set_cover)) }
                 },
                 dismissButton = {
                     TextButton(onClick = {
                         onDeletePhoto(photo.photoId)
                         longPressedIndex = null
-                    }) { Text("Delete") }
+                    }) { Text(stringResource(R.string.log_action_delete)) }
                 },
             )
         } else {

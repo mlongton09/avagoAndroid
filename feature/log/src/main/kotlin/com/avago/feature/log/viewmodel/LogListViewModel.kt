@@ -5,7 +5,13 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
+import com.avago.core.data.CurrencyManager
 import com.avago.core.data.DatabaseFactory
+import com.avago.feature.log.model.LogAnalytics
+import com.avago.feature.log.model.LogListFilter
+import com.avago.feature.log.model.LogPacks
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import com.avago.core.data.db.entity.AssetEntity
 import com.avago.core.data.db.entity.LogEntity
 import com.avago.core.data.db.entity.PhotoEntity
@@ -45,6 +51,7 @@ class LogListViewModel @Inject constructor(
     private val photoDownloader: PhotoDownloader,
     private val userPrefsRepository: UserPreferencesRepository,
     private val assetRepository: AssetRepository,
+    private val currencyManager: CurrencyManager,
 ) : ViewModel() {
 
     val assetId = MutableStateFlow<String?>(null)
@@ -63,32 +70,54 @@ class LogListViewModel @Inject constructor(
             initialValue = identity.getActiveAccountId(),
         )
 
-    val logs: StateFlow<List<LogEntity>> = combine(
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery
+
+    val distanceUnit: StateFlow<String> = userPrefsRepository.distanceUnitFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "mi")
+
+    /** Live USD→preferred-currency rate (same source as the detail screen). */
+    val currencyRate: StateFlow<Double> = currencyCode.flatMapLatest { code ->
+        flow { emit(runCatching { currencyManager.rateFromUSD(code) }.getOrDefault(1.0)) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 1.0)
+
+    /** Logs scoped to the asset (if any), newest first — before search / category filters. */
+    private val scopedLogs: StateFlow<List<LogEntity>> = combine(
         identity.activeAccountId.filterNotNull(),
         assetId,
-        _categoryFilter,
-    ) { accountId, assetIdVal, filter ->
-        Triple(accountId, assetIdVal, filter)
-    }.flatMapLatest { (accountId, assetIdVal, filter) ->
-        try {
-            val db = dbFactory.get(accountId)
-            db.logDao().observeAll(accountId).map { list ->
-                list.filter { log ->
-                    (assetIdVal == null || log.assetId == assetIdVal) &&
-                        (filter == null || log.category == filter)
-                }.sortedByDescending { it.entryDate }
+    ) { accountId, assetIdVal -> accountId to assetIdVal }
+        .flatMapLatest { (accountId, assetIdVal) ->
+            try {
+                val db = dbFactory.get(accountId)
+                db.logDao().observeAll(accountId).map { list ->
+                    list.filter { log -> assetIdVal == null || log.assetId == assetIdVal }
+                        .sortedByDescending { it.entryDate }
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "[LogListViewModel] Failed to observe logs")
+                flowOf(emptyList())
             }
-        } catch (e: Exception) {
-            Timber.e(e, "[LogListViewModel] Failed to observe logs")
-            flowOf(emptyList())
-        }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val logs: StateFlow<List<LogEntity>> = combine(scopedLogs, _categoryFilter, _searchQuery) { list, filter, query ->
+        LogListFilter.apply(list, filter, query)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /** True when the asset has entries but search / category hides all of them. */
+    val hasAnyLogs: StateFlow<Boolean> = scopedLogs.map { it.isNotEmpty() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     /**
-     * All distinct categories observed in the current log set, for building filter pills.
+     * Distinct categories with entry counts over the unfiltered set (web category select parity),
+     * most used first, for building filter chips.
      */
-    val availableCategories: StateFlow<List<String>> = logs.map { list ->
-        list.mapNotNull { it.category }.distinct().sorted()
+    val categoryCounts: StateFlow<List<Pair<String, Int>>> = scopedLogs.map { list ->
+        LogListFilter.categoryCounts(list)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** All distinct categories observed in the current (unfiltered) log set. */
+    val availableCategories: StateFlow<List<String>> = categoryCounts.map { list ->
+        list.map { it.first }.sorted()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val categoryFilter: StateFlow<String?> = _categoryFilter
@@ -174,8 +203,37 @@ class LogListViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Per-asset analytics (web AssetAnalyticsPanel parity). Only for a single asset with at
+     * least two entries — mixing assets would make economy and cost-per-meter meaningless.
+     */
+    val analytics: StateFlow<LogAnalytics.Summary?> = combine(scopedLogs, asset, distanceUnit) { list, a, unit ->
+        if (assetId.value == null || list.size < 2) return@combine null
+        val entries = list.map { log ->
+            LogAnalytics.Entry(
+                id = log.entryId,
+                dateMs = log.entryDate,
+                category = log.category,
+                meter = log.odometerValue,
+                cost = LogAnalytics.entryCost(log.cost, log.costItems, log.costLabor),
+                attributes = LogPacks.parse(log.attributes),
+            )
+        }
+        LogAnalytics.summarize(entries, LogAnalytics.distanceUnitFor(a?.meterType, unit))
+    }.flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     fun setFilter(category: String?) {
         _categoryFilter.value = category
+    }
+
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+    }
+
+    fun clearFilters() {
+        _searchQuery.value = ""
+        _categoryFilter.value = null
     }
 
     fun refresh() {

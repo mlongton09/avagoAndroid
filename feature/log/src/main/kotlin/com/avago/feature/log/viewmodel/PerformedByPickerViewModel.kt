@@ -34,6 +34,7 @@ data class PerformedByPickerUiState(
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class PerformedByPickerViewModel @Inject constructor(
+    @dagger.hilt.android.qualifiers.ApplicationContext private val appContext: android.content.Context,
     private val dbFactory: DatabaseFactory,
     private val identity: IdentityManager,
     private val serviceClient: AvagoServiceClient,
@@ -107,7 +108,7 @@ class PerformedByPickerViewModel @Inject constructor(
                 Timber.d("[PerformedByPickerViewModel] Refreshed ${members.size} members")
             } catch (e: Exception) {
                 Timber.e(e, "[PerformedByPickerViewModel] refreshMembers failed")
-                _error.value = "Could not refresh members"
+                _error.value = appContext.getString(com.avago.feature.log.R.string.log_performed_by_refresh_failed)
             } finally {
                 _isLoading.value = false
             }

@@ -1,5 +1,8 @@
 package com.avago.feature.log.ui
 
+import androidx.compose.ui.res.stringResource
+import com.avago.feature.log.R
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -117,7 +120,7 @@ fun PhotoViewerDialog(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Close,
-                            contentDescription = "Close",
+                            contentDescription = stringResource(R.string.log_action_close),
                             tint = Color.White,
                         )
                     }
@@ -131,7 +134,7 @@ fun PhotoViewerDialog(
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.MoreVert,
-                                contentDescription = "Photo actions",
+                                contentDescription = stringResource(R.string.log_photo_actions),
                                 tint = Color.White,
                             )
                         }
@@ -140,14 +143,14 @@ fun PhotoViewerDialog(
                             onDismissRequest = { menuOpen = false },
                         ) {
                             DropdownMenuItem(
-                                text = { Text("Set as cover") },
+                                text = { Text(stringResource(R.string.log_photo_set_cover)) },
                                 onClick = {
                                     menuOpen = false
                                     onSetCoverPhoto(photos[pagerState.currentPage].photoId)
                                 },
                             )
                             DropdownMenuItem(
-                                text = { Text("Delete") },
+                                text = { Text(stringResource(R.string.log_action_delete)) },
                                 onClick = {
                                     menuOpen = false
                                     val toDelete = photos[pagerState.currentPage].photoId
@@ -257,7 +260,7 @@ private fun ZoomableAsyncImage(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                Text(text = "Photo unavailable", color = Color.White)
+                Text(text = stringResource(R.string.log_photo_unavailable), color = Color.White)
             }
         }
     }

@@ -1822,14 +1822,14 @@ private fun WoTimerCard(
                 )
                 if (!isRunning) {
                     TextButton(onClick = onStart) {
-                        Text("Start", color = MaterialTheme.colorScheme.secondary)
+                        Text(stringResource(R.string.log_timer_start), color = MaterialTheme.colorScheme.secondary)
                     }
                 } else {
                     TextButton(onClick = onLap) {
-                        Text("Lap", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.log_timer_lap), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     TextButton(onClick = onStop) {
-                        Text("Stop", color = MaterialTheme.colorScheme.error)
+                        Text(stringResource(R.string.log_timer_stop), color = MaterialTheme.colorScheme.error)
                     }
                 }
             }
