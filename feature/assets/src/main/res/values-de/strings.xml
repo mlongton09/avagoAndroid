@@ -89,4 +89,56 @@
     <string name="rental_meter_invalid">Gültige Zahl eingeben</string>
     <string name="rental_search_customers">Kunden suchen</string>
     <string name="rental_search_customers_clear">Suche löschen</string>
+    <!-- Legacy rental screens -->
+    <string name="asset_cancel">Abbrechen</string>
+    <string name="asset_detail_back">Zurück</string>
+    <string name="asset_save">Speichern</string>
+    <string name="date_picker_ok">OK</string>
+    <string name="rental_invoice_confirm_pay">Zahlung bestätigen</string>
+    <string name="rental_invoice_create">Rechnung erstellen</string>
+    <string name="rental_invoice_due_date">Fällig am %1$s</string>
+    <string name="rental_invoice_line_items">Positionen</string>
+    <string name="rental_invoice_subtotal">Zwischensumme</string>
+    <string name="rental_invoice_tax">Steuer (%1$.1f %%)</string>
+    <string name="rental_invoice_total">Gesamtbetrag</string>
+    <string name="rental_invoiced_chip">Abgerechnet</string>
+    <string name="rental_paid_chip">Bezahlt</string>
+    <string name="rental_condition_label">Zustand *</string>
+    <string name="rental_condition_return_label">Zustand bei Rückgabe *</string>
+    <string name="rental_condition_excellent">Ausgezeichnet</string>
+    <string name="rental_condition_good">Gut</string>
+    <string name="rental_condition_fair">Akzeptabel</string>
+    <string name="rental_condition_poor">Schlecht</string>
+    <string name="rental_condition_start_line">Zustand bei Beginn: %1$s</string>
+    <string name="rental_condition_return_line">Zustand bei Rückgabe: %1$s</string>
+    <string name="rental_meter_unit_label">Einheit</string>
+    <string name="rental_meter_unit_hours">Stunden</string>
+    <string name="rental_meter_unit_miles">Meilen</string>
+    <string name="rental_meter_unit_km">km</string>
+    <string name="rental_meter_start_label">Anfangszählerstand (optional)</string>
+    <string name="rental_meter_usage_line">Zähler: %1$s → %2$s = %3$s %4$s</string>
+    <string name="rental_meter_start_line">Anfangszählerstand: %1$s %2$s</string>
+    <string name="rental_hint_select_condition">Wählen Sie einen Zustand aus, um fortzufahren</string>
+    <string name="rental_hint_enter_rate">Geben Sie einen Tarif ein, um fortzufahren</string>
+    <string name="rental_hint_enter_rate_and_condition">Geben Sie einen Tarif ein und wählen Sie einen Zustand aus, um fortzufahren</string>
+    <string name="rental_customer_internal">Intern</string>
+    <string name="rental_overdue_badge">ÜBERFÄLLIG</string>
+    <string name="rental_rate_per_hour">%1$s / Stunde</string>
+    <string name="rental_rate_per_day">%1$s / Tag</string>
+    <string name="rental_rate_per_week">%1$s / Woche</string>
+    <string name="rental_rate_per_month">%1$s / Monat</string>
+    <string name="rental_field_required">%1$s ist erforderlich</string>
+    <string name="rental_invoice_period">Zeitraum</string>
+    <string name="rental_payment_method_cash">Bargeld</string>
+    <string name="rental_payment_method_credit_card">Kreditkarte</string>
+    <string name="rental_payment_method_bank_transfer">Überweisung</string>
+    <string name="rental_payment_method_check">Scheck</string>
+    <string name="rental_payment_method_other">Sonstige</string>
+    <string name="rental_error_unauthorized">Sie sind nicht angemeldet oder Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.</string>
+    <string name="rental_error_unknown">Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.</string>
+    <string name="rental_error_no_account">Kein aktives Konto. Bitte melden Sie sich erneut an.</string>
+    <plurals name="rental_booking_duration_days">
+        <item quantity="one">%d Tag</item>
+        <item quantity="other">%d Tage</item>
+    </plurals>
 </resources>

@@ -56,11 +56,11 @@ class RentalInvoiceViewModel @Inject constructor(
                         Timber.e("[RentalInvoiceVM] Error loading: ${result.message}")
                         _error.value = result.message
                     }
-                    is NetworkResult.Unauthorized -> _error.value = "Unauthorized"
+                    is NetworkResult.Unauthorized -> _error.value = LegacyRentalError.UNAUTHORIZED
                 }
             } catch (e: Exception) {
                 Timber.e(e, "[RentalInvoiceVM] Exception loading invoice")
-                _error.value = e.message ?: "Unknown error"
+                _error.value = LegacyRentalError.from(e)
             } finally {
                 _isLoading.value = false
             }
@@ -79,10 +79,10 @@ class RentalInvoiceViewModel @Inject constructor(
                         Timber.d("[RentalInvoiceVM] Invoice sent")
                     }
                     is NetworkResult.Error -> _error.value = result.message
-                    is NetworkResult.Unauthorized -> _error.value = "Unauthorized"
+                    is NetworkResult.Unauthorized -> _error.value = LegacyRentalError.UNAUTHORIZED
                 }
             } catch (e: Exception) {
-                _error.value = e.message ?: "Unknown error"
+                _error.value = LegacyRentalError.from(e)
             } finally {
                 _isLoading.value = false
             }
@@ -105,10 +105,10 @@ class RentalInvoiceViewModel @Inject constructor(
                         Timber.d("[RentalInvoiceVM] Invoice paid")
                     }
                     is NetworkResult.Error -> _error.value = result.message
-                    is NetworkResult.Unauthorized -> _error.value = "Unauthorized"
+                    is NetworkResult.Unauthorized -> _error.value = LegacyRentalError.UNAUTHORIZED
                 }
             } catch (e: Exception) {
-                _error.value = e.message ?: "Unknown error"
+                _error.value = LegacyRentalError.from(e)
             } finally {
                 _isLoading.value = false
             }
@@ -127,10 +127,10 @@ class RentalInvoiceViewModel @Inject constructor(
                         Timber.d("[RentalInvoiceVM] Invoice voided")
                     }
                     is NetworkResult.Error -> _error.value = result.message
-                    is NetworkResult.Unauthorized -> _error.value = "Unauthorized"
+                    is NetworkResult.Unauthorized -> _error.value = LegacyRentalError.UNAUTHORIZED
                 }
             } catch (e: Exception) {
-                _error.value = e.message ?: "Unknown error"
+                _error.value = LegacyRentalError.from(e)
             } finally {
                 _isLoading.value = false
             }

@@ -53,11 +53,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalResources
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -72,7 +74,8 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
-private val DATE_FMT = DateTimeFormatter.ofPattern("MMM d, yyyy")
+// Resolved per use so a runtime language change is picked up.
+private val DATE_FMT: DateTimeFormatter get() = LegacyRentalText.dateFormatter()
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -93,9 +96,10 @@ fun RentalBookingScreen(
 
     val snackbarHostState = remember { SnackbarHostState() }
 
+    val resources = LocalResources.current
     LaunchedEffect(error) {
         error?.let {
-            snackbarHostState.showSnackbar(it)
+            snackbarHostState.showSnackbar(resources.legacyRentalErrorText(it))
             viewModel.clearError()
         }
     }
@@ -405,7 +409,8 @@ private fun DateStep(
         if (durationDays != null && durationDays > 0) {
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "${stringResource(R.string.rental_booking_duration_label)}: $durationDays days",
+                text = "${stringResource(R.string.rental_booking_duration_label)}: " +
+                        pluralStringResource(R.plurals.rental_booking_duration_days, durationDays.toInt(), durationDays),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary,
             )
@@ -526,7 +531,8 @@ private fun ConfirmBookingStep(
                 if (durationDays != null && durationDays > 0) {
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        text = "${stringResource(R.string.rental_booking_duration_label)}: $durationDays days",
+                        text = "${stringResource(R.string.rental_booking_duration_label)}: " +
+                            pluralStringResource(R.plurals.rental_booking_duration_days, durationDays.toInt(), durationDays),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

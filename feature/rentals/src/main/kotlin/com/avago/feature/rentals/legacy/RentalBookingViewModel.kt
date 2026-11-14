@@ -72,7 +72,7 @@ class RentalBookingViewModel @Inject constructor(
     fun createReservation(request: CreateReservationRequest, onSuccess: () -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             val accountId = identityManager.getActiveAccountId() ?: run {
-                _error.value = "No active account"
+                _error.value = LegacyRentalError.NO_ACCOUNT
                 _isLoading.value = false
                 return@launch
             }
@@ -89,12 +89,12 @@ class RentalBookingViewModel @Inject constructor(
                         _error.value = result.message
                     }
                     is NetworkResult.Unauthorized -> {
-                        _error.value = "Unauthorized"
+                        _error.value = LegacyRentalError.UNAUTHORIZED
                     }
                 }
             } catch (e: Exception) {
                 Timber.e(e, "[RentalBookingVM] Exception")
-                _error.value = e.message ?: "Unknown error"
+                _error.value = LegacyRentalError.from(e)
             } finally {
                 _isLoading.value = false
             }

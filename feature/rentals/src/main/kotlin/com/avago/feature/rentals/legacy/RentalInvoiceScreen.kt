@@ -49,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -57,13 +58,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.network.model.InvoiceLineItem
 import com.avago.core.network.model.RentalInvoice
 import com.avago.feature.assets.R
-import java.text.NumberFormat
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
-
-private val PAYMENT_METHODS = listOf("Cash", "Credit Card", "Bank Transfer", "Check", "Other")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,9 +75,10 @@ fun RentalInvoiceScreen(
     var showPaySheet by remember { mutableStateOf(false) }
     var showVoidConfirm by remember { mutableStateOf(false) }
 
+    val resources = LocalResources.current
     LaunchedEffect(error) {
         error?.let {
-            snackbarHostState.showSnackbar(it)
+            snackbarHostState.showSnackbar(resources.legacyRentalErrorText(it))
             viewModel.clearError()
         }
     }
@@ -133,7 +128,7 @@ fun RentalInvoiceScreen(
 
                     // Line items
                     if (inv.line_items.isNotEmpty()) {
-                        InvoiceLineItemsCard(lineItems = inv.line_items)
+                        InvoiceLineItemsCard(lineItems = inv.line_items, currency = inv.currency)
                         Spacer(Modifier.height(12.dp))
                     }
 
@@ -188,7 +183,7 @@ fun RentalInvoiceScreen(
                         "paid" -> {
                             val paidOn = listOfNotNull(
                                 inv.paid_at?.let { formatInvoiceDate(it) },
-                                inv.payment_method,
+                                inv.payment_method?.let { labelOrRaw(LegacyRentalText.paymentMethodLabel(it), it) },
                             ).joinToString(" · ")
                             if (paidOn.isNotBlank()) {
                                 Surface(
@@ -320,7 +315,7 @@ private fun InvoiceDatesCard(invoice: RentalInvoice, modifier: Modifier = Modifi
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "Period",
+                text = stringResource(R.string.rental_invoice_period),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -336,6 +331,7 @@ private fun InvoiceDatesCard(invoice: RentalInvoice, modifier: Modifier = Modifi
 @Composable
 private fun InvoiceLineItemsCard(
     lineItems: List<InvoiceLineItem>,
+    currency: String,
     modifier: Modifier = Modifier,
 ) {
     Card(
@@ -361,13 +357,14 @@ private fun InvoiceLineItemsCard(
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         Text(
-                            text = "${item.quantity} ${item.unit} @ ${"%.2f".format(item.unit_price)}",
+                            text = "${LegacyRentalText.formatMeter(item.quantity)} ${item.unit} @ " +
+                                formatCurrency(item.unit_price, currency),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     Text(
-                        text = "${"%.2f".format(item.total)}",
+                        text = formatCurrency(item.total, currency),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium,
                     )
@@ -480,7 +477,7 @@ private fun PaymentBottomSheet(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 OutlinedTextField(
-                    value = selectedMethod ?: "",
+                    value = selectedMethod?.let { labelOrRaw(LegacyRentalText.paymentMethodLabel(it), it) } ?: "",
                     onValueChange = {},
                     readOnly = true,
                     label = { Text(stringResource(R.string.rental_invoice_payment_method)) },
@@ -493,9 +490,9 @@ private fun PaymentBottomSheet(
                     expanded = expanded,
                     onDismissRequest = { expanded = false },
                 ) {
-                    PAYMENT_METHODS.forEach { method ->
+                    LegacyRentalText.PAYMENT_METHODS.forEach { method ->
                         DropdownMenuItem(
-                            text = { Text(method) },
+                            text = { Text(labelOrRaw(LegacyRentalText.paymentMethodLabel(method), method)) },
                             onClick = {
                                 selectedMethod = method
                                 expanded = false
@@ -534,22 +531,7 @@ private fun PaymentBottomSheet(
     }
 }
 
-private fun formatInvoiceDate(isoString: String): String = try {
-    val instant = Instant.parse(isoString)
-    val formatter = DateTimeFormatter.ofPattern("MMM d, yyyy")
-    instant.atZone(ZoneId.systemDefault()).toLocalDate().format(formatter)
-} catch (_: Exception) {
-    isoString
-}
+private fun formatInvoiceDate(isoString: String): String = LegacyRentalText.formatDate(isoString)
 
-private fun formatCurrency(amount: Double, currency: String): String = try {
-    val locale = when (currency.uppercase()) {
-        "USD" -> Locale.US
-        "EUR" -> Locale.GERMANY
-        "GBP" -> Locale.UK
-        else -> Locale.getDefault()
-    }
-    NumberFormat.getCurrencyInstance(locale).format(amount)
-} catch (_: Exception) {
-    "%.2f %s".format(amount, currency)
-}
+private fun formatCurrency(amount: Double, currency: String): String =
+    LegacyRentalText.formatMoney(amount, currency)

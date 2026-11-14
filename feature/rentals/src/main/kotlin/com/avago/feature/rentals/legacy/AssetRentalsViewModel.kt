@@ -98,7 +98,7 @@ class AssetRentalsViewModel @Inject constructor(
                     }
                     is NetworkResult.Unauthorized -> {
                         Timber.w("[AssetRentalsVM] Unauthorized loading rentals")
-                        _error.value = "Unauthorized"
+                        _error.value = LegacyRentalError.UNAUTHORIZED
                     }
                 }
 
@@ -118,7 +118,7 @@ class AssetRentalsViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 Timber.e(e, "[AssetRentalsVM] Exception loading rentals")
-                _error.value = e.message ?: "Unknown error"
+                _error.value = LegacyRentalError.from(e)
             } finally {
                 _isLoading.value = false
             }
@@ -146,12 +146,12 @@ class AssetRentalsViewModel @Inject constructor(
                     }
                     is NetworkResult.Unauthorized -> {
                         Timber.w("[AssetRentalsVM] Unauthorized ending rental")
-                        _error.value = "Unauthorized"
+                        _error.value = LegacyRentalError.UNAUTHORIZED
                     }
                 }
             } catch (e: Exception) {
                 Timber.e(e, "[AssetRentalsVM] Exception ending rental $rentalId")
-                _error.value = e.message ?: "Unknown error"
+                _error.value = LegacyRentalError.from(e)
             }
         }
     }
@@ -177,13 +177,13 @@ class AssetRentalsViewModel @Inject constructor(
                     }
                     is NetworkResult.Unauthorized -> {
                         Timber.w("[AssetRentalsVM] Unauthorized creating rental")
-                        _error.value = "Unauthorized"
+                        _error.value = LegacyRentalError.UNAUTHORIZED
                         _isLoading.value = false
                     }
                 }
             } catch (e: Exception) {
                 Timber.e(e, "[AssetRentalsVM] Exception creating rental")
-                _error.value = e.message ?: "Unknown error"
+                _error.value = LegacyRentalError.from(e)
                 _isLoading.value = false
             }
         }
@@ -205,11 +205,11 @@ class AssetRentalsViewModel @Inject constructor(
                         Timber.e("[AssetRentalsVM] Error creating invoice: ${result.message}")
                         _error.value = result.message
                     }
-                    is NetworkResult.Unauthorized -> _error.value = "Unauthorized"
+                    is NetworkResult.Unauthorized -> _error.value = LegacyRentalError.UNAUTHORIZED
                 }
             } catch (e: Exception) {
                 Timber.e(e, "[AssetRentalsVM] Exception creating invoice")
-                _error.value = e.message ?: "Unknown error"
+                _error.value = LegacyRentalError.from(e)
             }
         }
     }
@@ -230,11 +230,11 @@ class AssetRentalsViewModel @Inject constructor(
                         Timber.e("[AssetRentalsVM] Error starting reservation: ${result.message}")
                         _error.value = result.message
                     }
-                    is NetworkResult.Unauthorized -> _error.value = "Unauthorized"
+                    is NetworkResult.Unauthorized -> _error.value = LegacyRentalError.UNAUTHORIZED
                 }
             } catch (e: Exception) {
                 Timber.e(e, "[AssetRentalsVM] Exception starting reservation")
-                _error.value = e.message ?: "Unknown error"
+                _error.value = LegacyRentalError.from(e)
             }
         }
     }

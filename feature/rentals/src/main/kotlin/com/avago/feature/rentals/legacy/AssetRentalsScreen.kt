@@ -53,6 +53,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.Alignment
@@ -66,11 +67,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.network.model.RentalReservation
 import com.avago.core.network.model.RentalResponse
 import com.avago.feature.assets.R
-import java.text.NumberFormat
 import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -105,9 +102,10 @@ fun AssetRentalsScreen(
 
     val snackbarHostState = remember { SnackbarHostState() }
 
+    val resources = LocalResources.current
     LaunchedEffect(error) {
         error?.let {
-            snackbarHostState.showSnackbar(it)
+            snackbarHostState.showSnackbar(resources.legacyRentalErrorText(it))
             viewModel.clearError()
         }
     }
@@ -333,20 +331,20 @@ fun AssetRentalsScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 Text(
-                    text = "End Rental",
+                    text = stringResource(R.string.rental_end_confirm_title),
                     style = MaterialTheme.typography.titleMedium,
                 )
                 Text(
-                    text = "Condition at return *",
+                    text = stringResource(R.string.rental_condition_return_label),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("excellent", "good", "fair", "poor").forEach { cond ->
+                    LegacyRentalText.CONDITIONS.forEach { cond ->
                         FilterChip(
                             selected = endCondition == cond,
                             onClick = { endCondition = cond },
-                            label = { Text(cond.replaceFirstChar { it.uppercase() }) },
+                            label = { Text(labelOrRaw(LegacyRentalText.conditionLabel(cond), cond)) },
                         )
                     }
                 }
@@ -372,22 +370,22 @@ fun AssetRentalsScreen(
                 )
                 if (endMeter.isNotBlank()) {
                     Text(
-                        text = "Unit",
+                        text = stringResource(R.string.rental_meter_unit_label),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("hours", "miles", "km").forEach { unit ->
+                        LegacyRentalText.METER_UNITS.forEach { unit ->
                             FilterChip(
                                 selected = endMeterUnit == unit,
                                 onClick = { endMeterUnit = unit },
-                                label = { Text(unit.replaceFirstChar { it.uppercase() }) },
+                                label = { Text(labelOrRaw(LegacyRentalText.meterUnitLabel(unit), unit)) },
                             )
                         }
                     }
                 }
                 val endSubmitHint = when {
-                    endCondition == null -> "Select a condition to continue"
+                    endCondition == null -> stringResource(R.string.rental_hint_select_condition)
                     else -> null
                 }
                 if (endSubmitHint != null) {
@@ -411,7 +409,7 @@ fun AssetRentalsScreen(
         }
     }
 
-    // "Start Rental" bottom sheet � collect rate before converting reservation
+    // "Start Rental" bottom sheet — collect rate before converting reservation
     startingReservation?.let { reservation ->
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
@@ -455,21 +453,21 @@ fun AssetRentalsScreen(
                         FilterChip(
                             selected = startRateUnit == unit,
                             onClick = { startRateUnit = unit },
-                            label = { Text(unit.replaceFirstChar { it.uppercase() }) },
+                            label = { Text(labelOrRaw(LegacyRentalText.rateUnitLabel(unit), unit)) },
                         )
                     }
                 }
                 Text(
-                    text = "Condition *",
+                    text = stringResource(R.string.rental_condition_label),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("excellent", "good", "fair", "poor").forEach { cond ->
+                    LegacyRentalText.CONDITIONS.forEach { cond ->
                         FilterChip(
                             selected = startCondition == cond,
                             onClick = { startCondition = cond },
-                            label = { Text(cond.replaceFirstChar { it.uppercase() }) },
+                            label = { Text(labelOrRaw(LegacyRentalText.conditionLabel(cond), cond)) },
                         )
                     }
                 }
@@ -486,7 +484,7 @@ fun AssetRentalsScreen(
                 OutlinedTextField(
                     value = startMeter,
                     onValueChange = { startMeter = it },
-                    label = { Text(stringResource(R.string.rental_meter_final_label)) },
+                    label = { Text(stringResource(R.string.rental_meter_start_label)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
@@ -495,25 +493,25 @@ fun AssetRentalsScreen(
                 )
                 if (startMeter.isNotBlank()) {
                     Text(
-                        text = "Unit",
+                        text = stringResource(R.string.rental_meter_unit_label),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("hours", "miles", "km").forEach { unit ->
+                        LegacyRentalText.METER_UNITS.forEach { unit ->
                             FilterChip(
                                 selected = startMeterUnit == unit,
                                 onClick = { startMeterUnit = unit },
-                                label = { Text(unit.replaceFirstChar { it.uppercase() }) },
+                                label = { Text(labelOrRaw(LegacyRentalText.meterUnitLabel(unit), unit)) },
                             )
                         }
                     }
                 }
                 val startSubmitHint = when {
                     startCondition == null && (startRate.isBlank() || startRate.toDoubleOrNull() == null) ->
-                        "Enter a rate and select a condition to continue"
-                    startCondition == null -> "Select a condition to continue"
-                    startRate.isBlank() || startRate.toDoubleOrNull() == null -> "Enter a rate to continue"
+                        stringResource(R.string.rental_hint_enter_rate_and_condition)
+                    startCondition == null -> stringResource(R.string.rental_hint_select_condition)
+                    startRate.isBlank() || startRate.toDoubleOrNull() == null -> stringResource(R.string.rental_hint_enter_rate)
                     else -> null
                 }
                 if (startSubmitHint != null) {
@@ -590,13 +588,13 @@ private fun RentalCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = rental.customer_name ?: "Internal",
+                        text = rental.customer_name ?: stringResource(R.string.rental_customer_internal),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                     )
                     if (isOverdue) {
                         Text(
-                            text = "OVERDUE",
+                            text = stringResource(R.string.rental_overdue_badge),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.error,
                             fontWeight = FontWeight.Bold,
@@ -622,8 +620,10 @@ private fun RentalCard(
 
             Spacer(Modifier.height(6.dp))
 
+            val rateText = formatRentalRate(rental.rate, rental.currency)
             Text(
-                text = "${formatRentalRate(rental.rate, rental.currency)} / ${rental.rate_unit}",
+                text = LegacyRentalText.ratePerUnitFormat(rental.rate_unit)?.let { stringResource(it, rateText) }
+                    ?: "$rateText / ${rental.rate_unit}",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -634,7 +634,7 @@ private fun RentalCard(
             val endLabel = rental.end_at?.let { formatRentalDate(it) }
             if (endLabel != null) {
                 Text(
-                    text = "$startLabel ? $endLabel",
+                    text = "$startLabel → $endLabel",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -668,25 +668,39 @@ private fun RentalCard(
             rental.condition_start?.let {
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = "Start condition: ${it.replaceFirstChar { c -> c.uppercase() }}",
+                    text = stringResource(
+                        R.string.rental_condition_start_line,
+                        labelOrRaw(LegacyRentalText.conditionLabel(it), it),
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
             rental.condition_end?.let {
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = "Return condition: ${it.replaceFirstChar { c -> c.uppercase() }}",
+                    text = stringResource(
+                        R.string.rental_condition_return_line,
+                        labelOrRaw(LegacyRentalText.conditionLabel(it), it),
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
             val meterStart = rental.meter_start
             val meterEnd = rental.meter_end
+            val meterUnit = rental.meter_unit?.let { labelOrRaw(LegacyRentalText.meterUnitLabel(it), it) }.orEmpty()
             val meterDisplay = when {
-                meterStart != null && meterEnd != null -> {
-                    val usage = meterEnd - meterStart
-                    "Meter: $meterStart ? $meterEnd = ${"%.1f".format(usage)} ${rental.meter_unit ?: ""}"
-                }
-                meterStart != null -> "Start meter: $meterStart ${rental.meter_unit ?: ""}"
+                meterStart != null && meterEnd != null -> stringResource(
+                    R.string.rental_meter_usage_line,
+                    LegacyRentalText.formatMeter(meterStart),
+                    LegacyRentalText.formatMeter(meterEnd),
+                    LegacyRentalText.formatMeter(meterEnd - meterStart),
+                    meterUnit,
+                ).trimEnd()
+                meterStart != null -> stringResource(
+                    R.string.rental_meter_start_line,
+                    LegacyRentalText.formatMeter(meterStart),
+                    meterUnit,
+                ).trimEnd()
                 else -> null
             }
             if (meterDisplay != null) {
@@ -756,7 +770,7 @@ private fun ReservationCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = reservation.customer_name ?: "Internal",
+                    text = reservation.customer_name ?: stringResource(R.string.rental_customer_internal),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
@@ -765,7 +779,7 @@ private fun ReservationCard(
             }
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "${formatRentalDate(reservation.reserved_from)} ? ${formatRentalDate(reservation.reserved_until)}",
+                text = "${formatRentalDate(reservation.reserved_from)} → ${formatRentalDate(reservation.reserved_until)}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -852,22 +866,7 @@ private fun prefRateUnitToUiUnit(unit: String): String = when (unit) {
     else   -> "daily"
 }
 
-private fun formatRentalDate(isoString: String): String = try {
-    val instant = Instant.parse(isoString)
-    val formatter = DateTimeFormatter.ofPattern("MMM d, yyyy")
-    instant.atZone(ZoneId.systemDefault()).toLocalDate().format(formatter)
-} catch (_: Exception) {
-    isoString
-}
+private fun formatRentalDate(isoString: String): String = LegacyRentalText.formatDate(isoString)
 
-private fun formatRentalRate(amount: Double, currency: String): String = try {
-    val locale = when (currency.uppercase()) {
-        "USD" -> Locale.US
-        "EUR" -> Locale.GERMANY
-        "GBP" -> Locale.UK
-        else -> Locale.getDefault()
-    }
-    NumberFormat.getCurrencyInstance(locale).format(amount)
-} catch (_: Exception) {
-    "%.2f %s".format(amount, currency)
-}
+private fun formatRentalRate(amount: Double, currency: String): String =
+    LegacyRentalText.formatMoney(amount, currency)

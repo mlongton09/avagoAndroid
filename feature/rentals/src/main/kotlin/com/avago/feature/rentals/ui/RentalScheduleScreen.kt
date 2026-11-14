@@ -1,5 +1,6 @@
 package com.avago.feature.rentals.ui
 
+import android.text.format.DateFormat
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -32,6 +33,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -48,6 +50,7 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /** Schedule (§11.1): day-grouped agenda; a Gantt board is added on tablets. Offline (Room). */
 @Composable
@@ -143,6 +146,11 @@ private fun GanttBoard(
             .padding(horizontal = 16.dp)
             .semantics { contentDescription = summary },
     ) {
+        // Day/month column header in the user's order and separators (en-US "5/14", de-DE "14.5.").
+        val locale = LocalConfiguration.current.locales[0]
+        val dayFormatter = remember(locale) {
+            DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, "dM"), locale)
+        }
         Canvas(Modifier.width(labelW + dayW * totalDays.toInt()).height(rowH * (units.size + 1))) {
             val lw = labelW.toPx()
             val dw = dayW.toPx()
@@ -153,7 +161,7 @@ private fun GanttBoard(
             for (d in 0 until totalDays) {
                 val gx = lw + d * dw
                 drawLine(grid, Offset(gx, 0f), Offset(gx, size.height), 1f)
-                val label = from.atZone(zone).plusDays(d).toLocalDate().let { "${it.dayOfMonth}/${it.monthValue}" }
+                val label = from.atZone(zone).plusDays(d).toLocalDate().format(dayFormatter)
                 drawText(measurer, label, Offset(gx + 4f, 4f), style)
             }
             units.forEachIndexed { i, (id, name) ->

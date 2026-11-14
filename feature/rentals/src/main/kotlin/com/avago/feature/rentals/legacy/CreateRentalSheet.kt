@@ -43,7 +43,6 @@ import com.avago.feature.assets.R
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 private val RATE_UNITS = listOf("hourly", "daily", "weekly", "monthly")
 
@@ -70,7 +69,7 @@ fun CreateRentalSheet(
 
     var rateError by remember { mutableStateOf(false) }
 
-    val dateFormatter = DateTimeFormatter.ofPattern("MMM d, yyyy")
+    val dateFormatter = remember { LegacyRentalText.dateFormatter() }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -113,7 +112,7 @@ fun CreateRentalSheet(
                 isError = rateError,
                 prefix = { Text(currencyCode) },
                 supportingText = if (rateError) {
-                    { Text(stringResource(R.string.rental_rate_label) + " is required") }
+                    { Text(stringResource(R.string.rental_field_required, stringResource(R.string.rental_rate_label))) }
                 } else null,
             )
             Spacer(Modifier.height(12.dp))

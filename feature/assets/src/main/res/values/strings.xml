@@ -313,4 +313,43 @@
     <string name="sort_highest">Highest first</string>
     <string name="sort_lowest">Lowest first</string>
     <string name="reports_empty_state">No results</string>
+    <!-- Legacy rental screens: labels, hints, errors -->
+    <string name="rental_condition_label">Condition *</string>
+    <string name="rental_condition_return_label">Condition at return *</string>
+    <string name="rental_condition_excellent">Excellent</string>
+    <string name="rental_condition_good">Good</string>
+    <string name="rental_condition_fair">Fair</string>
+    <string name="rental_condition_poor">Poor</string>
+    <string name="rental_condition_start_line">Start condition: %1$s</string>
+    <string name="rental_condition_return_line">Return condition: %1$s</string>
+    <string name="rental_meter_unit_label">Unit</string>
+    <string name="rental_meter_unit_hours">Hours</string>
+    <string name="rental_meter_unit_miles">Miles</string>
+    <string name="rental_meter_unit_km">km</string>
+    <string name="rental_meter_start_label">Starting meter reading (optional)</string>
+    <string name="rental_meter_usage_line">Meter: %1$s → %2$s = %3$s %4$s</string>
+    <string name="rental_meter_start_line">Start meter: %1$s %2$s</string>
+    <string name="rental_hint_select_condition">Select a condition to continue</string>
+    <string name="rental_hint_enter_rate">Enter a rate to continue</string>
+    <string name="rental_hint_enter_rate_and_condition">Enter a rate and select a condition to continue</string>
+    <string name="rental_customer_internal">Internal</string>
+    <string name="rental_overdue_badge">OVERDUE</string>
+    <string name="rental_rate_per_hour">%1$s / hour</string>
+    <string name="rental_rate_per_day">%1$s / day</string>
+    <string name="rental_rate_per_week">%1$s / week</string>
+    <string name="rental_rate_per_month">%1$s / month</string>
+    <string name="rental_field_required">%1$s is required</string>
+    <string name="rental_invoice_period">Period</string>
+    <string name="rental_payment_method_cash">Cash</string>
+    <string name="rental_payment_method_credit_card">Credit card</string>
+    <string name="rental_payment_method_bank_transfer">Bank transfer</string>
+    <string name="rental_payment_method_check">Check</string>
+    <string name="rental_payment_method_other">Other</string>
+    <string name="rental_error_unauthorized">You are not signed in or your session has expired. Please sign in again.</string>
+    <string name="rental_error_unknown">Something went wrong. Please try again.</string>
+    <string name="rental_error_no_account">No active account. Please sign in again.</string>
+    <plurals name="rental_booking_duration_days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
 </resources>

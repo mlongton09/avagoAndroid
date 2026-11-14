@@ -54,12 +54,12 @@ class RentalCustomersViewModel @Inject constructor(
                         _error.value = result.message
                     }
                     is NetworkResult.Unauthorized -> {
-                        _error.value = "Unauthorized"
+                        _error.value = LegacyRentalError.UNAUTHORIZED
                     }
                 }
             } catch (e: Exception) {
                 Timber.e(e, "[RentalCustomersVM] Exception")
-                _error.value = e.message ?: "Unknown error"
+                _error.value = LegacyRentalError.from(e)
             } finally {
                 _isLoading.value = false
             }
@@ -78,7 +78,7 @@ class RentalCustomersViewModel @Inject constructor(
                     Timber.e("[RentalCustomersVM] Error deleting: ${result.message}")
                     _error.value = result.message
                 }
-                is NetworkResult.Unauthorized -> _error.value = "Unauthorized"
+                is NetworkResult.Unauthorized -> _error.value = LegacyRentalError.UNAUTHORIZED
             }
         }
     }
@@ -110,10 +110,10 @@ class RentalCustomerFormViewModel @Inject constructor(
                 when (val result = serviceClient.getRentalCustomer(accountId, customerId)) {
                     is NetworkResult.Success -> _customer.value = result.data
                     is NetworkResult.Error -> _error.value = result.message
-                    is NetworkResult.Unauthorized -> _error.value = "Unauthorized"
+                    is NetworkResult.Unauthorized -> _error.value = LegacyRentalError.UNAUTHORIZED
                 }
             } catch (e: Exception) {
-                _error.value = e.message ?: "Unknown error"
+                _error.value = LegacyRentalError.from(e)
             }
         }
     }
@@ -156,12 +156,12 @@ class RentalCustomerFormViewModel @Inject constructor(
                         _error.value = result.message
                     }
                     is NetworkResult.Unauthorized -> {
-                        _error.value = "Unauthorized"
+                        _error.value = LegacyRentalError.UNAUTHORIZED
                     }
                 }
             } catch (e: Exception) {
                 Timber.e(e, "[RentalCustomerFormVM] Exception saving")
-                _error.value = e.message ?: "Unknown error"
+                _error.value = LegacyRentalError.from(e)
             } finally {
                 _isSaving.value = false
             }
@@ -177,11 +177,11 @@ class RentalCustomerFormViewModel @Inject constructor(
                 when (val result = serviceClient.deleteRentalCustomer(accountId, customerId)) {
                     is NetworkResult.Success -> withContext(Dispatchers.Main) { onSuccess() }
                     is NetworkResult.Error -> _error.value = result.message
-                    is NetworkResult.Unauthorized -> _error.value = "Unauthorized"
+                    is NetworkResult.Unauthorized -> _error.value = LegacyRentalError.UNAUTHORIZED
                 }
             } catch (e: Exception) {
                 Timber.e(e, "[RentalCustomerFormVM] Exception deleting")
-                _error.value = e.message ?: "Unknown error"
+                _error.value = LegacyRentalError.from(e)
             } finally {
                 _isSaving.value = false
             }
