@@ -1,5 +1,6 @@
 package com.avago.core.network.model
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 
@@ -8,6 +9,8 @@ data class SyncOperation(
     val entity_type: String,
     val entity_id: String,
     val operation: String,
+    /** Entity body. AvagoSvc's `SyncOperation` reads it from `data` (web sends `data` too). */
+    @SerialName("data")
     val payload: JsonObject? = null,
     val idempotency_key: String? = null,
     /** Local server_version at time of push, for server-side optimistic concurrency. */
@@ -30,6 +33,12 @@ data class SyncOperationResult(
     val conflict: Boolean = false,
     /** Server-assigned version after successful push; used to update local server_version. */
     val server_version: Long? = null,
+    /** Conflict detail (inspection_defect): the server's current status, or `"deleted"`. */
+    val server_status: String? = null,
+    /** Conflict detail: `"SERVER_WINS"` when the server kept its own state. */
+    val conflict_resolution: String? = null,
+    /** Conflict detail: the server's current row (pull shape); absent when deleted. */
+    val server_row: JsonObject? = null,
 )
 
 @Serializable

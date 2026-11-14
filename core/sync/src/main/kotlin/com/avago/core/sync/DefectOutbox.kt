@@ -11,17 +11,29 @@ import kotlinx.serialization.json.Json
 
 /**
  * Pure rules for the inspection-defect outbox (offline lifecycle changes on the open-defects
- * register). AvagoSvc's `/sync/push` has no `inspection_defect` entity, so queued rows are drained
- * by [DefectRegisterSync] through `PATCH /defects/{id}` — these helpers decide what each queued
- * change does against the server's current row. Server wins on status conflicts.
+ * register). Queued changes for register rows (UUID `defect_id`) go through `/sync/push` as
+ * `inspection_defect` operations ([isSyncPushable] / [syncPushData], AvagoSvc docs/sync-defects.md).
+ * Derived defects (`${assetId}:${key}`, known only from local history) cannot be addressed by
+ * `/sync`; [DefectRegisterSync] drains them through `PATCH /defects/{id}` and these helpers decide
+ * what each such change does against the server's current row. Server wins on status conflicts.
  */
 object DefectOutbox {
 
     /** `sync_queue.entity_type` for queued defect lifecycle changes. */
     const val ENTITY_TYPE = "inspection_defect"
 
-    /** `sync_metadata` row for the register pull (`last_server_seq` holds [REGISTER_SUPPORTED] / [REGISTER_UNSUPPORTED]). */
-    const val META_KEY = "inspection_defect"
+    /**
+     * `sync_metadata` row recording register availability (`last_server_seq` holds
+     * [REGISTER_SUPPORTED] / [REGISTER_UNSUPPORTED], `last_sync_at` the last refresh). Distinct from
+     * the `/sync/pull` watermark row, which is keyed by [ENTITY_TYPE].
+     */
+    const val META_KEY = "inspection_defect_register"
+
+    /**
+     * Builds before `/sync` defect support stored the register flag under [ENTITY_TYPE]; that row
+     * is now the pull watermark and must not be read as one (see [DefectRegisterSync.migrateLegacyMeta]).
+     */
+    const val LEGACY_META_KEY = ENTITY_TYPE
     const val REGISTER_SUPPORTED = 1L
     const val REGISTER_UNSUPPORTED = -1L
 
@@ -146,6 +158,27 @@ object DefectOutbox {
             }?.let { return it }
         }
         return slot.filter { it.str("status") in ACTIVE_STATUSES }.maxByOrNull { it.str("last_seen_at").orEmpty() }
+    }
+
+    private val UUID_RE = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+
+    /**
+     * True when a queued change can go through `/sync/push`: a register row (UUID `defect_id`),
+     * not a derived defect. Malformed / derived rows stay on [DefectRegisterSync.drain].
+     */
+    fun isSyncPushable(entityId: String, op: Op?): Boolean =
+        op != null && !op.derived && UUID_RE.matches(entityId)
+
+    /**
+     * `/sync/push` `data` for a queued change. [mutationId] is the queue row id: stable across
+     * retries of the same change (a later edit replaces the row with a new id), so the server
+     * dedupes replays.
+     */
+    fun syncPushData(mutationId: String, op: Op): JsonObject = buildJsonObject {
+        put("mutation_id", mutationId)
+        put("status", op.status)
+        op.resolutionNote?.let { put("resolution_note", it) }
+        put("base_status", op.baseStatus)
     }
 
     /** 4xx other than timeout / rate limit: the server will never accept this change. */
