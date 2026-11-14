@@ -28,6 +28,7 @@ polish.
 | 11 | Low | rentals | The asset "make rentable" form lost its input on process death. | `rememberSaveable`. 176720a |
 | 12 | Low | rentalsops | The RentalOpsDatabase header still said "TODO(P1 reconcile)", although fleet and allocations were already read from P1 `rental_records` / `LocalFleet`. | Header corrected. f7460b9 |
 | 13 | Medium | rentals ↔ rentalsops | P1/P2 duplication: P1 order screens localized invoice statuses, but the P2 customer statement appended the raw API value (`· partially_paid`). | The label mapping and its strings in all 9 locales moved to core:ui (`invoiceStatusText`), and both modules now use it. 04d2bae |
+| 14 | High | rentals | A queued customer edit or order transition that hit a 409 version `conflict` was always parked. Retry then resent the same stale version, so it could never succeed, and the server's other changes were not applied locally. | Hybrid policy (shared with iOS; see the section below): disjoint edits rebase and resend once, overlapping edits are parked naming the clashing fields, and Retry keeps the user's values on the latest version. Pure `ConflictMerge`, 11 tests. 35a6974 |
 
 ### Rental UX / navigation (176720a)
 
@@ -65,6 +66,38 @@ Now:
   and window insets are no longer applied twice.
 - Every new string exists in en, de, es, fr, it, nl, no, pt and sv as UTF-8. A scan found
   no `?` corruption and no missing keys in feature/rentals or feature/rentalsops.
+
+## Hybrid 409 version-conflict policy (rental edits)
+
+Scope: the queued edits that carry a version are customer updates (`PATCH ?/customers/{id}`,
+`server_version`) and order transitions (`POST ?/orders/{id}/{action}`, `version`). The server
+answers a stale version with `409 {error:"conflict", message, current}`. Its idempotency
+middleware caches only 2xx responses, so a resend with the same key is safe.
+Readiness decisions keep their own "already applied" 409 handling.
+
+- **Enqueue.** `RentalRepository` stores the synced row the edit was made on (`merge_base`) and
+  the field values the edit sets (`merge_changes`) in the outbox payload. Locally created
+  records have no base.
+- **On 409** (`RentalOutbox.sendRebasing` ? `ConflictMerge.resolve`, which is pure):
+  - Local changed fields are the changes that differ from the base. Server changed fields are
+    the fields where `current` differs from the base. Bookkeeping fields (version,
+    `updated_at`, ?) are ignored.
+  - Values compare as whole JSON values, so a nested object or array is one field. Timestamps
+    compare as instants. Numbers compare by value, but two strings are compared as text.
+  - **Disjoint:** the request is rebased. It keeps only the locally changed fields, so stale
+    form values never overwrite server edits, and takes `version` from `current`. It is resent
+    once with the same idempotency key, and `merge_rebased=true` is persisted before the resend.
+  - **Overlap, no base, no usable `current`, or a 409 after a rebase:** the item is parked as a
+    conflict with the notice `field_conflict:<fields>`. The UI shows it as "Changed here and by
+    someone else: Email, Phone?" in all 9 locales. The payload is rewritten to the user's
+    edits on top of `current` (new base and version), so **Retry** keeps the user's values and
+    **Discard** keeps the server's.
+  - Either way, the server's non-clashing changes are applied to the cached record.
+- **Older items** queued before this change have no base, so they are parked as before. Their
+  Retry now sends `current`'s version instead of the stale one.
+- iOS should mirror this policy: the same payload keys (`merge_base`, `merge_changes`,
+  `merge_rebased`), the same notice prefix, and the same cases (disjoint ? one resend;
+  overlap, missing base or repeated 409 ? conflict).
 
 ## Verified, no change needed
 
@@ -105,7 +138,7 @@ Now:
   :feature:rentalsops:testDebugUnitTest`: BUILD SUCCESSFUL.
   - core/data: 20 tests, 0 failures.
   - core/sync: 307 tests, 0 failures.
-  - feature/rentals: 89 tests, 0 failures.
+  - feature/rentals: 100 tests, 0 failures (89, plus 11 `ConflictMergeTest` for the hybrid 409 policy).
   - feature/rentalsops: 53 tests, 0 failures.
 - `:feature:rentals:lintDebug :feature:rentalsops:lintDebug`: 0 errors (13 and 12 warnings,
   listed above). The one error found was the NFC cast (#8), which is now fixed.

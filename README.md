@@ -70,6 +70,20 @@ Configure via `local.properties`:
 avago.base.url=https://api.avagomate.com
 ```
 
+## Offline sync & conflicts
+
+Rental edits are queued in `sync_queue` and replayed by `RentalOutbox` with a stable idempotency
+key. Offline attempts don't consume the retry budget (`QueueRetryPolicy`). When a versioned edit
+(customer update, order transition) gets `409 conflict` from the server:
+
+- If the fields changed locally and on the server don't overlap, the edit is rebased onto the
+  server row and resent once.
+- Otherwise it is parked as a conflict that names the clashing fields. **Retry** keeps the
+  user's values and **Discard** keeps the server's.
+
+The merge is the pure `ConflictMerge` (feature/rentals). Details are in
+`docs/quality-review-android.md`.
+
 ## Project structure
 
 Multi-module — `:app` is thin, business logic in `:core:*`, screens in `:feature:*`.
