@@ -44,4 +44,8 @@
     <string name="chip_fuel_log">Log fuel…</string>
     <string name="chip_inspection">Start inspection…</string>
     <string name="chip_create_wo">Create work order…</string>
+
+    <!-- Offline defect lifecycle sync notices (server wins) -->
+    <string name="sync_defect_conflict">“%1$s” was changed by someone else, so their update was kept.</string>
+    <string name="sync_defect_rejected">Your change to “%1$s” couldn’t be synced and was undone.</string>
 </resources>

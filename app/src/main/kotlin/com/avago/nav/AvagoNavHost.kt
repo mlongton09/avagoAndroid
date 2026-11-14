@@ -2,10 +2,12 @@ package com.avago.nav
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
@@ -24,8 +26,10 @@ import com.avago.feature.auth.nav.authNavGraph
 import com.avago.feature.chat.nav.chatNavGraph
 import com.avago.feature.chat.nav.ChatRoute
 import com.avago.feature.inventory.nav.inventoryNavGraph
+import com.avago.feature.log.nav.DefectWorkOrderRequest
 import com.avago.feature.log.nav.LogRoute
 import com.avago.feature.log.nav.logNavGraph
+import com.avago.feature.log.ui.AssetOpenDefectsPanel
 import com.avago.feature.assets.ui.GlobalCategoryReportScreen
 import com.avago.feature.reports.KpiDashboardScreen
 import com.avago.feature.reports.ui.CostReportScreen
@@ -128,6 +132,15 @@ fun AvagoNavHost(
                     }
                 },
                 rentalsEnabled = rentalsEnabled,
+                // Web AssetLogTab: open-defect register at the top of the asset's Log tab.
+                assetLogHeader = { assetId ->
+                    AssetOpenDefectsPanel(
+                        assetId = assetId,
+                        onOpenLog = { entryId -> navController.navigate(LogRoute.detail(entryId)) },
+                        onCreateWorkOrder = { req -> navController.navigate(workOrderFromDefectRoute(req)) },
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                },
             )
 
             // ── Log ───────────────────────────────────────────────────────────────
@@ -137,16 +150,7 @@ fun AvagoNavHost(
                     navController.navigate(AssetsRoute.PICKER)
                 },
                 onCreateWorkOrderFromDefect = { req ->
-                    navController.navigate(
-                        com.avago.feature.workorders.nav.WorkOrderRoute.createFromDefect(
-                            assetId = req.assetId,
-                            title = req.title,
-                            description = req.description,
-                            defectIds = req.defectIds,
-                            inspectionLogId = req.inspectionLogId,
-                            priority = req.priority,
-                        ),
-                    )
+                    navController.navigate(workOrderFromDefectRoute(req))
                 },
             )
 
@@ -220,3 +224,14 @@ fun AvagoNavHost(
 }
 
 private const val SHOW_SYNC_CONFLICT_SHEET = false
+
+/** WO create route prefilled from an open inspection defect (contract §5). */
+private fun workOrderFromDefectRoute(req: DefectWorkOrderRequest): String =
+    com.avago.feature.workorders.nav.WorkOrderRoute.createFromDefect(
+        assetId = req.assetId,
+        title = req.title,
+        description = req.description,
+        defectIds = req.defectIds,
+        inspectionLogId = req.inspectionLogId,
+        priority = req.priority,
+    )

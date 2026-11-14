@@ -71,6 +71,8 @@ import com.avago.core.data.db.dao.WorkOrderAssetDao
 import com.avago.core.data.db.dao.WorkOrderDao
 import com.avago.core.data.db.dao.WorkPermitDao
 import com.avago.core.data.db.dao.WorkPermitSignatureDao
+import com.avago.core.data.db.dao.InspectionDefectDao
+import com.avago.core.data.db.entity.InspectionDefectEntity
 import com.avago.core.data.db.entity.AccountRolePermissionsEntity
 import com.avago.core.data.db.entity.AssetCriticalityEntity
 import com.avago.core.data.db.entity.AssetCustomStatusEntity
@@ -209,8 +211,9 @@ import com.avago.core.data.db.entity.WorkPermitSignatureEntity
         OwnerAssignmentEntity::class,
         PartTransferRequestEntity::class,
         RequestPortalEntity::class,
+        InspectionDefectEntity::class,
     ],
-    version = 18,
+    version = 19,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -284,4 +287,5 @@ abstract class AvagoDatabase : RoomDatabase() {
     abstract fun ownerAssignmentDao(): OwnerAssignmentDao
     abstract fun partTransferRequestDao(): PartTransferRequestDao
     abstract fun requestPortalDao(): RequestPortalDao
+    abstract fun inspectionDefectDao(): InspectionDefectDao
 }

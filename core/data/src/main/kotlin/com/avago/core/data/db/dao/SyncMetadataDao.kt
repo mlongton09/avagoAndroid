@@ -17,6 +17,9 @@ interface SyncMetadataDao {
     @Query("SELECT * FROM sync_metadata WHERE entity_type = :id")
     suspend fun getById(id: String): SyncMetadataEntity?
 
+    @Query("SELECT * FROM sync_metadata WHERE entity_type = :id")
+    fun observeById(id: String): Flow<SyncMetadataEntity?>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: SyncMetadataEntity)
 

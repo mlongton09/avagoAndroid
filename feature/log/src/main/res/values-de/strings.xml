@@ -499,5 +499,22 @@
     <string name="log_cost_mode_label">Kosten</string>
     <string name="log_entry_attachment_take_photo">Foto aufnehmen</string>
     <string name="log_entry_attachment_photo_library">Fotomediathek</string>
+
+    <!-- Objekt-Log: Panel offene Mängel (web inspection_defects) -->
+    <plurals name="log_open_defects_title">
+        <item quantity="one">%d offener Mangel</item>
+        <item quantity="other">%d offene Mängel</item>
+    </plurals>
+    <string name="log_open_defects_hint_derived">Aus dem Inspektionsverlauf abgeleitet. Beantworten Sie den Punkt bei der nächsten Inspektion mit Normal, um ihn zu schließen.</string>
+    <string name="log_open_defects_reported_today">Heute gemeldet</string>
+    <plurals name="log_open_defects_reported_ago">
+        <item quantity="one">Vor %d Tag gemeldet</item>
+        <item quantity="other">Vor %d Tagen gemeldet</item>
+    </plurals>
+    <string name="log_open_defects_view_source">Inspektion anzeigen</string>
+    <string name="log_open_defects_show_all">Alle anzeigen (%1$d)</string>
+    <string name="log_open_defects_show_less">Weniger anzeigen</string>
+    <string name="log_open_defects_more_actions">Weitere Aktionen für %1$s</string>
+    <string name="log_open_defects_pending_sync">Wartet auf Synchronisierung</string>
     <string name="log_cost_itemize_cta_count">Teile &amp; Arbeit aufschlüsseln (%1$d)</string>
 </resources>

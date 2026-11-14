@@ -6,4 +6,8 @@
 
     <!-- Permissions -->
     <string name="permissions_forbidden_message">Du har inte behörighet att utföra den här åtgärden.</string>
+
+    <!-- Offline defect lifecycle sync notices (server wins) -->
+    <string name="sync_defect_conflict">”%1$s” ändrades av någon annan, så deras ändring behölls.</string>
+    <string name="sync_defect_rejected">Din ändring av ”%1$s” kunde inte synkroniseras och har ångrats.</string>
 </resources>

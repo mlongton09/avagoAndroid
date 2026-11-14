@@ -131,6 +131,8 @@ class SyncEngine @Inject constructor(
     private val photoUploader: Provider<PhotoUploader>,
     private val syncGate: SyncGate,
     private val connectivity: ConnectivityMonitor,
+    // Provider<> keeps construction lazy; open-defect register pull + outbox drain.
+    private val defectRegister: Provider<DefectRegisterSync>,
 ) {
     private val mutex = Mutex()
 
@@ -449,7 +451,9 @@ class SyncEngine @Inject constructor(
         db.syncQueueDao().resetInFlightToPending()
         db.syncQueueDao().resetErrorsToPending()
 
-        val pending = db.syncQueueDao().pendingItemsList()
+        val allPending = db.syncQueueDao().pendingItemsList()
+        val defectItems = allPending.filter { it.entityType == DefectOutbox.ENTITY_TYPE }
+        val pending = allPending.filterNot { it.entityType == DefectOutbox.ENTITY_TYPE }
         if (pending.isNotEmpty()) {
             val queueIds = pending.map { it.queueId }
             db.syncQueueDao().markInFlight(queueIds)
@@ -535,6 +539,19 @@ class SyncEngine @Inject constructor(
                     toast.error("Sync failed. Changes will retry when reconnected.")
                     return SyncResult.Failed(e)
                 }
+            }
+        }
+
+        // Inspection-defect lifecycle changes: not a /sync/push entity on the server — drained
+        // through the register endpoints after the batch (so pushed inspections are registered).
+        if (defectItems.isNotEmpty()) {
+            try {
+                pushedCount += defectRegister.get().drain(accountId, defectItems)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                db.syncQueueDao().resetInFlightToPending()
+                Timber.e(e, "[SyncEngine] Defect outbox drain failed — will retry")
             }
         }
 
@@ -628,6 +645,15 @@ class SyncEngine @Inject constructor(
             preferencesSync.get().refreshFromServer(accountId)
         } catch (e: Exception) {
             Timber.w(e, "[SyncEngine] PreferencesSync.refreshFromServer failed — ignoring")
+        }
+
+        // Open-defect register snapshot (not a /sync/pull entity; non-fatal, cache kept on failure)
+        try {
+            defectRegister.get().pull(accountId)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w(e, "[SyncEngine] Defect register pull failed — keeping cached register")
         }
 
         // Kick off photo uploads now that we have the latest server state

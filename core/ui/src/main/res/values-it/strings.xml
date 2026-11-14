@@ -6,4 +6,8 @@
 
     <!-- Permissions -->
     <string name="permissions_forbidden_message">Non hai il permesso di eseguire questa azione.</string>
+
+    <!-- Offline defect lifecycle sync notices (server wins) -->
+    <string name="sync_defect_conflict">«%1$s» è stato modificato da un’altra persona: è stata mantenuta la sua modifica.</string>
+    <string name="sync_defect_rejected">Non è stato possibile sincronizzare la modifica a «%1$s», che è stata annullata.</string>
 </resources>

@@ -146,6 +146,8 @@ fun AssetDetailScreen(
     rentalsEnabled: Boolean = true,
     onOpenAsset: (assetId: String) -> Unit = {},
     onOpenAssetChat: (() -> Unit)? = null,
+    /** Slot rendered at the top of the Log tab (e.g. the open-defects panel from :feature:log). */
+    logTabHeader: (@Composable () -> Unit)? = null,
     viewModel: AssetDetailViewModel = hiltViewModel(),
 ) {
     val asset by viewModel.asset.collectAsStateWithLifecycle()
@@ -439,6 +441,7 @@ fun AssetDetailScreen(
                         onOpenWheelDataInput = onOpenWheelDataInput,
                         onLogEntryClick = onLogEntryClick,
                         onCloneLogEntry = { viewModel.cloneLogEntry(it) },
+                        header = logTabHeader,
                     )
                     1 -> DocumentsTab(documents = documents)
                     2 -> WorkOrdersTab(onOpenWorkOrders = onOpenWorkOrders)
@@ -522,11 +525,15 @@ private fun LogTab(
     onOpenWheelDataInput: () -> Unit,
     onLogEntryClick: (entryId: String) -> Unit,
     onCloneLogEntry: (LogEntity) -> Unit,
+    header: (@Composable () -> Unit)? = null,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 88.dp),
     ) {
+        if (header != null) {
+            item(key = "log_header") { header() }
+        }
         if (!asset.meterType.isNullOrBlank()) {
             item(key = "meter_card") {
                 MeterCard(

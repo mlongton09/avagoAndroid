@@ -63,6 +63,7 @@ class SyncEngineTest {
     private val mockDeltaApplier = mockk<DeltaPushApplier>(relaxed = true)
     private val mockPreferencesSync = mockk<PreferencesSync>(relaxed = true)
     private val mockPhotoUploader = mockk<PhotoUploader>(relaxed = true)
+    private val mockDefectRegister = mockk<DefectRegisterSync>(relaxed = true)
     private val mockSyncGate = mockk<SyncGate>(relaxed = true)
     private val networkStatusFlow = MutableSharedFlow<Boolean>(replay = 1)
     private val mockConnectivity = mockk<ConnectivityMonitor>()
@@ -146,6 +147,8 @@ class SyncEngineTest {
         }
 
         every { mockIdentity.getActiveAccountId() } returns ACCOUNT_ID
+        // runSync awaits auth initialisation; a relaxed mock's flow is empty and would never pass.
+        every { mockIdentity.isInitialized } returns kotlinx.coroutines.flow.MutableStateFlow(true)
 
         engine = SyncEngine(
             appContext = mockk(relaxed = true),
@@ -161,10 +164,26 @@ class SyncEngineTest {
             photoUploader = Provider { mockPhotoUploader },
             syncGate = mockSyncGate,
             connectivity = mockConnectivity,
+            defectRegister = Provider { mockDefectRegister },
         )
     }
 
     // ─── Push result routing ──────────────────────────────────────────────────
+
+    @Test
+    fun `inspection_defect queue rows drain through the register, not sync push`() = runTest {
+        val defectItem = buildQueueEntity(UUID.randomUUID().toString(), DefectOutbox.ENTITY_TYPE, "defect-1")
+        coEvery { mockSyncQueueDao.pendingItemsList() } returns listOf(defectItem)
+        coEvery { mockDefectRegister.drain(ACCOUNT_ID, any()) } returns 1
+        coEvery { mockClient.syncPull(any(), any(), any()) } returns emptyPullResponse()
+
+        engine.sync()
+
+        coVerify(exactly = 0) { mockClient.syncPush(any(), any()) }
+        coVerify { mockDefectRegister.drain(ACCOUNT_ID, listOf(defectItem)) }
+        // The register snapshot is refreshed in the pull phase.
+        coVerify { mockDefectRegister.pull(ACCOUNT_ID) }
+    }
 
     @Test
     fun `push success marks item complete and stamps server version`() = runTest {

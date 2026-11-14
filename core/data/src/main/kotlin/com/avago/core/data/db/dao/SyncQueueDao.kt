@@ -80,6 +80,16 @@ interface SyncQueueDao {
     suspend fun getPendingByEntity(entityType: String, entityId: String): SyncQueueEntity?
 
     /**
+     * Unsynced rows (pending / in-flight / error) of the given entity types, oldest first —
+     * drives per-row "waiting to sync" indicators and local optimistic overlays.
+     */
+    @Query("SELECT * FROM sync_queue WHERE entity_type IN (:entityTypes) AND sync_status IN ('pending', 'in_flight', 'error') ORDER BY created_at ASC")
+    fun observeUnsyncedByTypes(entityTypes: List<String>): Flow<List<SyncQueueEntity>>
+
+    @Query("SELECT entity_id FROM sync_queue WHERE entity_type = :entityType AND sync_status IN ('pending', 'in_flight', 'error')")
+    suspend fun unsyncedEntityIds(entityType: String): List<String>
+
+    /**
      * Enqueue with iOS-compatible dedup logic:
      *
      * - insert + delete  → cancel both (delete the pending insert, skip enqueueing delete)

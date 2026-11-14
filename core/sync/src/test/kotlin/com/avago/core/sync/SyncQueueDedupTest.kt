@@ -55,6 +55,10 @@ class SyncQueueDedupTest {
         override suspend fun markConflict(queueId: String) {}
         override suspend fun resetErrorsToPending(maxAttempts: Long) {}
         override suspend fun hasPendingPush(entityType: String, entityId: String): Int? = null
+        override fun observeUnsyncedByTypes(entityTypes: List<String>): Flow<List<SyncQueueEntity>> =
+            flowOf(store.values.filter { it.entityType in entityTypes })
+        override suspend fun unsyncedEntityIds(entityType: String): List<String> =
+            store.values.filter { it.entityType == entityType }.map { it.entityId }
     }
 
     private lateinit var dao: FakeSyncQueueDao

@@ -75,6 +75,7 @@ import com.avago.core.ui.categoryBadgeColor
 import com.avago.core.ui.categoryIconName
 import androidx.compose.foundation.shape.CircleShape
 import com.avago.feature.log.R
+import com.avago.feature.log.nav.DefectWorkOrderRequest
 import com.avago.feature.log.viewmodel.LogListViewModel
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
@@ -90,6 +91,8 @@ fun LogListScreen(
     onAddLog: () -> Unit,
     onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    /** Opens WO create prefilled from an open defect (open-defects panel); null hides the action. */
+    onCreateWorkOrderFromDefect: ((DefectWorkOrderRequest) -> Unit)? = null,
     viewModel: LogListViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(assetId) {
@@ -353,6 +356,17 @@ fun LogListScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(bottom = 160.dp),
                     ) {
+                        // Web AssetLogTab: open-defect register above the history (hidden when clean).
+                        if (assetId != null) {
+                            item(key = "open_defects") {
+                                AssetOpenDefectsPanel(
+                                    assetId = assetId,
+                                    onOpenLog = onLogClick,
+                                    onCreateWorkOrder = onCreateWorkOrderFromDefect,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                )
+                            }
+                        }
                         grouped.forEach { (year, yearLogs) ->
                             stickyHeader(key = "year_$year") {
                                 YearHeader(year = year)

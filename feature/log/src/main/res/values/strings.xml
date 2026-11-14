@@ -515,4 +515,21 @@
         <item quantity="one">%d plan reset</item>
         <item quantity="other">%d plans reset</item>
     </plurals>
+
+    <!-- Asset Log: open defects panel (web inspection_defects) -->
+    <plurals name="log_open_defects_title">
+        <item quantity="one">%d open defect</item>
+        <item quantity="other">%d open defects</item>
+    </plurals>
+    <string name="log_open_defects_hint_derived">Derived from inspection history. Answer the item Normal on the next inspection to close it.</string>
+    <string name="log_open_defects_reported_today">Reported today</string>
+    <plurals name="log_open_defects_reported_ago">
+        <item quantity="one">Reported %d day ago</item>
+        <item quantity="other">Reported %d days ago</item>
+    </plurals>
+    <string name="log_open_defects_view_source">View inspection</string>
+    <string name="log_open_defects_show_all">Show all (%1$d)</string>
+    <string name="log_open_defects_show_less">Show less</string>
+    <string name="log_open_defects_more_actions">More actions for %1$s</string>
+    <string name="log_open_defects_pending_sync">Waiting to sync</string>
 </resources>

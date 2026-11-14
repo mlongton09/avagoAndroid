@@ -1,6 +1,7 @@
 package com.avago.feature.assets.nav
 
 import android.net.Uri
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import java.net.URLDecoder
@@ -114,6 +115,8 @@ fun NavGraphBuilder.assetsNavGraph(
      *  decides how far back to pop (e.g. all the way to the WO list). */
     onPickerCancel: () -> Unit = { navController.popBackStack() },
     rentalsEnabled: Boolean = true,
+    /** Rendered at the top of the asset Log tab; supplied by the app (e.g. open-defects panel). */
+    assetLogHeader: (@Composable (assetId: String) -> Unit)? = null,
 ) {
     navigation(
         startDestination = AssetsRoute.LIST,
@@ -192,6 +195,7 @@ fun NavGraphBuilder.assetsNavGraph(
                     // No asset->thread mapping yet on Android; route to the chat list.
                     navController.navigate("chat/list")
                 },
+                logTabHeader = assetLogHeader?.let { header -> @Composable { header(assetId) } },
             )
         }
 

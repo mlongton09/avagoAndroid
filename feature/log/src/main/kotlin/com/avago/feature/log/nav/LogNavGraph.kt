@@ -89,6 +89,7 @@ fun NavGraphBuilder.logNavGraph(
                 onBack = if (assetId != null) {
                     { navController.popBackStack() }
                 } else null,
+                onCreateWorkOrderFromDefect = onCreateWorkOrderFromDefect,
             )
         }
 

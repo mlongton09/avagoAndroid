@@ -880,13 +880,20 @@ class AvagoServiceClient @Inject constructor(
         }
 
     /**
-     * GET /accounts/{accountId}/defects?asset_id= — open-defect register rows for an asset.
+     * GET /accounts/{accountId}/defects — open-defect register rows, for one asset or (when
+     * [assetId] is null) the whole account. [status] is the comma list / `all` filter; null means
+     * the server default (open, monitoring, deferred).
      * 404/405 means the service predates the register (callers fall back to local history).
      */
-    suspend fun getDefects(accountId: String, assetId: String): NetworkResult<kotlinx.serialization.json.JsonArray> =
+    suspend fun getDefects(
+        accountId: String,
+        assetId: String?,
+        status: String? = null,
+    ): NetworkResult<kotlinx.serialization.json.JsonArray> =
         safeNetworkCall {
             val el = client.get("$baseUrl/accounts/$accountId/defects") {
-                parameter("asset_id", assetId)
+                if (assetId != null) parameter("asset_id", assetId)
+                if (status != null) parameter("status", status)
             }.body<kotlinx.serialization.json.JsonElement>()
             el as? kotlinx.serialization.json.JsonArray
                 ?: ((el as? JsonObject)?.let { it["defects"] ?: it["data"] } as? kotlinx.serialization.json.JsonArray)
@@ -895,16 +902,20 @@ class AvagoServiceClient @Inject constructor(
 
     /**
      * PATCH /accounts/{accountId}/defects/{defectId} `{ status, resolution_note }` — defect lifecycle
-     * (repaired / deferred / open). Returns the updated register row.
+     * (repaired / deferred / open). Returns the updated register row. [idempotencyKey] (the
+     * outbox queue id) is sent as `Idempotency-Key`; the PATCH sets an absolute status, so a
+     * replay after a lost response is harmless either way.
      */
     suspend fun patchDefect(
         accountId: String,
         defectId: String,
         status: String,
         resolutionNote: String?,
+        idempotencyKey: String? = null,
     ): NetworkResult<JsonObject> =
         safeNetworkCall {
             val el = client.patch("$baseUrl/accounts/$accountId/defects/$defectId") {
+                if (idempotencyKey != null) headers.append("Idempotency-Key", idempotencyKey)
                 setBody(
                     buildJsonObject {
                         put("status", status)
