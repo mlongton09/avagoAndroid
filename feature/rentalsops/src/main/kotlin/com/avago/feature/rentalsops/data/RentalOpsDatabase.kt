@@ -26,15 +26,13 @@ import javax.inject.Singleton
  * Rentals P2 local store — a small per-account Room database (accounts/{id}/rentalops.db)
  * instead of new tables in AvagoDatabase.
  *
- * Why separate: P1 (feature/rentals) is adding its rental tables to AvagoDatabase with a new
- * schema version on an unmerged branch. Adding P2 tables there too would collide on the
- * version number and on MigrationRentals. Everything here is a re-pullable cache of server
- * feeds (plus local proof media), so a destructive fallback is safe; the durable outbox stays
- * in the shared `sync_queue` table (AvagoDatabase) and is drained by SyncEngine through
- * [com.avago.core.sync.ExternalOutbox].
- *
- * TODO(P1 reconcile): once P1's rental tables exist, the fleet/order-line/allocation feeds
- * cached here duplicate P1's cache and should be read from P1's DAOs instead.
+ * It holds only P2 data: the task and transfer feeds, the `unassigned-lines` snapshot,
+ * proof-media metadata, feed cursors and the cached statement / aging reports. Fleet, orders,
+ * lines, allocations and customers are read from P1's tables in AvagoDatabase (`LocalFleet`,
+ * `rental_records`); nothing is cached twice. Everything here is a re-pullable cache of
+ * server feeds (plus local proof media), so a destructive fallback is safe. The durable
+ * outbox stays in the shared `sync_queue` table (AvagoDatabase) and is drained by SyncEngine
+ * through [com.avago.core.sync.ExternalOutbox].
  */
 
 @Entity(tableName = "rentalops_records", primaryKeys = ["entity", "id"], indices = [Index("entity")])

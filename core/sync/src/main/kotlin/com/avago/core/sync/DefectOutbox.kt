@@ -182,7 +182,7 @@ object DefectOutbox {
     }
 
     /** 4xx other than timeout / rate limit: the server will never accept this change. */
-    fun isPermanent(code: Int): Boolean = code in 400..499 && code != 408 && code != 429
+    fun isPermanent(code: Int): Boolean = code in 400..499 && !com.avago.core.data.sync.QueueRetryPolicy.isTransientHttp(code)
 
     /** 404 / 405 on the register: the service predates it. */
     fun isNotDeployed(code: Int): Boolean = code == 404 || code == 405

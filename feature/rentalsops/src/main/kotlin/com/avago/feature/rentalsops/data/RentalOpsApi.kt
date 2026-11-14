@@ -35,8 +35,12 @@ sealed class ApiResult {
     /** Non-2xx with the server's stable `code` (e.g. `not_assigned`, `invalid_transition`). */
     data class Http(val status: Int, val code: String?, val message: String, val details: JsonObject? = null) : ApiResult()
 
-    /** No response (offline, DNS, timeout). */
-    data class Transport(val message: String) : ApiResult()
+    /**
+     * No usable response. [offline] = the request never reached the server (an
+     * [java.io.IOException]: offline, DNS, socket, timeout), so the outbox keeps the row pending
+     * without using a retry attempt; otherwise (e.g. an unreadable 2xx body) it is a counted retry.
+     */
+    data class Transport(val message: String, val offline: Boolean = false) : ApiResult()
 
     companion object {
         /** Coded error body `{error, code, message, details}` — parsed by P1's [RentalsApiException]. */
@@ -188,7 +192,7 @@ class RentalOpsApi @Inject constructor(
     } catch (e: ResponseException) {
         ApiResult.fromErrorBody(e.response.status.value, runCatching { e.response.bodyAsText() }.getOrDefault(""))
     } catch (e: Exception) {
-        ApiResult.Transport(e.message ?: e.javaClass.simpleName)
+        ApiResult.Transport(e.message ?: e.javaClass.simpleName, offline = e is java.io.IOException)
     }
 
     /**
@@ -235,7 +239,7 @@ class RentalOpsApi @Inject constructor(
     } catch (e: RentalsApiException) {
         ApiResult.fromError(e)
     } catch (e: Exception) {
-        ApiResult.Transport(e.message ?: e.javaClass.simpleName)
+        ApiResult.Transport(e.message ?: e.javaClass.simpleName, offline = e is java.io.IOException)
     }
 
     private suspend fun call(block: suspend () -> HttpResponse): ApiResult = try {
@@ -246,7 +250,7 @@ class RentalOpsApi @Inject constructor(
     } catch (e: ResponseException) {
         ApiResult.fromErrorBody(e.response.status.value, runCatching { e.response.bodyAsText() }.getOrDefault(""))
     } catch (e: Exception) {
-        ApiResult.Transport(e.message ?: e.javaClass.simpleName)
+        ApiResult.Transport(e.message ?: e.javaClass.simpleName, offline = e is java.io.IOException)
     }
 
     companion object {

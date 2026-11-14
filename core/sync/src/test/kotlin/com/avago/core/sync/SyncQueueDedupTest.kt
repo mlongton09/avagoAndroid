@@ -48,6 +48,7 @@ class SyncQueueDedupTest {
         override suspend fun markInFlight(queueIds: List<String>) {}
         override suspend fun markSuccess(queueId: String) { store.remove(queueId) }
         override suspend fun markError(queueId: String, error: String) {}
+        override suspend fun markOfflineRetry(queueId: String, error: String) {}
         override suspend fun resetInFlightToPending() {}
         override suspend fun enqueueOrReplace(entity: SyncQueueEntity) { upsert(entity) }
         override suspend fun pendingItemsList(): List<SyncQueueEntity> = store.values.toList()

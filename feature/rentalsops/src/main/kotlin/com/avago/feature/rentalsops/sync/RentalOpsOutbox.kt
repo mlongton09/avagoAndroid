@@ -1,5 +1,6 @@
 package com.avago.feature.rentalsops.sync
 
+import com.avago.core.data.sync.QueueRetryPolicy
 import android.content.Context
 import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.SyncQueueEntity
@@ -42,7 +43,7 @@ import javax.inject.Singleton
  * Guarantees:
  * - FIFO per subject: a transient failure stops later events of the same task/transfer in this
  *   cycle so the server sees them in order.
- * - Bounded: rows with ≥ [DrainOutcome.MAX_ATTEMPTS] transient failures are parked (still
+ * - Bounded: rows with ≥ [DrainOutcome.MAX_ATTEMPTS] answered transient failures are parked (still
  *   `error`) until the user taps Retry; pulls are capped at [MAX_PAGES] pages per feed.
  * - Business rejections become `conflict` rows (kept, visible, with Discard/Retry) plus one
  *   notification — never silently dropped or retried forever.
@@ -89,6 +90,8 @@ class RentalOpsOutbox @Inject constructor(
                 }
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: java.io.IOException) {
+                DrainOutcome.Offline(e.message ?: e.javaClass.simpleName)
             } catch (e: Exception) {
                 Timber.w(e, "[RentalOps] drain ${item.entityType} failed")
                 DrainOutcome.Retry(e.message ?: e.javaClass.simpleName)
@@ -123,6 +126,12 @@ class RentalOpsOutbox @Inject constructor(
                 is DrainOutcome.Retry -> {
                     queue.markError(item.queueId, outcome.reason)
                     blockedSubjects += subject(item)
+                }
+                is DrainOutcome.Offline -> {
+                    // Never reached the server: keep it pending without using an attempt and
+                    // stop; the remaining rows would fail the same way.
+                    queue.markOfflineRetry(item.queueId, "offline: ${outcome.reason}".take(500))
+                    break
                 }
             }
         }
@@ -242,7 +251,11 @@ class RentalOpsOutbox @Inject constructor(
         if (uploadUrl != null) {
             when (val put = client.uploadPhotoBinary(uploadUrl, file.readBytes())) {
                 is NetworkResult.Success -> Unit
-                is NetworkResult.Error -> return UploadResult.Failed(DrainOutcome.Retry("proof upload ${put.code}"))
+                // An expired upload URL (403) re-reserves on the next run, so answered errors are retries.
+                is NetworkResult.Error -> return UploadResult.Failed(
+                    if (QueueRetryPolicy.isNoResponse(put.code)) DrainOutcome.Offline("proof upload: ${put.message}")
+                    else DrainOutcome.Retry("proof upload ${put.code}"),
+                )
                 else -> return UploadResult.Failed(DrainOutcome.Retry("proof upload"))
             }
         }
@@ -255,7 +268,10 @@ class RentalOpsOutbox @Inject constructor(
     }
 
     private fun networkOutcome(code: Int, message: String, what: String): DrainOutcome =
-        DrainOutcome.classify(if (code <= 0) ApiResult.Transport(message) else ApiResult.Http(code, null, "$what: $message"))
+        DrainOutcome.classify(
+            if (QueueRetryPolicy.isNoResponse(code)) ApiResult.Transport("$what: $message", offline = true)
+            else ApiResult.Http(code, null, "$what: $message"),
+        )
 
     // ---- unit assignment ---------------------------------------------------------------
 

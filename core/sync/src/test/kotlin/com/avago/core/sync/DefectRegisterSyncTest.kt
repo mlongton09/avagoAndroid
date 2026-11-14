@@ -211,14 +211,30 @@ class DefectRegisterSyncTest {
     }
 
     @Test
-    fun `offline register fetch keeps every change queued`() = runTest {
-        val items = listOf(queued("d1", op("deferred"), "q-1"), queued("d2", op("repaired"), "q-2"))
-        coEvery { client.getDefects(any(), any(), any()) } returns NetworkResult.Error(-1, "offline")
+    fun `offline register fetch keeps every change queued without using up retries`() = runTest {
+        for (code in listOf(-1, 0)) {
+            val items = listOf(queued("d1", op("deferred"), "q-1"), queued("d2", op("repaired"), "q-2"))
+            coEvery { client.getDefects(any(), any(), any()) } returns NetworkResult.Error(code, "offline")
 
-        sync.drain(ACCOUNT, items)
+            sync.drain(ACCOUNT, items)
+        }
 
-        coVerify { queue.markError("q-1", any()) }
-        coVerify { queue.markError("q-2", any()) }
+        coVerify(exactly = 2) { queue.markOfflineRetry("q-1", any()) }
+        coVerify(exactly = 2) { queue.markOfflineRetry("q-2", any()) }
+        coVerify(exactly = 0) { queue.markError(any(), any()) }
+        coVerify(exactly = 0) { queue.markSuccess(any()) }
+    }
+
+    @Test
+    fun `a patch that never reached the server does not use up a retry`() = runTest {
+        val item = queued("d1", op("deferred"), "q-1")
+        coEvery { client.getDefects(ACCOUNT, "asset-1", "all") } returns NetworkResult.Success(JsonArray(listOf(serverRow("d1", "open"))))
+        coEvery { client.patchDefect(any(), any(), any(), any(), any()) } returns NetworkResult.Error(-1, "timeout")
+
+        sync.drain(ACCOUNT, listOf(item))
+
+        coVerify { queue.markOfflineRetry("q-1", any()) }
+        coVerify(exactly = 0) { queue.markError(any(), any()) }
         coVerify(exactly = 0) { queue.markSuccess(any()) }
     }
 

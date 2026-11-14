@@ -11,9 +11,11 @@ import org.junit.jupiter.api.Test
 class DrainOutcomeTest {
 
     @Test
-    fun `ok is done and transport is retried`() {
+    fun `ok is done, offline keeps the attempt budget and an unreadable answer is retried`() {
         assertEquals(DrainOutcome.Done, DrainOutcome.classify(ApiResult.Ok(JsonObject(emptyMap()))))
-        assertTrue(DrainOutcome.classify(ApiResult.Transport("timeout")) is DrainOutcome.Retry)
+        // Never reached the server: must not count towards MAX_ATTEMPTS (iOS offline-retry bug).
+        assertEquals(DrainOutcome.Offline("timeout"), DrainOutcome.classify(ApiResult.Transport("timeout", offline = true)))
+        assertTrue(DrainOutcome.classify(ApiResult.Transport("bad json")) is DrainOutcome.Retry)
     }
 
     @Test

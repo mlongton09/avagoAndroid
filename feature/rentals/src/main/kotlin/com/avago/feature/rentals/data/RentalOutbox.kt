@@ -6,6 +6,7 @@ import com.avago.core.data.db.rental.RentalRecordEntity
 import com.avago.core.data.db.rental.RentalRecordEntity.Companion.STATE_CONFLICT
 import com.avago.core.data.db.rental.RentalRecordEntity.Companion.STATE_SYNCED
 import com.avago.core.data.rental.LocalFleet
+import com.avago.core.data.sync.QueueRetryPolicy
 import com.avago.core.network.rentals.RentalsApi
 import com.avago.core.network.rentals.RentalsApiException
 import com.avago.core.sync.ExternalOutbox
@@ -30,7 +31,6 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import timber.log.Timber
-import java.io.IOException
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Provider
@@ -47,7 +47,9 @@ import javax.inject.Singleton
  *  * 404 / 405 from a route the client calls (route missing on the server) → `failed` with a
  *    visible error; the user can retry (e.g. after a server update) or discard;
  *  * 501 `not_implemented` → stays pending (not counted as an attempt);
- *  * network / 5xx / 429 / idempotency-key-in-flight → `error` (bounded by attempts).
+ *  * 5xx / 429 / idempotency-key-in-flight → `error` (bounded by [QueueRetryPolicy.MAX_ATTEMPTS]);
+ *  * no answer (offline / transport) → stays `pending` without using an attempt, and the run stops;
+ *  * a malformed queued payload → `failed` with a visible error (never retried blindly).
  *  * server `warnings` on success are kept as a notice on the confirmed row.
  */
 @Singleton
@@ -103,24 +105,21 @@ class RentalOutbox @Inject constructor(
             photoUploaded = { id -> photoKeys[id] != null },
             logSynced = { id -> id !in logsPending },
         )
+        val rowsById = rows.associateBy { it.queueId }
         val failedGroups = HashSet<String>()
         val failedUuids = HashSet<String>()
         var ok = 0
         for (item in plan.runnable) {
             if (item.group in failedGroups || item.dependsOn.any { it in failedUuids }) continue
-            val row = rows.first { it.queueId == item.queueId }
+            val row = rowsById.getValue(item.queueId)
             val result = try {
                 execute(accountId, row, payloads.getValue(row.queueId))
                 Res.Ok
             } catch (e: CancellationException) {
                 throw e
-            } catch (e: RentalsApiException) {
-                classify(row.entityType, e)
-            } catch (e: IOException) {
-                Res.Retry(e.message ?: "network")
             } catch (e: Exception) {
-                Timber.w(e, "[RentalOutbox] ${row.entityType} failed")
-                Res.Retry(e.message ?: e.javaClass.simpleName)
+                if (e !is RentalsApiException) Timber.w(e, "[RentalOutbox] ${row.entityType} failed")
+                classify(row.entityType, e)
             }
             when (result) {
                 Res.Ok -> {
@@ -134,6 +133,12 @@ class RentalOutbox @Inject constructor(
                 }
                 Res.Later -> {
                     failedGroups += item.group; failedUuids += item.clientUuid
+                }
+                is Res.Offline -> {
+                    // Never reached the server: keep it pending (no attempt used) and stop, as the
+                    // rest would fail the same way. WorkManager retries once connected.
+                    queue.markOfflineRetry(row.queueId, "offline: ${result.message}".take(500))
+                    return@withLock ok
                 }
                 is Res.Failed -> {
                     dbFactory.get(accountId).rentalDao().markQueueFailed(row.queueId, result.message.take(500))
@@ -154,6 +159,8 @@ class RentalOutbox @Inject constructor(
     private sealed interface Res {
         data object Ok : Res
         data class Retry(val message: String) : Res
+        /** No HTTP answer (offline / transport): keep pending without using an attempt. */
+        data class Offline(val message: String) : Res
         /** Endpoint not available yet (501 `not_implemented`) — keep pending without burning attempts. */
         data object Later : Res
         /** The route is missing (404/405) — stop and show the error; the user may retry. */
@@ -162,14 +169,19 @@ class RentalOutbox @Inject constructor(
         data object Unauthorized : Res
     }
 
-    private fun classify(type: String, e: RentalsApiException): Res =
-        when (OutboxPlanner.disposition(type, e.status, e.code, e.message)) {
+    private fun classify(type: String, e: Exception): Res {
+        val api = e as? RentalsApiException
+        val detail = e.message ?: api?.let { "HTTP ${it.status}" } ?: e.javaClass.simpleName
+        return when (OutboxPlanner.dispositionOf(type, e)) {
             OutboxPlanner.Disposition.UNAUTHORIZED -> Res.Unauthorized
             OutboxPlanner.Disposition.LATER -> Res.Later
-            OutboxPlanner.Disposition.FAILED -> Res.Failed("HTTP ${e.status}: ${e.message ?: e.code ?: "route not found"}")
-            OutboxPlanner.Disposition.RETRY -> Res.Retry(e.message ?: "HTTP ${e.status}")
-            OutboxPlanner.Disposition.CONFLICT -> Res.Conflict(conflictNotice(e))
+            OutboxPlanner.Disposition.OFFLINE -> Res.Offline(detail)
+            OutboxPlanner.Disposition.FAILED ->
+                Res.Failed(api?.let { "HTTP ${it.status}: ${it.message ?: it.code ?: "route not found"}" } ?: detail)
+            OutboxPlanner.Disposition.RETRY -> Res.Retry(detail)
+            OutboxPlanner.Disposition.CONFLICT -> Res.Conflict(api?.let(::conflictNotice) ?: detail)
         }
+    }
 
     /** Server `warnings:[{code, message?}]` of a successful write as a notice (null when none). */
     private fun warningNotice(resp: JsonObject): String? = OutboxPlanner.warningsText(resp)?.let { NOTICE_WARNINGS_PREFIX + it }
@@ -184,11 +196,19 @@ class RentalOutbox @Inject constructor(
 
     // ── id map ──────────────────────────────────────────────────────────────────
 
-    private suspend fun serverId(accountId: String, id: String?): String? {
-        id ?: return null
+    private suspend fun serverId(accountId: String, id: String?): String? = id?.let { mappedId(accountId, it) }
+
+    private suspend fun mappedId(accountId: String, id: String): String {
         val m = dbFactory.get(accountId).rentalDao().get(RentalEntity.ID_MAP, id)
         return m?.obj?.str("server_id") ?: id
     }
+
+    /** The server id for the required payload [field] (a malformed row fails visibly). */
+    private suspend fun requiredServerId(accountId: String, p: JsonObject, field: String): String =
+        mappedId(accountId, p.required(field))
+
+    private fun JsonObject.required(field: String): String =
+        str(field) ?: throw OutboxPlanner.MalformedItem("queued item without $field")
 
     private suspend fun mapId(accountId: String, localId: String, serverId: String, entity: String) {
         if (localId == serverId) return
@@ -226,7 +246,7 @@ class RentalOutbox @Inject constructor(
         when (row.entityType) {
             OutboxPlanner.TYPE_CUSTOMER -> {
                 val resp = if (p.bool("update") == true) {
-                    api.updateCustomer(accountId, serverId(accountId, p.str("customer_id"))!!, body, key)
+                    api.updateCustomer(accountId, requiredServerId(accountId, p, "customer_id"), body, key)
                 } else {
                     api.createCustomer(accountId, body, key)
                 }
@@ -240,7 +260,7 @@ class RentalOutbox @Inject constructor(
                 }
             }
             OutboxPlanner.TYPE_CUSTOMER_DOCUMENT -> {
-                val cid = serverId(accountId, p.str("customer_id"))!!
+                val cid = requiredServerId(accountId, p, "customer_id")
                 val resp = api.createCustomerChild(accountId, cid, "documents", body, key)
                 val doc = resp.obj("document") ?: resp
                 replaceLocal(accountId, RentalEntity.CUSTOMER_DOCUMENT, p.str("local_id"), doc)
@@ -250,12 +270,12 @@ class RentalOutbox @Inject constructor(
                 applyOrder(accountId, p.str("local_id"), resp, confirmedDraft = true)
             }
             OutboxPlanner.TYPE_ORDER_ACTION -> {
-                val oid = serverId(accountId, p.str("order_id"))!!
-                val resp = api.orderAction(accountId, oid, p.str("action")!!, body, key)
+                val oid = requiredServerId(accountId, p, "order_id")
+                val resp = api.orderAction(accountId, oid, p.required("action"), body, key)
                 applyOrder(accountId, null, resp, confirmedDraft = p.str("action") == "extend")
             }
             OutboxPlanner.TYPE_ASSET -> {
-                val assetId = p.str("asset_id")!!
+                val assetId = p.required("asset_id")
                 if (p.bool("enabled") == true) api.enableAsset(accountId, assetId, body, key)
                 else api.disableAsset(accountId, assetId, key)
                 dao.get(RentalEntity.FLEET, assetId)?.let {
@@ -264,8 +284,7 @@ class RentalOutbox @Inject constructor(
                 }
             }
             OutboxPlanner.TYPE_SIGNATURE -> {
-                val oid = serverId(accountId, p.str("order_id"))
-                    ?: throw IllegalStateException("signature without order_id")
+                val oid = requiredServerId(accountId, p, "order_id")
                 val resp = api.createSignature(accountId, oid, body, key)
                 val s = resp.obj("signature") ?: resp
                 val sid = s.str("id")
@@ -274,9 +293,8 @@ class RentalOutbox @Inject constructor(
                 localId?.let { dao.setState(RentalEntity.SIGNATURE, it, STATE_SYNCED, null) }
             }
             OutboxPlanner.TYPE_HANDOVER -> {
-                val oid = serverId(accountId, p.str("order_id"))!!
-                val lid = serverId(accountId, p.str("line_id"))
-                    ?: throw IllegalStateException("handover without line_id")
+                val oid = requiredServerId(accountId, p, "order_id")
+                val lid = requiredServerId(accountId, p, "line_id")
                 val photos = p.strings("photo_ids").mapNotNull { id ->
                     dbFactory.get(accountId).photoDao().getById(id)?.storageKey?.let { k ->
                         buildJsonObject { put("file_id", id); put("storage_key", k) }
@@ -297,9 +315,8 @@ class RentalOutbox @Inject constructor(
             }
             OutboxPlanner.TYPE_READINESS -> executeReadiness(accountId, key, p)
             OutboxPlanner.TYPE_LINE_SWAP -> {
-                val oid = serverId(accountId, p.str("order_id"))!!
-                val lid = serverId(accountId, p.str("line_id"))
-                    ?: throw IllegalStateException("swap without line_id")
+                val oid = requiredServerId(accountId, p, "order_id")
+                val lid = requiredServerId(accountId, p, "line_id")
                 val resp = api.lineSwap(accountId, oid, lid, body, key)
                 val notice = warningNotice(resp)
                 // The tentative line / allocation give way to the server's (applyOrder drops
@@ -318,7 +335,7 @@ class RentalOutbox @Inject constructor(
                 if (notice != null) dao.setState(RentalEntity.ORDER, oid, STATE_SYNCED, notice)
             }
             OutboxPlanner.TYPE_LEDGER -> {
-                val oid = serverId(accountId, p.str("order_id"))!!
+                val oid = requiredServerId(accountId, p, "order_id")
                 val resp = api.createLedgerEntry(accountId, oid, body, key)
                 val localId = p.str("local_id")
                 val entry = resp.obj("entry")
@@ -327,11 +344,11 @@ class RentalOutbox @Inject constructor(
                 resp.obj("order")?.let { applyOrder(accountId, null, it, confirmedDraft = false) }
             }
             OutboxPlanner.TYPE_INVOICE -> {
-                val oid = serverId(accountId, p.str("order_id"))!!
+                val oid = requiredServerId(accountId, p, "order_id")
                 val resp = api.createInvoice(accountId, oid, body, key)
                 replaceLocal(accountId, RentalEntity.INVOICE, p.str("local_id"), resp.obj("invoice") ?: resp, warningNotice(resp))
             }
-            else -> error("unknown rental outbox type ${row.entityType}")
+            else -> throw OutboxPlanner.MalformedItem("unknown rental outbox type ${row.entityType}")
         }
     }
 
@@ -345,10 +362,10 @@ class RentalOutbox @Inject constructor(
      */
     private suspend fun executeReadiness(accountId: String, key: String, p: JsonObject) {
         val dao = dbFactory.get(accountId).rentalDao()
-        val localId = p.str("local_id") ?: throw IllegalStateException("readiness without local_id")
-        val assetId = p.str("asset_id") ?: throw IllegalStateException("readiness without asset_id")
-        val target = p.str("status") ?: throw IllegalStateException("readiness without status")
-        val mapped = serverId(accountId, localId)!!
+        val localId = p.required("local_id")
+        val assetId = p.required("asset_id")
+        val target = p.required("status")
+        val mapped = mappedId(accountId, localId)
         val createBody = { JsonObject(RentalRequests.readinessCreate(assetId, null, null) + ("client_uuid" to JsonPrimitive(key))) }
         var fresh: JsonObject? = null
         val checkId: String = when {
@@ -377,7 +394,7 @@ class RentalOutbox @Inject constructor(
         } catch (e: RentalsApiException) {
             if (e.status != 409) throw e
             val current = e.body?.obj("current") ?: runCatching { api.readinessCheck(accountId, checkId) }.getOrNull()
-            if (Readiness.alreadyApplied(current, target)) current!! else throw e
+            if (current != null && Readiness.alreadyApplied(current, target)) current else throw e
         }
         replaceLocal(accountId, RentalEntity.READINESS_CHECK, localId, row)
     }

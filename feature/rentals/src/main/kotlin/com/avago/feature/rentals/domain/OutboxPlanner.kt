@@ -1,5 +1,7 @@
 package com.avago.feature.rentals.domain
 
+import com.avago.core.data.sync.QueueRetryPolicy
+
 /**
  * Pure ordering rules for the rentals outbox (spec §15 "upload order"):
  *
@@ -156,7 +158,26 @@ object OutboxPlanner {
     /** Queue status of a row parked after a 404/405 (visible error, retry by the user). */
     const val STATUS_FAILED = "failed"
 
-    enum class Disposition { RETRY, LATER, FAILED, CONFLICT, UNAUTHORIZED }
+    /**
+     * RETRY uses an attempt; OFFLINE (no HTTP answer) and LATER (501) do not; FAILED parks the
+     * row with a visible error; CONFLICT asks the user; UNAUTHORIZED stops the run.
+     */
+    enum class Disposition { RETRY, LATER, FAILED, CONFLICT, UNAUTHORIZED, OFFLINE }
+
+    /** A queued payload missing a field the request needs (parked as FAILED, never retried blindly). */
+    class MalformedItem(message: String) : IllegalStateException(message)
+
+    /**
+     * How a failed push attempt is handled: an HTTP answer goes through [disposition]; an
+     * [java.io.IOException] (offline, DNS, socket, timeout) never reached the server, so it is
+     * OFFLINE and does not consume the retry budget; a [MalformedItem] is FAILED.
+     */
+    fun dispositionOf(type: String, e: Throwable): Disposition = when (e) {
+        is com.avago.core.network.rentals.RentalsApiException -> disposition(type, e.status, e.code, e.message)
+        is java.io.IOException -> Disposition.OFFLINE
+        is MalformedItem -> Disposition.FAILED
+        else -> Disposition.RETRY
+    }
 
     /**
      * How a rejected request is handled (error contract, docs/rentals-api.md + stage B):
@@ -178,7 +199,7 @@ object OutboxPlanner {
         status == 405 || (status == 404 && code == null) -> Disposition.FAILED
         status == 409 && code == "duplicate_client_uuid" -> Disposition.RETRY
         status == 409 && code == null && (message ?: "").contains("idempotency key", ignoreCase = true) -> Disposition.RETRY
-        status == 408 || status == 425 || status == 429 || status >= 500 -> Disposition.RETRY
+        QueueRetryPolicy.isTransientHttp(status) -> Disposition.RETRY
         else -> Disposition.CONFLICT
     }
 
@@ -197,5 +218,5 @@ object OutboxPlanner {
         return parts.takeIf { it.isNotEmpty() }?.joinToString("; ")
     }
 
-    const val MAX_ATTEMPTS = 10L
+    const val MAX_ATTEMPTS = QueueRetryPolicy.MAX_ATTEMPTS
 }

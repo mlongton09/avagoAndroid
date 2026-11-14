@@ -6,6 +6,7 @@ import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.AvagoDatabase
 import com.avago.core.data.db.entity.SyncMetadataEntity
 import com.avago.core.data.db.entity.SyncQueueEntity
+import com.avago.core.data.sync.QueueRetryPolicy
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
 import com.avago.core.network.model.SyncOperationResult
@@ -37,7 +38,7 @@ import javax.inject.Singleton
  *   wins on conflicts: server row applied or local row removed, non-blocking toast). Derived
  *   defects (`asset:key` ids) cannot be addressed by `/sync`, so [drain] resolves them to a
  *   register row and sends them via `PATCH /defects/{id}`. Transient failures stay queued for the
- *   engine's bounded retry (`resetErrorsToPending(maxAttempts = 10)`).
+ *   engine's bounded retry ([QueueRetryPolicy]); offline attempts do not count.
  */
 @Singleton
 class DefectRegisterSync @Inject constructor(
@@ -161,16 +162,23 @@ class DefectRegisterSync @Inject constructor(
             queue.markSuccess(item.queueId)
         }
 
-        for ((assetId, group) in parsed.filter { it.second != null }.groupBy { it.second!!.assetId }) {
+        val valid = parsed.mapNotNull { (item, op) -> op?.let { item to it } }
+        for ((assetId, group) in valid.groupBy { it.second.assetId }) {
             val rows: List<JsonObject> = when (val res = client.getDefects(accountId, assetId, status = "all")) {
                 is NetworkResult.Success -> res.data.mapNotNull { it as? JsonObject }
                 is NetworkResult.Error -> {
+                    if (QueueRetryPolicy.isNoResponse(res.code)) {
+                        // Offline: nothing else can reach the server either. Keep every change
+                        // pending without using up its retry budget.
+                        valid.forEach { (item, _) -> queue.markOfflineRetry(item.queueId, "offline: ${res.message}".take(500)) }
+                        return applied
+                    }
                     if (DefectOutbox.isNotDeployed(res.code)) {
                         // No register to apply to: these changes can never sync.
                         db.syncMetadataDao().upsert(SyncMetadataEntity(DefectOutbox.META_KEY, DefectOutbox.REGISTER_UNSUPPORTED, now()))
                         group.forEach { (item, op) ->
                             queue.markSuccess(item.queueId)
-                            restore(db, item, op!!)
+                            restore(db, item, op)
                             notify(R_REJECTED, op.label)
                         }
                     } else {
@@ -183,8 +191,7 @@ class DefectRegisterSync @Inject constructor(
                     continue
                 }
             }
-            for ((item, maybeOp) in group) {
-                val op = maybeOp!!
+            for ((item, op) in group) {
                 when (val d = DefectOutbox.decide(item.entityId, op, rows)) {
                     is DefectOutbox.Decision.Patch -> {
                         when (val r = client.patchDefect(accountId, d.defectId, op.status, op.resolutionNote, idempotencyKey = item.queueId)) {
@@ -194,6 +201,8 @@ class DefectRegisterSync @Inject constructor(
                                 applied++
                             }
                             is NetworkResult.Error -> when {
+                                QueueRetryPolicy.isNoResponse(r.code) ->
+                                    queue.markOfflineRetry(item.queueId, "offline: ${r.message}".take(500))
                                 r.code == 404 -> {
                                     queue.markSuccess(item.queueId)
                                     db.inspectionDefectDao().deleteById(d.defectId)

@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import com.avago.core.data.db.entity.SyncQueueEntity
+import com.avago.core.data.sync.QueueRetryPolicy
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -37,6 +38,13 @@ interface SyncQueueDao {
     @Query("UPDATE sync_queue SET sync_status = 'error', attempts = attempts + 1, last_error = :error, updated_at = strftime('%s','now') * 1000 WHERE queue_id = :queueId")
     suspend fun markError(queueId: String, error: String)
 
+    /**
+     * The request never reached the server (offline / transport failure): keep the row
+     * `pending` and record why, **without** consuming an attempt (see [QueueRetryPolicy]).
+     */
+    @Query("UPDATE sync_queue SET sync_status = 'pending', last_error = :error, updated_at = strftime('%s','now') * 1000 WHERE queue_id = :queueId")
+    suspend fun markOfflineRetry(queueId: String, error: String)
+
     @Query("UPDATE sync_queue SET sync_status = 'pending' WHERE sync_status = 'in_flight'")
     suspend fun resetInFlightToPending()
 
@@ -64,7 +72,7 @@ interface SyncQueueDao {
      * Mirrors iOS SyncQueueDAO.resetErrorsToPending(maxAttempts:).
      */
     @Query("UPDATE sync_queue SET sync_status = 'pending' WHERE sync_status = 'error' AND attempts < :maxAttempts")
-    suspend fun resetErrorsToPending(maxAttempts: Long = 10L)
+    suspend fun resetErrorsToPending(maxAttempts: Long = QueueRetryPolicy.MAX_ATTEMPTS)
 
     /**
      * Returns non-null if a pending/in-flight/error push exists for the given entity.

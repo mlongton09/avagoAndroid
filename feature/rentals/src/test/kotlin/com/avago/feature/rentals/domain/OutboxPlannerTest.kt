@@ -117,6 +117,22 @@ class OutboxPlannerTest {
     }
 
     @Test
+    fun `a request that never reached the server does not use up the retry budget`() {
+        val type = OutboxPlanner.TYPE_HANDOVER
+        assertEquals(OutboxPlanner.Disposition.OFFLINE, OutboxPlanner.dispositionOf(type, java.net.UnknownHostException("api")))
+        assertEquals(OutboxPlanner.Disposition.OFFLINE, OutboxPlanner.dispositionOf(type, java.net.SocketTimeoutException("read")))
+        assertEquals(OutboxPlanner.Disposition.OFFLINE, OutboxPlanner.dispositionOf(type, java.io.IOException("reset")))
+        // Answered failures still go through the HTTP contract.
+        assertEquals(
+            OutboxPlanner.Disposition.RETRY,
+            OutboxPlanner.dispositionOf(type, com.avago.core.network.rentals.RentalsApiException(503, null, "busy", null)),
+        )
+        // A payload that can never be sent is parked visibly, not retried ten times.
+        assertEquals(OutboxPlanner.Disposition.FAILED, OutboxPlanner.dispositionOf(type, OutboxPlanner.MalformedItem("no order_id")))
+        assertEquals(OutboxPlanner.Disposition.RETRY, OutboxPlanner.dispositionOf(type, IllegalStateException("boom")))
+    }
+
+    @Test
     fun `each item keeps its own client uuid so a replay is the same request`() {
         val items = listOf(item("x", OutboxPlanner.TYPE_ORDER), item("x2", OutboxPlanner.TYPE_ORDER_ACTION))
         val first = OutboxPlanner.plan(items).runnable.map { it.clientUuid }

@@ -474,7 +474,7 @@ class SyncEngine @Inject constructor(
 
             val operations = pending.mapNotNull { item ->
                 val payload = if (item.entityType == DefectOutbox.ENTITY_TYPE) {
-                    DefectOutbox.syncPushData(item.queueId, defectOps.getValue(item.queueId)!!)
+                    defectOps[item.queueId]?.let { DefectOutbox.syncPushData(item.queueId, it) }
                 } else {
                     payloadBuilder.buildPayload(accountId, item.entityType, item.entityId)
                 }
@@ -520,8 +520,8 @@ class SyncEngine @Inject constructor(
                                 // told us one. If it didn't, keep the local version so the next
                                 // pull's version-guard still works correctly.
                                 // Mirrors iOS SyncQueueDAO.markSuccess nextVersion logic.
-                                val nextVersion = if ((result.server_version ?: 0L) > 0L)
-                                    result.server_version!! else (item.serverVersion ?: 1L)
+                                val nextVersion = result.server_version?.takeIf { it > 0L }
+                                    ?: (item.serverVersion ?: 1L)
                                 db.syncQueueDao().markSuccess(item.queueId)
                                 updateEntityServerVersion(db, item.entityType, item.entityId, nextVersion)
                                 pushedCount++
@@ -557,6 +557,10 @@ class SyncEngine @Inject constructor(
                     }
                     _state.value = SyncState.Error(e.message)
                     return SyncResult.Failed(e)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    // Cancelled (worker stopped / scope closed): release the rows quietly, no toast.
+                    withContext(kotlinx.coroutines.NonCancellable) { db.syncQueueDao().resetInFlightToPending() }
+                    throw e
                 } catch (e: Exception) {
                     db.syncQueueDao().resetInFlightToPending()
                     Timber.e(e, "[SyncEngine] Push failed")
