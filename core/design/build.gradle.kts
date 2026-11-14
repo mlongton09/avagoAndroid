@@ -21,4 +21,13 @@ dependencies {
     api(libs.compose.icons)
     api(libs.compose.ui.tooling.preview)
     debugImplementation(libs.compose.ui.tooling)
+
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit5)
+    testRuntimeOnly(libs.junit5.engine)
+    testRuntimeOnly(libs.junit.platform.launcher)
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
 }

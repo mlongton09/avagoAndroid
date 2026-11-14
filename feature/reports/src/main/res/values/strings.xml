@@ -183,4 +183,8 @@
     <string name="cost_report_mode_by_asset">By Asset</string>
     <string name="cost_report_mode_by_type">By Type</string>
     <string name="cost_report_mode_tco">TCO</string>
+    <string name="cost_report_chart_a11y">Cost chart, %1$d bars. Total %2$s. Highest %3$s: %4$s.</string>
+    <string name="cost_report_chart_a11y_negative">Lowest %1$s: %2$s.</string>
+    <string name="chart_loading">Loading chart…</string>
+    <string name="chart_other">Other</string>
 </resources>

@@ -33,6 +33,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.platform.LocalConfiguration
@@ -43,12 +45,14 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.avago.core.design.chart.ChartFormat
+import com.avago.core.design.chart.ChartTheme
+import com.avago.core.design.chart.drawChartGridLine
 import com.avago.core.ui.categoryBadgeColor
 import com.avago.core.ui.categoryIconName
 import com.avago.feature.log.R
 import com.avago.feature.log.model.LogAnalytics
 import java.text.NumberFormat
-import java.util.Currency
 
 /**
  * Asset analytics bottom sheet — mobile adaptation of web `AssetAnalyticsPanel`:
@@ -67,12 +71,10 @@ fun LogAnalyticsSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val locale = LocalConfiguration.current.locales[0]
-    val money = remember(currencyCode) {
-        NumberFormat.getCurrencyInstance(locale).apply {
-            runCatching { currency = Currency.getInstance(currencyCode.uppercase()) }
-        }
-    }
-    fun fmtMoney(usd: Double) = money.format(usd * currencyRate)
+    // Shared chart formatter: currency minor units, whole units from 1,000 and
+    // accounting negatives (credits) — AvagoWeb docs/chart-style-guide.md § 5.
+    fun fmtMoney(usd: Double) = ChartFormat.money(usd * currencyRate, currencyCode, locale)
+    val chartColors = ChartTheme.colors()
     val num1 = remember { NumberFormat.getNumberInstance(locale).apply { maximumFractionDigits = 1 } }
     val num0 = remember { NumberFormat.getIntegerInstance(locale) }
     val unitLabel = distanceUnitLabel(summary.costPerMeter.unit)
@@ -143,7 +145,7 @@ fun LogAnalyticsSheet(
                             Modifier
                                 .size(10.dp)
                                 .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.error),
+                                .background(chartColors.negative),
                         )
                         Spacer(Modifier.width(6.dp))
                         Text(
@@ -171,13 +173,14 @@ fun LogAnalyticsSheet(
                 )
             } else {
                 val max = summary.spend.maxOf { it.total }.takeIf { it > 0 } ?: 1.0
+                // Bars start at zero; a net credit (negative total) draws no bar, its amount shows in parentheses.
                 val otherLabel = stringResource(R.string.log_analytics_category_other)
                 summary.spend.forEach { row ->
                     val label = if (row.category == "other") otherLabel else categoryDisplayLabel(row.category)
                     SpendRow(
                         label = label,
                         amount = fmtMoney(row.total),
-                        fraction = (row.total / max).toFloat(),
+                        fraction = (row.total.coerceAtLeast(0.0) / max).toFloat(),
                         color = categoryBadgeColor(categoryIconName(row.category)),
                         onClick = { onCategoryClick(row.category) },
                     )
@@ -216,7 +219,11 @@ private fun KpiCard(label: String, value: String, sub: String) {
                 .semantics(mergeDescendants = true) {},
         ) {
             Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+            Text(
+                value,
+                style = MaterialTheme.typography.headlineSmall.copy(fontFeatureSettings = "tnum"),
+                fontWeight = FontWeight.SemiBold,
+            )
             Text(sub, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
@@ -224,10 +231,12 @@ private fun KpiCard(label: String, value: String, sub: String) {
 
 @Composable
 private fun EconomySparkline(points: List<LogAnalytics.EconomyPoint>, modifier: Modifier = Modifier) {
-    val line = MaterialTheme.colorScheme.primary
-    val dot = MaterialTheme.colorScheme.primary
-    val anomaly = MaterialTheme.colorScheme.error
-    val grid = MaterialTheme.colorScheme.outlineVariant
+    // Sparkline per the chart style guide: light gridlines, 2dp line without
+    // fill, points hidden except anomalies (larger, `negative`) and the latest
+    // value. Fuel economy has no meaningful zero, so the axis is fitted to the data.
+    val colors = ChartTheme.colors()
+    val line = colors.categorical(0)
+    val anomaly = colors.negative
     Canvas(modifier = modifier) {
         val values = points.map { it.economy!! }
         val min = values.min()
@@ -238,14 +247,19 @@ private fun EconomySparkline(points: List<LogAnalytics.EconomyPoint>, modifier: 
         val h = size.height - pad * 2
         fun x(i: Int) = pad + if (points.size == 1) w / 2 else w * i / (points.size - 1)
         fun y(v: Double) = pad + h - (h * ((v - min) / span)).toFloat()
-        drawLine(grid, Offset(pad, size.height - pad), Offset(size.width - pad, size.height - pad), strokeWidth = 1.dp.toPx())
+        for (q in 0..2) drawChartGridLine(pad + h * q / 2f, pad, size.width - pad, colors)
         val path = Path()
         values.forEachIndexed { i, v -> if (i == 0) path.moveTo(x(i), y(v)) else path.lineTo(x(i), y(v)) }
-        drawPath(path, line, style = Stroke(width = 2.dp.toPx()))
+        drawPath(
+            path,
+            line,
+            style = Stroke(width = ChartTheme.LineWidth.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
+        )
         points.forEachIndexed { i, p ->
-            val c = Offset(x(i), y(p.economy!!))
-            if (p.anomaly) drawCircle(anomaly, radius = 5.dp.toPx(), center = c)
-            else drawCircle(dot, radius = 3.dp.toPx(), center = c)
+            if (p.anomaly) drawCircle(anomaly, radius = 5.dp.toPx(), center = Offset(x(i), y(p.economy!!)))
+        }
+        if (!points.last().anomaly) {
+            drawCircle(line, radius = ChartTheme.PointRadius.toPx(), center = Offset(x(points.lastIndex), y(values.last())))
         }
     }
 }
@@ -276,23 +290,27 @@ private fun SpendRow(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            Text(amount, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                amount,
+                style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
+                fontWeight = FontWeight.SemiBold,
+            )
         }
         Spacer(Modifier.height(4.dp))
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(8.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
+                .height(8.dp),
         ) {
-            Box(
-                Modifier
-                    .fillMaxWidth(fraction.coerceIn(0.02f, 1f))
-                    .fillMaxHeight()
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(color),
-            )
+            if (fraction > 0f) {
+                Box(
+                    Modifier
+                        .fillMaxWidth(fraction.coerceIn(0.01f, 1f))
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(color),
+                )
+            }
         }
     }
 }

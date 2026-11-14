@@ -170,4 +170,8 @@
     <string name="system_reports_title">Systemberichte</string>
     <string name="system_reports_coming_soon">Demnächst verfügbar</string>
     <string name="system_reports_coming_soon_detail">Systemberichte — Kontoübersicht, Lagerbestandszustand,\nDokumentenabdeckung, Mitgliederaktivität, Compliance-Snapshot\nwerden in einem zukünftigen Update verfügbar sein.</string>
+    <string name="cost_report_chart_a11y">Kostendiagramm, %1$d Balken. Gesamt %2$s. Höchster Wert %3$s: %4$s.</string>
+    <string name="cost_report_chart_a11y_negative">Niedrigster Wert %1$s: %2$s.</string>
+    <string name="chart_loading">Diagramm wird geladen…</string>
+    <string name="chart_other">Sonstige</string>
 </resources>

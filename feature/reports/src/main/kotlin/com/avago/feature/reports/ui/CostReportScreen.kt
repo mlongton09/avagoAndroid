@@ -41,13 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
-import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
@@ -58,24 +52,17 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.avago.core.design.chart.ChartFormat
+import com.avago.core.design.chart.ChartTheme
 import com.avago.core.reports.model.CostGroupMode
 import com.avago.core.reports.model.CostGroupRow
 import com.avago.core.reports.model.CostPeriodMode
 import com.avago.core.reports.model.CostReportData
 import com.avago.feature.reports.R
+import com.avago.feature.reports.ui.charts.BarChart
+import com.avago.feature.reports.ui.charts.ChartState
 import com.avago.feature.reports.ui.components.ExportButtons
 import com.avago.feature.reports.viewmodel.CostReportViewModel
-
-private val CATEGORY_COLORS = listOf(
-    Color(0xFF2196F3), // Blue
-    Color(0xFF4CAF50), // Green
-    Color(0xFFFF9800), // Orange
-    Color(0xFFF44336), // Red
-    Color(0xFF9C27B0), // Purple
-    Color(0xFF009688), // Teal
-    Color(0xFFE91E63), // Pink
-    Color(0xFF3F51B5), // Indigo
-)
 
 private val COL_WIDTH: Dp = 68.dp
 
@@ -359,110 +346,69 @@ private fun CostBarChart(
     currencyCode: String,
     modifier: Modifier = Modifier,
 ) {
-    val surfaceColor = MaterialTheme.colorScheme.onSurface
-    val dividerColor = MaterialTheme.colorScheme.outlineVariant
-    val emptyText = stringResource(R.string.reports_empty_state)
-
+    // null = the aggregation is still running (loading), never "no data".
+    val state = when {
+        data == null -> ChartState.LOADING
+        data.rows.isEmpty() -> ChartState.EMPTY
+        else -> ChartState.READY
+    }
     val bars: List<Pair<String, Double>> = when {
-        data == null -> emptyList()
-        groupMode == CostGroupMode.TCO ->
-            data.rows.take(8).map { it.label to it.lifetimeCost }
-        else ->
-            data.periods.mapIndexed { i, p ->
-                p.label to (data.rows.firstOrNull()?.periodCosts?.getOrElse(i) { 0.0 }
-                    ?.let { if (data.rows.size == 1) it else data.rows.sumOf { r -> r.periodCosts.getOrElse(i) { 0.0 } } }
-                    ?: 0.0)
-            }
+        data == null || data.rows.isEmpty() -> emptyList()
+        // TCO: top 8 groups (style guide: never more than 8 series).
+        groupMode == CostGroupMode.TCO -> data.rows.take(8).map { it.label to it.lifetimeCost }
+        else -> data.periods.mapIndexed { i, p ->
+            p.label to data.rows.sumOf { r -> r.periodCosts.getOrElse(i) { 0.0 } }
+        }
     }
+    // Period totals are one series (one colour); TCO bars are categories and
+    // use the same categorical index as the colour dots in the rows below.
+    val perCategoryColour = groupMode == CostGroupMode.TCO
 
-    androidx.compose.foundation.Canvas(modifier = modifier) {
-        val baselineY = size.height - 36f
-        val chartH = baselineY - 20f
-
-        // Baseline
-        drawLine(
-            color = dividerColor,
-            start = Offset(8f, baselineY),
-            end = Offset(size.width - 8f, baselineY),
-            strokeWidth = 1f,
+    val a11y = if (bars.isEmpty()) {
+        ""
+    } else {
+        val top = bars.maxBy { it.second }
+        val low = bars.minBy { it.second }
+        val summary = stringResource(
+            R.string.cost_report_chart_a11y,
+            bars.size,
+            ChartFormat.money(bars.sumOf { it.second }, currencyCode),
+            top.first,
+            ChartFormat.money(top.second, currencyCode),
         )
-
-        if (bars.isEmpty() || bars.all { it.second <= 0.0 }) {
-            drawIntoCanvas { canvas ->
-                canvas.nativeCanvas.drawText(
-                    emptyText,
-                    size.width / 2,
-                    size.height / 2,
-                    android.graphics.Paint().apply {
-                        color = surfaceColor.copy(alpha = 0.5f).toArgb()
-                        textSize = 36f
-                        textAlign = android.graphics.Paint.Align.CENTER
-                    },
-                )
-            }
-            return@Canvas
-        }
-
-        val maxVal = bars.maxOf { it.second }.coerceAtLeast(1.0)
-        val n = bars.size
-        val availW = size.width - 16f
-        val barW = (availW / n * 0.6f).coerceAtMost(52f)
-        val gap = (availW - barW * n) / (n + 1)
-
-        bars.forEachIndexed { i, (label, value) ->
-            val frac = (value / maxVal).toFloat()
-            val barH = (frac * chartH).coerceAtLeast(if (value > 0) 2f else 0f)
-            val x = 8f + gap + (barW + gap) * i
-            val barColor = CATEGORY_COLORS[i % CATEGORY_COLORS.size]
-
-            drawRoundRect(
-                color = barColor.copy(alpha = 0.85f),
-                topLeft = Offset(x, baselineY - barH),
-                size = Size(barW, barH),
-                cornerRadius = CornerRadius(4f),
+        if (low.second < 0.0) {
+            summary + " " + stringResource(
+                R.string.cost_report_chart_a11y_negative,
+                low.first,
+                ChartFormat.money(low.second, currencyCode),
             )
-
-            drawIntoCanvas { canvas ->
-                // Value label above bar
-                if (value > 0) {
-                    canvas.nativeCanvas.drawText(
-                        shortAmount(value, currencyCode),
-                        x + barW / 2,
-                        (baselineY - barH - 4f).coerceAtLeast(16f),
-                        android.graphics.Paint().apply {
-                            color = barColor.toArgb()
-                            textSize = 24f
-                            textAlign = android.graphics.Paint.Align.CENTER
-                            isFakeBoldText = true
-                        },
-                    )
-                }
-                // Bar label below baseline
-                canvas.nativeCanvas.drawText(
-                    label.take(8),
-                    x + barW / 2,
-                    size.height - 4f,
-                    android.graphics.Paint().apply {
-                        color = surfaceColor.copy(alpha = 0.7f).toArgb()
-                        textSize = 26f
-                        textAlign = android.graphics.Paint.Align.CENTER
-                    },
-                )
-            }
+        } else {
+            summary
         }
     }
+
+    BarChart(
+        data = bars,
+        contentDescription = a11y,
+        state = state,
+        modifier = modifier,
+        height = 180.dp,
+        formatCompact = { ChartFormat.moneyCompact(it, currencyCode) },
+        barColor = { i, c -> if (perCategoryColour) c.categorical(i) else c.categorical(0) },
+    )
 }
 
-private fun shortAmount(v: Double, currencyCode: String): String {
-    val symbol = runCatching {
-        java.util.Currency.getInstance(currencyCode.uppercase()).symbol
-    }.getOrDefault("$")
-    return when {
-        v >= 1_000_000 -> "$symbol%.1fM".format(v / 1_000_000)
-        v >= 1_000 -> "$symbol%.0fk".format(v / 1_000)
-        else -> "$symbol%.0f".format(v)
-    }
-}
+/** Compact locale-aware currency shared with the chart ("$1.2K", "1,2 Tsd. €"). */
+private fun shortAmount(v: Double, currencyCode: String): String =
+    ChartFormat.moneyCompact(v, currencyCode)
+
+/**
+ * Table cell amount: an accounting nil dash for exactly zero, otherwise the
+ * compact amount — negatives (credits) keep their accounting parentheses
+ * rather than being hidden behind the dash.
+ */
+private fun amountText(v: Double, currencyCode: String): String =
+    if (v == 0.0) "–" else shortAmount(v, currencyCode)
 
 // ─── Header row ──────────────────────────────────────────────────────────────
 
@@ -526,21 +472,21 @@ private fun CostGroupRowItem(
             Spacer(Modifier.width(COL_WIDTH))
             Spacer(Modifier.width(COL_WIDTH))
             Text(
-                text = if (row.lifetimeCost > 0) shortAmount(row.lifetimeCost, currencyCode) else "–",
+                text = amountText(row.lifetimeCost, currencyCode),
                 modifier = Modifier.width(COL_WIDTH),
                 textAlign = TextAlign.End,
-                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                color = if (row.lifetimeCost > 0) MaterialTheme.colorScheme.onSurface
+                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum"),
+                color = if (row.lifetimeCost != 0.0) MaterialTheme.colorScheme.onSurface
                 else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else {
             row.periodCosts.forEach { v ->
                 Text(
-                    text = if (v > 0) shortAmount(v, currencyCode) else "–",
+                    text = amountText(v, currencyCode),
                     modifier = Modifier.width(COL_WIDTH),
                     textAlign = TextAlign.End,
-                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                    color = if (v > 0) MaterialTheme.colorScheme.onSurface
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum"),
+                    color = if (v != 0.0) MaterialTheme.colorScheme.onSurface
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -559,7 +505,7 @@ private fun CostCategoryRowItem(
     indent: Boolean,
     currencyCode: String,
 ) {
-    val dotColor = CATEGORY_COLORS[colorIndex % CATEGORY_COLORS.size]
+    val dotColor = ChartTheme.colors().categorical(colorIndex)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -582,7 +528,7 @@ private fun CostCategoryRowItem(
         Text(
             text = label,
             modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -592,21 +538,21 @@ private fun CostCategoryRowItem(
             Spacer(Modifier.width(COL_WIDTH))
             val v = costs.getOrElse(2) { 0.0 }
             Text(
-                text = if (v > 0) shortAmount(v, currencyCode) else "–",
+                text = amountText(v, currencyCode),
                 modifier = Modifier.width(COL_WIDTH),
                 textAlign = TextAlign.End,
-                style = MaterialTheme.typography.bodySmall,
-                color = if (v > 0) MaterialTheme.colorScheme.onSurface
+                style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
+                color = if (v != 0.0) MaterialTheme.colorScheme.onSurface
                 else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else {
             costs.forEach { v ->
                 Text(
-                    text = if (v > 0) shortAmount(v, currencyCode) else "–",
+                    text = amountText(v, currencyCode),
                     modifier = Modifier.width(COL_WIDTH),
                     textAlign = TextAlign.End,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (v > 0) MaterialTheme.colorScheme.onSurface
+                    style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
+                    color = if (v != 0.0) MaterialTheme.colorScheme.onSurface
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -647,22 +593,22 @@ private fun CostInventoryGroupRow(
             text = "–",
             modifier = Modifier.width(COL_WIDTH),
             textAlign = TextAlign.End,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
             text = "–",
             modifier = Modifier.width(COL_WIDTH),
             textAlign = TextAlign.End,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
-            text = if (value > 0) shortAmount(value, currencyCode) else "–",
+            text = amountText(value, currencyCode),
             modifier = Modifier.width(COL_WIDTH),
             textAlign = TextAlign.End,
-            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-            color = if (value > 0) MaterialTheme.colorScheme.onSurface
+            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum"),
+            color = if (value != 0.0) MaterialTheme.colorScheme.onSurface
             else MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
@@ -678,7 +624,7 @@ private fun CostInventoryCategoryRow(
     indent: Boolean,
     currencyCode: String,
 ) {
-    val dotColor = CATEGORY_COLORS[colorIndex % CATEGORY_COLORS.size]
+    val dotColor = ChartTheme.colors().categorical(colorIndex)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -701,20 +647,20 @@ private fun CostInventoryCategoryRow(
         Text(
             text = label,
             modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
         Text(text = "–", modifier = Modifier.width(COL_WIDTH), textAlign = TextAlign.End,
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"), color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(text = "–", modifier = Modifier.width(COL_WIDTH), textAlign = TextAlign.End,
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"), color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(
-            text = if (value > 0) shortAmount(value, currencyCode) else "–",
+            text = amountText(value, currencyCode),
             modifier = Modifier.width(COL_WIDTH),
             textAlign = TextAlign.End,
-            style = MaterialTheme.typography.bodySmall,
-            color = if (value > 0) MaterialTheme.colorScheme.onSurface
+            style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
+            color = if (value != 0.0) MaterialTheme.colorScheme.onSurface
             else MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
