@@ -1,0 +1,225 @@
+{
+  "description": "Shared fixtures for the rental fleet status rule (spec §11.1). Server (Rust), web, iOS and Android must all produce `expected` for every `input`. Precedence: in_maintenance > overdue > on_rent (due_back_today flag) > reserved (hold/reserved allocation running now or starting within reserved_window_minutes) > not_ready > available. Allocations are the asset's ACTIVE rental_allocations rows (kind: quote|hold|reserved|on_rent|buffer|maintenance; end_at null = open-ended; blocking defaults to true). Quotes, buffers and non-blocking rows never change the status. next_change_at: maintenance -> end of the covering maintenance block (null when maintenance_open comes from a defect/work order/asset status); overdue -> null; on_rent -> end_at (due back); reserved -> start_at if in the future, else end_at; not_ready/available -> earliest future moment a blocking allocation would change the status (hold/reserved: start_at - reserved_window_minutes; maintenance/on_rent: start_at), or null. due_back_today compares the local calendar dates of now and end_at in time_zone (IANA, default UTC).",
+  "defaults": { "time_zone": "UTC", "reserved_window_minutes": 1440, "maintenance_open": false, "ready": true, "allocations": [] },
+  "cases": [
+    {
+      "name": "no allocations, ready -> available",
+      "input": { "now": "2026-05-01T10:00:00Z" },
+      "expected": { "status": "available", "due_back_today": false, "next_change_at": null }
+    },
+    {
+      "name": "no allocations, not ready -> not_ready",
+      "input": { "now": "2026-05-01T10:00:00Z", "ready": false },
+      "expected": { "status": "not_ready", "due_back_today": false, "next_change_at": null }
+    },
+    {
+      "name": "open out-of-service defect beats everything (even overdue rental)",
+      "input": {
+        "now": "2026-05-01T10:00:00Z", "maintenance_open": true, "ready": false,
+        "allocations": [ { "kind": "on_rent", "start_at": "2026-04-20T08:00:00Z", "end_at": "2026-04-30T17:00:00Z" } ]
+      },
+      "expected": { "status": "in_maintenance", "due_back_today": false, "next_change_at": null }
+    },
+    {
+      "name": "maintenance block covering now -> in_maintenance until block end",
+      "input": {
+        "now": "2026-05-01T10:00:00Z",
+        "allocations": [ { "kind": "maintenance", "start_at": "2026-05-01T08:00:00Z", "end_at": "2026-05-01T16:00:00Z" } ]
+      },
+      "expected": { "status": "in_maintenance", "due_back_today": false, "next_change_at": "2026-05-01T16:00:00Z" }
+    },
+    {
+      "name": "maintenance block ended -> available",
+      "input": {
+        "now": "2026-05-01T10:00:00Z",
+        "allocations": [ { "kind": "maintenance", "start_at": "2026-04-30T08:00:00Z", "end_at": "2026-05-01T10:00:00Z" } ]
+      },
+      "expected": { "status": "available", "due_back_today": false, "next_change_at": null }
+    },
+    {
+      "name": "future maintenance block -> available, changes at block start",
+      "input": {
+        "now": "2026-05-01T10:00:00Z",
+        "allocations": [ { "kind": "maintenance", "start_at": "2026-05-03T08:00:00Z", "end_at": "2026-05-03T16:00:00Z" } ]
+      },
+      "expected": { "status": "available", "due_back_today": false, "next_change_at": "2026-05-03T08:00:00Z" }
+    },
+    {
+      "name": "on rent past due -> overdue",
+      "input": {
+        "now": "2026-05-01T10:00:00Z",
+        "allocations": [ { "kind": "on_rent", "start_at": "2026-04-28T08:00:00Z", "end_at": "2026-05-01T09:00:00Z" } ]
+      },
+      "expected": { "status": "overdue", "due_back_today": false, "next_change_at": null }
+    },
+    {
+      "name": "on rent exactly at due time -> overdue (end is exclusive)",
+      "input": {
+        "now": "2026-05-01T10:00:00Z",
+        "allocations": [ { "kind": "on_rent", "start_at": "2026-04-28T08:00:00Z", "end_at": "2026-05-01T10:00:00Z" } ]
+      },
+      "expected": { "status": "overdue", "due_back_today": false, "next_change_at": null }
+    },
+    {
+      "name": "overdue beats a reservation starting soon",
+      "input": {
+        "now": "2026-05-01T10:00:00Z",
+        "allocations": [
+          { "kind": "on_rent", "start_at": "2026-04-28T08:00:00Z", "end_at": "2026-05-01T09:00:00Z" },
+          { "kind": "reserved", "start_at": "2026-05-01T12:00:00Z", "end_at": "2026-05-02T12:00:00Z" }
+        ]
+      },
+      "expected": { "status": "overdue", "due_back_today": false, "next_change_at": null }
+    },
+    {
+      "name": "on rent, due back later today -> on_rent + due_back_today",
+      "input": {
+        "now": "2026-05-01T10:00:00Z",
+        "allocations": [ { "kind": "on_rent", "start_at": "2026-04-28T08:00:00Z", "end_at": "2026-05-01T17:00:00Z" } ]
+      },
+      "expected": { "status": "on_rent", "due_back_today": true, "next_change_at": "2026-05-01T17:00:00Z" }
+    },
+    {
+      "name": "on rent, due back tomorrow -> on_rent",
+      "input": {
+        "now": "2026-05-01T10:00:00Z",
+        "allocations": [ { "kind": "on_rent", "start_at": "2026-04-28T08:00:00Z", "end_at": "2026-05-02T17:00:00Z" } ]
+      },
+      "expected": { "status": "on_rent", "due_back_today": false, "next_change_at": "2026-05-02T17:00:00Z" }
+    },
+    {
+      "name": "due back today uses the location time zone (Sydney: 01:00Z on 2 May is 11:00 local 2 May, now is 20:00 local 1 May)",
+      "input": {
+        "now": "2026-05-01T10:00:00Z", "time_zone": "Australia/Sydney",
+        "allocations": [ { "kind": "on_rent", "start_at": "2026-04-28T08:00:00Z", "end_at": "2026-05-02T01:00:00Z" } ]
+      },
+      "expected": { "status": "on_rent", "due_back_today": false, "next_change_at": "2026-05-02T01:00:00Z" }
+    },
+    {
+      "name": "due back today in Los Angeles (23:00Z on 1 May is 16:00 local, now is 03:00 local)",
+      "input": {
+        "now": "2026-05-01T10:00:00Z", "time_zone": "America/Los_Angeles",
+        "allocations": [ { "kind": "on_rent", "start_at": "2026-04-28T08:00:00Z", "end_at": "2026-05-01T23:00:00Z" } ]
+      },
+      "expected": { "status": "on_rent", "due_back_today": true, "next_change_at": "2026-05-01T23:00:00Z" }
+    },
+    {
+      "name": "open-ended on rent (legacy) -> on_rent with no change time",
+      "input": {
+        "now": "2026-05-01T10:00:00Z",
+        "allocations": [ { "kind": "on_rent", "start_at": "2026-04-28T08:00:00Z", "end_at": null } ]
+      },
+      "expected": { "status": "on_rent", "due_back_today": false, "next_change_at": null }
+    },
+    {
+      "name": "on rent beats not ready",
+      "input": {
+        "now": "2026-05-01T10:00:00Z", "ready": false,
+        "allocations": [ { "kind": "on_rent", "start_at": "2026-04-28T08:00:00Z", "end_at": "2026-05-04T08:00:00Z" } ]
+      },
+      "expected": { "status": "on_rent", "due_back_today": false, "next_change_at": "2026-05-04T08:00:00Z" }
+    },
+    {
+      "name": "reservation starting within 24h -> reserved until pickup",
+      "input": {
+        "now": "2026-05-01T10:00:00Z",
+        "allocations": [ { "kind": "reserved", "start_at": "2026-05-02T08:00:00Z", "end_at": "2026-05-05T08:00:00Z" } ]
+      },
+      "expected": { "status": "reserved", "due_back_today": false, "next_change_at": "2026-05-02T08:00:00Z" }
+    },
+    {
+      "name": "reservation starting in 3 days -> available, changes when the window opens",
+      "input": {
+        "now": "2026-05-01T10:00:00Z",
+        "allocations": [ { "kind": "reserved", "start_at": "2026-05-04T08:00:00Z", "end_at": "2026-05-06T08:00:00Z" } ]
+      },
+      "expected": { "status": "available", "due_back_today": false, "next_change_at": "2026-05-03T08:00:00Z" }
+    },
+    {
+      "name": "custom reserved window of 4 days",
+      "input": {
+        "now": "2026-05-01T10:00:00Z", "reserved_window_minutes": 5760,
+        "allocations": [ { "kind": "reserved", "start_at": "2026-05-04T08:00:00Z", "end_at": "2026-05-06T08:00:00Z" } ]
+      },
+      "expected": { "status": "reserved", "due_back_today": false, "next_change_at": "2026-05-04T08:00:00Z" }
+    },
+    {
+      "name": "reservation already started but not checked out -> reserved until its end",
+      "input": {
+        "now": "2026-05-01T10:00:00Z",
+        "allocations": [ { "kind": "reserved", "start_at": "2026-05-01T08:00:00Z", "end_at": "2026-05-03T08:00:00Z" } ]
+      },
+      "expected": { "status": "reserved", "due_back_today": false, "next_change_at": "2026-05-03T08:00:00Z" }
+    },
+    {
+      "name": "hold counts as reserved",
+      "input": {
+        "now": "2026-05-01T10:00:00Z",
+        "allocations": [ { "kind": "hold", "start_at": "2026-05-01T14:00:00Z", "end_at": "2026-05-01T18:00:00Z" } ]
+      },
+      "expected": { "status": "reserved", "due_back_today": false, "next_change_at": "2026-05-01T14:00:00Z" }
+    },
+    {
+      "name": "quote pencil never changes status",
+      "input": {
+        "now": "2026-05-01T10:00:00Z",
+        "allocations": [ { "kind": "quote", "start_at": "2026-05-01T08:00:00Z", "end_at": "2026-05-03T08:00:00Z", "blocking": false } ]
+      },
+      "expected": { "status": "available", "due_back_today": false, "next_change_at": null }
+    },
+    {
+      "name": "non-blocking (needs_review/tentative) reservation is ignored",
+      "input": {
+        "now": "2026-05-01T10:00:00Z",
+        "allocations": [ { "kind": "reserved", "start_at": "2026-05-01T12:00:00Z", "end_at": "2026-05-03T08:00:00Z", "blocking": false } ]
+      },
+      "expected": { "status": "available", "due_back_today": false, "next_change_at": null }
+    },
+    {
+      "name": "turnaround buffer covering now is ignored",
+      "input": {
+        "now": "2026-05-01T10:00:00Z",
+        "allocations": [ { "kind": "buffer", "start_at": "2026-05-01T09:00:00Z", "end_at": "2026-05-01T11:00:00Z" } ]
+      },
+      "expected": { "status": "available", "due_back_today": false, "next_change_at": null }
+    },
+    {
+      "name": "reserved beats not ready",
+      "input": {
+        "now": "2026-05-01T10:00:00Z", "ready": false,
+        "allocations": [ { "kind": "reserved", "start_at": "2026-05-01T20:00:00Z", "end_at": "2026-05-02T20:00:00Z" } ]
+      },
+      "expected": { "status": "reserved", "due_back_today": false, "next_change_at": "2026-05-01T20:00:00Z" }
+    },
+    {
+      "name": "not ready with a later reservation -> not_ready, changes when its window opens",
+      "input": {
+        "now": "2026-05-01T10:00:00Z", "ready": false,
+        "allocations": [ { "kind": "reserved", "start_at": "2026-05-05T10:00:00Z", "end_at": "2026-05-06T10:00:00Z" } ]
+      },
+      "expected": { "status": "not_ready", "due_back_today": false, "next_change_at": "2026-05-04T10:00:00Z" }
+    },
+    {
+      "name": "maintenance block beats reservation starting soon",
+      "input": {
+        "now": "2026-05-01T10:00:00Z",
+        "allocations": [
+          { "kind": "maintenance", "start_at": "2026-05-01T09:00:00Z", "end_at": "2026-05-01T12:00:00Z" },
+          { "kind": "reserved", "start_at": "2026-05-01T13:00:00Z", "end_at": "2026-05-02T13:00:00Z" }
+        ]
+      },
+      "expected": { "status": "in_maintenance", "due_back_today": false, "next_change_at": "2026-05-01T12:00:00Z" }
+    },
+    {
+      "name": "two reservations: the earliest within the window drives the status",
+      "input": {
+        "now": "2026-05-01T10:00:00Z",
+        "allocations": [
+          { "kind": "reserved", "start_at": "2026-05-06T12:00:00Z", "end_at": "2026-05-08T12:00:00Z" },
+          { "kind": "reserved", "start_at": "2026-05-01T12:00:00Z", "end_at": "2026-05-04T12:00:00Z" }
+        ]
+      },
+      "expected": { "status": "reserved", "due_back_today": false, "next_change_at": "2026-05-01T12:00:00Z" }
+    }
+  ]
+}

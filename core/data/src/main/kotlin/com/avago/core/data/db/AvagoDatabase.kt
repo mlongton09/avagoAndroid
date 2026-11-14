@@ -140,6 +140,9 @@ import com.avago.core.data.db.entity.WorkOrderAssetEntity
 import com.avago.core.data.db.entity.WorkOrderEntity
 import com.avago.core.data.db.entity.WorkPermitEntity
 import com.avago.core.data.db.entity.WorkPermitSignatureEntity
+import com.avago.core.data.db.rental.RentalDao
+import com.avago.core.data.db.rental.RentalRecordEntity
+import com.avago.core.data.db.rental.RentalSyncStateEntity
 
 @Database(
     entities = [
@@ -212,8 +215,11 @@ import com.avago.core.data.db.entity.WorkPermitSignatureEntity
         PartTransferRequestEntity::class,
         RequestPortalEntity::class,
         InspectionDefectEntity::class,
+        // Rentals offline store (MIGRATION_19_20)
+        RentalRecordEntity::class,
+        RentalSyncStateEntity::class,
     ],
-    version = 19,
+    version = 20,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -288,4 +294,5 @@ abstract class AvagoDatabase : RoomDatabase() {
     abstract fun partTransferRequestDao(): PartTransferRequestDao
     abstract fun requestPortalDao(): RequestPortalDao
     abstract fun inspectionDefectDao(): InspectionDefectDao
+    abstract fun rentalDao(): RentalDao
 }

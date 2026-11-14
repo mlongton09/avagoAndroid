@@ -26,4 +26,17 @@ dependencies {
     implementation(libs.datastore.preferences)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.crashlytics)
+    // Rentals: JSON-record store helpers (LocalFleet parses synced rows).
+    implementation(libs.serialization.json)
+
+    // Rentals domain unit tests (Money, fleet status rule fixtures).
+    testImplementation(libs.junit5)
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.serialization.json)
+    testRuntimeOnly(libs.junit5.engine)
+    testRuntimeOnly(libs.junit.platform.launcher)
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
 }
