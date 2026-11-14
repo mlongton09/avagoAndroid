@@ -1,0 +1,21 @@
+{
+  "from": "2026-05-01T00:00:00Z", "to": "2026-05-02T00:00:00Z", "server_time": "2026-05-01T09:00:00Z",
+  "events": [
+    { "type": "return", "at": "2026-04-30T17:00:00Z", "overdue": true,
+      "allocation_id": "a1100000-0000-4000-8000-000000000009", "kind": "on_rent",
+      "asset_id": "5b0f6c2e-1d3a-4c7e-9f00-000000000015", "asset_name": "EX-15",
+      "location_id": "10c00000-0000-4000-8000-000000000001", "class_id": "c1a55000-0000-4000-8000-000000000001",
+      "start_at": "2026-04-27T08:00:00Z", "end_at": "2026-05-01T10:00:00Z", "due_at": "2026-04-30T17:00:00Z",
+      "expires_at": null, "order_id": "0d000000-0000-4000-8000-000000000041", "order_line_id": "11000000-0000-4000-8000-000000000041",
+      "order_number": "R-0041", "order_status": "on_rent", "customer_id": "c0000000-0000-4000-8000-000000000001",
+      "customer_name": "ACME", "work_order_id": null, "note": null },
+    { "type": "pickup", "at": "2026-05-01T10:00:00Z", "overdue": false,
+      "allocation_id": "a1100000-0000-4000-8000-000000000010", "kind": "reserved",
+      "asset_id": "5b0f6c2e-1d3a-4c7e-9f00-000000000016", "asset_name": "EX-16",
+      "location_id": "10c00000-0000-4000-8000-000000000001", "class_id": "c1a55000-0000-4000-8000-000000000001",
+      "start_at": "2026-05-01T10:00:00Z", "end_at": "2026-05-03T10:00:00Z", "due_at": "2026-05-03T10:00:00Z",
+      "expires_at": null, "order_id": "0d000000-0000-4000-8000-000000000043", "order_line_id": null,
+      "order_number": "R-0043", "order_status": "reserved", "customer_id": null,
+      "customer_name": "Walk-in", "work_order_id": null, "note": null }
+  ]
+}

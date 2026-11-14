@@ -29,11 +29,6 @@ import com.avago.feature.assets.ui.CategoryPickerScreen
 import com.avago.feature.assets.ui.ColorPickerScreen
 import com.avago.feature.assets.ui.DocScanPipelineScreen
 import com.avago.feature.assets.ui.DocTypePickerScreen
-import com.avago.feature.assets.ui.AssetRentalsScreen
-import com.avago.feature.assets.ui.RentalCustomersScreen
-import com.avago.feature.assets.ui.RentalCustomerFormScreen
-import com.avago.feature.assets.ui.RentalBookingScreen
-import com.avago.feature.assets.ui.RentalInvoiceScreen
 import com.avago.feature.assets.ui.CategoryReportScreen
 import com.avago.feature.assets.ui.CostReportScreen
 import com.avago.feature.assets.ui.WheelConfigBuilderScreen
@@ -63,22 +58,12 @@ object AssetsRoute {
     const val WHEEL_CONFIG = "assets/wheel_config/{assetId}"
     const val WHEEL_CONFIG_BUILDER = "assets/wheel_config_builder/{assetId}"
     const val WHEEL_DATA_INPUT = "assets/wheel_data_input/{assetId}"
-    const val RENTALS = "assets/rentals/{assetId}"
-    const val RENTAL_CUSTOMERS = "assets/rental-customers"
-    const val RENTAL_CUSTOMER_NEW = "assets/rental-customers/new"
-    const val RENTAL_CUSTOMER_EDIT = "assets/rental-customers/{customerId}/edit"
-    const val RENTAL_BOOKING = "assets/rental-booking/{assetId}"
-    const val RENTAL_INVOICE = "assets/rental-invoices/{invoiceId}"
     const val ONBOARDING = "assets/onboarding"
     const val COST_REPORT = "assets/cost_report"
     const val CATEGORY_REPORT = "assets/category_report/{assetId}"
 
     fun detail(assetId: String) = "assets/detail/$assetId"
     fun workOrders(assetId: String) = "assets/work_orders/$assetId"
-    fun rentals(assetId: String) = "assets/rentals/$assetId"
-    fun rentalCustomerEdit(customerId: String) = "assets/rental-customers/$customerId/edit"
-    fun rentalBooking(assetId: String) = "assets/rental-booking/$assetId"
-    fun rentalInvoice(invoiceId: String) = "assets/rental-invoices/$invoiceId"
     fun addEdit(assetId: String? = null, initialAssetType: String? = null) =
         "assets/add_edit?assetId=${Uri.encode(assetId ?: "")}&initialAssetType=${Uri.encode(initialAssetType ?: "")}"
     fun photoGallery(assetId: String, initialIndex: Int = 0) =
@@ -117,6 +102,10 @@ fun NavGraphBuilder.assetsNavGraph(
     rentalsEnabled: Boolean = true,
     /** Rendered at the top of the asset Log tab; supplied by the app (e.g. open-defects panel). */
     assetLogHeader: (@Composable (assetId: String) -> Unit)? = null,
+    /** Rental tab of an asset — owned by feature/rentals (`rentals/asset/{assetId}`). */
+    onOpenAssetRentals: (assetId: String) -> Unit = {},
+    /** Optional header above the asset list (e.g. the rentals fleet summary card). */
+    listHeader: (@Composable () -> Unit)? = null,
 ) {
     navigation(
         startDestination = AssetsRoute.LIST,
@@ -158,6 +147,7 @@ fun NavGraphBuilder.assetsNavGraph(
                 onScanBarcode = {
                     navController.navigate(AssetsRoute.BARCODE_SCANNER)
                 },
+                header = listHeader,
             )
         }
 
@@ -188,7 +178,7 @@ fun NavGraphBuilder.assetsNavGraph(
                     navController.navigate(AssetsRoute.wheelDataInput(assetId))
                 },
                 onOpenRentals = {
-                    navController.navigate(AssetsRoute.rentals(assetId))
+                    onOpenAssetRentals(assetId)
                 },
                 rentalsEnabled = rentalsEnabled,
                 onOpenAssetChat = {
@@ -468,78 +458,6 @@ fun NavGraphBuilder.assetsNavGraph(
                         navController.popBackStack()
                     }
                 },
-                onBack = { navController.popBackStack() },
-            )
-        }
-
-        composable(
-            route = AssetsRoute.RENTALS,
-            arguments = listOf(navArgument("assetId") { type = NavType.StringType }),
-        ) { backStackEntry ->
-            val assetId = requireNotNull(backStackEntry.arguments?.getString("assetId"))
-            AssetRentalsScreen(
-                assetId = assetId,
-                onBack = { navController.popBackStack() },
-                onOpenBooking = { navController.navigate(AssetsRoute.rentalBooking(assetId)) },
-                onOpenCustomers = { navController.navigate(AssetsRoute.RENTAL_CUSTOMERS) },
-                onOpenInvoice = { invoiceId -> navController.navigate(AssetsRoute.rentalInvoice(invoiceId)) },
-            )
-        }
-
-        composable(route = AssetsRoute.RENTAL_CUSTOMERS) {
-            RentalCustomersScreen(
-                onBack = { navController.popBackStack() },
-                onAddCustomer = { navController.navigate(AssetsRoute.RENTAL_CUSTOMER_NEW) },
-                onEditCustomer = { customerId ->
-                    navController.navigate(AssetsRoute.rentalCustomerEdit(customerId))
-                },
-            )
-        }
-
-        composable(route = AssetsRoute.RENTAL_CUSTOMER_NEW) {
-            RentalCustomerFormScreen(
-                customerId = null,
-                onBack = { navController.popBackStack() },
-                onSaved = { navController.popBackStack() },
-            )
-        }
-
-        composable(
-            route = AssetsRoute.RENTAL_CUSTOMER_EDIT,
-            arguments = listOf(navArgument("customerId") { type = NavType.StringType }),
-        ) { backStackEntry ->
-            val customerId = requireNotNull(backStackEntry.arguments?.getString("customerId"))
-            RentalCustomerFormScreen(
-                customerId = customerId,
-                onBack = { navController.popBackStack() },
-                onSaved = { navController.popBackStack() },
-            )
-        }
-
-        composable(
-            route = AssetsRoute.RENTAL_BOOKING,
-            arguments = listOf(navArgument("assetId") { type = NavType.StringType }),
-        ) { backStackEntry ->
-            val assetId = requireNotNull(backStackEntry.arguments?.getString("assetId"))
-            RentalBookingScreen(
-                assetId = assetId,
-                onBack = { navController.popBackStack() },
-                onNavigateToNewCustomer = {
-                    navController.navigate(AssetsRoute.RENTAL_CUSTOMER_NEW)
-                },
-                onBooked = {
-                    navController.popBackStack()
-                },
-            )
-        }
-
-        composable(
-            route = AssetsRoute.RENTAL_INVOICE,
-            arguments = listOf(navArgument("invoiceId") { type = NavType.StringType }),
-        ) { backStackEntry ->
-            val invoiceId = requireNotNull(backStackEntry.arguments?.getString("invoiceId"))
-            RentalInvoiceScreen(
-                invoiceId = invoiceId,
                 onBack = { navController.popBackStack() },
             )
         }

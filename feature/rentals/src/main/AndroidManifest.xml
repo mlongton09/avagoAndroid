@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!-- Home-screen fleet counts (spec §11.1). -->
+        <receiver
+            android:name="com.avago.feature.rentals.widget.RentalFleetWidgetReceiver"
+            android:exported="true"
+            android:label="@string/rentals_widget_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/rental_fleet_widget_info" />
+        </receiver>
+    </application>
+</manifest>

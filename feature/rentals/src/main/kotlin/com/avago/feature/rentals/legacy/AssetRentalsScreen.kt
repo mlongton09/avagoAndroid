@@ -1,4 +1,4 @@
-﻿package com.avago.feature.assets.ui
+package com.avago.feature.rentals.legacy
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -411,7 +411,7 @@ fun AssetRentalsScreen(
         }
     }
 
-    // "Start Rental" bottom sheet — collect rate before converting reservation
+    // "Start Rental" bottom sheet � collect rate before converting reservation
     startingReservation?.let { reservation ->
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
@@ -634,7 +634,7 @@ private fun RentalCard(
             val endLabel = rental.end_at?.let { formatRentalDate(it) }
             if (endLabel != null) {
                 Text(
-                    text = "$startLabel → $endLabel",
+                    text = "$startLabel ? $endLabel",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -684,7 +684,7 @@ private fun RentalCard(
             val meterDisplay = when {
                 meterStart != null && meterEnd != null -> {
                     val usage = meterEnd - meterStart
-                    "Meter: $meterStart → $meterEnd = ${"%.1f".format(usage)} ${rental.meter_unit ?: ""}"
+                    "Meter: $meterStart ? $meterEnd = ${"%.1f".format(usage)} ${rental.meter_unit ?: ""}"
                 }
                 meterStart != null -> "Start meter: $meterStart ${rental.meter_unit ?: ""}"
                 else -> null
@@ -765,7 +765,7 @@ private fun ReservationCard(
             }
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "${formatRentalDate(reservation.reserved_from)} → ${formatRentalDate(reservation.reserved_until)}",
+                text = "${formatRentalDate(reservation.reserved_from)} ? ${formatRentalDate(reservation.reserved_until)}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.data.db.entity.AssetEntity
+import com.avago.core.data.rental.FleetStatus
 import com.avago.core.ui.AvagoSearchBar
 import com.avago.core.ui.EmptyState
 import com.avago.core.ui.rememberScrollAwareHeaderState
@@ -81,6 +82,8 @@ fun AssetListScreen(
     onAssetLongPress: (assetId: String) -> Unit = {},
     onAddAsset: () -> Unit,
     onScanBarcode: () -> Unit = {},
+    /** Optional content above the list (e.g. the rentals fleet summary card). */
+    header: (@Composable () -> Unit)? = null,
     viewModel: AssetListViewModel = hiltViewModel(),
     onboardingViewModel: OnboardingViewModel = hiltViewModel(),
 ) {
@@ -93,6 +96,8 @@ fun AssetListScreen(
     val showOnboarding by onboardingViewModel.showBanner.collectAsStateWithLifecycle()
     val canCreateAsset by viewModel.canCreateAsset.collectAsStateWithLifecycle()
     val openWoCounts by viewModel.openWoCounts.collectAsStateWithLifecycle()
+    val rentalStatuses by viewModel.rentalStatuses.collectAsStateWithLifecycle()
+    val rentalFilter by viewModel.rentalFilter.collectAsStateWithLifecycle()
 
     var showFilterMenu by remember { mutableStateOf(false) }
 
@@ -166,6 +171,9 @@ fun AssetListScreen(
                         ),
                         modifier = Modifier.fillMaxSize(),
                     ) {
+                        header?.let { content ->
+                            item(key = "list_header") { content() }
+                        }
                         // Sync error banner
                         syncError?.let { msg ->
                             item(key = "sync_error") {
@@ -250,6 +258,7 @@ fun AssetListScreen(
                                         AssetRow(
                                             asset = item,
                                             openWoCount = openWoCounts[item.assetId] ?: 0,
+                                            rentalStatus = rentalStatuses[item.assetId],
                                             onClick = { onAssetClick(item.assetId) },
                                             onLongClick = { onAssetLongPress(item.assetId) },
                                         )
@@ -299,13 +308,19 @@ fun AssetListScreen(
 
                     // Filter button — icon when inactive, pill with × when active
                     Box {
-                        if (filterType != null) {
-                            val labelResId = AssetTypes.labelResIdFor(filterType)
-                            val label = if (labelResId != null) stringResource(labelResId)
-                            else filterType!!.replace("_", " ")
-                                .replaceFirstChar { it.uppercase() }
+                        if (filterType != null || rentalFilter != null) {
+                            val typeLabel = filterType?.let { ft ->
+                                val labelResId = AssetTypes.labelResIdFor(ft)
+                                if (labelResId != null) stringResource(labelResId)
+                                else ft.replace("_", " ").replaceFirstChar { it.uppercase() }
+                            }
+                            val rentalLabel = rentalFilter?.let { stringResource(rentalStatusLabel(it)) }
+                            val label = listOfNotNull(typeLabel, rentalLabel).joinToString(" · ")
                             Surface(
-                                onClick = { viewModel.onFilterTypeChanged(null) },
+                                onClick = {
+                                    viewModel.onFilterTypeChanged(null)
+                                    viewModel.onRentalFilterChanged(null)
+                                },
                                 shape = RoundedCornerShape(50),
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.padding(start = 8.dp),
@@ -360,6 +375,30 @@ fun AssetListScreen(
                                         showFilterMenu = false
                                     },
                                 )
+                            }
+                            // Rental status filter (spec §11.1) — only when the account
+                            // has rentable units in the offline rentals store.
+                            if (rentalStatuses.isNotEmpty()) {
+                                HorizontalDivider()
+                                Text(
+                                    text = stringResource(R.string.assets_rental_status_filter),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                )
+                                val present = rentalStatuses.values.toSet()
+                                FleetStatus.entries.filter { it in present }.forEach { status ->
+                                    val label = stringResource(rentalStatusLabel(status))
+                                    DropdownMenuItem(
+                                        text = { Text(if (rentalFilter == status) "✓ $label" else label) },
+                                        onClick = {
+                                            viewModel.onRentalFilterChanged(
+                                                if (rentalFilter == status) null else status,
+                                            )
+                                            showFilterMenu = false
+                                        },
+                                    )
+                                }
                             }
                         }
                     }
@@ -449,6 +488,7 @@ private fun AssetSectionHeader(typeKey: String) {
 private fun AssetRow(
     asset: AssetEntity,
     openWoCount: Int = 0,
+    rentalStatus: FleetStatus? = null,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -507,6 +547,10 @@ private fun AssetRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+        }
+
+        if (rentalStatus != null) {
+            RentalStatusPill(rentalStatus, modifier = Modifier.padding(end = 8.dp))
         }
 
         Text(

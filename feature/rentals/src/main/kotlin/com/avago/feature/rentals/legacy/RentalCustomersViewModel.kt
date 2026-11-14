@@ -1,4 +1,6 @@
-package com.avago.feature.assets.ui
+package com.avago.feature.rentals.legacy
+
+import com.avago.feature.assets.R
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

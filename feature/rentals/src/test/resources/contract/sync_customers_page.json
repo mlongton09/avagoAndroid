@@ -1,0 +1,17 @@
+{
+  "entity": "rental_customer",
+  "items": [
+    { "rental_customer_id": "c0000000-0000-4000-8000-000000000001", "account_id": "ac000000-0000-4000-8000-000000000001",
+      "name": "ACME", "email": "ops@acme.test", "phone": null, "company": "ACME Ltd", "kind": "business",
+      "preferred_currency": "EUR", "credit_limit_minor": "900719925474099300", "do_not_rent": false,
+      "server_version": 3, "seq": 101, "created_at": "2026-04-01T08:00:00Z", "updated_at": "2026-04-30T08:00:00Z",
+      "deleted_at": null },
+    { "rental_customer_id": "c0000000-0000-4000-8000-000000000002", "name": "Old customer",
+      "seq": 102, "updated_at": "2026-04-30T09:00:00Z", "deleted_at": "2026-04-30T09:00:00Z", "_deleted": true },
+    { "id": "c0000000-0000-4000-8000-000000000003", "rental_customer_id": "c0000000-0000-4000-8000-000000000003",
+      "asset_id": null, "_deleted": true, "deleted_at": "2026-04-30T10:00:00Z", "seq": 103 }
+  ],
+  "next_cursor": "103",
+  "has_more": true,
+  "server_time": "2026-05-01T09:00:00Z"
+}

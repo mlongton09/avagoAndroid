@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Rental status pill/filter (fleet visibility 11.1) -->
+    <string name="assets_rental_status_available">Disponibile</string>
+    <string name="assets_rental_status_reserved">Prenotato</string>
+    <string name="assets_rental_status_on_rent">A noleggio</string>
+    <string name="assets_rental_status_overdue">In ritardo</string>
+    <string name="assets_rental_status_in_maintenance">In manutenzione</string>
+    <string name="assets_rental_status_not_ready">Non pronto</string>
+    <string name="assets_rental_status_filter">Stato noleggio</string>
+</resources>

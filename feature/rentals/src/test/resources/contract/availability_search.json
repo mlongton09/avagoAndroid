@@ -1,0 +1,24 @@
+{
+  "from": "2026-05-04T08:00:00Z", "to": "2026-05-07T08:00:00Z", "qty": 2, "currency": "EUR",
+  "confirmed": true,
+  "classes": [
+    { "class_id": "c1a55000-0000-4000-8000-000000000001", "class_name": "Mini excavator", "total_units": 5, "free_units": 3,
+      "enough": true,
+      "price": { "currency": "EUR", "lines": [], "subtotal_minor": 54000, "discount_minor": 0, "tax_minor": 11340,
+                 "total_minor": 65340, "tax_summary": [], "tax_exemption": null, "deposit_required_minor": 50000 },
+      "price_error": null },
+    { "class_id": "c1a55000-0000-4000-8000-000000000002", "class_name": "Dumper", "total_units": 2, "free_units": 0,
+      "enough": false, "price": null, "price_error": "no rate card applies" },
+    { "class_id": "c1a55000-0000-4000-8000-000000000003", "class_name": "Doc-shaped price", "total_units": 1, "free_units": 1,
+      "enough": false, "price": { "lines": [], "totals": { "total_minor": "12500" } }, "price_error": null }
+  ],
+  "units": [
+    { "asset_id": "5b0f6c2e-1d3a-4c7e-9f00-000000000012", "name": "EX-12", "rental_class_id": "c1a55000-0000-4000-8000-000000000001",
+      "available": false, "ready": true, "readiness": [], "maintenance_open": false,
+      "conflicts": [ { "allocation_id": "a1100000-0000-4000-8000-000000000001", "kind": "reserved",
+                       "start_at": "2026-05-03T08:00:00Z", "end_at": "2026-05-09T09:00:00Z" } ],
+      "next_free_at": "2026-05-09T09:00:00Z" },
+    { "asset_id": "5b0f6c2e-1d3a-4c7e-9f00-000000000014", "name": "EX-14", "rental_class_id": "c1a55000-0000-4000-8000-000000000001",
+      "available": true, "ready": true, "readiness": [], "maintenance_open": false, "conflicts": [], "next_free_at": null }
+  ]
+}

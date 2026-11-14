@@ -1,0 +1,141 @@
+{
+  "_source": "C:/wt/AvagoSvc-stageb rentals-stage-b c562904: handovers.rs line_handover/order_json, ledger.rs entry_response, invoices.rs create_draft, errors.rs AppError::Coded, docs/rentals-api-stage-b.md",
+  "handover_created": {
+    "handovers": [
+      {
+        "id": "4a000000-0000-4000-8000-000000000001",
+        "account_id": "ac000000-0000-4000-8000-000000000001",
+        "order_id": "0d000000-0000-4000-8000-000000000001",
+        "order_line_id": "1e000000-0000-4000-8000-000000000001",
+        "asset_id": "5b0f6c2e-1d3a-4c7e-9f00-000000000012",
+        "kind": "checkin",
+        "at": "2026-11-20T16:45:00Z",
+        "received_at": "2026-11-20T16:47:03.120Z",
+        "inspection_log_id": "10600000-0000-4000-8000-000000000001",
+        "meter_value": 1234.5,
+        "meter_kind": "hours",
+        "fuel_level_pct": 60,
+        "charge_level_pct": null,
+        "accessories": [],
+        "photos": [{"file_id": "f1", "storage_key": "acc/f1.jpg"}],
+        "damage_summary": [
+          {"defect_id": "de000000-0000-4000-8000-000000000001", "label": "Cracked mirror", "severity": "minor",
+           "decision": "charge", "charge_minor": 4500, "reason": null, "note": null, "location": "cab"},
+          {"defect_id": null, "label": "Scratch", "severity": "minor", "decision": "pre_existing",
+           "charge_minor": null, "reason": null, "note": null, "location": "front"}
+        ],
+        "charges": [{"kind": "late", "late_minutes": 45, "billed_to": "2026-11-20T16:45:00Z"}],
+        "late_minutes": 45,
+        "customer_signature_id": "51000000-0000-4000-8000-000000000001",
+        "staff_signature_id": null,
+        "notes": "Returned dirty",
+        "client_uuid": "c0ffee00-0000-4000-8000-000000000001",
+        "server_version": 1,
+        "created_at": "2026-11-20T16:47:03.120Z",
+        "updated_at": "2026-11-20T16:47:03.120Z"
+      }
+    ],
+    "order": {
+      "id": "0d000000-0000-4000-8000-000000000001",
+      "number": "R-0042",
+      "status": "returned",
+      "currency": "EUR",
+      "version": 7,
+      "server_version": 9,
+      "start_at": "2026-11-17T08:00:00Z",
+      "end_at": "2026-11-20T16:00:00Z",
+      "lines": []
+    },
+    "warnings": [
+      {"code": "fuel_not_priced", "line_id": "1e000000-0000-4000-8000-000000000001",
+       "reason": "set a fuel_capacity class spec and a per-unit fuel fee to charge refuelling"},
+      {"code": "work_order_created", "work_order_id": "w1", "defect_ids": ["de000000-0000-4000-8000-000000000001"]}
+    ],
+    "replayed": false
+  },
+  "ledger_created": {
+    "entry": {
+      "id": "1ed00000-0000-4000-8000-000000000001",
+      "order_id": "0d000000-0000-4000-8000-000000000001",
+      "kind": "payment",
+      "method": "card_external",
+      "amount_minor": 12500,
+      "currency": "EUR",
+      "reference": "Terminal 2 #4471",
+      "receipt_number": "R-00001",
+      "received_at": "2026-11-13T09:12:00Z",
+      "card_brand": "visa",
+      "card_last4": "4242",
+      "client_uuid": "c0ffee00-0000-4000-8000-000000000002",
+      "server_version": 1,
+      "updated_at": "2026-11-13T09:12:04Z"
+    },
+    "order": {
+      "id": "0d000000-0000-4000-8000-000000000001",
+      "number": "R-0042",
+      "status": "on_rent",
+      "currency": "EUR",
+      "paid_minor": 12500,
+      "balance_minor": 52840,
+      "version": 6,
+      "lines": []
+    },
+    "warnings": [{"code": "exceeds_balance", "message": "the payment exceeds the balance"}],
+    "replayed": false
+  },
+  "ledger_customer_only": {
+    "entry": {"id": "1ed00000-0000-4000-8000-000000000002", "customer_id": "c0000000-0000-4000-8000-000000000001",
+              "kind": "payment", "amount_minor": 100, "currency": "EUR"},
+    "order": null,
+    "warnings": [],
+    "replayed": true
+  },
+  "invoice_created": {
+    "invoice": {
+      "rental_invoice_id": "1a000000-0000-4000-8000-000000000001",
+      "order_id": "0d000000-0000-4000-8000-000000000001",
+      "doc_type": "invoice",
+      "status": "draft",
+      "currency": "EUR",
+      "total_minor": 65340,
+      "version": 1,
+      "client_uuid": "c0ffee00-0000-4000-8000-000000000003",
+      "updated_at": "2026-11-20T17:00:00Z"
+    },
+    "warnings": [],
+    "replayed": false
+  },
+  "already_checked_out": {
+    "status": 409,
+    "body": {
+      "error": "already checked out by Sam Lee at 2026-11-13T08:02:11+00:00",
+      "code": "already_checked_out",
+      "message": "already checked out by Sam Lee at 2026-11-13T08:02:11+00:00",
+      "details": {"handover_id": "4a000000-0000-4000-8000-000000000009", "by_user": "u1", "by_name": "Sam Lee",
+                  "at": "2026-11-13T08:02:11Z"}
+    }
+  },
+  "reason_required": {
+    "status": 400,
+    "body": {"error": "waived damage needs a reason", "code": "reason_required", "message": "waived damage needs a reason"}
+  },
+  "duplicate_client_uuid": {
+    "status": 409,
+    "body": {"error": "client_uuid already used", "code": "duplicate_client_uuid", "message": "client_uuid already used"}
+  },
+  "route_missing_404": {"status": 404, "body": {"error": "Not found"}},
+  "method_not_allowed_405": {"status": 405, "body": {}},
+  "swap_order_level_501": {
+    "status": 501,
+    "body": {"error": "use the line swap endpoint", "code": "not_implemented", "message": "use the line swap endpoint"}
+  },
+  "feed_page": {
+    "entity": "rental_ledger_entry",
+    "items": [{"id": "1ed00000-0000-4000-8000-000000000001", "order_id": "0d000000-0000-4000-8000-000000000001",
+               "kind": "payment", "amount_minor": 12500, "currency": "EUR", "provider_raw": null, "payer_email": null,
+               "seq": 41, "updated_at": "2026-11-13T09:12:04Z", "deleted_at": null}],
+    "next_cursor": "41",
+    "has_more": false,
+    "server_time": "2026-11-13T09:13:00Z"
+  }
+}

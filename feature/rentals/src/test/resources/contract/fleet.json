@@ -1,0 +1,31 @@
+{
+  "items": [ {
+    "asset_id": "5b0f6c2e-1d3a-4c7e-9f00-000000000012", "name": "EX-12",
+    "asset_type": "Excavator", "model_id": null, "class_name": "Mini excavator", "current_status": "ACTIVE",
+    "seq": 812, "updated_at": "2026-05-01T08:00:00Z",
+    "rental_class_id": "c1a55000-0000-4000-8000-000000000001", "location_id": "10c00000-0000-4000-8000-000000000001",
+    "rental_status": "on_rent", "due_back_today": true,
+    "next_change_at": "2026-05-01T17:00:00Z",
+    "current": { "allocation_id": "a1100000-0000-4000-8000-000000000001", "kind": "on_rent", "blocking": true,
+                 "start_at": "2026-04-28T08:00:00Z", "end_at": "2026-05-02T08:00:00Z",
+                 "due_at": "2026-05-01T17:00:00Z", "expires_at": null,
+                 "order_id": "0d000000-0000-4000-8000-000000000042", "order_number": "R-0042",
+                 "order_status": "on_rent", "customer_id": "c0000000-0000-4000-8000-000000000001", "customer_name": "ACME",
+                 "work_order_id": null, "legacy_period_id": null, "legacy_reservation_id": null, "conflict": false },
+    "next": null,
+    "ready": true, "readiness": [], "maintenance_open": false, "time_zone": "Europe/Madrid",
+    "_deleted": false
+  }, {
+    "asset_id": "5b0f6c2e-1d3a-4c7e-9f00-000000000013", "name": "EX-13",
+    "rental_class_id": "c1a55000-0000-4000-8000-000000000001", "location_id": "10c00000-0000-4000-8000-000000000001",
+    "rental_status": "not_ready", "due_back_today": false, "next_change_at": null,
+    "current": null, "next": null,
+    "ready": false, "readiness": ["open_defect", "pm_overdue"], "maintenance_open": false, "time_zone": "Europe/Madrid",
+    "_deleted": false
+  }, {
+    "asset_id": "5b0f6c2e-1d3a-4c7e-9f00-000000000099", "_deleted": true
+  } ],
+  "counts": { "in_maintenance": 1, "overdue": 0, "on_rent": 4, "reserved": 2, "not_ready": 1, "available": 9, "due_back_today": 2 },
+  "reserved_window_minutes": 1440,
+  "server_time": "2026-05-01T09:00:00Z", "next_cursor": "2026-05-01T09:00:00Z", "has_more": false
+}

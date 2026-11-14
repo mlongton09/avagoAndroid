@@ -1,0 +1,14 @@
+{
+  "coded_400": { "status": 400, "body": { "error": "unknown rental_status 'busy'", "code": "invalid_value", "message": "unknown rental_status 'busy'" } },
+  "permission_denied": { "status": 403, "body": { "error": "missing permission", "code": "permission_denied", "message": "missing permission", "details": { "permission": "rental.quote" } } },
+  "rentals_disabled": { "status": 403, "body": { "error": "rentals_disabled", "code": "rentals_disabled", "message": "Rentals are not enabled for this account" } },
+  "not_found": { "status": 404, "body": { "error": "Not found" } },
+  "allocation_conflict": { "status": 409, "body": { "error": "allocation_conflict", "code": "allocation_conflict", "message": "the unit is already booked",
+      "conflicts": [ { "asset_id": "5b0f6c2e-1d3a-4c7e-9f00-000000000012", "allocation_id": "a1100000-0000-4000-8000-000000000001",
+                       "kind": "reserved", "order_id": "0d000000-0000-4000-8000-000000000043", "order_number": "R-0043",
+                       "work_order_id": null, "start_at": "2026-05-03T08:00:00Z", "end_at": "2026-05-09T09:00:00Z" } ] } },
+  "version_conflict": { "status": 409, "body": { "error": "conflict", "message": "stale version", "current": { "rental_customer_id": "c0000000-0000-4000-8000-000000000001", "server_version": 5 } } },
+  "idempotency_in_flight": { "status": 409, "body": { "error": "a request with this idempotency key is already being processed; retry shortly" } },
+  "invalid_transition": { "status": 409, "body": { "error": "cannot checkout from draft", "code": "invalid_transition", "message": "cannot checkout from draft", "details": { "from": "draft", "action": "checkout" } } },
+  "not_implemented": { "status": 501, "body": { "error": "checkout is part of stage B", "code": "not_implemented", "message": "checkout is part of stage B" } }
+}

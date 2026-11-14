@@ -5,6 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.AssetEntity
+import com.avago.core.data.rental.FleetStatus
+import com.avago.core.data.rental.LocalFleet
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.flow
+import java.time.Instant
 import com.avago.core.data.repository.AssetRepository
 import com.avago.core.permissions.Permissions
 import com.avago.core.permissions.PermissionsManager
@@ -101,13 +106,56 @@ class AssetListViewModel @Inject constructor(
             initialValue = emptyList(),
         )
 
+    private val _rentalFilter = MutableStateFlow<FleetStatus?>(null)
+    /** Rental status filter (spec §11.1); null = all assets. */
+    val rentalFilter: StateFlow<FleetStatus?> = _rentalFilter.asStateFlow()
+
+    /**
+     * Rental status per rentable asset, computed on the device from the synced rentals
+     * store with the server's rule ([LocalFleet]) and re-evaluated every minute so
+     * reserved → on rent → overdue transitions show without a sync. Empty when the
+     * account has no rentals data (non-rental assets carry no chip).
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val rentalStatuses: StateFlow<Map<String, FleetStatus>> = identityManager.activeAccountId
+        .flatMapLatest { accountId ->
+            if (accountId == null) {
+                flowOf(emptyMap())
+            } else {
+                val ticker = flow {
+                    while (true) {
+                        emit(Unit)
+                        delay(60_000)
+                    }
+                }
+                combine(
+                    dbFactory.get(accountId).rentalDao().observeEntities(LocalFleet.INPUT_ENTITIES),
+                    ticker,
+                ) { records, _ ->
+                    LocalFleet.compute(records, Instant.now()).mapValues { it.value.status }
+                }
+            }
+        }
+        .catch { e ->
+            Timber.e(e, "[AssetListViewModel] rental status flow error")
+            emit(emptyMap())
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyMap(),
+        )
+
     val assets: StateFlow<List<AssetEntity>> = combine(
         _allAssets,
         _searchQuery,
         _filterType,
-    ) { all, query, type ->
+        _rentalFilter,
+        rentalStatuses,
+    ) { all, query, type, rental, statuses ->
         all
             .filter { asset -> type == null || asset.assetType == type }
+            .filter { asset -> rental == null || statuses[asset.assetId] == rental }
             .filter { asset ->
                 if (query.isBlank()) true
                 else asset.name.contains(query, ignoreCase = true) ||
@@ -162,6 +210,8 @@ class AssetListViewModel @Inject constructor(
     fun onSearchQueryChanged(query: String) { _searchQuery.value = query }
 
     fun onFilterTypeChanged(type: String?) { _filterType.value = type }
+
+    fun onRentalFilterChanged(status: FleetStatus?) { _rentalFilter.value = status }
 
     fun refresh() {
         viewModelScope.launch {

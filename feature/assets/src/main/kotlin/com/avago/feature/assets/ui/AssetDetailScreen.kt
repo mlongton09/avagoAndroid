@@ -277,9 +277,10 @@ fun AssetDetailScreen(
                             expanded = showOverflowMenu,
                             onDismissRequest = { showOverflowMenu = false },
                         ) {
-                            // Single rental hub entry — takes user to AssetRentalsScreen
-                            // where they can start, stop, book, and view all rental activity.
-                            if (rentalsEnabled && asset?.isRental == true) {
+                            // Rental tab (feature/rentals): status, bookings, make-rentable
+                            // toggle and per-asset profit. Shown for every asset when the
+                            // account has rentals enabled so non-rentable assets can be enabled.
+                            if (rentalsEnabled) {
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.asset_detail_rental)) },
                                     leadingIcon = {

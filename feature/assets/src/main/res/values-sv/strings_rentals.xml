@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Rental status pill/filter (fleet visibility 11.1) -->
+    <string name="assets_rental_status_available">Tillgänglig</string>
+    <string name="assets_rental_status_reserved">Reserverad</string>
+    <string name="assets_rental_status_on_rent">Uthyrd</string>
+    <string name="assets_rental_status_overdue">Försenad</string>
+    <string name="assets_rental_status_in_maintenance">Under underhåll</string>
+    <string name="assets_rental_status_not_ready">Inte redo</string>
+    <string name="assets_rental_status_filter">Uthyrningsstatus</string>
+</resources>

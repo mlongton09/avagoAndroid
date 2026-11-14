@@ -1,4 +1,4 @@
-package com.avago.feature.assets.ui
+package com.avago.feature.rentals.legacy
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
