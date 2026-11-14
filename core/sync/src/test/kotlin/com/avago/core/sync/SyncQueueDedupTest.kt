@@ -59,6 +59,10 @@ class SyncQueueDedupTest {
             flowOf(store.values.filter { it.entityType in entityTypes })
         override suspend fun unsyncedEntityIds(entityType: String): List<String> =
             store.values.filter { it.entityType == entityType }.map { it.entityId }
+        override suspend fun itemsOfTypes(entityTypes: List<String>): List<SyncQueueEntity> =
+            store.values.filter { it.entityType in entityTypes }
+        override fun observeItemsOfTypes(entityTypes: List<String>): Flow<List<SyncQueueEntity>> =
+            flowOf(store.values.filter { it.entityType in entityTypes })
     }
 
     private lateinit var dao: FakeSyncQueueDao

@@ -79,6 +79,14 @@ interface SyncQueueDao {
     @Query("SELECT * FROM sync_queue WHERE entity_type = :entityType AND entity_id = :entityId AND sync_status IN ('pending', 'error') LIMIT 1")
     suspend fun getPendingByEntity(entityType: String, entityId: String): SyncQueueEntity?
 
+    /** Every queued row (any status, conflicts included) of [entityTypes] — feature outboxes. */
+    @Query("SELECT * FROM sync_queue WHERE entity_type IN (:entityTypes) ORDER BY created_at ASC")
+    suspend fun itemsOfTypes(entityTypes: List<String>): List<SyncQueueEntity>
+
+    /** Live view of [itemsOfTypes] (pending-sync badges). */
+    @Query("SELECT * FROM sync_queue WHERE entity_type IN (:entityTypes) ORDER BY created_at ASC")
+    fun observeItemsOfTypes(entityTypes: List<String>): Flow<List<SyncQueueEntity>>
+
     /**
      * Unsynced rows (pending / in-flight / error) of the given entity types, oldest first —
      * drives per-row "waiting to sync" indicators and local optimistic overlays.
