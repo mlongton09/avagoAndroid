@@ -10,4 +10,11 @@
     <!-- Offline defect lifecycle sync notices (server wins) -->
     <string name="sync_defect_conflict">«%1$s» ble endret av noen andre, så endringen deres ble beholdt.</string>
     <string name="sync_defect_rejected">Endringen din av «%1$s» kunne ikke synkroniseres og ble angret.</string>
+    <string name="rentals_invoice_status_draft">Utkast</string>
+    <string name="rentals_invoice_status_sent">Sendt</string>
+    <string name="rentals_invoice_status_issued">Utstedt</string>
+    <string name="rentals_invoice_status_partially_paid">Delvis betalt</string>
+    <string name="rentals_invoice_status_paid">Betalt</string>
+    <string name="rentals_invoice_status_credited">Kreditert</string>
+    <string name="rentals_invoice_status_void">Annullert</string>
 </resources>

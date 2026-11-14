@@ -327,12 +327,5 @@
     <string name="rentals_reason_open_work_order">Ordine di lavoro aperto</string>
     <string name="rentals_reason_readiness_checklist">Controllo di prontezza aperto</string>
     <string name="rentals_reason_maintenance_open">In manutenzione</string>
-    <string name="rentals_invoice_status_draft">Bozza</string>
-    <string name="rentals_invoice_status_sent">Inviata</string>
-    <string name="rentals_invoice_status_issued">Emessa</string>
-    <string name="rentals_invoice_status_partially_paid">Pagata in parte</string>
-    <string name="rentals_invoice_status_paid">Pagata</string>
-    <string name="rentals_invoice_status_credited">Accreditata</string>
-    <string name="rentals_invoice_status_void">Annullata</string>
     <string name="rentals_invoice_void_confirm">Questa fattura verrà annullata. L\'operazione non può essere annullata.</string>
 </resources>

@@ -76,6 +76,7 @@ import com.avago.core.design.chart.drawChartEmpty
 import com.avago.core.design.chart.drawChartSkeleton
 import com.avago.core.design.chart.drawChartZeroLine
 import com.avago.core.design.theme.AvagoSpacing
+import com.avago.core.ui.invoiceStatusText
 import com.avago.feature.rentalsops.R
 import com.avago.feature.rentalsops.data.RentalOpsRepository
 import com.avago.feature.rentalsops.data.RentalOpsRepository.Fetch
@@ -315,7 +316,7 @@ fun StatementScreen(onBack: () -> Unit, vm: StatementViewModel = hiltViewModel()
                     Column(Modifier.weight(1f)) {
                         Text(inv.number ?: inv.id.take(8), style = MaterialTheme.typography.bodyLarge)
                         Text(
-                            stringResource(R.string.rentalops_invoice_dates, Fmt.date(inv.issuedAt), Fmt.date(inv.dueAt)) + (inv.status?.let { " · $it" } ?: ""),
+                            stringResource(R.string.rentalops_invoice_dates, Fmt.date(inv.issuedAt), Fmt.date(inv.dueAt)) + (inv.status?.let { " · ${invoiceStatusText(it)}" } ?: ""),
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }

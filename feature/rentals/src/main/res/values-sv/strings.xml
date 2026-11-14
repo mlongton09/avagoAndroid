@@ -327,12 +327,5 @@
     <string name="rentals_reason_open_work_order">Öppen arbetsorder</string>
     <string name="rentals_reason_readiness_checklist">Klarkontroll öppen</string>
     <string name="rentals_reason_maintenance_open">Under underhåll</string>
-    <string name="rentals_invoice_status_draft">Utkast</string>
-    <string name="rentals_invoice_status_sent">Skickad</string>
-    <string name="rentals_invoice_status_issued">Utfärdad</string>
-    <string name="rentals_invoice_status_partially_paid">Delvis betald</string>
-    <string name="rentals_invoice_status_paid">Betald</string>
-    <string name="rentals_invoice_status_credited">Krediterad</string>
-    <string name="rentals_invoice_status_void">Makulerad</string>
     <string name="rentals_invoice_void_confirm">Fakturan makuleras. Det går inte att ångra.</string>
 </resources>

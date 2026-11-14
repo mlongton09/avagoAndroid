@@ -327,12 +327,5 @@
     <string name="rentals_reason_open_work_order">Ordre de travail ouvert</string>
     <string name="rentals_reason_readiness_checklist">Contrôle de disponibilité en cours</string>
     <string name="rentals_reason_maintenance_open">En maintenance</string>
-    <string name="rentals_invoice_status_draft">Brouillon</string>
-    <string name="rentals_invoice_status_sent">Envoyée</string>
-    <string name="rentals_invoice_status_issued">Émise</string>
-    <string name="rentals_invoice_status_partially_paid">Partiellement payée</string>
-    <string name="rentals_invoice_status_paid">Payée</string>
-    <string name="rentals_invoice_status_credited">Créditée</string>
-    <string name="rentals_invoice_status_void">Annulée</string>
     <string name="rentals_invoice_void_confirm">Cette facture sera annulée. Cette action est irréversible.</string>
 </resources>

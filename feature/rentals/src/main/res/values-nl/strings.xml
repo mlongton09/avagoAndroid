@@ -327,12 +327,5 @@
     <string name="rentals_reason_open_work_order">Open werkorder</string>
     <string name="rentals_reason_readiness_checklist">Gereedheidscontrole open</string>
     <string name="rentals_reason_maintenance_open">In onderhoud</string>
-    <string name="rentals_invoice_status_draft">Concept</string>
-    <string name="rentals_invoice_status_sent">Verzonden</string>
-    <string name="rentals_invoice_status_issued">Uitgegeven</string>
-    <string name="rentals_invoice_status_partially_paid">Gedeeltelijk betaald</string>
-    <string name="rentals_invoice_status_paid">Betaald</string>
-    <string name="rentals_invoice_status_credited">Gecrediteerd</string>
-    <string name="rentals_invoice_status_void">Vervallen</string>
     <string name="rentals_invoice_void_confirm">Deze factuur wordt ongeldig gemaakt. Dit kan niet ongedaan worden gemaakt.</string>
 </resources>

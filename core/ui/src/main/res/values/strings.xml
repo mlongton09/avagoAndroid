@@ -48,4 +48,11 @@
     <!-- Offline defect lifecycle sync notices (server wins) -->
     <string name="sync_defect_conflict">“%1$s” was changed by someone else, so their update was kept.</string>
     <string name="sync_defect_rejected">Your change to “%1$s” couldn’t be synced and was undone.</string>
+    <string name="rentals_invoice_status_draft">Draft</string>
+    <string name="rentals_invoice_status_sent">Sent</string>
+    <string name="rentals_invoice_status_issued">Issued</string>
+    <string name="rentals_invoice_status_partially_paid">Partially paid</string>
+    <string name="rentals_invoice_status_paid">Paid</string>
+    <string name="rentals_invoice_status_credited">Credited</string>
+    <string name="rentals_invoice_status_void">Void</string>
 </resources>

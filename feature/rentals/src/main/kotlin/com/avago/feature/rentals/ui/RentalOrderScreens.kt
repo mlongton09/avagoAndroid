@@ -58,6 +58,7 @@ import androidx.lifecycle.viewModelScope
 import com.avago.core.data.db.rental.RentalRecordEntity
 import com.avago.core.data.rental.Money
 import com.avago.core.data.rental.MoneyFormatter
+import com.avago.core.ui.invoiceStatusText
 import com.avago.feature.rentals.R
 import com.avago.feature.rentals.data.RentalRepository
 import com.avago.feature.rentals.domain.LineView

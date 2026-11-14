@@ -10,4 +10,11 @@
     <!-- Offline defect lifecycle sync notices (server wins) -->
     <string name="sync_defect_conflict">“%1$s” is door iemand anders gewijzigd, dus die wijziging is behouden.</string>
     <string name="sync_defect_rejected">Je wijziging aan “%1$s” kon niet worden gesynchroniseerd en is ongedaan gemaakt.</string>
+    <string name="rentals_invoice_status_draft">Concept</string>
+    <string name="rentals_invoice_status_sent">Verzonden</string>
+    <string name="rentals_invoice_status_issued">Uitgegeven</string>
+    <string name="rentals_invoice_status_partially_paid">Gedeeltelijk betaald</string>
+    <string name="rentals_invoice_status_paid">Betaald</string>
+    <string name="rentals_invoice_status_credited">Gecrediteerd</string>
+    <string name="rentals_invoice_status_void">Vervallen</string>
 </resources>

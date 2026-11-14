@@ -327,12 +327,5 @@
     <string name="rentals_reason_open_work_order">Offener Arbeitsauftrag</string>
     <string name="rentals_reason_readiness_checklist">Bereitschaftsprüfung offen</string>
     <string name="rentals_reason_maintenance_open">In Wartung</string>
-    <string name="rentals_invoice_status_draft">Entwurf</string>
-    <string name="rentals_invoice_status_sent">Gesendet</string>
-    <string name="rentals_invoice_status_issued">Ausgestellt</string>
-    <string name="rentals_invoice_status_partially_paid">Teilweise bezahlt</string>
-    <string name="rentals_invoice_status_paid">Bezahlt</string>
-    <string name="rentals_invoice_status_credited">Gutgeschrieben</string>
-    <string name="rentals_invoice_status_void">Storniert</string>
     <string name="rentals_invoice_void_confirm">Diese Rechnung wird storniert. Das kann nicht rückgängig gemacht werden.</string>
 </resources>

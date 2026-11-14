@@ -10,4 +10,11 @@
     <!-- Offline defect lifecycle sync notices (server wins) -->
     <string name="sync_defect_conflict">Otra persona cambió «%1$s», así que se conservó su cambio.</string>
     <string name="sync_defect_rejected">No se pudo sincronizar tu cambio en «%1$s» y se ha deshecho.</string>
+    <string name="rentals_invoice_status_draft">Borrador</string>
+    <string name="rentals_invoice_status_sent">Enviada</string>
+    <string name="rentals_invoice_status_issued">Emitida</string>
+    <string name="rentals_invoice_status_partially_paid">Pagada parcialmente</string>
+    <string name="rentals_invoice_status_paid">Pagada</string>
+    <string name="rentals_invoice_status_credited">Abonada</string>
+    <string name="rentals_invoice_status_void">Anulada</string>
 </resources>

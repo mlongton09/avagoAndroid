@@ -10,4 +10,11 @@
     <!-- Offline defect lifecycle sync notices (server wins) -->
     <string name="sync_defect_conflict">“%1$s” foi alterado por outra pessoa, por isso a alteração dela foi mantida.</string>
     <string name="sync_defect_rejected">Não foi possível sincronizar a sua alteração em “%1$s”, que foi desfeita.</string>
+    <string name="rentals_invoice_status_draft">Rascunho</string>
+    <string name="rentals_invoice_status_sent">Enviada</string>
+    <string name="rentals_invoice_status_issued">Emitida</string>
+    <string name="rentals_invoice_status_partially_paid">Parcialmente paga</string>
+    <string name="rentals_invoice_status_paid">Paga</string>
+    <string name="rentals_invoice_status_credited">Creditada</string>
+    <string name="rentals_invoice_status_void">Anulada</string>
 </resources>

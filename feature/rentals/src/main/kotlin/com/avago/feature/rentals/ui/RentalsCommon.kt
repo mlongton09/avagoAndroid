@@ -108,23 +108,6 @@ internal fun readinessReasonLabel(code: String): Int? = when (code) {
 internal fun readinessReasons(codes: List<String>): String =
     codes.map { code -> readinessReasonLabel(code)?.let { stringResource(it) } ?: code.replace('_', ' ') }.joinToString()
 
-/** Localised invoice status (web `rental_invoices.status`); unknown values are de-snaked. */
-@StringRes
-internal fun invoiceStatusLabel(status: String): Int? = when (status) {
-    "draft" -> R.string.rentals_invoice_status_draft
-    "sent" -> R.string.rentals_invoice_status_sent
-    "issued" -> R.string.rentals_invoice_status_issued
-    "partially_paid" -> R.string.rentals_invoice_status_partially_paid
-    "paid" -> R.string.rentals_invoice_status_paid
-    "credited" -> R.string.rentals_invoice_status_credited
-    "void" -> R.string.rentals_invoice_status_void
-    else -> null
-}
-
-@Composable
-internal fun invoiceStatusText(status: String): String =
-    invoiceStatusLabel(status)?.let { stringResource(it) } ?: status.replace('_', ' ')
-
 /** Status colours (light/dark). Always paired with a text label — never colour alone. */
 @Composable
 internal fun fleetStatusColors(status: FleetStatus): Pair<Color, Color> {
