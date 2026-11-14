@@ -17,4 +17,17 @@
     <string name="rentals_payment_method">Zahlungsart</string>
     <string name="rentals_save_amount">%1$s speichern</string>
     <string name="rentals_invoices_none">Noch keine Rechnungen</string>
+    <string name="rentals_handover_step_condition">Zustand</string>
+    <string name="rentals_handover_step_review">Unterschrift &amp; Prüfung</string>
+    <string name="rentals_next_step">Weiter</string>
+    <string name="rentals_decision_needed">Entscheidung nötig</string>
+    <string name="rentals_review_summary">Zusammenfassung</string>
+    <string name="rentals_marks_count">%1$d Markierungen · %2$d neu</string>
+    <string name="rentals_period">Mietzeitraum</string>
+    <string name="rentals_pick_unit_or_class">Bitte wählen Sie eine Einheit oder eine Klasse.</string>
+    <string name="rentals_contact">Kontakt</string>
+    <string name="rentals_more_details">Weitere Angaben</string>
+    <string name="rentals_name_required">Bitte geben Sie einen Namen ein</string>
+    <string name="rentals_date_invalid">Bitte im Format %1$s eingeben</string>
+    <string name="rentals_documents_none">Noch keine Dokumente</string>
 </resources>

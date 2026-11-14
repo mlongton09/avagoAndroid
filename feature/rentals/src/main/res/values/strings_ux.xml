@@ -18,4 +18,17 @@
     <string name="rentals_payment_method">Method</string>
     <string name="rentals_save_amount">Save %1$s</string>
     <string name="rentals_invoices_none">No invoices yet</string>
+    <string name="rentals_handover_step_condition">Condition</string>
+    <string name="rentals_handover_step_review">Sign &amp; review</string>
+    <string name="rentals_next_step">Next</string>
+    <string name="rentals_decision_needed">Decision needed</string>
+    <string name="rentals_review_summary">Summary</string>
+    <string name="rentals_marks_count">%1$d marks · %2$d new</string>
+    <string name="rentals_period">Rental period</string>
+    <string name="rentals_pick_unit_or_class">Choose a unit or a class to book.</string>
+    <string name="rentals_contact">Contact</string>
+    <string name="rentals_more_details">More details</string>
+    <string name="rentals_name_required">Please enter a name</string>
+    <string name="rentals_date_invalid">Use the format %1$s</string>
+    <string name="rentals_documents_none">No documents yet</string>
 </resources>

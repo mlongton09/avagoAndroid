@@ -1,25 +1,46 @@
 package com.avago.feature.rentals.ui
 
+import java.time.Instant
+import java.time.ZoneId
+import java.util.Currency
+import java.util.Locale
+import javax.inject.Inject
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.Calculate
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.EventAvailable
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -27,55 +48,58 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.avago.core.data.db.rental.RentalRecordEntity
 import com.avago.core.data.rental.LocalFleet
 import com.avago.core.network.rentals.RentalsApi
-import com.avago.feature.rentals.R
+import com.avago.core.ui.components.BottomActionBar
+import com.avago.core.ui.components.CardDivider
+import com.avago.core.ui.components.ErrorBanner
+import com.avago.core.ui.components.rememberHaptics
+import com.avago.core.ui.components.SectionCard
+import com.avago.core.ui.components.StatusPill
+import com.avago.core.ui.components.StatusTone
 import com.avago.feature.rentals.data.RentalRepository
 import com.avago.feature.rentals.data.RentalRequests
 import com.avago.feature.rentals.domain.Availability
 import com.avago.feature.rentals.domain.ClassView
 import com.avago.feature.rentals.domain.CustomerView
 import com.avago.feature.rentals.domain.LocalSchedule
+import com.avago.feature.rentals.domain.obj
 import com.avago.feature.rentals.domain.PricingDisplay
 import com.avago.feature.rentals.domain.RentalEntity
-import com.avago.feature.rentals.domain.obj
+import com.avago.feature.rentals.R
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.launch
 import timber.log.Timber
-import java.time.Instant
-import java.time.ZoneId
-import java.util.Currency
-import java.util.Locale
-import javax.inject.Inject
 
 data class QuickBookForm(
     val assetId: String? = null,
@@ -229,7 +253,11 @@ class QuickBookViewModel @Inject constructor(
     }
 }
 
-/** Quick book (§14): unit/class, customer, M3 pickers in the location ZoneId, live preview. */
+/**
+ * Quick book (§14) as grouped sections — What · Who · When · Price — with the booking actions
+ * in a sticky bottom bar (Reserve primary, Hold secondary, Quote / Save draft in the overflow).
+ * M3 pickers run in the location ZoneId; the price preview updates live.
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun QuickBookScreen(
@@ -246,98 +274,178 @@ fun QuickBookScreen(
     val server by viewModel.serverPreview.collectAsStateWithLifecycle()
     val conflict by viewModel.conflict.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
-    LaunchedEffect(Unit) { viewModel.saved.collect(onBooked) }
-    LaunchedEffect(Unit) { viewModel.errors.collect { snackbar.showSnackbar(it) } }
-    val valid = form.end.isAfter(form.start) && (form.assetId != null || form.classId != null)
+    val haptics = rememberHaptics()
+    var busy by remember { mutableStateOf(false) }
+    var menu by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        viewModel.saved.collect {
+            haptics.success()
+            onBooked(it)
+        }
+    }
+    LaunchedEffect(Unit) {
+        viewModel.errors.collect {
+            busy = false
+            haptics.error()
+            snackbar.showSnackbar(it)
+        }
+    }
+    val periodOk = form.end.isAfter(form.start)
+    val valid = periodOk && (form.assetId != null || form.classId != null) && !busy
+    val book: (String?) -> Unit = { action ->
+        busy = true
+        viewModel.book(action)
+    }
 
     Scaffold(
         topBar = { RentalsTopBar(stringResource(R.string.rentals_quick_book), onBack) },
         snackbarHost = { SnackbarHost(snackbar) },
+        bottomBar = {
+            BottomActionBar(Modifier.imePadding()) {
+                Box {
+                    IconButton(onClick = { menu = true }, enabled = valid, modifier = Modifier.size(MinTouch)) {
+                        Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.rentals_more_actions))
+                    }
+                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.rentals_action_quote)) },
+                            leadingIcon = { Icon(Icons.Default.Description, null) },
+                            onClick = { menu = false; book("quote") },
+                            modifier = Modifier.heightIn(min = MinTouch),
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.rentals_save_draft)) },
+                            leadingIcon = { Icon(Icons.Default.Edit, null) },
+                            onClick = { menu = false; book(null) },
+                            modifier = Modifier.heightIn(min = MinTouch),
+                        )
+                    }
+                }
+                OutlinedButton(onClick = { book("hold") }, enabled = valid, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
+                    Text(stringResource(R.string.rentals_action_hold), textAlign = TextAlign.Center)
+                }
+                Button(onClick = { book("reserve") }, enabled = valid, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
+                    if (busy) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                    } else {
+                        Icon(Icons.Default.EventAvailable, null, Modifier.size(18.dp))
+                    }
+                    Text(stringResource(R.string.rentals_action_reserve), Modifier.padding(start = 8.dp), textAlign = TextAlign.Center)
+                }
+            }
+        },
     ) { pad ->
         Column(
             Modifier
                 .fillMaxSize()
                 .padding(pad)
+                .imePadding()
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(vertical = 8.dp),
         ) {
-            Picker(
-                label = stringResource(R.string.rentals_unit),
-                selected = units.firstOrNull { it.assetId == form.assetId }?.name ?: stringResource(R.string.rentals_any_unit),
-                options = listOf<Pair<String, () -> Unit>>(stringResource(R.string.rentals_any_unit) to { viewModel.selectUnit(null) }) +
-                    units.map { u -> u.name to { viewModel.selectUnit(u) } },
-            )
-            if (form.assetId == null && classes.isNotEmpty()) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    classes.forEach { c ->
-                        FilterChip(form.classId == c.id, { viewModel.selectClass(c.id) }, { Text(c.name) }, Modifier.heightIn(min = MinTouch))
+            SectionCard(title = stringResource(R.string.rentals_unit), contentPadding = true) {
+                Picker(
+                    label = stringResource(R.string.rentals_unit),
+                    selected = units.firstOrNull { it.assetId == form.assetId }?.name ?: stringResource(R.string.rentals_any_unit),
+                    options = listOf<Pair<String, () -> Unit>>(stringResource(R.string.rentals_any_unit) to { viewModel.selectUnit(null) }) +
+                        units.map { u -> u.name to { viewModel.selectUnit(u) } },
+                )
+                if (form.assetId == null && classes.isNotEmpty()) {
+                    FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        classes.forEach { c ->
+                            FilterChip(
+                                form.classId == c.id, { viewModel.selectClass(c.id) }, { Text(c.name) }, Modifier.heightIn(min = MinTouch),
+                                leadingIcon = if (form.classId == c.id) {
+                                    { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
+                                } else {
+                                    null
+                                },
+                            )
+                        }
+                    }
+                    if (form.classId == null) {
+                        Text(
+                            stringResource(R.string.rentals_pick_unit_or_class),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
                     }
                 }
             }
-            Picker(
-                label = stringResource(R.string.rentals_customer),
-                selected = form.customer?.name ?: stringResource(R.string.rentals_walk_in),
-                options = listOf<Pair<String, () -> Unit>>(stringResource(R.string.rentals_walk_in) to { viewModel.selectCustomer(null) }) +
-                    customers.filter { !it.doNotRent }.map { c -> c.name to { viewModel.selectCustomer(c) } },
-            )
-            TextButton(onClick = onNewCustomer, modifier = Modifier.heightIn(min = MinTouch)) { Text(stringResource(R.string.rentals_new_customer)) }
-            DateTimeField(stringResource(R.string.rentals_from), form.start, form.zone, viewModel::setStart)
-            DateTimeField(stringResource(R.string.rentals_to), form.end, form.zone, viewModel::setEnd)
-            Text(
-                stringResource(R.string.rentals_time_zone, form.zone.id),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (!form.end.isAfter(form.start)) Text(stringResource(R.string.rentals_error_end_before_start), color = MaterialTheme.colorScheme.error)
-            conflict?.let { c ->
-                Text(
-                    c.nextFreeAt?.let { stringResource(R.string.rentals_conflict_next_free, formatDateTime(it, form.zone)) }
-                        ?: stringResource(R.string.rentals_unavailable),
-                    color = MaterialTheme.colorScheme.error,
+            SectionCard(title = stringResource(R.string.rentals_customer), contentPadding = true) {
+                Picker(
+                    label = stringResource(R.string.rentals_customer),
+                    selected = form.customer?.name ?: stringResource(R.string.rentals_walk_in),
+                    options = listOf<Pair<String, () -> Unit>>(stringResource(R.string.rentals_walk_in) to { viewModel.selectCustomer(null) }) +
+                        customers.filter { !it.doNotRent }.map { c -> c.name to { viewModel.selectCustomer(c) } },
                 )
+                TextButton(onClick = onNewCustomer, modifier = Modifier.heightIn(min = MinTouch)) {
+                    Icon(Icons.Default.PersonAdd, null, Modifier.size(18.dp))
+                    Text(stringResource(R.string.rentals_new_customer), Modifier.padding(start = 8.dp))
+                }
+            }
+            SectionCard(title = stringResource(R.string.rentals_period), contentPadding = true) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DateTimeField(stringResource(R.string.rentals_from), form.start, form.zone, viewModel::setStart)
+                    DateTimeField(stringResource(R.string.rentals_to), form.end, form.zone, viewModel::setEnd)
+                    Text(
+                        stringResource(R.string.rentals_time_zone, form.zone.id),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (!periodOk) {
+                        ErrorBanner(stringResource(R.string.rentals_error_end_before_start), tone = StatusTone.Danger)
+                    }
+                    conflict?.let { c ->
+                        ErrorBanner(
+                            c.nextFreeAt?.let { stringResource(R.string.rentals_conflict_next_free, formatDateTime(it, form.zone)) }
+                                ?: stringResource(R.string.rentals_unavailable),
+                            tone = StatusTone.Warning,
+                        )
+                    }
+                }
             }
             PricePreviewCard(server ?: local)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { viewModel.book("reserve") }, enabled = valid, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
-                    Text(stringResource(R.string.rentals_action_reserve))
-                }
-                Button(onClick = { viewModel.book("hold") }, enabled = valid, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
-                    Text(stringResource(R.string.rentals_action_hold))
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { viewModel.book("quote") }, enabled = valid, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
-                    Text(stringResource(R.string.rentals_action_quote))
-                }
-                TextButton(onClick = { viewModel.book(null) }, enabled = valid, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
-                    Text(stringResource(R.string.rentals_save_draft))
-                }
-            }
-            Text(stringResource(R.string.rentals_booking_offline_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                stringResource(R.string.rentals_booking_offline_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+            )
         }
     }
 }
 
+/** Live price breakdown (announced politely) with the total emphasised. */
 @Composable
 internal fun PricePreviewCard(p: PricingDisplay?) {
-    Card(Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite }) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(stringResource(R.string.rentals_price_preview), style = MaterialTheme.typography.titleSmall)
-            if (p == null) {
-                Text(stringResource(R.string.rentals_price_unavailable), style = MaterialTheme.typography.bodySmall)
-                return@Column
+    SectionCard(
+        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        title = stringResource(R.string.rentals_price_preview),
+        trailing = p?.let {
+            {
+                StatusPill(
+                    stringResource(if (it.confirmed) R.string.rentals_price_confirmed else R.string.rentals_price_estimate),
+                    if (it.confirmed) StatusTone.Success else StatusTone.Neutral,
+                    icon = if (it.confirmed) Icons.Default.Verified else Icons.Default.Calculate,
+                )
             }
+        },
+    ) {
+        if (p == null) {
+            CardNote(stringResource(R.string.rentals_price_unavailable))
+            return@SectionCard
+        }
+        Column(Modifier.padding(vertical = 8.dp)) {
             p.rows.forEach { r -> LabelValue("${r.label} × ${r.qty}${r.detail?.let { " ($it)" } ?: ""}", formatMoney(r.amount)) }
             if (p.discount.minor != 0L) LabelValue(stringResource(R.string.rentals_discount), formatMoney(-p.discount))
             p.tax?.let { LabelValue(stringResource(R.string.rentals_tax), formatMoney(it)) }
-            LabelValue(stringResource(R.string.rentals_total), formatMoney(p.total))
+        }
+        CardDivider()
+        Column(Modifier.padding(vertical = 8.dp)) {
+            LabelValue(stringResource(R.string.rentals_total), formatMoney(p.total), emphasise = true)
             p.deposit?.let { LabelValue(stringResource(R.string.rentals_deposit), formatMoney(it)) }
-            Text(
-                stringResource(if (p.confirmed) R.string.rentals_price_confirmed else R.string.rentals_price_estimate),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }

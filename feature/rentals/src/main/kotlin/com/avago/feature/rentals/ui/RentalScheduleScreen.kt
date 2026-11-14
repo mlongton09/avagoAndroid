@@ -1,58 +1,74 @@
 package com.avago.feature.rentals.ui
 
+import java.time.Duration
+import java.time.format.DateTimeFormatter
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import android.text.format.DateFormat
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.EventAvailable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.avago.feature.rentals.R
+import com.avago.core.ui.components.isDarkScheme
+import com.avago.core.ui.components.SectionCard
+import com.avago.core.ui.components.SkeletonListItem
+import com.avago.core.ui.components.StickyDayHeader
 import com.avago.feature.rentals.domain.Availability
 import com.avago.feature.rentals.domain.LocalSchedule
-import java.time.Duration
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import com.avago.feature.rentals.R
 
-/** Schedule (§11.1): day-grouped agenda; a Gantt board is added on tablets. Offline (Room). */
+/**
+ * Schedule (§11.1): range chips, sticky day headers over the agenda; a Gantt board is added on
+ * tablets. Offline (Room) with pull-to-refresh for a background sync.
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun RentalScheduleScreen(
     onBack: () -> Unit,
@@ -62,7 +78,7 @@ fun RentalScheduleScreen(
     val fleet by viewModel.fleet.collectAsStateWithLifecycle()
     val lastSynced by viewModel.lastSyncedAt.collectAsStateWithLifecycle()
     val queue by viewModel.queue.collectAsStateWithLifecycle()
-    var days by remember { mutableIntStateOf(7) }
+    var days by rememberSaveable { mutableIntStateOf(7) }
     val zone = ZoneId.systemDefault()
     val today = LocalDate.now(zone)
     val from = today.atStartOfDay(zone).toInstant()
@@ -71,47 +87,69 @@ fun RentalScheduleScreen(
     val byDay = remember(events) { events.groupBy { it.at.atZone(zone).toLocalDate() }.toSortedMap() }
     val busy = remember(fleet) { LocalSchedule.busy(fleet.records) }
     val wide = isWide()
+    val refresh = rememberSyncRefresh(lastSynced, viewModel::syncNow)
+    val firstLoad = rememberFirstLoad(fleet.isEmpty, lastSynced)
 
     Scaffold(topBar = { RentalsTopBar(stringResource(R.string.rentals_schedule), onBack) }) { pad ->
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = pad.calculateTopPadding(), bottom = 96.dp)) {
-            item { LastSyncedRow(lastSynced, queue.size, viewModel::syncNow) }
-            item {
-                Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(1, 7, 14).forEach { n ->
-                        FilterChip(
-                            selected = days == n,
-                            onClick = { days = n },
-                            label = { Text(stringResource(R.string.rentals_days_n, n)) },
-                            modifier = Modifier.heightIn(min = MinTouch),
-                        )
+        PullToRefreshBox(
+            isRefreshing = refresh.refreshing,
+            onRefresh = refresh.onRefresh,
+            modifier = Modifier.fillMaxSize().padding(top = pad.calculateTopPadding()),
+        ) {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = pad.calculateBottomPadding() + 32.dp)) {
+                item(key = "sync", contentType = "sync") { LastSyncedRow(lastSynced, queue.size, viewModel::syncNow) }
+                item(key = "range", contentType = "filters") {
+                    ChipRow {
+                        listOf(1, 7, 14).forEach { n ->
+                            FilterChip(
+                                selected = days == n,
+                                onClick = { days = n },
+                                label = { Text(stringResource(R.string.rentals_days_n, n)) },
+                                leadingIcon = if (days == n) {
+                                    { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
+                                } else {
+                                    null
+                                },
+                                modifier = Modifier.heightIn(min = MinTouch),
+                            )
+                        }
                     }
                 }
-            }
-            if (wide && fleet.units.isNotEmpty()) {
-                item {
-                    SectionHeader(stringResource(R.string.rentals_gantt))
-                    GanttBoard(
-                        units = fleet.units.map { it.unit.assetId to it.unit.name },
-                        busy = busy,
-                        from = from,
-                        to = to,
-                        now = fleet.now,
-                        zone = zone,
-                    )
+                if (wide && fleet.units.isNotEmpty()) {
+                    item(key = "gantt", contentType = "gantt") {
+                        SectionCard(title = stringResource(R.string.rentals_gantt)) {
+                            GanttBoard(
+                                units = fleet.units.map { it.unit.assetId to it.unit.name },
+                                busy = busy,
+                                from = from,
+                                to = to,
+                                now = fleet.now,
+                                zone = zone,
+                            )
+                        }
+                    }
                 }
-            }
-            if (byDay.isEmpty()) item { EmptyState(stringResource(R.string.rentals_schedule_empty)) }
-            byDay.forEach { (day, evs) ->
-                item(key = "d:$day") { SectionHeader(formatDate(day.atStartOfDay(zone).toInstant(), zone)) }
-                items(evs, key = { "e:${it.type}:${it.allocationId}:${it.at}" }) { ev ->
-                    AgendaRow(ev, zone, onClick = ev.orderId?.let { id -> { onOpenOrder(id) } })
-                    HorizontalDivider()
+                when {
+                    firstLoad -> items(5, key = { "sk$it" }, contentType = { "skeleton" }) { SkeletonListItem() }
+                    byDay.isEmpty() -> item(key = "empty", contentType = "empty") {
+                        EmptyState(stringResource(R.string.rentals_schedule_empty), icon = Icons.Default.EventAvailable)
+                    }
+                }
+                byDay.forEach { (day, evs) ->
+                    stickyHeader(key = "d:$day", contentType = "header") {
+                        StickyDayHeader(dayLabel(day, zone), count = evs.size)
+                    }
+                    items(evs, key = { "e:${it.type}:${it.allocationId}:${it.at}" }, contentType = { "event" }) { ev ->
+                        Column(Modifier.animateItem()) {
+                            AgendaRow(ev, zone, onClick = ev.orderId?.let { id -> { onOpenOrder(id) } })
+                            HorizontalDivider(Modifier.padding(start = 72.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                        }
+                    }
                 }
             }
         }
     }
 }
-
 /**
  * Horizontal booking bars per unit (chart style guide: categorical palette, value-axis grid
  * only, muted 11sp labels, no borders). Colour is never the only cue: the agenda below lists
@@ -126,7 +164,7 @@ private fun GanttBoard(
     now: Instant,
     zone: ZoneId,
 ) {
-    val dark = isSystemInDarkTheme()
+    val dark = isDarkScheme()
     val blue = if (dark) Color(0xFF60A5FA) else Color(0xFF2563EB)
     val violet = if (dark) Color(0xFFA78BFA) else Color(0xFF7C3AED)
     val slate = if (dark) Color(0xFF94A3B8) else Color(0xFF475569)

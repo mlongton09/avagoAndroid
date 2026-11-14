@@ -1,55 +1,82 @@
 package com.avago.feature.rentals.ui
 
+import java.time.Instant
+import java.time.ZoneId
+import java.util.UUID
+import javax.inject.Inject
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Draw
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.LocalGasStation
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.Icons
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
@@ -57,38 +84,44 @@ import com.avago.core.data.db.rental.RentalRecordEntity
 import com.avago.core.data.rental.LocalFleet
 import com.avago.core.data.rental.Money
 import com.avago.core.data.rental.MoneyFormatter
+import com.avago.core.ui.components.BottomActionBar
+import com.avago.core.ui.components.CardDivider
+import com.avago.core.ui.components.cardListItemColors
+import com.avago.core.ui.components.ErrorBanner
+import com.avago.core.ui.components.LeadingBadge
+import com.avago.core.ui.components.rememberHaptics
+import com.avago.core.ui.components.SectionCard
+import com.avago.core.ui.components.StatusPill
+import com.avago.core.ui.components.StatusTone
+import com.avago.core.ui.components.StepIndicator
 import com.avago.feature.log.model.InspectionV2
 import com.avago.feature.log.model.VehicleSketchModel.SketchMark
+import com.avago.feature.log.ui.inspectionLocationLabel
 import com.avago.feature.log.ui.SignaturePad
 import com.avago.feature.log.ui.VehicleSketchLegend
 import com.avago.feature.log.ui.VehicleSketchView
-import com.avago.feature.log.ui.inspectionLocationLabel
-import com.avago.feature.rentals.R
 import com.avago.feature.rentals.data.RentalRepository
-import com.avago.feature.rentals.domain.RentalEntity
 import com.avago.feature.rentals.domain.bool
 import com.avago.feature.rentals.domain.obj
 import com.avago.feature.rentals.domain.objs
+import com.avago.feature.rentals.domain.RentalEntity
 import com.avago.feature.rentals.domain.str
+import com.avago.feature.rentals.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
-import java.time.Instant
-import java.time.ZoneId
-import java.util.UUID
-import javax.inject.Inject
 
 data class InspectionOption(val logId: String, val title: String, val at: Instant)
 data class HandoverUnit(val assetId: String, val name: String, val assetType: String?, val lineId: String?)
@@ -267,9 +300,10 @@ class HandoverViewModel @Inject constructor(
 }
 
 /**
- * Check-out / check-in (§14): inspection v2 log, vehicle sketch with baseline comparison,
- * meter + fuel, customer signature. Event time is the device clock; saved offline and uploaded
- * in order (photos → inspection log → signature → handover → ledger).
+ * Check-out / check-in (§14) as a four-step flow — unit & inspection → condition (vehicle sketch
+ * with baseline comparison) → meter, fuel & notes → signature & review — with a sticky
+ * Back / Next bar. Event time is the device clock; saved offline and uploaded in order
+ * (photos → inspection log → signature → handover → ledger).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -300,129 +334,303 @@ fun HandoverScreen(
     var addZone by remember { mutableStateOf<String?>(null) }
     var editMark by remember { mutableStateOf<SketchMark?>(null) }
     var customerMode by remember { mutableStateOf(false) }
+    var step by rememberSaveable { mutableIntStateOf(0) }
+    var saving by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
+    val haptics = rememberHaptics()
+    val scroll = rememberScrollState()
     LaunchedEffect(Unit) {
         viewModel.done.collect {
+            haptics.success()
             val asset = viewModel.currentUnit.value?.assetId
             if (viewModel.direction == "in" && asset != null && onCheckedIn != null) onCheckedIn(asset) else onDone()
         }
     }
-    LaunchedEffect(Unit) { viewModel.errors.collect { snackbar.showSnackbar(it) } }
+    LaunchedEffect(Unit) {
+        viewModel.errors.collect {
+            saving = false
+            haptics.error()
+            snackbar.showSnackbar(it)
+        }
+    }
+    LaunchedEffect(step) { scroll.scrollTo(0) }
     val out = viewModel.direction == "out"
     val zone = ZoneId.systemDefault()
+    val steps = listOf(
+        stringResource(R.string.rentals_inspection),
+        stringResource(R.string.rentals_handover_step_condition),
+        stringResource(R.string.rentals_meter),
+        stringResource(R.string.rentals_handover_step_review),
+    )
+    val last = steps.lastIndex
+    val goBack: () -> Unit = { if (step > 0) step-- else onBack() }
+    BackHandler(enabled = step > 0) { step-- }
 
     Scaffold(
         topBar = { RentalsTopBar(stringResource(if (out) R.string.rentals_action_checkout else R.string.rentals_action_checkin), onBack) },
         snackbarHost = { SnackbarHost(snackbar) },
+        bottomBar = {
+            BottomActionBar {
+                OutlinedButton(onClick = goBack, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
+                    Text(stringResource(if (step == 0) R.string.rentals_cancel else R.string.rentals_back))
+                }
+                if (step < last) {
+                    Button(
+                        onClick = { step++ },
+                        enabled = unit != null,
+                        modifier = Modifier.weight(1f).heightIn(min = MinTouch),
+                    ) {
+                        Text(stringResource(R.string.rentals_next_step))
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.padding(start = 8.dp).size(18.dp))
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            saving = true
+                            viewModel.save(defaultSigner)
+                        },
+                        enabled = unit != null && undecided == 0 && !saving,
+                        modifier = Modifier.weight(1f).heightIn(min = MinTouch),
+                    ) {
+                        if (saving) {
+                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                        } else {
+                            Icon(Icons.Default.Check, null, Modifier.size(18.dp))
+                        }
+                        Text(
+                            stringResource(if (out) R.string.rentals_complete_checkout else R.string.rentals_complete_checkin),
+                            Modifier.padding(start = 8.dp),
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
+            }
+        },
     ) { pad ->
         Column(
             Modifier
                 .fillMaxSize()
                 .padding(pad)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+                .imePadding(),
         ) {
-            if (units.isEmpty()) {
-                Text(stringResource(R.string.rentals_handover_no_unit), color = MaterialTheme.colorScheme.error)
-            }
-            if (units.size > 1) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    units.forEach { u ->
-                        FilterChip(unit?.assetId == u.assetId, { viewModel.selected.value = u.assetId }, { Text(u.name) }, Modifier.heightIn(min = MinTouch))
+            StepIndicator(steps, step, onStepClick = { step = it })
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scroll)
+                    .padding(bottom = 16.dp),
+            ) {
+                if (units.isEmpty()) {
+                    ErrorBanner(
+                        stringResource(R.string.rentals_handover_no_unit),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        tone = StatusTone.Warning,
+                    )
+                }
+                when (step) {
+                    0 -> {
+                        SectionCard(title = stringResource(R.string.rentals_unit), contentPadding = units.size > 1) {
+                            if (units.size > 1) {
+                                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    units.forEach { u ->
+                                        FilterChip(
+                                            unit?.assetId == u.assetId, { viewModel.selected.value = u.assetId }, { Text(u.name) },
+                                            Modifier.heightIn(min = MinTouch),
+                                        )
+                                    }
+                                }
+                            } else {
+                                unit?.let {
+                                    ListItem(
+                                        colors = cardListItemColors(),
+                                        leadingContent = { LeadingBadge(Icons.Default.DirectionsCar, if (out) StatusTone.Accent else StatusTone.Success) },
+                                        headlineContent = { Text(it.name, style = MaterialTheme.typography.titleMedium) },
+                                    )
+                                }
+                            }
+                        }
+                        SectionCard(title = stringResource(R.string.rentals_inspection)) {
+                            inspections.forEachIndexed { i, opt ->
+                                if (i > 0) CardDivider()
+                                ListItem(
+                                    colors = cardListItemColors(),
+                                    modifier = Modifier.selectable(selected = logId == opt.logId, role = Role.RadioButton) {
+                                        viewModel.logId.value = if (logId == opt.logId) null else opt.logId
+                                    },
+                                    leadingContent = { RadioButton(selected = logId == opt.logId, onClick = null) },
+                                    headlineContent = { Text(opt.title) },
+                                    supportingContent = { Text(formatDateTime(opt.at, zone)) },
+                                )
+                            }
+                            if (inspections.isEmpty()) CardNote(stringResource(R.string.rentals_no_recent_inspection))
+                            unit?.let { u ->
+                                CardDivider()
+                                TextButton(
+                                    onClick = { onStartInspection(u.assetId) },
+                                    modifier = Modifier.padding(horizontal = 8.dp).heightIn(min = MinTouch),
+                                ) {
+                                    Icon(Icons.Default.Add, null, Modifier.size(18.dp))
+                                    Text(stringResource(R.string.rentals_start_inspection), Modifier.padding(start = 8.dp))
+                                }
+                            }
+                        }
+                    }
+                    1 -> {
+                        SectionCard(title = stringResource(R.string.rentals_damage), contentPadding = true) {
+                            Text(
+                                stringResource(if (baseline.isEmpty()) R.string.rentals_sketch_hint else R.string.rentals_sketch_hint_baseline),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            VehicleSketchView(
+                                assetType = unit?.assetType,
+                                marks = marks,
+                                baseline = baseline,
+                                onZoneTap = { addZone = it },
+                                onMarkMove = viewModel::moveMark,
+                                onMarkEdit = { editMark = it },
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).height(320.dp),
+                            )
+                            VehicleSketchLegend(showBaseline = baseline.isNotEmpty())
+                            val newCount = marks.count { it.isNew }
+                            if (!out && baseline.isNotEmpty()) {
+                                StatusPill(
+                                    stringResource(R.string.rentals_new_damage_count, newCount),
+                                    if (newCount > 0) StatusTone.Danger else StatusTone.Success,
+                                    Modifier.padding(top = 8.dp),
+                                    icon = if (newCount > 0) Icons.Default.Warning else Icons.Default.CheckCircle,
+                                )
+                            }
+                        }
+                        if (marks.isNotEmpty()) {
+                            SectionCard {
+                                marks.forEachIndexed { i, m ->
+                                    if (i > 0) CardDivider()
+                                    val needs = m.isNew && decisions[m.id]?.isValid != true
+                                    ListItem(
+                                        colors = cardListItemColors(),
+                                        modifier = Modifier.clickable(role = Role.Button) { editMark = m },
+                                        leadingContent = {
+                                            LeadingBadge(
+                                                if (m.isNew) Icons.Default.Warning else Icons.Default.History,
+                                                if (m.isNew) StatusTone.Danger else StatusTone.Neutral,
+                                            )
+                                        },
+                                        headlineContent = { Text("${m.number}. ${inspectionLocationLabel(m.zone) ?: m.zone}") },
+                                        supportingContent = { Text(listOf(severityLabel(m.severity), m.label).filter { it.isNotBlank() }.joinToString(" · ")) },
+                                        trailingContent = if (needs) {
+                                            { StatusPill(stringResource(R.string.rentals_decision_needed), StatusTone.Warning, icon = Icons.Default.Error) }
+                                        } else {
+                                            null
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    2 -> {
+                        SectionCard(title = stringResource(R.string.rentals_meter), contentPadding = true) {
+                            OutlinedTextField(
+                                meter, { viewModel.meter.value = it },
+                                label = { Text(stringResource(if (meterKind == "hours") R.string.rentals_meter_hours else R.string.rentals_meter_distance)) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            ChipRow(Modifier.padding(top = 8.dp)) {
+                                FilterChip(
+                                    meterKind == "hours", { viewModel.meterKind.value = "hours" },
+                                    { Text(stringResource(R.string.rentals_meter_hours)) }, Modifier.heightIn(min = MinTouch),
+                                )
+                                FilterChip(
+                                    meterKind == "distance", { viewModel.meterKind.value = "distance" },
+                                    { Text(stringResource(R.string.rentals_meter_distance)) }, Modifier.heightIn(min = MinTouch),
+                                )
+                            }
+                        }
+                        SectionCard(title = stringResource(R.string.rentals_meter_fuel), contentPadding = true) {
+                            val fuelText = fuel?.let { "$it %" } ?: stringResource(R.string.rentals_not_recorded)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.LocalGasStation, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    stringResource(R.string.rentals_fuel_level, fuelText),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    modifier = Modifier.padding(start = 8.dp),
+                                )
+                            }
+                            Slider(
+                                value = (fuel ?: 0).toFloat(),
+                                onValueChange = { viewModel.fuel.value = (it / 5).toInt() * 5 },
+                                valueRange = 0f..100f,
+                                steps = 19,
+                                modifier = Modifier.heightIn(min = MinTouch).semantics { stateDescription = fuelText },
+                            )
+                        }
+                        SectionCard(title = stringResource(R.string.rentals_notes), contentPadding = true) {
+                            OutlinedTextField(
+                                notes, { viewModel.notes.value = it },
+                                label = { Text(stringResource(R.string.rentals_notes)) },
+                                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                                minLines = 3,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
+                    else -> {
+                        SectionCard(title = stringResource(R.string.rentals_signature), contentPadding = true) {
+                            StatusPill(
+                                stringResource(if (signature != null) R.string.rentals_signed else R.string.rentals_not_signed),
+                                if (signature != null) StatusTone.Success else StatusTone.Neutral,
+                                icon = if (signature != null) Icons.Default.CheckCircle else Icons.Default.Draw,
+                            )
+                            if (signer.isNotBlank()) {
+                                Text(signer, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
+                            }
+                            FilledTonalButton(
+                                onClick = { customerMode = true },
+                                modifier = Modifier.padding(top = 12.dp).fillMaxWidth().heightIn(min = MinTouch),
+                            ) {
+                                Icon(Icons.Default.Draw, null, Modifier.size(18.dp))
+                                Text(stringResource(R.string.rentals_hand_to_customer), Modifier.padding(start = 8.dp))
+                            }
+                        }
+                        SectionCard(title = stringResource(R.string.rentals_review_summary)) {
+                            Column(Modifier.padding(vertical = 8.dp)) {
+                                LabelValue(stringResource(R.string.rentals_unit), unit?.name ?: "—", emphasise = true)
+                                LabelValue(
+                                    stringResource(R.string.rentals_inspection),
+                                    inspections.firstOrNull { it.logId == logId }?.title ?: stringResource(R.string.rentals_not_recorded),
+                                )
+                                LabelValue(stringResource(R.string.rentals_damage), stringResource(R.string.rentals_marks_count, marks.size, marks.count { it.isNew }))
+                                LabelValue(
+                                    stringResource(if (meterKind == "hours") R.string.rentals_meter_hours else R.string.rentals_meter_distance),
+                                    meter.ifBlank { stringResource(R.string.rentals_not_recorded) },
+                                )
+                                LabelValue(
+                                    stringResource(R.string.rentals_meter_fuel),
+                                    fuel?.let { "$it %" } ?: stringResource(R.string.rentals_not_recorded),
+                                )
+                                if (notes.isNotBlank()) LabelValue(stringResource(R.string.rentals_notes), notes)
+                            }
+                        }
+                        if (undecided > 0) {
+                            ErrorBanner(
+                                stringResource(R.string.rentals_damage_needs_decision),
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                onRetry = { step = 1 },
+                                retryLabel = stringResource(R.string.rentals_damage),
+                                tone = StatusTone.Danger,
+                            )
+                        }
+                        Text(
+                            stringResource(R.string.rentals_handover_offline_note),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                        )
                     }
                 }
-            } else unit?.let { Text(it.name, style = MaterialTheme.typography.titleMedium) }
-
-            SectionHeader(stringResource(R.string.rentals_inspection))
-            inspections.forEach { opt ->
-                ListItem(
-                    modifier = Modifier.selectable(selected = logId == opt.logId, role = Role.RadioButton) {
-                        viewModel.logId.value = if (logId == opt.logId) null else opt.logId
-                    },
-                    leadingContent = { RadioButton(selected = logId == opt.logId, onClick = null) },
-                    headlineContent = { Text(opt.title) },
-                    supportingContent = { Text(formatDateTime(opt.at, zone)) },
-                )
             }
-            if (inspections.isEmpty()) Text(stringResource(R.string.rentals_no_recent_inspection), style = MaterialTheme.typography.bodySmall)
-            unit?.let { u ->
-                OutlinedButton(onClick = { onStartInspection(u.assetId) }, modifier = Modifier.heightIn(min = MinTouch)) {
-                    Text(stringResource(R.string.rentals_start_inspection))
-                }
-            }
-
-            SectionHeader(stringResource(R.string.rentals_damage))
-            Text(
-                stringResource(if (baseline.isEmpty()) R.string.rentals_sketch_hint else R.string.rentals_sketch_hint_baseline),
-                style = MaterialTheme.typography.bodySmall,
-            )
-            VehicleSketchView(
-                assetType = unit?.assetType,
-                marks = marks,
-                baseline = baseline,
-                onZoneTap = { addZone = it },
-                onMarkMove = viewModel::moveMark,
-                onMarkEdit = { editMark = it },
-                modifier = Modifier.fillMaxWidth().height(320.dp),
-            )
-            VehicleSketchLegend(showBaseline = baseline.isNotEmpty())
-            val newCount = marks.count { it.isNew }
-            if (!out && baseline.isNotEmpty()) {
-                Text(
-                    stringResource(R.string.rentals_new_damage_count, newCount),
-                    color = if (newCount > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            marks.forEach { m ->
-                ListItem(
-                    modifier = Modifier.clickable(role = Role.Button) { editMark = m },
-                    headlineContent = { Text("${m.number}. ${inspectionLocationLabel(m.zone) ?: m.zone}") },
-                    supportingContent = { Text(listOf(severityLabel(m.severity), m.label).filter { it.isNotBlank() }.joinToString(" · ")) },
-                )
-            }
-
-            SectionHeader(stringResource(R.string.rentals_meter_fuel))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    meter, { viewModel.meter.value = it },
-                    label = { Text(stringResource(R.string.rentals_meter)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true,
-                    modifier = Modifier.weight(1f),
-                )
-                FilterChip(meterKind == "hours", { viewModel.meterKind.value = "hours" }, { Text(stringResource(R.string.rentals_meter_hours)) }, Modifier.heightIn(min = MinTouch))
-                FilterChip(meterKind == "distance", { viewModel.meterKind.value = "distance" }, { Text(stringResource(R.string.rentals_meter_distance)) }, Modifier.heightIn(min = MinTouch))
-            }
-            val fuelText = fuel?.let { "$it %" } ?: stringResource(R.string.rentals_not_recorded)
-            Text(stringResource(R.string.rentals_fuel_level, fuelText))
-            Slider(
-                value = (fuel ?: 0).toFloat(),
-                onValueChange = { viewModel.fuel.value = (it / 5).toInt() * 5 },
-                valueRange = 0f..100f,
-                steps = 19,
-                modifier = Modifier.semantics { stateDescription = fuelText },
-            )
-            OutlinedTextField(notes, { viewModel.notes.value = it }, label = { Text(stringResource(R.string.rentals_notes)) }, modifier = Modifier.fillMaxWidth())
-
-            SectionHeader(stringResource(R.string.rentals_signature))
-            Text(
-                stringResource(if (signature != null) R.string.rentals_signed else R.string.rentals_not_signed),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            OutlinedButton(onClick = { customerMode = true }, modifier = Modifier.heightIn(min = MinTouch)) {
-                Text(stringResource(R.string.rentals_hand_to_customer))
-            }
-
-            if (undecided > 0) {
-                Text(stringResource(R.string.rentals_damage_needs_decision), color = MaterialTheme.colorScheme.error)
-            }
-            Button(
-                onClick = { viewModel.save(defaultSigner) },
-                enabled = unit != null && undecided == 0,
-                modifier = Modifier.fillMaxWidth().heightIn(min = MinTouch),
-            ) { Text(stringResource(if (out) R.string.rentals_complete_checkout else R.string.rentals_complete_checkin)) }
-            Text(stringResource(R.string.rentals_handover_offline_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 
@@ -438,6 +646,7 @@ fun HandoverScreen(
             onSave = { sev, label, decision ->
                 val id = viewModel.addMark(z, sev, label)
                 viewModel.setDecision(id, decision)
+                haptics.tick()
                 addZone = null
             },
             onDelete = null,
@@ -564,7 +773,7 @@ private fun CustomerSignatureDialog(
 ) {
     Dialog(onDismissRequest = onDone, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         androidx.compose.material3.Surface(Modifier.fillMaxSize()) {
-            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.systemBarsPadding().imePadding().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.rentals_customer_sign_title), style = MaterialTheme.typography.headlineSmall)
                 Text(stringResource(if (out) R.string.rentals_customer_sign_terms_out else R.string.rentals_customer_sign_terms_in))
                 OutlinedTextField(signer, onSigner, label = { Text(stringResource(R.string.rentals_signer_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())

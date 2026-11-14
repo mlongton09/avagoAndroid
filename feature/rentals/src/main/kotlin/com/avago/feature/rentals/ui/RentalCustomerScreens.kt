@@ -1,27 +1,45 @@
 package com.avago.feature.rentals.ui
 
+import java.time.ZoneId
+import javax.inject.Inject
 import androidx.annotation.StringRes
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Badge
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.DocumentScanner
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.SearchOff
+import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -30,46 +48,65 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.compose.LifecycleResumeEffect
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import com.avago.feature.rentals.R
+import com.avago.core.ui.components.BottomActionBar
+import com.avago.core.ui.components.CardDivider
+import com.avago.core.ui.components.cardListItemColors
+import com.avago.core.ui.components.ErrorBanner
+import com.avago.core.ui.components.LeadingBadge
+import com.avago.core.ui.components.rememberHaptics
+import com.avago.core.ui.components.SectionCard
+import com.avago.core.ui.components.StatusPill
+import com.avago.core.ui.components.StatusTone
+import com.avago.core.ui.components.StickyDayHeader
+import com.avago.core.ui.components.toneColors
 import com.avago.feature.rentals.data.RentalRepository
 import com.avago.feature.rentals.data.RentalRequests
 import com.avago.feature.rentals.domain.Aamva
 import com.avago.feature.rentals.domain.CustomerView
+import com.avago.feature.rentals.domain.obj
 import com.avago.feature.rentals.domain.OrderView
 import com.avago.feature.rentals.domain.RentalEntity
-import com.avago.feature.rentals.domain.obj
 import com.avago.feature.rentals.domain.str
+import com.avago.feature.rentals.R
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
-import javax.inject.Inject
 
 // ── List ─────────────────────────────────────────────────────────────────────────────
 
@@ -83,6 +120,7 @@ class RentalCustomersViewModel @Inject constructor(repo: RentalRepository) : Vie
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun RentalCustomersScreen(
     onBack: () -> Unit,
@@ -92,37 +130,89 @@ fun RentalCustomersScreen(
 ) {
     val customers by viewModel.customers.collectAsStateWithLifecycle()
     val query by viewModel.query.collectAsStateWithLifecycle()
+    val listState = rememberLazyListState()
+    // A–Z sticky headers (list is sorted by name).
+    val groups = remember(customers) { customers.groupBy { c -> c.name.firstOrNull()?.uppercaseChar()?.takeIf { it.isLetter() } ?: '#' } }
     Scaffold(
         topBar = { RentalsTopBar(stringResource(R.string.rentals_customers), onBack) },
         floatingActionButton = {
-            ExtendedFloatingActionButton(onClick = onNew, icon = { Icon(Icons.Default.Add, null) }, text = { Text(stringResource(R.string.rentals_new_customer)) })
+            ExtendedFloatingActionButton(
+                onClick = onNew,
+                expanded = !listState.canScrollBackward,
+                icon = { Icon(Icons.Default.PersonAdd, null) },
+                text = { Text(stringResource(R.string.rentals_new_customer)) },
+            )
         },
     ) { pad ->
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = pad.calculateTopPadding(), bottom = 96.dp)) {
-            item {
-                OutlinedTextField(
-                    query, { viewModel.query.value = it },
-                    label = { Text(stringResource(R.string.rentals_search_customers)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                )
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            state = listState,
+            contentPadding = PaddingValues(top = pad.calculateTopPadding(), bottom = pad.calculateBottomPadding() + 96.dp),
+        ) {
+            item(key = "search", contentType = "search") {
+                RentalSearchField(query, { viewModel.query.value = it }, stringResource(R.string.rentals_search_customers))
             }
-            if (customers.isEmpty()) item { EmptyState(stringResource(R.string.rentals_customers_empty)) }
-            items(customers, key = { it.id }) { c ->
-                ListItem(
-                    modifier = Modifier.clickable(role = Role.Button) { onOpen(c.id) },
-                    headlineContent = { Text(c.name) },
-                    supportingContent = { listOfNotNull(c.company, c.email, c.phone).takeIf { it.isNotEmpty() }?.let { Text(it.joinToString(" · ")) } },
-                    trailingContent = {
-                        Column {
-                            if (c.doNotRent) Text(stringResource(R.string.rentals_do_not_rent), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
-                            SyncStateBadge(c.localState)
-                        }
-                    },
-                )
-                HorizontalDivider()
+            if (customers.isEmpty()) {
+                item(key = "empty", contentType = "empty") {
+                    if (query.isNotBlank()) {
+                        EmptyState(
+                            stringResource(R.string.rentals_no_matches),
+                            icon = Icons.Default.SearchOff,
+                            actionLabel = stringResource(R.string.rentals_clear_search),
+                            onAction = { viewModel.query.value = "" },
+                        )
+                    } else {
+                        EmptyState(
+                            stringResource(R.string.rentals_customers_empty),
+                            icon = Icons.Default.People,
+                            actionLabel = stringResource(R.string.rentals_new_customer),
+                            onAction = onNew,
+                        )
+                    }
+                }
+            }
+            groups.forEach { (letter, rows) ->
+                stickyHeader(key = "h:$letter", contentType = "header") { StickyDayHeader(letter.toString()) }
+                items(rows, key = { it.id }, contentType = { "customer" }) { c ->
+                    Column(Modifier.animateItem()) {
+                        ListItem(
+                            modifier = Modifier.clickable(role = Role.Button) { onOpen(c.id) },
+                            leadingContent = { InitialsAvatar(c.name, if (c.doNotRent) StatusTone.Danger else StatusTone.Info) },
+                            headlineContent = { Text(c.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            supportingContent = {
+                                listOfNotNull(c.company, c.email, c.phone).takeIf { it.isNotEmpty() }?.let {
+                                    Text(it.joinToString(" · "), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                }
+                            },
+                            trailingContent = {
+                                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    if (c.doNotRent) StatusPill(stringResource(R.string.rentals_do_not_rent), StatusTone.Danger, icon = Icons.Default.Block)
+                                    SyncStateBadge(c.localState)
+                                }
+                            },
+                        )
+                        HorizontalDivider(Modifier.padding(start = 72.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                    }
+                }
             }
         }
+    }
+}
+
+/** 40dp tonal circle with the name's initials (decorative; the name is read from the headline). */
+@Composable
+internal fun InitialsAvatar(name: String, tone: StatusTone) {
+    val c = toneColors(tone)
+    val initials = name.split(' ', '-').filter { it.isNotBlank() }.take(2).joinToString("") { it.first().uppercase() }.ifEmpty { "?" }
+    Box(
+        Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(c.container)
+            .clearAndSetSemantics { },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(initials, style = MaterialTheme.typography.titleSmall, color = c.content)
     }
 }
 
@@ -228,81 +318,164 @@ fun RentalCustomerScreen(
     val docs by viewModel.documents.collectAsStateWithLifecycle()
     val orders by viewModel.orders.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
-    LaunchedEffect(Unit) { viewModel.saved.collect(onSaved) }
-    LaunchedEffect(Unit) { viewModel.errors.collect { snackbar.showSnackbar(it) } }
+    val haptics = rememberHaptics()
+    var attempted by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        viewModel.saved.collect {
+            haptics.success()
+            onSaved(it)
+        }
+    }
+    LaunchedEffect(Unit) {
+        viewModel.errors.collect {
+            haptics.error()
+            snackbar.showSnackbar(it)
+        }
+    }
     LifecycleResumeEffect(Unit) {
         LicenceScanBuffer.take()?.let(viewModel::applyLicence)
         onPauseOrDispose { }
     }
     val dobOk = form.dateOfBirth.isBlank() || RentalCustomerViewModel.DATE.matches(form.dateOfBirth)
+    val nameError = attempted && form.name.isBlank()
+    val zone = ZoneId.systemDefault()
+    val save = {
+        attempted = true
+        if (form.name.isNotBlank() && dobOk) viewModel.save() else haptics.error()
+    }
 
     Scaffold(
         topBar = {
             RentalsTopBar(
                 if (viewModel.customerId == null) stringResource(R.string.rentals_new_customer) else form.name.ifBlank { stringResource(R.string.rentals_customer) },
                 onBack,
-            )
+            ) {
+                IconButton(onClick = onScanLicence, modifier = Modifier.size(MinTouch)) {
+                    Icon(Icons.Default.DocumentScanner, contentDescription = stringResource(R.string.rentals_scan_licence))
+                }
+            }
         },
         snackbarHost = { SnackbarHost(snackbar) },
+        bottomBar = {
+            BottomActionBar(Modifier.imePadding()) {
+                Button(onClick = { save() }, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
+                    Icon(Icons.Default.Check, null, Modifier.size(18.dp))
+                    Text(stringResource(R.string.rentals_save), Modifier.padding(start = 8.dp))
+                }
+            }
+        },
     ) { pad ->
         Column(
             Modifier
                 .fillMaxSize()
                 .padding(pad)
+                .imePadding()
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(vertical = 8.dp),
         ) {
             view?.let { v ->
-                SyncStateBadge(v.localState)
                 if (v.doNotRent) {
-                    Text(
+                    ErrorBanner(
                         stringResource(R.string.rentals_do_not_rent) + (v.doNotRentReason?.let { ": $it" } ?: ""),
-                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        tone = StatusTone.Danger,
+                        icon = Icons.Default.Block,
                     )
+                }
+                if (v.localState != com.avago.core.data.db.rental.RentalRecordEntity.STATE_SYNCED) {
+                    SyncStateBadge(v.localState, Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
                 }
             }
-            OutlinedButton(onClick = onScanLicence, modifier = Modifier.heightIn(min = MinTouch)) { Text(stringResource(R.string.rentals_scan_licence)) }
-            Field(form.name, stringResource(R.string.rentals_name)) { viewModel.form.value = form.copy(name = it) }
-            Field(form.company, stringResource(R.string.rentals_company)) { viewModel.form.value = form.copy(company = it) }
-            Field(form.email, stringResource(R.string.rentals_email), KeyboardType.Email) { viewModel.form.value = form.copy(email = it) }
-            Field(form.phone, stringResource(R.string.rentals_phone), KeyboardType.Phone) { viewModel.form.value = form.copy(phone = it) }
-            Field(form.address, stringResource(R.string.rentals_address), singleLine = false) { viewModel.form.value = form.copy(address = it) }
-            OutlinedTextField(
-                form.dateOfBirth, { viewModel.form.value = form.copy(dateOfBirth = it) },
-                label = { Text(stringResource(R.string.rentals_date_of_birth)) },
-                placeholder = { Text(stringResource(R.string.rentals_date_placeholder)) },
-                isError = !dobOk,
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Field(form.notes, stringResource(R.string.rentals_notes), singleLine = false) { viewModel.form.value = form.copy(notes = it) }
-            Button(
-                onClick = viewModel::save,
-                enabled = form.name.isNotBlank() && dobOk,
-                modifier = Modifier.fillMaxWidth().heightIn(min = MinTouch),
-            ) { Text(stringResource(R.string.rentals_save)) }
+            if (viewModel.customerId == null) {
+                OutlinedButton(
+                    onClick = onScanLicence,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth().heightIn(min = MinTouch),
+                ) {
+                    Icon(Icons.Default.DocumentScanner, null, Modifier.size(18.dp))
+                    Text(stringResource(R.string.rentals_scan_licence), Modifier.padding(start = 8.dp))
+                }
+            }
+            SectionCard(title = stringResource(R.string.rentals_customer), contentPadding = true) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Field(
+                        form.name, stringResource(R.string.rentals_name),
+                        capitalization = KeyboardCapitalization.Words,
+                        error = if (nameError) stringResource(R.string.rentals_name_required) else null,
+                    ) { viewModel.form.value = form.copy(name = it) }
+                    Field(form.company, stringResource(R.string.rentals_company), capitalization = KeyboardCapitalization.Words) {
+                        viewModel.form.value = form.copy(company = it)
+                    }
+                }
+            }
+            SectionCard(title = stringResource(R.string.rentals_contact), contentPadding = true) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Field(form.email, stringResource(R.string.rentals_email), KeyboardType.Email) { viewModel.form.value = form.copy(email = it) }
+                    Field(form.phone, stringResource(R.string.rentals_phone), KeyboardType.Phone) { viewModel.form.value = form.copy(phone = it) }
+                    Field(form.address, stringResource(R.string.rentals_address), singleLine = false) { viewModel.form.value = form.copy(address = it) }
+                }
+            }
+            SectionCard(title = stringResource(R.string.rentals_more_details), contentPadding = true) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        form.dateOfBirth, { viewModel.form.value = form.copy(dateOfBirth = it) },
+                        label = { Text(stringResource(R.string.rentals_date_of_birth)) },
+                        placeholder = { Text(stringResource(R.string.rentals_date_placeholder)) },
+                        isError = !dobOk,
+                        supportingText = if (!dobOk) {
+                            { Text(stringResource(R.string.rentals_date_invalid, stringResource(R.string.rentals_date_placeholder))) }
+                        } else {
+                            null
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Field(form.notes, stringResource(R.string.rentals_notes), singleLine = false) { viewModel.form.value = form.copy(notes = it) }
+                }
+            }
 
             viewModel.customerId?.let { id ->
-                SectionHeader(stringResource(R.string.rentals_documents)) {
-                    OutlinedButton(onClick = { onAddDocument(id) }, modifier = Modifier.heightIn(min = MinTouch)) { Text(stringResource(R.string.rentals_add_document)) }
-                }
-                docs.forEach { d ->
-                    ListItem(
-                        headlineContent = { Text(stringResource(documentKindLabel(d.kind))) },
-                        supportingContent = { Text(listOfNotNull(d.number, d.expiresOn?.let { stringResource(R.string.rentals_expires_on, it) }).joinToString(" · ")) },
-                        trailingContent = { SyncStateBadge(d.localState) },
-                    )
+                SectionCard(
+                    title = stringResource(R.string.rentals_documents),
+                    trailing = {
+                        TextButton(onClick = { onAddDocument(id) }, modifier = Modifier.heightIn(min = MinTouch)) {
+                            Icon(Icons.Default.Add, null, Modifier.size(18.dp))
+                            Text(stringResource(R.string.rentals_add_document), Modifier.padding(start = 4.dp))
+                        }
+                    },
+                ) {
+                    if (docs.isEmpty()) CardNote(stringResource(R.string.rentals_documents_none))
+                    docs.forEachIndexed { i, d ->
+                        if (i > 0) CardDivider()
+                        ListItem(
+                            colors = cardListItemColors(),
+                            leadingContent = { LeadingBadge(Icons.Default.Badge, StatusTone.Info) },
+                            headlineContent = { Text(stringResource(documentKindLabel(d.kind))) },
+                            supportingContent = {
+                                Text(listOfNotNull(d.number, d.expiresOn?.let { stringResource(R.string.rentals_expires_on, it) }).joinToString(" · "))
+                            },
+                            trailingContent = { SyncStateBadge(d.localState) },
+                        )
+                    }
                 }
                 if (orders.isNotEmpty()) {
-                    SectionHeader(stringResource(R.string.rentals_orders))
-                    orders.forEach { o ->
-                        ListItem(
-                            modifier = Modifier.clickable(role = Role.Button) { onOpenOrder(o.id) },
-                            headlineContent = { Text(o.number ?: stringResource(R.string.rentals_draft_order)) },
-                            supportingContent = { Text(stringResource(orderStatusLabel(o.status))) },
-                            trailingContent = { Text(formatMoney(o.total)) },
-                        )
+                    SectionCard(title = stringResource(R.string.rentals_orders)) {
+                        orders.forEachIndexed { i, o ->
+                            if (i > 0) CardDivider()
+                            ListItem(
+                                colors = cardListItemColors(),
+                                modifier = Modifier.clickable(role = Role.Button) { onOpenOrder(o.id) },
+                                leadingContent = { LeadingBadge(orderStatusIcon(o.status), orderStatusTone(o.status)) },
+                                headlineContent = { Text(o.number ?: stringResource(R.string.rentals_draft_order)) },
+                                supportingContent = {
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text(formatDateTime(o.startAt, zone))
+                                        OrderStatusPill(o.status)
+                                    }
+                                },
+                                trailingContent = { Text(formatMoney(o.total), style = MaterialTheme.typography.bodyMedium) },
+                            )
+                        }
                     }
                 }
             }
@@ -311,12 +484,29 @@ fun RentalCustomerScreen(
 }
 
 @Composable
-private fun Field(value: String, label: String, keyboard: KeyboardType = KeyboardType.Text, singleLine: Boolean = true, onChange: (String) -> Unit) {
+private fun Field(
+    value: String,
+    label: String,
+    keyboard: KeyboardType = KeyboardType.Text,
+    singleLine: Boolean = true,
+    capitalization: KeyboardCapitalization = KeyboardCapitalization.None,
+    error: String? = null,
+    onChange: (String) -> Unit,
+) {
+    val focus = LocalFocusManager.current
     OutlinedTextField(
         value, onChange,
         label = { Text(label) },
         singleLine = singleLine,
-        keyboardOptions = KeyboardOptions(keyboardType = keyboard),
+        minLines = if (singleLine) 1 else 2,
+        isError = error != null,
+        supportingText = error?.let { { Text(it) } },
+        keyboardOptions = KeyboardOptions(
+            keyboardType = keyboard,
+            capitalization = if (singleLine) capitalization else KeyboardCapitalization.Sentences,
+            imeAction = if (singleLine) ImeAction.Next else ImeAction.Default,
+        ),
+        keyboardActions = KeyboardActions(onNext = { focus.moveFocus(FocusDirection.Down) }),
         modifier = Modifier.fillMaxWidth(),
     )
 }
