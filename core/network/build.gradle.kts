@@ -37,4 +37,14 @@ dependencies {
     // Serialization
     implementation(libs.serialization.json)
     implementation(libs.kotlinx.datetime)
+
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit5)
+    testImplementation(libs.coroutines.test)
+    testRuntimeOnly(libs.junit5.engine)
+    testRuntimeOnly(libs.junit.platform.launcher)
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
 }

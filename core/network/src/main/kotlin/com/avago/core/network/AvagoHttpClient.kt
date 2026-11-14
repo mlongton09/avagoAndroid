@@ -89,6 +89,11 @@ object AvagoHttpClient {
         refreshFailedHandler: RefreshFailedHandler? = null,
         rateLimitBackoffStore: RateLimitBackoffStore? = null,
     ): HttpClient = HttpClient(OkHttp) {
+        // One auth-free client for /auth/refresh, created on first use and kept for the life of
+        // this client, so a refresh reuses its connection pool and TLS session instead of
+        // building (and tearing down) a new OkHttp client every time.
+        val refreshClient by lazy { createUnauthenticatedClient(isDebug) }
+
         // Throw ResponseException for any non-2xx before body deserialization (mirrors iOS status-before-parse)
         expectSuccess = true
 
@@ -109,7 +114,8 @@ object AvagoHttpClient {
                     val endpoint = request.url.encodedPath
                     if (!endpoint.startsWith("/auth/")) {
                         val now = System.currentTimeMillis()
-                        val nextAllowed = runBlocking { store.nextAllowedAtMs(endpoint) }
+                        val nextAllowed = store.cachedNextAllowedAtMs(endpoint)
+                            ?: runBlocking { store.nextAllowedAtMs(endpoint) }
                         if (nextAllowed > now) {
                             val wait = ((nextAllowed - now) / 1000L).coerceAtLeast(1L)
                             return@addInterceptor synthetic429(request, "Rate limited. Wait for ${wait}s")
@@ -166,27 +172,28 @@ object AvagoHttpClient {
                 }
 
                 refreshTokens {
-                    val currentRefresh = tokenProvider.refreshToken()
-                    val unauthClient = createUnauthenticatedClient(isDebug)
-                    try {
-                        val response = unauthClient.post("$baseUrl/auth/refresh") {
-                            contentType(ContentType.Application.Json)
-                            setBody(RefreshRequest(refresh_token = currentRefresh, device_id = tokenProvider.deviceId()))
-                            markAsRefreshTokenRequest()
-                        }.body<AuthResponse>()
-                        tokenStorage.storeTokens(response.access_token, response.refresh_token)
-                        BearerTokens(
-                            accessToken = response.access_token,
-                            refreshToken = response.refresh_token,
-                        )
-                    } catch (e: Exception) {
-                        Timber.e(e, "Token refresh failed")
-                        tokenStorage.clearTokens()
-                        refreshFailedHandler?.onRefreshFailed()
-                        null
-                    } finally {
-                        unauthClient.close()
-                    }
+                    // Ktor serializes refreshTokens per client, so concurrent 401s share one
+                    // refresh. A transient failure (offline, timeout, 5xx) is rethrown and keeps
+                    // the session; only a rejected refresh token signs out (see TokenRefresh).
+                    TokenRefresh.run(
+                        refresh = {
+                            val response = refreshClient.post("$baseUrl/auth/refresh") {
+                                contentType(ContentType.Application.Json)
+                                setBody(RefreshRequest(refresh_token = tokenProvider.refreshToken(), device_id = tokenProvider.deviceId()))
+                                markAsRefreshTokenRequest()
+                            }.body<AuthResponse>()
+                            tokenStorage.storeTokens(response.access_token, response.refresh_token)
+                            BearerTokens(
+                                accessToken = response.access_token,
+                                refreshToken = response.refresh_token,
+                            )
+                        },
+                        onRejected = { e ->
+                            Timber.e(e, "Token refresh rejected — ending session")
+                            tokenStorage.clearTokens()
+                            refreshFailedHandler?.onRefreshFailed()
+                        },
+                    )
                 }
             }
         }
