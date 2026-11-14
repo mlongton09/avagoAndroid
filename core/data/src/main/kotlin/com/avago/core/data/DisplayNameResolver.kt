@@ -1,7 +1,6 @@
 package com.avago.core.data
 
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.CancellationException
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -24,25 +23,10 @@ class DisplayNameResolver @Inject constructor(
                 userId.length > 8 -> "${userId.take(8)}…"
                 else -> userId
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Timber.w(e, "DisplayNameResolver: failed to resolve userId=$userId")
-            userIdFallback(userId)
-        }
-    }
-
-    /**
-     * Synchronous version for use in composables — returns cached value or userId fallback.
-     * Prefer [resolve] in coroutine contexts.
-     */
-    fun resolveSync(userId: String, accountId: String): String {
-        return try {
-            runBlocking {
-                withTimeoutOrNull(100L) {
-                    resolve(userId, accountId)
-                }
-            } ?: userIdFallback(userId)
-        } catch (e: Exception) {
-            Timber.w(e, "DisplayNameResolver: resolveSync failed for userId=$userId")
             userIdFallback(userId)
         }
     }

@@ -19,7 +19,9 @@ import androidx.work.WorkManager
 import java.util.concurrent.TimeUnit
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -98,6 +100,16 @@ class IdentityManager @Inject constructor(
     private val crashDiagnosticsProvider: Provider<CrashDiagnostics>,
     private val permissionStore: Provider<PermissionStore>,
 ) : RefreshFailedHandler {
+
+    /**
+     * Owned scope for fire-and-forget identity work (role refresh, account prefetch, push-token
+     * registration). Unlike GlobalScope, one failing job neither cancels the others nor crashes
+     * the process: uncaught failures are logged here.
+     */
+    private val backgroundScope = CoroutineScope(
+        SupervisorJob() + Dispatchers.IO +
+            CoroutineExceptionHandler { _, e -> Timber.e(e, "IdentityManager: background task failed") },
+    )
 
     private val refreshMutex = Mutex()
 
@@ -256,10 +268,9 @@ class IdentityManager @Inject constructor(
     // users whose stored role is missing or a legacy RBAC value.
     // ---------------------------------------------------------------------------
 
-    @Suppress("OPT_IN_USAGE")
     private fun refreshRoleInBackground(accountId: String, userId: String?) {
         if (userId == null) return
-        GlobalScope.launch(Dispatchers.IO) {
+        backgroundScope.launch {
             runCatching {
                 Timber.d("IdentityManager: background role refresh for $accountId")
                 val result = client.getAccountMembers(accountId)
@@ -637,8 +648,7 @@ class IdentityManager @Inject constructor(
     // ---------------------------------------------------------------------------
 
     private fun fetchMyAccountsAsync() {
-        @Suppress("OPT_IN_USAGE")
-        GlobalScope.launch(Dispatchers.IO) {
+        backgroundScope.launch {
             try {
                 val result = client.getAllAccounts()
                 if (result is NetworkResult.Success) {
@@ -740,8 +750,7 @@ class IdentityManager @Inject constructor(
     // ---------------------------------------------------------------------------
 
     private fun registerPushTokenAsync() {
-        @Suppress("OPT_IN_USAGE")
-        GlobalScope.launch(Dispatchers.IO) {
+        backgroundScope.launch {
             try {
                 val fcmToken = suspendCancellableCoroutine<String?> { cont ->
                     com.google.firebase.messaging.FirebaseMessaging.getInstance().token
@@ -781,8 +790,7 @@ class IdentityManager @Inject constructor(
     fun setDevRoleOverride(role: String?) {
         if (role != null && !hasRootOnCurrentAccount()) return
         _devRoleOverride.value = role
-        @Suppress("OPT_IN_USAGE")
-        GlobalScope.launch(Dispatchers.IO) { refreshPermissionStoreForActiveAccount() }
+        backgroundScope.launch { refreshPermissionStoreForActiveAccount() }
     }
 
     private suspend fun refreshPermissionStoreForActiveAccount() {

@@ -7,6 +7,7 @@ import com.avago.core.data.db.entity.ConfigEntity
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -152,8 +153,9 @@ class FeatureFlags @Inject constructor(
     fun observeRentalsEnabled(): Flow<Boolean> = observeFlag("rentals_enabled", default = true)
 
     /**
-     * Observe a boolean flag as a [Flow]. Re-emits whenever the DB row changes
-     * (e.g. after a server config sync) or the active account switches.
+     * Observe a boolean flag as a [Flow]. Emits whenever the effective value changes
+     * (e.g. after a server config sync) or the active account switches; unrelated
+     * config-table writes that Room re-delivers are filtered out.
      */
     @Suppress("OPT_IN_USAGE")
     fun observeFlag(key: String, default: Boolean): Flow<Boolean> {
@@ -163,12 +165,15 @@ class FeatureFlags @Inject constructor(
                 if (accountId == null) {
                     flowOf(default)
                 } else {
-                    runBlocking { databaseFactory.get(accountId) }
+                    // flatMapLatest's transform is already suspending; opening the account DB
+                    // here must not block the collector's thread.
+                    databaseFactory.get(accountId)
                         .configDao()
                         .observeByKey(scope, key)
                         .map { entity -> entity?.value?.toBooleanStrictOrNull() ?: default }
                 }
             }
+            .distinctUntilChanged()
     }
 
     suspend fun setBooleanFlag(key: String, enabled: Boolean) {
