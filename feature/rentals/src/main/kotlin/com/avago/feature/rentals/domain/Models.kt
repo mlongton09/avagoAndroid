@@ -147,6 +147,9 @@ data class LineView(
     val endAt: Instant?,
     val amount: Money?,
     val tax: Money?,
+    /** Line status (open | out | returned | swapped | cancelled); null on old rows. */
+    val status: String? = null,
+    val localState: String = RentalRecordEntity.STATE_SYNCED,
 ) {
     companion object {
         fun of(r: RentalRecordEntity, currency: String): LineView {
@@ -163,6 +166,8 @@ data class LineView(
                 endAt = o.instant("end_at"),
                 amount = o.money("amount_minor", currency),
                 tax = o.money("tax_minor", currency),
+                status = o.str("status"),
+                localState = r.localState,
             )
         }
     }

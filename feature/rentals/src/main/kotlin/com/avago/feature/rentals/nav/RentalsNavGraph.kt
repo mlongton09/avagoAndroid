@@ -24,6 +24,8 @@ import com.avago.feature.rentals.ui.RentalOrdersScreen
 import com.avago.feature.rentals.ui.RentalScanScreen
 import com.avago.feature.rentals.ui.RentalScheduleScreen
 import com.avago.feature.rentals.ui.RentalsHomeScreen
+import com.avago.feature.rentals.ui.ReadinessScreen
+import com.avago.feature.rentals.ui.SwapScreen
 import java.time.Instant
 
 /** Routes of the rentals feature (§14). All screens own their top bar. */
@@ -41,6 +43,8 @@ object RentalsRoute {
     const val HANDOVER = "rentals/handover/{orderId}/{direction}"
     const val SCAN = "rentals/scan"
     const val ASSET = "rentals/asset/{assetId}"
+    const val READINESS = "rentals/readiness/{assetId}"
+    const val SWAP = "rentals/swap/{orderId}"
 
     // Legacy (pre-v2) rental screens kept reachable from the asset Rental tab.
     const val LEGACY_ASSET = "rentals/legacy/asset/{assetId}"
@@ -57,6 +61,8 @@ object RentalsRoute {
     fun document(customerId: String?) = "rentals/document/${Uri.encode(customerId ?: "new")}"
     fun handover(orderId: String, direction: String) = "rentals/handover/${Uri.encode(orderId)}/$direction"
     fun asset(assetId: String) = "rentals/asset/${Uri.encode(assetId)}"
+    fun readiness(assetId: String) = "rentals/readiness/${Uri.encode(assetId)}"
+    fun swap(orderId: String) = "rentals/swap/${Uri.encode(orderId)}"
     fun legacyAsset(assetId: String) = "rentals/legacy/asset/${Uri.encode(assetId)}"
     fun legacyBooking(assetId: String) = "rentals/legacy/booking/${Uri.encode(assetId)}"
     fun legacyCustomerForm(customerId: String?) = "rentals/legacy/customer_form?customerId=${Uri.encode(customerId.orEmpty())}"
@@ -97,6 +103,7 @@ fun NavGraphBuilder.rentalsNavGraph(
             onOpenAsset = { go(RentalsRoute.asset(it)) },
             onBook = { assetId, start, end -> go(RentalsRoute.quickBook(assetId, start, end)) },
             onOpenOrder = { go(RentalsRoute.order(it)) },
+            onReadiness = { go(RentalsRoute.readiness(it)) },
         )
     }
     composable(RentalsRoute.SCHEDULE) {
@@ -114,6 +121,7 @@ fun NavGraphBuilder.rentalsNavGraph(
             onBack = back,
             onHandover = { orderId, direction -> go(RentalsRoute.handover(orderId, direction)) },
             onOpenCustomer = { go(RentalsRoute.customer(it)) },
+            onSwap = { go(RentalsRoute.swap(it)) },
         )
     }
     composable(
@@ -150,7 +158,29 @@ fun NavGraphBuilder.rentalsNavGraph(
         DocumentCaptureScreen(onBack = back, onDone = back)
     }
     composable(RentalsRoute.HANDOVER, arguments = listOf(reqString("orderId"), reqString("direction"))) {
-        HandoverScreen(onBack = back, onDone = back, onStartInspection = onStartInspection)
+        HandoverScreen(
+            onBack = back,
+            onDone = back,
+            onStartInspection = onStartInspection,
+            onCheckedIn = { assetId ->
+                navController.navigate(RentalsRoute.readiness(assetId)) {
+                    popUpTo(RentalsRoute.HANDOVER) { inclusive = true }
+                }
+            },
+        )
+    }
+    composable(RentalsRoute.READINESS, arguments = listOf(reqString("assetId"))) {
+        ReadinessScreen(onBack = back, onDone = back)
+    }
+    composable(RentalsRoute.SWAP, arguments = listOf(reqString("orderId"))) {
+        SwapScreen(
+            onBack = back,
+            onSwapped = { returned ->
+                navController.navigate(RentalsRoute.readiness(returned)) {
+                    popUpTo(RentalsRoute.SWAP) { inclusive = true }
+                }
+            },
+        )
     }
     composable(RentalsRoute.SCAN) {
         RentalScanScreen(
@@ -166,6 +196,7 @@ fun NavGraphBuilder.rentalsNavGraph(
             onBook = { go(RentalsRoute.quickBook(it)) },
             onOpenOrder = { go(RentalsRoute.order(it)) },
             onOpenLegacy = { go(RentalsRoute.legacyAsset(it)) },
+            onReadiness = { go(RentalsRoute.readiness(it)) },
         )
     }
 

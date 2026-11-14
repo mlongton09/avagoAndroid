@@ -165,6 +165,7 @@ fun AssetRentalScreen(
     onBook: (assetId: String) -> Unit,
     onOpenOrder: (String) -> Unit,
     onOpenLegacy: (assetId: String) -> Unit,
+    onReadiness: ((assetId: String) -> Unit)? = null,
     viewModel: AssetRentalViewModel = hiltViewModel(),
 ) {
     val asset by viewModel.asset.collectAsStateWithLifecycle()
@@ -196,7 +197,13 @@ fun AssetRentalScreen(
             if (s != null) {
                 Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FleetStatusChip(s.status)
-                    if (s.local) SyncStateBadge(com.avago.core.data.db.rental.RentalRecordEntity.STATE_PENDING)
+                    if (s.local || s.readinessPending) SyncStateBadge(com.avago.core.data.db.rental.RentalRecordEntity.STATE_PENDING)
+                }
+                if (onReadiness != null && (s.status == com.avago.core.data.rental.FleetStatus.NOT_READY || s.checklist?.open == true)) {
+                    OutlinedButton(
+                        onClick = { onReadiness(viewModel.assetId) },
+                        modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = MinTouch),
+                    ) { Text(stringResource(R.string.rentals_readiness_open)) }
                 }
                 s.unit.className?.let { LabelValue(stringResource(R.string.rentals_class), it) }
                 s.dueAt?.let { LabelValue(stringResource(R.string.rentals_due), formatDateTime(it, zone)) }

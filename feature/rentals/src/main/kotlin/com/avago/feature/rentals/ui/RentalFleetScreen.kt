@@ -66,6 +66,7 @@ fun RentalFleetScreen(
     onOpenAsset: (String) -> Unit,
     onBook: (assetId: String?, start: Instant?, end: Instant?) -> Unit,
     onOpenOrder: (String) -> Unit,
+    onReadiness: ((assetId: String) -> Unit)? = null,
     viewModel: RentalsOverviewViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(initialStatus) { viewModel.setStatusFilter(initialStatus) }
@@ -141,6 +142,7 @@ fun RentalFleetScreen(
                     onOpen = { onOpenAsset(r.unit.assetId) },
                     onBook = { onBook(r.unit.assetId, null, null) },
                     onOpenOrder = (r.current ?: r.next)?.orderId?.let { id -> { onOpenOrder(id) } },
+                    onReadiness = onReadiness?.let { f -> { f(r.unit.assetId) } },
                 )
             }
         }
@@ -162,6 +164,7 @@ private fun FleetUnitCard(
     onOpen: () -> Unit,
     onBook: () -> Unit,
     onOpenOrder: (() -> Unit)?,
+    onReadiness: (() -> Unit)? = null,
 ) {
     val unitZone = zoneOf(r.unit.timeZone ?: zone.id)
     Card(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
@@ -186,10 +189,13 @@ private fun FleetUnitCard(
                     color = MaterialTheme.colorScheme.error,
                 )
             }
-            if (r.local) SyncStateBadge(com.avago.core.data.db.rental.RentalRecordEntity.STATE_PENDING)
+            if (r.local || r.readinessPending) SyncStateBadge(com.avago.core.data.db.rental.RentalRecordEntity.STATE_PENDING)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (r.status == FleetStatus.AVAILABLE || r.status == FleetStatus.RESERVED) {
                     TextButton(onClick = onBook, modifier = Modifier.heightIn(min = MinTouch)) { Text(stringResource(R.string.rentals_book)) }
+                }
+                if (onReadiness != null && (r.status == FleetStatus.NOT_READY || r.checklist?.open == true)) {
+                    TextButton(onClick = onReadiness, modifier = Modifier.heightIn(min = MinTouch)) { Text(stringResource(R.string.rentals_readiness_open)) }
                 }
                 onOpenOrder?.let {
                     TextButton(onClick = it, modifier = Modifier.heightIn(min = MinTouch)) { Text(stringResource(R.string.rentals_open_order)) }

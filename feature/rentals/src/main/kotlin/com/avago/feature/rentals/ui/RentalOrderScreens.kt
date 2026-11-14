@@ -221,6 +221,7 @@ fun RentalOrderScreen(
     onBack: () -> Unit,
     onHandover: (orderId: String, direction: String) -> Unit,
     onOpenCustomer: (String) -> Unit,
+    onSwap: ((orderId: String) -> Unit)? = null,
     viewModel: RentalOrderViewModel = hiltViewModel(),
 ) {
     val order by viewModel.order.collectAsStateWithLifecycle()
@@ -273,10 +274,11 @@ fun RentalOrderScreen(
                 LabelValue(stringResource(R.string.rentals_balance), formatMoney(o.balance))
                 o.depositRequired?.let { LabelValue(stringResource(R.string.rentals_deposit), formatMoney(it)) }
             }
-            item { ActionsRow(o, onAction = { a ->
+            item { ActionsRow(o, canSwap = onSwap != null, onAction = { a ->
                 when (a) {
                     "checkout" -> onHandover(o.id, "out")
                     "checkin" -> onHandover(o.id, "in")
+                    "swap" -> onSwap?.invoke(o.id)
                     "extend" -> showExtend = true
                     "cancel", "no-show" -> confirmAction = a
                     else -> viewModel.action(a)
@@ -284,10 +286,12 @@ fun RentalOrderScreen(
             }) }
             item { SectionHeader(stringResource(R.string.rentals_lines)) }
             items(lines, key = { "l:${it.id}" }) { l ->
+                val statusText = l.status?.let { lineStatusLabel(it) }?.let { stringResource(it) }
                 ListItem(
+                    overlineContent = statusText?.let { { Text(it) } },
                     headlineContent = { Text(l.description ?: l.kind) },
                     supportingContent = { Text("${PricingQty(l.qty)} · ${formatDateTime(l.startAt, zone)} → ${formatDateTime(l.endAt, zone)}") },
-                    trailingContent = { Text(formatMoney(l.amount)) },
+                    trailingContent = { Column(horizontalAlignment = Alignment.End) { Text(formatMoney(l.amount)); SyncStateBadge(l.localState) } },
                 )
             }
             item {
@@ -352,9 +356,9 @@ private fun PricingQty(q: Double): String = if (q % 1.0 == 0.0) q.toLong().toStr
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ActionsRow(o: OrderView, onAction: (String) -> Unit) {
-    // `swap` lands with stage B (server answers 501 today) — hidden until then.
-    val actions = OrderStatus.actions(o.status).filter { it != "swap" }
+private fun ActionsRow(o: OrderView, canSwap: Boolean, onAction: (String) -> Unit) {
+    // `swap` is line level (stage B): shown when the caller can open the swap screen.
+    val actions = OrderStatus.actions(o.status).filter { it != "swap" || canSwap }
     if (actions.isEmpty()) return
     FlowRow(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         actions.forEachIndexed { i, a ->
@@ -394,6 +398,16 @@ private fun ReasonDialog(title: String, onDismiss: () -> Unit, onConfirm: (Strin
         confirmButton = { TextButton(onClick = { onConfirm(reason.takeIf { it.isNotBlank() }) }) { Text(stringResource(R.string.rentals_ok)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.rentals_cancel)) } },
     )
+}
+
+@StringRes
+internal fun lineStatusLabel(status: String): Int? = when (status) {
+    "open" -> R.string.rentals_line_status_open
+    "out" -> R.string.rentals_line_status_out
+    "returned" -> R.string.rentals_line_status_returned
+    "swapped" -> R.string.rentals_line_status_swapped
+    "cancelled" -> R.string.rentals_line_status_cancelled
+    else -> null
 }
 
 @StringRes

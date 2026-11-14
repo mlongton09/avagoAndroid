@@ -277,6 +277,8 @@ fun HandoverScreen(
     onBack: () -> Unit,
     onDone: () -> Unit,
     onStartInspection: (assetId: String) -> Unit,
+    /** After a check-in: open the unit's readiness checklist instead of just going back. */
+    onCheckedIn: ((assetId: String) -> Unit)? = null,
     viewModel: HandoverViewModel = hiltViewModel(),
 ) {
     val units by viewModel.units.collectAsStateWithLifecycle()
@@ -299,7 +301,12 @@ fun HandoverScreen(
     var editMark by remember { mutableStateOf<SketchMark?>(null) }
     var customerMode by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
-    LaunchedEffect(Unit) { viewModel.done.collect { onDone() } }
+    LaunchedEffect(Unit) {
+        viewModel.done.collect {
+            val asset = viewModel.currentUnit.value?.assetId
+            if (viewModel.direction == "in" && asset != null && onCheckedIn != null) onCheckedIn(asset) else onDone()
+        }
+    }
     LaunchedEffect(Unit) { viewModel.errors.collect { snackbar.showSnackbar(it) } }
     val out = viewModel.direction == "out"
     val zone = ZoneId.systemDefault()

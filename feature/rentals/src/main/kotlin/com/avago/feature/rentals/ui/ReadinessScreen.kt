@@ -1,0 +1,402 @@
+package com.avago.feature.rentals.ui
+
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
+import com.avago.core.data.rental.LocalFleet
+import com.avago.core.permissions.PermissionsManager
+import com.avago.feature.rentals.R
+import com.avago.feature.rentals.data.RentalRepository
+import com.avago.feature.rentals.domain.Readiness
+import com.avago.feature.rentals.domain.RentalEntity
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import timber.log.Timber
+import java.io.File
+import java.time.Instant
+import java.time.ZoneId
+import java.util.UUID
+import javax.inject.Inject
+
+/**
+ * What the readiness screen shows for a unit: the check being decided ([editable]) or the last
+ * decision (read-only until the user starts a new check).
+ */
+data class ReadinessUi(
+    /** The check a decision applies to; null = a new check is started on save. */
+    val check: Readiness.Check?,
+    val editable: Boolean,
+)
+
+/**
+ * Pure selection rule (unit-tested): an open check is edited in place; a decided check that has
+ * not synced yet is shown read-only; otherwise (no check, or the last one is closed and synced)
+ * a new check can be started when [startNew] is set or none exists.
+ */
+internal fun readinessUi(current: Readiness.Check?, startNew: Boolean): ReadinessUi = when {
+    current == null -> ReadinessUi(null, editable = true)
+    current.open -> ReadinessUi(current, editable = true)
+    startNew && !current.pendingSync -> ReadinessUi(null, editable = true)
+    else -> ReadinessUi(current, editable = false)
+}
+
+@HiltViewModel
+class ReadinessViewModel @Inject constructor(
+    private val repo: RentalRepository,
+    permissions: PermissionsManager,
+    savedState: SavedStateHandle,
+) : ViewModel() {
+    val assetId: String = requireNotNull(savedState["assetId"])
+
+    /** Waiving needs `rental.override_ready` (server answers 403 otherwise). */
+    val canWaive: Boolean = permissions.can(Readiness.PERMISSION_WAIVE)
+
+    val unitName: StateFlow<String?> = repo.records(RentalEntity.FLEET)
+        .map { rows -> rows.mapNotNull(LocalFleet::unitOf).firstOrNull { it.assetId == assetId }?.name }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    private val startNew = MutableStateFlow(false)
+
+    val ui: StateFlow<ReadinessUi?> = combine(
+        repo.readinessChecks(assetId).map { rows -> Readiness.current(rows.mapNotNull(Readiness::of)) },
+        startNew,
+    ) { current, fresh -> readinessUi(current, fresh) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    val items = MutableStateFlow(Readiness.DEFAULT_ITEMS)
+    val notes = MutableStateFlow("")
+    private var loadedFor: String? = "\u0000"
+
+    /** Owner id for photos of a check that does not exist yet. */
+    private val draftOwner = UUID.randomUUID().toString()
+
+    private val _problems = MutableSharedFlow<Readiness.Problem>(extraBufferCapacity = 2)
+    val problems: SharedFlow<Readiness.Problem> = _problems
+    private val _errors = MutableSharedFlow<String>(extraBufferCapacity = 2)
+    val errors: SharedFlow<String> = _errors
+    private val _done = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val done: SharedFlow<String> = _done
+
+    init {
+        viewModelScope.launch {
+            ui.collect { u ->
+                if (u == null || !u.editable) return@collect
+                val key = u.check?.id
+                if (key != loadedFor) {
+                    loadedFor = key
+                    items.value = u.check?.items ?: Readiness.DEFAULT_ITEMS
+                    notes.value = u.check?.notes.orEmpty()
+                }
+            }
+        }
+    }
+
+    fun startNewCheck() {
+        startNew.value = true
+    }
+
+    fun toggle(key: String, done: Boolean) {
+        items.value = items.value.map { if (it.key == key) it.copy(done = done) else it }
+    }
+
+    fun addPhoto(key: String, file: File) = viewModelScope.launch {
+        try {
+            val owner = ui.value?.check?.id ?: draftOwner
+            val count = items.value.sumOf { it.photoIds.size }
+            val id = repo.addReadinessPhoto(owner, file, count.toLong())
+            items.value = items.value.map { if (it.key == key) it.copy(photoIds = it.photoIds + id) else it }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w(e, "readiness photo failed")
+            _errors.emit(e.message ?: e.javaClass.simpleName)
+        }
+    }
+
+    fun decide(status: String) = viewModelScope.launch {
+        val u = ui.value ?: return@launch
+        if (!u.editable) return@launch
+        val from = u.check?.status ?: Readiness.PENDING
+        Readiness.validate(from, status, items.value, notes.value, canWaive)?.let {
+            _problems.emit(it)
+            return@launch
+        }
+        try {
+            val id = repo.saveReadiness(
+                RentalRepository.ReadinessInput(
+                    checkId = u.check?.id,
+                    assetId = assetId,
+                    status = status,
+                    items = items.value,
+                    notes = notes.value.takeIf { it.isNotBlank() },
+                    canWaive = canWaive,
+                    at = Instant.now(),
+                ),
+            )
+            startNew.value = false
+            _done.emit(id)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w(e, "readiness save failed")
+            _errors.emit(e.message ?: e.javaClass.simpleName)
+        }
+    }
+}
+
+@StringRes
+internal fun readinessItemLabel(key: String): Int? = when (key) {
+    "inspected" -> R.string.rentals_readiness_item_inspected
+    "cleaned" -> R.string.rentals_readiness_item_cleaned
+    "refuelled" -> R.string.rentals_readiness_item_refuelled
+    "accessories" -> R.string.rentals_readiness_item_accessories
+    else -> null
+}
+
+@StringRes
+internal fun readinessStatusLabel(status: String): Int = when (status) {
+    Readiness.PASSED -> R.string.rentals_readiness_status_passed
+    Readiness.FAILED -> R.string.rentals_readiness_status_failed
+    Readiness.WAIVED -> R.string.rentals_readiness_status_waived
+    else -> R.string.rentals_readiness_status_pending
+}
+
+@StringRes
+private fun problemLabel(p: Readiness.Problem): Int = when (p) {
+    Readiness.Problem.CLOSED -> R.string.rentals_readiness_error_closed
+    Readiness.Problem.INCOMPLETE -> R.string.rentals_readiness_error_incomplete
+    Readiness.Problem.REASON_REQUIRED -> R.string.rentals_readiness_error_reason
+    Readiness.Problem.NOT_ALLOWED -> R.string.rentals_readiness_error_not_allowed
+}
+
+/**
+ * Readiness checklist after a check-in (§11.1, stage B §3): tick items, add optional photos,
+ * then pass / fail / waive (waive needs `rental.override_ready` and a reason). Saved on the
+ * device first — the fleet updates at once with a pending marker — and synced in order.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun ReadinessScreen(
+    onBack: () -> Unit,
+    onDone: () -> Unit,
+    viewModel: ReadinessViewModel = hiltViewModel(),
+) {
+    val ui by viewModel.ui.collectAsStateWithLifecycle()
+    val items by viewModel.items.collectAsStateWithLifecycle()
+    val notes by viewModel.notes.collectAsStateWithLifecycle()
+    val unitName by viewModel.unitName.collectAsStateWithLifecycle()
+    val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val problemTexts = Readiness.Problem.entries.associateWith { stringResource(problemLabel(it)) }
+    val cameraDenied = stringResource(R.string.rentals_readiness_camera_denied)
+    LaunchedEffect(Unit) { viewModel.problems.collect { snackbar.showSnackbar(problemTexts.getValue(it)) } }
+    LaunchedEffect(Unit) { viewModel.errors.collect { snackbar.showSnackbar(it) } }
+    LaunchedEffect(Unit) { viewModel.done.collect { onDone() } }
+
+    // Pending capture (item key + file path) survives the camera activity / process death.
+    var captureKey by rememberSaveable { mutableStateOf<String?>(null) }
+    var capturePath by rememberSaveable { mutableStateOf<String?>(null) }
+    val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        val key = captureKey
+        val file = capturePath?.let(::File)
+        captureKey = null
+        capturePath = null
+        if (ok && key != null && file != null && file.length() > 0) viewModel.addPhoto(key, file) else file?.delete()
+    }
+    fun launchCamera(key: String) {
+        val dir = File(context.filesDir, "rental_photos").apply { mkdirs() }
+        val file = File(dir, "readiness_${UUID.randomUUID()}.jpg")
+        captureKey = key
+        capturePath = file.absolutePath
+        takePicture.launch(FileProvider.getUriForFile(context, "${context.packageName}.provider", file))
+    }
+    var permissionFor by rememberSaveable { mutableStateOf<String?>(null) }
+    val requestCamera = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val key = permissionFor
+        permissionFor = null
+        if (granted && key != null) launchCamera(key)
+        else if (!granted) scope.launch { snackbar.showSnackbar(cameraDenied) }
+    }
+    fun photo(key: String) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            launchCamera(key)
+        } else {
+            permissionFor = key
+            requestCamera.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            RentalsTopBar(
+                unitName?.let { stringResource(R.string.rentals_readiness_title_for, it) } ?: stringResource(R.string.rentals_readiness_open),
+                onBack,
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbar) },
+    ) { pad ->
+        val u = ui
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(pad)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                stringResource(R.string.rentals_readiness_explainer),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (u == null) return@Column
+            u.check?.let { c ->
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        stringResource(R.string.rentals_readiness_status, stringResource(readinessStatusLabel(c.status))),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    SyncStateBadge(c.localState, failed = isSyncFailed(c.notice))
+                }
+                c.notice?.let { Text(noticeText(it, conflict = true), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                c.completedAt?.let { LabelValue(stringResource(R.string.rentals_readiness_completed), formatDateTime(it, ZoneId.systemDefault())) }
+            }
+            if (!u.editable) {
+                val c = u.check
+                c?.items?.forEach { item ->
+                    val label = readinessItemLabel(item.key)?.let { stringResource(it) } ?: item.label
+                    LabelValue(label, stringResource(if (item.done) R.string.rentals_readiness_done else R.string.rentals_readiness_not_done))
+                }
+                c?.notes?.let { LabelValue(stringResource(R.string.rentals_notes), it) }
+                if (c != null && !c.pendingSync) {
+                    OutlinedButton(onClick = viewModel::startNewCheck, modifier = Modifier.fillMaxWidth().heightIn(min = MinTouch)) {
+                        Text(stringResource(R.string.rentals_readiness_new_check))
+                    }
+                }
+                return@Column
+            }
+
+            SectionHeader(stringResource(R.string.rentals_readiness_checklist))
+            items.forEach { item ->
+                val label = readinessItemLabel(item.key)?.let { stringResource(it) } ?: item.label
+                val photoLabel = stringResource(R.string.rentals_readiness_add_photo_for, label)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        Modifier
+                            .weight(1f)
+                            .heightIn(min = MinTouch)
+                            .toggleable(value = item.done, role = Role.Checkbox) { viewModel.toggle(item.key, it) },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked = item.done, onCheckedChange = null)
+                        Column(Modifier.padding(start = 8.dp)) {
+                            Text(label, style = MaterialTheme.typography.bodyLarge)
+                            if (item.photoIds.isNotEmpty()) {
+                                Text(
+                                    stringResource(R.string.rentals_readiness_photo_count, item.photoIds.size),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                    IconButton(onClick = { photo(item.key) }, modifier = Modifier.semantics { contentDescription = photoLabel }) {
+                        Icon(Icons.Default.PhotoCamera, contentDescription = null)
+                    }
+                }
+            }
+            OutlinedTextField(
+                value = notes,
+                onValueChange = { viewModel.notes.value = it },
+                label = { Text(stringResource(R.string.rentals_readiness_notes)) },
+                supportingText = { Text(stringResource(R.string.rentals_readiness_notes_hint)) },
+                minLines = 2,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = { viewModel.decide(Readiness.PASSED) },
+                    enabled = items.all { it.done },
+                    modifier = Modifier.heightIn(min = MinTouch),
+                ) { Text(stringResource(R.string.rentals_readiness_pass)) }
+                OutlinedButton(
+                    onClick = { viewModel.decide(Readiness.FAILED) },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.heightIn(min = MinTouch),
+                ) { Text(stringResource(R.string.rentals_readiness_fail)) }
+                if (viewModel.canWaive) {
+                    OutlinedButton(onClick = { viewModel.decide(Readiness.WAIVED) }, modifier = Modifier.heightIn(min = MinTouch)) {
+                        Text(stringResource(R.string.rentals_readiness_waive))
+                    }
+                }
+            }
+            if (!items.all { it.done }) {
+                Text(stringResource(R.string.rentals_readiness_error_incomplete), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (!viewModel.canWaive) {
+                Text(stringResource(R.string.rentals_readiness_waive_needs_permission), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}

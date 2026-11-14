@@ -200,7 +200,6 @@ internal object RentalRequests {
      * `SwapBody` (handovers.rs) for `POST /orders/{o}/lines/{l}/swap`: check the current unit in
      * ([checkin], no late billing) and [newAssetId] out ([checkout]) at device time [at]. The
      * nested bodies are `HandoverBody` without line/asset (the server fills them).
-     * TODO(rentals-ui): no swap screen yet — the order-level `swap` action stays hidden.
      */
     fun swap(clientUuid: String, at: Instant, newAssetId: String, reason: String?, checkin: JsonObject?, checkout: JsonObject?) =
         buildJsonObject {
@@ -211,4 +210,28 @@ internal object RentalRequests {
             checkin?.let { put("checkin", it) }
             checkout?.let { put("checkout", it) }
         }
+
+    /** One side of a swap (`HandoverBody` subset): meter / fuel readings, or null when nothing was read. */
+    fun swapSide(meter: Double?, fuelPct: Int?): JsonObject? {
+        if (meter == null && fuelPct == null) return null
+        return buildJsonObject {
+            meter?.let { put("meter_value", java.math.BigDecimal.valueOf(it).stripTrailingZeros().toPlainString()) }
+            fuelPct?.let { put("fuel_level_pct", it.coerceIn(0, 100)) }
+        }
+    }
+
+    /** `CheckBody` (handovers.rs) for `POST /readiness-checks` (created `pending`). */
+    fun readinessCreate(assetId: String, items: JsonArray?, notes: String?) = buildJsonObject {
+        put("asset_id", assetId)
+        items?.let { put("items", it) }
+        notes?.takeIf { it.isNotBlank() }?.let { put("notes", it.trim()) }
+    }
+
+    /** `CheckBody` for `PATCH /readiness-checks/{id}` (stale [serverVersion] → 409 `conflict`). */
+    fun readinessUpdate(status: String, items: JsonArray, notes: String?, serverVersion: Long?) = buildJsonObject {
+        put("status", status)
+        put("items", items)
+        notes?.takeIf { it.isNotBlank() }?.let { put("notes", it.trim()) }
+        serverVersion?.let { put("server_version", it) }
+    }
 }

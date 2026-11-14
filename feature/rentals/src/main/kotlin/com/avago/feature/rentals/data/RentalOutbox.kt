@@ -5,14 +5,17 @@ import com.avago.core.data.db.entity.SyncQueueEntity
 import com.avago.core.data.db.rental.RentalRecordEntity
 import com.avago.core.data.db.rental.RentalRecordEntity.Companion.STATE_CONFLICT
 import com.avago.core.data.db.rental.RentalRecordEntity.Companion.STATE_SYNCED
+import com.avago.core.data.rental.LocalFleet
 import com.avago.core.network.rentals.RentalsApi
 import com.avago.core.network.rentals.RentalsApiException
 import com.avago.core.sync.ExternalOutbox
 import com.avago.core.sync.PhotoUploader
 import com.avago.feature.rentals.domain.OutboxPlanner
+import com.avago.feature.rentals.domain.Readiness
 import com.avago.feature.rentals.domain.RentalEntity
 import com.avago.feature.rentals.domain.RentalJson
 import com.avago.feature.rentals.domain.bool
+import com.avago.feature.rentals.domain.long
 import com.avago.feature.rentals.domain.obj
 import com.avago.feature.rentals.domain.objs
 import com.avago.feature.rentals.domain.parseObj
@@ -28,6 +31,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import timber.log.Timber
 import java.io.IOException
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Provider
 import javax.inject.Singleton
@@ -287,6 +291,31 @@ class RentalOutbox @Inject constructor(
                 if (server != null) replaceLocal(accountId, RentalEntity.HANDOVER, localId, server, warningNotice(resp))
                 else localId?.let { dao.setState(RentalEntity.HANDOVER, it, STATE_SYNCED, warningNotice(resp)) }
                 resp.obj("order")?.let { applyOrder(accountId, null, it, confirmedDraft = false) }
+                if (kind == RentalsApi.HANDOVER_CHECKIN && localId != null) {
+                    settleReadinessPlaceholders(accountId, localId, body.str("asset_id") ?: server?.str("asset_id"))
+                }
+            }
+            OutboxPlanner.TYPE_READINESS -> executeReadiness(accountId, key, p)
+            OutboxPlanner.TYPE_LINE_SWAP -> {
+                val oid = serverId(accountId, p.str("order_id"))!!
+                val lid = serverId(accountId, p.str("line_id"))
+                    ?: throw IllegalStateException("swap without line_id")
+                val resp = api.lineSwap(accountId, oid, lid, body, key)
+                val notice = warningNotice(resp)
+                // The tentative line / allocation give way to the server's (applyOrder drops
+                // unsynced allocations of the order when the server sends its set).
+                val localNewLine = p.str("new_line_id")
+                val serverNewLine = resp.str("new_line_id")
+                if (localNewLine != null) {
+                    dao.delete(RentalEntity.ORDER_LINE, localNewLine)
+                    if (serverNewLine != null) mapId(accountId, localNewLine, serverNewLine, RentalEntity.ORDER_LINE)
+                }
+                p.str("new_alloc_id")?.let { dao.delete(RentalEntity.ALLOCATION, it) }
+                resp.objs("handovers").forEach { h -> RentalRecords.record(RentalEntity.HANDOVER, h, notice = notice)?.let { dao.upsert(it) } }
+                resp.obj("order")?.let { applyOrder(accountId, null, it, confirmedDraft = false) }
+                // The returned unit gets a readiness check on the server: swap the placeholder for it.
+                settleReadinessPlaceholders(accountId, key, p.str("old_asset_id"))
+                if (notice != null) dao.setState(RentalEntity.ORDER, oid, STATE_SYNCED, notice)
             }
             OutboxPlanner.TYPE_LEDGER -> {
                 val oid = serverId(accountId, p.str("order_id"))!!
@@ -304,6 +333,82 @@ class RentalOutbox @Inject constructor(
             }
             else -> error("unknown rental outbox type ${row.entityType}")
         }
+    }
+
+    /**
+     * Readiness decision (stage B §3). The check to PATCH is: the server id the local row was
+     * already mapped to; the row itself when it came from the server (`mode = patch`); for a
+     * placeholder written on an offline check-in, the open check the server opened at check-in
+     * (else a new one); for a check started on the device, a new one (`POST`, replay-safe by
+     * `client_uuid`). A replayed PATCH answers 409 (`invalid_transition` / version `conflict`);
+     * when the current row already has the target status the decision counts as applied.
+     */
+    private suspend fun executeReadiness(accountId: String, key: String, p: JsonObject) {
+        val dao = dbFactory.get(accountId).rentalDao()
+        val localId = p.str("local_id") ?: throw IllegalStateException("readiness without local_id")
+        val assetId = p.str("asset_id") ?: throw IllegalStateException("readiness without asset_id")
+        val target = p.str("status") ?: throw IllegalStateException("readiness without status")
+        val mapped = serverId(accountId, localId)!!
+        val createBody = { JsonObject(RentalRequests.readinessCreate(assetId, null, null) + ("client_uuid" to JsonPrimitive(key))) }
+        var fresh: JsonObject? = null
+        val checkId: String = when {
+            mapped != localId || p.str("mode") == "patch" -> mapped
+            p.str("mode") == "resolve" -> {
+                fresh = api.readinessChecks(accountId, assetId).objs("readiness_checks")
+                    .firstOrNull { it.str("status") in LocalFleet.READINESS_OPEN }
+                    ?: api.createReadinessCheck(accountId, createBody(), key)
+                fresh.str("id") ?: throw IllegalStateException("readiness check without id")
+            }
+            else -> {
+                fresh = api.createReadinessCheck(accountId, createBody(), key)
+                fresh.str("id") ?: throw IllegalStateException("readiness check without id")
+            }
+        }
+        val local = dao.get(RentalEntity.READINESS_CHECK, checkId)?.takeIf { it.localState == STATE_SYNCED }
+        val version = fresh?.long("server_version") ?: local?.obj?.long("server_version") ?: p.long("server_version")
+        val photoDao = dbFactory.get(accountId).photoDao()
+        val items = Readiness.parseItems(p["items"] as? JsonArray)
+        val keys = items.flatMap { it.photoIds }.associateWith { photoDao.getById(it)?.storageKey }
+        val body = RentalRequests.readinessUpdate(target, Readiness.serverItems(items) { keys[it] }, p.str("notes"), version)
+        // A distinct key: the POST above already used [key] as its Idempotency-Key.
+        val patchKey = UUID.nameUUIDFromBytes("$key:patch".toByteArray()).toString()
+        val row = try {
+            api.updateReadinessCheck(accountId, checkId, body, patchKey)
+        } catch (e: RentalsApiException) {
+            if (e.status != 409) throw e
+            val current = e.body?.obj("current") ?: runCatching { api.readinessCheck(accountId, checkId) }.getOrNull()
+            if (Readiness.alreadyApplied(current, target)) current!! else throw e
+        }
+        replaceLocal(accountId, RentalEntity.READINESS_CHECK, localId, row)
+    }
+
+    /**
+     * After a check-in (or swap) [handoverKey] synced: the server opened the unit's checklist, so
+     * the device placeholder is replaced by the server's open checks. A placeholder the user
+     * already decided on stays (its queued decision resolves to the server check).
+     */
+    private suspend fun settleReadinessPlaceholders(accountId: String, handoverKey: String, assetId: String?) {
+        assetId ?: return
+        val dao = dbFactory.get(accountId).rentalDao()
+        val placeholders = dao.all(RentalEntity.READINESS_CHECK).filter { r ->
+            val o = r.obj
+            o.bool(Readiness.KEY_PLACEHOLDER) == true && o.str(Readiness.KEY_HANDOVER_LOCAL_ID) == handoverKey &&
+                o.bool(Readiness.KEY_QUEUED) != true
+        }
+        if (placeholders.isEmpty()) return
+        try {
+            val open = api.readinessChecks(accountId, assetId).objs("readiness_checks")
+            dao.upsertAll(open.mapNotNull { c ->
+                RentalRecords.record(RentalEntity.READINESS_CHECK, c)
+                    ?.takeIf { dao.get(it.entity, it.id)?.localState.let { s -> s == null || s == STATE_SYNCED } }
+            })
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // The feed brings the server check on the next pull.
+            Timber.d(e, "[RentalOutbox] readiness refresh after check-in failed")
+        }
+        placeholders.forEach { dao.delete(it.entity, it.id) }
     }
 
     private suspend fun replaceLocal(accountId: String, entity: String, localId: String?, server: JsonObject, notice: String? = null) {
@@ -381,6 +486,8 @@ class RentalOutbox @Inject constructor(
             OutboxPlanner.TYPE_LEDGER -> RentalEntity.LEDGER to p.str("local_id")
             OutboxPlanner.TYPE_INVOICE -> RentalEntity.INVOICE to p.str("local_id")
             OutboxPlanner.TYPE_SIGNATURE -> RentalEntity.SIGNATURE to p.str("local_id")
+            OutboxPlanner.TYPE_READINESS -> RentalEntity.READINESS_CHECK to p.str("local_id")
+            OutboxPlanner.TYPE_LINE_SWAP -> RentalEntity.ORDER_LINE to p.str("line_id")
             else -> RentalEntity.ORDER to (p.str("local_id") ?: p.str("order_id"))
         }
         id ?: return

@@ -9,13 +9,17 @@ import com.avago.core.data.db.rental.RentalRecordEntity.Companion.STATE_PENDING
 import com.avago.core.data.db.rental.RentalRecordEntity.Companion.STATE_SYNCED
 import com.avago.core.data.rental.LocalFleet
 import com.avago.core.data.rental.Money
+import com.avago.feature.rentals.domain.LineSwap
 import com.avago.feature.rentals.domain.OrderStatus
 import com.avago.feature.rentals.domain.OutboxPlanner
+import com.avago.feature.rentals.domain.Readiness
 import com.avago.feature.rentals.domain.RentalEntity
 import com.avago.feature.rentals.domain.RentalJson
+import com.avago.feature.rentals.domain.bool
 import com.avago.feature.rentals.domain.long
 import com.avago.feature.rentals.domain.obj
 import com.avago.feature.rentals.domain.str
+import com.avago.feature.rentals.domain.strings
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -454,8 +458,195 @@ class RentalRepository @Inject constructor(
         )
         // Optimistic status (the handover performs the transition on the server).
         orderStatusLocal(acc, input.orderId, if (input.direction == "out") "checkout" else "checkin", input.occurredAt)
+        lineStatusLocal(acc, lineId, input.direction, input.occurredAt)
+        if (input.direction == "in") {
+            // The server opens a readiness checklist on check-in (stage B §2): mirror it so the
+            // unit shows Not ready offline. Replaced by the server row once the handover syncs.
+            val checkId = newId()
+            d.upsert(
+                RentalRecords.record(
+                    RentalEntity.READINESS_CHECK,
+                    Readiness.placeholder(checkId, input.assetId, input.orderId, handoverId, input.occurredAt),
+                    STATE_PENDING,
+                )!!,
+            )
+        }
         scheduler.syncNow()
         return handoverId
+    }
+
+    /** The handed-over line goes `out` / `returned` locally (server: handover_line). */
+    private suspend fun lineStatusLocal(acc: String, lineId: String, direction: String, at: Instant) {
+        val d = dao(acc)
+        val rec = d.get(RentalEntity.ORDER_LINE, lineId) ?: return
+        val o = rec.obj
+        val updated = if (direction == "out") {
+            o.with("status" to JsonPrimitive("out"), "actual_out_at" to JsonPrimitive(at.toString()))
+        } else {
+            o.with("status" to JsonPrimitive("returned"), "actual_in_at" to JsonPrimitive(at.toString()))
+        }
+        val state = if (rec.localState == STATE_DRAFT) STATE_DRAFT else STATE_PENDING
+        d.upsert(RentalRecords.record(RentalEntity.ORDER_LINE, updated, state, rec.clientUuid)!!.copy(id = rec.id))
+    }
+
+    // ── Readiness checklist (stage B §3) ────────────────────────────────────────────
+
+    /** Checklists of a unit (synced + edited / created on the device). */
+    fun readinessChecks(assetId: String): Flow<List<RentalRecordEntity>> = byAsset(RentalEntity.READINESS_CHECK, assetId)
+
+    data class ReadinessInput(
+        /** The check being decided (null = start a new check for a unit without an open one). */
+        val checkId: String?,
+        val assetId: String,
+        /** passed | failed | waived */
+        val status: String,
+        val items: List<Readiness.Item>,
+        val notes: String?,
+        /** The caller holds `rental.override_ready` (required for `waived`). */
+        val canWaive: Boolean,
+        val at: Instant = Instant.now(),
+    )
+
+    /**
+     * Applies a checklist decision locally (the fleet updates at once, marked pending) and
+     * queues it: PATCH the server check, after resolving / creating it for checks that only
+     * exist on the device. Photos upload first (the outbox waits for them).
+     */
+    suspend fun saveReadiness(input: ReadinessInput): String {
+        val acc = requireAccount()
+        val d = dao(acc)
+        val rec = input.checkId?.let { d.get(RentalEntity.READINESS_CHECK, it) }
+        val current = rec?.obj ?: Readiness.fresh(newId(), input.assetId, input.at)
+        val from = current.str("status") ?: Readiness.PENDING
+        Readiness.validate(from, input.status, input.items, input.notes, input.canWaive)?.let {
+            throw IllegalArgumentException("readiness: ${it.name.lowercase()}")
+        }
+        val id = rec?.id ?: current.str("id")!!
+        val mode = when {
+            current.bool(Readiness.KEY_PLACEHOLDER) == true -> "resolve"
+            current.bool("_new") == true -> "create"
+            else -> "patch"
+        }
+        val updated = Readiness.applyLocal(current, input.status, input.items, input.notes, input.at)
+        d.upsert(RentalRecords.record(RentalEntity.READINESS_CHECK, updated, STATE_PENDING, rec?.clientUuid)!!.copy(id = id))
+        val photoIds = input.items.flatMap { it.photoIds }.distinct()
+        val clientUuid = newId()
+        enqueue(
+            acc, OutboxPlanner.TYPE_READINESS, clientUuid, "readiness:${input.assetId}",
+            buildJsonObject { },
+            buildJsonObject {
+                put("local_id", id)
+                put("asset_id", input.assetId)
+                put("mode", mode)
+                put("status", input.status)
+                put("items", Readiness.itemsJson(input.items))
+                input.notes?.takeIf { it.isNotBlank() }?.let { put("notes", it.trim()) }
+                current.long("server_version")?.let { put("server_version", it) }
+                put("photo_ids", JsonArray(photoIds.map(::JsonPrimitive)))
+            },
+            // A placeholder waits for its check-in (the server opens the real check there).
+            dependsOn = listOfNotNull(current.str(Readiness.KEY_HANDOVER_LOCAL_ID)),
+        )
+        scheduler.syncNow()
+        return id
+    }
+
+    /** Registers a photo taken for a checklist item (uploaded by the photo sweep before the check syncs). */
+    suspend fun addReadinessPhoto(ownerId: String, file: java.io.File, sortOrder: Long): String {
+        val acc = requireAccount()
+        val now = System.currentTimeMillis()
+        val id = newId()
+        dbFactory.get(acc).photoDao().upsert(
+            com.avago.core.data.db.entity.PhotoEntity(
+                photoId = id,
+                entityId = ownerId,
+                entityType = RentalEntity.READINESS_CHECK,
+                accountId = acc,
+                storageKey = null,
+                downloadUrl = null,
+                sortOrder = sortOrder,
+                isPrimary = false,
+                createdAt = now,
+                updatedAt = now,
+                deletedAt = null,
+                serverVersion = 0,
+                localPath = file.absolutePath,
+            ),
+        )
+        return id
+    }
+
+    // ── Line swap (stage B §2) ──────────────────────────────────────────────────────
+
+    data class SwapInput(
+        val orderId: String,
+        val lineId: String,
+        val newAssetId: String,
+        val reason: String?,
+        /** Readings of the unit coming back. */
+        val inMeter: Double?,
+        val inFuelPct: Int?,
+        /** Readings of the replacement going out. */
+        val outMeter: Double?,
+        val outFuelPct: Int?,
+        /** Device time of the swap (spec §15). */
+        val at: Instant,
+    )
+
+    /**
+     * Swaps the unit of a checked-out line: applied locally first ([LineSwap.plan]: old line
+     * `swapped`, its allocation released, a tentative line + on-rent allocation for the
+     * replacement) and queued after the order's earlier steps. A 409 (`allocation_conflict`,
+     * `line_not_out`, `invalid_transition`) comes back as a conflict notice on the order.
+     */
+    suspend fun swapLine(input: SwapInput): String {
+        val acc = requireAccount()
+        val d = dao(acc)
+        val order = d.get(RentalEntity.ORDER, input.orderId) ?: throw IllegalStateException("order not found")
+        val line = d.get(RentalEntity.ORDER_LINE, input.lineId) ?: throw IllegalStateException("line not found")
+        require(LineSwap.swappable(line.obj, order.obj.str("status"))) { "only a checked-out rental line can be swapped" }
+        val newLineId = newId()
+        val newAllocId = newId()
+        val allocs = d.byOrder(RentalEntity.ALLOCATION, input.orderId).map { it.id to it.obj }
+        val plan = LineSwap.plan(input.orderId, line.id, line.obj, allocs, input.newAssetId, newLineId, newAllocId, input.at)
+        val records = mutableListOf<RentalRecordEntity>()
+        records += RentalRecords.record(RentalEntity.ORDER_LINE, plan.oldLine, STATE_PENDING, line.clientUuid)!!.copy(id = line.id)
+        records += RentalRecords.record(RentalEntity.ORDER_LINE, plan.newLine, STATE_PENDING, newLineId)!!
+        plan.released.forEach { (id, a) ->
+            val prev = d.get(RentalEntity.ALLOCATION, id)
+            records += RentalRecords.record(RentalEntity.ALLOCATION, a, STATE_PENDING, prev?.clientUuid)!!.copy(id = id)
+        }
+        records += RentalRecords.record(RentalEntity.ALLOCATION, plan.newAllocation, STATE_PENDING)!!
+        val clientUuid = newId()
+        // The returned unit is checked in by the swap: Not ready until its checklist is done.
+        line.obj.str("asset_id")?.let { oldAsset ->
+            records += RentalRecords.record(
+                RentalEntity.READINESS_CHECK,
+                Readiness.placeholder(newId(), oldAsset, input.orderId, clientUuid, input.at),
+                STATE_PENDING,
+            )!!
+        }
+        d.upsertAll(records)
+        if (order.localState == STATE_SYNCED) d.setState(order.entity, order.id, STATE_PENDING, null)
+        val body = RentalRequests.swap(
+            clientUuid, input.at, input.newAssetId, input.reason,
+            RentalRequests.swapSide(input.inMeter, input.inFuelPct),
+            RentalRequests.swapSide(input.outMeter, input.outFuelPct),
+        )
+        enqueue(
+            acc, OutboxPlanner.TYPE_LINE_SWAP, clientUuid, "order:${input.orderId}", body,
+            buildJsonObject {
+                put("order_id", input.orderId)
+                put("line_id", line.id)
+                line.obj.str("asset_id")?.let { put("old_asset_id", it) }
+                put("new_line_id", newLineId)
+                put("new_alloc_id", newAllocId)
+                put("released_alloc_ids", JsonArray(plan.released.map { JsonPrimitive(it.first) }))
+            },
+            dependsOn = listOfNotNull(input.orderId.takeIf { pendingCreate(acc, it) }),
+        )
+        scheduler.syncNow()
+        return newLineId
     }
 
     private suspend fun orderStatusLocal(acc: String, orderId: String, action: String, at: Instant) {
@@ -587,6 +778,9 @@ class RentalRepository @Inject constructor(
         // Device-created bookings / invoices stay drafts until the server confirms them.
         val state = if (item?.entityType == OutboxPlanner.TYPE_ORDER || item?.entityType == OutboxPlanner.TYPE_INVOICE) STATE_DRAFT else STATE_PENDING
         p?.str("local_id")?.let { id -> entity?.let { e -> d.get(e, id)?.let { d.setState(it.entity, it.id, state, null) } } }
+        if (item?.entityType == OutboxPlanner.TYPE_LINE_SWAP) {
+            p?.str("line_id")?.let { id -> d.get(RentalEntity.ORDER_LINE, id)?.let { d.setState(it.entity, it.id, STATE_PENDING, null) } }
+        }
         p?.str("order_id")?.takeIf { item?.entityType != OutboxPlanner.TYPE_ORDER }?.let { oid ->
             d.get(RentalEntity.ORDER, oid)?.takeIf { it.localState == RentalRecordEntity.STATE_CONFLICT }
                 ?.let { d.setState(it.entity, it.id, if (pendingCreate(acc, oid)) STATE_DRAFT else STATE_PENDING, null) }
@@ -602,7 +796,20 @@ class RentalRepository @Inject constructor(
         OutboxPlanner.TYPE_INVOICE -> RentalEntity.INVOICE
         OutboxPlanner.TYPE_SIGNATURE -> RentalEntity.SIGNATURE
         OutboxPlanner.TYPE_CUSTOMER_DOCUMENT -> RentalEntity.CUSTOMER_DOCUMENT
+        OutboxPlanner.TYPE_READINESS -> RentalEntity.READINESS_CHECK
         else -> null
+    }
+
+    /** Restores the pre-edit server copy kept in `_base` (synced), else deletes the device-only row. */
+    private suspend fun restoreOrDelete(acc: String, entity: String, id: String, baseKey: String) {
+        val d = dao(acc)
+        val rec = d.get(entity, id) ?: return
+        val base = rec.obj[baseKey] as? JsonObject
+        if (base != null) {
+            RentalRecords.record(entity, base, STATE_SYNCED, rec.clientUuid)?.copy(id = id)?.let { d.upsert(it) }
+        } else {
+            d.delete(entity, id)
+        }
     }
 
     /**
@@ -614,9 +821,22 @@ class RentalRepository @Inject constructor(
         val item = q.getById(queueId) ?: return
         q.markSuccess(queueId)
         val p = com.avago.feature.rentals.domain.parseObj(item.payload)
+        val d = dao(acc)
+        when (item.entityType) {
+            OutboxPlanner.TYPE_READINESS -> {
+                p?.str("local_id")?.let { restoreOrDelete(acc, RentalEntity.READINESS_CHECK, it, Readiness.KEY_BASE) }
+                scheduler.syncNow()
+                return
+            }
+            OutboxPlanner.TYPE_LINE_SWAP -> {
+                p?.str("new_line_id")?.let { d.delete(RentalEntity.ORDER_LINE, it) }
+                p?.str("new_alloc_id")?.let { d.delete(RentalEntity.ALLOCATION, it) }
+                p?.str("line_id")?.let { restoreOrDelete(acc, RentalEntity.ORDER_LINE, it, LineSwap.KEY_BASE) }
+                p?.strings("released_alloc_ids")?.forEach { restoreOrDelete(acc, RentalEntity.ALLOCATION, it, LineSwap.KEY_BASE) }
+            }
+        }
         val localId = p?.str("local_id")
         val entity = entityOf(item.entityType)
-        val d = dao(acc)
         if (entity != null && localId != null) d.delete(entity, localId)
         if (item.entityType == OutboxPlanner.TYPE_ORDER && localId != null) {
             d.byOrder(RentalEntity.ORDER_LINE, localId).forEach { d.delete(it.entity, it.id) }
