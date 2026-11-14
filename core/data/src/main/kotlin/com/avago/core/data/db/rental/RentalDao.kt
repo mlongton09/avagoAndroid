@@ -87,6 +87,10 @@ interface RentalDao {
     @Query("DELETE FROM rental_records WHERE entity = :entity AND id IN (:ids) AND local_state = 'synced'")
     suspend fun deleteSynced(entity: String, ids: List<String>)
 
+    /** Ids of [entity] rows with local changes (one query per pulled page instead of one per item). */
+    @Query("SELECT id FROM rental_records WHERE entity = :entity AND local_state != 'synced'")
+    suspend fun unsyncedIds(entity: String): List<String>
+
     @Query("SELECT COUNT(*) FROM rental_records WHERE entity = :entity")
     suspend fun count(entity: String): Int
 
@@ -101,7 +105,11 @@ interface RentalDao {
     @Query("SELECT * FROM rental_sync_state")
     fun observeSyncStates(): Flow<List<RentalSyncStateEntity>>
 
-    @Query("SELECT MAX(last_synced_at) FROM rental_sync_state")
+    /**
+     * When a feed last completed. Bookkeeping rows (`_`-prefixed, e.g. an older build's
+     * `_full_resync` marker) are not feeds and must not make the UI claim a fresh sync.
+     */
+    @Query("SELECT MAX(last_synced_at) FROM rental_sync_state WHERE entity NOT LIKE '\\_%' ESCAPE '\\'")
     fun observeLastSyncedAt(): Flow<Long?>
 
     /** Applies one feed page: upserts, tombstone deletes and the new cursor atomically. */

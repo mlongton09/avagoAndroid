@@ -108,6 +108,8 @@ class RentalSync @Inject constructor(
         var pages = 0
         while (pages++ < MAX_PAGES) {
             val page = api.syncFeed(accountId, entity, cursor = state.cursor, updatedSince = null)
+            // Local unsynced rows are never overwritten by a pull (read once per page, not per item).
+            val localChanges = dao.unsyncedIds(entity).toHashSet()
             val upserts = mutableListOf<RentalRecordEntity>()
             val tombstones = mutableListOf<String>()
             for (item in page.objs("items")) {
@@ -117,8 +119,7 @@ class RentalSync @Inject constructor(
                     if (entity == RentalEntity.ASSET) dao.deleteSynced(RentalEntity.FLEET, listOf(id))
                     continue
                 }
-                val existing = dao.get(entity, id)
-                if (existing != null && existing.localState != RentalRecordEntity.STATE_SYNCED) continue
+                if (id in localChanges) continue
                 RentalRecords.record(entity, item)?.let { upserts += it }
             }
             val hasMore = page.bool("has_more") == true
@@ -142,11 +143,10 @@ class RentalSync @Inject constructor(
         val items = resp.objs("items")
         // Units in the change set that are no longer rentable come back as `{asset_id, _deleted:true}`.
         val tombstones = items.filter(RentalRecords::isTombstone).mapNotNull { it.str("asset_id") }
+        val localChanges = dao.unsyncedIds(entity).toHashSet()
         val upserts = items.filterNot(RentalRecords::isTombstone).mapNotNull { item ->
             val id = item.str("asset_id") ?: return@mapNotNull null
-            val existing = dao.get(entity, id)
-            if (existing != null && existing.localState != RentalRecordEntity.STATE_SYNCED) null
-            else RentalRecords.record(entity, item)
+            if (id in localChanges) null else RentalRecords.record(entity, item)
         }
         resp.long("reserved_window_minutes")?.let { w ->
             dao.upsert(

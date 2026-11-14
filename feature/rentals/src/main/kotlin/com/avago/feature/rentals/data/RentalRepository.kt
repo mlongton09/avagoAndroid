@@ -1,5 +1,6 @@
 package com.avago.feature.rentals.data
 
+import androidx.room.withTransaction
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.SyncQueueEntity
@@ -64,6 +65,22 @@ class RentalRepository @Inject constructor(
 
     private fun requireAccount(): String =
         identity.getActiveAccountId() ?: throw IllegalStateException("No active account")
+
+    /**
+     * Runs a local write (records + its queue rows) in one Room transaction, so a crash or a
+     * failure half-way never leaves an optimistic row without its queued action (or the
+     * reverse), then wakes the sync worker once the rows are committed.
+     */
+    private suspend fun <T> write(block: suspend (accountId: String) -> T): T {
+        val acc = requireAccount()
+        val result = dbFactory.get(acc).withTransaction { block(acc) }
+        scheduler.syncNow()
+        return result
+    }
+
+    /** A record built from a body this repository just assembled (it always carries its id). */
+    private fun localRecord(entity: String, json: JsonObject, state: String, clientUuid: String? = null): RentalRecordEntity =
+        RentalRecords.record(entity, json, state, clientUuid) ?: throw IllegalStateException("$entity record without an id")
 
     // ── Reads ──────────────────────────────────────────────────────────────────────
 
@@ -171,30 +188,29 @@ class RentalRepository @Inject constructor(
 
     /** Creates (id = null) or updates a customer locally and queues it; returns the id. */
     suspend fun saveCustomer(id: String?, input: CustomerInput): String {
-        val acc = requireAccount()
-        val d = dao(acc)
-        val body = RentalRequests.customer(input)
-        if (id == null) {
-            val localId = newId()
-            val json = body.with("rental_customer_id" to JsonPrimitive(localId))
-            d.upsert(RentalRecords.record(RentalEntity.CUSTOMER, json, STATE_PENDING, localId)!!)
-            enqueue(acc, OutboxPlanner.TYPE_CUSTOMER, localId, "customer:$localId", body, buildJsonObject { put("local_id", localId) })
-            scheduler.syncNow()
-            return localId
+        return write { acc ->
+            val d = dao(acc)
+            val body = RentalRequests.customer(input)
+            if (id == null) {
+                val localId = newId()
+                val json = body.with("rental_customer_id" to JsonPrimitive(localId))
+                d.upsert(localRecord(RentalEntity.CUSTOMER, json, STATE_PENDING, localId))
+                enqueue(acc, OutboxPlanner.TYPE_CUSTOMER, localId, "customer:$localId", body, buildJsonObject { put("local_id", localId) })
+                return@write localId
+            }
+            val existing = d.get(RentalEntity.CUSTOMER, id)
+            val merged = JsonObject((existing?.obj ?: JsonObject(emptyMap())) + body)
+            // Optimistic PATCH: a stale `server_version` answers 409 `conflict` with `current`.
+            val patch = RentalRequests.customer(input, existing?.takeIf { it.localState == STATE_SYNCED }?.obj?.long("server_version"))
+            d.upsert(localRecord(RentalEntity.CUSTOMER, merged.with("rental_customer_id" to JsonPrimitive(id)), STATE_PENDING))
+            val action = newId()
+            enqueue(
+                acc, OutboxPlanner.TYPE_CUSTOMER, action, "customer:$id", patch,
+                buildJsonObject { put("customer_id", id); put("update", true) },
+                dependsOn = listOfNotNull(id.takeIf { pendingCreate(acc, it) }),
+            )
+            id
         }
-        val existing = d.get(RentalEntity.CUSTOMER, id)
-        val merged = JsonObject((existing?.obj ?: JsonObject(emptyMap())) + body)
-        // Optimistic PATCH: a stale `server_version` answers 409 `conflict` with `current`.
-        val patch = RentalRequests.customer(input, existing?.takeIf { it.localState == STATE_SYNCED }?.obj?.long("server_version"))
-        d.upsert(RentalRecords.record(RentalEntity.CUSTOMER, merged.with("rental_customer_id" to JsonPrimitive(id)), STATE_PENDING)!!)
-        val action = newId()
-        enqueue(
-            acc, OutboxPlanner.TYPE_CUSTOMER, action, "customer:$id", patch,
-            buildJsonObject { put("customer_id", id); put("update", true) },
-            dependsOn = listOfNotNull(id.takeIf { pendingCreate(acc, it) }),
-        )
-        scheduler.syncNow()
-        return id
     }
 
     data class DocumentInput(
@@ -209,23 +225,23 @@ class RentalRepository @Inject constructor(
     )
 
     suspend fun addCustomerDocument(customerId: String, doc: DocumentInput): String {
-        val acc = requireAccount()
-        val localId = newId()
-        val body = RentalRequests.document(doc)
-        dao(acc).upsert(
-            RentalRecords.record(
-                RentalEntity.CUSTOMER_DOCUMENT,
-                body.with("id" to JsonPrimitive(localId), "customer_id" to JsonPrimitive(customerId)),
-                STATE_PENDING, localId,
-            )!!,
-        )
-        enqueue(
-            acc, OutboxPlanner.TYPE_CUSTOMER_DOCUMENT, localId, "customer:$customerId", body,
-            buildJsonObject { put("customer_id", customerId); put("local_id", localId) },
-            dependsOn = listOfNotNull(customerId.takeIf { pendingCreate(acc, it) }),
-        )
-        scheduler.syncNow()
-        return localId
+        return write { acc ->
+            val localId = newId()
+            val body = RentalRequests.document(doc)
+            dao(acc).upsert(
+                localRecord(
+                    RentalEntity.CUSTOMER_DOCUMENT,
+                    body.with("id" to JsonPrimitive(localId), "customer_id" to JsonPrimitive(customerId)),
+                    STATE_PENDING, localId,
+                ),
+            )
+            enqueue(
+                acc, OutboxPlanner.TYPE_CUSTOMER_DOCUMENT, localId, "customer:$customerId", body,
+                buildJsonObject { put("customer_id", customerId); put("local_id", localId) },
+                dependsOn = listOfNotNull(customerId.takeIf { pendingCreate(acc, it) }),
+            )
+            localId
+        }
     }
 
     data class BookingInput(
@@ -248,59 +264,59 @@ class RentalRepository @Inject constructor(
 
     /** Saves a booking as a local **draft** and queues create (+ requested transition). */
     suspend fun createBooking(input: BookingInput): String {
-        val acc = requireAccount()
-        val d = dao(acc)
-        val orderId = newId()
-        val lineId = newId()
-        val line = RentalRequests.rentalLine(input.classId, input.assetId, input.assetName, input.start, input.end, lineId)
-        val body = RentalRequests.orderCreate(input, line)
-        val local = body.with(
-            "id" to JsonPrimitive(orderId),
-            "status" to JsonPrimitive(OrderStatus.DRAFT),
-            "requested_action" to input.action?.let(::JsonPrimitive),
-            "total_minor" to input.estimate?.minor?.let(::JsonPrimitive),
-            "estimate" to JsonPrimitive(true),
-            "time_zone" to input.zoneId?.let(::JsonPrimitive),
-        )
-        val records = mutableListOf(RentalRecords.record(RentalEntity.ORDER, local, STATE_DRAFT, orderId)!!)
-        records += RentalRecords.record(
-            RentalEntity.ORDER_LINE,
-            line.with("id" to JsonPrimitive(lineId), "order_id" to JsonPrimitive(orderId), "status" to JsonPrimitive("open")),
-            STATE_DRAFT, lineId,
-        )!!
-        if (input.assetId != null && input.action in setOf("hold", "reserve")) {
-            val allocId = newId()
-            records += RentalRecords.record(
-                RentalEntity.ALLOCATION,
-                buildJsonObject {
-                    put("id", allocId)
-                    put("asset_id", input.assetId)
-                    put("order_id", orderId)
-                    put("order_line_id", lineId)
-                    put("kind", if (input.action == "hold") "hold" else "reserved")
-                    put("start_at", input.start.toString())
-                    put("end_at", input.end.toString())
-                    put("active", true)
-                    put("blocking", true)
-                },
-                STATE_DRAFT,
-            )!!
-        }
-        d.upsertAll(records)
-        enqueue(
-            acc, OutboxPlanner.TYPE_ORDER, orderId, "order:$orderId", body,
-            buildJsonObject { put("local_id", orderId) },
-            dependsOn = listOfNotNull(input.customerId?.takeIf { pendingCreate(acc, it) }),
-        )
-        if (input.action != null) {
-            enqueue(
-                acc, OutboxPlanner.TYPE_ORDER_ACTION, newId(), "order:$orderId", buildJsonObject { },
-                buildJsonObject { put("order_id", orderId); put("action", input.action) },
-                dependsOn = listOf(orderId),
+        return write { acc ->
+            val d = dao(acc)
+            val orderId = newId()
+            val lineId = newId()
+            val line = RentalRequests.rentalLine(input.classId, input.assetId, input.assetName, input.start, input.end, lineId)
+            val body = RentalRequests.orderCreate(input, line)
+            val local = body.with(
+                "id" to JsonPrimitive(orderId),
+                "status" to JsonPrimitive(OrderStatus.DRAFT),
+                "requested_action" to input.action?.let(::JsonPrimitive),
+                "total_minor" to input.estimate?.minor?.let(::JsonPrimitive),
+                "estimate" to JsonPrimitive(true),
+                "time_zone" to input.zoneId?.let(::JsonPrimitive),
             )
+            val records = mutableListOf(localRecord(RentalEntity.ORDER, local, STATE_DRAFT, orderId))
+            records += localRecord(
+                RentalEntity.ORDER_LINE,
+                line.with("id" to JsonPrimitive(lineId), "order_id" to JsonPrimitive(orderId), "status" to JsonPrimitive("open")),
+                STATE_DRAFT, lineId,
+            )
+            if (input.assetId != null && input.action in setOf("hold", "reserve")) {
+                val allocId = newId()
+                records += localRecord(
+                    RentalEntity.ALLOCATION,
+                    buildJsonObject {
+                        put("id", allocId)
+                        put("asset_id", input.assetId)
+                        put("order_id", orderId)
+                        put("order_line_id", lineId)
+                        put("kind", if (input.action == "hold") "hold" else "reserved")
+                        put("start_at", input.start.toString())
+                        put("end_at", input.end.toString())
+                        put("active", true)
+                        put("blocking", true)
+                    },
+                    STATE_DRAFT,
+                )
+            }
+            d.upsertAll(records)
+            enqueue(
+                acc, OutboxPlanner.TYPE_ORDER, orderId, "order:$orderId", body,
+                buildJsonObject { put("local_id", orderId) },
+                dependsOn = listOfNotNull(input.customerId?.takeIf { pendingCreate(acc, it) }),
+            )
+            if (input.action != null) {
+                enqueue(
+                    acc, OutboxPlanner.TYPE_ORDER_ACTION, newId(), "order:$orderId", buildJsonObject { },
+                    buildJsonObject { put("order_id", orderId); put("action", input.action) },
+                    dependsOn = listOf(orderId),
+                )
+            }
+            orderId
         }
-        scheduler.syncNow()
-        return orderId
     }
 
     private fun statusAfter(action: String, current: String): String = when (action) {
@@ -320,25 +336,25 @@ class RentalRepository @Inject constructor(
      * as a draft extension until the server confirms the price and availability.
      */
     suspend fun orderAction(orderId: String, action: String, reason: String? = null, endAt: Instant? = null, at: Instant? = null) {
-        val acc = requireAccount()
-        val d = dao(acc)
-        val rec = d.get(RentalEntity.ORDER, orderId)
-        val o = rec?.obj ?: JsonObject(emptyMap())
-        val status = o.str("status") ?: OrderStatus.DRAFT
-        val body = RentalRequests.transition(reason, endAt, at ?: Instant.now(), o["version"].takeIf { rec?.localState == STATE_SYNCED })
-        if (rec != null) {
-            var updated = o.with("status" to JsonPrimitive(statusAfter(action, status)))
-            if (endAt != null) updated = updated.with("end_at" to JsonPrimitive(endAt.toString()))
-            val state = if (action == "extend" || rec.localState == STATE_DRAFT) STATE_DRAFT else STATE_PENDING
-            d.upsert(RentalRecords.record(RentalEntity.ORDER, updated, state, rec.clientUuid)!!.copy(id = rec.id))
-            applyAllocationEffects(acc, orderId, action, endAt)
+        return write { acc ->
+            val d = dao(acc)
+            val rec = d.get(RentalEntity.ORDER, orderId)
+            val o = rec?.obj ?: JsonObject(emptyMap())
+            val status = o.str("status") ?: OrderStatus.DRAFT
+            val body = RentalRequests.transition(reason, endAt, at ?: Instant.now(), o["version"].takeIf { rec?.localState == STATE_SYNCED })
+            if (rec != null) {
+                var updated = o.with("status" to JsonPrimitive(statusAfter(action, status)))
+                if (endAt != null) updated = updated.with("end_at" to JsonPrimitive(endAt.toString()))
+                val state = if (action == "extend" || rec.localState == STATE_DRAFT) STATE_DRAFT else STATE_PENDING
+                d.upsert(localRecord(RentalEntity.ORDER, updated, state, rec.clientUuid).copy(id = rec.id))
+                applyAllocationEffects(acc, orderId, action, endAt)
+            }
+            enqueue(
+                acc, OutboxPlanner.TYPE_ORDER_ACTION, newId(), "order:$orderId", body,
+                buildJsonObject { put("order_id", orderId); put("action", action) },
+                dependsOn = listOfNotNull(orderId.takeIf { pendingCreate(acc, it) }),
+            )
         }
-        enqueue(
-            acc, OutboxPlanner.TYPE_ORDER_ACTION, newId(), "order:$orderId", body,
-            buildJsonObject { put("order_id", orderId); put("action", action) },
-            dependsOn = listOfNotNull(orderId.takeIf { pendingCreate(acc, it) }),
-        )
-        scheduler.syncNow()
     }
 
     private suspend fun applyAllocationEffects(acc: String, orderId: String, action: String, endAt: Instant?) {
@@ -398,81 +414,81 @@ class RentalRepository @Inject constructor(
 
     /** Queues signature → handover (waits for the inspection log and its photos). */
     suspend fun saveHandover(input: HandoverInput): String {
-        val acc = requireAccount()
-        val d = dao(acc)
-        val group = "order:${input.orderId}"
-        // The stage B route is per line: POST /orders/{o}/lines/{l}/checkout|checkin.
-        val lineId = input.orderLineId
-            ?: d.byOrder(RentalEntity.ORDER_LINE, input.orderId).firstOrNull { it.assetId == input.assetId }?.id
-            ?: d.byOrder(RentalEntity.ORDER_LINE, input.orderId).firstOrNull { it.obj.str("kind") == "rental" }?.id
-            ?: throw IllegalStateException("No rental line for this unit on the order")
-        input.marks.firstOrNull { input.direction == "in" && it.isNew && (it.chargeMinor ?: 0L) <= 0L && it.reason.isNullOrBlank() }
-            ?.let { throw IllegalArgumentException("New damage needs a charge or a waive reason") }
-        val orderPending = pendingCreate(acc, input.orderId)
-        var signatureId: String? = null
-        if (input.signatureDataUrl != null) {
-            signatureId = newId()
-            val signer = requireNotNull(input.signerName?.takeIf { it.isNotBlank() }) { "signer name required" }
-            val sig = RentalRequests.signature(signer, input.signatureDataUrl, input.occurredAt)
+        return write { acc ->
+            val d = dao(acc)
+            val group = "order:${input.orderId}"
+            // The stage B route is per line: POST /orders/{o}/lines/{l}/checkout|checkin.
+            val lineId = input.orderLineId
+                ?: d.byOrder(RentalEntity.ORDER_LINE, input.orderId).firstOrNull { it.assetId == input.assetId }?.id
+                ?: d.byOrder(RentalEntity.ORDER_LINE, input.orderId).firstOrNull { it.obj.str("kind") == "rental" }?.id
+                ?: throw IllegalStateException("No rental line for this unit on the order")
+            input.marks.firstOrNull { input.direction == "in" && it.isNew && (it.chargeMinor ?: 0L) <= 0L && it.reason.isNullOrBlank() }
+                ?.let { throw IllegalArgumentException("New damage needs a charge or a waive reason") }
+            val orderPending = pendingCreate(acc, input.orderId)
+            var signatureId: String? = null
+            if (input.signatureDataUrl != null) {
+                signatureId = newId()
+                val signer = requireNotNull(input.signerName?.takeIf { it.isNotBlank() }) { "signer name required" }
+                val sig = RentalRequests.signature(signer, input.signatureDataUrl, input.occurredAt)
+                d.upsert(
+                    localRecord(
+                        RentalEntity.SIGNATURE,
+                        sig.with("id" to JsonPrimitive(signatureId), "order_id" to JsonPrimitive(input.orderId), "image_png_base64" to null),
+                        STATE_PENDING, signatureId,
+                    ),
+                )
+                enqueue(
+                    acc, OutboxPlanner.TYPE_SIGNATURE, signatureId, group, sig,
+                    buildJsonObject { put("local_id", signatureId); put("order_id", input.orderId) },
+                    dependsOn = listOfNotNull(input.orderId.takeIf { orderPending }),
+                )
+            }
+            val handoverId = newId()
+            val kind = if (input.direction == "out") "checkout" else "checkin"
+            val body = RentalRequests.handover(input, signatureId)
             d.upsert(
-                RentalRecords.record(
-                    RentalEntity.SIGNATURE,
-                    sig.with("id" to JsonPrimitive(signatureId), "order_id" to JsonPrimitive(input.orderId), "image_png_base64" to null),
-                    STATE_PENDING, signatureId,
-                )!!,
+                localRecord(
+                    RentalEntity.HANDOVER,
+                    body.with(
+                        "id" to JsonPrimitive(handoverId),
+                        "kind" to JsonPrimitive(kind),
+                        "order_id" to JsonPrimitive(input.orderId),
+                        "order_line_id" to JsonPrimitive(lineId),
+                        "start_at" to JsonPrimitive(input.occurredAt.toString()),
+                        "photo_ids" to JsonArray(input.photoIds.map(::JsonPrimitive)),
+                    ),
+                    STATE_PENDING, handoverId,
+                ),
             )
             enqueue(
-                acc, OutboxPlanner.TYPE_SIGNATURE, signatureId, group, sig,
-                buildJsonObject { put("local_id", signatureId); put("order_id", input.orderId) },
-                dependsOn = listOfNotNull(input.orderId.takeIf { orderPending }),
+                acc, OutboxPlanner.TYPE_HANDOVER, handoverId, group, body,
+                buildJsonObject {
+                    put("order_id", input.orderId)
+                    put("line_id", lineId)
+                    put("kind", kind)
+                    put("local_id", handoverId)
+                    input.logId?.let { put("log_id", it) }
+                    put("photo_ids", JsonArray(input.photoIds.map(::JsonPrimitive)))
+                },
+                dependsOn = listOfNotNull(signatureId, input.orderId.takeIf { orderPending }),
             )
+            // Optimistic status (the handover performs the transition on the server).
+            orderStatusLocal(acc, input.orderId, if (input.direction == "out") "checkout" else "checkin", input.occurredAt)
+            lineStatusLocal(acc, lineId, input.direction, input.occurredAt)
+            if (input.direction == "in") {
+                // The server opens a readiness checklist on check-in (stage B §2): mirror it so the
+                // unit shows Not ready offline. Replaced by the server row once the handover syncs.
+                val checkId = newId()
+                d.upsert(
+                    localRecord(
+                        RentalEntity.READINESS_CHECK,
+                        Readiness.placeholder(checkId, input.assetId, input.orderId, handoverId, input.occurredAt),
+                        STATE_PENDING,
+                    ),
+                )
+            }
+            handoverId
         }
-        val handoverId = newId()
-        val kind = if (input.direction == "out") "checkout" else "checkin"
-        val body = RentalRequests.handover(input, signatureId)
-        d.upsert(
-            RentalRecords.record(
-                RentalEntity.HANDOVER,
-                body.with(
-                    "id" to JsonPrimitive(handoverId),
-                    "kind" to JsonPrimitive(kind),
-                    "order_id" to JsonPrimitive(input.orderId),
-                    "order_line_id" to JsonPrimitive(lineId),
-                    "start_at" to JsonPrimitive(input.occurredAt.toString()),
-                    "photo_ids" to JsonArray(input.photoIds.map(::JsonPrimitive)),
-                ),
-                STATE_PENDING, handoverId,
-            )!!,
-        )
-        enqueue(
-            acc, OutboxPlanner.TYPE_HANDOVER, handoverId, group, body,
-            buildJsonObject {
-                put("order_id", input.orderId)
-                put("line_id", lineId)
-                put("kind", kind)
-                put("local_id", handoverId)
-                input.logId?.let { put("log_id", it) }
-                put("photo_ids", JsonArray(input.photoIds.map(::JsonPrimitive)))
-            },
-            dependsOn = listOfNotNull(signatureId, input.orderId.takeIf { orderPending }),
-        )
-        // Optimistic status (the handover performs the transition on the server).
-        orderStatusLocal(acc, input.orderId, if (input.direction == "out") "checkout" else "checkin", input.occurredAt)
-        lineStatusLocal(acc, lineId, input.direction, input.occurredAt)
-        if (input.direction == "in") {
-            // The server opens a readiness checklist on check-in (stage B §2): mirror it so the
-            // unit shows Not ready offline. Replaced by the server row once the handover syncs.
-            val checkId = newId()
-            d.upsert(
-                RentalRecords.record(
-                    RentalEntity.READINESS_CHECK,
-                    Readiness.placeholder(checkId, input.assetId, input.orderId, handoverId, input.occurredAt),
-                    STATE_PENDING,
-                )!!,
-            )
-        }
-        scheduler.syncNow()
-        return handoverId
     }
 
     /** The handed-over line goes `out` / `returned` locally (server: handover_line). */
@@ -486,7 +502,7 @@ class RentalRepository @Inject constructor(
             o.with("status" to JsonPrimitive("returned"), "actual_in_at" to JsonPrimitive(at.toString()))
         }
         val state = if (rec.localState == STATE_DRAFT) STATE_DRAFT else STATE_PENDING
-        d.upsert(RentalRecords.record(RentalEntity.ORDER_LINE, updated, state, rec.clientUuid)!!.copy(id = rec.id))
+        d.upsert(localRecord(RentalEntity.ORDER_LINE, updated, state, rec.clientUuid).copy(id = rec.id))
     }
 
     // ── Readiness checklist (stage B §3) ────────────────────────────────────────────
@@ -513,42 +529,42 @@ class RentalRepository @Inject constructor(
      * exist on the device. Photos upload first (the outbox waits for them).
      */
     suspend fun saveReadiness(input: ReadinessInput): String {
-        val acc = requireAccount()
-        val d = dao(acc)
-        val rec = input.checkId?.let { d.get(RentalEntity.READINESS_CHECK, it) }
-        val current = rec?.obj ?: Readiness.fresh(newId(), input.assetId, input.at)
-        val from = current.str("status") ?: Readiness.PENDING
-        Readiness.validate(from, input.status, input.items, input.notes, input.canWaive)?.let {
-            throw IllegalArgumentException("readiness: ${it.name.lowercase()}")
+        return write { acc ->
+            val d = dao(acc)
+            val rec = input.checkId?.let { d.get(RentalEntity.READINESS_CHECK, it) }
+            val current = rec?.obj ?: Readiness.fresh(newId(), input.assetId, input.at)
+            val from = current.str("status") ?: Readiness.PENDING
+            Readiness.validate(from, input.status, input.items, input.notes, input.canWaive)?.let {
+                throw IllegalArgumentException("readiness: ${it.name.lowercase()}")
+            }
+            val id = rec?.id ?: current.str("id") ?: throw IllegalStateException("readiness check without id")
+            val mode = when {
+                current.bool(Readiness.KEY_PLACEHOLDER) == true -> "resolve"
+                current.bool("_new") == true -> "create"
+                else -> "patch"
+            }
+            val updated = Readiness.applyLocal(current, input.status, input.items, input.notes, input.at)
+            d.upsert(localRecord(RentalEntity.READINESS_CHECK, updated, STATE_PENDING, rec?.clientUuid).copy(id = id))
+            val photoIds = input.items.flatMap { it.photoIds }.distinct()
+            val clientUuid = newId()
+            enqueue(
+                acc, OutboxPlanner.TYPE_READINESS, clientUuid, "readiness:${input.assetId}",
+                buildJsonObject { },
+                buildJsonObject {
+                    put("local_id", id)
+                    put("asset_id", input.assetId)
+                    put("mode", mode)
+                    put("status", input.status)
+                    put("items", Readiness.itemsJson(input.items))
+                    input.notes?.takeIf { it.isNotBlank() }?.let { put("notes", it.trim()) }
+                    current.long("server_version")?.let { put("server_version", it) }
+                    put("photo_ids", JsonArray(photoIds.map(::JsonPrimitive)))
+                },
+                // A placeholder waits for its check-in (the server opens the real check there).
+                dependsOn = listOfNotNull(current.str(Readiness.KEY_HANDOVER_LOCAL_ID)),
+            )
+            id
         }
-        val id = rec?.id ?: current.str("id")!!
-        val mode = when {
-            current.bool(Readiness.KEY_PLACEHOLDER) == true -> "resolve"
-            current.bool("_new") == true -> "create"
-            else -> "patch"
-        }
-        val updated = Readiness.applyLocal(current, input.status, input.items, input.notes, input.at)
-        d.upsert(RentalRecords.record(RentalEntity.READINESS_CHECK, updated, STATE_PENDING, rec?.clientUuid)!!.copy(id = id))
-        val photoIds = input.items.flatMap { it.photoIds }.distinct()
-        val clientUuid = newId()
-        enqueue(
-            acc, OutboxPlanner.TYPE_READINESS, clientUuid, "readiness:${input.assetId}",
-            buildJsonObject { },
-            buildJsonObject {
-                put("local_id", id)
-                put("asset_id", input.assetId)
-                put("mode", mode)
-                put("status", input.status)
-                put("items", Readiness.itemsJson(input.items))
-                input.notes?.takeIf { it.isNotBlank() }?.let { put("notes", it.trim()) }
-                current.long("server_version")?.let { put("server_version", it) }
-                put("photo_ids", JsonArray(photoIds.map(::JsonPrimitive)))
-            },
-            // A placeholder waits for its check-in (the server opens the real check there).
-            dependsOn = listOfNotNull(current.str(Readiness.KEY_HANDOVER_LOCAL_ID)),
-        )
-        scheduler.syncNow()
-        return id
     }
 
     /** Registers a photo taken for a checklist item (uploaded by the photo sweep before the check syncs). */
@@ -600,53 +616,53 @@ class RentalRepository @Inject constructor(
      * `line_not_out`, `invalid_transition`) comes back as a conflict notice on the order.
      */
     suspend fun swapLine(input: SwapInput): String {
-        val acc = requireAccount()
-        val d = dao(acc)
-        val order = d.get(RentalEntity.ORDER, input.orderId) ?: throw IllegalStateException("order not found")
-        val line = d.get(RentalEntity.ORDER_LINE, input.lineId) ?: throw IllegalStateException("line not found")
-        require(LineSwap.swappable(line.obj, order.obj.str("status"))) { "only a checked-out rental line can be swapped" }
-        val newLineId = newId()
-        val newAllocId = newId()
-        val allocs = d.byOrder(RentalEntity.ALLOCATION, input.orderId).map { it.id to it.obj }
-        val plan = LineSwap.plan(input.orderId, line.id, line.obj, allocs, input.newAssetId, newLineId, newAllocId, input.at)
-        val records = mutableListOf<RentalRecordEntity>()
-        records += RentalRecords.record(RentalEntity.ORDER_LINE, plan.oldLine, STATE_PENDING, line.clientUuid)!!.copy(id = line.id)
-        records += RentalRecords.record(RentalEntity.ORDER_LINE, plan.newLine, STATE_PENDING, newLineId)!!
-        plan.released.forEach { (id, a) ->
-            val prev = d.get(RentalEntity.ALLOCATION, id)
-            records += RentalRecords.record(RentalEntity.ALLOCATION, a, STATE_PENDING, prev?.clientUuid)!!.copy(id = id)
+        return write { acc ->
+            val d = dao(acc)
+            val order = d.get(RentalEntity.ORDER, input.orderId) ?: throw IllegalStateException("order not found")
+            val line = d.get(RentalEntity.ORDER_LINE, input.lineId) ?: throw IllegalStateException("line not found")
+            require(LineSwap.swappable(line.obj, order.obj.str("status"))) { "only a checked-out rental line can be swapped" }
+            val newLineId = newId()
+            val newAllocId = newId()
+            val allocs = d.byOrder(RentalEntity.ALLOCATION, input.orderId).map { it.id to it.obj }
+            val plan = LineSwap.plan(input.orderId, line.id, line.obj, allocs, input.newAssetId, newLineId, newAllocId, input.at)
+            val records = mutableListOf<RentalRecordEntity>()
+            records += localRecord(RentalEntity.ORDER_LINE, plan.oldLine, STATE_PENDING, line.clientUuid).copy(id = line.id)
+            records += localRecord(RentalEntity.ORDER_LINE, plan.newLine, STATE_PENDING, newLineId)
+            plan.released.forEach { (id, a) ->
+                val prev = d.get(RentalEntity.ALLOCATION, id)
+                records += localRecord(RentalEntity.ALLOCATION, a, STATE_PENDING, prev?.clientUuid).copy(id = id)
+            }
+            records += localRecord(RentalEntity.ALLOCATION, plan.newAllocation, STATE_PENDING)
+            val clientUuid = newId()
+            // The returned unit is checked in by the swap: Not ready until its checklist is done.
+            line.obj.str("asset_id")?.let { oldAsset ->
+                records += localRecord(
+                    RentalEntity.READINESS_CHECK,
+                    Readiness.placeholder(newId(), oldAsset, input.orderId, clientUuid, input.at),
+                    STATE_PENDING,
+                )
+            }
+            d.upsertAll(records)
+            if (order.localState == STATE_SYNCED) d.setState(order.entity, order.id, STATE_PENDING, null)
+            val body = RentalRequests.swap(
+                clientUuid, input.at, input.newAssetId, input.reason,
+                RentalRequests.swapSide(input.inMeter, input.inFuelPct),
+                RentalRequests.swapSide(input.outMeter, input.outFuelPct),
+            )
+            enqueue(
+                acc, OutboxPlanner.TYPE_LINE_SWAP, clientUuid, "order:${input.orderId}", body,
+                buildJsonObject {
+                    put("order_id", input.orderId)
+                    put("line_id", line.id)
+                    line.obj.str("asset_id")?.let { put("old_asset_id", it) }
+                    put("new_line_id", newLineId)
+                    put("new_alloc_id", newAllocId)
+                    put("released_alloc_ids", JsonArray(plan.released.map { JsonPrimitive(it.first) }))
+                },
+                dependsOn = listOfNotNull(input.orderId.takeIf { pendingCreate(acc, it) }),
+            )
+            newLineId
         }
-        records += RentalRecords.record(RentalEntity.ALLOCATION, plan.newAllocation, STATE_PENDING)!!
-        val clientUuid = newId()
-        // The returned unit is checked in by the swap: Not ready until its checklist is done.
-        line.obj.str("asset_id")?.let { oldAsset ->
-            records += RentalRecords.record(
-                RentalEntity.READINESS_CHECK,
-                Readiness.placeholder(newId(), oldAsset, input.orderId, clientUuid, input.at),
-                STATE_PENDING,
-            )!!
-        }
-        d.upsertAll(records)
-        if (order.localState == STATE_SYNCED) d.setState(order.entity, order.id, STATE_PENDING, null)
-        val body = RentalRequests.swap(
-            clientUuid, input.at, input.newAssetId, input.reason,
-            RentalRequests.swapSide(input.inMeter, input.inFuelPct),
-            RentalRequests.swapSide(input.outMeter, input.outFuelPct),
-        )
-        enqueue(
-            acc, OutboxPlanner.TYPE_LINE_SWAP, clientUuid, "order:${input.orderId}", body,
-            buildJsonObject {
-                put("order_id", input.orderId)
-                put("line_id", line.id)
-                line.obj.str("asset_id")?.let { put("old_asset_id", it) }
-                put("new_line_id", newLineId)
-                put("new_alloc_id", newAllocId)
-                put("released_alloc_ids", JsonArray(plan.released.map { JsonPrimitive(it.first) }))
-            },
-            dependsOn = listOfNotNull(input.orderId.takeIf { pendingCreate(acc, it) }),
-        )
-        scheduler.syncNow()
-        return newLineId
     }
 
     private suspend fun orderStatusLocal(acc: String, orderId: String, action: String, at: Instant) {
@@ -656,7 +672,7 @@ class RentalRepository @Inject constructor(
         val key = if (action == "checkout") "actual_out_at" else "actual_in_at"
         val updated = o.with("status" to JsonPrimitive(statusAfter(action, o.str("status") ?: "")), key to JsonPrimitive(at.toString()))
         val state = if (rec.localState == STATE_DRAFT) STATE_DRAFT else STATE_PENDING
-        d.upsert(RentalRecords.record(RentalEntity.ORDER, updated, state, rec.clientUuid)!!.copy(id = rec.id))
+        d.upsert(localRecord(RentalEntity.ORDER, updated, state, rec.clientUuid).copy(id = rec.id))
         applyAllocationEffects(acc, orderId, action, null)
     }
 
@@ -691,44 +707,44 @@ class RentalRepository @Inject constructor(
     suspend fun recordPayment(input: PaymentInput): String {
         require(input.last4 == null || input.last4.matches(Regex("\\d{4}"))) { "last4 must be 4 digits" }
         require(input.amount.minor > 0) { "amount must be positive" }
-        val acc = requireAccount()
-        val id = newId()
-        val body = RentalRequests.ledgerEntry(input)
-        dao(acc).upsert(
-            RentalRecords.record(
-                RentalEntity.LEDGER,
-                body.with("id" to JsonPrimitive(id), "order_id" to JsonPrimitive(input.orderId), "start_at" to JsonPrimitive(input.receivedAt.toString())),
-                STATE_PENDING, id,
-            )!!,
-        )
-        enqueue(
-            acc, OutboxPlanner.TYPE_LEDGER, id, "order:${input.orderId}", body,
-            buildJsonObject { put("order_id", input.orderId); put("local_id", id) },
-            dependsOn = listOfNotNull(input.orderId.takeIf { pendingCreate(acc, it) }),
-        )
-        scheduler.syncNow()
-        return id
+        return write { acc ->
+            val id = newId()
+            val body = RentalRequests.ledgerEntry(input)
+            dao(acc).upsert(
+                localRecord(
+                    RentalEntity.LEDGER,
+                    body.with("id" to JsonPrimitive(id), "order_id" to JsonPrimitive(input.orderId), "start_at" to JsonPrimitive(input.receivedAt.toString())),
+                    STATE_PENDING, id,
+                ),
+            )
+            enqueue(
+                acc, OutboxPlanner.TYPE_LEDGER, id, "order:${input.orderId}", body,
+                buildJsonObject { put("order_id", input.orderId); put("local_id", id) },
+                dependsOn = listOfNotNull(input.orderId.takeIf { pendingCreate(acc, it) }),
+            )
+            id
+        }
     }
 
     /** Invoice drafted on the device; numbered and priced by the server on sync. */
     suspend fun createInvoiceDraft(orderId: String): String {
-        val acc = requireAccount()
-        val id = newId()
-        val body = RentalRequests.invoice()
-        dao(acc).upsert(
-            RentalRecords.record(
-                RentalEntity.INVOICE,
-                body.with("id" to JsonPrimitive(id), "order_id" to JsonPrimitive(orderId), "status" to JsonPrimitive("draft")),
-                STATE_DRAFT, id,
-            )!!,
-        )
-        enqueue(
-            acc, OutboxPlanner.TYPE_INVOICE, id, "order:$orderId", body,
-            buildJsonObject { put("order_id", orderId); put("local_id", id) },
-            dependsOn = listOfNotNull(orderId.takeIf { pendingCreate(acc, it) }),
-        )
-        scheduler.syncNow()
-        return id
+        return write { acc ->
+            val id = newId()
+            val body = RentalRequests.invoice()
+            dao(acc).upsert(
+                localRecord(
+                    RentalEntity.INVOICE,
+                    body.with("id" to JsonPrimitive(id), "order_id" to JsonPrimitive(orderId), "status" to JsonPrimitive("draft")),
+                    STATE_DRAFT, id,
+                ),
+            )
+            enqueue(
+                acc, OutboxPlanner.TYPE_INVOICE, id, "order:$orderId", body,
+                buildJsonObject { put("order_id", orderId); put("local_id", id) },
+                dependsOn = listOfNotNull(orderId.takeIf { pendingCreate(acc, it) }),
+            )
+            id
+        }
     }
 
     /**
@@ -745,47 +761,47 @@ class RentalRepository @Inject constructor(
         deposit: Money? = null,
     ) {
         require(!enabled || dayRate != null) { "a day rate is required to make an asset rentable" }
-        val acc = requireAccount()
-        val d = dao(acc)
-        val existing = d.get(RentalEntity.FLEET, assetId)
-        val base = existing?.obj ?: buildJsonObject {
-            put("asset_id", assetId)
-            put("name", assetName)
-            assetType?.let { put("asset_type", it) }
-            put("rental_status", "available")
-            put("ready", true)
+        return write { acc ->
+            val d = dao(acc)
+            val existing = d.get(RentalEntity.FLEET, assetId)
+            val base = existing?.obj ?: buildJsonObject {
+                put("asset_id", assetId)
+                put("name", assetName)
+                assetType?.let { put("asset_type", it) }
+                put("rental_status", "available")
+                put("ready", true)
+            }
+            val json = base.with("_deleted" to JsonPrimitive(!enabled))
+            d.upsert(localRecord(RentalEntity.FLEET, json, STATE_PENDING))
+            val body = if (enabled) RentalRequests.enableAsset(requireNotNull(dayRate), weekRate, deposit = deposit) else buildJsonObject { }
+            enqueue(
+                acc, OutboxPlanner.TYPE_ASSET, newId(), "asset:$assetId", body,
+                buildJsonObject { put("asset_id", assetId); put("enabled", enabled) },
+            )
         }
-        val json = base.with("_deleted" to JsonPrimitive(!enabled))
-        d.upsert(RentalRecords.record(RentalEntity.FLEET, json, STATE_PENDING)!!)
-        val body = if (enabled) RentalRequests.enableAsset(dayRate!!, weekRate, deposit = deposit) else buildJsonObject { }
-        enqueue(
-            acc, OutboxPlanner.TYPE_ASSET, newId(), "asset:$assetId", body,
-            buildJsonObject { put("asset_id", assetId); put("enabled", enabled) },
-        )
-        scheduler.syncNow()
     }
 
     /** Re-queues a conflicted or failed action after the user reviewed the notice. */
     suspend fun retry(queueId: String) {
-        val acc = requireAccount()
-        val q = dbFactory.get(acc).syncQueueDao()
-        val item = q.getById(queueId)
-        q.resetConflictToPending(queueId)
-        // The records go back to "pending" (the notice is cleared) until the outbox confirms them.
-        val p = item?.let { com.avago.feature.rentals.domain.parseObj(it.payload) }
-        val d = dao(acc)
-        val entity = item?.let { entityOf(it.entityType) }
-        // Device-created bookings / invoices stay drafts until the server confirms them.
-        val state = if (item?.entityType == OutboxPlanner.TYPE_ORDER || item?.entityType == OutboxPlanner.TYPE_INVOICE) STATE_DRAFT else STATE_PENDING
-        p?.str("local_id")?.let { id -> entity?.let { e -> d.get(e, id)?.let { d.setState(it.entity, it.id, state, null) } } }
-        if (item?.entityType == OutboxPlanner.TYPE_LINE_SWAP) {
-            p?.str("line_id")?.let { id -> d.get(RentalEntity.ORDER_LINE, id)?.let { d.setState(it.entity, it.id, STATE_PENDING, null) } }
+        return write { acc ->
+            val q = dbFactory.get(acc).syncQueueDao()
+            val item = q.getById(queueId)
+            q.resetConflictToPending(queueId)
+            // The records go back to "pending" (the notice is cleared) until the outbox confirms them.
+            val p = item?.let { com.avago.feature.rentals.domain.parseObj(it.payload) }
+            val d = dao(acc)
+            val entity = item?.let { entityOf(it.entityType) }
+            // Device-created bookings / invoices stay drafts until the server confirms them.
+            val state = if (item?.entityType == OutboxPlanner.TYPE_ORDER || item?.entityType == OutboxPlanner.TYPE_INVOICE) STATE_DRAFT else STATE_PENDING
+            p?.str("local_id")?.let { id -> entity?.let { e -> d.get(e, id)?.let { d.setState(it.entity, it.id, state, null) } } }
+            if (item?.entityType == OutboxPlanner.TYPE_LINE_SWAP) {
+                p?.str("line_id")?.let { id -> d.get(RentalEntity.ORDER_LINE, id)?.let { d.setState(it.entity, it.id, STATE_PENDING, null) } }
+            }
+            p?.str("order_id")?.takeIf { item?.entityType != OutboxPlanner.TYPE_ORDER }?.let { oid ->
+                d.get(RentalEntity.ORDER, oid)?.takeIf { it.localState == RentalRecordEntity.STATE_CONFLICT }
+                    ?.let { d.setState(it.entity, it.id, if (pendingCreate(acc, oid)) STATE_DRAFT else STATE_PENDING, null) }
+            }
         }
-        p?.str("order_id")?.takeIf { item?.entityType != OutboxPlanner.TYPE_ORDER }?.let { oid ->
-            d.get(RentalEntity.ORDER, oid)?.takeIf { it.localState == RentalRecordEntity.STATE_CONFLICT }
-                ?.let { d.setState(it.entity, it.id, if (pendingCreate(acc, oid)) STATE_DRAFT else STATE_PENDING, null) }
-        }
-        scheduler.syncNow()
     }
 
     private fun entityOf(type: String): String? = when (type) {
@@ -816,36 +832,35 @@ class RentalRepository @Inject constructor(
      * Drops a conflicted action and its local draft; the next pull restores the server copy.
      */
     suspend fun discard(queueId: String) {
-        val acc = requireAccount()
-        val q = dbFactory.get(acc).syncQueueDao()
-        val item = q.getById(queueId) ?: return
-        q.markSuccess(queueId)
-        val p = com.avago.feature.rentals.domain.parseObj(item.payload)
-        val d = dao(acc)
-        when (item.entityType) {
-            OutboxPlanner.TYPE_READINESS -> {
-                p?.str("local_id")?.let { restoreOrDelete(acc, RentalEntity.READINESS_CHECK, it, Readiness.KEY_BASE) }
-                scheduler.syncNow()
-                return
+        return write { acc ->
+            val q = dbFactory.get(acc).syncQueueDao()
+            val item = q.getById(queueId) ?: return@write
+            q.markSuccess(queueId)
+            val p = com.avago.feature.rentals.domain.parseObj(item.payload)
+            val d = dao(acc)
+            when (item.entityType) {
+                OutboxPlanner.TYPE_READINESS -> {
+                    p?.str("local_id")?.let { restoreOrDelete(acc, RentalEntity.READINESS_CHECK, it, Readiness.KEY_BASE) }
+                    return@write
+                }
+                OutboxPlanner.TYPE_LINE_SWAP -> {
+                    p?.str("new_line_id")?.let { d.delete(RentalEntity.ORDER_LINE, it) }
+                    p?.str("new_alloc_id")?.let { d.delete(RentalEntity.ALLOCATION, it) }
+                    p?.str("line_id")?.let { restoreOrDelete(acc, RentalEntity.ORDER_LINE, it, LineSwap.KEY_BASE) }
+                    p?.strings("released_alloc_ids")?.forEach { restoreOrDelete(acc, RentalEntity.ALLOCATION, it, LineSwap.KEY_BASE) }
+                }
             }
-            OutboxPlanner.TYPE_LINE_SWAP -> {
-                p?.str("new_line_id")?.let { d.delete(RentalEntity.ORDER_LINE, it) }
-                p?.str("new_alloc_id")?.let { d.delete(RentalEntity.ALLOCATION, it) }
-                p?.str("line_id")?.let { restoreOrDelete(acc, RentalEntity.ORDER_LINE, it, LineSwap.KEY_BASE) }
-                p?.strings("released_alloc_ids")?.forEach { restoreOrDelete(acc, RentalEntity.ALLOCATION, it, LineSwap.KEY_BASE) }
+            val localId = p?.str("local_id")
+            val entity = entityOf(item.entityType)
+            if (entity != null && localId != null) d.delete(entity, localId)
+            if (item.entityType == OutboxPlanner.TYPE_ORDER && localId != null) {
+                d.byOrder(RentalEntity.ORDER_LINE, localId).forEach { d.delete(it.entity, it.id) }
+                d.byOrder(RentalEntity.ALLOCATION, localId).forEach { d.delete(it.entity, it.id) }
             }
+            // Server-backed rows that were changed optimistically go back to "synced" so the next
+            // pull overwrites them with the authoritative copy.
+            p?.str("order_id")?.let { oid -> d.get(RentalEntity.ORDER, oid)?.takeIf { it.localState != STATE_DRAFT }?.let { d.setState(it.entity, it.id, STATE_SYNCED, null) } }
+            p?.str("customer_id")?.let { cid -> d.get(RentalEntity.CUSTOMER, cid)?.let { d.setState(it.entity, it.id, STATE_SYNCED, null) } }
         }
-        val localId = p?.str("local_id")
-        val entity = entityOf(item.entityType)
-        if (entity != null && localId != null) d.delete(entity, localId)
-        if (item.entityType == OutboxPlanner.TYPE_ORDER && localId != null) {
-            d.byOrder(RentalEntity.ORDER_LINE, localId).forEach { d.delete(it.entity, it.id) }
-            d.byOrder(RentalEntity.ALLOCATION, localId).forEach { d.delete(it.entity, it.id) }
-        }
-        // Server-backed rows that were changed optimistically go back to "synced" so the next
-        // pull overwrites them with the authoritative copy.
-        p?.str("order_id")?.let { oid -> d.get(RentalEntity.ORDER, oid)?.takeIf { it.localState != STATE_DRAFT }?.let { d.setState(it.entity, it.id, STATE_SYNCED, null) } }
-        p?.str("customer_id")?.let { cid -> d.get(RentalEntity.CUSTOMER, cid)?.let { d.setState(it.entity, it.id, STATE_SYNCED, null) } }
-        scheduler.syncNow()
     }
 }
