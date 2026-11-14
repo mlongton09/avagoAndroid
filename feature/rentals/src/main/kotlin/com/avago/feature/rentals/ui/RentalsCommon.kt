@@ -10,7 +10,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.AssignmentReturn
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.EventAvailable
+import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.PauseCircle
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
@@ -22,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -30,6 +43,9 @@ import com.avago.core.data.db.rental.RentalRecordEntity
 import com.avago.core.data.rental.FleetStatus
 import com.avago.core.data.rental.Money
 import com.avago.core.data.rental.MoneyFormatter
+import com.avago.core.ui.components.StatusPill
+import com.avago.core.ui.components.StatusTone
+import com.avago.core.ui.components.toneColors
 import com.avago.feature.rentals.R
 import com.avago.feature.rentals.data.RentalOutbox
 import java.time.Instant
@@ -108,34 +124,63 @@ internal fun readinessReasonLabel(code: String): Int? = when (code) {
 internal fun readinessReasons(codes: List<String>): String =
     codes.map { code -> readinessReasonLabel(code)?.let { stringResource(it) } ?: code.replace('_', ' ') }.joinToString()
 
-/** Status colours (light/dark). Always paired with a text label — never colour alone. */
-@Composable
-internal fun fleetStatusColors(status: FleetStatus): Pair<Color, Color> {
-    val dark = isSystemInDarkTheme()
-    return when (status) {
-        FleetStatus.AVAILABLE -> if (dark) Color(0xFF14532D) to Color(0xFFBBF7D0) else Color(0xFFDCFCE7) to Color(0xFF166534)
-        FleetStatus.RESERVED -> if (dark) Color(0xFF1E3A8A) to Color(0xFFBFDBFE) else Color(0xFFDBEAFE) to Color(0xFF1E40AF)
-        FleetStatus.ON_RENT -> if (dark) Color(0xFF3B0764) to Color(0xFFE9D5FF) else Color(0xFFF3E8FF) to Color(0xFF6B21A8)
-        FleetStatus.OVERDUE -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
-        FleetStatus.IN_MAINTENANCE -> if (dark) Color(0xFF78350F) to Color(0xFFFDE68A) else Color(0xFFFEF3C7) to Color(0xFF92400E)
-        FleetStatus.NOT_READY -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
-    }
+/** Semantic tone of a fleet status (shared pill / KPI colours, light + dark). */
+internal fun fleetStatusTone(status: FleetStatus): StatusTone = when (status) {
+    FleetStatus.AVAILABLE -> StatusTone.Success
+    FleetStatus.RESERVED -> StatusTone.Info
+    FleetStatus.ON_RENT -> StatusTone.Accent
+    FleetStatus.OVERDUE -> StatusTone.Danger
+    FleetStatus.IN_MAINTENANCE -> StatusTone.Warning
+    FleetStatus.NOT_READY -> StatusTone.Neutral
 }
+
+/** Icon paired with every fleet status so colour is never the only cue. */
+internal fun fleetStatusIcon(status: FleetStatus): ImageVector = when (status) {
+    FleetStatus.AVAILABLE -> Icons.Default.CheckCircle
+    FleetStatus.RESERVED -> Icons.Default.EventAvailable
+    FleetStatus.ON_RENT -> Icons.Default.Key
+    FleetStatus.OVERDUE -> Icons.Default.Warning
+    FleetStatus.IN_MAINTENANCE -> Icons.Default.Build
+    FleetStatus.NOT_READY -> Icons.Default.Block
+}
+
+/** Status colours (container, content). Always paired with a text label — never colour alone. */
+@Composable
+internal fun fleetStatusColors(status: FleetStatus): Pair<Color, Color> =
+    toneColors(fleetStatusTone(status)).let { it.container to it.content }
 
 @Composable
 internal fun FleetStatusChip(status: FleetStatus, modifier: Modifier = Modifier) {
-    val (bg, fg) = fleetStatusColors(status)
-    Surface(shape = RoundedCornerShape(50), color = bg, modifier = modifier) {
-        Text(
-            text = stringResource(fleetStatusLabel(status)),
-            style = MaterialTheme.typography.labelMedium,
-            color = fg,
-            maxLines = 1,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-        )
-    }
+    StatusPill(stringResource(fleetStatusLabel(status)), fleetStatusTone(status), modifier, icon = fleetStatusIcon(status))
 }
 
+internal fun orderStatusTone(status: String): StatusTone = when (status) {
+    "quoted", "reserved" -> StatusTone.Info
+    "held", "off_rent_requested" -> StatusTone.Warning
+    "on_rent" -> StatusTone.Accent
+    "returned" -> StatusTone.Success
+    "cancelled" -> StatusTone.Danger
+    else -> StatusTone.Neutral
+}
+
+internal fun orderStatusIcon(status: String): ImageVector = when (status) {
+    "draft" -> Icons.Default.Edit
+    "quoted" -> Icons.Default.Description
+    "held" -> Icons.Default.PauseCircle
+    "reserved" -> Icons.Default.EventAvailable
+    "on_rent" -> Icons.Default.Key
+    "off_rent_requested" -> Icons.AutoMirrored.Filled.AssignmentReturn
+    "returned" -> Icons.Default.CheckCircle
+    "closed" -> Icons.Default.Lock
+    "cancelled" -> Icons.Default.Cancel
+    else -> Icons.AutoMirrored.Filled.HelpOutline
+}
+
+/** Order status pill (icon + text). */
+@Composable
+internal fun OrderStatusPill(status: String, modifier: Modifier = Modifier) {
+    StatusPill(stringResource(orderStatusLabel(status)), orderStatusTone(status), modifier, icon = orderStatusIcon(status))
+}
 /**
  * User-facing text of a record notice: the outbox stores markers
  * ([RentalOutbox.NOTICE_SYNC_FAILED_PREFIX], [RentalOutbox.NOTICE_WARNINGS_PREFIX],
@@ -184,38 +229,14 @@ internal fun isSyncFailed(notice: String?): Boolean = notice?.startsWith(RentalO
 @Composable
 internal fun SyncStateBadge(localState: String, modifier: Modifier = Modifier, failed: Boolean = false) {
     if (localState == RentalRecordEntity.STATE_SYNCED) return
-    val (label, icon, bg, fg) = when {
-        failed -> Quad(
-            R.string.rentals_sync_failed_badge, Icons.Default.Warning,
-            MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer,
-        )
-        localState == RentalRecordEntity.STATE_DRAFT -> Quad(
-            R.string.rentals_sync_draft, Icons.Default.CloudOff,
-            MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer,
-        )
-        localState == RentalRecordEntity.STATE_CONFLICT -> Quad(
-            R.string.rentals_sync_conflict, Icons.Default.Warning,
-            MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer,
-        )
-        else -> Quad(
-            R.string.rentals_sync_pending, Icons.Default.Sync,
-            MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer,
-        )
+    val (label, icon, tone) = when {
+        failed -> Triple(R.string.rentals_sync_failed_badge, Icons.Default.Warning, StatusTone.Danger)
+        localState == RentalRecordEntity.STATE_DRAFT -> Triple(R.string.rentals_sync_draft, Icons.Default.CloudOff, StatusTone.Warning)
+        localState == RentalRecordEntity.STATE_CONFLICT -> Triple(R.string.rentals_sync_conflict, Icons.Default.Warning, StatusTone.Danger)
+        else -> Triple(R.string.rentals_sync_pending, Icons.Default.Sync, StatusTone.Info)
     }
-    Surface(shape = RoundedCornerShape(50), color = bg, modifier = modifier) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-        ) {
-            Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(14.dp))
-            Text(stringResource(label), style = MaterialTheme.typography.labelSmall, color = fg)
-        }
-    }
+    StatusPill(stringResource(label), tone, modifier, icon = icon)
 }
-
-private data class Quad<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
-
 /** "Last synced …" row with pending count and a Sync now action. */
 @Composable
 internal fun LastSyncedRow(

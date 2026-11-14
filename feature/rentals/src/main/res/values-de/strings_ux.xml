@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="rentals_kpi_due_today">Heute fällig</string>
+    <string name="rentals_clear_search">Suche löschen</string>
+    <string name="rentals_clear_filters">Filter zurücksetzen</string>
+    <string name="rentals_tomorrow">Morgen</string>
+    <string name="rentals_yesterday">Gestern</string>
+    <string name="rentals_no_date">Ohne Datum</string>
+    <string name="rentals_balance_due">%1$s offen</string>
+    <string name="rentals_order_history">Verlauf</string>
+    <string name="rentals_payment_recorded">Zahlung erfasst</string>
+    <string name="rentals_more_actions">Weitere Aktionen</string>
+    <string name="rentals_collect_payment">Zahlung kassieren</string>
+    <string name="rentals_amount_invalid">Bitte geben Sie einen Betrag größer als null ein</string>
+    <string name="rentals_last4_invalid">Bitte genau 4 Ziffern eingeben</string>
+    <string name="rentals_payment_kind">Art</string>
+    <string name="rentals_payment_method">Zahlungsart</string>
+    <string name="rentals_save_amount">%1$s speichern</string>
+    <string name="rentals_invoices_none">Noch keine Rechnungen</string>
+</resources>

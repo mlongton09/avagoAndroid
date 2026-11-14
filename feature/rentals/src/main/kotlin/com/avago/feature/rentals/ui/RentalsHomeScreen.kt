@@ -1,8 +1,10 @@
 package com.avago.feature.rentals.ui
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -17,46 +19,75 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Login
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.EventAvailable
+import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.PauseCircle
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Receipt
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
+import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.data.db.rental.RentalRecordEntity
 import com.avago.core.data.rental.FleetStatus
+import com.avago.core.ui.components.CardDivider
+import com.avago.core.ui.components.ErrorBanner
+import com.avago.core.ui.components.KpiGrid
+import com.avago.core.ui.components.KpiItem
+import com.avago.core.ui.components.LeadingBadge
+import com.avago.core.ui.components.SectionCard
+import com.avago.core.ui.components.SkeletonBlock
+import com.avago.core.ui.components.SkeletonList
+import com.avago.core.ui.components.StatusTone
+import com.avago.core.ui.components.cardListItemColors
+import com.avago.core.ui.components.rememberHaptics
+import com.avago.core.ui.components.toneColors
 import com.avago.feature.rentals.R
 import com.avago.feature.rentals.domain.HandoverTarget
 import com.avago.feature.rentals.domain.RentalEntity
@@ -78,14 +109,15 @@ data class RentalsHomeActions(
 )
 
 /**
- * Rentals landing screen (spec §14), task-first: the three counter jobs as big buttons, sync /
- * offline state, the fleet at a glance ("available now"), today's work split into overdue /
- * going out / due back, then fleet & availability tools, operations (slot, permission-gated
- * by the host) and records.
+ * Rentals landing screen (spec §14), task-first: KPI tiles (on rent / available / overdue / due
+ * today) that open the filtered fleet, the counter jobs, today's pickups and returns with a swipe
+ * or button for the next step, then fleet tools, operations (slot, permission-gated by the host)
+ * and records. Quick book and Scan sit in the thumb zone as floating actions.
  *
  * [onBack] is null when the screen is a top-level destination: the host app bar (menu + title)
  * is shown instead of this screen's own bar.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RentalsHomeScreen(
     onBack: (() -> Unit)?,
@@ -99,64 +131,163 @@ fun RentalsHomeScreen(
     val notices by viewModel.notices.collectAsStateWithLifecycle()
     val online by viewModel.online.collectAsStateWithLifecycle()
     val zone = remember { ZoneId.systemDefault() }
+    val listState = rememberLazyListState()
+    val fabExpanded by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
+    val refresh = rememberSyncRefresh(lastSynced, viewModel::syncNow)
+    val firstLoad = rememberFirstLoad(fleet.isEmpty, lastSynced)
 
     Scaffold(
         topBar = { if (onBack != null) RentalsTopBar(stringResource(R.string.rentals_title), onBack) },
         // As a top-level tab the host Scaffold already applies the system-bar insets.
         contentWindowInsets = if (onBack == null) WindowInsets(0, 0, 0, 0) else ScaffoldDefaults.contentWindowInsets,
+        floatingActionButton = {
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                SmallFloatingActionButton(
+                    onClick = actions.onScanCheckOut,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(MinTouch),
+                ) {
+                    Icon(Icons.Default.QrCodeScanner, contentDescription = stringResource(R.string.rentals_scan_checkout))
+                }
+                ExtendedFloatingActionButton(
+                    onClick = actions.onNewBooking,
+                    expanded = fabExpanded,
+                    icon = { Icon(Icons.Default.Add, contentDescription = if (fabExpanded) null else stringResource(R.string.rentals_quick_book)) },
+                    text = { Text(stringResource(R.string.rentals_quick_book)) },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                )
+            }
+        },
     ) { pad ->
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = pad.calculateTopPadding(), bottom = 96.dp)) {
-            item(key = "sync") { SyncStatus(online, lastSynced, queue.size, viewModel::syncNow) }
-            item(key = "tasks") { PrimaryTasks(actions) }
-            item(key = "fleet") {
-                FleetSummaryContent(fleet, actions.onOpenFleet, Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-            }
-            if (notices.isNotEmpty()) {
-                item(key = "notices") { SectionHeader(stringResource(R.string.rentals_notices)) }
-                items(notices, key = { "n:${it.record.entity}:${it.record.id}" }) { n ->
-                    val rec = n.record
-                    NoticeRow(
-                        rec,
-                        onOpen = (rec.orderId ?: rec.id.takeIf { rec.entity == RentalEntity.ORDER })?.let { id -> { actions.onOpenOrder(id) } },
-                        onRetry = n.queueId?.let { q -> { viewModel.retry(q); Unit } },
-                        onDiscard = n.queueId?.let { q -> { viewModel.discard(q); Unit } },
-                    )
+        PullToRefreshBox(
+            isRefreshing = refresh.refreshing,
+            onRefresh = refresh.onRefresh,
+            modifier = Modifier.fillMaxSize().padding(top = pad.calculateTopPadding()),
+        ) {
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                state = listState,
+                contentPadding = PaddingValues(bottom = pad.calculateBottomPadding() + 144.dp),
+            ) {
+                item(key = "sync", contentType = "sync") { SyncStatus(online, lastSynced, queue.size, viewModel::syncNow) }
+                if (firstLoad) {
+                    item(key = "skeleton", contentType = "skeleton") { HomeSkeleton() }
+                    return@LazyColumn
                 }
-            }
-            item(key = "today") { SectionHeader(stringResource(R.string.rentals_today)) }
-            agendaSection(
-                "overdue", R.string.rentals_today_overdue, R.string.rentals_today_overdue_empty, fleet.agenda.overdue, zone, actions,
-                HandoverTarget.IN,
-            )
-            agendaSection(
-                "out", R.string.rentals_today_going_out, R.string.rentals_today_going_out_empty, fleet.agenda.goingOut, zone, actions,
-                HandoverTarget.OUT,
-            )
-            agendaSection(
-                "back", R.string.rentals_today_due_back, R.string.rentals_today_due_back_empty, fleet.agenda.dueBack, zone, actions,
-                HandoverTarget.IN,
-            )
-            if (fleet.agenda.maintenance.isNotEmpty()) {
-                agendaSection("maint", R.string.rentals_today_maintenance, null, fleet.agenda.maintenance, zone, actions, null)
-            }
+                if (fleet.isEmpty) {
+                    item(key = "empty", contentType = "empty") {
+                        EmptyState(
+                            stringResource(R.string.rentals_fleet_empty),
+                            icon = Icons.Default.DirectionsCar,
+                            actionLabel = stringResource(R.string.rentals_fleet),
+                            onAction = { actions.onOpenFleet(null) },
+                        )
+                    }
+                } else {
+                    item(key = "kpis", contentType = "kpis") { HomeKpis(fleet, actions) }
+                    item(key = "breakdown", contentType = "breakdown") {
+                        FleetSummaryContent(fleet, actions.onOpenFleet, Modifier.padding(top = 4.dp), compact = true)
+                    }
+                }
+                item(key = "tasks", contentType = "tasks") { PrimaryTasks(actions) }
+                if (notices.isNotEmpty()) {
+                    item(key = "notices", contentType = "header") { SectionHeader(stringResource(R.string.rentals_notices)) }
+                    items(notices, key = { "n:${it.record.entity}:${it.record.id}" }, contentType = { "notice" }) { n ->
+                        val rec = n.record
+                        Surface(
+                            shape = MaterialTheme.shapes.large,
+                            color = MaterialTheme.colorScheme.surface,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                        ) {
+                            NoticeRow(
+                                rec,
+                                onOpen = (rec.orderId ?: rec.id.takeIf { rec.entity == RentalEntity.ORDER })?.let { id -> { actions.onOpenOrder(id) } },
+                                onRetry = n.queueId?.let { q -> { viewModel.retry(q); Unit } },
+                                onDiscard = n.queueId?.let { q -> { viewModel.discard(q); Unit } },
+                            )
+                        }
+                    }
+                }
+                item(key = "today", contentType = "header") { SectionHeader(stringResource(R.string.rentals_today)) }
+                agendaSection(
+                    "overdue", R.string.rentals_today_overdue, R.string.rentals_today_overdue_empty, fleet.agenda.overdue, zone, actions,
+                    HandoverTarget.IN,
+                )
+                agendaSection(
+                    "out", R.string.rentals_today_going_out, R.string.rentals_today_going_out_empty, fleet.agenda.goingOut, zone, actions,
+                    HandoverTarget.OUT,
+                )
+                agendaSection(
+                    "back", R.string.rentals_today_due_back, R.string.rentals_today_due_back_empty, fleet.agenda.dueBack, zone, actions,
+                    HandoverTarget.IN,
+                )
+                if (fleet.agenda.maintenance.isNotEmpty()) {
+                    agendaSection("maint", R.string.rentals_today_maintenance, null, fleet.agenda.maintenance, zone, actions, null)
+                }
 
-            item(key = "fleet-tools") {
-                Column {
-                    SectionHeader(stringResource(R.string.rentals_fleet_availability))
-                    NavRow(Icons.Default.DirectionsCar, R.string.rentals_fleet, R.string.rentals_fleet_board_sub) { actions.onOpenFleet(null) }
-                    NavRow(Icons.Default.CalendarMonth, R.string.rentals_schedule, R.string.rentals_schedule_sub, actions.onOpenSchedule)
-                    NavRow(Icons.Default.EventAvailable, R.string.rentals_find_free, R.string.rentals_find_free_sub, actions.onFindFree)
+                item(key = "fleet-tools", contentType = "card") {
+                    SectionCard(title = stringResource(R.string.rentals_fleet_availability)) {
+                        NavRow(Icons.Default.DirectionsCar, StatusTone.Accent, R.string.rentals_fleet, R.string.rentals_fleet_board_sub) { actions.onOpenFleet(null) }
+                        CardDivider(Modifier.padding(start = 56.dp))
+                        NavRow(Icons.Default.CalendarMonth, StatusTone.Info, R.string.rentals_schedule, R.string.rentals_schedule_sub, actions.onOpenSchedule)
+                        CardDivider(Modifier.padding(start = 56.dp))
+                        NavRow(Icons.Default.EventAvailable, StatusTone.Success, R.string.rentals_find_free, R.string.rentals_find_free_sub, actions.onFindFree)
+                    }
                 }
-            }
-            if (operations != null) item(key = "ops") { operations() }
-            item(key = "records") {
-                Column {
-                    SectionHeader(stringResource(R.string.rentals_bookings_customers))
-                    NavRow(Icons.Default.Receipt, R.string.rentals_orders, null, actions.onOpenOrders)
-                    NavRow(Icons.Default.People, R.string.rentals_customers, null, actions.onOpenCustomers)
+                if (operations != null) item(key = "ops", contentType = "ops") { operations() }
+                item(key = "records", contentType = "card") {
+                    SectionCard(title = stringResource(R.string.rentals_bookings_customers)) {
+                        NavRow(Icons.Default.Receipt, StatusTone.Neutral, R.string.rentals_orders, null, actions.onOpenOrders)
+                        CardDivider(Modifier.padding(start = 56.dp))
+                        NavRow(Icons.Default.People, StatusTone.Neutral, R.string.rentals_customers, null, actions.onOpenCustomers)
+                    }
                 }
             }
         }
+    }
+}
+
+/** KPI tiles: the four numbers the counter checks first. Each opens the matching filtered view. */
+@Composable
+private fun HomeKpis(fleet: FleetSnapshot, actions: RentalsHomeActions) {
+    KpiGrid(
+        listOf(
+            KpiItem(
+                stringResource(R.string.rentals_status_on_rent), (fleet.counts[FleetStatus.ON_RENT] ?: 0).toString(),
+                Icons.Default.Key, StatusTone.Accent, onClick = { actions.onOpenFleet(FleetStatus.ON_RENT) },
+            ),
+            KpiItem(
+                stringResource(R.string.rentals_status_available), fleet.availableNow.toString(),
+                Icons.Default.CheckCircle, StatusTone.Success, onClick = { actions.onOpenFleet(FleetStatus.AVAILABLE) },
+            ),
+            KpiItem(
+                stringResource(R.string.rentals_status_overdue), (fleet.counts[FleetStatus.OVERDUE] ?: 0).toString(),
+                Icons.Default.Warning,
+                if ((fleet.counts[FleetStatus.OVERDUE] ?: 0) > 0) StatusTone.Danger else StatusTone.Neutral,
+                onClick = { actions.onOpenFleet(FleetStatus.OVERDUE) },
+            ),
+            KpiItem(
+                stringResource(R.string.rentals_kpi_due_today), fleet.dueToday.toString(),
+                Icons.Default.Schedule, if (fleet.dueToday > 0) StatusTone.Warning else StatusTone.Neutral,
+                onClick = actions.onOpenSchedule,
+            ),
+        ),
+        modifier = Modifier.padding(top = 8.dp),
+    )
+}
+
+@Composable
+private fun HomeSkeleton() {
+    Column(Modifier.padding(top = 8.dp)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            repeat(2) { SkeletonBlock(null, 104.dp, Modifier.weight(1f)) }
+        }
+        Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            repeat(2) { SkeletonBlock(null, 104.dp, Modifier.weight(1f)) }
+        }
+        SkeletonList(rows = 4)
     }
 }
 
@@ -166,57 +297,35 @@ private fun SyncStatus(online: Boolean, lastSynced: Long?, pending: Int, onSyncN
     Column {
         LastSyncedRow(lastSynced, pending, onSyncNow)
         if (!online) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Icon(Icons.Default.CloudOff, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-                Text(
-                    stringResource(R.string.rentals_offline_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            ErrorBanner(stringResource(R.string.rentals_offline_hint), tone = StatusTone.Warning, icon = Icons.Default.CloudOff)
         }
     }
 }
 
-/** The three counter jobs as large, labelled buttons (icon above text, wraps for large fonts). */
+/** The counter's scan jobs (Quick book lives in the FAB); wraps for large fonts. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PrimaryTasks(actions: RentalsHomeActions) {
-    Row(
+    FlowRow(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        maxItemsInEachRow = 2,
     ) {
-        val big = Modifier
-            .weight(1f)
-            .heightIn(min = 88.dp)
-        Button(onClick = actions.onNewBooking, modifier = big, contentPadding = PaddingValues(8.dp)) {
-            TaskLabel(Icons.Default.Add, R.string.rentals_new_booking)
+        FilledTonalButton(onClick = actions.onScanCheckOut, modifier = Modifier.weight(1f).heightIn(min = 56.dp)) {
+            Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(20.dp))
+            Text(stringResource(R.string.rentals_scan_checkout), Modifier.padding(start = 8.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
-        FilledTonalButton(onClick = actions.onScanCheckOut, modifier = big, contentPadding = PaddingValues(8.dp)) {
-            TaskLabel(Icons.Default.QrCodeScanner, R.string.rentals_scan_checkout)
-        }
-        FilledTonalButton(onClick = actions.onScanCheckIn, modifier = big, contentPadding = PaddingValues(8.dp)) {
-            TaskLabel(Icons.AutoMirrored.Filled.Login, R.string.rentals_check_in)
+        OutlinedButton(onClick = actions.onScanCheckIn, modifier = Modifier.weight(1f).heightIn(min = 56.dp)) {
+            Icon(Icons.AutoMirrored.Filled.Login, contentDescription = null, modifier = Modifier.size(20.dp))
+            Text(stringResource(R.string.rentals_check_in), Modifier.padding(start = 8.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }
 
-@Composable
-private fun TaskLabel(icon: ImageVector, @StringRes label: Int) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Icon(icon, contentDescription = null)
-        Text(stringResource(label), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelLarge)
-    }
-}
-
-/** One "Today" list with its own heading and empty-state guidance. */
+/** One "Today" group as a grouped card with its own heading, count and empty-state guidance. */
 private fun LazyListScope.agendaSection(
     key: String,
     @StringRes title: Int,
@@ -226,52 +335,55 @@ private fun LazyListScope.agendaSection(
     actions: RentalsHomeActions,
     direction: String?,
 ) {
-    item(key = "h:$key") {
-        Text(
-            "${stringResource(title)} · ${events.size}",
-            style = MaterialTheme.typography.labelLarge,
-            color = if (key == "overdue" && events.isNotEmpty()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp),
-        )
-    }
-    if (events.isEmpty()) {
-        if (empty != null) {
-            item(key = "e:$key") {
-                Text(
-                    stringResource(empty),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                )
-            }
-        }
-        return
-    }
-    items(events, key = { "t:$key:${it.type}:${it.allocationId}:${it.at}" }) { ev ->
-        val orderId = ev.orderId
-        // Holds are not handed over; only pickups / returns get the next-step button.
-        val canHandover = orderId != null && direction != null && ev.type != "hold" && ev.type != "maintenance"
-        AgendaRow(
-            ev, zone,
-            onClick = orderId?.let { id -> { actions.onOpenOrder(id) } },
-            action = if (canHandover && orderId != null && direction != null) {
-                val label = if (direction == HandoverTarget.IN) R.string.rentals_action_checkin else R.string.rentals_action_checkout
-                label to { actions.onHandover(orderId, direction) }
+    item(key = "g:$key", contentType = "agenda") {
+        val heading = "${stringResource(title)} · ${events.size}"
+        SectionCard(
+            title = heading,
+            trailing = if (key == "overdue" && events.isNotEmpty()) {
+                { Icon(Icons.Default.Warning, contentDescription = null, tint = toneColors(StatusTone.Danger).content, modifier = Modifier.size(18.dp)) }
             } else {
                 null
             },
-        )
-        HorizontalDivider()
+        ) {
+            if (events.isEmpty()) {
+                if (empty != null) {
+                    Text(
+                        stringResource(empty),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(16.dp),
+                    )
+                }
+                return@SectionCard
+            }
+            events.forEachIndexed { i, ev ->
+                if (i > 0) CardDivider(Modifier.padding(start = 56.dp))
+                val orderId = ev.orderId
+                // Holds are not handed over; only pickups / returns get the next-step button.
+                val canHandover = orderId != null && direction != null && ev.type != "hold" && ev.type != "maintenance"
+                AgendaRow(
+                    ev, zone,
+                    onClick = orderId?.let { id -> { actions.onOpenOrder(id) } },
+                    action = if (canHandover && orderId != null && direction != null) {
+                        val label = if (direction == HandoverTarget.IN) R.string.rentals_action_checkin else R.string.rentals_action_checkout
+                        label to { actions.onHandover(orderId, direction) }
+                    } else {
+                        null
+                    },
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun NavRow(icon: ImageVector, @StringRes title: Int, @StringRes sub: Int?, onClick: () -> Unit) {
+private fun NavRow(icon: ImageVector, tone: StatusTone, @StringRes title: Int, @StringRes sub: Int?, onClick: () -> Unit) {
     ListItem(
         headlineContent = { Text(stringResource(title)) },
         supportingContent = sub?.let { { Text(stringResource(it)) } },
-        leadingContent = { Icon(icon, contentDescription = null) },
+        leadingContent = { LeadingBadge(icon, tone) },
         trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
+        colors = cardListItemColors(),
         modifier = Modifier
             .heightIn(min = MinTouch)
             .clickable(role = Role.Button, onClick = onClick),
@@ -293,52 +405,65 @@ fun RentalsFleetSummaryCard(
     FleetSummaryContent(fleet, onOpenFleet, modifier)
 }
 
+/**
+ * Fleet status breakdown: one chip (icon + label + count) per status. [compact] drops the
+ * "available now" headline when KPI tiles above already show it.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun FleetSummaryContent(fleet: FleetSnapshot, onOpenFleet: (FleetStatus?) -> Unit, modifier: Modifier = Modifier) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+internal fun FleetSummaryContent(
+    fleet: FleetSnapshot,
+    onOpenFleet: (FleetStatus?) -> Unit,
+    modifier: Modifier = Modifier,
+    compact: Boolean = false,
+) {
+    SectionCard(
+        modifier = modifier,
+        title = stringResource(R.string.rentals_fleet_summary, fleet.units.size),
+        trailing = {
+            TextButton(onClick = { onOpenFleet(null) }, modifier = Modifier.heightIn(min = MinTouch)) {
+                Text(stringResource(R.string.rentals_view_all))
+            }
+        },
     ) {
-        Column(Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    stringResource(R.string.rentals_fleet_summary, fleet.units.size),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(onClick = { onOpenFleet(null) }, modifier = Modifier.heightIn(min = MinTouch)) {
-                    Text(stringResource(R.string.rentals_view_all))
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+            if (!compact) {
+                // The number the counter asks for first: what can go out right now.
+                TextButton(
+                    onClick = { onOpenFleet(FleetStatus.AVAILABLE) },
+                    modifier = Modifier.heightIn(min = MinTouch),
+                ) {
+                    Text(
+                        stringResource(R.string.rentals_available_now, fleet.availableNow),
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = toneColors(StatusTone.Success).content,
+                    )
+                }
+                if (fleet.dueToday > 0) {
+                    Text(
+                        stringResource(R.string.rentals_due_today_count, fleet.dueToday),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                    )
                 }
             }
-            // The number the counter asks for first: what can go out right now.
-            TextButton(
-                onClick = { onOpenFleet(FleetStatus.AVAILABLE) },
-                modifier = Modifier.heightIn(min = MinTouch),
-                contentPadding = PaddingValues(horizontal = 0.dp),
-            ) {
-                Text(
-                    stringResource(R.string.rentals_available_now, fleet.availableNow),
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-            if (fleet.dueToday > 0) {
-                Text(
-                    stringResource(R.string.rentals_due_today_count, fleet.dueToday),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FleetStatus.entries.forEach { s ->
                     val n = fleet.counts[s] ?: 0
                     val label = "${stringResource(fleetStatusLabel(s))} $n"
-                    val (bg, fg) = fleetStatusColors(s)
-                    AssistChip(
+                    val c = toneColors(fleetStatusTone(s))
+                    FilterChip(
+                        selected = false,
                         onClick = { onOpenFleet(s) },
-                        label = { Text(label, color = fg) },
-                        colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(containerColor = bg),
+                        label = { Text(label) },
+                        leadingIcon = { Icon(fleetStatusIcon(s), contentDescription = null, modifier = Modifier.size(16.dp)) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            containerColor = c.container,
+                            labelColor = c.content,
+                            iconColor = c.content,
+                        ),
+                        border = null,
                         modifier = Modifier.heightIn(min = MinTouch).semantics { contentDescription = label },
                     )
                 }
@@ -360,11 +485,14 @@ internal fun NoticeRow(
     ListItem(
         modifier = if (onOpen != null) Modifier.clickable(role = Role.Button, onClick = onOpen) else Modifier,
         headlineContent = { Text(title) },
+        leadingContent = {
+            LeadingBadge(Icons.Default.Warning, if (conflict || failed) StatusTone.Danger else StatusTone.Warning)
+        },
         supportingContent = {
             Column {
                 Text(
                     noticeText(rec.notice, conflict),
-                    color = if (conflict) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (conflict) toneColors(StatusTone.Danger).content else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 if (onRetry != null || onDiscard != null) {
                     Row {
@@ -375,13 +503,32 @@ internal fun NoticeRow(
             }
         },
         trailingContent = { SyncStateBadge(rec.localState, failed = failed) },
+        colors = cardListItemColors(),
     )
+}
+
+private fun eventTone(ev: ScheduleEvent): StatusTone = when {
+    ev.overdue -> StatusTone.Danger
+    ev.type == "pickup" -> StatusTone.Info
+    ev.type == "return" -> StatusTone.Success
+    ev.type == "hold" || ev.type == "maintenance" -> StatusTone.Warning
+    else -> StatusTone.Neutral
+}
+
+private fun eventIcon(type: String): ImageVector = when (type) {
+    "pickup" -> Icons.AutoMirrored.Filled.Logout
+    "return" -> Icons.AutoMirrored.Filled.Login
+    "hold" -> Icons.Default.PauseCircle
+    "maintenance" -> Icons.Default.Build
+    else -> Icons.Default.CalendarMonth
 }
 
 /**
  * Agenda line (time · type, unit, order / customer). [action] adds the next step for the line
- * (check out / check in) as a button; otherwise overdue lines carry the overdue chip.
+ * (check out / check in) as a button and a swipe-right gesture (also exposed to TalkBack as a
+ * custom action); otherwise overdue lines carry the overdue chip.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun AgendaRow(
     ev: ScheduleEvent,
@@ -390,23 +537,66 @@ internal fun AgendaRow(
     action: Pair<Int, () -> Unit>? = null,
 ) {
     val type = stringResource(eventLabel(ev.type))
-    ListItem(
-        modifier = Modifier
-            .heightIn(min = MinTouch)
-            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier),
-        overlineContent = { Text("${formatTime(ev.at, zone)} · $type") },
-        headlineContent = { Text(ev.assetName ?: ev.assetId ?: "—") },
-        supportingContent = {
-            val parts = listOfNotNull(ev.orderNumber, ev.customerName)
-            if (parts.isNotEmpty()) Text(parts.joinToString(" · "))
-        },
-        trailingContent = {
-            when {
-                action != null -> TextButton(onClick = action.second, modifier = Modifier.heightIn(min = MinTouch)) {
-                    Text(stringResource(action.first))
+    val actionLabel = action?.let { stringResource(it.first) }
+    val row: @Composable () -> Unit = {
+        ListItem(
+            modifier = Modifier
+                .heightIn(min = MinTouch)
+                .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
+                .then(
+                    if (action != null && actionLabel != null) {
+                        Modifier.semantics {
+                            customActions = listOf(CustomAccessibilityAction(actionLabel) { action.second(); true })
+                        }
+                    } else {
+                        Modifier
+                    },
+                ),
+            leadingContent = { LeadingBadge(eventIcon(ev.type), eventTone(ev)) },
+            overlineContent = { Text("${formatTime(ev.at, zone)} · $type") },
+            headlineContent = { Text(ev.assetName ?: ev.assetId ?: "—", maxLines = 2, overflow = TextOverflow.Ellipsis) },
+            supportingContent = {
+                val parts = listOfNotNull(ev.orderNumber, ev.customerName)
+                if (parts.isNotEmpty()) Text(parts.joinToString(" · "), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            },
+            trailingContent = {
+                when {
+                    action != null && actionLabel != null -> FilledTonalButton(onClick = action.second, modifier = Modifier.heightIn(min = MinTouch)) {
+                        Text(actionLabel)
+                    }
+                    ev.overdue -> FleetStatusChip(FleetStatus.OVERDUE)
                 }
-                ev.overdue -> FleetStatusChip(FleetStatus.OVERDUE)
+            },
+            colors = cardListItemColors(),
+        )
+    }
+    if (action == null || actionLabel == null) {
+        row()
+        return
+    }
+    val haptics = rememberHaptics()
+    val state = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value == SwipeToDismissBoxValue.StartToEnd) {
+                haptics.tick()
+                action.second()
+            }
+            false // reveal-and-act; the row stays in place
+        },
+        positionalThreshold = { it * 0.35f },
+    )
+    SwipeToDismissBox(
+        state = state,
+        enableDismissFromStartToEnd = true,
+        enableDismissFromEndToStart = false,
+        backgroundContent = {
+            val c = toneColors(if (ev.type == "return" || ev.overdue) StatusTone.Success else StatusTone.Info)
+            Box(Modifier.fillMaxSize().background(c.container).padding(horizontal = 20.dp), contentAlignment = Alignment.CenterStart) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(eventIcon(ev.type), contentDescription = null, tint = c.content)
+                    Text(actionLabel, color = c.content, style = MaterialTheme.typography.labelLarge)
+                }
             }
         },
-    )
+    ) { row() }
 }

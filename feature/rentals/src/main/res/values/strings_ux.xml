@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Rental UX polish (docs/rentals-ux-polish-android.md). en + de only; other locales fall back to English. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="rentals_kpi_due_today">Due today</string>
+    <string name="rentals_clear_search">Clear search</string>
+    <string name="rentals_clear_filters">Clear filters</string>
+    <string name="rentals_tomorrow">Tomorrow</string>
+    <string name="rentals_yesterday">Yesterday</string>
+    <string name="rentals_no_date">No date</string>
+    <string name="rentals_balance_due">%1$s due</string>
+    <string name="rentals_order_history">History</string>
+    <string name="rentals_payment_recorded">Payment recorded</string>
+    <string name="rentals_more_actions">More actions</string>
+    <string name="rentals_collect_payment">Collect payment</string>
+    <string name="rentals_amount_invalid">Enter an amount greater than zero</string>
+    <string name="rentals_last4_invalid">Enter exactly 4 digits</string>
+    <string name="rentals_payment_kind">Type</string>
+    <string name="rentals_payment_method">Method</string>
+    <string name="rentals_save_amount">Save %1$s</string>
+    <string name="rentals_invoices_none">No invoices yet</string>
+</resources>
