@@ -1,12 +1,14 @@
 package com.avago.feature.rentals.nav
 
 import android.net.Uri
+import androidx.compose.runtime.Composable
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.avago.core.data.rental.FleetStatus
+import com.avago.feature.rentals.domain.HandoverTarget
 import com.avago.feature.rentals.legacy.AssetRentalsScreen
 import com.avago.feature.rentals.legacy.RentalBookingScreen
 import com.avago.feature.rentals.legacy.RentalInvoiceScreen
@@ -23,6 +25,7 @@ import com.avago.feature.rentals.ui.RentalOrderScreen
 import com.avago.feature.rentals.ui.RentalOrdersScreen
 import com.avago.feature.rentals.ui.RentalScanScreen
 import com.avago.feature.rentals.ui.RentalScheduleScreen
+import com.avago.feature.rentals.ui.RentalsHomeActions
 import com.avago.feature.rentals.ui.RentalsHomeScreen
 import com.avago.feature.rentals.ui.ReadinessScreen
 import com.avago.feature.rentals.ui.SwapScreen
@@ -32,7 +35,7 @@ import java.time.Instant
 object RentalsRoute {
     const val PREFIX = "rentals/"
     const val HOME = "rentals/home"
-    const val FLEET = "rentals/fleet?status={status}"
+    const val FLEET = "rentals/fleet?status={status}&find={find}"
     const val SCHEDULE = "rentals/schedule"
     const val ORDERS = "rentals/orders"
     const val ORDER = "rentals/order/{orderId}"
@@ -41,7 +44,7 @@ object RentalsRoute {
     const val CUSTOMER = "rentals/customer/{customerId}"
     const val DOCUMENT = "rentals/document/{customerId}"
     const val HANDOVER = "rentals/handover/{orderId}/{direction}"
-    const val SCAN = "rentals/scan"
+    const val SCAN = "rentals/scan?mode={mode}"
     const val ASSET = "rentals/asset/{assetId}"
     const val READINESS = "rentals/readiness/{assetId}"
     const val SWAP = "rentals/swap/{orderId}"
@@ -54,6 +57,10 @@ object RentalsRoute {
     const val LEGACY_INVOICE = "rentals/legacy/invoice/{invoiceId}"
 
     fun fleet(status: FleetStatus? = null) = "rentals/fleet?status=${status?.wire.orEmpty()}"
+    /** Fleet board with the "find free units" sheet open. */
+    fun findFree() = "rentals/fleet?status=&find=1"
+    /** Scan; [mode] is `out` / `in` when started as check-out / check-in. */
+    fun scan(mode: String? = null) = if (mode == null) "rentals/scan" else "rentals/scan?mode=$mode"
     fun order(orderId: String) = "rentals/order/${Uri.encode(orderId)}"
     fun quickBook(assetId: String? = null, start: Instant? = null, end: Instant? = null) =
         "rentals/quickbook?assetId=${Uri.encode(assetId.orEmpty())}&start=${start?.toEpochMilli() ?: ""}&end=${end?.toEpochMilli() ?: ""}"
@@ -75,28 +82,38 @@ private fun reqString(name: String) = navArgument(name) { type = NavType.StringT
 /**
  * Registers the rentals screens. [onOpenAsset] opens the asset detail owned by feature/assets;
  * [onStartInspection] opens an inspection-v2 log entry for the asset (feature/log).
+ * [operationsEntries] renders the permission-gated operations links (feature/rentalsops) on the
+ * rentals home; it receives a navigate callback.
  */
 fun NavGraphBuilder.rentalsNavGraph(
     navController: NavHostController,
     onOpenAsset: (assetId: String) -> Unit,
     onStartInspection: (assetId: String) -> Unit,
+    operationsEntries: (@Composable (navigate: (String) -> Unit) -> Unit)? = null,
 ) {
     val back: () -> Unit = { navController.popBackStack() }
     fun go(route: String) = navController.navigate(route) { launchSingleTop = true }
+    val handover: (String, String) -> Unit = { orderId, direction -> go(RentalsRoute.handover(orderId, direction)) }
 
     composable(RentalsRoute.HOME) {
         RentalsHomeScreen(
             onBack = null,
-            onOpenFleet = { go(RentalsRoute.fleet(it)) },
-            onOpenSchedule = { go(RentalsRoute.SCHEDULE) },
-            onOpenOrders = { go(RentalsRoute.ORDERS) },
-            onOpenOrder = { go(RentalsRoute.order(it)) },
-            onOpenCustomers = { go(RentalsRoute.CUSTOMERS) },
-            onQuickBook = { go(RentalsRoute.quickBook()) },
-            onScan = { go(RentalsRoute.SCAN) },
+            actions = RentalsHomeActions(
+                onOpenFleet = { go(RentalsRoute.fleet(it)) },
+                onFindFree = { go(RentalsRoute.findFree()) },
+                onOpenSchedule = { go(RentalsRoute.SCHEDULE) },
+                onOpenOrders = { go(RentalsRoute.ORDERS) },
+                onOpenOrder = { go(RentalsRoute.order(it)) },
+                onOpenCustomers = { go(RentalsRoute.CUSTOMERS) },
+                onNewBooking = { go(RentalsRoute.quickBook()) },
+                onScanCheckOut = { go(RentalsRoute.scan(HandoverTarget.OUT)) },
+                onScanCheckIn = { go(RentalsRoute.scan(HandoverTarget.IN)) },
+                onHandover = handover,
+            ),
+            operations = operationsEntries?.let { entries -> @Composable { entries { route -> go(route) } } },
         )
     }
-    composable(RentalsRoute.FLEET, arguments = listOf(optString("status"))) { entry ->
+    composable(RentalsRoute.FLEET, arguments = listOf(optString("status"), optString("find"))) { entry ->
         RentalFleetScreen(
             initialStatus = FleetStatus.fromWire(entry.arguments?.getString("status")),
             onBack = back,
@@ -104,6 +121,8 @@ fun NavGraphBuilder.rentalsNavGraph(
             onBook = { assetId, start, end -> go(RentalsRoute.quickBook(assetId, start, end)) },
             onOpenOrder = { go(RentalsRoute.order(it)) },
             onReadiness = { go(RentalsRoute.readiness(it)) },
+            onHandover = handover,
+            openFindFree = entry.arguments?.getString("find") == "1",
         )
     }
     composable(RentalsRoute.SCHEDULE) {
@@ -182,12 +201,14 @@ fun NavGraphBuilder.rentalsNavGraph(
             },
         )
     }
-    composable(RentalsRoute.SCAN) {
+    composable(RentalsRoute.SCAN, arguments = listOf(optString("mode"))) { entry ->
         RentalScanScreen(
             onBack = back,
             onOpenAsset = { go(RentalsRoute.asset(it)) },
             onOpenOrder = { go(RentalsRoute.order(it)) },
             onLicence = { go(RentalsRoute.customer(null)) },
+            onHandover = handover,
+            mode = entry.arguments?.getString("mode"),
         )
     }
     composable(RentalsRoute.ASSET, arguments = listOf(reqString("assetId"))) {
@@ -197,6 +218,7 @@ fun NavGraphBuilder.rentalsNavGraph(
             onOpenOrder = { go(RentalsRoute.order(it)) },
             onOpenLegacy = { go(RentalsRoute.legacyAsset(it)) },
             onReadiness = { go(RentalsRoute.readiness(it)) },
+            onHandover = handover,
         )
     }
 

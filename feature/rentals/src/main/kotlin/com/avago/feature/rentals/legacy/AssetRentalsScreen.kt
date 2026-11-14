@@ -149,11 +149,11 @@ fun AssetRentalsScreen(
                 title = { Text(stringResource(R.string.rental_list_title)) },
                 actions = {
                     IconButton(onClick = onOpenCustomers) {
-                        Icon(Icons.Default.Person, contentDescription = "Customers")
+                        Icon(Icons.Default.Person, contentDescription = stringResource(com.avago.feature.rentals.R.string.rentals_customers))
                     }
                     // "Book" action opens the multi-step booking flow
                     TextButton(onClick = onOpenBooking) {
-                        Text("Book")
+                        Text(stringResource(com.avago.feature.rentals.R.string.rentals_book))
                     }
                 },
             )

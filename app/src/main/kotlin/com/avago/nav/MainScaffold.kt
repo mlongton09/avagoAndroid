@@ -131,6 +131,7 @@ private fun titleForRoute(route: String?): Int = when {
         route.startsWith("thread")               -> R.string.nav_chat
     route.startsWith("settings")                 -> R.string.nav_settings
     route.startsWith("schedule")                 -> R.string.nav_schedule
+    route == com.avago.feature.rentals.nav.RentalsRoute.HOME -> com.avago.feature.rentals.R.string.rentals_title
     else                                         -> R.string.app_name
 }
 
@@ -204,8 +205,10 @@ fun MainScaffold(
     val isAssetLogDestination = currentRoute?.startsWith("log/list") == true
     val isLogAddEditDestination = currentRoute?.startsWith("log/add_edit") == true
     val isLogDetailDestination = currentRoute?.startsWith("log/detail") == true
-    // Rentals screens (feature/rentals) render their own top bars.
-    val isRentalsDestination = currentRoute?.startsWith("rentals/") == true
+    // Rentals screens (feature/rentals) render their own top bars, except the rentals home: as
+    // a top-level tab it keeps the shared bar so the side menu stays one tap away.
+    val isRentalsDestination = currentRoute?.startsWith("rentals/") == true &&
+        currentRoute != com.avago.feature.rentals.nav.RentalsRoute.HOME
     val rentalsEnabled by navFlagsViewModel.rentalsEnabled.collectAsState()
     // Rental-ops screens draw their own top bar with back navigation.
     val isRentalOpsDestination = currentRoute?.startsWith(com.avago.feature.rentalsops.push.RentalOpsRoutes.PREFIX) == true
@@ -283,6 +286,7 @@ fun MainScaffold(
                         unreadChatMentionCount = unreadChatMentionCount,
                         upcomingMineWorkOrderCount = upcomingMineWorkOrderCount,
                         canNavigate = ::can,
+                        rentalsEnabled = rentalsEnabled,
                     )
                 }
             },
@@ -374,7 +378,15 @@ fun BottomNavBar(
     unreadChatMentionCount: Int = 0,
     upcomingMineWorkOrderCount: Int = 0,
     canNavigate: (String) -> Boolean = { true },
+    rentalsEnabled: Boolean = false,
 ) {
+    // Rentals tab (accounts with rentals): counter staff land on the rentals home, drivers
+    // without counter access on their deliveries (feature/rentalsops decides).
+    val rentalsRoute = if (rentalsEnabled) {
+        com.avago.feature.rentalsops.nav.rentalsLandingRoute(com.avago.feature.rentals.nav.RentalsRoute.HOME)
+    } else {
+        null
+    }
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.surface,
         tonalElevation = 0.dp,
@@ -388,6 +400,12 @@ fun BottomNavBar(
                 "chat"            -> chatEnabled && (item.permission == null || canNavigate(item.permission))
                 else              -> item.permission == null || canNavigate(item.permission)
             }
+        }.toMutableList()
+        if (rentalsRoute != null) {
+            val rentals = BottomNavItem(com.avago.feature.rentals.R.string.rentals_title, Icons.Default.CarRental, rentalsRoute)
+            // Before Chat, after the work tabs.
+            val chatIndex = visibleItems.indexOfFirst { it.route == "chat" }
+            if (chatIndex >= 0) visibleItems.add(chatIndex, rentals) else visibleItems.add(rentals)
         }
 
         visibleItems.forEach { item ->
@@ -397,10 +415,12 @@ fun BottomNavBar(
                 "workorders_graph" -> upcomingMineWorkOrderCount
                 else               -> 0
             }
+            val isRentalsItem = item.route == rentalsRoute
             NavigationBarItem(
                 selected = currentRoute == item.route ||
                     currentRoute?.startsWith("${item.route}/") == true ||
-                    (item.route == "assets_graph" && currentRoute?.startsWith("assets/") == true),
+                    (item.route == "assets_graph" && currentRoute?.startsWith("assets/") == true) ||
+                    (isRentalsItem && (currentRoute?.startsWith("rentals/") == true || currentRoute?.startsWith("rentalops/") == true)),
                 onClick = {
                     navController.navigate(item.route) {
                         popUpTo(navController.graph.startDestinationId) {
@@ -554,11 +574,12 @@ fun SideMenuContent(
 
         if (rentalsEnabled) {
             // ── RENTALS (feature/rentals) ────────────────────────────────────
+            val rentalsLanding = com.avago.feature.rentalsops.nav.rentalsLandingRoute(com.avago.feature.rentals.nav.RentalsRoute.HOME)
             NavigationDrawerItem(
                 label = { Text(stringResource(com.avago.feature.rentals.R.string.rentals_title)) },
                 selected = currentRoute?.startsWith("rentals/") == true,
                 icon = { Icon(Icons.Default.CarRental, contentDescription = null) },
-                onClick = { onNavigate(com.avago.feature.rentals.nav.RentalsRoute.HOME) },
+                onClick = { onNavigate(rentalsLanding) },
                 modifier = Modifier.padding(horizontal = 8.dp),
             )
             // Rental operations (P2: deliveries, transfers, unit assignment, AR). Hides itself

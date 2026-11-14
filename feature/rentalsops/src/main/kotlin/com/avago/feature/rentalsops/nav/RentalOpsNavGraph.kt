@@ -1,14 +1,24 @@
 package com.avago.feature.rentalsops.nav
 
+import androidx.annotation.StringRes
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -60,7 +70,7 @@ class RentalOpsDrawerViewModel @Inject constructor(repo: RentalOpsRepository) : 
     val access = repo.access.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RentalOpsAccess.NONE)
 }
 
-/** Drawer entry for the host's side menu; hidden when the user has no rental-ops permission. */
+/** Drawer entry for the host's side menu; hidden when the user has no back-office rental permission. */
 @Composable
 fun RentalOpsDrawerItem(
     currentRoute: String?,
@@ -69,12 +79,56 @@ fun RentalOpsDrawerItem(
     vm: RentalOpsDrawerViewModel = hiltViewModel(),
 ) {
     val access by vm.access.collectAsStateWithLifecycle()
-    if (!access.any) return
+    if (!access.operations) return
     NavigationDrawerItem(
-        label = { Text(stringResource(R.string.rentalops_title)) },
-        icon = { Icon(Icons.Filled.LocalShipping, contentDescription = null) },
+        label = { Text(stringResource(R.string.rentalops_operations)) },
+        icon = { Icon(Icons.Filled.Dashboard, contentDescription = null) },
         selected = currentRoute?.startsWith(RentalOpsRoutes.PREFIX) == true,
         onClick = { onNavigate(RentalOpsRoutes.HOME) },
         modifier = modifier,
+    )
+}
+
+/**
+ * Where "Rentals" opens for this user: drivers without `rental.view` have no counter screens
+ * and land on their delivery list; everyone else gets [home].
+ */
+@Composable
+fun rentalsLandingRoute(home: String, vm: RentalOpsDrawerViewModel = hiltViewModel()): String {
+    val access by vm.access.collectAsStateWithLifecycle()
+    return if (access.driverOnly) RentalOpsRoutes.TASKS else home
+}
+
+/**
+ * P2 entries on the rentals home: "My deliveries" for drivers and a single "Operations" entry
+ * (dispatch, transfers, billing, statements, utilization), each hidden without its permission.
+ */
+@Composable
+fun RentalOpsHomeEntries(onNavigate: (String) -> Unit, vm: RentalOpsDrawerViewModel = hiltViewModel()) {
+    val access by vm.access.collectAsStateWithLifecycle()
+    Column {
+        if (access.drive) {
+            OpsEntry(Icons.Filled.LocalShipping, R.string.rentalops_my_deliveries, R.string.rentalops_my_deliveries_sub) {
+                onNavigate(RentalOpsRoutes.TASKS)
+            }
+        }
+        if (access.operations) {
+            OpsEntry(Icons.Filled.Dashboard, R.string.rentalops_operations, R.string.rentalops_operations_sub) {
+                onNavigate(RentalOpsRoutes.HOME)
+            }
+        }
+    }
+}
+
+@Composable
+private fun OpsEntry(icon: ImageVector, @StringRes title: Int, @StringRes sub: Int, onClick: () -> Unit) {
+    ListItem(
+        headlineContent = { Text(stringResource(title)) },
+        supportingContent = { Text(stringResource(sub)) },
+        leadingContent = { Icon(icon, contentDescription = null) },
+        trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
+        modifier = Modifier
+            .heightIn(min = 48.dp)
+            .clickable(onClickLabel = stringResource(R.string.rentalops_open), role = Role.Button, onClick = onClick),
     )
 }

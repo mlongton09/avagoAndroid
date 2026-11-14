@@ -221,4 +221,8 @@
     <string name="rentalops_unconfirmed">Obekräftad</string>
     <string name="rentalops_units">Enheter</string>
     <string name="rentalops_waiting_sync">Väntar på synkronisering</string>
+    <string name="rentalops_operations">Drift</string>
+    <string name="rentalops_operations_sub">Utskick, överföringar, fakturering, kontoutdrag och beläggning</string>
+    <string name="rentalops_my_deliveries">Mina leveranser</string>
+    <string name="rentalops_my_deliveries_sub">Leveranser och upphämtningar som tilldelats dig</string>
 </resources>

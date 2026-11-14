@@ -226,4 +226,8 @@
     <string name="rentalops_unconfirmed">Unconfirmed</string>
     <string name="rentalops_units">Units</string>
     <string name="rentalops_waiting_sync">Waiting to sync</string>
+    <string name="rentalops_operations">Operations</string>
+    <string name="rentalops_operations_sub">Dispatch, transfers, billing, statements and utilization</string>
+    <string name="rentalops_my_deliveries">My deliveries</string>
+    <string name="rentalops_my_deliveries_sub">Deliveries and pickups assigned to you</string>
 </resources>

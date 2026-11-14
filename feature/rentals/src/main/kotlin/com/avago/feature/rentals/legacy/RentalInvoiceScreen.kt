@@ -233,7 +233,7 @@ fun RentalInvoiceScreen(
         AlertDialog(
             onDismissRequest = { showVoidConfirm = false },
             title = { Text(stringResource(R.string.rental_invoice_void)) },
-            text = { Text("This invoice will be voided and cannot be undone.") },
+            text = { Text(stringResource(com.avago.feature.rentals.R.string.rentals_invoice_void_confirm)) },
             confirmButton = {
                 Button(
                     onClick = {

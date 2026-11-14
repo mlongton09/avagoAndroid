@@ -30,6 +30,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -55,10 +56,12 @@ import com.avago.core.data.rental.MoneyFormatter
 import com.avago.feature.rentals.R
 import com.avago.feature.rentals.data.RentalRepository
 import com.avago.feature.rentals.domain.AssetProfit
+import com.avago.feature.rentals.domain.HandoverTarget
 import com.avago.feature.rentals.domain.LineView
 import com.avago.feature.rentals.domain.OrderView
 import com.avago.feature.rentals.domain.RentalEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -71,6 +74,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -103,6 +107,8 @@ class AssetRentalViewModel @Inject constructor(
 
     val status: StateFlow<LocalFleet.Result?> = repo.fleetInputs()
         .map { LocalFleet.compute(it, Instant.now())[assetId] }
+        // Walks every rental row: keep it off the main thread.
+        .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val bookings: StateFlow<List<AssetBooking>> = combine(
@@ -166,6 +172,7 @@ fun AssetRentalScreen(
     onOpenOrder: (String) -> Unit,
     onOpenLegacy: (assetId: String) -> Unit,
     onReadiness: ((assetId: String) -> Unit)? = null,
+    onHandover: ((orderId: String, direction: String) -> Unit)? = null,
     viewModel: AssetRentalViewModel = hiltViewModel(),
 ) {
     val asset by viewModel.asset.collectAsStateWithLifecycle()
@@ -176,9 +183,9 @@ fun AssetRentalScreen(
     val snackbar = remember { SnackbarHostState() }
     val dayRequired = stringResource(R.string.rentals_day_rate_required)
     LaunchedEffect(Unit) { viewModel.messages.collect { snackbar.showSnackbar(if (it == "day rate") dayRequired else it) } }
-    var day by remember { mutableStateOf("") }
-    var week by remember { mutableStateOf("") }
-    var deposit by remember { mutableStateOf("") }
+    var day by rememberSaveable { mutableStateOf("") }
+    var week by rememberSaveable { mutableStateOf("") }
+    var deposit by rememberSaveable { mutableStateOf("") }
     val zone = zoneOf(status?.unit?.timeZone)
 
     Scaffold(
@@ -198,6 +205,22 @@ fun AssetRentalScreen(
                 Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FleetStatusChip(s.status)
                     if (s.local || s.readinessPending) SyncStateBadge(com.avago.core.data.db.rental.RentalRecordEntity.STATE_PENDING)
+                }
+                if (s.status == com.avago.core.data.rental.FleetStatus.NOT_READY && s.unit.readiness.isNotEmpty()) {
+                    Text(
+                        stringResource(R.string.rentals_not_ready_reasons, readinessReasons(s.unit.readiness)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                }
+                val handover = if (onHandover != null) HandoverTarget.of(s) else null
+                if (handover != null) {
+                    val label = if (handover.direction == HandoverTarget.IN) R.string.rentals_action_checkin else R.string.rentals_action_checkout
+                    Button(
+                        onClick = { onHandover?.invoke(handover.orderId, handover.direction) },
+                        modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth().heightIn(min = MinTouch),
+                    ) { Text(stringResource(label)) }
                 }
                 if (onReadiness != null && (s.status == com.avago.core.data.rental.FleetStatus.NOT_READY || s.checklist?.open == true)) {
                     OutlinedButton(

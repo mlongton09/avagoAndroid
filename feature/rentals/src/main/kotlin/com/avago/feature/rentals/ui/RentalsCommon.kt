@@ -89,6 +89,42 @@ internal fun eventLabel(type: String): Int = when (type) {
     else -> R.string.rentals_event_other
 }
 
+/**
+ * Localised label of a fleet readiness reason code (`readiness[]`, spec §11.1). Unknown codes
+ * from a newer server fall back to the code itself, de-snaked.
+ */
+@StringRes
+internal fun readinessReasonLabel(code: String): Int? = when (code) {
+    "asset_status" -> R.string.rentals_reason_asset_status
+    "open_defect" -> R.string.rentals_reason_open_defect
+    "pm_overdue" -> R.string.rentals_reason_pm_overdue
+    "open_work_order" -> R.string.rentals_reason_open_work_order
+    "readiness_checklist" -> R.string.rentals_reason_readiness_checklist
+    "maintenance_open" -> R.string.rentals_reason_maintenance_open
+    else -> null
+}
+
+@Composable
+internal fun readinessReasons(codes: List<String>): String =
+    codes.map { code -> readinessReasonLabel(code)?.let { stringResource(it) } ?: code.replace('_', ' ') }.joinToString()
+
+/** Localised invoice status (web `rental_invoices.status`); unknown values are de-snaked. */
+@StringRes
+internal fun invoiceStatusLabel(status: String): Int? = when (status) {
+    "draft" -> R.string.rentals_invoice_status_draft
+    "sent" -> R.string.rentals_invoice_status_sent
+    "issued" -> R.string.rentals_invoice_status_issued
+    "partially_paid" -> R.string.rentals_invoice_status_partially_paid
+    "paid" -> R.string.rentals_invoice_status_paid
+    "credited" -> R.string.rentals_invoice_status_credited
+    "void" -> R.string.rentals_invoice_status_void
+    else -> null
+}
+
+@Composable
+internal fun invoiceStatusText(status: String): String =
+    invoiceStatusLabel(status)?.let { stringResource(it) } ?: status.replace('_', ' ')
+
 /** Status colours (light/dark). Always paired with a text label — never colour alone. */
 @Composable
 internal fun fleetStatusColors(status: FleetStatus): Pair<Color, Color> {

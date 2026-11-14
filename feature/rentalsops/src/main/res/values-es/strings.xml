@@ -221,4 +221,8 @@
     <string name="rentalops_unconfirmed">Sin confirmar</string>
     <string name="rentalops_units">Unidades</string>
     <string name="rentalops_waiting_sync">Pendiente de sincronizar</string>
+    <string name="rentalops_operations">Operaciones</string>
+    <string name="rentalops_operations_sub">Despacho, traslados, facturación, estados de cuenta y utilización</string>
+    <string name="rentalops_my_deliveries">Mis entregas</string>
+    <string name="rentalops_my_deliveries_sub">Entregas y recogidas asignadas a ti</string>
 </resources>

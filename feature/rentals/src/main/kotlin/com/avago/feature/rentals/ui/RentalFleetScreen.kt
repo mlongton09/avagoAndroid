@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -42,6 +43,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,6 +56,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.data.rental.FleetStatus
 import com.avago.core.data.rental.LocalFleet
 import com.avago.feature.rentals.R
+import com.avago.feature.rentals.domain.HandoverTarget
 import java.time.Instant
 import java.time.ZoneId
 
@@ -67,6 +70,9 @@ fun RentalFleetScreen(
     onBook: (assetId: String?, start: Instant?, end: Instant?) -> Unit,
     onOpenOrder: (String) -> Unit,
     onReadiness: ((assetId: String) -> Unit)? = null,
+    onHandover: ((orderId: String, direction: String) -> Unit)? = null,
+    /** Open the "find free units" sheet immediately (home → Find free units). */
+    openFindFree: Boolean = false,
     viewModel: RentalsOverviewViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(initialStatus) { viewModel.setStatusFilter(initialStatus) }
@@ -76,7 +82,7 @@ fun RentalFleetScreen(
     val query by viewModel.query.collectAsStateWithLifecycle()
     val lastSynced by viewModel.lastSyncedAt.collectAsStateWithLifecycle()
     val queue by viewModel.queue.collectAsStateWithLifecycle()
-    var showAvailability by remember { mutableStateOf(false) }
+    var showAvailability by rememberSaveable { mutableStateOf(openFindFree) }
     val width = currentWindowAdaptiveInfo().windowSizeClass.minWidthDp
     val columns = when {
         width >= 840 -> 3
@@ -143,6 +149,7 @@ fun RentalFleetScreen(
                     onBook = { onBook(r.unit.assetId, null, null) },
                     onOpenOrder = (r.current ?: r.next)?.orderId?.let { id -> { onOpenOrder(id) } },
                     onReadiness = onReadiness?.let { f -> { f(r.unit.assetId) } },
+                    onHandover = onHandover?.let { f -> HandoverTarget.of(r)?.let { h -> h to { f(h.orderId, h.direction) } } },
                 )
             }
         }
@@ -165,6 +172,7 @@ private fun FleetUnitCard(
     onBook: () -> Unit,
     onOpenOrder: (() -> Unit)?,
     onReadiness: (() -> Unit)? = null,
+    onHandover: Pair<HandoverTarget, () -> Unit>? = null,
 ) {
     val unitZone = zoneOf(r.unit.timeZone ?: zone.id)
     Card(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
@@ -184,13 +192,17 @@ private fun FleetUnitCard(
             }
             if (r.unit.readiness.isNotEmpty() && r.status == FleetStatus.NOT_READY) {
                 Text(
-                    stringResource(R.string.rentals_not_ready_reasons, r.unit.readiness.joinToString { it.replace('_', ' ') }),
+                    stringResource(R.string.rentals_not_ready_reasons, readinessReasons(r.unit.readiness)),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                 )
             }
             if (r.local || r.readinessPending) SyncStateBadge(com.avago.core.data.db.rental.RentalRecordEntity.STATE_PENDING)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                onHandover?.let { (h, go) ->
+                    val label = if (h.direction == HandoverTarget.IN) R.string.rentals_action_checkin else R.string.rentals_action_checkout
+                    FilledTonalButton(onClick = go, modifier = Modifier.heightIn(min = MinTouch)) { Text(stringResource(label)) }
+                }
                 if (r.status == FleetStatus.AVAILABLE || r.status == FleetStatus.RESERVED) {
                     TextButton(onClick = onBook, modifier = Modifier.heightIn(min = MinTouch)) { Text(stringResource(R.string.rentals_book)) }
                 }

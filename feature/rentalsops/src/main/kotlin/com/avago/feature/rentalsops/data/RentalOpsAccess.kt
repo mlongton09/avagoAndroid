@@ -13,8 +13,16 @@ data class RentalOpsAccess(
     val aging: Boolean,
     /** Statement PDF / e-mail (stage C, `rental.reports`); viewing needs only `rental.view`. */
     val sendStatements: Boolean = false,
+    /** Holds `rental.drive` (has a personal delivery list). */
+    val drive: Boolean = false,
 ) {
     val any: Boolean get() = tasks || assign || transfers || statements || aging
+
+    /** Back-office tools grouped under the rentals "Operations" entry. */
+    val operations: Boolean get() = dispatch || assign || transfers || statements || aging
+
+    /** Drivers without `rental.view` have no counter screens: Rentals lands on My deliveries. */
+    val driverOnly: Boolean get() = drive && !statements
 
     companion object {
         val NONE = RentalOpsAccess(false, false, false, false, false, false)
@@ -31,6 +39,7 @@ data class RentalOpsAccess(
                 statements = view,
                 aging = has("rental.reports"),
                 sendStatements = has("rental.reports"),
+                drive = has("rental.drive"),
             )
         }
     }

@@ -166,6 +166,8 @@ fun AvagoNavHost(
                 onStartInspection = { assetId ->
                     navController.navigate(LogRoute.addEdit(assetId = assetId, category = "inspection"))
                 },
+                // P2 "My deliveries" / "Operations" entries on the rentals home (permission-gated).
+                operationsEntries = { navigate -> com.avago.feature.rentalsops.nav.RentalOpsHomeEntries(onNavigate = navigate) },
             )
 
             // ── Log ───────────────────────────────────────────────────────────────

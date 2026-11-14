@@ -221,4 +221,8 @@
     <string name="rentalops_unconfirmed">Onbevestigd</string>
     <string name="rentalops_units">Eenheden</string>
     <string name="rentalops_waiting_sync">Wacht op synchronisatie</string>
+    <string name="rentalops_operations">Activiteiten</string>
+    <string name="rentalops_operations_sub">Planning, overplaatsingen, facturatie, afschriften en bezetting</string>
+    <string name="rentalops_my_deliveries">Mijn leveringen</string>
+    <string name="rentalops_my_deliveries_sub">Leveringen en ophalingen die aan u zijn toegewezen</string>
 </resources>

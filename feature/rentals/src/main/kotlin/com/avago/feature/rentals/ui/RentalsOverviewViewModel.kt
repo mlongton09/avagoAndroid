@@ -8,6 +8,10 @@ import com.avago.core.data.rental.FleetStatus
 import com.avago.core.data.rental.LocalFleet
 import com.avago.core.network.rentals.RentalsApi
 import com.avago.core.network.rentals.RentalsApiException
+import com.avago.core.sync.ConnectivityMonitor
+import com.avago.feature.rentals.domain.TodayAgenda
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.flowOn
 import com.avago.feature.rentals.data.RentalRepository
 import com.avago.feature.rentals.domain.Availability
 import com.avago.feature.rentals.domain.ClassView
@@ -47,9 +51,14 @@ data class FleetSnapshot(
     val dueToday: Int = 0,
     val today: List<ScheduleEvent> = emptyList(),
     val records: List<RentalRecordEntity> = emptyList(),
+    val agenda: TodayAgenda = TodayAgenda(),
 ) {
     val isEmpty: Boolean get() = units.isEmpty()
+    val availableNow: Int get() = counts[FleetStatus.AVAILABLE] ?: 0
 }
+
+/** A record needing attention plus the queue row that drives its Retry / Discard actions. */
+data class RentalNotice(val record: RentalRecordEntity, val queueId: String?)
 
 data class AvailabilityQuery(
     val from: Instant,
@@ -73,6 +82,7 @@ data class AvailabilityState(
 class RentalsOverviewViewModel @Inject constructor(
     private val repo: RentalRepository,
     private val api: RentalsApi,
+    connectivity: ConnectivityMonitor,
 ) : ViewModel() {
 
     private val ticker = flow {
@@ -95,8 +105,15 @@ class RentalsOverviewViewModel @Inject constructor(
             day.plusDays(1).atStartOfDay(zone).toInstant(),
             now,
         )
-        FleetSnapshot(now, results, counts, due, today, records)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), FleetSnapshot())
+        FleetSnapshot(now, results, counts, due, today, records, TodayAgenda.of(today))
+    }
+        // Status / agenda computation walks every rental row: keep it off the main thread.
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), FleetSnapshot())
+
+    /** Device connectivity, for the offline hint next to "last synced". */
+    val online: StateFlow<Boolean> = connectivity.networkStatus
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
 
     val classes: StateFlow<List<ClassView>> = repo.records(RentalEntity.CLASS)
         .map { rows -> rows.map(ClassView::of).sortedBy { it.name } }
@@ -108,12 +125,18 @@ class RentalsOverviewViewModel @Inject constructor(
     val queue: StateFlow<List<SyncQueueEntity>> = repo.queue()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** Records needing attention (conflicts first, then drafts). */
-    val notices: StateFlow<List<RentalRecordEntity>> = repo.unsynced()
-        .map { rows ->
-            rows.filter { it.localState == RentalRecordEntity.STATE_CONFLICT || it.notice != null }
-                .sortedBy { if (it.localState == RentalRecordEntity.STATE_CONFLICT) 0 else 1 }
-        }
+    /**
+     * Records needing attention (conflicts first, then drafts), each paired with its queue row.
+     * Matching parses every queue payload, so it runs once per change off the main thread
+     * instead of per row on every recomposition.
+     */
+    val notices: StateFlow<List<RentalNotice>> = combine(repo.unsynced(), repo.queue()) { rows, queue ->
+        val parsed = queue.map { it to com.avago.feature.rentals.domain.parseObj(it.payload) }
+        rows.filter { it.localState == RentalRecordEntity.STATE_CONFLICT || it.notice != null }
+            .sortedBy { if (it.localState == RentalRecordEntity.STATE_CONFLICT) 0 else 1 }
+            .map { rec -> RentalNotice(rec, queueFor(rec, parsed)?.queueId) }
+    }
+        .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _statusFilter = MutableStateFlow<FleetStatus?>(null)
@@ -136,10 +159,11 @@ class RentalsOverviewViewModel @Inject constructor(
     fun discard(queueId: String) = viewModelScope.launch { runCatching { repo.discard(queueId) }.onFailure { Timber.w(it) } }
 
     /** Queue row for a record (by `local_id` / order id in the payload) to drive Retry / Discard. */
-    fun queueFor(record: RentalRecordEntity): SyncQueueEntity? = queue.value.filter { q ->
-        val p = com.avago.feature.rentals.domain.parseObj(q.payload)
-        p?.str("local_id") == record.id || p?.str("order_id") == record.id || q.entityId == record.clientUuid
-    }.minByOrNull { if (it.syncStatus == "conflict" || it.syncStatus == OutboxPlanner.STATUS_FAILED) 0 else 1 }
+    private fun queueFor(record: RentalRecordEntity, queue: List<Pair<SyncQueueEntity, kotlinx.serialization.json.JsonObject?>>): SyncQueueEntity? =
+        queue.filter { (q, p) ->
+            p?.str("local_id") == record.id || p?.str("order_id") == record.id || q.entityId == record.clientUuid
+        }.map { it.first }
+            .minByOrNull { if (it.syncStatus == "conflict" || it.syncStatus == OutboxPlanner.STATUS_FAILED) 0 else 1 }
 
     // ── Availability search (§11.1) ───────────────────────────────────────────────
 

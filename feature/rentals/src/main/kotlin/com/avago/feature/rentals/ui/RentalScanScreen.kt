@@ -18,6 +18,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -30,7 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.LocalActivity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -42,24 +43,35 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
+import com.avago.core.data.rental.LocalFleet
 import com.avago.feature.rentals.R
 import com.avago.feature.rentals.data.RentalRepository
 import com.avago.feature.rentals.domain.Aamva
+import com.avago.feature.rentals.domain.HandoverTarget
 import com.avago.feature.rentals.domain.RentalEntity
 import com.avago.feature.rentals.domain.ScanCode
 import com.avago.feature.rentals.domain.str
 import com.avago.feature.rentals.domain.obj
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import timber.log.Timber
+import java.time.Instant
 import javax.inject.Inject
 
 sealed interface ScanResult {
-    data class Asset(val assetId: String, val name: String, val rentable: Boolean) : ScanResult
+    /** [handover] is the check-out / check-in the unit is waiting for (offline fleet), if any. */
+    data class Asset(
+        val assetId: String,
+        val name: String,
+        val rentable: Boolean,
+        val handover: HandoverTarget? = null,
+    ) : ScanResult
     data class Order(val orderId: String, val number: String) : ScanResult
     data class Licence(val licence: Aamva.License) : ScanResult
     data class NotFound(val raw: String) : ScanResult
@@ -98,11 +110,18 @@ class RentalScanViewModel @Inject constructor(
         val acc = identity.getActiveAccountId() ?: return ScanResult.NotFound(raw)
         val db = dbFactory.get(acc)
         val fleet = repo.records(RentalEntity.FLEET).first().associateBy { it.id }
+        // Offline fleet status, so the result can offer the pending check-out / check-in directly.
+        suspend fun handoverFor(assetId: String): HandoverTarget? {
+            val inputs = repo.fleetInputs().first()
+            return withContext(Dispatchers.Default) { LocalFleet.compute(inputs, Instant.now())[assetId] }?.let(HandoverTarget::of)
+        }
         suspend fun asset(code: String): ScanResult? {
             val a = db.assetDao().getById(code)?.takeIf { it.deletedAt == null }
                 ?: db.assetDao().findByIdentifierCandidates(acc, code).firstOrNull()
-                ?: return fleet.values.firstOrNull { it.name.equals(code, true) }?.let { ScanResult.Asset(it.id, it.name ?: code, true) }
-            return ScanResult.Asset(a.assetId, a.name, fleet.containsKey(a.assetId))
+            val id = a?.assetId ?: fleet.values.firstOrNull { it.name.equals(code, true) }?.id ?: return null
+            val rentable = fleet.containsKey(id)
+            val handover = if (rentable) handoverFor(id) else null
+            return ScanResult.Asset(id, a?.name ?: fleet[id]?.name ?: code, rentable, handover)
         }
         return when (val k = ScanCode.classify(raw)) {
             is ScanCode.Kind.Licence -> Aamva.parse(k.raw)?.let { LicenceScanBuffer.put(it); ScanResult.Licence(it) } ?: ScanResult.NotFound(raw)
@@ -122,6 +141,9 @@ fun RentalScanScreen(
     onOpenAsset: (String) -> Unit,
     onOpenOrder: (String) -> Unit,
     onLicence: () -> Unit,
+    onHandover: (orderId: String, direction: String) -> Unit = { _, _ -> },
+    /** [HandoverTarget.OUT] / [HandoverTarget.IN] when opened from a home quick action. */
+    mode: String? = null,
     viewModel: RentalScanViewModel = hiltViewModel(),
 ) {
     val result by viewModel.result.collectAsStateWithLifecycle()
@@ -129,8 +151,13 @@ fun RentalScanScreen(
     var manual by remember { mutableStateOf("") }
     val analyzer = remember(textMode) { if (textMode) MlKitTextAnalyzer() else MlKitBarcodeAnalyzer() }
     NfcReader(onText = viewModel::resolve)
+    val title = when (mode) {
+        HandoverTarget.OUT -> R.string.rentals_scan_title_out
+        HandoverTarget.IN -> R.string.rentals_scan_title_in
+        else -> R.string.rentals_scan
+    }
 
-    Scaffold(topBar = { RentalsTopBar(stringResource(R.string.rentals_scan), onBack) }) { pad ->
+    Scaffold(topBar = { RentalsTopBar(stringResource(title), onBack) }) { pad ->
         Column(Modifier.fillMaxSize().padding(pad)) {
             Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(!textMode, { textMode = false }, { Text(stringResource(R.string.rentals_scan_barcode)) }, Modifier.heightIn(min = MinTouch))
@@ -157,7 +184,19 @@ fun RentalScanScreen(
                             is ScanResult.Asset -> {
                                 Text(r.name, style = MaterialTheme.typography.titleMedium)
                                 if (!r.rentable) Text(stringResource(R.string.rentals_not_rentable), style = MaterialTheme.typography.bodySmall)
-                                Button(onClick = { onOpenAsset(r.assetId) }, modifier = Modifier.heightIn(min = MinTouch)) { Text(stringResource(R.string.rentals_open)) }
+                                val h = r.handover
+                                if (h != null) {
+                                    val label = if (h.direction == HandoverTarget.IN) R.string.rentals_action_checkin else R.string.rentals_action_checkout
+                                    Button(onClick = { onHandover(h.orderId, h.direction) }, modifier = Modifier.fillMaxWidth().heightIn(min = MinTouch)) {
+                                        Text(stringResource(label))
+                                    }
+                                    OutlinedButton(onClick = { onOpenAsset(r.assetId) }, modifier = Modifier.heightIn(min = MinTouch)) { Text(stringResource(R.string.rentals_open)) }
+                                } else {
+                                    if (r.rentable && mode != null) {
+                                        Text(stringResource(R.string.rentals_scan_no_handover), style = MaterialTheme.typography.bodySmall)
+                                    }
+                                    Button(onClick = { onOpenAsset(r.assetId) }, modifier = Modifier.heightIn(min = MinTouch)) { Text(stringResource(R.string.rentals_open)) }
+                                }
                             }
                             is ScanResult.Order -> {
                                 Text(r.number, style = MaterialTheme.typography.titleMedium)
@@ -181,7 +220,9 @@ fun RentalScanScreen(
 /** NFC reader mode while the scan screen is visible (the app's NDEF intent handling stays as is). */
 @Composable
 private fun NfcReader(onText: (String) -> Unit) {
-    val activity = LocalContext.current as? Activity ?: return
+    // LocalContext may be a ContextWrapper (theme / locale overrides), so a cast would silently
+    // disable NFC; LocalActivity resolves the hosting activity.
+    val activity: Activity = LocalActivity.current ?: return
     val emit by rememberUpdatedState(onText)
     DisposableEffect(activity) {
         val adapter = NfcAdapter.getDefaultAdapter(activity)

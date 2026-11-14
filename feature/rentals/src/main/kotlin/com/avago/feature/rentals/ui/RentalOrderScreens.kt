@@ -315,7 +315,7 @@ fun RentalOrderScreen(
             items(invoices, key = { "i:${it.id}" }) { inv ->
                 ListItem(
                     headlineContent = { Text(inv.number ?: stringResource(R.string.rentals_invoice_draft)) },
-                    supportingContent = { Text(inv.status.replace('_', ' ')) },
+                    supportingContent = { Text(invoiceStatusText(inv.status)) },
                     trailingContent = { Column(horizontalAlignment = Alignment.End) { Text(formatMoney(inv.total)); SyncStateBadge(inv.localState) } },
                 )
             }
