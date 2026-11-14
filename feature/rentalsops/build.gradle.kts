@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.room)
 }
 
 android {
@@ -19,6 +20,11 @@ android {
         targetCompatibility = JavaVersion.VERSION_21
     }
     buildFeatures { compose = true }
+}
+
+// Exported Room schema: the baseline for future RentalOpsDatabase migrations.
+room {
+    schemaDirectory("$projectDir/schemas")
 }
 
 dependencies {

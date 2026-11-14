@@ -2,16 +2,25 @@ plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.room)
 }
 
 android {
     namespace = "com.avago.core.data"
     compileSdk = 37
-    defaultConfig { minSdk = 26 }
+    defaultConfig {
+        minSdk = 26
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
     }
+}
+
+// Exported Room schemas: the migration-test baselines (also packaged into androidTest assets).
+room {
+    schemaDirectory("$projectDir/schemas")
 }
 
 dependencies {
@@ -35,6 +44,12 @@ dependencies {
     testImplementation(libs.serialization.json)
     testRuntimeOnly(libs.junit5.engine)
     testRuntimeOnly(libs.junit.platform.launcher)
+
+    // Room migration tests (MigrationTestHelper) run on a device/emulator.
+    androidTestImplementation(libs.room.testing)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.coroutines.core)
 }
 
 tasks.withType<Test> {

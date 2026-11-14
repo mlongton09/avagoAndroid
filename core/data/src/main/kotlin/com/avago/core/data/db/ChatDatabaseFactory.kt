@@ -158,6 +158,25 @@ private val CHAT_MIGRATION_7_8 = object : Migration(7, 8) {
     }
 }
 
+/**
+ * Every explicit [ChatDatabase] migration, one per version step from 2 to [CHAT_DB_VERSION].
+ * Declared after the migrations above (top-level properties initialize in file order).
+ */
+internal val CHAT_MIGRATIONS: Array<Migration> = arrayOf(
+    MIGRATION_2_3,
+    MIGRATION_3_4,
+    CHAT_MIGRATION_4_5,
+    CHAT_MIGRATION_5_6,
+    CHAT_MIGRATION_6_7,
+    CHAT_MIGRATION_7_8,
+)
+
+/**
+ * Only v1 (development builds of 2026-05-21/22, no migration) may be recreated destructively;
+ * every other upgrade runs [CHAT_MIGRATIONS] so unsent `outbox` messages survive.
+ */
+internal val CHAT_DESTRUCTIVE_FROM_VERSIONS: IntArray = intArrayOf(1)
+
 @Singleton
 class ChatDatabaseFactory @Inject constructor(
     @ApplicationContext private val ctx: Context,
@@ -170,15 +189,11 @@ class ChatDatabaseFactory @Inject constructor(
             val dir = File(ctx.filesDir, "accounts/$accountId").apply { mkdirs() }
             Room.databaseBuilder(ctx, ChatDatabase::class.java, File(dir, "chat.db").path)
                 .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
-                .addMigrations(
-                    MIGRATION_2_3,
-                    MIGRATION_3_4,
-                    CHAT_MIGRATION_4_5,
-                    CHAT_MIGRATION_5_6,
-                    CHAT_MIGRATION_6_7,
-                    CHAT_MIGRATION_7_8,
-                )
-                .fallbackToDestructiveMigration(dropAllTables = true)
+                .addMigrations(*CHAT_MIGRATIONS)
+                // No blanket destructive fallback: a missing migration must fail loudly rather
+                // than wipe unsent messages. Only pre-release v1 and downgrades are recreated.
+                .fallbackToDestructiveMigrationFrom(true, *CHAT_DESTRUCTIVE_FROM_VERSIONS)
+                .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
                 .build()
         }
     }

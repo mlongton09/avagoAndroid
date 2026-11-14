@@ -219,8 +219,8 @@ import com.avago.core.data.db.rental.RentalSyncStateEntity
         RentalRecordEntity::class,
         RentalSyncStateEntity::class,
     ],
-    version = 20,
-    exportSchema = false,
+    version = AVAGO_DB_VERSION,
+    exportSchema = true,
 )
 @TypeConverters(Converters::class)
 abstract class AvagoDatabase : RoomDatabase() {

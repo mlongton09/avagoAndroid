@@ -22,6 +22,9 @@ import com.avago.core.data.db.entity.ChatSyncStateEntity
 import com.avago.core.data.db.entity.ChatThreadEntity
 import com.avago.core.data.db.entity.ChatThreadLastReadEntity
 import com.avago.core.data.db.entity.ChatThreadMemberEntity
+
+/** Current [ChatDatabase] schema version. Bump together with a new entry in `CHAT_MIGRATIONS`. */
+const val CHAT_DB_VERSION = 8
 
 @Database(
     entities = [
@@ -36,8 +39,8 @@ import com.avago.core.data.db.entity.ChatThreadMemberEntity
         ChatOutboxEntity::class,
         ChatThreadLastReadEntity::class,
     ],
-    version = 8,
-    exportSchema = false,
+    version = CHAT_DB_VERSION,
+    exportSchema = true,
 )
 abstract class ChatDatabase : RoomDatabase() {
     abstract fun chatThreadDao(): ChatThreadDao

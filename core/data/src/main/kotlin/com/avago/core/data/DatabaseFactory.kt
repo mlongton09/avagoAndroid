@@ -3,23 +3,9 @@ package com.avago.core.data
 import android.content.Context
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.avago.core.data.db.AVAGO_DESTRUCTIVE_FROM_VERSIONS
+import com.avago.core.data.db.AVAGO_MIGRATIONS
 import com.avago.core.data.db.AvagoDatabase
-import com.avago.core.data.db.MIGRATION_4_5
-import com.avago.core.data.db.MIGRATION_5_6
-import com.avago.core.data.db.MIGRATION_6_7
-import com.avago.core.data.db.MIGRATION_7_8
-import com.avago.core.data.db.MIGRATION_8_9
-import com.avago.core.data.db.MIGRATION_9_10
-import com.avago.core.data.db.MIGRATION_10_11
-import com.avago.core.data.db.MIGRATION_11_12
-import com.avago.core.data.db.MIGRATION_12_13
-import com.avago.core.data.db.MIGRATION_13_14
-import com.avago.core.data.db.MIGRATION_14_15
-import com.avago.core.data.db.MIGRATION_15_16
-import com.avago.core.data.db.MIGRATION_16_17
-import com.avago.core.data.db.MIGRATION_17_18
-import com.avago.core.data.db.MIGRATION_18_19
-import com.avago.core.data.db.MIGRATION_19_20
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
@@ -47,9 +33,11 @@ class DatabaseFactory(
             dbFile.absolutePath,
         )
             .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
-            .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
-            .addMigrations(MIGRATION_19_20)
-            .fallbackToDestructiveMigration(dropAllTables = true)
+            .addMigrations(*AVAGO_MIGRATIONS)
+            // No blanket destructive fallback: a missing migration must fail loudly rather than
+            // wipe pending sync_queue (outbox) rows. Only pre-release v1-v3 and downgrades are recreated.
+            .fallbackToDestructiveMigrationFrom(true, *AVAGO_DESTRUCTIVE_FROM_VERSIONS)
+            .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
             .build()
     }
 

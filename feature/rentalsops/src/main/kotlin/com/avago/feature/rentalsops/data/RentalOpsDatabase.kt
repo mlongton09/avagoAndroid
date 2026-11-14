@@ -135,7 +135,7 @@ interface RentalOpsDao {
 @Database(
     entities = [RecordEntity::class, CursorEntity::class, MediaEntity::class],
     version = 1,
-    exportSchema = false,
+    exportSchema = true,
 )
 abstract class RentalOpsDatabase : RoomDatabase() {
     abstract fun dao(): RentalOpsDao
@@ -153,7 +153,9 @@ class RentalOpsDatabaseFactory @Inject constructor(
             val dir = File(ctx.filesDir, "accounts/$accountId").apply { mkdirs() }
             Room.databaseBuilder(ctx, RentalOpsDatabase::class.java, File(dir, "rentalops.db").path)
                 .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
-                .fallbackToDestructiveMigration(dropAllTables = true)
+                // Holds the unsent outbox and proof media: never wipe on upgrade. v1 is the first
+                // shipped version, so only downgrades are recreated; a future bump needs a Migration.
+                .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
                 .build()
         }
     }
