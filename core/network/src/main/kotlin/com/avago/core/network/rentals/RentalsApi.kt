@@ -205,9 +205,9 @@ class RentalsApi @Inject constructor(
         client.post(r(accountId, "/assets/$assetId/disable")) { json(JsonObject(emptyMap())); idem(idempotencyKey) }.body()
     }
 
-    // ---- Stage B (AvagoSvc rentals-stage-b: src/routes/rentals_api/stage_b.rs) ---------
-    // Pending on master: aligned to docs/rentals-api-stage-b.md and the serde structs in
-    // handovers.rs / documents.rs / ledger.rs / invoices.rs (validated by RentalsContractTest).
+    // ---- Stage B (AvagoSvc origin/master c562904: src/routes/rentals_api/stage_b.rs) -------
+    // Aligned to docs/rentals-api-stage-b.md and the serde structs in handovers.rs /
+    // documents.rs / ledger.rs / invoices.rs (validated by RentalsContractTest).
 
     /**
      * POST /rentals/orders/{o}/lines/{l}/checkout|checkin — `HandoverBody` (handovers.rs):
@@ -226,6 +226,22 @@ class RentalsApi @Inject constructor(
     ): JsonObject = call {
         require(kind == HANDOVER_CHECKOUT || kind == HANDOVER_CHECKIN) { "kind must be checkout|checkin" }
         client.post(r(accountId, "/orders/$orderId/lines/$lineId/$kind")) { json(body); idem(idempotencyKey) }.body()
+    }
+
+    /**
+     * POST /rentals/orders/{o}/lines/{l}/swap — `SwapBody` (handovers.rs): `{client_uuid, at,
+     * new_asset_id, reason, checkin:HandoverBody?, checkout:HandoverBody?}` → 201 `{handovers,
+     * order, old_line_id, new_line_id, warnings, replayed}`; 409 `allocation_conflict` when the
+     * replacement is not free. Needs `rental.checkout`. (The order-level `/swap` action is 501.)
+     */
+    suspend fun lineSwap(
+        accountId: String,
+        orderId: String,
+        lineId: String,
+        body: JsonObject,
+        idempotencyKey: String,
+    ): JsonObject = call {
+        client.post(r(accountId, "/orders/$orderId/lines/$lineId/swap")) { json(body); idem(idempotencyKey) }.body()
     }
 
     /**
@@ -318,9 +334,14 @@ class RentalsApiException(
             fun str(k: String) = obj?.get(k)?.takeIf { it !is JsonNull }?.let {
                 runCatching { it.jsonPrimitive.contentOrNull }.getOrNull()
             }
-            val code = str("code")
+            // Coded errors send `{error: message, code, message, details?}`; the documented
+            // handover/version conflicts (`{error: "already_checked_out" | "conflict", message, …}`)
+            // carry the code only in `error`, so fall back to it when it looks like a wire code.
+            val code = str("code") ?: str("error")?.takeIf { it.matches(WIRE_CODE) }
             val msg = str("message") ?: str("error") ?: "HTTP $status"
             return RentalsApiException(status, code, msg, obj, cause)
         }
+
+        private val WIRE_CODE = Regex("^[a-z][a-z0-9]*(_[a-z0-9]+)*$")
     }
 }

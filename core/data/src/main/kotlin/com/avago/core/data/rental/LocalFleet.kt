@@ -66,6 +66,8 @@ object LocalFleet {
         val orderLineId: String?,
         val expiresAt: Instant?,
         val localState: String,
+        /** Stage B `rental_allocation` feed `due_at` (on_rent only; server line ?: order ?: upper). */
+        val feedDueAt: Instant? = null,
     )
 
     data class Result(
@@ -145,6 +147,7 @@ object LocalFleet {
             orderLineId = o.str("order_line_id"),
             expiresAt = o.instant("expires_at"),
             localState = r.localState,
+            feedDueAt = o.instant("due_at"),
         )
     }
 
@@ -156,9 +159,10 @@ object LocalFleet {
 
     /**
      * `on_rent` due time = line end ?: order end ?: server `due_at` ?: allocation upper bound
-     * (server rule). [serverDue] (allocation id → `due_at` from the fleet cards' `current`/`next`)
-     * covers legacy rentals, whose due time lives in `rental_periods` and whose allocation is
-     * auto-extended while overdue.
+     * (server rule). Local line/order rows win (they carry offline extensions). [serverDue]
+     * (allocation id → `due_at` from the fleet cards' `current`/`next`) covers legacy rentals,
+     * whose due time lives in `rental_periods` and whose allocation is auto-extended while
+     * overdue; the stage B allocation feed's own `due_at` covers lines/orders not synced yet.
      */
     fun dueAt(
         a: Alloc,
@@ -166,7 +170,8 @@ object LocalFleet {
         orderEnds: Map<String, Instant?>,
         serverDue: Map<String, Instant?> = emptyMap(),
     ): Instant? =
-        a.orderLineId?.let { lineEnds[it] } ?: a.orderId?.let { orderEnds[it] } ?: serverDue[a.id] ?: a.endAt
+        a.orderLineId?.let { lineEnds[it] } ?: a.orderId?.let { orderEnds[it] } ?: serverDue[a.id]
+            ?: a.feedDueAt ?: a.endAt
 
     /** Allocation id → `due_at` from the synced fleet cards (`current` / `next`). */
     fun serverDueAts(records: List<RentalRecordEntity>): Map<String, Instant?> {

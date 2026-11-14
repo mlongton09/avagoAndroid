@@ -195,4 +195,20 @@ internal object RentalRequests {
 
     /** `DraftBody` (invoices.rs): every uninvoiced line of the order (client_uuid added by the outbox). */
     fun invoice() = buildJsonObject { }
+
+    /**
+     * `SwapBody` (handovers.rs) for `POST /orders/{o}/lines/{l}/swap`: check the current unit in
+     * ([checkin], no late billing) and [newAssetId] out ([checkout]) at device time [at]. The
+     * nested bodies are `HandoverBody` without line/asset (the server fills them).
+     * TODO(rentals-ui): no swap screen yet — the order-level `swap` action stays hidden.
+     */
+    fun swap(clientUuid: String, at: Instant, newAssetId: String, reason: String?, checkin: JsonObject?, checkout: JsonObject?) =
+        buildJsonObject {
+            put("client_uuid", clientUuid)
+            put("at", at.toString())
+            put("new_asset_id", newAssetId)
+            reason?.takeIf { it.isNotBlank() }?.let { put("reason", it.trim()) }
+            checkin?.let { put("checkin", it) }
+            checkout?.let { put("checkout", it) }
+        }
 }

@@ -24,11 +24,15 @@ object RentalEntity {
     const val ASSET = "rental_asset"
     const val FLEET = "rental_fleet"
 
-    // Stage B feeds (rentals-stage-b sync.rs FEEDS; 400 unknown_entity on stage A servers).
+    // Stage B feeds (sync.rs FEEDS / rentals-api-stage-b.md §9; 400 unknown_entity on stage A servers).
     const val HANDOVER = "rental_handover"
     const val LEDGER = "rental_ledger_entry"
     const val SIGNATURE = "rental_signature"
     const val INVOICE = "rental_invoice"
+    const val PAYMENT_REQUEST = "rental_payment_request"
+    const val DOCUMENT = "rental_document"
+    const val TERMS_TEMPLATE = "rental_terms_template"
+    const val READINESS_CHECK = "rental_readiness_check"
     const val META = "rental_meta"
     const val ID_MAP = "rental_id_map"
 
@@ -38,11 +42,13 @@ object RentalEntity {
         CUSTOMER, CUSTOMER_CONTACT, CUSTOMER_DOCUMENT, JOB_SITE,
         ORDER, ORDER_LINE, ALLOCATION, BULK_ALLOCATION, ASSET,
         // Stage B — skipped while the server answers 400 unknown_entity.
-        SIGNATURE, HANDOVER, LEDGER, INVOICE,
+        TERMS_TEMPLATE, READINESS_CHECK, DOCUMENT, SIGNATURE, HANDOVER, PAYMENT_REQUEST, LEDGER, INVOICE,
     )
 
-    /** Feeds not served by stage A servers. */
-    val STAGE_B_FEEDS = setOf(SIGNATURE, HANDOVER, LEDGER, INVOICE)
+    /** Feeds not served by stage A servers (all eight stage B feeds). */
+    val STAGE_B_FEEDS = setOf(
+        TERMS_TEMPLATE, READINESS_CHECK, DOCUMENT, SIGNATURE, HANDOVER, PAYMENT_REQUEST, LEDGER, INVOICE,
+    )
 
     /** Primary-key field of each feed (tombstones carry `id` and this key). */
     fun pkOf(entity: String): String = when (entity) {

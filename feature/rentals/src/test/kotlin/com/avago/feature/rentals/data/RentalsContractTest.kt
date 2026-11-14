@@ -23,6 +23,8 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -38,8 +40,8 @@ import java.time.OffsetDateTime
  * Contract tests against the stage A Rentals API (AvagoSvc origin/master b9a8e21,
  * docs/rentals-api.md + the serde structs in src/routes/rentals_api). The fixtures under
  * `resources/contract` are the documented examples with concrete ids; `request_fields.json`
- * lists each request struct's fields. Stage B shapes follow the rentals-stage-b serde structs
- * (C:/wt/AvagoSvc-stageb c562904, docs/rentals-api-stage-b.md) — pending on master.
+ * lists each request struct's fields. Stage B shapes follow the serde structs and
+ * docs/rentals-api-stage-b.md as merged on AvagoSvc origin/master c562904.
  */
 class RentalsContractTest {
 
@@ -348,10 +350,13 @@ class RentalsContractTest {
             assertNull(nf.code)
             assertEquals("Not found", nf.message)
             val vc = ex("version_conflict")
-            assertNull(vc.code)
+            // `{error:"conflict", message, current}`: the wire code lives in `error`.
+            assertEquals("conflict", vc.code)
             assertEquals("stale version", vc.message)
             assertTrue(vc.isConflict)
             assertEquals(5L, vc.body!!["current"]!!.jsonObject["server_version"]!!.jsonPrimitive.longOrNull)
+            // Free-text `error` (plain AppError) is never mistaken for a code.
+            assertNull(ex("idempotency_in_flight").code)
         }
 
         @Test
@@ -472,6 +477,68 @@ class RentalsContractTest {
             val item = page["items"]!!.jsonArray.single().jsonObject
             assertFalse(RentalRecords.isTombstone(item))
             assertEquals(41L, RentalRecords.record(RentalEntity.LEDGER, item)!!.seq)
+        }
+
+        @Test
+        fun `all eight stage B feeds are pulled, after the stage A feeds`() {
+            val documented = res["stage_b_feeds"]!!.jsonArray.map { it.jsonPrimitive.content }.toSet()
+            assertEquals(documented, RentalEntity.STAGE_B_FEEDS)
+            assertEquals(8, documented.size)
+            assertEquals(RentalEntity.FEEDS.size, RentalEntity.FEEDS.toSet().size, "no duplicate feeds")
+            documented.forEach { assertEquals(if (it == RentalEntity.INVOICE) "rental_invoice_id" else "id", RentalEntity.pkOf(it)) }
+            val rc = RentalRecords.record(RentalEntity.READINESS_CHECK, o("readiness_check_created"))!!
+            assertEquals("7ead0000-0000-4000-8000-000000000001", rc.id)
+        }
+
+        @Test
+        fun `swap wrapper decodes both handovers and the line ids`() {
+            val resp = o("swap_created")
+            assertEquals(setOf("handovers", "order", "old_line_id", "new_line_id", "warnings", "replayed"), resp.keys)
+            val hs = resp["handovers"]!!.jsonArray.map { RentalRecords.record(RentalEntity.HANDOVER, it.jsonObject)!! }
+            assertEquals(listOf("checkin", "checkout"), hs.map { it.status })
+            assertEquals(
+                resp["new_line_id"]!!.jsonPrimitive.content,
+                resp["handovers"]!!.jsonArray[1].jsonObject["order_line_id"]!!.jsonPrimitive.content,
+            )
+            assertNull(OutboxPlanner.warningsText(resp))
+            val busy = ex("swap_replacement_busy")
+            assertEquals("allocation_conflict", busy.code)
+            assertEquals(Disposition.CONFLICT, OutboxPlanner.disposition(OutboxPlanner.TYPE_HANDOVER, busy.status, busy.code, busy.message))
+        }
+
+        @Test
+        fun `documented conflict bodies (code only in error) still expose the code`() {
+            val h = ex("doc_already_checked_out")
+            assertEquals("already_checked_out", h.code)
+            assertEquals("already checked out by Sam Lee at 2026-11-13T08:02:11+00:00", h.message)
+            assertEquals(Disposition.CONFLICT, OutboxPlanner.disposition(OutboxPlanner.TYPE_HANDOVER, h.status, h.code, h.message))
+            val v = ex("doc_version_conflict")
+            assertEquals("conflict", v.code)
+            assertEquals(3L, v.body!!["current"]!!.jsonObject.long("version"))
+            assertEquals(Disposition.CONFLICT, OutboxPlanner.disposition(OutboxPlanner.TYPE_INVOICE, v.status, v.code, v.message))
+        }
+
+        @Test
+        fun `baseline decodes the check-out snapshot`() {
+            val b = o("baseline")
+            assertEquals("on_rent", b["line_status"]!!.jsonPrimitive.content)
+            val co = b["checkout"]!!.jsonObject
+            assertEquals("1200", co["meter_value"]!!.jsonPrimitive.content)
+            assertTrue(b["defects"]!!.jsonObject.keys.containsAll(setOf("at_checkout", "since_checkout")))
+        }
+
+        @Test
+        fun `allocation feed due_at drives the on-rent due time`() {
+            val row = o("allocation_feed_row")
+            val rec = RentalRecords.record(RentalEntity.ALLOCATION, row)!!
+            val alloc = LocalFleet.allocOf(rec)!!
+            assertEquals(Instant.parse("2026-11-20T16:00:00Z"), alloc.feedDueAt)
+            assertEquals(Instant.parse("2026-11-21T09:00:00Z"), alloc.endAt)
+            // No local line/order rows yet: the feed's due_at wins over the extended upper bound.
+            assertEquals(Instant.parse("2026-11-20T16:00:00Z"), LocalFleet.dueAt(alloc, emptyMap(), emptyMap()))
+            // A local (possibly offline-extended) line end still takes precedence.
+            val ext = Instant.parse("2026-11-22T16:00:00Z")
+            assertEquals(ext, LocalFleet.dueAt(alloc, mapOf(alloc.orderLineId!! to ext), emptyMap()))
         }
     }
 
@@ -631,6 +698,34 @@ class RentalsContractTest {
             val methods = setOf("cash", "card_external", "bank_transfer", "cheque", "mobile_money", "direct_debit", "voucher", "other")
             assertTrue(kinds.containsAll(RentalRepository.PaymentInput.KINDS))
             assertEquals(methods, RentalRepository.PaymentInput.METHODS.toSet())
+        }
+
+        @Test
+        fun `swap body matches SwapBody and the documented example`() {
+            val nestedIn = buildJsonObject {
+                put("meter_value", "1240")
+                put("damage", JsonArray(emptyList()))
+            }
+            val nestedOut = buildJsonObject {
+                put("meter_value", "88")
+                put("fuel_level_pct", 100)
+            }
+            val body = RentalRequests.swap(
+                clientUuid = "1b2c0000-0000-4000-8000-000000000000",
+                at = Instant.parse("2026-11-15T10:00:00Z"),
+                newAssetId = "5b0f6c2e-1d3a-4c7e-9f00-000000000013",
+                reason = " Hydraulic leak ",
+                checkin = nestedIn,
+                checkout = nestedOut,
+            )
+            assertKeysWithin(body, allowed("stage_b_swap"), "SwapBody")
+            assertKeysWithin(body["checkin"]!!.jsonObject, allowed("stage_b_handover"), "SwapBody.checkin")
+            assertKeysWithin(body["checkout"]!!.jsonObject, allowed("stage_b_handover"), "SwapBody.checkout")
+            assertEquals(fields["stage_b_swap_example"]!!.jsonObject, body)
+            assertTimestamp(body["at"])
+            // Optional parts are omitted, never sent as blanks.
+            val bare = RentalRequests.swap("u", t0, "a2", reason = " ", checkin = null, checkout = null)
+            assertEquals(setOf("client_uuid", "at", "new_asset_id"), bare.keys)
         }
     }
 }

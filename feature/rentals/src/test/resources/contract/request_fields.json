@@ -29,6 +29,11 @@
                      "authorization_expires_at", "card_brand", "card_last4", "card_exp_month", "card_exp_year", "wallet",
                      "payer_name", "payer_email", "idempotency_key"],
   "stage_b_invoice": ["client_uuid", "line_ids", "series", "notes", "due_at", "refresh", "version"],
-  "_source_stage_b": "C:/wt/AvagoSvc-stageb rentals-stage-b c562904: handovers.rs HandoverBody/DamageIn, documents.rs SignatureBody, ledger.rs LedgerBody, invoices.rs DraftBody",
+  "stage_b_swap": ["client_uuid", "at", "new_asset_id", "reason", "checkin", "checkout"],
+  "stage_b_swap_example": {"client_uuid": "1b2c0000-0000-4000-8000-000000000000", "at": "2026-11-15T10:00:00Z",
+                           "new_asset_id": "5b0f6c2e-1d3a-4c7e-9f00-000000000013", "reason": "Hydraulic leak",
+                           "checkin": {"meter_value": "1240", "damage": []},
+                           "checkout": {"meter_value": "88", "fuel_level_pct": 100}},
+  "_source_stage_b": "AvagoSvc origin/master c562904 (stage B merged): handovers.rs HandoverBody/DamageIn/SwapBody, documents.rs SignatureBody, ledger.rs LedgerBody, invoices.rs DraftBody; docs/rentals-api-stage-b.md §2 swap example",
   "_source": "AvagoSvc origin/master b9a8e21: orders.rs OrderBody/TransitionBody, pricing.rs LineIn/PreviewBody, customers.rs CUSTOMERS/DOCUMENTS cols (+ common.rs IGNORED), catalog.rs EnableBody"
 }

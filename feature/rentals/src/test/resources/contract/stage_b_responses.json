@@ -1,5 +1,64 @@
 {
-  "_source": "C:/wt/AvagoSvc-stageb rentals-stage-b c562904: handovers.rs line_handover/order_json, ledger.rs entry_response, invoices.rs create_draft, errors.rs AppError::Coded, docs/rentals-api-stage-b.md",
+  "_source": "AvagoSvc origin/master c562904 (stage B merged): handovers.rs line_handover/swap/baseline, ledger.rs entry_response, invoices.rs create_draft, sync.rs FEEDS/EXTRAS, errors.rs AppError::Coded/VersionConflict, docs/rentals-api-stage-b.md",
+  "stage_b_feeds": ["rental_handover", "rental_ledger_entry", "rental_payment_request", "rental_invoice", "rental_document",
+                    "rental_signature", "rental_terms_template", "rental_readiness_check"],
+  "swap_created": {
+    "handovers": [
+      {"id": "4a000000-0000-4000-8000-000000000011", "order_id": "0d000000-0000-4000-8000-000000000001",
+       "order_line_id": "1e000000-0000-4000-8000-000000000001", "asset_id": "5b0f6c2e-1d3a-4c7e-9f00-000000000012",
+       "kind": "checkin", "at": "2026-11-15T10:00:00Z", "meter_value": "1240", "damage_summary": [],
+       "client_uuid": "1b2c0000-0000-4000-8000-000000000001", "server_version": 1},
+      {"id": "4a000000-0000-4000-8000-000000000012", "order_id": "0d000000-0000-4000-8000-000000000001",
+       "order_line_id": "1e000000-0000-4000-8000-000000000002", "asset_id": "5b0f6c2e-1d3a-4c7e-9f00-000000000013",
+       "kind": "checkout", "at": "2026-11-15T10:00:00Z", "meter_value": "88", "fuel_level_pct": 100, "damage_summary": [],
+       "client_uuid": "1b2c0000-0000-4000-8000-000000000002", "server_version": 1}
+    ],
+    "order": {"id": "0d000000-0000-4000-8000-000000000001", "number": "R-0042", "status": "on_rent", "currency": "EUR",
+              "version": 8, "lines": []},
+    "old_line_id": "1e000000-0000-4000-8000-000000000001",
+    "new_line_id": "1e000000-0000-4000-8000-000000000002",
+    "warnings": [],
+    "replayed": false
+  },
+  "baseline": {
+    "order_id": "0d000000-0000-4000-8000-000000000001", "order_line_id": "1e000000-0000-4000-8000-000000000001",
+    "asset_id": "5b0f6c2e-1d3a-4c7e-9f00-000000000012", "line_status": "on_rent",
+    "checkout": {"id": "4a000000-0000-4000-8000-000000000010", "at": "2026-11-17T08:05:00Z", "meter_value": "1200",
+                 "fuel_level_pct": 100, "accessories": [], "photos": [], "inspection": {"zones": []},
+                 "inspection_title": "Check-out"},
+    "defects": {"at_checkout": [], "since_checkout": []}
+  },
+  "allocation_feed_row": {
+    "id": "a1100000-0000-4000-8000-000000000042", "asset_id": "5b0f6c2e-1d3a-4c7e-9f00-000000000012",
+    "order_id": "0d000000-0000-4000-8000-000000000001", "order_line_id": "1e000000-0000-4000-8000-000000000001",
+    "kind": "on_rent", "blocking": true, "active": true,
+    "during": "[\"2026-11-17 08:00:00+00\",\"2026-11-21 09:00:00+00\")",
+    "start_at": "2026-11-17T08:00:00Z", "end_at": "2026-11-21T09:00:00Z", "due_at": "2026-11-20T16:00:00Z",
+    "seq": 77, "updated_at": "2026-11-20T09:00:00Z"
+  },
+  "readiness_check_created": {
+    "id": "7ead0000-0000-4000-8000-000000000001", "asset_id": "5b0f6c2e-1d3a-4c7e-9f00-000000000012", "status": "pending",
+    "items": [{"key": "cleaned", "label": "Cleaned", "done": false}], "notes": "", "server_version": 1
+  },
+  "doc_already_checked_out": {
+    "status": 409,
+    "body": {
+      "error": "already_checked_out",
+      "message": "already checked out by Sam Lee at 2026-11-13T08:02:11+00:00",
+      "details": {"handover_id": "4a000000-0000-4000-8000-000000000009", "by_user": "u1", "by_name": "Sam Lee",
+                  "at": "2026-11-13T08:02:11Z"}
+    }
+  },
+  "doc_version_conflict": {
+    "status": 409,
+    "body": {"error": "conflict", "message": "the invoice changed (version 3, sent 2)",
+             "current": {"rental_invoice_id": "1a000000-0000-4000-8000-000000000001", "version": 3}}
+  },
+  "swap_replacement_busy": {
+    "status": 409,
+    "body": {"error": "allocation_conflict", "code": "allocation_conflict",
+             "message": "The requested period overlaps an existing booking or block", "conflicts": []}
+  },
   "handover_created": {
     "handovers": [
       {
