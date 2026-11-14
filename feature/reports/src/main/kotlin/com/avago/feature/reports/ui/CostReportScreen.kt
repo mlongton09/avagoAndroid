@@ -208,7 +208,7 @@ fun CostReportScreen(
                             .padding(horizontal = 16.dp, vertical = 2.dp),
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
-                        TextButton(onClick = { viewModel.expandAll(data!!.rows.map { it.key }) }) {
+                        TextButton(onClick = { data?.let { d -> viewModel.expandAll(d.rows.map { it.key }) } }) {
                             Text("+ Expand All", style = MaterialTheme.typography.labelSmall)
                         }
                         TextButton(onClick = { viewModel.collapseAll() }) {
@@ -219,7 +219,9 @@ fun CostReportScreen(
             }
 
             // ── Loading ───────────────────────────────────────────────────────
-            if (data == null) {
+            // Read the delegated state once so the rest of this builder sees one snapshot.
+            val reportData = data
+            if (reportData == null) {
                 item {
                     Box(
                         modifier = Modifier
@@ -230,8 +232,6 @@ fun CostReportScreen(
                 }
                 return@LazyColumn
             }
-
-            val reportData = data!!
 
             item {
                 val headers = if (groupMode == CostGroupMode.TCO) {

@@ -37,7 +37,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -65,8 +65,8 @@ fun PermissionSetsScreen(
 ) {
     LaunchedEffect(Unit) { viewModel.load() }
 
-    val sets by viewModel.permissionSets.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
+    val sets by viewModel.permissionSets.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
 
     var showAddSheet by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<PermissionSet?>(null) }

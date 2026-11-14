@@ -15,7 +15,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,7 +62,7 @@ fun LocationPickerSheet(
     showClearOption: Boolean = true,
     viewModel: LocationPickerViewModel = hiltViewModel(),
 ) {
-    val allLocations by viewModel.locations.collectAsState()
+    val allLocations by viewModel.locations.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 

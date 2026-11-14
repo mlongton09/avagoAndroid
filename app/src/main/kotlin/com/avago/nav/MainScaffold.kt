@@ -57,7 +57,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -168,12 +168,12 @@ fun MainScaffold(
         }
     }
 
-    val chatEnabled by navFlagsViewModel.chatEnabled.collectAsState()
-    val workOrdersEnabled by navFlagsViewModel.workOrdersEnabled.collectAsState()
-    val unreadChatMentionCount by navFlagsViewModel.unreadChatMentionCount.collectAsState()
-    val upcomingMineWorkOrderCount by navFlagsViewModel.upcomingMineWorkOrderCount.collectAsState()
-    val permissions by permissionStore.permissions.collectAsState()
-    val isRoot by permissionStore.isRoot.collectAsState()
+    val chatEnabled by navFlagsViewModel.chatEnabled.collectAsStateWithLifecycle()
+    val workOrdersEnabled by navFlagsViewModel.workOrdersEnabled.collectAsStateWithLifecycle()
+    val unreadChatMentionCount by navFlagsViewModel.unreadChatMentionCount.collectAsStateWithLifecycle()
+    val upcomingMineWorkOrderCount by navFlagsViewModel.upcomingMineWorkOrderCount.collectAsStateWithLifecycle()
+    val permissions by permissionStore.permissions.collectAsStateWithLifecycle()
+    val isRoot by permissionStore.isRoot.collectAsStateWithLifecycle()
     fun can(permission: String) = isRoot || permissions.contains(permission)
 
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -209,7 +209,7 @@ fun MainScaffold(
     // a top-level tab it keeps the shared bar so the side menu stays one tap away.
     val isRentalsDestination = currentRoute?.startsWith("rentals/") == true &&
         currentRoute != com.avago.feature.rentals.nav.RentalsRoute.HOME
-    val rentalsEnabled by navFlagsViewModel.rentalsEnabled.collectAsState()
+    val rentalsEnabled by navFlagsViewModel.rentalsEnabled.collectAsStateWithLifecycle()
     // Rental-ops screens draw their own top bar with back navigation.
     val isRentalOpsDestination = currentRoute?.startsWith(com.avago.feature.rentalsops.push.RentalOpsRoutes.PREFIX) == true
     AvagoToastHost(toastManager = toast) {
@@ -467,8 +467,8 @@ fun SideMenuContent(
     canNavigate: (String) -> Boolean = { true },
     rentalsEnabled: Boolean = false,
 ) {
-    val accounts by viewModel.accounts.collectAsState()
-    val activeId  by viewModel.activeAccountId.collectAsState()
+    val accounts by viewModel.accounts.collectAsStateWithLifecycle()
+    val activeId  by viewModel.activeAccountId.collectAsStateWithLifecycle()
     val active = accounts.firstOrNull { it.accountId == activeId }
 
     val navBackStack by navController.currentBackStackEntryAsState()

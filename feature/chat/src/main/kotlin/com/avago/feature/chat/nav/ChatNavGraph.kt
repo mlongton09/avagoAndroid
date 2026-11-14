@@ -1,6 +1,6 @@
 package com.avago.feature.chat.nav
 
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
@@ -52,7 +52,7 @@ fun NavGraphBuilder.chatNavGraph(navController: NavHostController) {
         // mirroring iOS's Favorite Assets "+" → asset picker flow.
         val pickedAssetId by backStackEntry.savedStateHandle
             .getStateFlow<String?>("selected_asset_id", null)
-            .collectAsState()
+            .collectAsStateWithLifecycle()
         ChatListScreen(
             onThreadClick = { threadId ->
                 navController.navigate(ChatRoute.Thread.createRoute(threadId))

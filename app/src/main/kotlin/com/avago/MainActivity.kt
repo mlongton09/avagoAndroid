@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -139,7 +139,7 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            val themePreference by userPreferencesRepository.themeFlow.collectAsState(initial = "system")
+            val themePreference by userPreferencesRepository.themeFlow.collectAsStateWithLifecycle(initialValue = "system")
             val isDark = when (themePreference) {
                 "dark"  -> true
                 "light" -> false
@@ -148,7 +148,7 @@ class MainActivity : ComponentActivity() {
 
             AvagoTheme(darkTheme = isDark) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    val identityReady by identityManager.isInitialized.collectAsState()
+                    val identityReady by identityManager.isInitialized.collectAsStateWithLifecycle()
                     if (!identityReady) {
                         Box(
                             modifier = Modifier.fillMaxSize(),
@@ -157,9 +157,9 @@ class MainActivity : ComponentActivity() {
                             CircularProgressIndicator()
                         }
                     } else {
-                        val syncState by syncEngine.state.collectAsState()
-                        val syncReady by syncGate.isOpen.collectAsState()
-                        val isOffline by mainViewModel.isOffline.collectAsState()
+                        val syncState by syncEngine.state.collectAsStateWithLifecycle()
+                        val syncReady by syncGate.isOpen.collectAsStateWithLifecycle()
+                        val isOffline by mainViewModel.isOffline.collectAsStateWithLifecycle()
 
                         MainScaffold(
                             syncState = syncState,

@@ -43,7 +43,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -102,19 +102,19 @@ fun LogListScreen(
     var showScoutSheet by remember { mutableStateOf(false) }
     var showAnalytics by rememberSaveable { mutableStateOf(false) }
 
-    val logs by viewModel.logs.collectAsState()
-    val isRefreshing by viewModel.isRefreshing.collectAsState()
-    val asset by viewModel.asset.collectAsState()
-    val photos by viewModel.photos.collectAsState()
-    val entryCount by viewModel.entryCount.collectAsState()
-    val lastServiceDate by viewModel.lastServiceDate.collectAsState()
-    val searchQuery by viewModel.searchQuery.collectAsState()
-    val categoryFilter by viewModel.categoryFilter.collectAsState()
-    val categoryCounts by viewModel.categoryCounts.collectAsState()
-    val hasAnyLogs by viewModel.hasAnyLogs.collectAsState()
-    val analytics by viewModel.analytics.collectAsState()
-    val currencyCode by viewModel.currencyCode.collectAsState()
-    val currencyRate by viewModel.currencyRate.collectAsState()
+    val logs by viewModel.logs.collectAsStateWithLifecycle()
+    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+    val asset by viewModel.asset.collectAsStateWithLifecycle()
+    val photos by viewModel.photos.collectAsStateWithLifecycle()
+    val entryCount by viewModel.entryCount.collectAsStateWithLifecycle()
+    val lastServiceDate by viewModel.lastServiceDate.collectAsStateWithLifecycle()
+    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+    val categoryFilter by viewModel.categoryFilter.collectAsStateWithLifecycle()
+    val categoryCounts by viewModel.categoryCounts.collectAsStateWithLifecycle()
+    val hasAnyLogs by viewModel.hasAnyLogs.collectAsStateWithLifecycle()
+    val analytics by viewModel.analytics.collectAsStateWithLifecycle()
+    val currencyCode by viewModel.currencyCode.collectAsStateWithLifecycle()
+    val currencyRate by viewModel.currencyRate.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
     val haptics = LocalHapticFeedback.current
 

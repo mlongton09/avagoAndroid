@@ -37,7 +37,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,8 +61,8 @@ fun CustomFieldDefsScreen(
 ) {
     LaunchedEffect(Unit) { viewModel.load() }
 
-    val fields by viewModel.fields.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
+    val fields by viewModel.fields.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
 
     var showAddSheet by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<Map<String, Any>?>(null) }

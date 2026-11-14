@@ -33,7 +33,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,8 +66,8 @@ fun PerformedByPickerScreen(
     modifier: Modifier = Modifier,
     viewModel: PerformedByPickerViewModel = hiltViewModel(),
 ) {
-    val state by viewModel.uiState.collectAsState()
-    val freeText by viewModel.freeText.collectAsState()
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val freeText by viewModel.freeText.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {

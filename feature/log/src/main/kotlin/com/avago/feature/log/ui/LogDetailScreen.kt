@@ -47,7 +47,7 @@ import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -97,12 +97,12 @@ fun LogDetailScreen(
         viewModel.setEntryId(entryId)
     }
 
-    val state by viewModel.uiState.collectAsState()
-    val currencyCode by viewModel.currencyCode.collectAsState()
-    val currencyRate by viewModel.currencyRate.collectAsState()
-    val distanceUnit by viewModel.distanceUnit.collectAsState()
-    val inspectionStrings by viewModel.inspectionStrings.collectAsState()
-    val assetType by viewModel.assetType.collectAsState()
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val currencyCode by viewModel.currencyCode.collectAsStateWithLifecycle()
+    val currencyRate by viewModel.currencyRate.collectAsStateWithLifecycle()
+    val distanceUnit by viewModel.distanceUnit.collectAsStateWithLifecycle()
+    val inspectionStrings by viewModel.inspectionStrings.collectAsStateWithLifecycle()
+    val assetType by viewModel.assetType.collectAsStateWithLifecycle()
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.isDeleted) {

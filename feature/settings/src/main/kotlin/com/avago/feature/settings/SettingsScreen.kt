@@ -40,7 +40,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -75,14 +75,14 @@ fun SettingsScreen(
     val versionName = remember(context) {
         runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?" }.getOrDefault("?")
     }
-    val theme by viewModel.theme.collectAsState()
-    val distanceUnit by viewModel.distanceUnit.collectAsState()
-    val currency by viewModel.currency.collectAsState()
-    val fuelVolumeUnit by viewModel.fuelVolumeUnit.collectAsState()
-    val disableQuotes by viewModel.disableQuotes.collectAsState()
-    val enableHumanInLoop by viewModel.enableHumanInLoop.collectAsState()
-    val activeAccountId by viewModel.activeAccountId.collectAsState()
-    val effectiveRole by viewModel.effectiveRole.collectAsState()
+    val theme by viewModel.theme.collectAsStateWithLifecycle()
+    val distanceUnit by viewModel.distanceUnit.collectAsStateWithLifecycle()
+    val currency by viewModel.currency.collectAsStateWithLifecycle()
+    val fuelVolumeUnit by viewModel.fuelVolumeUnit.collectAsStateWithLifecycle()
+    val disableQuotes by viewModel.disableQuotes.collectAsStateWithLifecycle()
+    val enableHumanInLoop by viewModel.enableHumanInLoop.collectAsStateWithLifecycle()
+    val activeAccountId by viewModel.activeAccountId.collectAsStateWithLifecycle()
+    val effectiveRole by viewModel.effectiveRole.collectAsStateWithLifecycle()
 
     // Dialog state
     var showThemeDialog by remember { mutableStateOf(false) }

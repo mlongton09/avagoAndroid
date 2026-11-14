@@ -30,7 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -106,7 +106,7 @@ fun GalleryScreen(
     modifier: Modifier = Modifier,
     viewModel: GalleryViewModel = hiltViewModel(),
 ) {
-    val photos by viewModel.photos.collectAsState()
+    val photos by viewModel.photos.collectAsStateWithLifecycle()
     var selectedIndex by remember { mutableIntStateOf(-1) }
 
     if (photos.isEmpty()) {
