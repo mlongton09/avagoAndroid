@@ -250,6 +250,10 @@
     <string name="rentals_sync_failed">Error de sincronización: %1$s. Reintenta cuando se actualice el servidor o descarta.</string>
     <string name="rentals_sync_failed_badge">Error de sincronización</string>
     <string name="rentals_server_warnings">Guardado con avisos: %1$s</string>
+    <string name="rentals_field_conflict">Cambiado aquí y por otra persona: %1$s. Reintentar conserva tus valores; Descartar conserva los suyos.</string>
+    <string name="rentals_field_status">Estado</string>
+    <string name="rentals_field_return_date">Fecha de devolución</string>
+    <string name="rentals_field_language">Idioma</string>
     <string name="rentals_confirmed_with_conflict">Confirmada, pero una unidad se solapa con otra reserva. Revisa la asignación.</string>
     <string name="rentals_damage_decision_charge">Cobrar</string>
     <string name="rentals_damage_decision_waive">Condonar</string>

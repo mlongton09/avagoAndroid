@@ -250,6 +250,10 @@
     <string name="rentals_sync_failed">Synkronisering mislyktes: %1$s. Prøv igjen etter serveroppdateringen, eller forkast.</string>
     <string name="rentals_sync_failed_badge">Synk feilet</string>
     <string name="rentals_server_warnings">Lagret med advarsler: %1$s</string>
+    <string name="rentals_field_conflict">Endret her og av noen andre: %1$s. Prøv igjen beholder dine verdier; Forkast beholder deres.</string>
+    <string name="rentals_field_status">Status</string>
+    <string name="rentals_field_return_date">Returdato</string>
+    <string name="rentals_field_language">Språk</string>
     <string name="rentals_confirmed_with_conflict">Bekreftet, men en enhet overlapper en annen bestilling. Kontroller tildelingen.</string>
     <string name="rentals_damage_decision_charge">Belast</string>
     <string name="rentals_damage_decision_waive">Frafall</string>

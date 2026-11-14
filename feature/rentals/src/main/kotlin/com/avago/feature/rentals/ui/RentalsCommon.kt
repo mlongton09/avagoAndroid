@@ -150,7 +150,31 @@ internal fun noticeText(notice: String?, conflict: Boolean): String = when {
         stringResource(R.string.rentals_sync_failed, notice.removePrefix(RentalOutbox.NOTICE_SYNC_FAILED_PREFIX))
     notice.startsWith(RentalOutbox.NOTICE_WARNINGS_PREFIX) ->
         stringResource(R.string.rentals_server_warnings, notice.removePrefix(RentalOutbox.NOTICE_WARNINGS_PREFIX))
+    notice.startsWith(RentalOutbox.NOTICE_FIELD_CONFLICT_PREFIX) ->
+        stringResource(
+            R.string.rentals_field_conflict,
+            notice.removePrefix(RentalOutbox.NOTICE_FIELD_CONFLICT_PREFIX).split(',').filter { it.isNotBlank() }
+                .map { f -> conflictFieldLabel(f)?.let { stringResource(it) } ?: f.replace('_', ' ') }
+                .joinToString(),
+        )
     else -> notice
+}
+
+/** Label of a field named in a version-conflict notice (customer and order fields). */
+@StringRes
+internal fun conflictFieldLabel(field: String): Int? = when (field) {
+    "name", "customer_name" -> R.string.rentals_name
+    "company" -> R.string.rentals_company
+    "email" -> R.string.rentals_email
+    "phone" -> R.string.rentals_phone
+    "address" -> R.string.rentals_address
+    "date_of_birth" -> R.string.rentals_date_of_birth
+    "notes" -> R.string.rentals_notes
+    "preferred_currency" -> R.string.rentals_currency
+    "preferred_locale" -> R.string.rentals_field_language
+    "status" -> R.string.rentals_field_status
+    "end_at" -> R.string.rentals_field_return_date
+    else -> null
 }
 
 /** True when [notice] marks an outbox item parked after a 404/405. */

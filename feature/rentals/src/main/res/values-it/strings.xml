@@ -250,6 +250,10 @@
     <string name="rentals_sync_failed">Sincronizzazione non riuscita: %1$s. Riprova dopo l\'aggiornamento del server o annulla.</string>
     <string name="rentals_sync_failed_badge">Sync non riuscita</string>
     <string name="rentals_server_warnings">Salvato con avvisi: %1$s</string>
+    <string name="rentals_field_conflict">Modificato qui e da un’altra persona: %1$s. Riprova mantiene i tuoi valori; Scarta mantiene i suoi.</string>
+    <string name="rentals_field_status">Stato</string>
+    <string name="rentals_field_return_date">Data di restituzione</string>
+    <string name="rentals_field_language">Lingua</string>
     <string name="rentals_confirmed_with_conflict">Confermata, ma un\'unità si sovrappone a un\'altra prenotazione. Controlla l\'assegnazione.</string>
     <string name="rentals_damage_decision_charge">Addebita</string>
     <string name="rentals_damage_decision_waive">Rinuncia</string>

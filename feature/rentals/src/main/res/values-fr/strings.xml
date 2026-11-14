@@ -250,6 +250,10 @@
     <string name="rentals_sync_failed">Échec de la synchronisation : %1$s. Réessayez après la mise à jour du serveur ou abandonnez.</string>
     <string name="rentals_sync_failed_badge">Échec de sync</string>
     <string name="rentals_server_warnings">Enregistré avec des avertissements : %1$s</string>
+    <string name="rentals_field_conflict">Modifié ici et par quelqu’un d’autre : %1$s. Réessayer garde vos valeurs ; Ignorer garde les siennes.</string>
+    <string name="rentals_field_status">Statut</string>
+    <string name="rentals_field_return_date">Date de retour</string>
+    <string name="rentals_field_language">Langue</string>
     <string name="rentals_confirmed_with_conflict">Confirmée, mais une unité chevauche une autre réservation. Vérifiez l\'affectation.</string>
     <string name="rentals_damage_decision_charge">Facturer</string>
     <string name="rentals_damage_decision_waive">Renoncer</string>

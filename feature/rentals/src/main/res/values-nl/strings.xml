@@ -250,6 +250,10 @@
     <string name="rentals_sync_failed">Synchronisatie mislukt: %1$s. Probeer opnieuw na de serverupdate of verwijder.</string>
     <string name="rentals_sync_failed_badge">Sync mislukt</string>
     <string name="rentals_server_warnings">Opgeslagen met waarschuwingen: %1$s</string>
+    <string name="rentals_field_conflict">Hier en door iemand anders gewijzigd: %1$s. Opnieuw behoudt jouw waarden; Verwijderen behoudt die van de ander.</string>
+    <string name="rentals_field_status">Status</string>
+    <string name="rentals_field_return_date">Retourdatum</string>
+    <string name="rentals_field_language">Taal</string>
     <string name="rentals_confirmed_with_conflict">Bevestigd, maar een eenheid overlapt met een andere boeking. Controleer de toewijzing.</string>
     <string name="rentals_damage_decision_charge">Doorberekenen</string>
     <string name="rentals_damage_decision_waive">Kwijtschelden</string>

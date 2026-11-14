@@ -250,6 +250,10 @@
     <string name="rentals_sync_failed">Sync failed: %1$s. Retry after the server is updated, or discard.</string>
     <string name="rentals_sync_failed_badge">Sync failed</string>
     <string name="rentals_server_warnings">Saved with warnings: %1$s</string>
+    <string name="rentals_field_conflict">Changed here and by someone else: %1$s. Retry keeps your values; Discard keeps theirs.</string>
+    <string name="rentals_field_status">Status</string>
+    <string name="rentals_field_return_date">Return date</string>
+    <string name="rentals_field_language">Language</string>
     <string name="rentals_confirmed_with_conflict">Confirmed, but a unit overlaps another booking. Review the allocation.</string>
     <string name="rentals_damage_decision_charge">Charge</string>
     <string name="rentals_damage_decision_waive">Waive</string>

@@ -30,6 +30,13 @@ interface RentalDao {
     @Query("UPDATE sync_queue SET sync_status = 'failed', attempts = attempts + 1, last_error = :error, updated_at = strftime('%s','now') * 1000 WHERE queue_id = :queueId")
     suspend fun markQueueFailed(queueId: String, error: String)
 
+    /**
+     * Rewrites a queued row's payload in place (e.g. a rebased body after a version conflict).
+     * An UPDATE, not an upsert, so a row the user discarded meanwhile is never resurrected.
+     */
+    @Query("UPDATE sync_queue SET payload = :payload, updated_at = strftime('%s','now') * 1000 WHERE queue_id = :queueId")
+    suspend fun updateQueuePayload(queueId: String, payload: String)
+
     // ── Records ──────────────────────────────────────────────────────────────
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

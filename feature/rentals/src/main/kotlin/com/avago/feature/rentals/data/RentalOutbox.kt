@@ -11,6 +11,7 @@ import com.avago.core.network.rentals.RentalsApi
 import com.avago.core.network.rentals.RentalsApiException
 import com.avago.core.sync.ExternalOutbox
 import com.avago.core.sync.PhotoUploader
+import com.avago.feature.rentals.domain.ConflictMerge
 import com.avago.feature.rentals.domain.OutboxPlanner
 import com.avago.feature.rentals.domain.Readiness
 import com.avago.feature.rentals.domain.RentalEntity
@@ -42,7 +43,10 @@ import javax.inject.Singleton
  *
  *  * success → server copy replaces the local draft (local→server id kept in `rental_id_map`),
  *    queue row deleted; a booking confirmed with an allocation conflict gets a notice;
- *  * 409 (stale version / allocation conflict / invalid transition / already checked out|in)
+ *  * 409 version `conflict` on a versioned edit (customer PATCH, order transition) → hybrid
+ *    merge ([ConflictMerge]): disjoint field changes are rebased onto the server row and
+ *    resent once; overlapping ones are parked as a conflict naming the clashing fields;
+ *  * other 409s (allocation conflict / invalid transition / already checked out|in)
  *    and other 4xx → `conflict` with a user-facing notice; nothing later in the same order runs;
  *  * 404 / 405 from a route the client calls (route missing on the server) → `failed` with a
  *    visible error; the user can retry (e.g. after a server update) or discard;
@@ -170,6 +174,7 @@ class RentalOutbox @Inject constructor(
     }
 
     private fun classify(type: String, e: Exception): Res {
+        if (e is FieldConflict) return Res.Conflict(e.notice)
         val api = e as? RentalsApiException
         val detail = e.message ?: api?.let { "HTTP ${it.status}" } ?: e.javaClass.simpleName
         return when (OutboxPlanner.dispositionOf(type, e)) {
@@ -246,7 +251,8 @@ class RentalOutbox @Inject constructor(
         when (row.entityType) {
             OutboxPlanner.TYPE_CUSTOMER -> {
                 val resp = if (p.bool("update") == true) {
-                    api.updateCustomer(accountId, requiredServerId(accountId, p, "customer_id"), body, key)
+                    val cid = requiredServerId(accountId, p, "customer_id")
+                    sendRebasing(accountId, row, p, body, RentalEntity.CUSTOMER, cid) { b -> api.updateCustomer(accountId, cid, b, key) }
                 } else {
                     api.createCustomer(accountId, body, key)
                 }
@@ -271,7 +277,8 @@ class RentalOutbox @Inject constructor(
             }
             OutboxPlanner.TYPE_ORDER_ACTION -> {
                 val oid = requiredServerId(accountId, p, "order_id")
-                val resp = api.orderAction(accountId, oid, p.required("action"), body, key)
+                val action = p.required("action")
+                val resp = sendRebasing(accountId, row, p, body, RentalEntity.ORDER, oid) { b -> api.orderAction(accountId, oid, action, b, key) }
                 applyOrder(accountId, null, resp, confirmedDraft = p.str("action") == "extend")
             }
             OutboxPlanner.TYPE_ASSET -> {
@@ -351,6 +358,94 @@ class RentalOutbox @Inject constructor(
             else -> throw OutboxPlanner.MalformedItem("unknown rental outbox type ${row.entityType}")
         }
     }
+
+    /**
+     * Sends a versioned edit; a 409 version `conflict` goes through the hybrid policy
+     * ([ConflictMerge]): disjoint changes are rebased onto `current` and resent once with the
+     * same idempotency key (the server caches only 2xx answers), anything else is parked as a
+     * conflict naming the clashing fields. Either way the server's non-clashing changes are
+     * applied to the local copy of [entity] [id].
+     *
+     * After a conflict the payload's base becomes `current` (and the rebase marker is cleared),
+     * so the user's Retry re-applies their changes on top of the latest server row.
+     */
+    private suspend fun sendRebasing(
+        accountId: String,
+        row: SyncQueueEntity,
+        p: JsonObject,
+        body: JsonObject,
+        entity: String,
+        id: String,
+        send: suspend (JsonObject) -> JsonObject,
+    ): JsonObject {
+        val dao = dbFactory.get(accountId).rentalDao()
+        var payload = p
+        var request = body
+        // At most two sends: the rebase marker is set before the resend, so a second 409 is final.
+        while (true) {
+            val e = try {
+                return send(request)
+            } catch (e: RentalsApiException) {
+                if (!e.isVersionConflict()) throw e
+                e
+            }
+            val versionField = if (entity == RentalEntity.ORDER) "version" else "server_version"
+            val raw = e.body?.obj("current")
+            val current = if (entity == RentalEntity.ORDER) raw?.let { RentalRecords.splitOrder(it)?.order ?: it } else raw
+            val decision = ConflictMerge.resolve(
+                base = payload.obj(ConflictMerge.KEY_BASE),
+                changes = payload.obj(ConflictMerge.KEY_CHANGES) ?: JsonObject(emptyMap()),
+                current = current,
+                body = request,
+                versionField = versionField,
+                alreadyRebased = payload.bool(ConflictMerge.KEY_REBASED) == true,
+            )
+            val clashing = (decision as? ConflictMerge.Decision.Conflict)?.fields.orEmpty()
+            if (current != null) applyServerFields(accountId, entity, id, current, decision.serverChanged - clashing)
+            when (decision) {
+                is ConflictMerge.Decision.Resend -> {
+                    // Persist first: a later 409 (even after a crash) must not rebase again.
+                    payload = JsonObject(payload + mapOf("body" to decision.body, ConflictMerge.KEY_REBASED to JsonPrimitive(true)))
+                    dao.updateQueuePayload(row.queueId, encode(payload))
+                    Timber.i("[RentalOutbox] ${row.entityType} rebased onto the server row (server changed ${decision.serverChanged})")
+                    request = decision.body
+                }
+                is ConflictMerge.Decision.Conflict -> {
+                    if (current != null) {
+                        val (changes, retryBody) = ConflictMerge.forRetry(
+                            payload.obj(ConflictMerge.KEY_BASE), payload.obj(ConflictMerge.KEY_CHANGES) ?: JsonObject(emptyMap()),
+                            current, request, versionField,
+                        )
+                        val next = payload + mapOf(
+                            "body" to retryBody,
+                            ConflictMerge.KEY_BASE to current,
+                            ConflictMerge.KEY_CHANGES to changes,
+                            ConflictMerge.KEY_REBASED to JsonPrimitive(false),
+                        )
+                        dao.updateQueuePayload(row.queueId, encode(JsonObject(next)))
+                    }
+                    val notice = if (clashing.isNotEmpty()) NOTICE_FIELD_CONFLICT_PREFIX + clashing.joinToString(",") else conflictNotice(e)
+                    throw FieldConflict(notice, e)
+                }
+            }
+        }
+    }
+
+    private fun RentalsApiException.isVersionConflict() = status == 409 && code == "conflict"
+
+    /** A version conflict the user must resolve; [notice] is shown on the record. */
+    private class FieldConflict(val notice: String, cause: Throwable) : Exception(notice, cause)
+
+    /** The server's (non-clashing) changes to [fields] applied to the local copy, keeping its state. */
+    private suspend fun applyServerFields(accountId: String, entity: String, id: String, current: JsonObject, fields: Set<String>) {
+        if (fields.isEmpty()) return
+        val dao = dbFactory.get(accountId).rentalDao()
+        val rec = dao.get(entity, id) ?: return
+        val merged = ConflictMerge.applyServerFields(rec.obj, current, fields)
+        RentalRecords.record(entity, merged, rec.localState, rec.clientUuid, rec.notice)?.copy(id = rec.id)?.let { dao.upsert(it) }
+    }
+
+    private fun encode(o: JsonObject) = RentalJson.encodeToString(JsonObject.serializer(), o)
 
     /**
      * Readiness decision (stage B §3). The check to PATCH is: the server id the local row was
@@ -522,5 +617,7 @@ class RentalOutbox @Inject constructor(
         const val NOTICE_SYNC_FAILED_PREFIX = "sync_failed:"
         /** `server_warnings:<codes>` — confirmed with server warnings (e.g. needs_review). */
         const val NOTICE_WARNINGS_PREFIX = "server_warnings:"
+        /** `field_conflict:<field,field>` — a version conflict on these fields (changed here and on the server). */
+        const val NOTICE_FIELD_CONFLICT_PREFIX = "field_conflict:"
     }
 }

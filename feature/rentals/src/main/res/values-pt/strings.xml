@@ -250,6 +250,10 @@
     <string name="rentals_sync_failed">Falha na sincronização: %1$s. Tente novamente após a atualização do servidor ou descarte.</string>
     <string name="rentals_sync_failed_badge">Falha de sync</string>
     <string name="rentals_server_warnings">Guardado com avisos: %1$s</string>
+    <string name="rentals_field_conflict">Alterado aqui e por outra pessoa: %1$s. Tentar novamente mantém os seus valores; Descartar mantém os da outra pessoa.</string>
+    <string name="rentals_field_status">Estado</string>
+    <string name="rentals_field_return_date">Data de devolução</string>
+    <string name="rentals_field_language">Idioma</string>
     <string name="rentals_confirmed_with_conflict">Confirmada, mas uma unidade sobrepõe-se a outra reserva. Verifique a atribuição.</string>
     <string name="rentals_damage_decision_charge">Cobrar</string>
     <string name="rentals_damage_decision_waive">Dispensar</string>

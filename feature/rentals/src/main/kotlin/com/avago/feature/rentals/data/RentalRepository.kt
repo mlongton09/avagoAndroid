@@ -10,6 +10,7 @@ import com.avago.core.data.db.rental.RentalRecordEntity.Companion.STATE_PENDING
 import com.avago.core.data.db.rental.RentalRecordEntity.Companion.STATE_SYNCED
 import com.avago.core.data.rental.LocalFleet
 import com.avago.core.data.rental.Money
+import com.avago.feature.rentals.domain.ConflictMerge
 import com.avago.feature.rentals.domain.LineSwap
 import com.avago.feature.rentals.domain.OrderStatus
 import com.avago.feature.rentals.domain.OutboxPlanner
@@ -200,13 +201,15 @@ class RentalRepository @Inject constructor(
             }
             val existing = d.get(RentalEntity.CUSTOMER, id)
             val merged = JsonObject((existing?.obj ?: JsonObject(emptyMap())) + body)
-            // Optimistic PATCH: a stale `server_version` answers 409 `conflict` with `current`.
-            val patch = RentalRequests.customer(input, existing?.takeIf { it.localState == STATE_SYNCED }?.obj?.long("server_version"))
+            // Optimistic PATCH: a stale `server_version` answers 409 `conflict` with `current`,
+            // which the outbox merges against the synced base kept here (ConflictMerge).
+            val synced = existing?.takeIf { it.localState == STATE_SYNCED }?.obj
+            val patch = RentalRequests.customer(input, synced?.long("server_version"))
             d.upsert(localRecord(RentalEntity.CUSTOMER, merged.with("rental_customer_id" to JsonPrimitive(id)), STATE_PENDING))
             val action = newId()
             enqueue(
                 acc, OutboxPlanner.TYPE_CUSTOMER, action, "customer:$id", patch,
-                buildJsonObject { put("customer_id", id); put("update", true) },
+                buildJsonObject { put("customer_id", id); put("update", true); mergeContext(synced, body) },
                 dependsOn = listOfNotNull(id.takeIf { pendingCreate(acc, it) }),
             )
             id
@@ -341,9 +344,16 @@ class RentalRepository @Inject constructor(
             val rec = d.get(RentalEntity.ORDER, orderId)
             val o = rec?.obj ?: JsonObject(emptyMap())
             val status = o.str("status") ?: OrderStatus.DRAFT
-            val body = RentalRequests.transition(reason, endAt, at ?: Instant.now(), o["version"].takeIf { rec?.localState == STATE_SYNCED })
+            val synced = rec?.takeIf { it.localState == STATE_SYNCED }?.obj
+            val body = RentalRequests.transition(reason, endAt, at ?: Instant.now(), synced?.get("version"))
+            val newStatus = statusAfter(action, status)
+            // Only the fields this transition really changes (ConflictMerge compares them with the server's).
+            val changes = buildJsonObject {
+                if (newStatus != status) put("status", newStatus)
+                endAt?.toString()?.takeIf { !ConflictMerge.same(o["end_at"], JsonPrimitive(it)) }?.let { put("end_at", it) }
+            }
             if (rec != null) {
-                var updated = o.with("status" to JsonPrimitive(statusAfter(action, status)))
+                var updated = o.with("status" to JsonPrimitive(newStatus))
                 if (endAt != null) updated = updated.with("end_at" to JsonPrimitive(endAt.toString()))
                 val state = if (action == "extend" || rec.localState == STATE_DRAFT) STATE_DRAFT else STATE_PENDING
                 d.upsert(localRecord(RentalEntity.ORDER, updated, state, rec.clientUuid).copy(id = rec.id))
@@ -351,10 +361,20 @@ class RentalRepository @Inject constructor(
             }
             enqueue(
                 acc, OutboxPlanner.TYPE_ORDER_ACTION, newId(), "order:$orderId", body,
-                buildJsonObject { put("order_id", orderId); put("action", action) },
+                buildJsonObject { put("order_id", orderId); put("action", action); mergeContext(synced, changes) },
                 dependsOn = listOfNotNull(orderId.takeIf { pendingCreate(acc, it) }),
             )
         }
+    }
+
+    /**
+     * Base snapshot + changes for [ConflictMerge], kept only when the edit is versioned
+     * against a synced row (otherwise no version is sent and no version conflict can occur).
+     */
+    private fun kotlinx.serialization.json.JsonObjectBuilder.mergeContext(base: JsonObject?, changes: JsonObject) {
+        if (base == null) return
+        put(ConflictMerge.KEY_BASE, base)
+        put(ConflictMerge.KEY_CHANGES, changes)
     }
 
     private suspend fun applyAllocationEffects(acc: String, orderId: String, action: String, endAt: Instant?) {

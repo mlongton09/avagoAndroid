@@ -250,6 +250,10 @@
     <string name="rentals_sync_failed">Synkroniseringen misslyckades: %1$s. Försök igen efter serveruppdateringen eller släng.</string>
     <string name="rentals_sync_failed_badge">Synk misslyckades</string>
     <string name="rentals_server_warnings">Sparad med varningar: %1$s</string>
+    <string name="rentals_field_conflict">Ändrat här och av någon annan: %1$s. Försök igen behåller dina värden; Ta bort behåller deras.</string>
+    <string name="rentals_field_status">Status</string>
+    <string name="rentals_field_return_date">Returdatum</string>
+    <string name="rentals_field_language">Språk</string>
     <string name="rentals_confirmed_with_conflict">Bekräftad, men en enhet överlappar en annan bokning. Kontrollera tilldelningen.</string>
     <string name="rentals_damage_decision_charge">Debitera</string>
     <string name="rentals_damage_decision_waive">Efterskänk</string>

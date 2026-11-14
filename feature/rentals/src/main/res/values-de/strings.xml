@@ -250,6 +250,10 @@
     <string name="rentals_sync_failed">Synchronisierung fehlgeschlagen: %1$s. Nach dem Server-Update erneut versuchen oder verwerfen.</string>
     <string name="rentals_sync_failed_badge">Sync fehlgeschlagen</string>
     <string name="rentals_server_warnings">Mit Warnungen gespeichert: %1$s</string>
+    <string name="rentals_field_conflict">Hier und von jemand anderem geändert: %1$s. Erneut versuchen behält Ihre Werte, Verwerfen übernimmt die anderen.</string>
+    <string name="rentals_field_status">Status</string>
+    <string name="rentals_field_return_date">Rückgabedatum</string>
+    <string name="rentals_field_language">Sprache</string>
     <string name="rentals_confirmed_with_conflict">Bestätigt, aber eine Einheit überschneidet sich mit einer anderen Buchung. Zuordnung prüfen.</string>
     <string name="rentals_damage_decision_charge">Berechnen</string>
     <string name="rentals_damage_decision_waive">Erlassen</string>
