@@ -171,18 +171,115 @@ class SyncEngineTest {
     // ─── Push result routing ──────────────────────────────────────────────────
 
     @Test
-    fun `inspection_defect queue rows drain through the register, not sync push`() = runTest {
-        val defectItem = buildQueueEntity(UUID.randomUUID().toString(), DefectOutbox.ENTITY_TYPE, "defect-1")
-        coEvery { mockSyncQueueDao.pendingItemsList() } returns listOf(defectItem)
+    fun `register inspection_defect rows push via sync with mutation_id and base_status`() = runTest {
+        val queueId = UUID.randomUUID().toString()
+        val defectId = UUID.randomUUID().toString()
+        val op = DefectOutbox.Op("asset-1", "brakes", "deferred", null, "open", derived = false, logId = null, label = "Brakes")
+        val item = buildQueueEntity(queueId, DefectOutbox.ENTITY_TYPE, defectId).copy(payload = op.toJson())
+        coEvery { mockSyncQueueDao.pendingItemsList() } returns listOf(item)
+        val request = slot<com.avago.core.network.model.SyncPushRequest>()
+        val result = SyncOperationResult(defectId, success = true)
+        coEvery { mockClient.syncPush(ACCOUNT_ID, capture(request)) } returns SyncPushResponse(results = listOf(result))
+        coEvery { mockDefectRegister.applyPushResult(ACCOUNT_ID, item, result) } returns true
+        coEvery { mockClient.syncPull(any(), any(), any()) } returns emptyPullResponse()
+
+        engine.sync()
+
+        val sent = request.captured.operations.single()
+        assertEquals(DefectOutbox.ENTITY_TYPE, sent.entity_type)
+        assertEquals(defectId, sent.entity_id)
+        assertEquals(queueId, sent.payload!!["mutation_id"]!!.let { (it as JsonPrimitive).content })
+        assertEquals("deferred", (sent.payload!!["status"] as JsonPrimitive).content)
+        assertEquals("open", (sent.payload!!["base_status"] as JsonPrimitive).content)
+        // The defect body comes from the queued op, not the entity payload builder.
+        coVerify(exactly = 0) { mockPayloadBuilder.buildPayload(any(), DefectOutbox.ENTITY_TYPE, any()) }
+        // Results are settled by the register (server wins, gentle notice), never the conflict coordinator.
+        coVerify { mockDefectRegister.applyPushResult(ACCOUNT_ID, item, result) }
+        coVerify(exactly = 0) { mockSyncQueueDao.markConflict(any()) }
+        coVerify(exactly = 0) { mockDefectRegister.drain(any(), any()) }
+    }
+
+    @Test
+    fun `defect push conflict goes to the register, not the conflict coordinator`() = runTest {
+        val defectId = UUID.randomUUID().toString()
+        val op = DefectOutbox.Op("asset-1", "brakes", "resolved", "fixed", "open", derived = false, logId = null, label = "Brakes")
+        val item = buildQueueEntity(UUID.randomUUID().toString(), DefectOutbox.ENTITY_TYPE, defectId).copy(payload = op.toJson())
+        coEvery { mockSyncQueueDao.pendingItemsList() } returns listOf(item)
+        val result = SyncOperationResult(defectId.uppercase(), success = false, conflict = true, server_status = "deleted")
+        coEvery { mockClient.syncPush(any(), any()) } returns SyncPushResponse(results = listOf(result))
+        coEvery { mockClient.syncPull(any(), any(), any()) } returns emptyPullResponse()
+
+        engine.sync()
+
+        coVerify { mockDefectRegister.applyPushResult(ACCOUNT_ID, item, result) }
+        verify(exactly = 0) { mockConflictCoordinator.addConflict(any()) }
+        coVerify(exactly = 0) { mockSyncQueueDao.markConflict(any()) }
+    }
+
+    @Test
+    fun `derived inspection_defect rows stay on the register drain, never in sync push`() = runTest {
+        val derivedOp = DefectOutbox.Op("asset-1", "tyres", "deferred", null, "open", derived = true, logId = "log-1", label = "Tyres")
+        val derived = buildQueueEntity(UUID.randomUUID().toString(), DefectOutbox.ENTITY_TYPE, "asset-1:tyres")
+            .copy(payload = derivedOp.toJson())
+        val malformed = buildQueueEntity(UUID.randomUUID().toString(), DefectOutbox.ENTITY_TYPE, UUID.randomUUID().toString())
+        coEvery { mockSyncQueueDao.pendingItemsList() } returns listOf(derived, malformed)
         coEvery { mockDefectRegister.drain(ACCOUNT_ID, any()) } returns 1
         coEvery { mockClient.syncPull(any(), any(), any()) } returns emptyPullResponse()
 
         engine.sync()
 
         coVerify(exactly = 0) { mockClient.syncPush(any(), any()) }
-        coVerify { mockDefectRegister.drain(ACCOUNT_ID, listOf(defectItem)) }
-        // The register snapshot is refreshed in the pull phase.
+        coVerify { mockDefectRegister.drain(ACCOUNT_ID, listOf(derived, malformed)) }
+    }
+
+    @Test
+    fun `inspection_defect is pulled via sync, rows and tombstones go to the register`() = runTest {
+        coEvery { mockSyncQueueDao.pendingItemsList() } returns emptyList()
+        val row = buildJsonItem("defect_id" to "d-1", "asset_id" to "asset-1", "status" to "open")
+        val tombstone = JsonObject(mapOf("defect_id" to JsonPrimitive("d-2"), "deleted" to JsonPrimitive(true)))
+        coEvery { mockClient.syncPull(ACCOUNT_ID, DefectOutbox.ENTITY_TYPE, any()) } returns SyncPullResponse(
+            items = listOf(row, tombstone), has_more = false, max_seq = 9L,
+        )
+        coEvery { mockClient.syncPull(ACCOUNT_ID, match { it != DefectOutbox.ENTITY_TYPE }, any()) } returns emptyPullResponse()
+
+        engine.sync()
+
+        coVerify { mockDefectRegister.migrateLegacyMeta(mockDb) }
+        coVerify { mockDefectRegister.applyPulled(mockDb, row) }
+        coVerify { mockDefectRegister.applyPulled(mockDb, tombstone) }
+        coVerify { mockMetadataDao.updateWatermark(DefectOutbox.ENTITY_TYPE, 9L) }
+        coVerify { mockDefectRegister.markRegisterSynced(mockDb) }
+        // The REST snapshot is only a fallback when the /sync feed fails.
+        coVerify(exactly = 0) { mockDefectRegister.pull(any()) }
+    }
+
+    @Test
+    fun `failed inspection_defect sync pull falls back to the register snapshot`() = runTest {
+        coEvery { mockSyncQueueDao.pendingItemsList() } returns emptyList()
+        coEvery { mockClient.syncPull(ACCOUNT_ID, DefectOutbox.ENTITY_TYPE, any()) } throws
+            NetworkException(400, "Unknown entity type: inspection_defect")
+        coEvery { mockClient.syncPull(ACCOUNT_ID, match { it != DefectOutbox.ENTITY_TYPE }, any()) } returns emptyPullResponse()
+
+        engine.sync()
+
         coVerify { mockDefectRegister.pull(ACCOUNT_ID) }
+        coVerify(exactly = 0) { mockDefectRegister.markRegisterSynced(any()) }
+    }
+
+    @Test
+    fun `sync push sends the entity body as data`() {
+        val op = com.avago.core.network.model.SyncOperation(
+            entity_type = "work_order",
+            entity_id = "wo-1",
+            operation = "upsert",
+            payload = JsonObject(mapOf("attributes" to JsonPrimitive("{\"source\":{\"kind\":\"defect\",\"defect_ids\":[\"d-1\"]}}"))),
+        )
+        val encoded = kotlinx.serialization.json.Json.encodeToJsonElement(
+            com.avago.core.network.model.SyncOperation.serializer(), op,
+        ) as JsonObject
+        // AvagoSvc's SyncOperation reads `data`; anything else reaches the server as no body.
+        assertNotNull(encoded["data"])
+        assertTrue("payload" !in encoded)
     }
 
     @Test

@@ -284,6 +284,119 @@ class DefectRegisterSyncTest {
         coVerify(exactly = 0) { meta.upsert(any()) }
     }
 
+    // ── /sync push results ────────────────────────────────────────────────
+
+    private fun result(id: String, success: Boolean = false, conflict: Boolean = false, serverStatus: String? = null, row: JsonObject? = null, error: String? = null) =
+        com.avago.core.network.model.SyncOperationResult(
+            entity_id = id, success = success, conflict = conflict, error = error,
+            server_status = serverStatus, conflict_resolution = if (conflict) "SERVER_WINS" else null, server_row = row,
+        )
+
+    @Test
+    fun `sync push success clears the queued change without a notice`() = runTest {
+        val item = queued("d1", op("deferred"))
+
+        assertTrue(sync.applyPushResult(ACCOUNT, item, result("d1", success = true)))
+
+        coVerify { queue.markSuccess(item.queueId) }
+        verify(exactly = 0) { toast.warning(any()) }
+    }
+
+    @Test
+    fun `sync push conflict applies the server row and shows a gentle notice`() = runTest {
+        val item = queued("d1", op("deferred"))
+
+        assertFalse(sync.applyPushResult(ACCOUNT, item, result("d1", conflict = true, serverStatus = "resolved", row = serverRow("d1", "resolved"))))
+
+        coVerify { queue.markSuccess(item.queueId) }
+        coVerify { defects.upsert(match { it.defectId == "d1" && it.status == "resolved" }) }
+        verify { toast.warning(any()) }
+        coVerify(exactly = 0) { queue.markConflict(any()) }
+    }
+
+    @Test
+    fun `sync push conflict on a deleted defect removes the local row`() = runTest {
+        val item = queued("d1", op("resolved", note = "fixed"))
+
+        assertFalse(sync.applyPushResult(ACCOUNT, item, result("d1", conflict = true, serverStatus = "deleted")))
+
+        coVerify { queue.markSuccess(item.queueId) }
+        coVerify { defects.deleteById("d1") }
+        coVerify(exactly = 0) { defects.upsert(any()) }
+        verify { toast.warning(any()) }
+    }
+
+    @Test
+    fun `sync push conflict row is not applied over a newer queued change`() = runTest {
+        val item = queued("d1", op("deferred"))
+        coEvery { queue.hasPendingPush(DefectOutbox.ENTITY_TYPE, "d1") } returns 1
+
+        sync.applyPushResult(ACCOUNT, item, result("d1", conflict = true, serverStatus = "open", row = serverRow("d1", "open")))
+
+        coVerify { queue.markSuccess(item.queueId) }
+        coVerify(exactly = 0) { defects.upsert(any()) }
+    }
+
+    @Test
+    fun `sync push error stays queued for bounded retry`() = runTest {
+        val item = queued("d1", op("deferred"))
+
+        assertFalse(sync.applyPushResult(ACCOUNT, item, result("d1", error = "permission denied")))
+
+        coVerify { queue.markError(item.queueId, "permission denied") }
+        coVerify(exactly = 0) { queue.markSuccess(any()) }
+        coVerify(exactly = 0) { defects.upsert(any()) }
+    }
+
+    // ── /sync pull ────────────────────────────────────────────────────────
+
+    @Test
+    fun `pulled row is cached and a tombstone deletes the local row`() = runTest {
+        sync.applyPulled(db, serverRow("d1", "monitoring", bucket = "M"))
+        sync.applyPulled(db, JsonObject(mapOf("defect_id" to JsonPrimitive("d2"), "deleted" to JsonPrimitive(true))))
+
+        coVerify { defects.upsert(match { it.defectId == "d1" && it.status == "monitoring" }) }
+        coVerify { defects.deleteById("d2") }
+    }
+
+    @Test
+    fun `pulled row does not overwrite a queued local change`() = runTest {
+        coEvery { queue.hasPendingPush(DefectOutbox.ENTITY_TYPE, "d1") } returns 1
+
+        sync.applyPulled(db, serverRow("d1", "open"))
+
+        coVerify(exactly = 0) { defects.upsert(any()) }
+    }
+
+    @Test
+    fun `legacy register flag moves off the inspection_defect watermark row`() = runTest {
+        coEvery { meta.getById(DefectOutbox.META_KEY) } returns null
+        coEvery { meta.getById(DefectOutbox.LEGACY_META_KEY) } returns
+            SyncMetadataEntity(DefectOutbox.LEGACY_META_KEY, DefectOutbox.REGISTER_SUPPORTED, 5L)
+
+        sync.migrateLegacyMeta(db)
+
+        coVerify { meta.softDelete(DefectOutbox.ENTITY_TYPE) }
+        coVerify { meta.upsert(SyncMetadataEntity(DefectOutbox.META_KEY, DefectOutbox.REGISTER_SUPPORTED, 0L)) }
+    }
+
+    @Test
+    fun `legacy migration runs once`() = runTest {
+        coEvery { meta.getById(DefectOutbox.META_KEY) } returns SyncMetadataEntity(DefectOutbox.META_KEY, 1L, 9L)
+
+        sync.migrateLegacyMeta(db)
+
+        coVerify(exactly = 0) { meta.softDelete(any()) }
+        coVerify(exactly = 0) { meta.upsert(any()) }
+    }
+
+    @Test
+    fun `completed sync feed marks the register supported and fresh`() = runTest {
+        sync.markRegisterSynced(db)
+
+        coVerify { meta.upsert(SyncMetadataEntity(DefectOutbox.META_KEY, DefectOutbox.REGISTER_SUPPORTED, NOW)) }
+    }
+
     private companion object {
         const val ACCOUNT = "acct-1"
         const val NOW = 1_000_000L

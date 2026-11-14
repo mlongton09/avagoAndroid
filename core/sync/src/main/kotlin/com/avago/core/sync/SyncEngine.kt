@@ -296,6 +296,8 @@ class SyncEngine @Inject constructor(
         "rca_report", "category",
         "po_comment",
         "owner_assignment", "part_transfer_request", "request_portal",
+        // Open-defect register (AvagoSvc docs/sync-defects.md); rows + deleted:true tombstones.
+        DefectOutbox.ENTITY_TYPE,
         // Alias for location_history (change 131 — server may send either name)
         "location_history",
     )
@@ -455,16 +457,27 @@ class SyncEngine @Inject constructor(
 
         val externalTypes = externalOutboxes.get().flatMapTo(HashSet()) { it.entityTypes }
         val allPending = db.syncQueueDao().pendingItemsList()
-        val defectItems = allPending.filter { it.entityType == DefectOutbox.ENTITY_TYPE }
+        // inspection_defect: register rows (UUID defect_id) ride /sync/push; derived defects
+        // (`asset:key` ids, unknown to /sync) are drained through the register REST endpoints.
+        val defectOps = allPending.filter { it.entityType == DefectOutbox.ENTITY_TYPE }
+            .associate { it.queueId to DefectOutbox.Op.fromJson(it.payload) }
+        val defectItems = allPending.filter {
+            it.entityType == DefectOutbox.ENTITY_TYPE && !DefectOutbox.isSyncPushable(it.entityId, defectOps[it.queueId])
+        }
+        val defectItemIds = defectItems.mapTo(HashSet()) { it.queueId }
         // Rows owned by an ExternalOutbox are drained below, not sent to /sync/push.
-        val pending = allPending.filterNot { it.entityType == DefectOutbox.ENTITY_TYPE || it.entityType in externalTypes }
+        val pending = allPending.filterNot { it.queueId in defectItemIds || it.entityType in externalTypes }
         val externalPending = if (externalTypes.isEmpty()) emptyList() else allPending.filter { it.entityType in externalTypes }
         if (pending.isNotEmpty()) {
             val queueIds = pending.map { it.queueId }
             db.syncQueueDao().markInFlight(queueIds)
 
             val operations = pending.mapNotNull { item ->
-                val payload = payloadBuilder.buildPayload(accountId, item.entityType, item.entityId)
+                val payload = if (item.entityType == DefectOutbox.ENTITY_TYPE) {
+                    DefectOutbox.syncPushData(item.queueId, defectOps.getValue(item.queueId)!!)
+                } else {
+                    payloadBuilder.buildPayload(accountId, item.entityType, item.entityId)
+                }
                 if (payload == null) {
                     Timber.w("[SyncEngine] No payload for ${item.entityType}/${item.entityId} — skipping")
                     null
@@ -493,6 +506,13 @@ class SyncEngine @Inject constructor(
                     for (result in response.results) {
                         val entityIdLower = result.entity_id.lowercase()
                         val item = itemByEntityId[entityIdLower] ?: continue
+
+                        if (item.entityType == DefectOutbox.ENTITY_TYPE) {
+                            // Server wins on defect conflicts: applied locally with a gentle notice,
+                            // not routed to the conflict coordinator (contract: sync-defects.md).
+                            if (defectRegister.get().applyPushResult(accountId, item, result)) pushedCount++
+                            continue
+                        }
 
                         when {
                             result.success -> {
@@ -547,8 +567,8 @@ class SyncEngine @Inject constructor(
             }
         }
 
-        // Inspection-defect lifecycle changes: not a /sync/push entity on the server — drained
-        // through the register endpoints after the batch (so pushed inspections are registered).
+        // Derived inspection defects (no register id yet): resolved and sent through the register
+        // endpoints after the batch, so freshly pushed inspections have reached the register.
         if (defectItems.isNotEmpty()) {
             try {
                 pushedCount += defectRegister.get().drain(accountId, defectItems)
@@ -571,6 +591,16 @@ class SyncEngine @Inject constructor(
         // -----------------------------------------------------------------------
         _state.value = SyncState.Pulling
         val pulledCount = AtomicLong(0L)
+        // Entity types whose pull did not complete this cycle (drives the defect-register fallback).
+        val failedPullTypes = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+        // Older builds stored the defect-register flag in the inspection_defect watermark row.
+        try {
+            defectRegister.get().migrateLegacyMeta(db)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w(e, "[SyncEngine] defect register metadata migration failed")
+        }
 
         // Pulls all entity types concurrently (mirrors iOS pullDataEntitiesInParallel).
         // supervisorScope lets each entity pull fail independently; fatal errors (403/429)
@@ -627,7 +657,9 @@ class SyncEngine @Inject constructor(
                             } else {
                                 Timber.e(e, "[SyncEngine] Pull $entityType failed (HTTP ${e.code}) — continuing")
                             }
+                            failedPullTypes.add(entityType)
                         } catch (e: Exception) {
+                            failedPullTypes.add(entityType)
                             Timber.e(e, "[SyncEngine] Pull $entityType failed — continuing")
                         }
                     }
@@ -653,13 +685,19 @@ class SyncEngine @Inject constructor(
             Timber.w(e, "[SyncEngine] PreferencesSync.refreshFromServer failed — ignoring")
         }
 
-        // Open-defect register snapshot (not a /sync/pull entity; non-fatal, cache kept on failure)
+        // Open-defect register: pulled through /sync above. If that feed failed (e.g. a service
+        // without /sync defect support), fall back to the register snapshot (non-fatal, cache
+        // kept on failure).
         try {
-            defectRegister.get().pull(accountId)
+            if (DefectOutbox.ENTITY_TYPE in failedPullTypes) {
+                defectRegister.get().pull(accountId)
+            } else {
+                defectRegister.get().markRegisterSynced(db)
+            }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            Timber.w(e, "[SyncEngine] Defect register pull failed — keeping cached register")
+            Timber.w(e, "[SyncEngine] Defect register refresh failed — keeping cached register")
         }
 
         // Feature-owned feeds (rentals, …) — non-fatal for the main sync.
@@ -710,6 +748,12 @@ class SyncEngine @Inject constructor(
 
     private suspend fun upsertPulledItem(accountId: String, entityType: String, item: JsonObject) {
         val db = dbFactory.get(accountId)
+
+        if (entityType == DefectOutbox.ENTITY_TYPE) {
+            // Rows / deleted:true tombstones; no server_version column, pending-change guard inside.
+            defectRegister.get().applyPulled(db, item)
+            return
+        }
 
         // Optimistic concurrency: skip if the server sent an older or equal snapshot.
         // hasPendingPush guard: for asset/log/work_order, skip if a local edit is queued

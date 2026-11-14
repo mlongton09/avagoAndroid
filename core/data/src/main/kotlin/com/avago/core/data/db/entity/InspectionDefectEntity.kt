@@ -8,9 +8,9 @@ import androidx.room.PrimaryKey
 /**
  * Local copy of one AvagoSvc `inspection_defects` register row (inspection-v2 contract §3.2).
  *
- * Filled by `DefectRegisterSync.pull` during every sync cycle (the register is not a
- * `/sync/pull` entity, so it is fetched from `GET /defects` and stored as an account-wide
- * snapshot). [status] mirrors `row_json.status` so local optimistic edits (queued in
+ * Filled from the `/sync/pull` `inspection_defect` feed every sync cycle (rows upserted,
+ * `deleted:true` tombstones removed; `DefectRegisterSync.pull` / `GET /defects` snapshot as the
+ * fallback). [status] mirrors `row_json.status` so local optimistic edits (queued in
  * `sync_queue` as `inspection_defect`) can be applied without rewriting the server row.
  */
 @Entity(

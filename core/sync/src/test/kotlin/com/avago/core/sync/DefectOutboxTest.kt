@@ -128,4 +128,32 @@ class DefectOutboxTest {
         assertEquals("NR", DefectOutbox.bucketOf(e.rowJson))
         assertNull(DefectOutbox.toEntity(JsonObject(mapOf("status" to JsonPrimitive("open"))), 0L))
     }
+
+    @Test
+    fun `only register rows with a UUID id are sync-pushable`() {
+        val uuid = "7d0b6a3e-1111-4c2a-9f00-000000000001"
+        assertTrue(DefectOutbox.isSyncPushable(uuid, op()))
+        assertTrue(DefectOutbox.isSyncPushable(uuid.uppercase(), op()))
+        assertFalse(DefectOutbox.isSyncPushable("asset-1:brakes", op(derived = true)))
+        assertFalse(DefectOutbox.isSyncPushable(uuid, op(derived = true)))
+        assertFalse(DefectOutbox.isSyncPushable("asset-1:brakes", op()))
+        assertFalse(DefectOutbox.isSyncPushable(uuid, null))
+    }
+
+    @Test
+    fun `sync push data carries mutation id status note and baseline only`() {
+        val data = DefectOutbox.syncPushData("q-1", op(status = "resolved", base = "deferred", note = "pads replaced", logId = "log-1"))
+        assertEquals(setOf("mutation_id", "status", "resolution_note", "base_status"), data.keys)
+        assertEquals("q-1", (data["mutation_id"] as JsonPrimitive).content)
+        assertEquals("resolved", (data["status"] as JsonPrimitive).content)
+        assertEquals("pads replaced", (data["resolution_note"] as JsonPrimitive).content)
+        assertEquals("deferred", (data["base_status"] as JsonPrimitive).content)
+        assertFalse("resolution_note" in DefectOutbox.syncPushData("q-2", op()))
+    }
+
+    @Test
+    fun `register flag key does not collide with the sync watermark row`() {
+        assertTrue(DefectOutbox.META_KEY != DefectOutbox.ENTITY_TYPE)
+        assertEquals(DefectOutbox.ENTITY_TYPE, DefectOutbox.LEGACY_META_KEY)
+    }
 }

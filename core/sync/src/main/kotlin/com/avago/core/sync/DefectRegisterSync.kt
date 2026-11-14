@@ -8,29 +8,36 @@ import com.avago.core.data.db.entity.SyncMetadataEntity
 import com.avago.core.data.db.entity.SyncQueueEntity
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
+import com.avago.core.network.model.SyncOperationResult
 import com.avago.core.ui.AvagoToast
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
 import timber.log.Timber
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Offline-first adapter for the inspection-v2 open-defect register (AvagoSvc `inspection_defects`).
+ * Offline-first adapter for the inspection-v2 open-defect register (AvagoSvc `inspection_defects`,
+ * `/sync` entity `inspection_defect`, contract AvagoSvc docs/sync-defects.md).
  *
- * The register is not a `/sync/pull` / `/sync/push` entity on the server, so [SyncEngine] calls this
- * class from its cycle instead:
- * - **pull**: account-wide `GET /defects` snapshot → Room `inspection_defects` (rows with queued
- *   local changes are kept), plus a `sync_metadata` row recording whether the register exists.
+ * - **pull**: [SyncEngine] pulls `inspection_defect` through `/sync/pull` and applies each row /
+ *   tombstone with [applyPulled]; [markRegisterSynced] records the register as available. [pull]
+ *   (account-wide `GET /defects` snapshot) is the fallback when that feed fails, and the panel-open
+ *   refresh ([pullIfStale]) when the last refresh is old.
  * - **writes**: [enqueueStatusChange] applies the change to the cached row and queues it in
- *   `sync_queue` (`inspection_defect`, client-generated UUID queue id = idempotency key). Works for
- *   derived defects too (resolved to a register row by slot when draining).
- * - **drain**: [drain] sends queued changes via `PATCH /defects/{id}`, server wins on status
- *   conflicts (non-blocking toast); transient failures stay queued for the engine's bounded retry
- *   (`resetErrorsToPending(maxAttempts = 10)`).
+ *   `sync_queue` (`inspection_defect`, client-generated UUID queue id = idempotency / mutation id).
+ *   Works for derived defects too.
+ * - **push**: register rows go through `/sync/push`; [applyPushResult] applies the result (server
+ *   wins on conflicts: server row applied or local row removed, non-blocking toast). Derived
+ *   defects (`asset:key` ids) cannot be addressed by `/sync`, so [drain] resolves them to a
+ *   register row and sends them via `PATCH /defects/{id}`. Transient failures stay queued for the
+ *   engine's bounded retry (`resetErrorsToPending(maxAttempts = 10)`).
  */
 @Singleton
 class DefectRegisterSync @Inject constructor(
@@ -54,6 +61,7 @@ class DefectRegisterSync @Inject constructor(
      */
     suspend fun pull(accountId: String): Boolean = pullMutex.withLock {
         val db = dbFactory.get(accountId)
+        migrateLegacyMeta(db)
         when (val res = client.getDefects(accountId, assetId = null)) {
             is NetworkResult.Success -> {
                 val ts = now()
@@ -223,6 +231,84 @@ class DefectRegisterSync @Inject constructor(
             }
         }
         return applied
+    }
+
+    /**
+     * One-time cleanup: older builds kept the register flag (1 / -1) in the `sync_metadata` row
+     * now used as the `inspection_defect` pull watermark. Move the flag to [DefectOutbox.META_KEY]
+     * (marked stale so the next refresh confirms it) and drop the old row so the `/sync` feed
+     * starts from seq 0.
+     */
+    suspend fun migrateLegacyMeta(db: AvagoDatabase) {
+        val meta = db.syncMetadataDao()
+        if (meta.getById(DefectOutbox.META_KEY) != null) return
+        val legacyFlag = meta.getById(DefectOutbox.LEGACY_META_KEY)?.lastServerSeq
+            ?.takeIf { it == DefectOutbox.REGISTER_SUPPORTED || it == DefectOutbox.REGISTER_UNSUPPORTED }
+        meta.softDelete(DefectOutbox.LEGACY_META_KEY)
+        meta.upsert(SyncMetadataEntity(DefectOutbox.META_KEY, legacyFlag ?: 0L, 0L))
+    }
+
+    /** The `/sync/pull` feed for `inspection_defect` completed: the register exists and is fresh. */
+    suspend fun markRegisterSynced(db: AvagoDatabase) {
+        db.syncMetadataDao().upsert(SyncMetadataEntity(DefectOutbox.META_KEY, DefectOutbox.REGISTER_SUPPORTED, now()))
+    }
+
+    /**
+     * Apply one `/sync/pull` item: a tombstone (`deleted: true`) removes the local row; a full row
+     * is cached unless a local change for it is still queued (the push result settles it).
+     */
+    suspend fun applyPulled(db: AvagoDatabase, item: JsonObject) {
+        val id = (item["defect_id"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() } ?: return
+        if ((item["deleted"] as? JsonPrimitive)?.booleanOrNull == true) {
+            db.inspectionDefectDao().deleteById(id)
+            return
+        }
+        cache(db, item)
+    }
+
+    /**
+     * Settle a queued change from its `/sync/push` [result]. Success clears it; a conflict means
+     * the server kept its own state (`SERVER_WINS`): its row replaces the optimistic one, or the
+     * local row is removed when the defect no longer exists, with a non-blocking notice (not a
+     * SyncConflictCoordinator entry). Other failures stay queued for the engine's bounded retry.
+     * Returns true when the change was applied on the server.
+     */
+    suspend fun applyPushResult(accountId: String, item: SyncQueueEntity, result: SyncOperationResult): Boolean {
+        val db = dbFactory.get(accountId)
+        val queue = db.syncQueueDao()
+        val label = DefectOutbox.Op.fromJson(item.payload)?.label ?: item.entityId
+        return when {
+            result.success -> {
+                queue.markSuccess(item.queueId)
+                (result.server_row ?: result.data)?.takeIf { it.containsKey("defect_id") }?.let { cache(db, it) }
+                true
+            }
+            result.conflict -> {
+                queue.markSuccess(item.queueId)
+                val row = result.server_row
+                when {
+                    result.server_status == "deleted" -> {
+                        db.inspectionDefectDao().deleteById(item.entityId)
+                        notify(R_REJECTED, label)
+                    }
+                    row != null -> {
+                        cache(db, row)
+                        notify(R_CONFLICT, label)
+                    }
+                    else -> {
+                        // No server state reported: undo the optimistic status; the next pull refreshes it.
+                        DefectOutbox.Op.fromJson(item.payload)?.let { restore(db, item, it) }
+                        notify(R_CONFLICT, label)
+                    }
+                }
+                false
+            }
+            else -> {
+                queue.markError(item.queueId, result.error ?: "Unknown error")
+                Timber.w("[DefectRegisterSync] push error ${item.entityId}: ${result.error}")
+                false
+            }
+        }
     }
 
     /** Store a server row unless a newer local change for it is still queued. */

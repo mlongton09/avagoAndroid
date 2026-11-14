@@ -79,6 +79,21 @@ class SyncPayloadBuilderTest {
     // ─── Unknown / missing entities ───────────────────────────────────────────
 
     @Test
+    fun `work_order payload carries attributes source defect_ids so the server links defects`() = runTest {
+        val woDao = mockk<com.avago.core.data.db.dao.WorkOrderDao>()
+        every { mockDb.workOrderDao() } returns woDao
+        val attrs = """{"source":{"kind":"defect","defect_ids":["7d0b6a3e-1111-4c2a-9f00-000000000001"]}}"""
+        val wo = mockk<com.avago.core.data.db.entity.WorkOrderEntity>(relaxed = true)
+        every { wo.woId } returns "wo-1"
+        every { wo.attributes } returns attrs
+        coEvery { woDao.getById("wo-1") } returns wo
+
+        val payload = builder.buildPayload(ACCOUNT_ID, "work_order", "wo-1")
+
+        assertEquals(attrs, (payload!!["attributes"] as kotlinx.serialization.json.JsonPrimitive).content)
+    }
+
+    @Test
     fun `unknown entity type returns null`() = runTest {
         val result = builder.buildPayload(ACCOUNT_ID, "unicorn", "id-001")
         assertNull(result, "Unknown entity type must return null, not throw")
