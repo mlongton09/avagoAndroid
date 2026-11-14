@@ -30,6 +30,9 @@ import com.avago.feature.log.nav.DefectWorkOrderRequest
 import com.avago.feature.log.nav.LogRoute
 import com.avago.feature.log.nav.logNavGraph
 import com.avago.feature.log.ui.AssetOpenDefectsPanel
+import com.avago.feature.rentals.nav.RentalsRoute
+import com.avago.feature.rentals.nav.rentalsNavGraph
+import com.avago.feature.rentals.ui.RentalsFleetSummaryCard
 import com.avago.feature.assets.ui.GlobalCategoryReportScreen
 import com.avago.feature.reports.KpiDashboardScreen
 import com.avago.feature.reports.ui.CostReportScreen
@@ -140,6 +143,27 @@ fun AvagoNavHost(
                         onCreateWorkOrder = { req -> navController.navigate(workOrderFromDefectRoute(req)) },
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     )
+                },
+                onOpenAssetRentals = { assetId ->
+                    navController.navigate(RentalsRoute.asset(assetId))
+                },
+                listHeader = if (rentalsEnabled) {
+                    {
+                        RentalsFleetSummaryCard(
+                            onOpenFleet = { status -> navController.navigate(RentalsRoute.fleet(status)) },
+                        )
+                    }
+                } else {
+                    null
+                },
+            )
+
+            // ── Rentals (feature/rentals) ─────────────────────────────────────────
+            rentalsNavGraph(
+                navController = navController,
+                onOpenAsset = { assetId -> navController.navigate(AssetsRoute.detail(assetId)) },
+                onStartInspection = { assetId ->
+                    navController.navigate(LogRoute.addEdit(assetId = assetId, category = "inspection"))
                 },
             )
 

@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.CarRental
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.automirrored.filled.MenuBook
@@ -203,7 +204,9 @@ fun MainScaffold(
     val isAssetLogDestination = currentRoute?.startsWith("log/list") == true
     val isLogAddEditDestination = currentRoute?.startsWith("log/add_edit") == true
     val isLogDetailDestination = currentRoute?.startsWith("log/detail") == true
-
+    // Rentals screens (feature/rentals) render their own top bars.
+    val isRentalsDestination = currentRoute?.startsWith("rentals/") == true
+    val rentalsEnabled by navFlagsViewModel.rentalsEnabled.collectAsState()
     AvagoToastHost(toastManager = toast) {
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -228,6 +231,7 @@ fun MainScaffold(
                     },
                     navController = navController,
                     canNavigate = ::can,
+                    rentalsEnabled = rentalsEnabled,
                 )
             }
         },
@@ -235,7 +239,7 @@ fun MainScaffold(
         Scaffold(
             floatingActionButtonPosition = FabPosition.Start,
             topBar = {
-                if (!isAuthDestination && !isAssetLogDestination && !isChatDetailDestination && !isLogAddEditDestination && !isLogDetailDestination && !isWorkOrderListDestination && !isWorkOrderLogDestination) {
+                if (!isAuthDestination && !isAssetLogDestination && !isChatDetailDestination && !isLogAddEditDestination && !isLogDetailDestination && !isWorkOrderListDestination && !isWorkOrderLogDestination && !isRentalsDestination) {
                     CenterAlignedTopAppBar(
                         title = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -439,6 +443,7 @@ fun SideMenuContent(
     onSignIn: () -> Unit = {},
     navController: NavHostController,
     canNavigate: (String) -> Boolean = { true },
+    rentalsEnabled: Boolean = false,
 ) {
     val accounts by viewModel.accounts.collectAsState()
     val activeId  by viewModel.activeAccountId.collectAsState()
@@ -544,6 +549,18 @@ fun SideMenuContent(
         }
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+        if (rentalsEnabled) {
+            // ── RENTALS (feature/rentals) ────────────────────────────────────
+            NavigationDrawerItem(
+                label = { Text(stringResource(com.avago.feature.rentals.R.string.rentals_title)) },
+                selected = currentRoute?.startsWith("rentals/") == true,
+                icon = { Icon(Icons.Default.CarRental, contentDescription = null) },
+                onClick = { onNavigate(com.avago.feature.rentals.nav.RentalsRoute.HOME) },
+                modifier = Modifier.padding(horizontal = 8.dp),
+            )
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+        }
 
         // ── REPORTS ──────────────────────────────────────────────────────────
         DrawerSectionHeader(stringResource(R.string.drawer_header_reports))

@@ -186,6 +186,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun forwardLaunchIntent(intent: android.content.Intent?) {
+        // Rentals home-screen widget: opens a rentals screen (only rentals/* routes are accepted).
+        intent?.getStringExtra(com.avago.feature.rentals.widget.RentalFleetWidget.EXTRA_OPEN)
+            ?.takeIf { it.startsWith(com.avago.feature.rentals.nav.RentalsRoute.PREFIX) }
+            ?.let { mainViewModel.openRoute(it) }
         when (intent?.action) {
             ACTION_START_INSPECTION ->
                 mainViewModel.openRoute(com.avago.feature.log.nav.LogRoute.addEdit(category = "inspection"))
