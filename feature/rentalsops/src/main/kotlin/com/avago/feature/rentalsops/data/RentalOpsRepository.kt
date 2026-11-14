@@ -8,19 +8,21 @@ import com.avago.core.data.db.entity.LocationEntity
 import com.avago.core.data.db.entity.SyncQueueEntity
 import com.avago.feature.rentalsops.domain.DeliveryStateMachine
 import com.avago.feature.rentalsops.domain.DeliveryTask
-import com.avago.feature.rentalsops.domain.FleetCard
-import com.avago.feature.rentalsops.domain.OrderLine
-import com.avago.feature.rentalsops.domain.OrderSummary
+import com.avago.core.data.db.rental.RentalRecordEntity
+import com.avago.core.data.rental.LocalFleet
+import com.avago.feature.rentalsops.domain.OpsCounts
 import com.avago.feature.rentalsops.domain.Proof
 import com.avago.feature.rentalsops.domain.TaskAction
 import com.avago.feature.rentalsops.domain.TaskStatus
 import com.avago.feature.rentalsops.domain.Transfer
 import com.avago.feature.rentalsops.domain.TransferStatus
 import com.avago.feature.rentalsops.domain.TransitionResult
+import com.avago.feature.rentalsops.domain.UnassignedLine
 import com.avago.feature.rentalsops.domain.UnitAssignment
-import com.avago.feature.rentalsops.domain.WidgetCounts
-import com.avago.feature.rentalsops.domain.allocationFrom
 import com.avago.feature.rentalsops.domain.parseInstant
+import com.avago.feature.rentalsops.domain.toAssignmentAllocation
+import com.avago.feature.rentalsops.domain.toAssignmentUnit
+import com.avago.feature.rentalsops.domain.obj
 import com.avago.feature.rentalsops.domain.str
 import com.avago.feature.rentalsops.sync.AssignPayload
 import com.avago.feature.rentalsops.sync.RentalOpsQueueTypes
@@ -28,7 +30,6 @@ import com.avago.feature.rentalsops.sync.RentalOpsSyncScheduler
 import com.avago.feature.rentalsops.sync.TaskEventPayload
 import com.avago.feature.rentalsops.sync.TransferPayload
 import com.avago.feature.rentalsops.sync.outboxJson
-import com.avago.feature.rentalsops.widget.RentalOpsWidgetUpdater
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -42,6 +43,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
 import java.io.File
 import java.time.Instant
 import java.util.UUID
@@ -69,8 +71,7 @@ data class TaskView(
 }
 
 data class LineView(
-    val line: OrderLine,
-    val order: OrderSummary?,
+    val line: UnassignedLine,
     val pendingAssetName: String?,
     val pending: PendingAction?,
 )
@@ -113,6 +114,11 @@ class RentalOpsRepository @Inject constructor(
 
     private fun records(entity: String): Flow<List<JsonObject>> = perAccount({ a ->
         opsDb.dao(a).observe(entity).map { rows -> rows.mapNotNull { parse(it.json) } }
+    }, emptyList())
+
+    /** Rows of P1's shared rental store (fleet, allocations, orders, lines, customers). */
+    private fun shared(entities: List<String>): Flow<List<RentalRecordEntity>> = perAccount({ a ->
+        dbFactory.get(a).rentalDao().observeEntities(entities)
     }, emptyList())
 
     private fun queue(types: Set<String>): Flow<List<SyncQueueEntity>> = perAccount({ a ->
@@ -230,7 +236,6 @@ class RentalOpsRepository @Inject constructor(
             val rec = dao.get(RentalOpsEntities.TRANSFER, row.entityId)?.let { parse(it.json) }
             if (rec?.get("_pending")?.let { (it as? JsonPrimitive)?.booleanOrNull } == true) dao.deleteRecord(RentalOpsEntities.TRANSFER, row.entityId)
         }
-        RentalOpsWidgetUpdater.request(ctx)
     }
 
     private suspend fun enqueue(accountId: String, queueId: String, type: String, entityId: String, payload: String) {
@@ -240,52 +245,51 @@ class RentalOpsRepository @Inject constructor(
             SyncQueueEntity(queueId, type, entityId, "update", null, payload, "pending", 0, null, now, now),
         )
         scheduler.requestPush()
-        RentalOpsWidgetUpdater.request(ctx)
     }
 
-    // ---- Fleet / widget ------------------------------------------------------------------
+    // ---- Fleet (P1's shared store) -------------------------------------------------------
 
-    fun observeFleet(): Flow<List<FleetCard>> = records(RentalOpsEntities.FLEET).map { rows -> rows.mapNotNull { FleetCard.from(it) } }
+    /** asset_id → display name from P1's ental_fleet cache. */
+    fun observeAssetNames(): Flow<Map<String, String>> = shared(listOf(LocalFleet.ENTITY_FLEET)).map { rows ->
+        rows.mapNotNull(LocalFleet::unitOf).associate { it.assetId to it.name.ifBlank { it.assetId.take(8) } }
+    }
 
-    fun observeCounts(): Flow<WidgetCounts.Counts> =
-        observeFleet().map { cards -> WidgetCounts.compute(cards.map { it.toWidgetRow() }, Instant.now()) }
+    /** Out / due today / overdue — the same LocalFleet computation as P1's home-screen widget. */
+    fun observeCounts(): Flow<OpsCounts> =
+        shared(LocalFleet.INPUT_ENTITIES).map { OpsCounts.of(LocalFleet.compute(it, Instant.now()).values) }
 
     // ---- Class → unit assignment ---------------------------------------------------------
 
+    /** Stage C unassigned-lines work queue (cached by the outbox pull) + local pending assigns. */
     fun observeLinesNeedingUnit(): Flow<List<LineView>> = combine(
-        records(RentalOpsEntities.ORDER_LINE),
-        records(RentalOpsEntities.ORDER),
-        observeFleet(),
+        records(RentalOpsEntities.UNASSIGNED_LINE),
+        observeAssetNames(),
         queue(setOf(RentalOpsQueueTypes.ASSIGN)),
-    ) { lines, orders, fleet, q ->
-        val ordersById = orders.mapNotNull { OrderSummary.from(it) }.associateBy { it.id }
-        val names = fleet.associate { it.assetId to it.name }
+    ) { lines, names, q ->
         val pendingByLine = q.groupBy { it.entityId }.mapValues { it.value.last() }
-        lines.mapNotNull { OrderLine.from(it) }
-            .filter { it.needsUnit || pendingByLine.containsKey(it.id) }
-            .filter { ordersById[it.orderId]?.status !in setOf("cancelled", "closed", "returned") }
+        lines.mapNotNull { UnassignedLine.from(it) }
             .map { l ->
-                val p = pendingByLine[l.id]
+                val p = pendingByLine[l.lineId]
                 val payload = p?.payload?.let { runCatching { outboxJson.decodeFromString(AssignPayload.serializer(), it) }.getOrNull() }
-                LineView(l, ordersById[l.orderId], payload?.let { it.assetName ?: names[it.assetId] ?: it.assetId }, p?.toPending())
+                LineView(l, payload?.let { it.assetName ?: names[it.assetId] ?: it.assetId }, p?.toPending())
             }
-            .sortedBy { it.line.start ?: Instant.MAX }
+            .sortedWith(compareBy<LineView> { it.line.start ?: Instant.MAX }.thenBy { it.line.orderNumber })
     }
 
-    fun observeLine(lineId: String): Flow<LineView?> = observeLinesNeedingUnit().map { l -> l.firstOrNull { it.line.id == lineId } }
+    fun observeLine(lineId: String): Flow<LineView?> = observeLinesNeedingUnit().map { l -> l.firstOrNull { it.line.lineId == lineId } }
 
     data class CandidateResult(val candidates: List<UnitAssignment.Candidate>, val confirmed: Boolean, val error: String?)
 
-    /** Local candidates, upgraded with the server's availability search when reachable. */
-    suspend fun candidates(line: OrderLine, location: String?): CandidateResult {
+    /** Local candidates (P1 fleet + allocation cache), upgraded with the server's availability search when reachable. */
+    suspend fun candidates(line: UnassignedLine): CandidateResult {
         val a = identity.getActiveAccountId() ?: return CandidateResult(emptyList(), false, null)
-        val dao = opsDb.dao(a)
+        val rental = dbFactory.get(a).rentalDao()
         val start = line.start ?: Instant.now()
         val end = line.end ?: start.plusSeconds(86_400)
         val classId = line.classId ?: return CandidateResult(emptyList(), false, null)
-        val units = dao.all(RentalOpsEntities.FLEET).mapNotNull { parse(it.json)?.let(FleetCard::from) }.map { it.toUnit() }
-        val allocs = dao.all(RentalOpsEntities.ALLOCATION).mapNotNull { parse(it.json)?.let(::allocationFrom) }
-        val ul = UnitAssignment.Line(line.id, line.orderId, classId, location ?: line.locationId, start, end)
+        val units = rental.all(LocalFleet.ENTITY_FLEET).mapNotNull(LocalFleet::unitOf).map { it.toAssignmentUnit() }
+        val allocs = rental.all(LocalFleet.ENTITY_ALLOCATION).mapNotNull(LocalFleet::allocOf).map { it.toAssignmentAllocation() }
+        val ul = UnitAssignment.Line(line.lineId, line.orderId, classId, line.locationId, start, end)
         val local = UnitAssignment.candidates(ul, units, allocs)
         return when (val r = api.availability(a, start.toString(), end.toString(), classId, ul.locationId)) {
             is ApiResult.Ok -> {
@@ -305,20 +309,19 @@ class RentalOpsRepository @Inject constructor(
         }
     }
 
-    suspend fun assign(line: OrderLine, unit: UnitAssignment.Unit) {
+    suspend fun assign(line: UnassignedLine, unit: UnitAssignment.Unit) {
         val a = identity.getActiveAccountId() ?: return
-        val payload = AssignPayload(line.orderId, line.id, unit.assetId, unit.name)
-        enqueue(a, UUID.randomUUID().toString(), RentalOpsQueueTypes.ASSIGN, line.id, outboxJson.encodeToString(AssignPayload.serializer(), payload))
+        val payload = AssignPayload(line.orderId, line.lineId, unit.assetId, unit.name, line.orderVersion)
+        enqueue(a, UUID.randomUUID().toString(), RentalOpsQueueTypes.ASSIGN, line.lineId, outboxJson.encodeToString(AssignPayload.serializer(), payload))
     }
 
     // ---- Transfers -----------------------------------------------------------------------
 
     fun observeTransfers(): Flow<List<TransferView>> = combine(
         records(RentalOpsEntities.TRANSFER),
-        observeFleet(),
+        observeAssetNames(),
         queue(setOf(RentalOpsQueueTypes.TRANSFER)),
-    ) { rows, fleet, q ->
-        val names = fleet.associate { it.assetId to it.name }
+    ) { rows, names, q ->
         val byId = q.groupBy { it.entityId }
         rows.mapNotNull { o -> Transfer.from(o)?.let { it to o } }.map { (t, o) ->
             val pend = byId[t.id].orEmpty()
@@ -396,9 +399,13 @@ class RentalOpsRepository @Inject constructor(
 
     data class Customer(val id: String, val name: String)
 
-    fun observeCustomers(): Flow<List<Customer>> = records(RentalOpsEntities.CUSTOMER).map { rows ->
-        rows.mapNotNull { o -> o.str("rental_customer_id")?.let { Customer(it, o.str("name") ?: o.str("display_name") ?: it.take(8)) } }
-            .sortedBy { it.name.lowercase() }
+    /** Server-known customers from P1's shared store (local drafts have no statement yet). */
+    fun observeCustomers(): Flow<List<Customer>> = shared(listOf(CUSTOMER_ENTITY)).map { rows ->
+        rows.filter { it.localState == RentalRecordEntity.STATE_SYNCED }.mapNotNull { r ->
+            val o = parse(r.json) ?: return@mapNotNull null
+            if ((o["_deleted"] as? JsonPrimitive)?.booleanOrNull == true) return@mapNotNull null
+            Customer(r.id, o.str("company_name") ?: o.str("name") ?: o.str("display_name") ?: r.name ?: r.id.take(8))
+        }.sortedBy { it.name.lowercase() }
     }
 
     sealed class Fetch {
@@ -409,6 +416,45 @@ class RentalOpsRepository @Inject constructor(
     suspend fun statement(customerId: String): Fetch = fetchCached(STATEMENT_CACHE, customerId) { a -> api.statement(a, customerId, null, null) }
 
     suspend fun arAging(): Fetch = fetchCached(AGING_CACHE, "latest") { a -> api.arAging(a) }
+
+
+    sealed class SendResult {
+        data class Pdf(val file: File) : SendResult()
+        data class Emailed(val to: String?, val replayed: Boolean) : SendResult()
+        /** 400 `invalid_value`: neither the request nor the customer has an e-mail address. */
+        data object NoRecipient : SendResult()
+        data class Failed(val status: Int?, val message: String) : SendResult()
+    }
+
+    /** Stage C `GET …/statement/pdf` (`rental.reports`) into the app cache, ready to share. */
+    suspend fun statementPdf(customerId: String): SendResult {
+        val a = identity.getActiveAccountId() ?: return SendResult.Failed(null, "signed out")
+        val dir = File(ctx.cacheDir, "rentalops_statements").apply { mkdirs() }
+        // One file per customer; overwritten on every share so the cache never grows.
+        val safe = customerId.filter { it.isLetterOrDigit() || it == '-' }.take(40)
+        val dest = File(dir, "statement-$safe.pdf")
+        return when (val r = api.statementPdf(a, customerId, dest)) {
+            is ApiResult.Ok -> SendResult.Pdf(dest)
+            is ApiResult.Http -> { dest.delete(); SendResult.Failed(r.status, r.message) }
+            is ApiResult.Transport -> { dest.delete(); SendResult.Failed(null, r.message) }
+        }
+    }
+
+    /**
+     * Stage C `POST …/statement/email`. [clientUuid] must be stable for one user intent
+     * (the ViewModel keeps it across a retry) so a re-sent request replays instead of
+     * mailing twice.
+     */
+    suspend fun emailStatement(customerId: String, clientUuid: String, recipient: String?): SendResult {
+        val a = identity.getActiveAccountId() ?: return SendResult.Failed(null, "signed out")
+        val to = recipient?.trim()?.takeIf { it.isNotEmpty() }?.let { listOf(it) }.orEmpty()
+        return when (val r = api.statementEmail(a, customerId, clientUuid, to, null)) {
+            is ApiResult.Ok -> emailed(r.body)
+            is ApiResult.Http ->
+                if (r.status == 400 && r.code == "invalid_value") SendResult.NoRecipient else SendResult.Failed(r.status, r.message)
+            is ApiResult.Transport -> SendResult.Failed(null, r.message)
+        }
+    }
 
     private suspend fun fetchCached(entity: String, key: String, call: suspend (String) -> ApiResult): Fetch {
         val a = identity.getActiveAccountId() ?: return Fetch.Failed(null, "signed out", null)
@@ -430,6 +476,15 @@ class RentalOpsRepository @Inject constructor(
     }
 
     companion object {
+        /** Statement e-mail response `{document_id, number, email: {to_addrs, …}, replayed}`. */
+        fun emailed(body: JsonObject): SendResult.Emailed {
+            val to = (body.obj("email")?.get("to_addrs") as? JsonArray).orEmpty()
+                .mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank) }
+            return SendResult.Emailed(to.joinToString(", ").ifEmpty { null }, (body["replayed"] as? JsonPrimitive)?.booleanOrNull == true)
+        }
+
+        /** P1 feed name (feature/rentals RentalEntity.CUSTOMER; not a dependency of this module). */
+        const val CUSTOMER_ENTITY = "rental_customer"
         const val STATEMENT_CACHE = "rentalops_statement"
         const val AGING_CACHE = "rentalops_ar_aging"
     }

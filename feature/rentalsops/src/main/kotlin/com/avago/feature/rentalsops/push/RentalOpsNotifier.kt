@@ -2,6 +2,7 @@ package com.avago.feature.rentalsops.push
 
 import android.Manifest
 import android.app.NotificationChannel
+import android.app.NotificationChannelGroup
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
@@ -17,9 +18,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Posts rental notifications on two channels:
- * - `rentalops_tasks` (high): assigned/changed driver tasks and transfers.
- * - `rentalops_alerts` (default): due/overdue, assignments and rejected offline actions.
+ * Posts rental notifications. Channels:
+ * - one per server push `category` ([RentalPushRouter.Category]): booking requests, pickup
+ *   requests, delivery / pickup / transfer tasks (high), return due, invoices (default);
+ * - `rentalops_alerts` (default): offline actions the server rejected, tasks reassigned away.
  *
  * Tapping opens the app's launcher activity with [RentalOpsRoutes.EXTRA_ROUTE]; MainActivity
  * validates the route with [RentalOpsRoutes.isSafe] before navigating.
@@ -31,19 +33,40 @@ class RentalOpsNotifier @Inject constructor(
     fun ensureChannels() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val nm = ctx.getSystemService(NotificationManager::class.java) ?: return
-        nm.createNotificationChannel(
-            NotificationChannel(CHANNEL_TASKS, ctx.getString(R.string.rentalops_channel_tasks), NotificationManager.IMPORTANCE_HIGH).apply {
-                description = ctx.getString(R.string.rentalops_channel_tasks_desc)
-            },
-        )
+        // Pre-stage-C single task channel; superseded by the per-category channels.
+        nm.deleteNotificationChannel(LEGACY_CHANNEL_TASKS)
+        val group = NotificationChannelGroup(GROUP, ctx.getString(R.string.rentalops_channel_group))
+        nm.createNotificationChannelGroup(group)
+        for (c in RentalPushRouter.Category.entries) {
+            val (name, desc) = channelText(c)
+            nm.createNotificationChannel(
+                NotificationChannel(c.channelId, ctx.getString(name), if (isHigh(c)) NotificationManager.IMPORTANCE_HIGH else NotificationManager.IMPORTANCE_DEFAULT).apply {
+                    description = ctx.getString(desc)
+                    this.group = GROUP
+                },
+            )
+        }
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL_ALERTS, ctx.getString(R.string.rentalops_channel_alerts), NotificationManager.IMPORTANCE_DEFAULT).apply {
                 description = ctx.getString(R.string.rentalops_channel_alerts_desc)
+                this.group = GROUP
             },
         )
     }
 
-    fun post(channel: String, key: String, title: String, text: String, route: String) {
+    private fun isHigh(c: RentalPushRouter.Category) = c in HIGH
+
+    private fun channelText(c: RentalPushRouter.Category): Pair<Int, Int> = when (c) {
+        RentalPushRouter.Category.BOOKING_REQUEST -> R.string.rentalops_channel_booking to R.string.rentalops_channel_booking_desc
+        RentalPushRouter.Category.PICKUP_REQUESTED -> R.string.rentalops_channel_pickup_requested to R.string.rentalops_channel_pickup_requested_desc
+        RentalPushRouter.Category.DELIVERY -> R.string.rentalops_channel_delivery to R.string.rentalops_channel_delivery_desc
+        RentalPushRouter.Category.PICKUP -> R.string.rentalops_channel_pickup to R.string.rentalops_channel_pickup_desc
+        RentalPushRouter.Category.TRANSFER -> R.string.rentalops_channel_transfer to R.string.rentalops_channel_transfer_desc
+        RentalPushRouter.Category.RETURN_DUE -> R.string.rentalops_channel_return_due to R.string.rentalops_channel_return_due_desc
+        RentalPushRouter.Category.INVOICE -> R.string.rentalops_channel_invoice to R.string.rentalops_channel_invoice_desc
+    }
+    /** [route] null = just open the app (e.g. a push for another account). */
+    fun post(channel: String, key: String, title: String, text: String, route: String?) {
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
@@ -53,7 +76,7 @@ class RentalOpsNotifier @Inject constructor(
         ensureChannels()
         val launch = ctx.packageManager.getLaunchIntentForPackage(ctx.packageName)?.apply {
             action = Intent.ACTION_VIEW
-            putExtra(RentalOpsRoutes.EXTRA_ROUTE, route)
+            route?.let { putExtra(RentalOpsRoutes.EXTRA_ROUTE, it) }
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
         } ?: return
         val id = key.hashCode()
@@ -65,8 +88,8 @@ class RentalOpsNotifier @Inject constructor(
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setContentIntent(pi)
             .setAutoCancel(true)
-            .setCategory(if (channel == CHANNEL_TASKS) NotificationCompat.CATEGORY_EVENT else NotificationCompat.CATEGORY_STATUS)
-            .setPriority(if (channel == CHANNEL_TASKS) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_DEFAULT)
+            .setCategory(if (channel == CHANNEL_ALERTS) NotificationCompat.CATEGORY_STATUS else NotificationCompat.CATEGORY_EVENT)
+            .setPriority(if (channel in HIGH_CHANNELS) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_DEFAULT)
             .build()
         runCatching { ctx.getSystemService(NotificationManager::class.java)?.notify(id, n) }
             .onFailure { Timber.w(it, "[RentalOps] notify failed") }
@@ -83,8 +106,27 @@ class RentalOpsNotifier @Inject constructor(
         )
     }
 
+    /** `403 not_assigned`: the task went to another driver; queued updates were dropped. */
+    fun postReassigned(taskId: String, label: String?) {
+        post(
+            CHANNEL_ALERTS,
+            "rentalops:reassigned:$taskId",
+            ctx.getString(R.string.rentalops_reassigned_title),
+            label?.let { ctx.getString(R.string.rentalops_reassigned_body_named, it) } ?: ctx.getString(R.string.rentalops_reassigned_body),
+            RentalOpsRoutes.TASKS,
+        )
+    }
+
     companion object {
-        const val CHANNEL_TASKS = "rentalops_tasks"
         const val CHANNEL_ALERTS = "rentalops_alerts"
+        const val GROUP = "rentals"
+        private const val LEGACY_CHANNEL_TASKS = "rentalops_tasks"
+        private val HIGH = setOf(
+            RentalPushRouter.Category.BOOKING_REQUEST,
+            RentalPushRouter.Category.DELIVERY,
+            RentalPushRouter.Category.PICKUP,
+            RentalPushRouter.Category.TRANSFER,
+        )
+        private val HIGH_CHANNELS = HIGH.map { it.channelId }.toSet()
     }
 }

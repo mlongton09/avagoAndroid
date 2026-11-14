@@ -17,10 +17,26 @@ class DrainOutcomeTest {
     }
 
     @Test
-    fun `undeployed endpoints, auth refresh and server errors are retried, not rejected`() {
-        listOf(401, 404, 405, 408, 429, 500, 501, 503).forEach { s ->
+    fun `auth refresh, throttling and server errors are retried`() {
+        listOf(401, 408, 425, 429, 500, 501, 503).forEach { s ->
             assertTrue(DrainOutcome.classify(ApiResult.Http(s, null, "x")) is DrainOutcome.Retry, "status $s")
         }
+    }
+
+    @Test
+    fun `stage C is deployed, so 404 and 405 are final`() {
+        listOf(404, 405).forEach { s ->
+            assertTrue(DrainOutcome.classify(ApiResult.Http(s, "not_found", "x")) is DrainOutcome.Rejected, "status $s")
+        }
+    }
+
+    @Test
+    fun `403 not_assigned means reassigned and is never retried`() {
+        val r = DrainOutcome.classify(ApiResult.Http(403, "not_assigned", "task is assigned to another driver"))
+        assertEquals(DrainOutcome.Reassigned("task is assigned to another driver"), r)
+        assertEquals(DrainOutcome.Reassigned("not_assigned"), DrainOutcome.classify(ApiResult.Http(403, "not_assigned", "")))
+        // A plain permission 403 is a rejection, not a reassignment.
+        assertTrue(DrainOutcome.classify(ApiResult.Http(403, "forbidden", "no")) is DrainOutcome.Rejected)
     }
 
     @Test

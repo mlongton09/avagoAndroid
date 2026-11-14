@@ -5,7 +5,7 @@ import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.SyncQueueEntity
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
-import com.avago.core.network.model.PresignedUploadRequest
+
 import com.avago.core.sync.ExternalOutbox
 import com.avago.feature.rentalsops.R
 import com.avago.feature.rentalsops.data.ApiResult
@@ -20,7 +20,7 @@ import com.avago.feature.rentalsops.domain.parseInstant
 import com.avago.feature.rentalsops.domain.str
 import com.avago.feature.rentalsops.push.RentalOpsNotifier
 import com.avago.feature.rentalsops.push.RentalOpsRoutes
-import com.avago.feature.rentalsops.widget.RentalOpsWidgetUpdater
+
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonArray
@@ -47,7 +47,11 @@ import javax.inject.Singleton
  * - Business rejections become `conflict` rows (kept, visible, with Discard/Retry) plus one
  *   notification — never silently dropped or retried forever.
  * - Idempotent: every request carries the queue id as `Idempotency-Key`; transfers carry the
- *   local transfer id as `client_uuid`; replays of an already-applied step count as done.
+ *   local transfer id as `client_uuid`, proof uploads the media id; replays of an
+ *   already-applied step count as done.
+ * - `403 not_assigned` (task reassigned while offline) is never retried: the action and the
+ *   later queued events of that task are dropped with their media, the driver is told, and
+ *   `my-tasks` is re-pulled (it delivers the tombstone).
  */
 @Singleton
 class RentalOpsOutbox @Inject constructor(
@@ -65,8 +69,12 @@ class RentalOpsOutbox @Inject constructor(
         val queue = dbFactory.get(accountId).syncQueueDao()
         val dao = opsDb.dao(accountId)
         val blockedSubjects = mutableSetOf<String>()
+        val dropped = mutableSetOf<String>()
+        var reassigned = false
         var ok = 0
-        for (item in items.sortedBy { it.createdAt }) {
+        val ordered = items.sortedBy { it.createdAt }
+        for (item in ordered) {
+            if (item.queueId in dropped) continue
             if (item.syncStatus == "conflict" || item.attempts >= DrainOutcome.MAX_ATTEMPTS) {
                 blockedSubjects += subject(item)
                 continue
@@ -96,14 +104,46 @@ class RentalOpsOutbox @Inject constructor(
                     blockedSubjects += subject(item)
                     notifier.postRejected(item.queueId, describe(item), outcome.reason, routeFor(item))
                 }
+                is DrainOutcome.Reassigned -> {
+                    // Drop this action and every queued event of the same task (incl. parked or
+                    // rejected ones): none can succeed any more.
+                    val same = ordered.filter { subject(it) == subject(item) }
+                    for (row in same) {
+                        dao.mediaForEvent(row.queueId).forEach { File(it.localPath).delete(); dao.deleteMedia(it.id) }
+                        queue.softDelete(row.queueId)
+                        dropped += row.queueId
+                    }
+                    if (item.entityType == RentalOpsQueueTypes.TASK_EVENT) {
+                        dao.draftMedia(item.entityId).forEach { File(it.localPath).delete(); dao.deleteMedia(it.id) }
+                    }
+                    blockedSubjects += subject(item)
+                    reassigned = true
+                    notifier.postReassigned(item.entityId, taskLabel(dao, item.entityId))
+                }
                 is DrainOutcome.Retry -> {
                     queue.markError(item.queueId, outcome.reason)
                     blockedSubjects += subject(item)
                 }
             }
         }
-        if (ok > 0) RentalOpsWidgetUpdater.request(ctx)
+        if (reassigned) {
+            try {
+                pullTasks(accountId, dao)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Timber.w(e, "[RentalOps] re-pull after not_assigned failed")
+            }
+        }
         return ok
+    }
+
+    /** "R-1042 · Builder Ltd" for the reassignment notice (null when the task is not cached). */
+    private suspend fun taskLabel(dao: RentalOpsDao, taskId: String): String? {
+        val o = dao.get(RentalOpsEntities.TASK, taskId)?.let { runCatching { outboxJson.parseToJsonElement(it.json) as JsonObject }.getOrNull() }
+            ?: return null
+        return listOfNotNull(o.str("order_number"), o.str("customer_display_name") ?: o.str("customer_name"))
+            .joinToString(" · ").ifEmpty { null }
     }
 
     /** Ordering key: events of one task / one transfer must reach the server in order. */
@@ -136,7 +176,7 @@ class RentalOpsOutbox @Inject constructor(
             }
             val file = File(m.localPath)
             if (!file.exists()) return DrainOutcome.Rejected(ctx.getString(R.string.rentalops_err_media_missing))
-            when (val up = uploadProof(accountId, p.taskId, m.id, file)) {
+            when (val up = uploadProof(accountId, p.taskId, m.id, m.kind, file)) {
                 is UploadResult.Ok -> {
                     dao.markUploaded(m.id, up.fileUploadId)
                     remote[m.id] = up.fileUploadId
@@ -164,29 +204,51 @@ class RentalOpsOutbox @Inject constructor(
         return DrainOutcome.classify(r)
     }
 
+    /**
+     * `POST …/proof-uploads` response. A replay of an already uploaded file has
+     * `upload_status: "uploaded"` and `upload_url: null` (nothing to PUT or finalize); a replay
+     * of a pending reservation carries a fresh `upload_url`.
+     */
+    data class ProofReservation(val fileUploadId: String, val uploadUrl: String?, val uploadStatus: String?) {
+        val alreadyUploaded: Boolean get() = uploadStatus == "uploaded" && uploadUrl == null
+
+        companion object {
+            fun from(body: JsonObject): ProofReservation? {
+                val id = body.str("file_upload_id") ?: return null
+                return ProofReservation(id, body.str("upload_url"), body.str("upload_status"))
+            }
+        }
+    }
+
     private sealed class UploadResult {
         data class Ok(val fileUploadId: String) : UploadResult()
         data class Failed(val outcome: DrainOutcome) : UploadResult()
     }
 
-    /** presigned-url → PUT bytes → finalize (server-issued `file_upload_id`, cited by the action). */
-    private suspend fun uploadProof(accountId: String, taskId: String, mediaId: String, file: File): UploadResult {
-        val reserve = client.getPresignedUploadUrl(
-            accountId,
-            PresignedUploadRequest(entity_id = taskId, entity_type = RentalOpsEntities.TASK, filename = "$mediaId.jpg", content_type = "image/jpeg"),
-        )
-        val slot = when (reserve) {
-            is NetworkResult.Success -> reserve.data
-            is NetworkResult.Error -> return UploadResult.Failed(networkOutcome(reserve.code, reserve.message, "proof reserve"))
-            else -> return UploadResult.Failed(DrainOutcome.Retry("proof reserve unauthorized"))
+    /**
+     * Stage C proof upload: reserve (`client_uuid` = local media id, so a retry after a lost
+     * response gets the same `file_upload_id`) → PUT bytes (skipped when the replay says the
+     * bytes are already there: `upload_url` null) → finalize → id cited by `complete`.
+     */
+    private suspend fun uploadProof(accountId: String, taskId: String, mediaId: String, kind: String, file: File): UploadResult {
+        val proofKind = if (kind == "signature") "signature" else "photo"
+        // Both kinds are stored as JPEG (signatures are flattened on white before saving).
+        val reserve = api.proofUpload(accountId, taskId, mediaId, proofKind, "$mediaId.jpg", "image/jpeg")
+        if (reserve !is ApiResult.Ok) return UploadResult.Failed(DrainOutcome.classify(reserve))
+        val res = ProofReservation.from(reserve.body)
+            ?: return UploadResult.Failed(DrainOutcome.Retry("proof upload: no file_upload_id"))
+        val fileId = res.fileUploadId
+        val uploadUrl = res.uploadUrl
+        if (uploadUrl != null) {
+            when (val put = client.uploadPhotoBinary(uploadUrl, file.readBytes())) {
+                is NetworkResult.Success -> Unit
+                is NetworkResult.Error -> return UploadResult.Failed(DrainOutcome.Retry("proof upload ${put.code}"))
+                else -> return UploadResult.Failed(DrainOutcome.Retry("proof upload"))
+            }
         }
-        when (val put = client.uploadPhotoBinary(slot.upload_url, file.readBytes())) {
-            is NetworkResult.Success -> Unit
-            is NetworkResult.Error -> return UploadResult.Failed(DrainOutcome.Retry("proof upload ${put.code}"))
-            else -> return UploadResult.Failed(DrainOutcome.Retry("proof upload"))
-        }
-        return when (val fin = client.finalizeFileUpload(accountId, slot.file_upload_id, file.length())) {
-            is NetworkResult.Success -> UploadResult.Ok(slot.file_upload_id)
+        if (res.alreadyUploaded) return UploadResult.Ok(fileId)
+        return when (val fin = client.finalizeFileUpload(accountId, fileId, file.length())) {
+            is NetworkResult.Success -> UploadResult.Ok(fileId)
             is NetworkResult.Error -> UploadResult.Failed(networkOutcome(fin.code, fin.message, "proof finalize"))
             else -> UploadResult.Failed(DrainOutcome.Retry("proof finalize"))
         }
@@ -199,28 +261,34 @@ class RentalOpsOutbox @Inject constructor(
 
     private suspend fun drainAssign(accountId: String, dao: RentalOpsDao, item: SyncQueueEntity): DrainOutcome {
         val p = outboxJson.decodeFromString(AssignPayload.serializer(), item.payload ?: return DrainOutcome.Rejected("empty payload"))
-        var r = api.assignUnitC(accountId, p.orderId, p.lineId, p.assetId, item.queueId)
-        if (r is ApiResult.Http && r.status in NOT_DEPLOYED) {
-            // Stage C class booking not routed: stage A line PATCH gives the line its unit.
-            r = api.assignUnit(accountId, p.orderId, p.lineId, p.assetId, item.queueId)
-        }
+        // Latest order_version this device knows (our own earlier assigns on the same order bump
+        // it, see below); falls back to the version captured when the unit was picked.
+        val cached = dao.get(RentalOpsEntities.UNASSIGNED_LINE, p.lineId)?.let { runCatching { outboxJson.parseToJsonElement(it.json) as JsonObject }.getOrNull() }
+        val version = (cached?.get("order_version") as? JsonPrimitive)?.longOrNull ?: p.orderVersion
+        val r = api.assignUnit(accountId, p.orderId, p.lineId, p.assetId, version, item.queueId)
         if (r is ApiResult.Ok) {
-            // Both return the order (with lines) or the line; cache whichever line we find.
-            val line = (r.body["lines"] as? JsonArray)?.mapNotNull { it as? JsonObject }?.firstOrNull { it.str("id") == p.lineId }
-                ?: r.body.takeIf { it.str("id") == p.lineId }
-            if (line != null) cacheRow(dao, RentalOpsEntities.ORDER_LINE, line)
+            dao.deleteRecord(RentalOpsEntities.UNASSIGNED_LINE, p.lineId)
+            // assign-unit returns the stage A order: carry its new version to the order's other
+            // waiting lines so a second queued assign on the same order does not 409 on our own edit.
+            val newVersion = (r.body["version"] as? JsonPrimitive)?.longOrNull
+            if (newVersion != null) {
+                val now = System.currentTimeMillis()
+                val siblings = dao.all(RentalOpsEntities.UNASSIGNED_LINE).mapNotNull { rec ->
+                    val o = runCatching { outboxJson.parseToJsonElement(rec.json) as JsonObject }.getOrNull() ?: return@mapNotNull null
+                    if (o.str("order_id") != p.orderId) return@mapNotNull null
+                    val bumped = JsonObject(o + ("order_version" to JsonPrimitive(newVersion)))
+                    RecordEntity(RentalOpsEntities.UNASSIGNED_LINE, rec.id, bumped.toString(), null, false, now)
+                }
+                if (siblings.isNotEmpty()) dao.upsertAll(siblings)
+            }
         }
         return DrainOutcome.classify(r)
     }
-
     // ---- transfers ---------------------------------------------------------------------
 
     private suspend fun drainTransfer(accountId: String, dao: RentalOpsDao, item: SyncQueueEntity): DrainOutcome {
         val p = outboxJson.decodeFromString(TransferPayload.serializer(), item.payload ?: return DrainOutcome.Rejected("empty payload"))
         val local = dao.get(RentalOpsEntities.TRANSFER, p.transferId)?.let { runCatching { outboxJson.parseToJsonElement(it.json) as JsonObject }.getOrNull() }
-        if (local?.get("_fallback_moved")?.let { (it as? JsonPrimitive)?.booleanOrNull } == true && p.op != "create") {
-            return DrainOutcome.Done // completed by the immediate-move fallback already
-        }
         return when (p.op) {
             "create" -> {
                 val shipAt = parseInstant(p.at) ?: Instant.now()
@@ -237,9 +305,6 @@ class RentalOpsOutbox @Inject constructor(
                     },
                 )
                 val r = api.createTransfer(accountId, body, item.queueId)
-                if (r is ApiResult.Http && r.status in NOT_DEPLOYED) {
-                    return fallbackMove(accountId, dao, item, p, local)
-                }
                 if (r is ApiResult.Ok) {
                     val id = r.body.str("id")
                     if (id != null && id != p.transferId) {
@@ -263,36 +328,6 @@ class RentalOpsOutbox @Inject constructor(
         }
     }
 
-    /**
-     * Stage C transfer routes not deployed: move the unit with the existing
-     * `POST /assets/{id}/transfer` (immediate relocation, location history kept server-side).
-     * A replay after a lost ack answers 400 "already at the destination" → treat as done.
-     */
-    private suspend fun fallbackMove(
-        accountId: String,
-        dao: RentalOpsDao,
-        item: SyncQueueEntity,
-        p: TransferPayload,
-        local: JsonObject?,
-    ): DrainOutcome {
-        val to = p.toLocationId ?: return DrainOutcome.Rejected("missing destination")
-        val r = api.moveAsset(accountId, p.assetId, to, p.reason, item.queueId)
-        val alreadyThere = r is ApiResult.Http && r.status == 400 && r.message.contains("already at the destination", ignoreCase = true)
-        val outcome = if (alreadyThere) DrainOutcome.Done else DrainOutcome.classify(r)
-        if (outcome == DrainOutcome.Done) {
-            val moved = JsonObject(
-                (local ?: JsonObject(emptyMap())) + mapOf(
-                    "status" to JsonPrimitive("received"),
-                    "received_at" to JsonPrimitive(p.at),
-                    "_fallback_moved" to JsonPrimitive(true),
-                    "_pending" to JsonPrimitive(false),
-                ),
-            )
-            dao.upsertAll(listOf(RecordEntity(RentalOpsEntities.TRANSFER, p.transferId, moved.toString(), null, false, System.currentTimeMillis())))
-        }
-        return outcome
-    }
-
     private suspend fun cacheRow(dao: RentalOpsDao, entity: String, row: JsonObject) {
         val id = row.str(RentalOpsEntities.pkField(entity)) ?: return
         dao.upsertAll(listOf(RecordEntity(entity, id, row.toString(), (row["seq"] as? JsonPrimitive)?.longOrNull, row.isDeleted(), System.currentTimeMillis())))
@@ -300,22 +335,51 @@ class RentalOpsOutbox @Inject constructor(
 
     // ---- pull ----------------------------------------------------------------------------
 
-    private enum class Pull { OK, FORBIDDEN, UNSUPPORTED, FAILED }
+    private enum class Pull { OK, FORBIDDEN, FAILED }
 
+    /**
+     * P2-only data: tasks, transfers and the unassigned-lines work queue. Fleet, orders, lines,
+     * allocations and customers are pulled by P1 (feature:rentals) into the shared store.
+     */
     override suspend fun pull(accountId: String) {
         val dao = opsDb.dao(accountId)
-        for (entity in RentalOpsEntities.PULLED) {
+        val steps: List<Pair<String, suspend () -> Unit>> = listOf(
+            RentalOpsEntities.TASK to { pullTasks(accountId, dao) },
+            RentalOpsEntities.TRANSFER to {
+                pullFeed(dao, RentalOpsEntities.TRANSFER, RentalOpsEntities.TRANSFER) { c -> api.syncFeed(accountId, RentalOpsEntities.TRANSFER, c) }
+            },
+            RentalOpsEntities.UNASSIGNED_LINE to { pullUnassigned(accountId, dao) },
+        )
+        for ((name, step) in steps) {
             try {
-                if (entity == RentalOpsEntities.TASK) pullTasks(accountId, dao) else pullFeed(dao, entity, entity) { c -> api.syncFeed(accountId, entity, c) }
+                step()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Timber.w(e, "[RentalOps] pull $entity failed")
+                Timber.w(e, "[RentalOps] pull $name failed")
             }
         }
-        RentalOpsWidgetUpdater.request(ctx)
     }
 
+    /**
+     * `GET …/unassigned-lines` is a snapshot (no cursor): replace the cache on success, clear
+     * it on 403 (no `rental.view`), keep last-known-good rows on any other failure.
+     */
+    private suspend fun pullUnassigned(accountId: String, dao: RentalOpsDao) {
+        when (val r = api.unassignedLines(accountId, limit = UNASSIGNED_LIMIT)) {
+            is ApiResult.Ok -> {
+                val now = System.currentTimeMillis()
+                val rows = (r.body["items"] as? JsonArray).orEmpty().mapNotNull { it as? JsonObject }.mapNotNull { o ->
+                    val id = o.str("line_id") ?: return@mapNotNull null
+                    RecordEntity(RentalOpsEntities.UNASSIGNED_LINE, id, o.toString(), null, false, now)
+                }
+                dao.replaceEntity(RentalOpsEntities.UNASSIGNED_LINE, rows)
+            }
+            is ApiResult.Http -> if (r.status == 403) dao.clearEntity(RentalOpsEntities.UNASSIGNED_LINE)
+                else Timber.d("[RentalOps] unassigned-lines HTTP ${r.status} ${r.code}")
+            is ApiResult.Transport -> Unit
+        }
+    }
     /**
      * Dispatchers/viewers (`rental.view`) get every task through the sync feed; drivers with only
      * `rental.drive` get `dispatch/my-tasks`. The server decides: a 403 on one source switches to
@@ -349,18 +413,12 @@ class RentalOpsOutbox @Inject constructor(
     ): Pull {
         val now = System.currentTimeMillis()
         val state = dao.cursor(cursorKey)
-        // Feed not deployed yet: re-probe at most every UNSUPPORTED_REPROBE_MS (bounded calls).
-        if (state?.unsupported == true && now - (state.lastSyncedAt ?: 0L) < UNSUPPORTED_REPROBE_MS) return Pull.UNSUPPORTED
         var cursor = state?.cursor
         repeat(MAX_PAGES) {
             when (val r = fetch(cursor)) {
                 is ApiResult.Ok -> {
                     val items = (r.body["items"] as? JsonArray)?.mapNotNull { it as? JsonObject }.orEmpty()
-                    val pk = RentalOpsEntities.pkField(entity)
-                    val rows = items.mapNotNull { o ->
-                        val id = o.str(pk) ?: o.str("id") ?: return@mapNotNull null
-                        RecordEntity(entity, id, o.toString(), (o["seq"] as? JsonPrimitive)?.longOrNull, o.isDeleted(), now)
-                    }
+                    val rows = feedRows(entity, items, now)
                     if (rows.isNotEmpty()) dao.upsertAll(rows)
                     val next = r.body.str("next_cursor") ?: cursor
                     cursor = next
@@ -370,11 +428,6 @@ class RentalOpsOutbox @Inject constructor(
                 }
                 is ApiResult.Http -> {
                     return when (r.status) {
-                        in NOT_DEPLOYED -> {
-                            // Keep last-known-good rows; just remember the feed is unavailable.
-                            dao.upsertCursor(CursorEntity(cursorKey, cursor, now, unsupported = true))
-                            Pull.UNSUPPORTED
-                        }
                         403 -> {
                             // Access revoked: never keep showing cached rows.
                             if (clearOnForbidden) {
@@ -396,9 +449,22 @@ class RentalOpsOutbox @Inject constructor(
     }
 
     companion object {
+        /**
+         * One sync-feed page (`{entity, items, next_cursor, has_more}`) → local rows. Tombstones
+         * (`{id, _deleted: true}`, also sent by `my-tasks` on reassignment) are kept as deleted
+         * rows so the UI drops them and later replays cannot resurrect them.
+         */
+        fun feedRows(entity: String, items: List<JsonObject>, now: Long): List<RecordEntity> {
+            val pk = RentalOpsEntities.pkField(entity)
+            return items.mapNotNull { o ->
+                val id = o.str(pk) ?: o.str("id") ?: return@mapNotNull null
+                RecordEntity(entity, id, o.toString(), (o["seq"] as? JsonPrimitive)?.longOrNull, o.isDeleted(), now)
+            }
+        }
+
         const val MAX_PAGES = 50
-        const val UNSUPPORTED_REPROBE_MS = 6 * 60 * 60 * 1000L
-        val NOT_DEPLOYED = setOf(404, 405, 501)
+        /** Server default is 200, max 1000; one dispatcher work queue rarely exceeds this. */
+        const val UNASSIGNED_LIMIT = 500
         /** Default transit window when the user did not pick an arrival time. */
         val DEFAULT_TRANSIT: Duration = Duration.ofHours(24)
 

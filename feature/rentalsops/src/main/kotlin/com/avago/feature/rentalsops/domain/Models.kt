@@ -8,6 +8,9 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
+import com.avago.core.data.rental.FleetStatus
+import com.avago.core.data.rental.LocalFleet
+import kotlinx.serialization.json.longOrNull
 import java.time.Instant
 import java.time.OffsetDateTime
 
@@ -15,8 +18,8 @@ import java.time.OffsetDateTime
  * Typed read views over the verbatim server rows kept in the local cache. Field names follow
  * AvagoSvc stage A (rentals-api.md §10/§11) and stage C (migration 20261113000200).
  *
- * TODO(P1 reconcile): feature/rentals (P1) defines its own fleet/order/line models; once it
- * merges, swap these for the shared ones where shapes match.
+ * Fleet units / allocations are not modelled here: they are read from P1's shared store via
+ * core/data LocalFleet (see the adapters at the end of this file).
  */
 
 internal fun JsonObject.str(key: String): String? =
@@ -68,8 +71,17 @@ data class DeliveryTask(
     val hasProofSignature: Boolean,
     val proofSignedName: String?,
     val orderNumber: String?,
+    val orderStatus: String?,
+    /** Customer company, else name, else the order's customer_name (stage C task JSON). */
     val customerName: String?,
+    val customerPhone: String?,
+    val jobSiteName: String?,
+    /** ssets: [{asset_id, name, serial_number}] (task detail; absent in the sync feed). */
+    val assets: List<TaskAsset>,
 ) {
+    /** Phone to call: the task contact first, then the customer. */
+    val phone: String? get() = contactPhone ?: customerPhone
+
     companion object {
         fun from(o: JsonObject): DeliveryTask? {
             val id = o.str("id") ?: return null
@@ -96,9 +108,15 @@ data class DeliveryTask(
                 proofPhotoCount = o.strList("proof_photo_file_ids").size,
                 hasProofSignature = o.str("proof_signature_file_id") != null,
                 proofSignedName = o.str("proof_signed_name"),
-                // Denormalised display fields, if the feed includes them (TODO stage C).
                 orderNumber = o.str("order_number"),
-                customerName = o.str("customer_name"),
+                orderStatus = o.str("order_status"),
+                customerName = o.str("customer_display_name") ?: o.str("customer_name"),
+                customerPhone = o.str("customer_phone"),
+                jobSiteName = o.str("job_site_name"),
+                assets = (o["assets"] as? JsonArray).orEmpty().mapNotNull { it as? JsonObject }.mapNotNull { a ->
+                    val aid = a.str("asset_id") ?: return@mapNotNull null
+                    TaskAsset(aid, a.str("name"), a.str("serial_number"))
+                },
             )
         }
 
@@ -117,6 +135,8 @@ data class DeliveryTask(
         }
     }
 }
+
+data class TaskAsset(val assetId: String, val name: String?, val serialNumber: String?)
 
 enum class TransferStatus(val wire: String) {
     REQUESTED("requested"),
@@ -160,124 +180,77 @@ data class Transfer(
     }
 }
 
-data class FleetCard(
-    val assetId: String,
-    val name: String,
-    val classId: String?,
-    val locationId: String?,
-    val rentalStatus: String?,
-    val dueAt: Instant?,
-    val dueBackToday: Boolean,
-    val timeZone: String?,
-    val ready: Boolean,
-    val orderNumber: String?,
-    val customerName: String?,
-    val deleted: Boolean,
-) {
-    fun toWidgetRow() = WidgetCounts.FleetRow(rentalStatus, dueAt, dueBackToday, timeZone, deleted)
-
-    fun toUnit() = UnitAssignment.Unit(
-        assetId = assetId,
-        name = name,
-        classId = classId,
-        locationId = locationId,
-        ready = ready,
-        inMaintenance = rentalStatus == "in_maintenance",
-        deleted = deleted,
-    )
-
-    companion object {
-        fun from(o: JsonObject): FleetCard? {
-            val id = o.str("asset_id") ?: return null
-            val current = o.obj("current")
-            return FleetCard(
-                assetId = id,
-                name = o.str("name") ?: id.take(8),
-                classId = o.str("rental_class_id") ?: o.str("class_id"),
-                locationId = o.str("location_id"),
-                rentalStatus = o.str("rental_status"),
-                dueAt = current?.instant("due_at") ?: current?.instant("end_at"),
-                dueBackToday = o.bool("due_back_today") == true,
-                timeZone = o.str("time_zone"),
-                ready = o.bool("ready") ?: true,
-                orderNumber = current?.str("order_number"),
-                customerName = current?.str("customer_name"),
-                deleted = o.isDeleted(),
-            )
-        }
-    }
-}
-
-data class OrderLine(
-    val id: String,
+/**
+ * A class-booked line still waiting for a unit — one item of stage C
+ * `GET …/unassigned-lines` (`rental.view`). Pass [orderVersion] as `version` to `assign-unit`.
+ * [classFreeUnits] is the class's free units for the line window (null without dates;
+ * 0 = every unit is spoken for).
+ */
+data class UnassignedLine(
+    val lineId: String,
+    val lineNo: Int?,
     val orderId: String,
-    val kind: String?,
+    val orderNumber: String?,
+    val orderStatus: String?,
+    val orderVersion: Long?,
+    val customerName: String?,
     val classId: String?,
-    val assetId: String?,
-    val locationId: String?,
+    val className: String?,
     val description: String?,
+    val qty: Int?,
+    val locationId: String?,
     val start: Instant?,
     val end: Instant?,
-    val status: String?,
-    val assignUnitLater: Boolean,
-    val deleted: Boolean,
+    val holdExpiresAt: Instant?,
+    val classFreeUnits: Int?,
 ) {
-    val needsUnit: Boolean
-        get() = !deleted && UnitAssignment.needsAssignment(kind, assetId, classId, status)
+    val title: String? get() = className ?: description
 
     companion object {
-        fun from(o: JsonObject): OrderLine? {
-            val id = o.str("id") ?: return null
-            return OrderLine(
-                id = id,
+        fun from(o: JsonObject): UnassignedLine? {
+            val id = o.str("line_id") ?: return null
+            return UnassignedLine(
+                lineId = id,
+                lineNo = o.int("line_no"),
                 orderId = o.str("order_id") ?: return null,
-                kind = o.str("kind"),
+                orderNumber = o.str("order_number"),
+                orderStatus = o.str("order_status"),
+                orderVersion = (o["order_version"] as? JsonPrimitive)?.longOrNull,
+                customerName = o.str("customer_name"),
                 classId = o.str("class_id"),
-                assetId = o.str("asset_id"),
-                locationId = o.str("location_id"),
+                className = o.str("class_name"),
                 description = o.str("description"),
+                qty = o.int("qty"),
+                locationId = o.str("location_id"),
                 start = o.instant("start_at"),
                 end = o.instant("end_at"),
-                status = o.str("status"),
-                assignUnitLater = o.bool("assign_unit_later") == true,
-                deleted = o.isDeleted(),
+                holdExpiresAt = o.instant("hold_expires_at"),
+                classFreeUnits = o.int("class_free_units"),
             )
         }
     }
 }
 
-data class OrderSummary(
-    val id: String,
-    val number: String?,
-    val status: String?,
-    val customerId: String?,
-    val locationId: String?,
-    val start: Instant?,
-    val end: Instant?,
-) {
-    companion object {
-        fun from(o: JsonObject): OrderSummary? {
-            val id = o.str("id") ?: return null
-            return OrderSummary(
-                id, o.str("number"), o.str("status"), o.str("customer_id"), o.str("location_id"),
-                o.instant("start_at"), o.instant("end_at"),
-            )
-        }
-    }
-}
+/*
+ * Fleet units and allocations come from P1's shared rental store (core/data `rental_records`,
+ * parsed by [LocalFleet]); these adapters map them onto the assignment domain.
+ */
+fun LocalFleet.FleetUnit.toAssignmentUnit() = UnitAssignment.Unit(
+    assetId = assetId,
+    name = name.ifBlank { assetId.take(8) },
+    classId = classId,
+    locationId = locationId,
+    ready = ready,
+    inMaintenance = maintenanceOpen || serverStatus == FleetStatus.IN_MAINTENANCE,
+)
 
-fun allocationFrom(o: JsonObject): UnitAssignment.Allocation? {
-    val id = o.str("id") ?: return null
-    val start = o.instant("start_at") ?: return null
-    val end = o.instant("end_at") ?: Instant.MAX
-    return UnitAssignment.Allocation(
-        allocationId = id,
-        assetId = o.str("asset_id"),
-        kind = o.str("kind") ?: "reserved",
-        start = start,
-        end = end,
-        active = (o.bool("active") ?: true) && !o.isDeleted(),
-        blocking = o.bool("blocking") ?: true,
-        orderLineId = o.str("order_line_id"),
-    )
-}
+fun LocalFleet.Alloc.toAssignmentAllocation() = UnitAssignment.Allocation(
+    allocationId = id,
+    assetId = assetId,
+    kind = kind,
+    start = startAt,
+    end = endAt ?: Instant.MAX,
+    active = true, // LocalFleet.allocOf already drops inactive/deleted rows
+    blocking = blocking,
+    orderLineId = orderLineId,
+)

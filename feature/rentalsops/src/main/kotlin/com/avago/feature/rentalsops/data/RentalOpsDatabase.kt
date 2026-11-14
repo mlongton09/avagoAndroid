@@ -12,6 +12,7 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.Transaction
 import androidx.room.Upsert
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
@@ -95,6 +96,13 @@ interface RentalOpsDao {
     @Query("DELETE FROM rentalops_records WHERE entity = :entity AND id = :id")
     suspend fun deleteRecord(entity: String, id: String)
 
+    /** Atomically swaps a snapshot entity (observers never see the empty in-between state). */
+    @Transaction
+    suspend fun replaceEntity(entity: String, rows: List<RecordEntity>) {
+        clearEntity(entity)
+        if (rows.isNotEmpty()) upsertAll(rows)
+    }
+
     @Query("SELECT * FROM rentalops_cursors WHERE entity = :entity")
     suspend fun cursor(entity: String): CursorEntity?
 
@@ -159,23 +167,20 @@ class RentalOpsDatabaseFactory @Inject constructor(
         File(ctx.filesDir, "accounts/$accountId/rentalops_media").apply { mkdirs() }
 }
 
-/** Sync entities cached by this module. */
+/**
+ * Entities cached by this module (P2-only data). Fleet, orders, lines, allocations and
+ * customers are NOT duplicated here: they live in P1's shared `rental_records` store
+ * (core/data RentalDao), filled by feature:rentals' sync.
+ */
 object RentalOpsEntities {
     const val TASK = "rental_delivery_task"
     const val TRANSFER = "rental_transfer"
-    const val FLEET = "rental_fleet"
-    const val ORDER = "rental_order"
-    const val ORDER_LINE = "rental_order_line"
-    const val ALLOCATION = "rental_allocation"
-    const val CUSTOMER = "rental_customer"
+    /** Snapshot of stage C `GET …/unassigned-lines` (replaced on every pull). */
+    const val UNASSIGNED_LINE = "rentalops_unassigned_line"
 
-    /** Pulled each sync cycle, in this order (stage C feeds tolerate 404 until deployed). */
-    val PULLED = listOf(FLEET, TASK, TRANSFER, ORDER, ORDER_LINE, ALLOCATION, CUSTOMER)
-
-    /** Primary-key field per feed (rentals-api §11). */
+    /** Primary-key field per cached entity. */
     fun pkField(entity: String): String = when (entity) {
-        CUSTOMER -> "rental_customer_id"
-        FLEET, "rental_asset" -> "asset_id"
+        UNASSIGNED_LINE -> "line_id"
         else -> "id"
     }
 }

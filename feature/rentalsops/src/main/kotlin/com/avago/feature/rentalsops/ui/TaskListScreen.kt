@@ -129,7 +129,9 @@ private fun TaskRow(v: TaskView, onClick: () -> Unit) {
         },
         supportingContent = {
             Column {
-                Text(t.address ?: stringResource(R.string.rentalops_no_address), maxLines = 2)
+                // Order number as a second line when the headline already shows the customer.
+                if (t.customerName != null) t.orderNumber?.let { Text(stringResource(R.string.rentalops_order_n, it), style = MaterialTheme.typography.bodySmall) }
+                Text(t.jobSiteName?.let { site -> listOfNotNull(site, t.address).joinToString(", ") } ?: t.address ?: stringResource(R.string.rentalops_no_address), maxLines = 2)
                 Text(Fmt.dateTime(t.scheduledAt), style = MaterialTheme.typography.bodySmall)
             }
         },

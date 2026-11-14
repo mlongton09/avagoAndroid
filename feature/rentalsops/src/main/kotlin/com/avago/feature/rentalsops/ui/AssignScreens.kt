@@ -63,7 +63,7 @@ fun AssignListScreen(onNavigate: (String) -> Unit, onBack: () -> Unit, vm: Assig
             l == null -> Unit
             l.isEmpty() -> EmptyState(stringResource(R.string.rentalops_assign_empty), Modifier.padding(pad))
             else -> LazyColumn(Modifier.fillMaxSize().padding(pad)) {
-                items(l, key = { it.line.id }) { v -> LineRow(v) { onNavigate(RentalOpsRoutes.assignLine(v.line.id)) } }
+                items(l, key = { it.line.lineId }) { v -> LineRow(v) { onNavigate(RentalOpsRoutes.assignLine(v.line.lineId)) } }
             }
         }
     }
@@ -72,11 +72,11 @@ fun AssignListScreen(onNavigate: (String) -> Unit, onBack: () -> Unit, vm: Assig
 @Composable
 private fun LineRow(v: LineView, onClick: () -> Unit) {
     ListItem(
-        headlineContent = { Text(v.line.description ?: stringResource(R.string.rentalops_class_line)) },
+        headlineContent = { Text(v.line.title ?: stringResource(R.string.rentalops_class_line)) },
+        overlineContent = v.line.customerName?.let { name -> { Text(name) } },
         supportingContent = {
             Column {
-                v.order?.number?.let { Text(stringResource(R.string.rentalops_order_n, it)) }
-                Text("${Fmt.dateTime(v.line.start)} \u2013 ${Fmt.dateTime(v.line.end)}", style = MaterialTheme.typography.bodySmall)
+                LineMeta(v)
                 v.pendingAssetName?.let {
                     Text(stringResource(R.string.rentalops_assign_pending, it), color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall)
                 }
@@ -85,6 +85,25 @@ private fun LineRow(v: LineView, onClick: () -> Unit) {
         trailingContent = { PendingChip(listOfNotNull(v.pending)) },
         modifier = Modifier.heightIn(min = MinTouch).clickable(role = Role.Button, onClick = onClick).semantics(mergeDescendants = true) {},
     )
+}
+
+/** Order number · quantity, the window and the class's free-unit headroom. */
+@Composable
+private fun LineMeta(v: LineView) {
+    val l = v.line
+    val head = listOfNotNull(
+        l.orderNumber?.let { stringResource(R.string.rentalops_order_n, it) },
+        l.qty?.takeIf { it > 1 }?.let { stringResource(R.string.rentalops_qty_n, it) },
+    )
+    if (head.isNotEmpty()) Text(head.joinToString(" \u00b7 "))
+    Text("${Fmt.dateTime(l.start)} \u2013 ${Fmt.dateTime(l.end)}", style = MaterialTheme.typography.bodySmall)
+    l.classFreeUnits?.let { free ->
+        Text(
+            if (free <= 0) stringResource(R.string.rentalops_class_full) else stringResource(R.string.rentalops_class_free, free),
+            style = MaterialTheme.typography.bodySmall,
+            color = if (free <= 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
 
 data class AssignLineState(
@@ -113,7 +132,7 @@ class AssignLineViewModel @Inject constructor(
             _state.value = AssignLineState(loading = false)
             return@launch
         }
-        val r = repo.candidates(v.line, v.order?.locationId)
+        val r = repo.candidates(v.line)
         _state.value = AssignLineState(v, false, r.candidates, r.confirmed, r.error)
     }
 
@@ -132,9 +151,9 @@ fun AssignLineScreen(onBack: () -> Unit, vm: AssignLineViewModel = hiltViewModel
         Column(Modifier.fillMaxSize().padding(pad)) {
             s.view?.let { v ->
                 Column(Modifier.padding(AvagoSpacing.lg)) {
-                    Text(v.line.description ?: stringResource(R.string.rentalops_class_line), style = MaterialTheme.typography.titleMedium)
-                    v.order?.number?.let { Text(stringResource(R.string.rentalops_order_n, it)) }
-                    Text("${Fmt.dateTime(v.line.start)} \u2013 ${Fmt.dateTime(v.line.end)}", style = MaterialTheme.typography.bodySmall)
+                    Text(v.line.title ?: stringResource(R.string.rentalops_class_line), style = MaterialTheme.typography.titleMedium)
+                    v.line.customerName?.let { Text(it) }
+                    LineMeta(v)
                 }
             }
             if (!s.loading && s.view != null && !s.confirmed) {

@@ -51,8 +51,6 @@ dependencies {
     implementation(libs.camera.view)
     implementation(libs.play.services.location)
     // Home-screen widget (out / due today / overdue).
-    implementation(libs.glance.appwidget)
-    implementation(libs.glance.material3)
     implementation(project(":core:design"))
     implementation(project(":core:ui"))
     implementation(project(":core:data"))

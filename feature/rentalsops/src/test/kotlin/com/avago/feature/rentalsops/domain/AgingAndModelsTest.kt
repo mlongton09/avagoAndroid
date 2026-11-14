@@ -67,13 +67,27 @@ class AgingAndModelsTest {
     }
 
     @Test
-    fun `order line needing a unit`() {
+    fun `unassigned line requires line and order ids`() {
+        assertNull(UnassignedLine.from(Json.parseToJsonElement("""{"order_id":"o1"}""").jsonObject))
+        assertNull(UnassignedLine.from(Json.parseToJsonElement("""{"line_id":"l1"}""").jsonObject))
+        val l = UnassignedLine.from(Json.parseToJsonElement("""{"line_id":"l1","order_id":"o1","description":"Lift","order_version":null}""").jsonObject)!!
+        assertEquals("Lift", l.title)
+        assertNull(l.orderVersion)
+    }
+
+    @Test
+    fun `task detail fields - assets, job site and phone fallback`() {
         val o = Json.parseToJsonElement(
-            """{"id":"l1","order_id":"o1","kind":"rental","class_id":"c1","asset_id":null,"status":"open",
-               "assign_unit_later":true,"start_at":"2026-06-10T08:00:00Z","end_at":"2026-06-12T08:00:00Z"}""",
+            """{"id":"t1","kind":"delivery","status":"scheduled","order_status":"reserved",
+               "customer_display_name":"ACME Ltd","customer_name":"acme","customer_phone":"+1 555",
+               "contact_phone":null,"job_site_name":"North yard",
+               "assets":[{"asset_id":"a1","name":"Lift 1","serial_number":"SN1"},{"asset_id":"a2"}]}""",
         ).jsonObject
-        val l = OrderLine.from(o)!!
-        assertEquals(true, l.needsUnit)
-        assertEquals(false, OrderLine.from(Json.parseToJsonElement("""{"id":"l1","order_id":"o1","kind":"rental","class_id":"c1","asset_id":null,"_deleted":true}""").jsonObject)!!.needsUnit)
+        val t = DeliveryTask.from(o)!!
+        assertEquals("ACME Ltd", t.customerName)
+        assertEquals("+1 555", t.phone)
+        assertEquals("North yard", t.jobSiteName)
+        assertEquals("reserved", t.orderStatus)
+        assertEquals(listOf(TaskAsset("a1", "Lift 1", "SN1"), TaskAsset("a2", null, null)), t.assets)
     }
 }

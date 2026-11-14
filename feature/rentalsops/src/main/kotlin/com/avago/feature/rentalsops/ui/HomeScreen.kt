@@ -44,7 +44,7 @@ import com.avago.feature.rentalsops.R
 import com.avago.feature.rentalsops.data.PendingAction
 import com.avago.feature.rentalsops.data.RentalOpsAccess
 import com.avago.feature.rentalsops.data.RentalOpsRepository
-import com.avago.feature.rentalsops.domain.WidgetCounts
+import com.avago.feature.rentalsops.domain.OpsCounts
 import com.avago.feature.rentalsops.push.RentalOpsRoutes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -55,7 +55,7 @@ import javax.inject.Inject
 
 data class HomeState(
     val access: RentalOpsAccess = RentalOpsAccess.NONE,
-    val counts: WidgetCounts.Counts = WidgetCounts.Counts.EMPTY,
+    val counts: OpsCounts = OpsCounts.EMPTY,
     val queue: List<PendingAction> = emptyList(),
 ) {
     val waiting: Int get() = queue.count { !it.rejected && !it.parked }
@@ -106,8 +106,8 @@ fun RentalOpsHomeScreen(onNavigate: (String) -> Unit, onBack: (() -> Unit)?, vm:
 }
 
 @Composable
-private fun CountsRow(c: WidgetCounts.Counts) {
-    val a11y = stringResource(R.string.rentalops_widget_a11y, c.out, c.dueToday, c.overdue)
+private fun CountsRow(c: OpsCounts) {
+    val a11y = stringResource(R.string.rentalops_counts_a11y, c.out, c.dueToday, c.overdue)
     Card(
         Modifier
             .fillMaxWidth()
@@ -115,9 +115,9 @@ private fun CountsRow(c: WidgetCounts.Counts) {
             .clearAndSetSemantics { contentDescription = a11y },
     ) {
         Row(Modifier.fillMaxWidth().padding(AvagoSpacing.lg), horizontalArrangement = Arrangement.SpaceEvenly) {
-            Count(c.out, stringResource(R.string.rentalops_widget_out), MaterialTheme.colorScheme.onSurface)
-            Count(c.dueToday, stringResource(R.string.rentalops_widget_due_today), MaterialTheme.colorScheme.onSurface)
-            Count(c.overdue, stringResource(R.string.rentalops_widget_overdue), if (c.overdue > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+            Count(c.out, stringResource(R.string.rentalops_counts_out), MaterialTheme.colorScheme.onSurface)
+            Count(c.dueToday, stringResource(R.string.rentalops_counts_due_today), MaterialTheme.colorScheme.onSurface)
+            Count(c.overdue, stringResource(R.string.rentalops_counts_overdue), if (c.overdue > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
         }
     }
 }

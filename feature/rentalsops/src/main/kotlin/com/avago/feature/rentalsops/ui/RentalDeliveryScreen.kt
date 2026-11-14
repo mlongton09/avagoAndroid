@@ -110,9 +110,12 @@ class RentalDeliveryViewModel @Inject constructor(
 ) : ViewModel() {
     val taskId: String = checkNotNull(saved["taskId"])
 
-    val state: StateFlow<DeliveryState> = combine(repo.observeTask(taskId), repo.observeMedia(taskId), repo.observeFleet()) { v, m, fleet ->
-        val names = fleet.associate { it.assetId to it.name }
-        DeliveryState(v, m, v?.task?.assetIds?.map { names[it] ?: it.take(8) }.orEmpty(), loaded = true)
+    val state: StateFlow<DeliveryState> = combine(repo.observeTask(taskId), repo.observeMedia(taskId), repo.observeAssetNames()) { v, m, names ->
+        // Task detail carries `assets[{asset_id, name, serial_number}]`; the feed only ids.
+        val t = v?.task
+        val units = t?.assets?.takeIf { it.isNotEmpty() }?.map { a -> listOfNotNull(a.name ?: names[a.assetId] ?: a.assetId.take(8), a.serialNumber).joinToString(" \u00b7 ") }
+            ?: t?.assetIds?.map { names[it] ?: it.take(8) }.orEmpty()
+        DeliveryState(v, m, units, loaded = true)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DeliveryState())
 
     private val _messages = MutableSharedFlow<DeliveryMessage>(extraBufferCapacity = 4)
@@ -230,6 +233,7 @@ fun RentalDeliveryScreen(onBack: () -> Unit, vm: RentalDeliveryViewModel = hiltV
                 }
                 t.customerName?.let { Text(it, style = MaterialTheme.typography.titleLarge) }
                 t.orderNumber?.let { Text(stringResource(R.string.rentalops_order_n, it), style = MaterialTheme.typography.bodyMedium) }
+                t.jobSiteName?.let { Text(stringResource(R.string.rentalops_job_site, it), style = MaterialTheme.typography.bodyMedium) }
                 Text(
                     stringResource(R.string.rentalops_scheduled, Fmt.dateTime(t.scheduledAt)) +
                         (t.windowEnd?.let { " \u2013 " + Fmt.dateTime(it) } ?: ""),
@@ -252,7 +256,7 @@ fun RentalDeliveryScreen(onBack: () -> Unit, vm: RentalDeliveryViewModel = hiltV
                             Icon(Icons.Filled.Directions, contentDescription = stringResource(R.string.rentalops_navigate))
                         }
                     }
-                    t.contactPhone?.let { phone ->
+                    t.phone?.let { phone ->
                         FilledTonalIconButton(
                             onClick = { runCatching { ctx.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(phone))).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } },
                             modifier = Modifier.padding(start = AvagoSpacing.sm).size(MinTouch),

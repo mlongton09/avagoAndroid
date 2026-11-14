@@ -11,6 +11,8 @@ data class RentalOpsAccess(
     val transfers: Boolean,
     val statements: Boolean,
     val aging: Boolean,
+    /** Statement PDF / e-mail (stage C, `rental.reports`); viewing needs only `rental.view`. */
+    val sendStatements: Boolean = false,
 ) {
     val any: Boolean get() = tasks || assign || transfers || statements || aging
 
@@ -23,10 +25,12 @@ data class RentalOpsAccess(
             return RentalOpsAccess(
                 tasks = has("rental.drive") || has("rental.dispatch") || view,
                 dispatch = has("rental.dispatch"),
-                assign = has("rental.reserve"),
+                // The work queue (unassigned-lines) is rental.view; assign-unit is rental.reserve.
+                assign = has("rental.reserve") && view,
                 transfers = has("rental.transfer"),
                 statements = view,
                 aging = has("rental.reports"),
+                sendStatements = has("rental.reports"),
             )
         }
     }

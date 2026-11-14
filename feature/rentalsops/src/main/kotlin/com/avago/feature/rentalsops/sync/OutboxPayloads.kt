@@ -33,6 +33,11 @@ data class AssignPayload(
     val lineId: String,
     val assetId: String,
     val assetName: String? = null,
+    /**
+     * `order_version` from `unassigned-lines` when the dispatcher picked the unit: sent as
+     * `version` so an order edited meanwhile answers 409 instead of being silently changed.
+     */
+    val orderVersion: Long? = null,
 )
 
 /** Branch transfer step (entityId = local transfer id). */

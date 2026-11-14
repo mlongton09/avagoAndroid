@@ -1,6 +1,22 @@
 package com.avago.feature.rentalsops.ui
 
+import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.core.content.FileProvider
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -68,9 +84,11 @@ import com.avago.feature.rentalsops.domain.AgingReport
 import com.avago.feature.rentalsops.domain.AgingRow
 import com.avago.feature.rentalsops.domain.MinorMoney
 import com.avago.feature.rentalsops.domain.Statement
-import com.avago.feature.rentalsops.sync.RentalOpsOutbox
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -105,7 +123,7 @@ private fun FailureBanner(s: FinanceState<*>) {
     if (!s.failed) return
     val msg = when {
         s.failure == 403 -> stringResource(R.string.rentalops_err_forbidden)
-        s.failure in RentalOpsOutbox.NOT_DEPLOYED && s.data == null -> stringResource(R.string.rentalops_err_unavailable)
+        s.failure == 404 && s.data == null -> stringResource(R.string.rentalops_err_unavailable)
         s.stale -> stringResource(R.string.rentalops_offline_cached, Fmt.millis(s.fetchedAt ?: 0))
         else -> stringResource(R.string.rentalops_err_offline)
     }
@@ -114,9 +132,65 @@ private fun FailureBanner(s: FinanceState<*>) {
 
 // ---- Statement ---------------------------------------------------------------------------
 
+sealed class StatementEvent {
+    data class SharePdf(val file: java.io.File) : StatementEvent()
+    data class Emailed(val to: String?) : StatementEvent()
+    data object NoRecipient : StatementEvent()
+    data class Failed(val status: Int?) : StatementEvent()
+}
+
 @HiltViewModel
 class StatementViewModel @Inject constructor(private val repo: RentalOpsRepository) : ViewModel() {
     val customers = repo.observeCustomers().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val canSend: StateFlow<Boolean> = repo.access.map { it.sendStatements }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    private val _sending = MutableStateFlow(false)
+    val sending: StateFlow<Boolean> = _sending.asStateFlow()
+    private val _events = MutableSharedFlow<StatementEvent>(extraBufferCapacity = 2)
+    val events: SharedFlow<StatementEvent> = _events
+
+    /**
+     * One idempotency key per (customer, recipient) e-mail intent, so a retry after a lost
+     * response replays (`replayed: true`) instead of sending a second e-mail.
+     */
+    private var emailIntent: Triple<String, String?, String>? = null
+
+    fun sharePdf() = send { c ->
+        when (val r = repo.statementPdf(c.id)) {
+            is RentalOpsRepository.SendResult.Pdf -> StatementEvent.SharePdf(r.file)
+            is RentalOpsRepository.SendResult.Failed -> StatementEvent.Failed(r.status)
+            else -> StatementEvent.Failed(null)
+        }
+    }
+
+    fun email(recipient: String?) = send { c ->
+        val to = recipient?.trim()?.takeIf { it.isNotEmpty() }
+        val prev = emailIntent
+        val key = if (prev != null && prev.first == c.id && prev.second == to) prev.third else java.util.UUID.randomUUID().toString()
+        emailIntent = Triple(c.id, to, key)
+        when (val r = repo.emailStatement(c.id, key, to)) {
+            is RentalOpsRepository.SendResult.Emailed -> { emailIntent = null; StatementEvent.Emailed(r.to ?: to) }
+            RentalOpsRepository.SendResult.NoRecipient -> { emailIntent = null; StatementEvent.NoRecipient }
+            is RentalOpsRepository.SendResult.Failed -> {
+                // Only a transport/5xx failure may have been applied: keep the key for the retry.
+                if (r.status != null && r.status < 500) emailIntent = null
+                StatementEvent.Failed(r.status)
+            }
+            else -> StatementEvent.Failed(null)
+        }
+    }
+
+    private fun send(block: suspend (RentalOpsRepository.Customer) -> StatementEvent) {
+        val c = _selected.value ?: return
+        if (_sending.value) return
+        viewModelScope.launch {
+            _sending.value = true
+            try {
+                _events.emit(block(c))
+            } finally {
+                _sending.value = false
+            }
+        }
+    }
     private val _state = MutableStateFlow(FinanceState<Statement>())
     val state: StateFlow<FinanceState<Statement>> = _state.asStateFlow()
     private val _selected = MutableStateFlow<RentalOpsRepository.Customer?>(null)
@@ -140,9 +214,36 @@ fun StatementScreen(onBack: () -> Unit, vm: StatementViewModel = hiltViewModel()
     val customers by vm.customers.collectAsStateWithLifecycle()
     val selected by vm.selected.collectAsStateWithLifecycle()
     val s by vm.state.collectAsStateWithLifecycle()
+    val canSend by vm.canSend.collectAsStateWithLifecycle()
+    val sending by vm.sending.collectAsStateWithLifecycle()
     var expanded by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
-    Scaffold(topBar = { OpsTopBar(stringResource(R.string.rentalops_statement_title), onBack) }) { pad ->
+    var emailDialog by rememberSaveable { mutableStateOf(false) }
+    val snackbar = remember { SnackbarHostState() }
+    val ctx = LocalContext.current
+    val sentTo = stringResource(R.string.rentalops_statement_emailed)
+    val sentDefault = stringResource(R.string.rentalops_statement_emailed_default)
+    val noRecipient = stringResource(R.string.rentalops_statement_no_recipient)
+    val sendFailed = stringResource(R.string.rentalops_statement_send_failed)
+    val forbidden = stringResource(R.string.rentalops_err_forbidden)
+    val shareTitle = stringResource(R.string.rentalops_statement_share)
+    LaunchedEffect(vm) {
+        vm.events.collect { e ->
+            when (e) {
+                is StatementEvent.SharePdf -> shareFile(ctx, e.file, "application/pdf", shareTitle)
+                is StatementEvent.Emailed -> snackbar.showSnackbar(e.to?.let { sentTo.format(it) } ?: sentDefault)
+                StatementEvent.NoRecipient -> snackbar.showSnackbar(noRecipient)
+                is StatementEvent.Failed -> snackbar.showSnackbar(if (e.status == 403) forbidden else sendFailed)
+            }
+        }
+    }
+    if (emailDialog) {
+        EmailStatementDialog(onDismiss = { emailDialog = false }, onSend = { vm.email(it); emailDialog = false })
+    }
+    Scaffold(
+        topBar = { OpsTopBar(stringResource(R.string.rentalops_statement_title), onBack) },
+        snackbarHost = { SnackbarHost(snackbar) },
+    ) { pad ->
         LazyColumn(Modifier.fillMaxSize().padding(pad)) {
             item {
                 ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }, modifier = Modifier.padding(AvagoSpacing.lg)) {
@@ -190,6 +291,18 @@ fun StatementScreen(onBack: () -> Unit, vm: StatementViewModel = hiltViewModel()
                         }
                     }
                 }
+                if (canSend && selected != null) {
+                    Row(Modifier.padding(horizontal = AvagoSpacing.lg), horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm)) {
+                        OutlinedButton(onClick = vm::sharePdf, enabled = !sending, modifier = Modifier.heightIn(min = MinTouch)) {
+                            Icon(Icons.Filled.Share, contentDescription = null)
+                            Text(stringResource(R.string.rentalops_statement_pdf), Modifier.padding(start = AvagoSpacing.xs))
+                        }
+                        OutlinedButton(onClick = { emailDialog = true }, enabled = !sending, modifier = Modifier.heightIn(min = MinTouch)) {
+                            Icon(Icons.Filled.Email, contentDescription = null)
+                            Text(stringResource(R.string.rentalops_statement_email), Modifier.padding(start = AvagoSpacing.xs))
+                        }
+                    }
+                }
                 SectionHeader(stringResource(R.string.rentalops_invoices))
             }
             if (st.invoices.isEmpty()) item { EmptyState(stringResource(R.string.rentalops_no_invoices)) }
@@ -218,6 +331,44 @@ fun StatementScreen(onBack: () -> Unit, vm: StatementViewModel = hiltViewModel()
             }
         }
     }
+}
+
+/** Recipient is optional: blank → the customer's billing e-mail on the server. */
+@Composable
+private fun EmailStatementDialog(onDismiss: () -> Unit, onSend: (String?) -> Unit) {
+    var to by rememberSaveable { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.rentalops_statement_email)) },
+        text = {
+            Column {
+                Text(stringResource(R.string.rentalops_statement_email_hint), style = MaterialTheme.typography.bodyMedium)
+                OutlinedTextField(
+                    value = to,
+                    onValueChange = { to = it.take(254) },
+                    label = { Text(stringResource(R.string.rentalops_statement_recipient)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    modifier = Modifier.fillMaxWidth().padding(top = AvagoSpacing.sm),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSend(to.trim().ifEmpty { null }) }, modifier = Modifier.heightIn(min = MinTouch)) {
+                Text(stringResource(R.string.rentalops_send))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = MinTouch)) { Text(stringResource(R.string.rentalops_cancel)) }
+        },
+    )
+}
+
+/** Shares an app-cache file via the app's FileProvider (`${packageName}.provider`, cache-path). */
+private fun shareFile(ctx: Context, file: java.io.File, mime: String, title: String) {
+    val uri = runCatching { FileProvider.getUriForFile(ctx, "${ctx.packageName}.provider", file) }.getOrNull() ?: return
+    val send = Intent(Intent.ACTION_SEND).setType(mime).putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    runCatching { ctx.startActivity(Intent.createChooser(send, title).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
 }
 
 // ---- AR aging ----------------------------------------------------------------------------
