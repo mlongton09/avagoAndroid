@@ -55,4 +55,11 @@
     <string name="rentals_invoice_status_paid">Paid</string>
     <string name="rentals_invoice_status_credited">Credited</string>
     <string name="rentals_invoice_status_void">Void</string>
+
+    <!-- Shared components (com.avago.core.ui.components) -->
+    <string name="core_retry">Retry</string>
+    <string name="core_loading">Loading…</string>
+    <string name="core_step_progress">Step %1$d of %2$d: %3$s</string>
+    <string name="core_step_done">Completed</string>
+    <string name="core_step_current">Current step</string>
 </resources>
