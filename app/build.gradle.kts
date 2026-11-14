@@ -132,6 +132,7 @@ dependencies {
     implementation(project(":feature:reports"))
     implementation(project(":feature:chat"))
     implementation(project(":feature:settings"))
+    implementation(project(":feature:rentalsops"))
 
     implementation(libs.androidx.profileinstaller)
 

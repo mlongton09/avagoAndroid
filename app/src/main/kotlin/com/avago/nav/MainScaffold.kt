@@ -168,6 +168,7 @@ fun MainScaffold(
 
     val chatEnabled by navFlagsViewModel.chatEnabled.collectAsState()
     val workOrdersEnabled by navFlagsViewModel.workOrdersEnabled.collectAsState()
+    val rentalsEnabled by navFlagsViewModel.rentalsEnabled.collectAsState()
     val unreadChatMentionCount by navFlagsViewModel.unreadChatMentionCount.collectAsState()
     val upcomingMineWorkOrderCount by navFlagsViewModel.upcomingMineWorkOrderCount.collectAsState()
     val permissions by permissionStore.permissions.collectAsState()
@@ -203,6 +204,8 @@ fun MainScaffold(
     val isAssetLogDestination = currentRoute?.startsWith("log/list") == true
     val isLogAddEditDestination = currentRoute?.startsWith("log/add_edit") == true
     val isLogDetailDestination = currentRoute?.startsWith("log/detail") == true
+    // Rental-ops screens draw their own top bar with back navigation.
+    val isRentalOpsDestination = currentRoute?.startsWith(com.avago.feature.rentalsops.push.RentalOpsRoutes.PREFIX) == true
 
     AvagoToastHost(toastManager = toast) {
     ModalNavigationDrawer(
@@ -228,6 +231,7 @@ fun MainScaffold(
                     },
                     navController = navController,
                     canNavigate = ::can,
+                    rentalOpsEnabled = rentalsEnabled,
                 )
             }
         },
@@ -235,7 +239,7 @@ fun MainScaffold(
         Scaffold(
             floatingActionButtonPosition = FabPosition.Start,
             topBar = {
-                if (!isAuthDestination && !isAssetLogDestination && !isChatDetailDestination && !isLogAddEditDestination && !isLogDetailDestination && !isWorkOrderListDestination && !isWorkOrderLogDestination) {
+                if (!isAuthDestination && !isAssetLogDestination && !isChatDetailDestination && !isLogAddEditDestination && !isLogDetailDestination && !isWorkOrderListDestination && !isWorkOrderLogDestination && !isRentalOpsDestination) {
                     CenterAlignedTopAppBar(
                         title = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -439,6 +443,7 @@ fun SideMenuContent(
     onSignIn: () -> Unit = {},
     navController: NavHostController,
     canNavigate: (String) -> Boolean = { true },
+    rentalOpsEnabled: Boolean = false,
 ) {
     val accounts by viewModel.accounts.collectAsState()
     val activeId  by viewModel.activeAccountId.collectAsState()
@@ -606,6 +611,15 @@ fun SideMenuContent(
             )
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+        }
+
+        // ── Rental operations (P2: driver tasks, transfers, assignment, AR) ──
+        if (rentalOpsEnabled) {
+            com.avago.feature.rentalsops.nav.RentalOpsDrawerItem(
+                currentRoute = currentRoute,
+                onNavigate = onNavigate,
+                modifier = Modifier.padding(horizontal = 8.dp),
+            )
         }
 
         // ── Settings ─────────────────────────────────────────────────────────

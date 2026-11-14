@@ -186,6 +186,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun forwardLaunchIntent(intent: android.content.Intent?) {
+        // Rental-ops push / widget taps carry an in-app route; only whitelisted shapes are honoured.
+        intent?.getStringExtra(com.avago.feature.rentalsops.push.RentalOpsRoutes.EXTRA_ROUTE)
+            ?.takeIf { com.avago.feature.rentalsops.push.RentalOpsRoutes.isSafe(it) }
+            ?.let {
+                intent.removeExtra(com.avago.feature.rentalsops.push.RentalOpsRoutes.EXTRA_ROUTE)
+                mainViewModel.openRoute(it)
+                return
+            }
         when (intent?.action) {
             ACTION_START_INSPECTION ->
                 mainViewModel.openRoute(com.avago.feature.log.nav.LogRoute.addEdit(category = "inspection"))

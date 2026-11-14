@@ -1,5 +1,6 @@
 package com.avago.nav
 
+import com.avago.feature.rentalsops.nav.rentalOpsNavGraph
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -204,6 +205,9 @@ fun AvagoNavHost(
 
             // ── Settings ──────────────────────────────────────────────────────────
             settingsNavGraph(navController = navController)
+
+            // ── Rental operations (P2) ────────────────────────────────────────────
+            rentalOpsNavGraph(navController = navController)
         }
 
         if (SHOW_SYNC_CONFLICT_SHEET) {
