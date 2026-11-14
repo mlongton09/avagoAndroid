@@ -133,6 +133,8 @@ class SyncEngine @Inject constructor(
     private val connectivity: ConnectivityMonitor,
     // Provider<> keeps construction lazy; open-defect register pull + outbox drain.
     private val defectRegister: Provider<DefectRegisterSync>,
+    // Feature-owned outboxes (rentals, …) drained after /sync/push — see ExternalOutbox.
+    private val externalOutboxes: Provider<Set<@JvmSuppressWildcards ExternalOutbox>> = Provider { emptySet() },
 ) {
     private val mutex = Mutex()
 
@@ -451,9 +453,12 @@ class SyncEngine @Inject constructor(
         db.syncQueueDao().resetInFlightToPending()
         db.syncQueueDao().resetErrorsToPending()
 
+        val externalTypes = externalOutboxes.get().flatMapTo(HashSet()) { it.entityTypes }
         val allPending = db.syncQueueDao().pendingItemsList()
         val defectItems = allPending.filter { it.entityType == DefectOutbox.ENTITY_TYPE }
-        val pending = allPending.filterNot { it.entityType == DefectOutbox.ENTITY_TYPE }
+        // Rows owned by an ExternalOutbox are drained below, not sent to /sync/push.
+        val pending = allPending.filterNot { it.entityType == DefectOutbox.ENTITY_TYPE || it.entityType in externalTypes }
+        val externalPending = if (externalTypes.isEmpty()) emptyList() else allPending.filter { it.entityType in externalTypes }
         if (pending.isNotEmpty()) {
             val queueIds = pending.map { it.queueId }
             db.syncQueueDao().markInFlight(queueIds)
@@ -554,6 +559,7 @@ class SyncEngine @Inject constructor(
                 Timber.e(e, "[SyncEngine] Defect outbox drain failed — will retry")
             }
         }
+        drainExternalOutboxes(accountId, externalPending)
 
         if (!pullAfterPush) {
             _state.value = SyncState.Idle
@@ -656,6 +662,17 @@ class SyncEngine @Inject constructor(
             Timber.w(e, "[SyncEngine] Defect register pull failed — keeping cached register")
         }
 
+        // Feature-owned feeds (rentals, …) — non-fatal for the main sync.
+        externalOutboxes.get().forEach { outbox ->
+            try {
+                outbox.pull(accountId)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Timber.w(e, "[SyncEngine] external pull failed for ${outbox.entityTypes}")
+            }
+        }
+
         // Kick off photo uploads now that we have the latest server state
         try {
             photoUploader.get().sweep(accountId)
@@ -666,6 +683,25 @@ class SyncEngine @Inject constructor(
         setRateLimitedUntil(0L)
         _state.value = SyncState.Idle
         return SyncResult.Success
+    }
+
+    /**
+     * Hands [items] to the [ExternalOutbox] that owns their entity type. Failures are
+     * contained per outbox; rows stay in `sync_queue` for the next cycle.
+     */
+    private suspend fun drainExternalOutboxes(accountId: String, items: List<com.avago.core.data.db.entity.SyncQueueEntity>) {
+        if (items.isEmpty()) return
+        externalOutboxes.get().forEach { outbox ->
+            val mine = items.filter { it.entityType in outbox.entityTypes }
+            if (mine.isEmpty()) return@forEach
+            try {
+                outbox.drain(accountId, mine)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Timber.w(e, "[SyncEngine] external outbox drain failed for ${outbox.entityTypes}")
+            }
+        }
     }
 
     // ---------------------------------------------------------------------------
