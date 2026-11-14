@@ -33,9 +33,15 @@ object LocalFleet {
     const val ENTITY_ORDER_LINE = "rental_order_line"
     const val ENTITY_META = "rental_meta"
     const val META_FLEET_ID = "fleet"
+    /** Stage B readiness checklists (`rental_readiness_check` feed + checks edited offline). */
+    const val ENTITY_READINESS = "rental_readiness_check"
+    /** Fleet readiness reason code of an open (pending / failed) checklist. */
+    const val READINESS_REASON = "readiness_checklist"
+    /** Checklist statuses that keep a unit Not ready (server rule). */
+    val READINESS_OPEN = setOf("pending", "failed")
 
     /** Feeds [compute] reads (handy for `RentalDao.observeEntities`). */
-    val INPUT_ENTITIES = listOf(ENTITY_FLEET, ENTITY_ALLOCATION, ENTITY_ORDER, ENTITY_ORDER_LINE, ENTITY_META)
+    val INPUT_ENTITIES = listOf(ENTITY_FLEET, ENTITY_ALLOCATION, ENTITY_ORDER, ENTITY_ORDER_LINE, ENTITY_META, ENTITY_READINESS)
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
@@ -81,7 +87,65 @@ object LocalFleet {
         val dueAt: Instant?,
         /** True when computed on the device (false = server value kept). */
         val local: Boolean,
-    )
+        /** The unit's deciding readiness checklist (null = none synced / edited). */
+        val checklist: ReadinessFlag? = null,
+    ) {
+        /** A readiness change made on this device is still waiting to sync. */
+        val readinessPending: Boolean get() = checklist?.pending == true
+    }
+
+    /** The latest readiness checklist of a unit (`rental_readiness_check` row). */
+    data class ReadinessFlag(
+        val checkId: String,
+        /** pending | passed | failed | waived */
+        val status: String,
+        /** True when the row was changed on the device and is not confirmed yet. */
+        val pending: Boolean,
+        val createdAt: Instant?,
+    ) {
+        val open: Boolean get() = status in READINESS_OPEN
+    }
+
+    /**
+     * The deciding checklist per asset (server rule: the latest check feeds the fleet). A row
+     * changed on the device wins over synced rows (it is the newest intent until confirmed);
+     * otherwise the newest `created_at` (ties: highest `server_version`).
+     */
+    fun latestReadiness(records: List<RentalRecordEntity>): Map<String, ReadinessFlag> {
+        data class Row(val asset: String, val flag: ReadinessFlag, val local: Boolean, val version: Long)
+        val rows = records.filter { it.entity == ENTITY_READINESS }.mapNotNull { r ->
+            val o = obj(r.json) ?: return@mapNotNull null
+            if (o.bool("_deleted") == true) return@mapNotNull null
+            val asset = o.str("asset_id") ?: r.assetId ?: return@mapNotNull null
+            val status = o.str("status") ?: return@mapNotNull null
+            val local = r.localState != RentalRecordEntity.STATE_SYNCED
+            val created = o.instant("created_at") ?: Instant.ofEpochMilli(r.updatedAt)
+            Row(asset, ReadinessFlag(r.id, status, local, created), local, o.long("server_version") ?: 0L)
+        }
+        return rows.groupBy { it.asset }.mapValues { (_, list) ->
+            list.maxWith(
+                compareBy<Row> { it.local }
+                    .thenBy { it.flag.createdAt ?: Instant.EPOCH }
+                    .thenBy { it.version }
+                    .thenBy { it.flag.checkId },
+            ).flag
+        }
+    }
+
+    /**
+     * Applies the deciding checklist to a unit's readiness: an open check adds
+     * [READINESS_REASON] (Not ready); a passed / waived check removes it and the unit is ready
+     * again when no other reason is left. No check → the fleet card is kept.
+     */
+    fun withReadiness(u: FleetUnit, flag: ReadinessFlag?): FleetUnit {
+        flag ?: return u
+        return if (flag.open) {
+            u.copy(ready = false, readiness = (u.readiness + READINESS_REASON).distinct())
+        } else {
+            val rest = u.readiness - READINESS_REASON
+            u.copy(ready = u.ready || (rest.isEmpty() && READINESS_REASON in u.readiness), readiness = rest)
+        }
+    }
 
     fun obj(raw: String?): JsonObject? =
         raw?.let { runCatching { json.parseToJsonElement(it).jsonObject }.getOrNull() }
@@ -204,8 +268,19 @@ object LocalFleet {
             .associate { it.id to obj(it.json)?.instant("end_at") }
         val window = reservedWindow(records)
         val serverDue = serverDueAts(records)
-        return units.associate { u ->
-            u.assetId to computeUnit(u, allocs[u.assetId].orEmpty(), lineEnds, orderEnds, now, window, haveAllocFeed, serverDue)
+        val readiness = latestReadiness(records)
+        return units.associate { raw ->
+            val flag = readiness[raw.assetId]
+            val u = withReadiness(raw, flag)
+            val res = computeUnit(u, allocs[u.assetId].orEmpty(), lineEnds, orderEnds, now, window, haveAllocFeed, serverDue)
+            // Server status kept (no allocation feed yet): still reflect a newer checklist.
+            val status = when {
+                res.local || flag == null -> res.status
+                flag.open && res.status == FleetStatus.AVAILABLE -> FleetStatus.NOT_READY
+                !flag.open && res.status == FleetStatus.NOT_READY && u.ready -> FleetStatus.AVAILABLE
+                else -> res.status
+            }
+            u.assetId to res.copy(status = status, checklist = flag)
         }
     }
 

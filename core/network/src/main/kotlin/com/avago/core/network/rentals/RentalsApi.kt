@@ -277,6 +277,41 @@ class RentalsApi @Inject constructor(
         client.post(r(accountId, "/orders/$orderId/invoices")) { json(body); idem(idempotencyKey) }.body()
     }
 
+    /**
+     * GET /rentals/readiness-checks?asset_id&status → `{readiness_checks:[…]}` (stage B §3).
+     * Without [status] the server lists only `pending` / `failed` checks, newest first.
+     */
+    suspend fun readinessChecks(accountId: String, assetId: String? = null, status: String? = null): JsonObject = call {
+        client.get(r(accountId, "/readiness-checks")) {
+            assetId?.let { parameter("asset_id", it) }
+            status?.let { parameter("status", it) }
+        }.body()
+    }
+
+    /** GET /rentals/readiness-checks/{id} → the row. */
+    suspend fun readinessCheck(accountId: String, checkId: String): JsonObject = call {
+        client.get(r(accountId, "/readiness-checks/$checkId")).body()
+    }
+
+    /**
+     * POST /rentals/readiness-checks — `{client_uuid, asset_id, items?, notes?}` → 201 the row
+     * (always created `pending`; a `client_uuid` replay returns 200 with the existing row).
+     * Needs `rental.checkin`.
+     */
+    suspend fun createReadinessCheck(accountId: String, body: JsonObject, idempotencyKey: String): JsonObject = call {
+        client.post(r(accountId, "/readiness-checks")) { json(body); idem(idempotencyKey) }.body()
+    }
+
+    /**
+     * PATCH /rentals/readiness-checks/{id} — `{status?, items?, notes?, server_version}` → the row
+     * (`server_version + 1`). 409 on a stale version (`{error:"conflict", current}`) or
+     * `invalid_transition`; `waived` needs `rental.override_ready` and non-empty notes
+     * (`400 reason_required`).
+     */
+    suspend fun updateReadinessCheck(accountId: String, checkId: String, body: JsonObject, idempotencyKey: String): JsonObject = call {
+        client.patch(r(accountId, "/readiness-checks/$checkId")) { json(body); idem(idempotencyKey) }.body()
+    }
+
     /** GET /rentals/documents/{id}/pdf — the rendered document as raw `application/pdf` bytes. */
     suspend fun documentPdf(accountId: String, documentId: String): ByteArray = call {
         client.get(r(accountId, "/documents/$documentId/pdf")) {
