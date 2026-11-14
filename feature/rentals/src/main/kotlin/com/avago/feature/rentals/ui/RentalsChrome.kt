@@ -238,10 +238,11 @@ internal fun ChipRow(modifier: Modifier = Modifier, content: @Composable RowScop
 @Composable
 internal fun dayLabel(date: java.time.LocalDate, zone: java.time.ZoneId): String {
     val today = java.time.LocalDate.now(zone)
+    val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
     return when (date) {
         today -> stringResource(R.string.rentals_today)
         today.plusDays(1) -> stringResource(R.string.rentals_tomorrow)
         today.minusDays(1) -> stringResource(R.string.rentals_yesterday)
-        else -> java.time.format.DateTimeFormatter.ofPattern("EEE, d MMM yyyy", java.util.Locale.getDefault()).format(date)
+        else -> java.time.format.DateTimeFormatter.ofPattern("EEE, d MMM yyyy", locale).format(date)
     }
 }
