@@ -1,17 +1,30 @@
 package com.avago.feature.rentals.ui
 
+import java.time.Instant
+import java.time.ZoneId
+import javax.inject.Inject
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -20,42 +33,45 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.avago.core.data.rental.LocalFleet
-import com.avago.feature.rentals.R
+import com.avago.core.ui.components.BottomActionBar
+import com.avago.core.ui.components.CardDivider
+import com.avago.core.ui.components.rememberHaptics
+import com.avago.core.ui.components.SectionCard
 import com.avago.feature.rentals.data.RentalRepository
+import com.avago.feature.rentals.domain.instant
 import com.avago.feature.rentals.domain.LineSwap
 import com.avago.feature.rentals.domain.LocalSchedule
-import com.avago.feature.rentals.domain.RentalEntity
-import com.avago.feature.rentals.domain.instant
 import com.avago.feature.rentals.domain.obj
+import com.avago.feature.rentals.domain.RentalEntity
 import com.avago.feature.rentals.domain.str
+import com.avago.feature.rentals.R
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
-import java.time.Instant
-import java.time.ZoneId
-import javax.inject.Inject
 
 /** A checked-out line that can be swapped. */
 data class SwapLine(val id: String, val assetId: String, val assetName: String, val classId: String?, val endAt: Instant?)
@@ -166,68 +182,84 @@ fun SwapScreen(
     val outMeter by viewModel.outMeter.collectAsStateWithLifecycle()
     val outFuel by viewModel.outFuel.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
-    LaunchedEffect(Unit) { viewModel.errors.collect { snackbar.showSnackbar(it) } }
-    LaunchedEffect(Unit) { viewModel.done.collect { onSwapped(it) } }
+    val haptics = rememberHaptics()
+    LaunchedEffect(Unit) { viewModel.errors.collect { haptics.error(); snackbar.showSnackbar(it) } }
+    LaunchedEffect(Unit) { viewModel.done.collect { haptics.success(); onSwapped(it) } }
     val zone = ZoneId.systemDefault()
     val readingsValid = SwapViewModel.validMeter(inMeter) && SwapViewModel.validFuel(inFuel) &&
         SwapViewModel.validMeter(outMeter) && SwapViewModel.validFuel(outFuel)
+    val canSwap = line != null && candidates.any { it.assetId == selected } && readingsValid
 
     Scaffold(
         topBar = { RentalsTopBar(stringResource(R.string.rentals_swap_title), onBack) },
         snackbarHost = { SnackbarHost(snackbar) },
+        bottomBar = {
+            if (lines.isNotEmpty()) {
+                BottomActionBar {
+                    Button(onClick = viewModel::swap, enabled = canSwap, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
+                        Icon(Icons.Default.SwapHoriz, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.rentals_swap_confirm))
+                    }
+                }
+            }
+        },
     ) { pad ->
         Column(
             Modifier
                 .fillMaxSize()
                 .padding(pad)
+                .consumeWindowInsets(pad)
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
                 stringResource(R.string.rentals_swap_explainer),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp),
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
             )
             if (lines.isEmpty()) {
-                EmptyState(stringResource(R.string.rentals_swap_no_lines))
+                EmptyState(stringResource(R.string.rentals_swap_no_lines), icon = Icons.Default.SwapHoriz)
                 return@Column
             }
-            SectionHeader(stringResource(R.string.rentals_swap_line))
-            lines.forEach { l ->
-                ChoiceRow(
-                    selected = line?.id == l.id,
-                    title = l.assetName,
-                    subtitle = l.endAt?.let { stringResource(R.string.rentals_due_back, formatDateTime(it, zone)) },
-                    onClick = { viewModel.selectedLine.value = l.id; viewModel.selectedAsset.value = null },
-                )
+            SectionCard(title = stringResource(R.string.rentals_swap_line), modifier = Modifier.selectableGroup()) {
+                lines.forEachIndexed { i, l ->
+                    if (i > 0) CardDivider()
+                    ChoiceRow(
+                        selected = line?.id == l.id,
+                        title = l.assetName,
+                        subtitle = l.endAt?.let { stringResource(R.string.rentals_due_back, formatDateTime(it, zone)) },
+                        onClick = { viewModel.selectedLine.value = l.id; viewModel.selectedAsset.value = null },
+                    )
+                }
             }
-            SectionHeader(stringResource(R.string.rentals_swap_replacement))
-            if (candidates.isEmpty()) EmptyState(stringResource(R.string.rentals_swap_no_candidates))
-            candidates.forEach { u ->
-                ChoiceRow(
-                    selected = selected == u.assetId,
-                    title = u.name,
-                    subtitle = u.className,
-                    onClick = { viewModel.selectedAsset.value = u.assetId },
-                )
+            SectionCard(title = stringResource(R.string.rentals_swap_replacement), modifier = Modifier.selectableGroup()) {
+                if (candidates.isEmpty()) EmptyState(stringResource(R.string.rentals_swap_no_candidates), icon = Icons.Default.Inventory2)
+                candidates.forEachIndexed { i, u ->
+                    if (i > 0) CardDivider()
+                    ChoiceRow(
+                        selected = selected == u.assetId,
+                        title = u.name,
+                        subtitle = u.className,
+                        onClick = { viewModel.selectedAsset.value = u.assetId },
+                    )
+                }
             }
-            Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SectionCard(title = stringResource(R.string.rentals_reason), contentPadding = true) {
                 OutlinedTextField(
                     reason, { viewModel.reason.value = it },
-                    label = { Text(stringResource(R.string.rentals_reason)) },
+                    placeholder = { Text(stringResource(R.string.rentals_reason)) },
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Next),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Text(stringResource(R.string.rentals_swap_returning), style = MaterialTheme.typography.titleSmall)
+            }
+            SectionCard(title = stringResource(R.string.rentals_swap_returning), contentPadding = true) {
                 Readings(inMeter, inFuel, { viewModel.inMeter.value = it }, { viewModel.inFuel.value = it })
-                Text(stringResource(R.string.rentals_swap_outgoing), style = MaterialTheme.typography.titleSmall)
-                Readings(outMeter, outFuel, { viewModel.outMeter.value = it }, { viewModel.outFuel.value = it })
-                Button(
-                    onClick = viewModel::swap,
-                    enabled = line != null && candidates.any { it.assetId == selected } && readingsValid,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = MinTouch),
-                ) { Text(stringResource(R.string.rentals_swap_confirm)) }
+            }
+            SectionCard(title = stringResource(R.string.rentals_swap_outgoing), contentPadding = true) {
+                Readings(outMeter, outFuel, { viewModel.outMeter.value = it }, { viewModel.outFuel.value = it }, last = true)
             }
         }
     }
@@ -238,13 +270,13 @@ private fun ChoiceRow(selected: Boolean, title: String, subtitle: String?, onCli
     Row(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = MinTouch)
+            .heightIn(min = 56.dp)
             .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RadioButton(selected = selected, onClick = null)
-        Column(Modifier.padding(start = 12.dp)) {
+        Column(Modifier.padding(start = 16.dp).weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
             subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
@@ -252,22 +284,26 @@ private fun ChoiceRow(selected: Boolean, title: String, subtitle: String?, onCli
 }
 
 @Composable
-private fun Readings(meter: String, fuel: String, onMeter: (String) -> Unit, onFuel: (String) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+private fun Readings(meter: String, fuel: String, onMeter: (String) -> Unit, onFuel: (String) -> Unit, last: Boolean = false) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        val meterOk = SwapViewModel.validMeter(meter)
+        val fuelOk = SwapViewModel.validFuel(fuel)
         OutlinedTextField(
             meter, onMeter,
             label = { Text(stringResource(R.string.rentals_meter)) },
-            isError = !SwapViewModel.validMeter(meter),
+            isError = !meterOk,
+            supportingText = if (!meterOk) { { Text(stringResource(R.string.rentals_value_invalid)) } } else null,
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
             modifier = Modifier.weight(1f),
         )
         OutlinedTextField(
             fuel, onFuel,
             label = { Text(stringResource(R.string.rentals_meter_fuel)) },
-            isError = !SwapViewModel.validFuel(fuel),
+            isError = !fuelOk,
+            supportingText = if (!fuelOk) { { Text(stringResource(R.string.rentals_value_invalid)) } } else null,
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = if (last) ImeAction.Done else ImeAction.Next),
             modifier = Modifier.weight(1f),
         )
     }

@@ -1,21 +1,45 @@
 package com.avago.feature.rentals.ui
 
+import java.time.Instant
+import java.util.Currency
+import java.util.Locale
+import javax.inject.Inject
+import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.automirrored.filled.Login
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.EventAvailable
+import androidx.compose.material.icons.filled.EventBusy
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -24,50 +48,61 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.AssetEntity
+import com.avago.core.data.db.rental.RentalRecordEntity
+import com.avago.core.data.rental.FleetStatus
 import com.avago.core.data.rental.LocalFleet
 import com.avago.core.data.rental.MoneyFormatter
-import com.avago.feature.rentals.R
+import com.avago.core.ui.components.BottomActionBar
+import com.avago.core.ui.components.CardDivider
+import com.avago.core.ui.components.cardListItemColors
+import com.avago.core.ui.components.ErrorBanner
+import com.avago.core.ui.components.isDarkScheme
+import com.avago.core.ui.components.LeadingBadge
+import com.avago.core.ui.components.rememberHaptics
+import com.avago.core.ui.components.SectionCard
+import com.avago.core.ui.components.StatusPill
+import com.avago.core.ui.components.StatusTone
 import com.avago.feature.rentals.data.RentalRepository
 import com.avago.feature.rentals.domain.AssetProfit
 import com.avago.feature.rentals.domain.HandoverTarget
 import com.avago.feature.rentals.domain.LineView
 import com.avago.feature.rentals.domain.OrderView
 import com.avago.feature.rentals.domain.RentalEntity
+import com.avago.feature.rentals.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flatMapLatest
@@ -76,13 +111,14 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
-import java.time.Instant
-import java.util.Currency
-import java.util.Locale
-import javax.inject.Inject
 
 data class AssetBooking(val order: OrderView, val line: LineView)
 
@@ -188,105 +224,187 @@ fun AssetRentalScreen(
     var deposit by rememberSaveable { mutableStateOf("") }
     val zone = zoneOf(status?.unit?.timeZone)
 
+    val haptics = rememberHaptics()
+    var menuOpen by remember { mutableStateOf(false) }
+    val s = status
+    val handover = if (s != null && onHandover != null) HandoverTarget.of(s) else null
+    val canMakeRentable = currency.length == 3 && MoneyFormatter.parse(day, currency)?.let { it.minor > 0 } == true
+    val dayInvalid = day.isNotBlank() && MoneyFormatter.parse(day, currency)?.let { it.minor > 0 } != true
+
     Scaffold(
-        topBar = { RentalsTopBar(asset?.name ?: stringResource(R.string.rentals_title), onBack) },
+        topBar = {
+            RentalsTopBar(asset?.name ?: stringResource(R.string.rentals_title), onBack) {
+                if (s != null) {
+                    Box {
+                        IconButton(onClick = { menuOpen = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.rentals_more_actions))
+                        }
+                        DropdownMenu(menuOpen, onDismissRequest = { menuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.rentals_legacy_rentals)) },
+                                leadingIcon = { Icon(Icons.Default.History, null) },
+                                onClick = { menuOpen = false; onOpenLegacy(viewModel.assetId) },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.rentals_disable_rentable)) },
+                                leadingIcon = { Icon(Icons.Default.Block, null) },
+                                onClick = { menuOpen = false; viewModel.setRentable(false, "", "", "") },
+                            )
+                        }
+                    }
+                }
+            }
+        },
         snackbarHost = { SnackbarHost(snackbar) },
+        bottomBar = {
+            BottomActionBar {
+                if (s != null) {
+                    if (onReadiness != null && (s.status == FleetStatus.NOT_READY || s.checklist?.open == true)) {
+                        OutlinedButton(onClick = { onReadiness(viewModel.assetId) }, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
+                            Text(stringResource(R.string.rentals_readiness_open), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                    if (handover != null) {
+                        val inbound = handover.direction == HandoverTarget.IN
+                        if (onReadiness == null || !(s.status == FleetStatus.NOT_READY || s.checklist?.open == true)) {
+                            OutlinedButton(onClick = { onBook(viewModel.assetId) }, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
+                                Text(stringResource(R.string.rentals_book))
+                            }
+                        }
+                        Button(
+                            onClick = { onHandover?.invoke(handover.orderId, handover.direction) },
+                            modifier = Modifier.weight(1f).heightIn(min = MinTouch),
+                        ) {
+                            Icon(if (inbound) Icons.AutoMirrored.Filled.Login else Icons.AutoMirrored.Filled.Logout, null, Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(if (inbound) R.string.rentals_action_checkin else R.string.rentals_action_checkout), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    } else {
+                        Button(onClick = { onBook(viewModel.assetId) }, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
+                            Icon(Icons.Default.EventAvailable, null, Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.rentals_book))
+                        }
+                    }
+                } else {
+                    Button(
+                        onClick = { haptics.tick(); viewModel.setRentable(true, day, week, deposit) },
+                        enabled = canMakeRentable,
+                        modifier = Modifier.weight(1f).heightIn(min = MinTouch),
+                    ) { Text(stringResource(R.string.rentals_make_rentable)) }
+                }
+            }
+        },
     ) { pad ->
         Column(
             Modifier
                 .fillMaxSize()
                 .padding(pad)
+                .consumeWindowInsets(pad)
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            val s = status
             if (s != null) {
-                Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FleetStatusChip(s.status)
-                    if (s.local || s.readinessPending) SyncStateBadge(com.avago.core.data.db.rental.RentalRecordEntity.STATE_PENDING)
-                }
-                if (s.status == com.avago.core.data.rental.FleetStatus.NOT_READY && s.unit.readiness.isNotEmpty()) {
-                    Text(
-                        stringResource(R.string.rentals_not_ready_reasons, readinessReasons(s.unit.readiness)),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(horizontal = 16.dp),
+                SectionCard(title = stringResource(R.string.rentals_status)) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            FleetStatusChip(s.status)
+                            if (s.local || s.readinessPending) SyncStateBadge(RentalRecordEntity.STATE_PENDING)
+                        }
+                    }
+                    if (s.status == FleetStatus.NOT_READY && s.unit.readiness.isNotEmpty()) {
+                        ErrorBanner(
+                            stringResource(R.string.rentals_not_ready_reasons, readinessReasons(s.unit.readiness)),
+                            modifier = Modifier.padding(bottom = 12.dp),
+                            tone = StatusTone.Warning,
+                        )
+                    }
+                    val rows = listOfNotNull(
+                        s.unit.className?.let { stringResource(R.string.rentals_class) to it },
+                        s.dueAt?.let { stringResource(R.string.rentals_due) to formatDateTime(it, zone) },
+                        s.nextChangeAt?.let { stringResource(R.string.rentals_next_change_label) to formatDateTime(it, zone) },
                     )
-                }
-                val handover = if (onHandover != null) HandoverTarget.of(s) else null
-                if (handover != null) {
-                    val label = if (handover.direction == HandoverTarget.IN) R.string.rentals_action_checkin else R.string.rentals_action_checkout
-                    Button(
-                        onClick = { onHandover?.invoke(handover.orderId, handover.direction) },
-                        modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth().heightIn(min = MinTouch),
-                    ) { Text(stringResource(label)) }
-                }
-                if (onReadiness != null && (s.status == com.avago.core.data.rental.FleetStatus.NOT_READY || s.checklist?.open == true)) {
-                    OutlinedButton(
-                        onClick = { onReadiness(viewModel.assetId) },
-                        modifier = Modifier.padding(horizontal = 16.dp).heightIn(min = MinTouch),
-                    ) { Text(stringResource(R.string.rentals_readiness_open)) }
-                }
-                s.unit.className?.let { LabelValue(stringResource(R.string.rentals_class), it) }
-                s.dueAt?.let { LabelValue(stringResource(R.string.rentals_due), formatDateTime(it, zone)) }
-                s.nextChangeAt?.let { LabelValue(stringResource(R.string.rentals_next_change_label), formatDateTime(it, zone)) }
-                Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { onBook(viewModel.assetId) }, modifier = Modifier.heightIn(min = MinTouch)) { Text(stringResource(R.string.rentals_book)) }
-                    OutlinedButton(onClick = { viewModel.setRentable(false, "", "", "") }, modifier = Modifier.heightIn(min = MinTouch)) {
-                        Text(stringResource(R.string.rentals_disable_rentable))
+                    if (rows.isNotEmpty()) {
+                        CardDivider()
+                        Column(Modifier.padding(vertical = 8.dp)) { rows.forEach { (l, v) -> LabelValue(l, v) } }
                     }
                 }
             } else {
-                SectionHeader(stringResource(R.string.rentals_make_rentable))
-                Text(stringResource(R.string.rentals_make_rentable_hint), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 16.dp))
-                Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        currency, { viewModel.currency.value = it.uppercase().take(3) },
-                        label = { Text(stringResource(R.string.rentals_currency)) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                SectionCard(title = stringResource(R.string.rentals_make_rentable)) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            stringResource(R.string.rentals_make_rentable_hint),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        OutlinedTextField(
+                            currency, { viewModel.currency.value = it.uppercase().take(3) },
+                            label = { Text(stringResource(R.string.rentals_currency)) },
+                            singleLine = true,
+                            isError = currency.length != 3,
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, imeAction = ImeAction.Next),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        MoneyField(
+                            day, stringResource(R.string.rentals_day_rate, currency), currency,
+                            error = if (dayInvalid) stringResource(R.string.rentals_amount_invalid) else null,
+                        ) { day = it }
+                        MoneyField(week, stringResource(R.string.rentals_week_rate, currency), currency) { week = it }
+                        MoneyField(deposit, stringResource(R.string.rentals_deposit_amount, currency), currency, last = true) { deposit = it }
+                    }
+                }
+            }
+
+            profit?.let { p -> ProfitCard(p) }
+
+            SectionCard(
+                title = stringResource(R.string.rentals_bookings),
+                trailing = if (bookings.isNotEmpty()) {
+                    { Text("${bookings.size}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                } else {
+                    null
+                },
+            ) {
+                if (bookings.isEmpty()) {
+                    EmptyState(stringResource(R.string.rentals_bookings_empty), icon = Icons.Default.EventBusy)
+                }
+                bookings.forEachIndexed { i, b ->
+                    if (i > 0) CardDivider()
+                    ListItem(
+                        colors = cardListItemColors(),
+                        modifier = Modifier.clickable(role = Role.Button) { onOpenOrder(b.order.id) },
+                        leadingContent = { LeadingBadge(orderStatusIcon(b.order.status), orderStatusTone(b.order.status)) },
+                        headlineContent = {
+                            Text(
+                                listOfNotNull(b.order.number ?: stringResource(R.string.rentals_draft_order), b.order.customerName).joinToString(" · "),
+                                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                            )
+                        },
+                        supportingContent = {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("${formatDateTime(b.line.startAt ?: b.order.startAt, zone)} → ${formatDateTime(b.line.endAt ?: b.order.endAt, zone)}")
+                                OrderStatusPill(b.order.status)
+                            }
+                        },
+                        trailingContent = { Text(formatMoney(b.line.amount), style = MaterialTheme.typography.titleSmall) },
                     )
-                    MoneyField(day, stringResource(R.string.rentals_day_rate, currency)) { day = it }
-                    MoneyField(week, stringResource(R.string.rentals_week_rate, currency)) { week = it }
-                    MoneyField(deposit, stringResource(R.string.rentals_deposit_amount, currency)) { deposit = it }
-                    Button(
-                        onClick = { viewModel.setRentable(true, day, week, deposit) },
-                        enabled = currency.length == 3 && MoneyFormatter.parse(day, currency)?.let { it.minor > 0 } == true,
-                        modifier = Modifier.fillMaxWidth().heightIn(min = MinTouch),
-                    ) { Text(stringResource(R.string.rentals_make_rentable)) }
                 }
-            }
-
-            profit?.let { p ->
-                SectionHeader(stringResource(R.string.rentals_profit))
-                ProfitCard(p)
-            }
-
-            SectionHeader(stringResource(R.string.rentals_bookings)) {
-                TextButton(onClick = { onOpenLegacy(viewModel.assetId) }, modifier = Modifier.heightIn(min = MinTouch)) {
-                    Text(stringResource(R.string.rentals_legacy_rentals))
-                }
-            }
-            if (bookings.isEmpty()) EmptyState(stringResource(R.string.rentals_bookings_empty))
-            bookings.forEach { b ->
-                ListItem(
-                    modifier = Modifier.clickable(role = Role.Button) { onOpenOrder(b.order.id) },
-                    overlineContent = { Text(stringResource(orderStatusLabel(b.order.status))) },
-                    headlineContent = { Text(listOfNotNull(b.order.number ?: stringResource(R.string.rentals_draft_order), b.order.customerName).joinToString(" · ")) },
-                    supportingContent = { Text("${formatDateTime(b.line.startAt ?: b.order.startAt, zone)} → ${formatDateTime(b.line.endAt ?: b.order.endAt, zone)}") },
-                    trailingContent = { Text(formatMoney(b.line.amount)) },
-                )
             }
         }
     }
 }
 
 @Composable
-private fun MoneyField(value: String, label: String, onChange: (String) -> Unit) {
+private fun MoneyField(value: String, label: String, currency: String, error: String? = null, last: Boolean = false, onChange: (String) -> Unit) {
     OutlinedTextField(
         value, onChange,
         label = { Text(label) },
+        prefix = { Text("$currency ") },
         singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        isError = error != null,
+        supportingText = error?.let { { Text(it) } },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = if (last) ImeAction.Done else ImeAction.Next),
         modifier = Modifier.fillMaxWidth(),
     )
 }
@@ -294,26 +412,59 @@ private fun MoneyField(value: String, label: String, onChange: (String) -> Unit)
 /** Revenue vs costs bars (chart style guide: palette blue / orange, value axis from 0, labels as text). */
 @Composable
 private fun ProfitCard(p: AssetProfit.Result) {
-    val dark = isSystemInDarkTheme()
+    val dark = isDarkScheme()
     val blue = if (dark) Color(0xFF60A5FA) else Color(0xFF2563EB)
     val orange = if (dark) Color(0xFFFB923C) else Color(0xFFC2410C)
     val revenue = formatMoney(p.revenue)
     val costs = formatMoney(p.costs)
     val profitText = formatMoney(p.profit)
     val summary = stringResource(R.string.rentals_profit_summary, revenue, costs, profitText)
-    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(profitText, style = MaterialTheme.typography.headlineSmall, color = if (p.profit.minor < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
-            p.marginPct?.let { Text(stringResource(R.string.rentals_margin, it), style = MaterialTheme.typography.bodySmall) }
+    val negative = p.profit.minor < 0
+    SectionCard(title = stringResource(R.string.rentals_profit)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    profitText,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = if (negative) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                p.marginPct?.let {
+                    StatusPill(
+                        stringResource(R.string.rentals_margin, it),
+                        if (negative) StatusTone.Danger else StatusTone.Success,
+                        icon = if (negative) Icons.AutoMirrored.Filled.TrendingDown else Icons.AutoMirrored.Filled.TrendingUp,
+                    )
+                }
+            }
             val max = maxOf(p.revenue.minor, p.costs.minor, 1L).toFloat()
             Canvas(Modifier.fillMaxWidth().height(44.dp).semantics { contentDescription = summary }) {
                 val h = size.height / 2 - 4f
-                drawRoundRect(blue, Offset(0f, 0f), Size(size.width * (p.revenue.minor / max), h), CornerRadius(4f, 4f))
-                drawRoundRect(orange, Offset(0f, h + 8f), Size(size.width * (p.costs.minor / max), h), CornerRadius(4f, 4f))
+                drawRoundRect(blue, Offset(0f, 0f), Size(size.width * (p.revenue.minor / max), h), CornerRadius(8f, 8f))
+                drawRoundRect(orange, Offset(0f, h + 8f), Size(size.width * (p.costs.minor / max), h), CornerRadius(8f, 8f))
             }
-            LabelValue(stringResource(R.string.rentals_revenue), revenue)
-            LabelValue(stringResource(R.string.rentals_costs), costs)
-            if (p.skipped > 0) Text(stringResource(R.string.rentals_profit_skipped, p.skipped), style = MaterialTheme.typography.bodySmall)
         }
+        CardDivider()
+        Column(Modifier.padding(vertical = 8.dp)) {
+            LegendValue(blue, stringResource(R.string.rentals_revenue), revenue)
+            LegendValue(orange, stringResource(R.string.rentals_costs), costs)
+            if (p.skipped > 0) {
+                Text(
+                    stringResource(R.string.rentals_profit_skipped, p.skipped),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+        }
+    }
+}
+
+/** Label/value row with a legend swatch tying it to the bar above (label text keeps colour from being the only cue). */
+@Composable
+private fun LegendValue(color: Color, label: String, value: String) {
+    Row(Modifier.padding(start = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(10.dp).clip(CircleShape).background(color))
+        LabelValue(label, value, Modifier.weight(1f))
     }
 }

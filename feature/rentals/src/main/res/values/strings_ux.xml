@@ -31,4 +31,8 @@
     <string name="rentals_name_required">Please enter a name</string>
     <string name="rentals_date_invalid">Use the format %1$s</string>
     <string name="rentals_documents_none">No documents yet</string>
+    <string name="rentals_scan_result">Scan result</string>
+    <string name="rentals_status">Status</string>
+    <string name="rentals_readiness_progress">%1$d of %2$d done</string>
+    <string name="rentals_value_invalid">Check this value</string>
 </resources>
