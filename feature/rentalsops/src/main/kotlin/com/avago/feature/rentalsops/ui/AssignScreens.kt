@@ -1,52 +1,72 @@
 package com.avago.feature.rentalsops.ui
 
-import androidx.compose.foundation.clickable
+import javax.inject.Inject
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.TaskAlt
+import androidx.compose.material.icons.Icons
 import androidx.compose.material3.AlertDialog
-import androidx.compose.ui.unit.dp
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ListItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.avago.core.design.theme.AvagoSpacing
-import com.avago.feature.rentalsops.R
+import com.avago.core.ui.components.LeadingBadge
+import com.avago.core.ui.components.rememberHaptics
+import com.avago.core.ui.components.SectionCard
+import com.avago.core.ui.components.SkeletonList
+import com.avago.core.ui.components.StatusPill
+import com.avago.core.ui.components.StatusTone
+import com.avago.core.ui.components.toneColors
 import com.avago.feature.rentalsops.data.LineView
 import com.avago.feature.rentalsops.data.RentalOpsRepository
 import com.avago.feature.rentalsops.domain.UnitAssignment
 import com.avago.feature.rentalsops.push.RentalOpsRoutes
+import com.avago.feature.rentalsops.R
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 @HiltViewModel
 class AssignListViewModel @Inject constructor(repo: RentalOpsRepository) : ViewModel() {
@@ -60,31 +80,44 @@ fun AssignListScreen(onNavigate: (String) -> Unit, onBack: () -> Unit, vm: Assig
     Scaffold(topBar = { OpsTopBar(stringResource(R.string.rentalops_assign_title), onBack) }) { pad ->
         val l = lines
         when {
-            l == null -> Unit
-            l.isEmpty() -> EmptyState(stringResource(R.string.rentalops_assign_empty), Modifier.padding(pad))
-            else -> LazyColumn(Modifier.fillMaxSize().padding(pad)) {
-                items(l, key = { it.line.lineId }) { v -> LineRow(v) { onNavigate(RentalOpsRoutes.assignLine(v.line.lineId)) } }
+            l == null -> SkeletonList(Modifier.padding(pad), rows = 5)
+            l.isEmpty() -> EmptyState(stringResource(R.string.rentalops_assign_empty), Modifier.padding(pad), icon = Icons.Filled.TaskAlt)
+            else -> LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(vertical = AvagoSpacing.sm)) {
+                items(l, key = { it.line.lineId }, contentType = { "line" }) { v ->
+                    LineRow(v, Modifier.animateItem()) { onNavigate(RentalOpsRoutes.assignLine(v.line.lineId)) }
+                }
             }
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun LineRow(v: LineView, onClick: () -> Unit) {
-    ListItem(
-        headlineContent = { Text(v.line.title ?: stringResource(R.string.rentalops_class_line)) },
-        overlineContent = v.line.customerName?.let { name -> { Text(name) } },
-        supportingContent = {
-            Column {
+private fun LineRow(v: LineView, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)),
+        modifier = modifier.fillMaxWidth().padding(horizontal = AvagoSpacing.lg, vertical = AvagoSpacing.xs),
+    ) {
+        Row(Modifier.padding(AvagoSpacing.md), horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.md)) {
+            LeadingBadge(Icons.Filled.Inventory2, if (v.pendingAssetName != null) StatusTone.Info else StatusTone.Warning)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AvagoSpacing.xs)) {
+                v.line.customerName?.let {
+                    Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Text(v.line.title ?: stringResource(R.string.rentalops_class_line), style = MaterialTheme.typography.titleMedium)
                 LineMeta(v)
-                v.pendingAssetName?.let {
-                    Text(stringResource(R.string.rentalops_assign_pending, it), color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm), verticalArrangement = Arrangement.spacedBy(AvagoSpacing.xs)) {
+                    v.pendingAssetName?.let {
+                        StatusPill(stringResource(R.string.rentalops_assign_pending, it), StatusTone.Info, icon = Icons.Filled.Sync)
+                    }
+                    PendingChip(listOfNotNull(v.pending))
                 }
             }
-        },
-        trailingContent = { PendingChip(listOfNotNull(v.pending)) },
-        modifier = Modifier.heightIn(min = MinTouch).clickable(role = Role.Button, onClick = onClick).semantics(mergeDescendants = true) {},
-    )
+        }
+    }
 }
 
 /** Order number · quantity, the window and the class's free-unit headroom. */
@@ -95,13 +128,17 @@ private fun LineMeta(v: LineView) {
         l.orderNumber?.let { stringResource(R.string.rentalops_order_n, it) },
         l.qty?.takeIf { it > 1 }?.let { stringResource(R.string.rentalops_qty_n, it) },
     )
-    if (head.isNotEmpty()) Text(head.joinToString(" \u00b7 "))
-    Text("${Fmt.dateTime(l.start)} \u2013 ${Fmt.dateTime(l.end)}", style = MaterialTheme.typography.bodySmall)
+    if (head.isNotEmpty()) Text(head.joinToString(" \u00b7 "), style = MaterialTheme.typography.bodyMedium)
+    Text(
+        "${Fmt.dateTime(l.start)} \u2013 ${Fmt.dateTime(l.end)}",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
     l.classFreeUnits?.let { free ->
-        Text(
+        StatusPill(
             if (free <= 0) stringResource(R.string.rentalops_class_full) else stringResource(R.string.rentalops_class_free, free),
-            style = MaterialTheme.typography.bodySmall,
-            color = if (free <= 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+            if (free <= 0) StatusTone.Danger else StatusTone.Success,
+            icon = if (free <= 0) Icons.Filled.Block else Icons.Filled.CheckCircle,
         )
     }
 }
@@ -147,24 +184,36 @@ class AssignLineViewModel @Inject constructor(
 fun AssignLineScreen(onBack: () -> Unit, vm: AssignLineViewModel = hiltViewModel()) {
     val s by vm.state.collectAsStateWithLifecycle()
     var confirm by remember { mutableStateOf<UnitAssignment.Candidate?>(null) }
+    val haptics = rememberHaptics()
     Scaffold(topBar = { OpsTopBar(stringResource(R.string.rentalops_assign_unit), onBack) }) { pad ->
-        Column(Modifier.fillMaxSize().padding(pad)) {
+        LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(vertical = AvagoSpacing.sm)) {
             s.view?.let { v ->
-                Column(Modifier.padding(AvagoSpacing.lg)) {
-                    Text(v.line.title ?: stringResource(R.string.rentalops_class_line), style = MaterialTheme.typography.titleMedium)
-                    v.line.customerName?.let { Text(it) }
-                    LineMeta(v)
+                item(key = "line", contentType = "header") {
+                    SectionCard {
+                        Column(Modifier.padding(AvagoSpacing.lg), verticalArrangement = Arrangement.spacedBy(AvagoSpacing.xs)) {
+                            v.line.customerName?.let {
+                                Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Text(v.line.title ?: stringResource(R.string.rentalops_class_line), style = MaterialTheme.typography.titleLarge)
+                            LineMeta(v)
+                        }
+                    }
                 }
             }
             if (!s.loading && s.view != null && !s.confirmed) {
-                OfflineBanner(stringResource(R.string.rentalops_assign_offline))
+                item(key = "offline", contentType = "banner") { OfflineBanner(stringResource(R.string.rentalops_assign_offline)) }
             }
             when {
-                s.loading -> CircularProgressIndicator(Modifier.padding(AvagoSpacing.xxl))
-                s.view == null -> EmptyState(stringResource(R.string.rentalops_assign_done))
-                s.candidates.isEmpty() -> EmptyState(stringResource(R.string.rentalops_assign_no_units))
-                else -> LazyColumn(Modifier.fillMaxSize()) {
-                    items(s.candidates, key = { it.unit.assetId }) { c ->
+                s.loading -> item(key = "loading", contentType = "skeleton") { SkeletonList(rows = 4) }
+                s.view == null -> item(key = "done", contentType = "empty") {
+                    EmptyState(stringResource(R.string.rentalops_assign_done), icon = Icons.Filled.TaskAlt)
+                }
+                s.candidates.isEmpty() -> item(key = "none", contentType = "empty") {
+                    EmptyState(stringResource(R.string.rentalops_assign_no_units), icon = Icons.Filled.Inventory2)
+                }
+                else -> {
+                    item(key = "cands-h", contentType = "header") { SectionHeader(stringResource(R.string.rentalops_assign_candidates, s.candidates.size)) }
+                    items(s.candidates, key = { it.unit.assetId }, contentType = { "candidate" }) { c ->
                         CandidateRow(c, suggested = c == s.candidates.first()) { confirm = c }
                     }
                 }
@@ -174,10 +223,11 @@ fun AssignLineScreen(onBack: () -> Unit, vm: AssignLineViewModel = hiltViewModel
     confirm?.let { c ->
         AlertDialog(
             onDismissRequest = { confirm = null },
+            icon = { Icon(Icons.Filled.Inventory2, contentDescription = null) },
             title = { Text(stringResource(R.string.rentalops_assign_unit)) },
             text = { Text(stringResource(R.string.rentalops_assign_confirm, c.unit.name)) },
             confirmButton = {
-                TextButton(onClick = { vm.assign(c) { confirm = null; onBack() } }, modifier = Modifier.heightIn(min = MinTouch)) {
+                TextButton(onClick = { vm.assign(c) { haptics.success(); confirm = null; onBack() } }, modifier = Modifier.heightIn(min = MinTouch)) {
                     Text(stringResource(R.string.rentalops_assign_action))
                 }
             },
@@ -186,30 +236,32 @@ fun AssignLineScreen(onBack: () -> Unit, vm: AssignLineViewModel = hiltViewModel
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CandidateRow(c: UnitAssignment.Candidate, suggested: Boolean, onClick: () -> Unit) {
-    ListItem(
-        headlineContent = { Text(c.unit.name) },
-        supportingContent = {
-            Row {
-                if (suggested) Tag(stringResource(R.string.rentalops_suggested))
-                if (c.sameLocation) Tag(stringResource(R.string.rentalops_same_branch))
-                if (!c.unit.ready) Tag(stringResource(R.string.rentalops_not_ready))
-                if (!c.confirmed) Tag(stringResource(R.string.rentalops_unconfirmed))
-            }
-        },
-        modifier = Modifier.fillMaxWidth().heightIn(min = MinTouch).clickable(role = Role.Button, onClick = onClick).semantics(mergeDescendants = true) {},
-    )
-}
-
-@Composable
-private fun Tag(text: String) {
-    // Plain label (not a disabled chip) so TalkBack doesn't announce "disabled".
-    androidx.compose.material3.Surface(
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        shape = MaterialTheme.shapes.small,
-        modifier = Modifier.padding(end = AvagoSpacing.xs, top = AvagoSpacing.xs),
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.large,
+        color = if (suggested) toneColors(StatusTone.Accent).container.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surface,
+        border = BorderStroke(if (suggested) 2.dp else 1.dp, if (suggested) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = AvagoSpacing.lg, vertical = AvagoSpacing.xs),
     ) {
-        Text(text, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = AvagoSpacing.sm, vertical = 2.dp))
+        Row(
+            Modifier.heightIn(min = 56.dp).padding(AvagoSpacing.md),
+            horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            LeadingBadge(Icons.Filled.Inventory2, if (c.unit.ready) StatusTone.Success else StatusTone.Warning)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AvagoSpacing.xs)) {
+                Text(c.unit.name, style = MaterialTheme.typography.titleMedium)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm), verticalArrangement = Arrangement.spacedBy(AvagoSpacing.xs)) {
+                    if (suggested) StatusPill(stringResource(R.string.rentalops_suggested), StatusTone.Accent, icon = Icons.Filled.AutoAwesome)
+                    if (c.sameLocation) StatusPill(stringResource(R.string.rentalops_same_branch), StatusTone.Info, icon = Icons.Filled.Place)
+                    if (!c.unit.ready) StatusPill(stringResource(R.string.rentalops_not_ready), StatusTone.Warning, icon = Icons.Filled.Build)
+                    if (!c.confirmed) StatusPill(stringResource(R.string.rentalops_unconfirmed), StatusTone.Neutral, icon = Icons.Filled.CloudOff)
+                }
+            }
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }

@@ -1,83 +1,113 @@
 package com.avago.feature.rentalsops.ui
 
+import javax.inject.Inject
 import android.content.Context
 import android.content.Intent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.core.content.FileProvider
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.material3.Card
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
+import androidx.compose.material.icons.filled.Business
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.PersonSearch
+import androidx.compose.material.icons.outlined.TaskAlt
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.design.chart.ChartColors
 import com.avago.core.design.chart.ChartFormat
 import com.avago.core.design.chart.ChartLayout
-import com.avago.core.design.chart.ChartTheme
 import com.avago.core.design.chart.chartTextPaint
+import com.avago.core.design.chart.ChartTheme
 import com.avago.core.design.chart.drawChartEmpty
 import com.avago.core.design.chart.drawChartSkeleton
 import com.avago.core.design.chart.drawChartZeroLine
 import com.avago.core.design.theme.AvagoSpacing
+import com.avago.core.ui.components.CardDivider
+import com.avago.core.ui.components.ErrorBanner
+import com.avago.core.ui.components.LeadingBadge
+import com.avago.core.ui.components.SectionCard
+import com.avago.core.ui.components.SkeletonList
+import com.avago.core.ui.components.StatusPill
+import com.avago.core.ui.components.StatusTone
+import com.avago.core.ui.components.StickyDayHeader
 import com.avago.core.ui.invoiceStatusText
-import com.avago.feature.rentalsops.R
 import com.avago.feature.rentalsops.data.RentalOpsRepository
 import com.avago.feature.rentalsops.data.RentalOpsRepository.Fetch
 import com.avago.feature.rentalsops.domain.AgingBucket
@@ -85,17 +115,17 @@ import com.avago.feature.rentalsops.domain.AgingReport
 import com.avago.feature.rentalsops.domain.AgingRow
 import com.avago.feature.rentalsops.domain.MinorMoney
 import com.avago.feature.rentalsops.domain.Statement
+import com.avago.feature.rentalsops.R
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 /** Shared load state for the two read-only finance views. */
 data class FinanceState<T>(
@@ -120,7 +150,7 @@ private fun <T> Fetch.toState(parse: (kotlinx.serialization.json.JsonObject) -> 
 }
 
 @Composable
-private fun FailureBanner(s: FinanceState<*>) {
+private fun FailureBanner(s: FinanceState<*>, onRetry: (() -> Unit)? = null) {
     if (!s.failed) return
     val msg = when {
         s.failure == 403 -> stringResource(R.string.rentalops_err_forbidden)
@@ -128,7 +158,39 @@ private fun FailureBanner(s: FinanceState<*>) {
         s.stale -> stringResource(R.string.rentalops_offline_cached, Fmt.millis(s.fetchedAt ?: 0))
         else -> stringResource(R.string.rentalops_err_offline)
     }
-    OfflineBanner(msg)
+    val tone = when {
+        s.failure == 403 -> StatusTone.Danger
+        s.stale -> StatusTone.Warning
+        else -> StatusTone.Neutral
+    }
+    val icon = when {
+        s.failure == 403 -> Icons.Filled.Lock
+        s.stale -> Icons.Filled.History
+        else -> Icons.Filled.CloudOff
+    }
+    ErrorBanner(
+        msg,
+        modifier = Modifier.padding(vertical = AvagoSpacing.xs),
+        tone = tone,
+        icon = icon,
+        // A 403 will not fix itself on retry.
+        onRetry = onRetry?.takeIf { s.failure != 403 },
+        retryLabel = stringResource(R.string.rentalops_retry),
+    )
+}
+
+private fun invoiceTone(status: String?, balanceMinor: Long): StatusTone = when (status?.lowercase()) {
+    "paid" -> StatusTone.Success
+    "overdue" -> StatusTone.Danger
+    "void", "draft", "cancelled", "canceled" -> StatusTone.Neutral
+    else -> if (balanceMinor > 0) StatusTone.Warning else StatusTone.Success
+}
+
+private fun bucketTone(b: AgingBucket): StatusTone = when (b) {
+    AgingBucket.CURRENT -> StatusTone.Success
+    AgingBucket.D1_30 -> StatusTone.Info
+    AgingBucket.D31_60 -> StatusTone.Warning
+    AgingBucket.D61_90, AgingBucket.OVER_90 -> StatusTone.Danger
 }
 
 // ---- Statement ---------------------------------------------------------------------------
@@ -245,95 +307,140 @@ fun StatementScreen(onBack: () -> Unit, vm: StatementViewModel = hiltViewModel()
         topBar = { OpsTopBar(stringResource(R.string.rentalops_statement_title), onBack) },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { pad ->
-        LazyColumn(Modifier.fillMaxSize().padding(pad)) {
-            item {
-                ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }, modifier = Modifier.padding(AvagoSpacing.lg)) {
-                    OutlinedTextField(
-                        value = if (expanded) query else selected?.name.orEmpty(),
-                        onValueChange = { query = it; expanded = true },
-                        label = { Text(stringResource(R.string.rentalops_customer)) },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable),
-                    )
-                    val matches = customers.filter { query.isBlank() || it.name.contains(query, ignoreCase = true) }.take(50)
-                    ExposedDropdownMenu(expanded = expanded && matches.isNotEmpty(), onDismissRequest = { expanded = false }) {
-                        matches.forEach { c ->
-                            DropdownMenuItem(
-                                text = { Text(c.name) },
-                                onClick = { vm.select(c); query = ""; expanded = false },
-                                modifier = Modifier.heightIn(min = MinTouch),
+        LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(vertical = AvagoSpacing.sm)) {
+            item(key = "picker", contentType = "picker") {
+                SectionCard(title = stringResource(R.string.rentalops_customer)) {
+                    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+                        OutlinedTextField(
+                            value = if (expanded) query else selected?.name.orEmpty(),
+                            onValueChange = { query = it; expanded = true },
+                            placeholder = { Text(stringResource(R.string.rentalops_customer)) },
+                            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable),
+                        )
+                        val matches = customers.filter { query.isBlank() || it.name.contains(query, ignoreCase = true) }.take(50)
+                        ExposedDropdownMenu(expanded = expanded && matches.isNotEmpty(), onDismissRequest = { expanded = false }) {
+                            matches.forEach { c ->
+                                DropdownMenuItem(
+                                    text = { Text(c.name) },
+                                    leadingIcon = { Icon(Icons.Outlined.Person, contentDescription = null) },
+                                    onClick = { vm.select(c); query = ""; expanded = false },
+                                    modifier = Modifier.heightIn(min = MinTouch),
+                                )
+                            }
+                        }
+                    }
+                    if (customers.isEmpty()) {
+                        Text(
+                            stringResource(R.string.rentalops_no_customers),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = AvagoSpacing.sm),
+                        )
+                    }
+                }
+                FailureBanner(s, onRetry = { vm.load() })
+            }
+            if (selected == null && !s.loading) {
+                item(key = "pick-hint", contentType = "empty") {
+                    EmptyState(stringResource(R.string.rentalops_statement_pick), icon = Icons.Outlined.PersonSearch, modifier = Modifier.padding(top = AvagoSpacing.xxl))
+                }
+            }
+            if (s.loading) {
+                item(key = "loading", contentType = "loading") { SkeletonList(rows = 4) }
+            }
+            val st = s.data ?: return@LazyColumn
+            item(key = "balance", contentType = "balance") {
+                SectionCard(title = stringResource(R.string.rentalops_balance), contentPadding = true) {
+                    if (st.balanceByCurrency.isEmpty()) {
+                        Text(ChartFormat.money(0.0, "USD"), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
+                    }
+                    st.balanceByCurrency.toSortedMap().forEach { (cur, minor) ->
+                        Text(
+                            ChartFormat.money(MinorMoney.toMajor(minor, cur), cur),
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                    st.creditMinor?.takeIf { it != 0L }?.let { cr ->
+                        val cur = st.balanceByCurrency.keys.singleOrNull() ?: st.invoices.firstOrNull()?.currency ?: "USD"
+                        StatusPill(
+                            stringResource(R.string.rentalops_credit, ChartFormat.money(MinorMoney.toMajor(cr, cur), cur)),
+                            StatusTone.Success,
+                            modifier = Modifier.padding(top = AvagoSpacing.xs),
+                            icon = Icons.Filled.Savings,
+                        )
+                    }
+                    if (canSend && selected != null) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(top = AvagoSpacing.md),
+                            horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm),
+                        ) {
+                            FilledTonalButton(onClick = vm::sharePdf, enabled = !sending, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
+                                Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Text(stringResource(R.string.rentalops_statement_pdf), Modifier.padding(start = AvagoSpacing.sm))
+                            }
+                            FilledTonalButton(onClick = { emailDialog = true }, enabled = !sending, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
+                                if (sending) {
+                                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                } else {
+                                    Icon(Icons.Filled.Email, contentDescription = null, modifier = Modifier.size(18.dp))
+                                }
+                                Text(stringResource(R.string.rentalops_statement_email), Modifier.padding(start = AvagoSpacing.sm))
+                            }
+                        }
+                    }
+                }
+            }
+            item(key = "inv-header", contentType = "header") {
+                StickyDayHeader(stringResource(R.string.rentalops_invoices), count = st.invoices.size)
+            }
+            if (st.invoices.isEmpty()) {
+                item(key = "inv-empty", contentType = "empty") {
+                    EmptyState(stringResource(R.string.rentalops_no_invoices), icon = Icons.AutoMirrored.Outlined.ReceiptLong)
+                }
+            }
+            items(st.invoices, key = { it.id }, contentType = { "invoice" }) { inv ->
+                val tone = invoiceTone(inv.status, inv.balanceMinor)
+                ElevatedCard(
+                    Modifier.fillMaxWidth().padding(horizontal = AvagoSpacing.lg, vertical = AvagoSpacing.xs),
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(AvagoSpacing.md).semantics(mergeDescendants = true) {},
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.md),
+                    ) {
+                        LeadingBadge(Icons.AutoMirrored.Filled.ReceiptLong, tone)
+                        Column(Modifier.weight(1f)) {
+                            Text(inv.number ?: inv.id.take(8), style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                stringResource(R.string.rentalops_invoice_dates, Fmt.date(inv.issuedAt), Fmt.date(inv.dueAt)),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            inv.status?.let { StatusPill(invoiceStatusText(it), tone, modifier = Modifier.padding(top = AvagoSpacing.xs)) }
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                ChartFormat.money(MinorMoney.toMajor(inv.balanceMinor, inv.currency), inv.currency),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                stringResource(R.string.rentalops_of_total, ChartFormat.money(MinorMoney.toMajor(inv.totalMinor, inv.currency), inv.currency)),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
                 }
-                if (customers.isEmpty()) {
-                    Text(
-                        stringResource(R.string.rentalops_no_customers),
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(horizontal = AvagoSpacing.lg),
-                    )
-                }
-                FailureBanner(s)
-                if (s.loading) CircularProgressIndicator(Modifier.padding(AvagoSpacing.xxl))
-            }
-            val st = s.data ?: return@LazyColumn
-            item {
-                Card(Modifier.fillMaxWidth().padding(AvagoSpacing.lg)) {
-                    Column(Modifier.padding(AvagoSpacing.lg)) {
-                        Text(stringResource(R.string.rentalops_balance), style = MaterialTheme.typography.titleSmall)
-                        if (st.balanceByCurrency.isEmpty()) Text(ChartFormat.money(0.0, "USD"))
-                        st.balanceByCurrency.toSortedMap().forEach { (cur, minor) ->
-                            Text(ChartFormat.money(MinorMoney.toMajor(minor, cur), cur), style = MaterialTheme.typography.headlineSmall)
-                        }
-                        st.creditMinor?.takeIf { it != 0L }?.let { cr ->
-                            val cur = st.balanceByCurrency.keys.singleOrNull() ?: st.invoices.firstOrNull()?.currency ?: "USD"
-                            Text(stringResource(R.string.rentalops_credit, ChartFormat.money(MinorMoney.toMajor(cr, cur), cur)))
-                        }
-                    }
-                }
-                if (canSend && selected != null) {
-                    Row(Modifier.padding(horizontal = AvagoSpacing.lg), horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm)) {
-                        OutlinedButton(onClick = vm::sharePdf, enabled = !sending, modifier = Modifier.heightIn(min = MinTouch)) {
-                            Icon(Icons.Filled.Share, contentDescription = null)
-                            Text(stringResource(R.string.rentalops_statement_pdf), Modifier.padding(start = AvagoSpacing.xs))
-                        }
-                        OutlinedButton(onClick = { emailDialog = true }, enabled = !sending, modifier = Modifier.heightIn(min = MinTouch)) {
-                            Icon(Icons.Filled.Email, contentDescription = null)
-                            Text(stringResource(R.string.rentalops_statement_email), Modifier.padding(start = AvagoSpacing.xs))
-                        }
-                    }
-                }
-                SectionHeader(stringResource(R.string.rentalops_invoices))
-            }
-            if (st.invoices.isEmpty()) item { EmptyState(stringResource(R.string.rentalops_no_invoices)) }
-            items(st.invoices, key = { it.id }) { inv ->
-                Row(
-                    Modifier.fillMaxWidth().heightIn(min = MinTouch).padding(horizontal = AvagoSpacing.lg, vertical = AvagoSpacing.sm)
-                        .semantics(mergeDescendants = true) {},
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(inv.number ?: inv.id.take(8), style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            stringResource(R.string.rentalops_invoice_dates, Fmt.date(inv.issuedAt), Fmt.date(inv.dueAt)) + (inv.status?.let { " · ${invoiceStatusText(it)}" } ?: ""),
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(ChartFormat.money(MinorMoney.toMajor(inv.balanceMinor, inv.currency), inv.currency), fontWeight = FontWeight.SemiBold)
-                        Text(
-                            stringResource(R.string.rentalops_of_total, ChartFormat.money(MinorMoney.toMajor(inv.totalMinor, inv.currency), inv.currency)),
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                }
-                HorizontalDivider()
             }
         }
     }
 }
-
 /** Recipient is optional: blank → the customer's billing e-mail on the server. */
 @Composable
 private fun EmailStatementDialog(onDismiss: () -> Unit, onSend: (String?) -> Unit) {
@@ -406,95 +513,161 @@ fun AgingScreen(onBack: () -> Unit, vm: AgingViewModel = hiltViewModel()) {
     Scaffold(
         topBar = {
             OpsTopBar(stringResource(R.string.rentalops_aging_title), onBack) {
-                TextButton(onClick = { vm.load() }, modifier = Modifier.heightIn(min = MinTouch)) { Text(stringResource(R.string.rentalops_refresh)) }
+                IconButton(onClick = { vm.load() }, enabled = !s.loading) {
+                    if (s.loading) {
+                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.rentalops_refresh))
+                    }
+                }
             }
         },
     ) { pad ->
-        LazyColumn(Modifier.fillMaxSize().padding(pad)) {
-            item { FailureBanner(s) }
+        LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(vertical = AvagoSpacing.sm)) {
+            item(key = "banner", contentType = "banner") { FailureBanner(s, onRetry = { vm.load() }) }
             val report = s.data
             if (report == null) {
-                item {
+                item(key = "placeholder", contentType = "placeholder") {
                     if (s.loading) {
-                        AgingChart(null, loading = true)
+                        SectionCard(contentPadding = true) { AgingChart(null, loading = true) }
+                        SkeletonList(rows = 4)
                     } else if (!s.failed) {
-                        EmptyState(stringResource(R.string.rentalops_aging_empty))
+                        EmptyState(stringResource(R.string.rentalops_aging_empty), icon = Icons.Outlined.TaskAlt)
                     }
                 }
                 return@LazyColumn
             }
-            report.asOf?.let { item { Text(stringResource(R.string.rentalops_as_of, it), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = AvagoSpacing.lg)) } }
-            if (report.totals.isEmpty()) item { EmptyState(stringResource(R.string.rentalops_aging_empty)) }
-            report.totals.forEach { row ->
-                item(key = "chart-${row.currency}") {
-                    Card(Modifier.fillMaxWidth().padding(AvagoSpacing.lg)) {
-                        Column(Modifier.padding(AvagoSpacing.lg)) {
-                            Row(verticalAlignment = Alignment.Bottom) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(stringResource(R.string.rentalops_aging_total, row.currency), style = MaterialTheme.typography.labelLarge)
-                                    Text(money(row.total, row.currency), style = MaterialTheme.typography.headlineSmall)
-                                }
-                                Column(horizontalAlignment = Alignment.End) {
-                                    Text(stringResource(R.string.rentalops_over_60), style = MaterialTheme.typography.labelLarge)
-                                    Text(ChartFormat.percent(report.over60Share(row.currency)), style = MaterialTheme.typography.headlineSmall)
-                                }
-                            }
-                            AgingChart(row, loading = false, modifier = Modifier.padding(top = AvagoSpacing.md))
-                            Row(
-                                Modifier.fillMaxWidth().heightIn(min = MinTouch).toggleable(value = showTable, role = Role.Switch, onValueChange = { showTable = it }),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(stringResource(R.string.rentalops_show_table), Modifier.weight(1f))
-                                Switch(checked = showTable, onCheckedChange = null)
-                            }
-                            if (showTable) BucketTable(row)
-                        }
+            report.asOf?.let {
+                item(key = "asof", contentType = "asof") {
+                    Row(
+                        Modifier.padding(horizontal = AvagoSpacing.lg, vertical = AvagoSpacing.xs),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.xs),
+                    ) {
+                        Icon(Icons.Filled.Schedule, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            stringResource(R.string.rentalops_as_of, it),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }
-            item { SectionHeader(stringResource(R.string.rentalops_customers)) }
-            items(report.customers, key = { it.customerId + it.currency }) { c ->
-                val key = c.customerId + c.currency
-                Column(Modifier.fillMaxWidth()) {
-                    Row(
-                        Modifier.fillMaxWidth().heightIn(min = MinTouch).clickable(role = Role.Button) { expanded = if (expanded == key) null else key }
-                            .padding(horizontal = AvagoSpacing.lg, vertical = AvagoSpacing.sm)
-                            .semantics(mergeDescendants = true) {},
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(c.name, style = MaterialTheme.typography.bodyLarge)
-                            val over = c.row[AgingBucket.D61_90] + c.row[AgingBucket.OVER_90]
-                            if (over > 0) Text(stringResource(R.string.rentalops_over_60_amount, money(over, c.currency)), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            if (report.totals.isEmpty()) {
+                item(key = "empty", contentType = "empty") {
+                    EmptyState(stringResource(R.string.rentalops_aging_empty), icon = Icons.Outlined.TaskAlt)
+                }
+            }
+            report.totals.forEach { row ->
+                item(key = "chart-${row.currency}", contentType = "chart") {
+                    val share = report.over60Share(row.currency)
+                    val hot = (share ?: 0.0) > 0.0
+                    SectionCard(contentPadding = true) {
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    stringResource(R.string.rentalops_aging_total, row.currency),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Text(money(row.total, row.currency), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    stringResource(R.string.rentalops_over_60),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                StatusPill(
+                                    ChartFormat.percent(share),
+                                    if (hot) StatusTone.Danger else StatusTone.Success,
+                                    icon = if (hot) Icons.Filled.Warning else Icons.Filled.CheckCircle,
+                                )
+                            }
                         }
-                        Text(money(c.row.total, c.currency), fontWeight = FontWeight.SemiBold)
+                        AgingChart(row, loading = false, modifier = Modifier.padding(top = AvagoSpacing.md))
+                        Row(
+                            Modifier.fillMaxWidth().heightIn(min = MinTouch)
+                                .toggleable(value = showTable, role = Role.Switch, onValueChange = { showTable = it }),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(stringResource(R.string.rentalops_show_table), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                            Switch(checked = showTable, onCheckedChange = null)
+                        }
+                        if (showTable) BucketTable(row)
                     }
-                    if (expanded == key) {
-                        BucketTable(c.row, Modifier.padding(horizontal = AvagoSpacing.lg))
-                        c.invoices.forEach { inv ->
-                            Row(Modifier.fillMaxWidth().padding(horizontal = AvagoSpacing.xxl, vertical = AvagoSpacing.xs).semantics(mergeDescendants = true) {}) {
-                                Text(inv.number ?: inv.invoiceId.take(8), Modifier.weight(1f))
-                                Text(bucketLabel(inv.bucket), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                                Text(money(inv.balanceMinor, c.currency), textAlign = TextAlign.End)
+                }
+            }
+            item(key = "cust-header", contentType = "header") {
+                StickyDayHeader(stringResource(R.string.rentalops_customers), count = report.customers.size)
+            }
+            items(report.customers, key = { it.customerId + it.currency }, contentType = { "customer" }) { c ->
+                val key = c.customerId + c.currency
+                val open = expanded == key
+                val stateText = stringResource(if (open) R.string.rentalops_expanded else R.string.rentalops_collapsed)
+                val over = c.row[AgingBucket.D61_90] + c.row[AgingBucket.OVER_90]
+                val worst = AgingBucket.entries.lastOrNull { c.row[it] > 0 } ?: AgingBucket.CURRENT
+                ElevatedCard(Modifier.fillMaxWidth().padding(horizontal = AvagoSpacing.lg, vertical = AvagoSpacing.xs)) {
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = MinTouch)
+                            .clickable(role = Role.Button) { expanded = if (open) null else key }
+                            .padding(AvagoSpacing.md)
+                            .semantics(mergeDescendants = true) { stateDescription = stateText },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.md),
+                    ) {
+                        LeadingBadge(Icons.Filled.Business, bucketTone(worst))
+                        Column(Modifier.weight(1f)) {
+                            Text(c.name, style = MaterialTheme.typography.titleSmall)
+                            if (over > 0) {
+                                StatusPill(
+                                    stringResource(R.string.rentalops_over_60_amount, money(over, c.currency)),
+                                    StatusTone.Danger,
+                                    modifier = Modifier.padding(top = AvagoSpacing.xs),
+                                    icon = Icons.Filled.Warning,
+                                )
+                            } else {
+                                Text(bucketLabel(worst), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        Text(money(c.row.total, c.currency), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Icon(
+                            if (open) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    AnimatedVisibility(open) {
+                        Column(Modifier.padding(start = AvagoSpacing.md, end = AvagoSpacing.md, bottom = AvagoSpacing.md)) {
+                            CardDivider()
+                            BucketTable(c.row, Modifier.padding(vertical = AvagoSpacing.sm))
+                            c.invoices.forEach { inv ->
+                                Row(
+                                    Modifier.fillMaxWidth().padding(vertical = AvagoSpacing.xs).semantics(mergeDescendants = true) {},
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm),
+                                ) {
+                                    Text(inv.number ?: inv.invoiceId.take(8), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                                    StatusPill(bucketLabel(inv.bucket), bucketTone(inv.bucket))
+                                    Text(money(inv.balanceMinor, c.currency), textAlign = TextAlign.End, style = MaterialTheme.typography.bodyMedium)
+                                }
                             }
                         }
                     }
-                    HorizontalDivider()
                 }
             }
         }
     }
 }
-
 private fun money(minor: Long, currency: String) = ChartFormat.money(MinorMoney.toMajor(minor, currency), currency)
 
 @Composable
 private fun BucketTable(row: AgingRow, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxWidth()) {
         AgingBucket.entries.forEach { b ->
-            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp).semantics(mergeDescendants = true) {}) {
-                Text(bucketLabel(b), Modifier.weight(1f))
-                Text(money(row[b], row.currency), textAlign = TextAlign.End)
+            Row(Modifier.fillMaxWidth().padding(vertical = AvagoSpacing.xxs).semantics(mergeDescendants = true) {}) {
+                Text(bucketLabel(b), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(money(row[b], row.currency), textAlign = TextAlign.End, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
             }
         }
     }

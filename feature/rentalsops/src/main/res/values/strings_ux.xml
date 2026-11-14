@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Rental UX polish (docs/rentals-ux-polish-android.md). en + de only; other locales fall back to English. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="rentalops_today">Today</string>
+    <string name="rentalops_tomorrow">Tomorrow</string>
+    <string name="rentalops_yesterday">Yesterday</string>
+    <string name="rentalops_unscheduled">Not scheduled</string>
+    <string name="rentalops_show_all">Show all tasks</string>
+    <string name="rentalops_section_field">Field &amp; dispatch</string>
+    <string name="rentalops_section_finance">Billing</string>
+    <string name="rentalops_section_team">Team &amp; back office</string>
+    <string name="rentalops_location">Location</string>
+    <string name="rentalops_call_short">Call</string>
+    <string name="rentalops_assign_candidates">Available units (%1$d)</string>
+    <string name="rentalops_statement_pick">Choose a customer to see their balance and open invoices.</string>
+    <string name="rentalops_expanded">Expanded</string>
+    <string name="rentalops_collapsed">Collapsed</string>
+</resources>

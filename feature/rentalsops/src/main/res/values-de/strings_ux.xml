@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="rentalops_today">Heute</string>
+    <string name="rentalops_tomorrow">Morgen</string>
+    <string name="rentalops_yesterday">Gestern</string>
+    <string name="rentalops_unscheduled">Nicht geplant</string>
+    <string name="rentalops_show_all">Alle Aufträge anzeigen</string>
+    <string name="rentalops_section_field">Außendienst &amp; Disposition</string>
+    <string name="rentalops_section_finance">Abrechnung</string>
+    <string name="rentalops_section_team">Team &amp; Backoffice</string>
+    <string name="rentalops_location">Einsatzort</string>
+    <string name="rentalops_call_short">Anrufen</string>
+    <string name="rentalops_assign_candidates">Verfügbare Einheiten (%1$d)</string>
+    <string name="rentalops_statement_pick">Wählen Sie einen Kunden, um Saldo und offene Rechnungen anzuzeigen.</string>
+    <string name="rentalops_expanded">Aufgeklappt</string>
+    <string name="rentalops_collapsed">Zugeklappt</string>
+</resources>

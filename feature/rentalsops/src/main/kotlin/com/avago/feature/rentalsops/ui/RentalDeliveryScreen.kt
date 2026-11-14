@@ -1,5 +1,7 @@
 package com.avago.feature.rentalsops.ui
 
+import java.io.File
+import javax.inject.Inject
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -7,32 +9,52 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Draw
+import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.ReportProblem
+import androidx.compose.material.icons.filled.SearchOff
+import androidx.compose.material.icons.filled.TaskAlt
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AddAPhoto
+import androidx.compose.material.icons.outlined.Business
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Place
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -42,28 +64,46 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.avago.core.design.theme.AvagoSpacing
-import com.avago.feature.rentalsops.R
+import com.avago.core.ui.components.BottomActionBar
+import com.avago.core.ui.components.CardDivider
+import com.avago.core.ui.components.cardListItemColors
+import com.avago.core.ui.components.ErrorBanner
+import com.avago.core.ui.components.LeadingBadge
+import com.avago.core.ui.components.rememberHaptics
+import com.avago.core.ui.components.SectionCard
+import com.avago.core.ui.components.SkeletonList
+import com.avago.core.ui.components.StatusTone
 import com.avago.feature.rentalsops.data.MediaEntity
 import com.avago.feature.rentalsops.data.RentalOpsRepository
 import com.avago.feature.rentalsops.data.TaskView
@@ -72,20 +112,19 @@ import com.avago.feature.rentalsops.domain.TaskAction
 import com.avago.feature.rentalsops.domain.TaskKind
 import com.avago.feature.rentalsops.domain.TransitionError
 import com.avago.feature.rentalsops.domain.TransitionResult
+import com.avago.feature.rentalsops.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
-import javax.inject.Inject
 
 data class DeliveryState(
     val view: TaskView? = null,
@@ -192,8 +231,10 @@ fun RentalDeliveryScreen(onBack: () -> Unit, vm: RentalDeliveryViewModel = hiltV
     val errDriver = stringResource(R.string.rentalops_err_driver)
     val errProof = stringResource(R.string.rentalops_err_proof)
     val errReason = stringResource(R.string.rentalops_err_reason)
+    val haptics = rememberHaptics()
     LaunchedEffect(vm) {
         vm.messages.collect { m ->
+            if (m is DeliveryMessage.Queued) haptics.success() else haptics.error()
             snackbar.showSnackbar(
                 when (m) {
                     DeliveryMessage.Queued -> msgQueued
@@ -210,12 +251,47 @@ fun RentalDeliveryScreen(onBack: () -> Unit, vm: RentalDeliveryViewModel = hiltV
     }
 
     val view = s.view
+    val actions = view?.let { DeliveryStateMachine.availableActions(it.localStatus, it.task.driverUserId != null) }.orEmpty()
     Scaffold(
         topBar = { OpsTopBar(view?.let { kindLabel(it.task.kind) } ?: stringResource(R.string.rentalops_tasks_title), onBack) },
         snackbarHost = { SnackbarHost(snackbar) },
+        bottomBar = {
+            if (view != null && actions.isNotEmpty()) {
+                BottomActionBar {
+                    actions.forEach { a ->
+                        when (a) {
+                            TaskAction.FAIL -> OutlinedButton(
+                                onClick = { showFail = true },
+                                modifier = Modifier.weight(1f).heightIn(min = MinTouch),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                            ) { Text(stringResource(R.string.rentalops_action_fail), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                            TaskAction.COMPLETE -> Button(onClick = { showComplete = true }, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
+                                Icon(Icons.Filled.TaskAlt, null, Modifier.size(18.dp))
+                                Spacer(Modifier.width(AvagoSpacing.sm))
+                                Text(stringResource(R.string.rentalops_action_complete), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            TaskAction.START -> Button(onClick = { vm.submit(a, null, null, null) }, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
+                                Icon(Icons.Filled.LocalShipping, null, Modifier.size(18.dp))
+                                Spacer(Modifier.width(AvagoSpacing.sm))
+                                Text(stringResource(R.string.rentalops_action_start), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            TaskAction.ARRIVE -> Button(onClick = { vm.submit(a, null, null, null) }, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
+                                Icon(Icons.Filled.Place, null, Modifier.size(18.dp))
+                                Spacer(Modifier.width(AvagoSpacing.sm))
+                                Text(stringResource(R.string.rentalops_action_arrive), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
+                }
+            }
+        },
     ) { pad ->
         if (view == null) {
-            if (s.loaded) EmptyState(stringResource(R.string.rentalops_task_missing), Modifier.padding(pad))
+            if (s.loaded) {
+                EmptyState(stringResource(R.string.rentalops_task_missing), Modifier.padding(pad), icon = Icons.Filled.SearchOff)
+            } else {
+                SkeletonList(Modifier.padding(pad), rows = 4)
+            }
             return@Scaffold
         }
         val t = view.task
@@ -223,121 +299,142 @@ fun RentalDeliveryScreen(onBack: () -> Unit, vm: RentalDeliveryViewModel = hiltV
             Modifier
                 .fillMaxSize()
                 .padding(pad)
-                .verticalScroll(rememberScrollState()),
+                .consumeWindowInsets(pad)
+                .imePadding()
+                .verticalScroll(rememberScrollState())
+                .padding(vertical = AvagoSpacing.sm),
         ) {
-            // Header
-            Column(Modifier.padding(AvagoSpacing.lg)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(statusLabel(view.localStatus), style = MaterialTheme.typography.titleMedium, color = statusColor(view.localStatus))
-                    Box(Modifier.padding(start = AvagoSpacing.sm)) { PendingChip(view.pending) }
+            // Header summary
+            SectionCard {
+                Column(Modifier.padding(AvagoSpacing.lg), verticalArrangement = Arrangement.spacedBy(AvagoSpacing.sm)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm), verticalArrangement = Arrangement.spacedBy(AvagoSpacing.xs)) {
+                        TaskStatusPill(view.localStatus)
+                        PendingChip(view.pending)
+                    }
+                    Text(
+                        t.customerName ?: t.orderNumber?.let { stringResource(R.string.rentalops_order_n, it) } ?: kindLabel(t.kind),
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                    if (t.customerName != null) {
+                        t.orderNumber?.let {
+                            Text(stringResource(R.string.rentalops_order_n, it), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    IconLine(
+                        Icons.Outlined.Schedule,
+                        stringResource(R.string.rentalops_scheduled, Fmt.dateTime(t.scheduledAt)) + (t.windowEnd?.let { " \u2013 " + Fmt.dateTime(it) } ?: ""),
+                    )
+                    t.jobSiteName?.let { IconLine(Icons.Outlined.Business, stringResource(R.string.rentalops_job_site, it)) }
                 }
-                t.customerName?.let { Text(it, style = MaterialTheme.typography.titleLarge) }
-                t.orderNumber?.let { Text(stringResource(R.string.rentalops_order_n, it), style = MaterialTheme.typography.bodyMedium) }
-                t.jobSiteName?.let { Text(stringResource(R.string.rentalops_job_site, it), style = MaterialTheme.typography.bodyMedium) }
-                Text(
-                    stringResource(R.string.rentalops_scheduled, Fmt.dateTime(t.scheduledAt)) +
-                        (t.windowEnd?.let { " \u2013 " + Fmt.dateTime(it) } ?: ""),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                t.failedReason?.let { Text(stringResource(R.string.rentalops_failed_reason, it), color = MaterialTheme.colorScheme.error) }
+                t.failedReason?.let {
+                    ErrorBanner(stringResource(R.string.rentalops_failed_reason, it), Modifier.padding(bottom = AvagoSpacing.md))
+                }
             }
 
             view.rejected?.let { rej -> RejectedCard(rej, onRetry = { vm.retry(rej.queueId) }, onDiscard = { vm.discard(rej.queueId) }) }
 
             // Where / who
-            Card(Modifier.fillMaxWidth().padding(horizontal = AvagoSpacing.lg, vertical = AvagoSpacing.xs)) {
-                Row(Modifier.padding(AvagoSpacing.lg), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(t.address ?: stringResource(R.string.rentalops_no_address), style = MaterialTheme.typography.bodyLarge)
-                        t.contactName?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
-                    }
-                    if (t.address != null || (t.lat != null && t.lng != null)) {
-                        FilledTonalIconButton(onClick = { openNavigation(ctx, t.lat, t.lng, t.address) }, modifier = Modifier.size(MinTouch)) {
-                            Icon(Icons.Filled.Directions, contentDescription = stringResource(R.string.rentalops_navigate))
+            SectionCard(title = stringResource(R.string.rentalops_location)) {
+                Column(Modifier.padding(AvagoSpacing.lg), verticalArrangement = Arrangement.spacedBy(AvagoSpacing.sm)) {
+                    IconLine(Icons.Outlined.Place, t.address ?: stringResource(R.string.rentalops_no_address), MaterialTheme.typography.bodyLarge)
+                    t.contactName?.let { IconLine(Icons.Outlined.Person, it, MaterialTheme.typography.bodyLarge) }
+                    val canNavigate = t.address != null || (t.lat != null && t.lng != null)
+                    if (canNavigate || t.phone != null) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm), verticalArrangement = Arrangement.spacedBy(AvagoSpacing.sm)) {
+                            if (canNavigate) {
+                                FilledTonalButton(onClick = { openNavigation(ctx, t.lat, t.lng, t.address) }, modifier = Modifier.heightIn(min = MinTouch)) {
+                                    Icon(Icons.Filled.Directions, null, Modifier.size(18.dp))
+                                    Spacer(Modifier.width(AvagoSpacing.sm))
+                                    Text(stringResource(R.string.rentalops_navigate))
+                                }
+                            }
+                            t.phone?.let { phone ->
+                                val callLabel = stringResource(R.string.rentalops_call, t.contactName ?: phone)
+                                FilledTonalButton(
+                                    onClick = { runCatching { ctx.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(phone))).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } },
+                                    modifier = Modifier.heightIn(min = MinTouch).semantics { contentDescription = callLabel },
+                                ) {
+                                    Icon(Icons.Filled.Call, null, Modifier.size(18.dp))
+                                    Spacer(Modifier.width(AvagoSpacing.sm))
+                                    Text(stringResource(R.string.rentalops_call_short))
+                                }
+                            }
                         }
-                    }
-                    t.phone?.let { phone ->
-                        FilledTonalIconButton(
-                            onClick = { runCatching { ctx.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(phone))).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } },
-                            modifier = Modifier.padding(start = AvagoSpacing.sm).size(MinTouch),
-                        ) { Icon(Icons.Filled.Call, contentDescription = stringResource(R.string.rentalops_call, t.contactName ?: phone)) }
                     }
                 }
             }
 
             if (s.unitNames.isNotEmpty()) {
-                SectionHeader(stringResource(R.string.rentalops_units))
-                Text(s.unitNames.joinToString(", "), modifier = Modifier.padding(horizontal = AvagoSpacing.lg))
+                SectionCard(title = stringResource(R.string.rentalops_units)) {
+                    s.unitNames.forEachIndexed { i, name ->
+                        if (i > 0) CardDivider()
+                        ListItem(
+                            colors = cardListItemColors(),
+                            leadingContent = { LeadingBadge(Icons.Filled.Inventory2, StatusTone.Neutral) },
+                            headlineContent = { Text(name) },
+                        )
+                    }
+                }
             }
             t.notes?.let {
-                SectionHeader(stringResource(R.string.rentalops_notes))
-                Text(it, modifier = Modifier.padding(horizontal = AvagoSpacing.lg))
+                SectionCard(title = stringResource(R.string.rentalops_notes)) {
+                    Text(it, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(AvagoSpacing.lg))
+                }
             }
 
             // Proof (captured offline, uploaded with the Complete event)
-            val actions = DeliveryStateMachine.availableActions(view.localStatus, t.driverUserId != null)
             if (TaskAction.COMPLETE in actions) {
-                SectionHeader(stringResource(if (t.kind == TaskKind.DELIVERY) R.string.rentalops_proof_required else R.string.rentalops_proof_optional))
-                ProofStrip(s.drafts, onRemove = vm::removeDraft)
-                Row(Modifier.padding(horizontal = AvagoSpacing.lg), horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm)) {
-                    OutlinedButton(
-                        onClick = {
-                            scope.launch {
-                                cameraUri = vm.preparePhoto()
-                                cameraUri?.let {
-                                    if (androidx.core.content.ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.CAMERA) ==
-                                        android.content.pm.PackageManager.PERMISSION_GRANTED
-                                    ) {
-                                        camera.launch(it)
-                                    } else {
-                                        cameraPermission.launch(android.Manifest.permission.CAMERA)
+                SectionCard(title = stringResource(if (t.kind == TaskKind.DELIVERY) R.string.rentalops_proof_required else R.string.rentalops_proof_optional)) {
+                    ProofGrid(s.drafts, onRemove = vm::removeDraft)
+                    Row(
+                        Modifier.padding(horizontal = AvagoSpacing.lg).padding(bottom = AvagoSpacing.md),
+                        horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm),
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                scope.launch {
+                                    cameraUri = vm.preparePhoto()
+                                    cameraUri?.let {
+                                        if (androidx.core.content.ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.CAMERA) ==
+                                            android.content.pm.PackageManager.PERMISSION_GRANTED
+                                        ) {
+                                            camera.launch(it)
+                                        } else {
+                                            cameraPermission.launch(android.Manifest.permission.CAMERA)
+                                        }
                                     }
                                 }
-                            }
-                        },
-                        modifier = Modifier.heightIn(min = MinTouch),
-                    ) {
-                        Icon(Icons.Filled.PhotoCamera, contentDescription = null)
-                        Text(stringResource(R.string.rentalops_take_photo), Modifier.padding(start = AvagoSpacing.xs))
+                            },
+                            modifier = Modifier.weight(1f).heightIn(min = MinTouch),
+                        ) {
+                            Icon(Icons.Filled.PhotoCamera, contentDescription = null, Modifier.size(18.dp))
+                            Spacer(Modifier.width(AvagoSpacing.sm))
+                            Text(stringResource(R.string.rentalops_take_photo), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        OutlinedButton(onClick = { showSignature = true }, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
+                            Icon(Icons.Filled.Draw, contentDescription = null, Modifier.size(18.dp))
+                            Spacer(Modifier.width(AvagoSpacing.sm))
+                            Text(stringResource(R.string.rentalops_signature), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
                     }
-                    OutlinedButton(onClick = { showSignature = true }, modifier = Modifier.heightIn(min = MinTouch)) {
-                        Icon(Icons.Filled.Draw, contentDescription = null)
-                        Text(stringResource(R.string.rentalops_signature), Modifier.padding(start = AvagoSpacing.xs))
-                    }
-                }
-                OutlinedTextField(
-                    value = signedName,
-                    onValueChange = { signedName = it.take(120) },
-                    label = { Text(stringResource(R.string.rentalops_signed_name)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = AvagoSpacing.lg, vertical = AvagoSpacing.xs),
-                )
-                OutlinedTextField(
-                    value = notes,
-                    onValueChange = { notes = it.take(1000) },
-                    label = { Text(stringResource(R.string.rentalops_notes)) },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = AvagoSpacing.lg, vertical = AvagoSpacing.xs),
-                )
-            }
-
-            // Actions
-            Column(Modifier.padding(AvagoSpacing.lg), verticalArrangement = Arrangement.spacedBy(AvagoSpacing.sm)) {
-                actions.forEach { a ->
-                    when (a) {
-                        TaskAction.FAIL -> OutlinedButton(
-                            onClick = { showFail = true },
-                            modifier = Modifier.fillMaxWidth().heightIn(min = MinTouch),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                        ) { Text(stringResource(R.string.rentalops_action_fail)) }
-                        TaskAction.COMPLETE -> Button(onClick = { showComplete = true }, modifier = Modifier.fillMaxWidth().heightIn(min = MinTouch)) {
-                            Text(stringResource(R.string.rentalops_action_complete))
-                        }
-                        TaskAction.START -> Button(onClick = { vm.submit(a, null, null, null) }, modifier = Modifier.fillMaxWidth().heightIn(min = MinTouch)) {
-                            Text(stringResource(R.string.rentalops_action_start))
-                        }
-                        TaskAction.ARRIVE -> Button(onClick = { vm.submit(a, null, null, null) }, modifier = Modifier.fillMaxWidth().heightIn(min = MinTouch)) {
-                            Text(stringResource(R.string.rentalops_action_arrive))
-                        }
+                    CardDivider()
+                    Column(Modifier.padding(AvagoSpacing.lg), verticalArrangement = Arrangement.spacedBy(AvagoSpacing.sm)) {
+                        OutlinedTextField(
+                            value = signedName,
+                            onValueChange = { signedName = it.take(120) },
+                            label = { Text(stringResource(R.string.rentalops_signed_name)) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        OutlinedTextField(
+                            value = notes,
+                            onValueChange = { notes = it.take(1000) },
+                            label = { Text(stringResource(R.string.rentalops_notes)) },
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                            minLines = 2,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                     }
                 }
             }
@@ -354,12 +451,15 @@ fun RentalDeliveryScreen(onBack: () -> Unit, vm: RentalDeliveryViewModel = hiltV
         var reason by rememberSaveable { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showFail = false },
+            icon = { Icon(Icons.Filled.ReportProblem, contentDescription = null) },
             title = { Text(stringResource(R.string.rentalops_action_fail)) },
             text = {
                 OutlinedTextField(
                     value = reason,
                     onValueChange = { reason = it.take(500) },
                     label = { Text(stringResource(R.string.rentalops_fail_reason)) },
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                    minLines = 2,
                     modifier = Modifier.fillMaxWidth(),
                 )
             },
@@ -368,7 +468,7 @@ fun RentalDeliveryScreen(onBack: () -> Unit, vm: RentalDeliveryViewModel = hiltV
                     onClick = { vm.submit(TaskAction.FAIL, reason, null, null) { showFail = false } },
                     enabled = reason.isNotBlank(),
                     modifier = Modifier.heightIn(min = MinTouch),
-                ) { Text(stringResource(R.string.rentalops_action_fail)) }
+                ) { Text(stringResource(R.string.rentalops_action_fail), color = if (reason.isNotBlank()) MaterialTheme.colorScheme.error else Color.Unspecified) }
             },
             dismissButton = { TextButton(onClick = { showFail = false }, modifier = Modifier.heightIn(min = MinTouch)) { Text(stringResource(R.string.rentalops_cancel)) } },
         )
@@ -376,6 +476,7 @@ fun RentalDeliveryScreen(onBack: () -> Unit, vm: RentalDeliveryViewModel = hiltV
     if (showComplete) {
         AlertDialog(
             onDismissRequest = { showComplete = false },
+            icon = { Icon(Icons.Filled.TaskAlt, contentDescription = null) },
             title = { Text(stringResource(R.string.rentalops_action_complete)) },
             text = { Text(stringResource(R.string.rentalops_complete_confirm, s.drafts.count { it.kind == "photo" }, if (s.drafts.any { it.kind == "signature" }) 1 else 0)) },
             confirmButton = {
@@ -393,28 +494,47 @@ fun RentalDeliveryScreen(onBack: () -> Unit, vm: RentalDeliveryViewModel = hiltV
 }
 
 @Composable
-private fun ProofStrip(drafts: List<MediaEntity>, onRemove: (String) -> Unit) {
+private fun IconLine(icon: ImageVector, text: String, style: TextStyle = MaterialTheme.typography.bodyMedium) {
+    Row(horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm), verticalAlignment = Alignment.Top) {
+        Icon(icon, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(text, style = style)
+    }
+}
+
+/** Photo + signature grid (wraps; 96dp tiles with a 48dp remove target in the corner). */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ProofGrid(drafts: List<MediaEntity>, onRemove: (String) -> Unit) {
     if (drafts.isEmpty()) {
-        Text(
-            stringResource(R.string.rentalops_proof_none),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = AvagoSpacing.lg, vertical = AvagoSpacing.xs),
-        )
+        Row(
+            Modifier.padding(AvagoSpacing.lg),
+            horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Outlined.AddAPhoto, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.rentalops_proof_none), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         return
     }
-    LazyRow(
-        Modifier.fillMaxWidth().padding(vertical = AvagoSpacing.sm),
+    FlowRow(
+        Modifier.fillMaxWidth().padding(AvagoSpacing.lg),
         horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = AvagoSpacing.lg),
+        verticalArrangement = Arrangement.spacedBy(AvagoSpacing.sm),
     ) {
-        items(drafts, key = { it.id }) { m ->
-            val index = drafts.filter { it.kind == "photo" }.indexOf(m) + 1
-            val label = if (m.kind == "signature") stringResource(R.string.rentalops_signature) else stringResource(R.string.rentalops_photo_n, index)
-            Box {
-                Thumb(m.localPath, label)
-                FilledTonalIconButton(onClick = { onRemove(m.id) }, modifier = Modifier.align(Alignment.TopEnd).size(MinTouch)) {
-                    Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.rentalops_remove_item, label))
+        val photos = drafts.filter { it.kind == "photo" }
+        drafts.forEach { m ->
+            key(m.id) {
+                val label = if (m.kind == "signature") stringResource(R.string.rentalops_signature) else stringResource(R.string.rentalops_photo_n, photos.indexOf(m) + 1)
+                Box {
+                    Thumb(m.localPath, label, signature = m.kind == "signature")
+                    IconButton(onClick = { onRemove(m.id) }, modifier = Modifier.align(Alignment.TopEnd).size(MinTouch)) {
+                        Box(
+                            Modifier.size(28.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.rentalops_remove_item, label), Modifier.size(18.dp))
+                        }
+                    }
                 }
             }
         }
@@ -422,15 +542,24 @@ private fun ProofStrip(drafts: List<MediaEntity>, onRemove: (String) -> Unit) {
 }
 
 @Composable
-private fun Thumb(path: String, label: String) {
+private fun Thumb(path: String, label: String, signature: Boolean) {
     val bmp by produceState<android.graphics.Bitmap?>(null, path) {
         value = withContext(Dispatchers.IO) {
             runCatching { BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inSampleSize = 8 }) }.getOrNull()
         }
     }
-    Box(Modifier.size(96.dp)) {
-        bmp?.let { Image(it.asImageBitmap(), contentDescription = label, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
-            ?: Text(label, Modifier.align(Alignment.Center))
+    Box(
+        Modifier
+            .size(96.dp)
+            .clip(MaterialTheme.shapes.medium)
+            // Signatures are dark strokes on transparent: keep a light backdrop in both themes.
+            .background(if (signature) Color.White else MaterialTheme.colorScheme.surfaceVariant)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f), MaterialTheme.shapes.medium),
+        contentAlignment = Alignment.Center,
+    ) {
+        bmp?.let {
+            Image(it.asImageBitmap(), contentDescription = label, contentScale = if (signature) ContentScale.Fit else ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        } ?: Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
