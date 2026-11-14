@@ -67,6 +67,7 @@ import com.avago.core.ui.categoryIconName
 import com.avago.feature.log.model.InspectionV2
 import com.avago.feature.log.model.LogPacks
 import com.avago.feature.log.model.PackDisplay
+import com.avago.feature.log.model.PositionReadings
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -380,19 +381,47 @@ fun LogDetailScreen(
                     log.attributes?.takeIf { it.isNotBlank() }?.let { attrsJson ->
                         val attrsObj = remember(attrsJson) { LogPacks.parse(attrsJson) }
                         val translator = rememberPackTranslator()
-                        val packSections = remember(attrsObj, translator, currencyFormat, currencyRate) {
+                        // Tire / brake per-position readings render as a coloured sketch + per-wheel
+                        // list (web PositionReadings); their raw rows are skipped to avoid duplicates.
+                        val tireReadings = remember(attrsObj, assetType) { PositionReadings.tireFromAttrs(attrsObj, assetType) }
+                        val brakeReadings = remember(attrsObj, assetType) { PositionReadings.brakeFromAttrs(attrsObj, assetType) }
+                        val readingKeys = remember(tireReadings, brakeReadings) {
+                            buildSet {
+                                if (tireReadings != null) addAll(listOf("tire_positions", "tire_tread", "tire_psi"))
+                                if (brakeReadings != null) addAll(listOf("brake_pad_mm", "brake_rotor_mm"))
+                            }
+                        }
+                        val packSections = remember(attrsObj, translator, currencyFormat, currencyRate, readingKeys) {
                             PackDisplay.build(
                                 attrs = attrsObj,
                                 t = translator,
                                 formatCurrency = { currencyFormat.format(convertUSD(it)) },
                                 formatDate = { iso -> formatIsoDate(iso) },
+                                skipKeys = readingKeys,
                             )
                         }
-                        packSections.forEach { section ->
+                        PackDisplay.SectionId.entries.forEach { id ->
+                            val section = packSections.firstOrNull { it.id == id }
+                            val readings = when (id) {
+                                PackDisplay.SectionId.TIRE -> tireReadings
+                                PackDisplay.SectionId.BRAKE -> brakeReadings
+                                else -> null
+                            }
+                            if (section == null && readings == null) return@forEach
+                            val title = section?.title ?: translator.t("pack_${id.name.lowercase()}", null)
                             Spacer(Modifier.height(16.dp))
                             DetailCard(modifier = Modifier.padding(horizontal = 16.dp)) {
-                                SectionHeader(section.title.uppercase(LocalConfiguration.current.locales[0]))
-                                KeyValueRows(section.rows.map { it.label to it.value })
+                                SectionHeader(title.uppercase(LocalConfiguration.current.locales[0]))
+                                if (section != null && section.rows.isNotEmpty()) {
+                                    KeyValueRows(section.rows.map { it.label to it.value })
+                                }
+                                if (readings != null) {
+                                    PositionReadingsMap(
+                                        assetType = assetType,
+                                        panel = readings,
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                    )
+                                }
                             }
                         }
                         val attrs = remember(attrsObj) {

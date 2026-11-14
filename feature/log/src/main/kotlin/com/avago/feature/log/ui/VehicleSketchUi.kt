@@ -107,7 +107,7 @@ import kotlin.math.sin
 // ---------------------------------------------------------------------------
 
 private const val MAX_ZOOM = 4f
-private val SKETCH_MIN_TOUCH = 48.dp
+internal val SKETCH_MIN_TOUCH = 48.dp
 
 /** Pin colours: severity tint, plus the rental baseline (grey) / new (red) variants. */
 private val PIN_MINOR = Color(0xFFFF9800)
@@ -130,7 +130,7 @@ private fun pinFill(severity: String) = when (severity) {
 }
 
 /** viewBox ↔ canvas mapping for a fitted, zoomed and panned sketch. */
-private class SketchTransform(val width: Float, val height: Float, val zoom: Float, val pan: Offset) {
+internal class SketchTransform(val width: Float, val height: Float, val zoom: Float, val pan: Offset) {
     val scale = VehicleSketchModel.fitScale(width, height) * zoom
     val originX = width / 2f + pan.x - VehicleSketchModel.VIEW_W / 2f * scale
     val originY = height / 2f + pan.y - VehicleSketchModel.VIEW_H / 2f * scale
@@ -166,13 +166,13 @@ private fun shapePath(s: Shape): Path = when (s) {
     is Shape.Ellipse -> Path().apply { addOval(Rect(s.cx - s.rx, s.cy - s.ry, s.cx + s.rx, s.cy + s.ry)) }
 }
 
-private class SketchPaths(
+internal class SketchPaths(
     val body: List<Pair<Path, Boolean>>, // path, filled
     val detail: List<Pair<Path, Boolean>>, // path, dashed
     val wheels: List<VehicleSketchModel.Wheel>,
 )
 
-private fun buildPaths(kind: VehicleSketchModel.Kind): SketchPaths {
+internal fun buildPaths(kind: VehicleSketchModel.Kind): SketchPaths {
     val o = VehicleSketchModel.outline(kind)
     return SketchPaths(
         body = o.body.map { shapePath(it) to !(it is Shape.Path && it.open) },

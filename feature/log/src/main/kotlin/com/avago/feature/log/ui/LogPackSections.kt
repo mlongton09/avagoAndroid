@@ -3,7 +3,6 @@ package com.avago.feature.log.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,7 +15,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.OutlinedButton
@@ -34,10 +32,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.avago.feature.log.R
 import com.avago.feature.log.model.LogPacks
+import com.avago.feature.log.model.PositionReadings
 import com.avago.feature.log.viewmodel.AddEditLogFormState
 import com.avago.feature.log.viewmodel.AddEditLogViewModel
 
@@ -158,16 +160,6 @@ internal fun MaintenancePackSections(form: AddEditLogFormState, viewModel: AddEd
             EnumDropdown(stringResource(R.string.log_pack_action), form.packFields["tire_action"].orEmpty(), LogPacks.TIRE_ACTIONS) {
                 viewModel.onPackFieldChanged("tire_action", it)
             }
-            Text(stringResource(R.string.log_pack_tire_positions), style = MaterialTheme.typography.labelMedium)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                LogPacks.TIRE_POSITIONS.forEach { pos ->
-                    FilterChip(
-                        selected = pos in form.tirePositions,
-                        onClick = { viewModel.onTirePositionToggled(pos) },
-                        label = { Text(tirePositionLabel(pos)) },
-                    )
-                }
-            }
             PackText(form, viewModel, "tire_brand", R.string.log_pack_tire_brand)
             PackText(form, viewModel, "tire_size", R.string.log_pack_tire_size)
             PackText(form, viewModel, "tire_dot_date", R.string.log_pack_tire_dot_date, KeyboardType.Number, hint = "WWYY")
@@ -181,13 +173,24 @@ internal fun MaintenancePackSections(form: AddEditLogFormState, viewModel: AddEd
                     LogPacks.TIRE_PRESSURE_UNITS, Modifier.weight(1f),
                 ) { viewModel.onPackFieldChanged("tire_pressure_unit", it) }
             }
-            LogPacks.TIRE_POSITIONS.filter { it in form.tirePositions }.forEach { pos ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(tirePositionLabel(pos), modifier = Modifier.width(72.dp), style = MaterialTheme.typography.bodySmall)
-                    PositionValue(form, viewModel, "tire_tread", pos, R.string.log_pack_tire_tread, Modifier.weight(1f))
-                    PositionValue(form, viewModel, "tire_psi", pos, R.string.log_pack_tire_psi, Modifier.weight(1f))
-                }
+            Text(stringResource(R.string.log_pack_tire_positions), style = MaterialTheme.typography.labelMedium)
+            val tirePanel = remember(form.assetType, form.tirePositions, form.packMaps, form.packFields) {
+                PositionReadings.tirePanel(
+                    assetType = form.assetType,
+                    selected = form.tirePositions,
+                    tread = PositionReadings.parseAll(form.packMaps["tire_tread"]),
+                    psi = PositionReadings.parseAll(form.packMaps["tire_psi"]),
+                    treadUnit = form.packFields["tire_tread_unit"],
+                    pressureUnit = form.packFields["tire_pressure_unit"],
+                )
             }
+            PositionReadingsPanel(
+                assetType = form.assetType,
+                panel = tirePanel,
+                values = form.packMaps,
+                onValue = viewModel::onPackMapValueChanged,
+                onToggle = viewModel::onTirePositionToggled,
+            )
         }
     }
     if (LogPacks.Pack.BATTERY in packs) {
@@ -214,12 +217,27 @@ internal fun MaintenancePackSections(form: AddEditLogFormState, viewModel: AddEd
             EnumDropdown(stringResource(R.string.log_pack_brake_fluid), form.packFields["brake_fluid"].orEmpty(), LogPacks.BRAKE_FLUID) {
                 viewModel.onPackFieldChanged("brake_fluid", it)
             }
-            LogPacks.BRAKE_POSITIONS.forEach { pos ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(tirePositionLabel(pos), modifier = Modifier.width(72.dp), style = MaterialTheme.typography.bodySmall)
-                    PositionValue(form, viewModel, "brake_pad_mm", pos, R.string.log_pack_brake_pad_mm, Modifier.weight(1f))
-                    PositionValue(form, viewModel, "brake_rotor_mm", pos, R.string.log_pack_brake_rotor_mm, Modifier.weight(1f))
-                }
+            val brakePanel = remember(form.assetType, form.packMaps, form.packFields) {
+                PositionReadings.brakePanel(
+                    assetType = form.assetType,
+                    axle = form.packFields["brake_axle"],
+                    pads = PositionReadings.parseAll(form.packMaps["brake_pad_mm"]),
+                    rotors = PositionReadings.parseAll(form.packMaps["brake_rotor_mm"]),
+                )
+            }
+            PositionReadingsPanel(
+                assetType = form.assetType,
+                panel = brakePanel,
+                values = form.packMaps,
+                onValue = viewModel::onPackMapValueChanged,
+            )
+            if (brakePanel.positions.any { brakePanel.metricState("pad", it) == PositionReadings.ReadingState.OUT }) {
+                Text(
+                    stringResource(R.string.log_readings_pad_low, LogPacks.formatNumber(PositionReadings.BRAKE_PAD_MIN_MM)),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                )
             }
         }
     }
@@ -326,25 +344,6 @@ private fun PackText(
         placeholder = hint?.let { { Text(it) } },
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-        modifier = modifier,
-    )
-}
-
-@Composable
-private fun PositionValue(
-    form: AddEditLogFormState,
-    viewModel: AddEditLogViewModel,
-    mapKey: String,
-    position: String,
-    labelRes: Int,
-    modifier: Modifier,
-) {
-    OutlinedTextField(
-        value = form.packMaps[mapKey]?.get(position).orEmpty(),
-        onValueChange = { viewModel.onPackMapValueChanged(mapKey, position, it) },
-        label = { Text(stringResource(labelRes)) },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         modifier = modifier,
     )
 }

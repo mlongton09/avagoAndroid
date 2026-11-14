@@ -532,4 +532,22 @@
     <string name="log_open_defects_show_less">Show less</string>
     <string name="log_open_defects_more_actions">More actions for %1$s</string>
     <string name="log_open_defects_pending_sync">Waiting to sync</string>
+
+    <!-- Per-position readings around the vehicle sketch (web PositionReadings) -->
+    <string name="log_readings_front">Front</string>
+    <string name="log_readings_state_ok">OK</string>
+    <string name="log_readings_state_out">Out of range</string>
+    <string name="log_readings_no_reading">no reading</string>
+    <string name="log_readings_selected">selected</string>
+    <string name="log_readings_wheel_action">Go to readings</string>
+    <string name="log_readings_pad_low">Pad below %1$s mm — replace soon.</string>
+    <string name="log_readings_pos_fl">Front left</string>
+    <string name="log_readings_pos_fr">Front right</string>
+    <string name="log_readings_pos_rl">Rear left</string>
+    <string name="log_readings_pos_rr">Rear right</string>
+    <string name="log_readings_pos_rlo">Rear left outer</string>
+    <string name="log_readings_pos_rli">Rear left inner</string>
+    <string name="log_readings_pos_rro">Rear right outer</string>
+    <string name="log_readings_pos_rri">Rear right inner</string>
+    <string name="log_readings_pos_spare">Spare</string>
 </resources>

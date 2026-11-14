@@ -517,4 +517,22 @@
     <string name="log_open_defects_more_actions">Weitere Aktionen für %1$s</string>
     <string name="log_open_defects_pending_sync">Wartet auf Synchronisierung</string>
     <string name="log_cost_itemize_cta_count">Teile &amp; Arbeit aufschlüsseln (%1$d)</string>
+
+    <!-- Messwerte je Position an der Fahrzeugskizze (Web PositionReadings) -->
+    <string name="log_readings_front">Vorne</string>
+    <string name="log_readings_state_ok">OK</string>
+    <string name="log_readings_state_out">Außerhalb des Bereichs</string>
+    <string name="log_readings_no_reading">kein Messwert</string>
+    <string name="log_readings_selected">ausgewählt</string>
+    <string name="log_readings_wheel_action">Zu den Messwerten</string>
+    <string name="log_readings_pad_low">Belag unter %1$s mm – bald ersetzen.</string>
+    <string name="log_readings_pos_fl">Vorne links</string>
+    <string name="log_readings_pos_fr">Vorne rechts</string>
+    <string name="log_readings_pos_rl">Hinten links</string>
+    <string name="log_readings_pos_rr">Hinten rechts</string>
+    <string name="log_readings_pos_rlo">Hinten links außen</string>
+    <string name="log_readings_pos_rli">Hinten links innen</string>
+    <string name="log_readings_pos_rro">Hinten rechts außen</string>
+    <string name="log_readings_pos_rri">Hinten rechts innen</string>
+    <string name="log_readings_pos_spare">Ersatzrad</string>
 </resources>
