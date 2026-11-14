@@ -186,6 +186,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun forwardLaunchIntent(intent: android.content.Intent?) {
+        // Rental-ops push / widget taps carry an in-app route; only whitelisted shapes are honoured.
+        intent?.getStringExtra(com.avago.feature.rentalsops.push.RentalOpsRoutes.EXTRA_ROUTE)
+            ?.takeIf { com.avago.feature.rentalsops.push.RentalOpsRoutes.isSafe(it) }
+            ?.let {
+                intent.removeExtra(com.avago.feature.rentalsops.push.RentalOpsRoutes.EXTRA_ROUTE)
+                mainViewModel.openRoute(it)
+                return
+            }
         // Rentals home-screen widget: opens a rentals screen (only rentals/* routes are accepted).
         intent?.getStringExtra(com.avago.feature.rentals.widget.RentalFleetWidget.EXTRA_OPEN)
             ?.takeIf { it.startsWith(com.avago.feature.rentals.nav.RentalsRoute.PREFIX) }

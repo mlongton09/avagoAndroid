@@ -133,6 +133,7 @@ dependencies {
     implementation(project(":feature:chat"))
     implementation(project(":feature:settings"))
     implementation(project(":feature:rentals"))
+    implementation(project(":feature:rentalsops"))
 
     implementation(libs.androidx.profileinstaller)
 

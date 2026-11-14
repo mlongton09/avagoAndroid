@@ -207,6 +207,8 @@ fun MainScaffold(
     // Rentals screens (feature/rentals) render their own top bars.
     val isRentalsDestination = currentRoute?.startsWith("rentals/") == true
     val rentalsEnabled by navFlagsViewModel.rentalsEnabled.collectAsState()
+    // Rental-ops screens draw their own top bar with back navigation.
+    val isRentalOpsDestination = currentRoute?.startsWith(com.avago.feature.rentalsops.push.RentalOpsRoutes.PREFIX) == true
     AvagoToastHost(toastManager = toast) {
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -239,7 +241,7 @@ fun MainScaffold(
         Scaffold(
             floatingActionButtonPosition = FabPosition.Start,
             topBar = {
-                if (!isAuthDestination && !isAssetLogDestination && !isChatDetailDestination && !isLogAddEditDestination && !isLogDetailDestination && !isWorkOrderListDestination && !isWorkOrderLogDestination && !isRentalsDestination) {
+                if (!isAuthDestination && !isAssetLogDestination && !isChatDetailDestination && !isLogAddEditDestination && !isLogDetailDestination && !isWorkOrderListDestination && !isWorkOrderLogDestination && !isRentalsDestination && !isRentalOpsDestination) {
                     CenterAlignedTopAppBar(
                         title = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -557,6 +559,13 @@ fun SideMenuContent(
                 selected = currentRoute?.startsWith("rentals/") == true,
                 icon = { Icon(Icons.Default.CarRental, contentDescription = null) },
                 onClick = { onNavigate(com.avago.feature.rentals.nav.RentalsRoute.HOME) },
+                modifier = Modifier.padding(horizontal = 8.dp),
+            )
+            // Rental operations (P2: deliveries, transfers, unit assignment, AR). Hides itself
+            // when the user holds none of the matching rental.* permissions.
+            com.avago.feature.rentalsops.nav.RentalOpsDrawerItem(
+                currentRoute = currentRoute,
+                onNavigate = onNavigate,
                 modifier = Modifier.padding(horizontal = 8.dp),
             )
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))

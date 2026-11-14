@@ -32,6 +32,7 @@ class AvagoFcmService : FirebaseMessagingService() {
 
     @Inject lateinit var identity: IdentityManager
     @Inject lateinit var deltaApplier: DeltaPushApplier
+    @Inject lateinit var rentalOpsPush: com.avago.feature.rentalsops.push.RentalOpsPushHandler
 
     // Service-scoped coroutine scope; cancelled in onDestroy.
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -59,6 +60,11 @@ class AvagoFcmService : FirebaseMessagingService() {
     override fun onMessageReceived(msg: RemoteMessage) {
         val type = msg.data["type"]
         Timber.d("FCM: received type=$type")
+        // Rental events (`rental.*` / `rental_*`) → rental-ops channels, prefs and deep links.
+        if (rentalOpsPush.handles(type)) {
+            rentalOpsPush.handle(msg.data)
+            return
+        }
         when (type) {
             "sync_nudge" -> handleSyncNudge(msg)
             "chat_message" -> handleChatPush(msg)
