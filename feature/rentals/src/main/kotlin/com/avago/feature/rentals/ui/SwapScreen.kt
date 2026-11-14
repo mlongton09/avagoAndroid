@@ -76,8 +76,8 @@ class SwapViewModel @Inject constructor(
     ) { order, ls, fleet ->
         val names = fleet.mapNotNull(LocalFleet::unitOf).associate { it.assetId to it.name }
         val status = order?.obj?.str("status")
-        ls.filter { LineSwap.swappable(it.obj, status) }.map { l ->
-            val asset = l.obj.str("asset_id") ?: l.assetId!!
+        ls.filter { LineSwap.swappable(it.obj, status) }.mapNotNull { l ->
+            val asset = l.obj.str("asset_id") ?: l.assetId ?: return@mapNotNull null
             SwapLine(l.id, asset, names[asset] ?: asset, l.obj.str("class_id") ?: l.classId, l.obj.instant("end_at"))
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())

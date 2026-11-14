@@ -142,8 +142,8 @@ class HandoverViewModel @Inject constructor(
 
     val units: StateFlow<List<HandoverUnit>> = combine(lines, allocations, fleet) { ls, al, fl ->
         val byId = fl.mapNotNull(LocalFleet::unitOf).associateBy { it.assetId }
-        val fromLines = ls.filter { it.assetId != null }.map { it.assetId!! to it.id }
-        val fromAllocs = al.filter { it.assetId != null && it.obj.bool("active") != false }.map { it.assetId!! to (it.obj.str("order_line_id")) }
+        val fromLines = ls.mapNotNull { l -> l.assetId?.let { it to l.id } }
+        val fromAllocs = al.filter { it.obj.bool("active") != false }.mapNotNull { a -> a.assetId?.let { it to a.obj.str("order_line_id") } }
         (fromLines + fromAllocs).distinctBy { it.first }.map { (id, line) ->
             HandoverUnit(id, byId[id]?.name ?: id, byId[id]?.assetType, line)
         }
