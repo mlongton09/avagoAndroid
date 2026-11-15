@@ -64,6 +64,9 @@ class RentalOpsNotifier @Inject constructor(
         RentalPushRouter.Category.TRANSFER -> R.string.rentalops_channel_transfer to R.string.rentalops_channel_transfer_desc
         RentalPushRouter.Category.RETURN_DUE -> R.string.rentalops_channel_return_due to R.string.rentalops_channel_return_due_desc
         RentalPushRouter.Category.INVOICE -> R.string.rentalops_channel_invoice to R.string.rentalops_channel_invoice_desc
+        RentalPushRouter.Category.CREDIT -> R.string.rentalops_channel_credit to R.string.rentalops_channel_credit_desc
+        RentalPushRouter.Category.COLLECTIONS -> R.string.rentalops_channel_collections to R.string.rentalops_channel_collections_desc
+        RentalPushRouter.Category.SUBRENTAL_DUE -> R.string.rentalops_channel_subrental to R.string.rentalops_channel_subrental_desc
     }
     /** [route] null = just open the app (e.g. a push for another account). */
     fun post(channel: String, key: String, title: String, text: String, route: String?) {

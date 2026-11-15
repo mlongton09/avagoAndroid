@@ -21,6 +21,8 @@ data class TaskEventPayload(
     val at: String,
     val lat: Double? = null,
     val lng: Double? = null,
+    /** GPS accuracy (m) of [lat]/[lng]; the server only pins a site from fixes ≤ 100 m (G5). */
+    val accuracyM: Float? = null,
     val reason: String? = null,
     val signedName: String? = null,
     val notes: String? = null,

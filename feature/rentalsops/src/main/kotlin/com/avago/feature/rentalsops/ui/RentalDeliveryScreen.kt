@@ -194,7 +194,7 @@ class RentalDeliveryViewModel @Inject constructor(
     fun submit(action: TaskAction, reason: String?, signedName: String?, notes: String?, onDone: () -> Unit = {}) = viewModelScope.launch {
         val v = state.value.view ?: return@launch
         val loc = LastLocation.get(ctx)
-        when (val r = repo.submit(v, action, reason, signedName, notes, loc?.latitude, loc?.longitude)) {
+        when (val r = repo.submit(v, action, reason, signedName, notes, loc?.latitude, loc?.longitude, loc?.takeIf { it.hasAccuracy() }?.accuracy)) {
             is TransitionResult.Ok -> {
                 _messages.tryEmit(DeliveryMessage.Queued)
                 onDone()

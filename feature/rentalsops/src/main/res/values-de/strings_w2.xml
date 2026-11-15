@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Rentals wave 2 (G2 push categories, G3 sub-rent, G5 driver route). en + de only; other locales fall back to English. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="rentalops_route_title">Meine Route</string>
+    <string name="rentalops_route_sub">Heutige Stopps in Fahrreihenfolge</string>
+    <string name="rentalops_route_empty">Heute sind keine Stopps auf Ihrer Route.</string>
+    <string name="rentalops_route_stop">Stopp %1$d</string>
+    <string name="rentalops_route_eta">Ankunft ca. %1$s</string>
+    <string name="rentalops_route_window">Zeitfenster %1$s</string>
+    <string name="rentalops_route_summary">Erledigte Stopps: %1$d von %2$d</string>
+    <string name="rentalops_route_next">Nächster Stopp</string>
+    <string name="rentalops_route_on_my_way">Unterwegs</string>
+    <string name="rentalops_route_arrived">Angekommen</string>
+    <string name="rentalops_route_offline">Die Route konnte nicht geladen werden. Es werden die auf diesem Gerät gespeicherten Stopps angezeigt.</string>
+    <string name="rentalops_channel_credit">Bonität und Dokumente</string>
+    <string name="rentalops_channel_credit_desc">Ablaufende Kundendokumente und neue Kreditanträge</string>
+    <string name="rentalops_channel_collections">Forderungsmanagement</string>
+    <string name="rentalops_channel_collections_desc">Kundenkonten, die durch das Mahnwesen gesperrt wurden</string>
+    <string name="rentalops_channel_subrental">Fällige Fremdanmietungen</string>
+    <string name="rentalops_channel_subrental_desc">Fremd angemietete Geräte, die an den Lieferanten zurückgehen</string>
+    <string name="rental_doc_expiring_title">Kundendokument läuft ab</string>
+    <string name="rental_credit_application_title">Neuer Kreditantrag</string>
+    <string name="rental_dunning_hold_title">Kundenkonto gesperrt</string>
+    <string name="rental_subrental_return_due_title">Fremd angemietetes Gerät fällig</string>
+    <string name="rentalops_event_doc_expiring">Ablaufende Dokumente</string>
+    <string name="rentalops_event_doc_expiring_desc">Ausweis, Führerschein oder Versicherungsnachweis eines Kunden läuft ab oder ist abgelaufen</string>
+    <string name="rentalops_event_credit_application">Kreditanträge</string>
+    <string name="rentalops_event_credit_application_desc">Ein Kunde hat einen Kreditantrag gestellt</string>
+    <string name="rentalops_event_dunning_hold">Gesperrte Konten</string>
+    <string name="rentalops_event_dunning_hold_desc">Das Mahnwesen hat ein Kundenkonto gesperrt</string>
+    <string name="rentalops_event_subrental_return_due">Fällige Fremdanmietungen</string>
+    <string name="rentalops_event_subrental_return_due_desc">Ein fremd angemietetes Gerät muss an den Lieferanten zurück</string>
+    <string name="rentalops_event_payment_received">Eingegangene Onlinezahlungen</string>
+    <string name="rentalops_event_payment_failed">Fehlgeschlagene Onlinezahlungen</string>
+    <string name="rentalops_event_payment_dispute">Kartenrückbuchungen</string>
+    <string name="rentalops_event_autopay_failed">Fehlgeschlagene automatische Zahlungen</string>
+    <string name="rentalops_event_deposit_auth_expiring">Ablaufende Kautionsreservierungen</string>
+</resources>

@@ -107,6 +107,24 @@ class RentalOpsApi @Inject constructor(
     }
 
     /**
+     * Wave 2 G5 `POST …/dispatch/tasks/{id}/check-in` `{client_uuid, status, at, lat, lng,
+     * accuracy_m, reason, photo_file_ids, signature_file_id, signed_name, notes}` → task JSON.
+     * Replaying a `client_uuid` returns the task without a second transition; the same uuid on
+     * another task is 409 `client_uuid_reused`.
+     */
+    suspend fun checkIn(accountId: String, taskId: String, body: JsonObject): ApiResult = call {
+        client.post(r(accountId, "/dispatch/tasks/$taskId/check-in")) { body(body) }
+    }
+
+    /**
+     * Wave 2 G5 `GET …/routing/my-route?date=` (`rental.drive`) →
+     * `{date, timezone, ping_interval_seconds, tracking, stops:[stop]}` in `route_seq` order.
+     */
+    suspend fun myRoute(accountId: String, date: String?): ApiResult = call {
+        client.get(r(accountId, "/routing/my-route")) { date?.let { parameter("date", it) } }
+    }
+
+    /**
      * `POST …/dispatch/tasks/{id}/proof-uploads` `{client_uuid, kind, filename, content_type}` →
      * `{file_upload_id, client_uuid, kind, task_id, upload_status, upload_url, storage_key,
      * content_type, replayed}`. Idempotent on [clientUuid]; `upload_url` is null once uploaded.

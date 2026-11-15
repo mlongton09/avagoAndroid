@@ -187,6 +187,7 @@ class RentalOpsRepository @Inject constructor(
         notes: String?,
         lat: Double?,
         lng: Double?,
+        accuracyM: Float? = null,
     ): TransitionResult {
         val a = identity.getActiveAccountId() ?: return TransitionResult.Rejected(com.avago.feature.rentalsops.domain.TransitionError.Invalid(view.localStatus, action))
         val dao = opsDb.dao(a)
@@ -206,6 +207,7 @@ class RentalOpsRepository @Inject constructor(
             at = Instant.now().toString(),
             lat = lat,
             lng = lng,
+            accuracyM = accuracyM?.takeIf { lat != null && lng != null },
             reason = reason?.trim()?.takeIf { it.isNotEmpty() },
             signedName = signedName?.trim()?.takeIf { it.isNotEmpty() },
             notes = notes?.trim()?.takeIf { it.isNotEmpty() },
@@ -417,6 +419,9 @@ class RentalOpsRepository @Inject constructor(
 
     suspend fun arAging(): Fetch = fetchCached(AGING_CACHE, "latest") { a -> api.arAging(a) }
 
+    /** G5 `routing/my-route` for today (server day in the routing timezone), cached for offline. */
+    suspend fun myRoute(): Fetch = fetchCached(ROUTE_CACHE, "today") { a -> api.myRoute(a, null) }
+
 
     sealed class SendResult {
         data class Pdf(val file: File) : SendResult()
@@ -487,6 +492,7 @@ class RentalOpsRepository @Inject constructor(
         const val CUSTOMER_ENTITY = "rental_customer"
         const val STATEMENT_CACHE = "rentalops_statement"
         const val AGING_CACHE = "rentalops_ar_aging"
+        const val ROUTE_CACHE = "rentalops_my_route"
     }
 }
 

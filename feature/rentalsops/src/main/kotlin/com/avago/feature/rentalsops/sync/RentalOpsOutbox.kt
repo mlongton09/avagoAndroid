@@ -195,19 +195,12 @@ class RentalOpsOutbox @Inject constructor(
         }
         val photos = media.filter { it.kind == "photo" }.mapNotNull { remote[it.id] }
         val signature = media.firstOrNull { it.kind == "signature" }?.let { remote[it.id] }
-        val body = JsonObject(
-            buildMap {
-                put("at", JsonPrimitive(p.at))
-                p.lat?.let { put("lat", JsonPrimitive(it)) }
-                p.lng?.let { put("lng", JsonPrimitive(it)) }
-                p.reason?.let { put("reason", JsonPrimitive(it)) }
-                if (photos.isNotEmpty()) put("photo_file_ids", JsonArray(photos.map(::JsonPrimitive)))
-                signature?.let { put("signature_file_id", JsonPrimitive(it)) }
-                p.signedName?.let { put("signed_name", JsonPrimitive(it)) }
-                p.notes?.let { put("notes", JsonPrimitive(it)) }
-            },
-        )
-        val r = api.taskAction(accountId, p.taskId, p.action, body, item.queueId)
+        // G5 check-in (client_uuid = queue id, a random UUID stable across replays); a server
+        // without the route (plain 404/405) gets the equivalent stage C action instead.
+        var r = api.checkIn(accountId, p.taskId, checkInBody(p, item.queueId, photos, signature))
+        if (checkInUnsupported(r)) {
+            r = api.taskAction(accountId, p.taskId, p.action, actionBody(p, photos, signature), item.queueId)
+        }
         if (r is ApiResult.Ok) cacheRow(dao, RentalOpsEntities.TASK, r.body)
         if (alreadyApplied(r, TASK_REACHED[p.action].orEmpty())) return DrainOutcome.Done
         return DrainOutcome.classify(r)
@@ -504,5 +497,42 @@ class RentalOpsOutbox @Inject constructor(
         internal fun alreadyApplied(r: ApiResult, reached: Set<String>): Boolean =
             r is ApiResult.Http && r.status == 409 && r.code == "invalid_transition" &&
                 (r.details?.get("from") as? JsonPrimitive)?.content in reached
+
+        /** Stage C action → G5 check-in `status`. */
+        val CHECKIN_STATUS = mapOf("start" to "en_route", "arrive" to "arrived", "complete" to "completed", "fail" to "failed")
+
+        /** Stage C action body `{at, lat, lng, reason, photo_file_ids, signature_file_id, signed_name, notes}`. */
+        internal fun actionBody(p: TaskEventPayload, photos: List<String>, signature: String?): JsonObject = JsonObject(
+            buildMap {
+                put("at", JsonPrimitive(p.at))
+                // The server rejects half a coordinate pair.
+                if (p.lat != null && p.lng != null) {
+                    put("lat", JsonPrimitive(p.lat))
+                    put("lng", JsonPrimitive(p.lng))
+                }
+                p.reason?.let { put("reason", JsonPrimitive(it)) }
+                if (photos.isNotEmpty()) put("photo_file_ids", JsonArray(photos.map(::JsonPrimitive)))
+                signature?.let { put("signature_file_id", JsonPrimitive(it)) }
+                p.signedName?.let { put("signed_name", JsonPrimitive(it)) }
+                p.notes?.let { put("notes", JsonPrimitive(it)) }
+            },
+        )
+
+        /** G5 check-in body: the action body plus `client_uuid`, `status` and `accuracy_m`. */
+        internal fun checkInBody(p: TaskEventPayload, clientUuid: String, photos: List<String>, signature: String?): JsonObject {
+            val base = actionBody(p, photos, signature)
+            return JsonObject(
+                buildMap {
+                    put("client_uuid", JsonPrimitive(clientUuid))
+                    put("status", JsonPrimitive(CHECKIN_STATUS[p.action] ?: p.action))
+                    putAll(base)
+                    if (base["lat"] != null) p.accuracyM?.let { put("accuracy_m", JsonPrimitive(it)) }
+                },
+            )
+        }
+
+        /** The server predates G5: route missing (uncoded 404) or method not allowed. */
+        internal fun checkInUnsupported(r: ApiResult): Boolean =
+            r is ApiResult.Http && ((r.status == 404 && r.code == null) || r.status == 405)
     }
 }

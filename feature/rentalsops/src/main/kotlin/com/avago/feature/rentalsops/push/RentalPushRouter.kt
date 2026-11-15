@@ -29,6 +29,12 @@ object RentalPushRouter {
         TRANSFER("RENTAL_TRANSFER", "rental_transfer"),
         RETURN_DUE("RENTAL_RETURN_DUE", "rental_return_due"),
         INVOICE("RENTAL_INVOICE", "rental_invoice"),
+        /** Wave 2 G2: document expiring/expired, credit application submitted. */
+        CREDIT("RENTAL_CREDIT", "rental_credit"),
+        /** Wave 2 G2: dunning put a customer account on hold. */
+        COLLECTIONS("RENTAL_COLLECTIONS", "rental_collections"),
+        /** Wave 2 G3: a sub-rented unit is due back to its supplier. */
+        SUBRENTAL_DUE("RENTAL_SUBRENTAL_DUE", "rental_subrental_due"),
         ;
 
         companion object {
@@ -45,6 +51,11 @@ object RentalPushRouter {
         "rental.task_failed",
         "rental.overdue",
         "rental.cycle_invoiced",
+        // Wave 2 (G2 credit/collections, G3 sub-rent).
+        "rental.doc_expiring",
+        "rental.credit_application",
+        "rental.dunning_hold",
+        "rental.subrental_return_due",
     )
 
     data class Spec(
@@ -85,15 +96,18 @@ object RentalPushRouter {
         val kind = value(data, "kind")
         val taskId = value(data, "task_id") ?: value(data, "entity_id").takeIf { value(data, "entity_type") == "rental_delivery_task" }
         val orderId = value(data, "order_id")
+        val customerId = value(data, "customer_id")
         val category = Category.fromWire(value(data, "category")) ?: fallbackCategory(event, kind) ?: return null
         val route = when {
             event.startsWith("rental.task_") && taskId != null -> RentalOpsRoutes.task(taskId)
             event.startsWith("rental.task_") -> RentalOpsRoutes.TASKS
             orderId != null && RentalOpsRoutes.SAFE_ID.matches(orderId) -> RentalOpsRoutes.p1Order(orderId)
+            // G2 credit / collections pushes are about a customer (document, application, hold).
+            customerId != null && RentalOpsRoutes.SAFE_ID.matches(customerId) -> RentalOpsRoutes.p1Customer(customerId)
             event == "rental.cycle_invoiced" -> RentalOpsRoutes.AGING
             else -> RentalOpsRoutes.P1_HOME
         }
-        val subject = taskId ?: orderId ?: value(data, "entity_id") ?: event
+        val subject = taskId ?: orderId ?: value(data, "entity_id") ?: customerId ?: event
         return Spec(
             event = event,
             category = category,
@@ -121,6 +135,11 @@ object RentalPushRouter {
         }
         event == "rental.overdue" -> Category.RETURN_DUE
         event == "rental.cycle_invoiced" -> Category.INVOICE
+        event == "rental.doc_expiring" || event == "rental.credit_application" -> Category.CREDIT
+        event == "rental.dunning_hold" -> Category.COLLECTIONS
+        event == "rental.subrental_return_due" -> Category.SUBRENTAL_DUE
+        // G6 payment events carry no server category; they belong with invoices.
+        event.startsWith("rental.payment_") || event == "rental.autopay_failed" || event == "rental.deposit_auth_expiring" -> Category.INVOICE
         else -> null
     }
 }
@@ -137,6 +156,8 @@ object RentalOpsRoutes {
     const val STATEMENT = "rentalops/statement"
     const val AGING = "rentalops/aging"
     const val SETTINGS = "rentalops/settings"
+    /** Wave 2 G5 driver route (`routing/my-route`). */
+    const val ROUTE = "rentalops/route"
 
     /**
      * P1 (feature:rentals) routes, as literals because this module must not depend on
@@ -145,6 +166,7 @@ object RentalOpsRoutes {
     const val P1_PREFIX = "rentals/"
     const val P1_HOME = "rentals/home"
     fun p1Order(orderId: String) = "rentals/order/$orderId"
+    fun p1Customer(customerId: String) = "rentals/customer/$customerId"
 
     /** Intent extra MainActivity forwards to navigation (only [isSafe] routes are accepted). */
     const val EXTRA_ROUTE = "com.avago.extra.RENTALOPS_ROUTE"
@@ -164,14 +186,14 @@ object RentalOpsRoutes {
             val parts = route.removePrefix(P1_PREFIX).split('/')
             return when (parts.size) {
                 1 -> parts[0] == "home"
-                2 -> parts[0] == "order" && SAFE_ID.matches(parts[1])
+                2 -> parts[0] in setOf("order", "customer") && SAFE_ID.matches(parts[1])
                 else -> false
             }
         }
         if (!route.startsWith(PREFIX)) return false
         val parts = route.removePrefix(PREFIX).split('/')
         return when (parts.size) {
-            1 -> parts[0] in setOf("home", "tasks", "assign", "transfers", "statement", "aging", "settings")
+            1 -> parts[0] in setOf("home", "tasks", "route", "assign", "transfers", "statement", "aging", "settings")
             2 -> parts[0] in setOf("task", "assign") && SAFE_ID.matches(parts[1])
             else -> false
         }
