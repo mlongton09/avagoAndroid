@@ -4,6 +4,8 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Marketplace owners set a location's exact map position ("Use my current location"). -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
@@ -53,6 +55,17 @@
             <intent-filter>
                 <action android:name="com.avago.action.START_INSPECTION" />
                 <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <!-- Avago Marketplace web links (listing, my requests, renter magic-link sign-in).
+                 Verification needs /.well-known/assetlinks.json on the site (docs/rentals-marketplace-android.md). -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="www.avagomate.com" />
+                <data android:host="avagomate.com" />
+                <data android:pathPrefix="/marketplace" />
             </intent-filter>
             <meta-data
                 android:name="android.app.shortcuts"

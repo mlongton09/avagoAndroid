@@ -11,6 +11,7 @@
     <string name="sign_in_show_password">Show password</string>
     <string name="sign_in_button">Sign In</string>
     <string name="sign_in_continue_anonymous">Continue without an account</string>
+    <string name="sign_in_find_rentals">Find rentals near you</string>
 
     <!-- Email Sign In -->
     <string name="email_sign_in_title">Sign In</string>

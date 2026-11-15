@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -16,6 +17,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.TravelExplore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -47,6 +49,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 fun SignInScreen(
     onSignedIn: () -> Unit,
     onNavigateToEmail: () -> Unit = {},
+    onFindRentals: (() -> Unit)? = null,
     viewModel: SignInViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -196,6 +199,27 @@ fun SignInScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+
+                // Central rental marketplace: renters browse without an Avago (fleet) account.
+                if (onFindRentals != null) {
+                    TextButton(
+                        onClick = onFindRentals,
+                        enabled = state !is SignInState.Loading,
+                        modifier = Modifier.heightIn(min = 48.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.TravelExplore,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .padding(end = 8.dp)
+                                .size(18.dp),
+                        )
+                        Text(
+                            text = stringResource(R.string.sign_in_find_rentals),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
                 }
 
                 if (state is SignInState.Loading) {

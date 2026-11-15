@@ -152,6 +152,7 @@ fun MainScaffold(
     navFlagsViewModel: NavFlagsViewModel = hiltViewModel(),
     pendingNavRoute: kotlinx.coroutines.flow.Flow<String>? = null,
     permissionStore: PermissionStore,
+    signedIn: Boolean = true,
 ) {
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -212,10 +213,14 @@ fun MainScaffold(
     val rentalsEnabled by navFlagsViewModel.rentalsEnabled.collectAsStateWithLifecycle()
     // Rental-ops screens draw their own top bar with back navigation.
     val isRentalOpsDestination = currentRoute?.startsWith(com.avago.feature.rentalsops.push.RentalOpsRoutes.PREFIX) == true
+    // Signed-out marketplace browsing (renter side): no fleet chrome (bottom tabs, Scout FAB, drawer
+    // swipe) — those destinations need an Avago account. Marketplace screens render their own bars.
+    val isGuestMarketplace = !signedIn && com.avago.feature.rentals.marketplace.nav.MarketplaceRoutes.isPublic(currentRoute)
+    val hideAppChrome = isAuthDestination || isGuestMarketplace
     AvagoToastHost(toastManager = toast) {
     ModalNavigationDrawer(
         drawerState = drawerState,
-        gesturesEnabled = !isAuthDestination,
+        gesturesEnabled = !hideAppChrome,
         drawerContent = {
             ModalDrawerSheet {
                 SideMenuContent(
@@ -278,7 +283,7 @@ fun MainScaffold(
                 }
             },
             bottomBar = {
-                if (!isAuthDestination) {
+                if (!hideAppChrome) {
                     BottomNavBar(
                         navController = navController,
                         workOrdersEnabled = workOrdersEnabled,
@@ -291,7 +296,7 @@ fun MainScaffold(
                 }
             },
             floatingActionButton = {
-                if (!isAuthDestination && !isChatThreadDestination && !isLogDetailDestination && !isLogAddEditDestination && can("scout.view")) {
+                if (!hideAppChrome && !isChatThreadDestination && !isLogDetailDestination && !isLogAddEditDestination && can("scout.view")) {
                     FloatingActionButton(
                         onClick = {},
                         modifier = Modifier.pointerInput(Unit) {
@@ -321,7 +326,8 @@ fun MainScaffold(
                     OfflineBanner(isOffline = isOffline)
                 }
                 Box(modifier = Modifier.weight(1f)) {
-                    if (!isAuthDestination && !syncReady) {
+                    // Guests browsing the marketplace have no fleet data to sync — never gate them.
+                    if (!hideAppChrome && !syncReady) {
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center,
@@ -331,7 +337,7 @@ fun MainScaffold(
                     } else {
                         AvagoNavHost(navController = navController)
                     }
-                    if (!isAuthDestination) {
+                    if (!hideAppChrome) {
                         SyncStatusBanner(
                             syncState = syncState,
                             modifier = Modifier.align(Alignment.TopCenter),
@@ -577,7 +583,8 @@ fun SideMenuContent(
             val rentalsLanding = com.avago.feature.rentalsops.nav.rentalsLandingRoute(com.avago.feature.rentals.nav.RentalsRoute.HOME)
             NavigationDrawerItem(
                 label = { Text(stringResource(com.avago.feature.rentals.R.string.rentals_title)) },
-                selected = currentRoute?.startsWith("rentals/") == true,
+                selected = currentRoute?.startsWith("rentals/") == true &&
+                    !currentRoute.startsWith(com.avago.feature.rentals.marketplace.nav.MarketplaceRoutes.PREFIX),
                 icon = { Icon(Icons.Default.CarRental, contentDescription = null) },
                 onClick = { onNavigate(rentalsLanding) },
                 modifier = Modifier.padding(horizontal = 8.dp),
@@ -589,8 +596,22 @@ fun SideMenuContent(
                 onNavigate = onNavigate,
                 modifier = Modifier.padding(horizontal = 8.dp),
             )
+            // Marketplace owner side (meet-up inbox, marketplace settings); permission-gated.
+            com.avago.feature.rentals.marketplace.nav.MarketplaceOwnerDrawerItems(
+                currentRoute = currentRoute,
+                onNavigate = onNavigate,
+                modifier = Modifier.padding(horizontal = 8.dp),
+            )
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
         }
+
+        // Central rental marketplace (renter side) — available to everyone, signed in or not.
+        com.avago.feature.rentals.marketplace.nav.MarketplaceFindItem(
+            currentRoute = currentRoute,
+            onNavigate = onNavigate,
+            modifier = Modifier.padding(horizontal = 8.dp),
+        )
+        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
         // ── REPORTS ──────────────────────────────────────────────────────────
         DrawerSectionHeader(stringResource(R.string.drawer_header_reports))
