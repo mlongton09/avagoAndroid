@@ -41,4 +41,21 @@
     <string name="rental_marketplace_meetup_title">Treffanfrage aus dem Marktplatz</string>
     <string name="rentalops_event_marketplace_meetup">Marktplatz-Treffen</string>
     <string name="rentalops_event_marketplace_meetup_desc">Ein Mieter aus dem Marktplatz hat ein Treffen angefragt oder abgesagt</string>
+    <!-- G5 location sharing (RouteTrackingService) -->
+    <string name="rentalops_w2_track_title">Meinen Standort teilen</string>
+    <string name="rentalops_w2_track_desc">Solange deine Route offene Stopps hat, sieht die Disposition deinen Standort und Kunden erhalten Live-Ankunftszeiten. Das Teilen endet, wenn die Route erledigt ist, oder um Mitternacht.</string>
+    <string name="rentalops_w2_track_on">Standort wird geteilt</string>
+    <string name="rentalops_w2_track_off">Wird nicht geteilt</string>
+    <string name="rentalops_w2_track_no_route">Startet, sobald deine Route einen aktiven Stopp hat.</string>
+    <string name="rentalops_w2_track_denied">Der Standortzugriff ist aus. Erlaube ihn in den Einstellungen, um deinen Standort zu teilen.</string>
+    <string name="rentalops_w2_track_settings">Einstellungen öffnen</string>
+    <string name="rentalops_w2_track_bg_title">Weiter teilen, wenn Android die App schließt?</string>
+    <string name="rentalops_w2_track_bg_text">Wähle \"Immer zulassen\", damit das Teilen fortgesetzt werden kann, wenn Android die App während deiner Route beendet. Avago verwendet deinen Standort nur, solange eine Route aktiv ist und du das Teilen eingeschaltet hast.</string>
+    <string name="rentalops_w2_track_bg_allow">Weiter</string>
+    <string name="rentalops_w2_track_bg_skip">Nicht jetzt</string>
+    <string name="rentalops_w2_track_notif_title">Standort wird geteilt</string>
+    <string name="rentalops_w2_track_notif_text">Die Disposition sieht deine Position, solange deine Route aktiv ist.</string>
+    <string name="rentalops_w2_track_stop">Teilen beenden</string>
+    <string name="rentalops_w2_track_channel">Standortfreigabe auf der Route</string>
+    <string name="rentalops_w2_track_channel_desc">Wird angezeigt, während dein Standort auf einer Lieferroute geteilt wird</string>
 </resources>

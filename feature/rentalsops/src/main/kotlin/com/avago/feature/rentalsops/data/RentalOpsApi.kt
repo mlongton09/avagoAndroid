@@ -125,6 +125,15 @@ class RentalOpsApi @Inject constructor(
     }
 
     /**
+     * Wave 2 G5 `POST …/routing/pings` `{pings:[{lat, lng, recorded_at, accuracy_m?, speed_mps?,
+     * heading?, battery_pct?, task_id?}]}` (1–50) → `{accepted, skipped, next_interval_seconds}`.
+     * More than 12 batches a minute is 429 `rate_limited` with `details.retry_after`.
+     */
+    suspend fun postPings(accountId: String, body: JsonObject): ApiResult = call {
+        client.post(r(accountId, "/routing/pings")) { body(body) }
+    }
+
+    /**
      * `POST …/dispatch/tasks/{id}/proof-uploads` `{client_uuid, kind, filename, content_type}` →
      * `{file_upload_id, client_uuid, kind, task_id, upload_status, upload_url, storage_key,
      * content_type, replayed}`. Idempotent on [clientUuid]; `upload_url` is null once uploaded.
