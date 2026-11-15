@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -110,6 +111,24 @@ class PostChargesViewModelTest {
         val event = async(UnconfinedTestDispatcher(testScheduler)) { vm.events.first() }
         vm.charge("p1")
         assertEquals(PostChargeEvent.OpenUrl("https://pay/x"), event.await())
+    }
+
+    @Test
+    fun `a timed-out charge re-syncs the list without a second error`() = runTest {
+        val fake = Fake(ok()).apply { chargeResult = ApiResult.Err(ApiError(0, null, "timeout")) }
+        val vm = PostChargesViewModel(fake)
+        vm.bind("o1", "returned")
+        assertEquals(1, fake.listCalls)
+        val charged = PostChargeList.from(json("""{"items":[{"id":"p1","status":"charged","amount_minor":100,"currency":"USD"}]}"""))
+        fake.listResult = ApiResult.Ok(charged)
+        val events = mutableListOf<PostChargeEvent>()
+        val job = launch(UnconfinedTestDispatcher(testScheduler)) { vm.events.collect { events += it } }
+        vm.charge("p1")
+        job.cancel()
+        assertEquals(2, fake.listCalls)
+        assertEquals(PostChargesState.Ready(charged), vm.state.value)
+        assertEquals(listOf<PostChargeEvent>(PostChargeEvent.Failed(ApiError(0, null, "timeout"))), events)
+        assertTrue(!vm.busy.value)
     }
 
     @Test
