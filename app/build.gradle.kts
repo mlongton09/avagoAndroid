@@ -134,6 +134,8 @@ dependencies {
     implementation(project(":feature:settings"))
     implementation(project(":feature:rentals"))
     implementation(project(":feature:rentalsops"))
+    implementation(project(":feature:crew"))
+    implementation(project(":feature:growth"))
 
     implementation(libs.androidx.profileinstaller)
 
