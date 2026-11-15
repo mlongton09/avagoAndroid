@@ -527,6 +527,14 @@ fun RentalOrderScreen(
                 }
             }
             fees?.let { f -> item(key = "fees", contentType = "section") { FeeBreakdownCard(f) } }
+            item(key = "post_charges", contentType = "section") {
+                PostChargesSection(
+                    orderId = o.id.takeIf { !o.isDraft },
+                    orderStatus = o.status,
+                    zone = zone,
+                    onMessage = { msg -> scope.launch { snackbar.showSnackbar(msg) } },
+                )
+            }
             if (handovers.isNotEmpty()) {
                 item(key = "history", contentType = "section") {
                     SectionCard(title = stringResource(R.string.rentals_order_history), contentPadding = true) {
@@ -717,7 +725,7 @@ private fun ExtendDialog(current: Instant, zone: ZoneId, onDismiss: () -> Unit, 
 }
 
 @Composable
-private fun ReasonDialog(title: String, onDismiss: () -> Unit, onConfirm: (String?) -> Unit) {
+internal fun ReasonDialog(title: String, onDismiss: () -> Unit, onConfirm: (String?) -> Unit) {
     var reason by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
