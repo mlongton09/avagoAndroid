@@ -131,4 +131,21 @@ object MoneyFormatter {
         val value = minor.toLong()
         return Money(if (negative) -value else value, currency.uppercase(Locale.ROOT))
     }
+
+    /**
+     * Strict plain-decimal input (`1234.5`, `1,234.50`; `,` and spaces are grouping only) into
+     * minor units of [currency], without rounding. Null when blank, negative, not a number,
+     * finer than the currency's minor unit (`1.234` USD, `12.5` JPY) or out of range. A blank
+     * or unknown [currency] uses 2 digits, like [fractionDigits].
+     */
+    fun parsePlainMinor(input: String, currency: String): Long? {
+        val d = input.trim().replace(",", "").replace(" ", "").toBigDecimalOrNull() ?: return null
+        val digits = fractionDigits(currency.trim())
+        if (d.signum() < 0 || d.scale() > digits) return null
+        return runCatching { d.movePointRight(digits).setScale(0, RoundingMode.UNNECESSARY).longValueExact() }.getOrNull()
+    }
+
+    /** [minor] as a plain `.`-separated decimal for an editable field (`1234.50`, `1234` JPY). */
+    fun toPlain(minor: Long, currency: String): String =
+        BigDecimal.valueOf(minor, fractionDigits(currency.trim())).toPlainString()
 }

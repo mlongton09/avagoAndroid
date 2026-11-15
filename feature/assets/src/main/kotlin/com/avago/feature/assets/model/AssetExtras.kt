@@ -1,5 +1,6 @@
 package com.avago.feature.assets.model
 
+import com.avago.core.data.rental.MoneyFormatter
 import com.avago.core.network.json.bool
 import com.avago.core.network.json.int
 import com.avago.core.network.json.long
@@ -8,8 +9,6 @@ import com.avago.core.network.json.objs
 import com.avago.core.network.json.str
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
-import java.math.BigDecimal
-import java.math.RoundingMode
 import java.time.LocalDate
 
 // Feature I (scope) per-asset extras: tool details, vehicle details and NHTSA recalls
@@ -90,7 +89,9 @@ data class ToolForm(
             put("calibration_interval_days", "range")
         }
         if (usageValue.isNotBlank() && usageValue.trim().toLongOrNull()?.takeIf { it >= 0 } == null) put("usage_value", "number")
-        if (replacementValue.isNotBlank() && AssetForms.parseMinor(replacementValue) == null) put("replacement_value_minor", "number")
+        if (replacementValue.isNotBlank() && MoneyFormatter.parsePlainMinor(replacementValue, currency) == null) {
+            put("replacement_value_minor", "number")
+        }
         if (currency.isNotBlank() && !currency.trim().matches(Regex("[A-Za-z]{3}"))) put("currency", "currency")
         if (trackerTagId.trim().length > 128) put("tracker_tag_id", "length")
     }
@@ -104,7 +105,7 @@ data class ToolForm(
             "calibration_due_on" to dueOn.trim().ifEmpty { null },
             "usage_unit" to usageUnit,
             "usage_value" to (usageValue.trim().toLongOrNull() ?: 0L),
-            "replacement_value_minor" to (AssetForms.parseMinor(replacementValue) ?: JsonNull),
+            "replacement_value_minor" to (MoneyFormatter.parsePlainMinor(replacementValue, currency) ?: JsonNull),
             "currency" to (currency.trim().uppercase().ifEmpty { null } ?: JsonNull),
             "tracker_tag_id" to orNull(trackerTagId),
             "tracker_kind" to orNull(trackerKind),
@@ -118,7 +119,7 @@ data class ToolForm(
             dueOn = t.calibrationDueOn.orEmpty(),
             usageUnit = t.usageUnit,
             usageValue = t.usageValue.toString(),
-            replacementValue = t.replacementValueMinor?.let { AssetForms.formatMinor(it) }.orEmpty(),
+            replacementValue = t.replacementValueMinor?.let { MoneyFormatter.toPlain(it, t.currency.orEmpty()) }.orEmpty(),
             currency = t.currency.orEmpty(),
             trackerTagId = t.trackerTagId.orEmpty(),
             trackerKind = t.trackerKind.orEmpty(),
@@ -277,15 +278,4 @@ data class RecallList(
 object AssetForms {
     /** Blank or an ISO `yyyy-MM-dd` date. */
     fun validDate(s: String): Boolean = s.isBlank() || runCatching { LocalDate.parse(s.trim()) }.isSuccess
-
-    /** "1,234.50" → 123450; null when not a non-negative amount with at most 2 decimals. */
-    fun parseMinor(s: String): Long? {
-        val t = s.trim().replace(",", "").replace(" ", "")
-        if (t.isEmpty()) return null
-        val d = t.toBigDecimalOrNull() ?: return null
-        if (d.signum() < 0 || d.scale() > 2) return null
-        return d.movePointRight(2).setScale(0, RoundingMode.UNNECESSARY).toLong()
-    }
-
-    fun formatMinor(minor: Long): String = BigDecimal.valueOf(minor, 2).toPlainString()
 }

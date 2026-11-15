@@ -44,13 +44,12 @@ class AssetExtrasTest {
     }
 
     @Test
-    fun `parseMinor accepts amounts with up to two decimals`() {
-        assertEquals(123450L, AssetForms.parseMinor("1,234.50"))
-        assertEquals(500L, AssetForms.parseMinor("5"))
-        assertNull(AssetForms.parseMinor("1.234"))
-        assertNull(AssetForms.parseMinor("-1"))
-        assertNull(AssetForms.parseMinor("abc"))
-        assertEquals("1234.50", AssetForms.formatMinor(123450))
+    fun `tool details in a zero-decimal currency round-trip into the form`() {
+        val f = ToolForm.of(ToolDetails.from(Json.parseToJsonElement(
+            """{"data":{"usage_unit":"days","usage_value":0,"replacement_value_minor":15000,"currency":"JPY"}}""",
+        ).jsonObject))
+        assertEquals("15000", f.replacementValue)
+        assertEquals(15000L, f.toBody()["replacement_value_minor"]!!.jsonPrimitive.long)
     }
 
     @Test
