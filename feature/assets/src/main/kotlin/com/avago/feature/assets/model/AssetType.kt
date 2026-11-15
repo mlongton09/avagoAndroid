@@ -12,6 +12,8 @@ data class AssetTypeItem(
     val heroImageName: String? = null,
     /** Background color hex for the asset avatar, matching iOS AvatarView.colorForAssetType(). */
     val colorHex: String = "#2563EB",
+    /** Display label for server types the app has no string for ([labelResId] is 0). */
+    val fallbackLabel: String? = null,
 )
 
 data class AssetTypeGroup(

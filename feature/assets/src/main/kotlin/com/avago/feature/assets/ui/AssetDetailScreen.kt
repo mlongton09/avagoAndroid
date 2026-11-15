@@ -146,6 +146,9 @@ fun AssetDetailScreen(
     rentalsEnabled: Boolean = true,
     onOpenAsset: (assetId: String) -> Unit = {},
     onOpenAssetChat: (() -> Unit)? = null,
+    onOpenToolDetails: (() -> Unit)? = null,
+    onOpenVehicleDetails: (() -> Unit)? = null,
+    onOpenRecalls: (() -> Unit)? = null,
     /** Slot rendered at the top of the Log tab (e.g. the open-defects panel from :feature:log). */
     logTabHeader: (@Composable () -> Unit)? = null,
     viewModel: AssetDetailViewModel = hiltViewModel(),
@@ -292,6 +295,36 @@ fun AssetDetailScreen(
                                     },
                                 )
                                 HorizontalDivider()
+                            }
+                            val extrasType = asset?.assetType
+                            if (onOpenToolDetails != null && com.avago.feature.assets.model.AssetScope.isTool(extrasType)) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.asset_scope_tool_title)) },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        onOpenToolDetails()
+                                    },
+                                )
+                            }
+                            if (com.avago.feature.assets.model.AssetScope.isRoadVehicle(extrasType)) {
+                                if (onOpenVehicleDetails != null) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.asset_scope_vehicle_title)) },
+                                        onClick = {
+                                            showOverflowMenu = false
+                                            onOpenVehicleDetails()
+                                        },
+                                    )
+                                }
+                                if (onOpenRecalls != null) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.asset_scope_recalls_title)) },
+                                        onClick = {
+                                            showOverflowMenu = false
+                                            onOpenRecalls()
+                                        },
+                                    )
+                                }
                             }
                             // Open team chat — iOS menu item.
                             if (onOpenAssetChat != null) {

@@ -61,7 +61,7 @@ fun AssetTypePickerScreen(
     scopeViewModel: AssetScopeViewModel = hiltViewModel(),
 ) {
     val catalog by scopeViewModel.catalog.collectAsStateWithLifecycle()
-    val groups = remember(catalog, currentType) { AssetScope.visibleGroups(AssetTypes.grouped, catalog, currentType) }
+    val groups = remember(catalog, currentType) { AssetScope.pickerGroups(catalog, currentType) }
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -168,7 +168,7 @@ private fun AssetTypeCard(
             }
             Spacer(Modifier.width(10.dp))
             Text(
-                text = stringResource(typeItem.labelResId),
+                text = if (typeItem.labelResId != 0) stringResource(typeItem.labelResId) else typeItem.fallbackLabel ?: typeItem.key,
                 style = MaterialTheme.typography.bodyLarge,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,

@@ -6,7 +6,6 @@ import com.avago.feature.assets.data.AssetScopeRepository
 import com.avago.feature.assets.model.AssetScope
 import com.avago.feature.assets.model.AssetTypeCatalog
 import com.avago.feature.assets.model.AssetTypeGroup
-import com.avago.feature.assets.model.AssetTypes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,5 +26,5 @@ class AssetScopeViewModel @Inject constructor(
     }
 
     fun groups(currentType: String? = null): List<AssetTypeGroup> =
-        AssetScope.visibleGroups(AssetTypes.grouped, _catalog.value, currentType)
+        AssetScope.pickerGroups(_catalog.value, currentType)
 }

@@ -1,6 +1,8 @@
-﻿package com.avago.feature.assets.di
+package com.avago.feature.assets.di
 
+import com.avago.feature.assets.data.AssetExtrasService
 import com.avago.feature.assets.data.AssetScopeRepository
+import com.avago.feature.assets.data.KtorAssetExtrasService
 import com.avago.feature.assets.data.KtorAssetScopeRepository
 import dagger.Binds
 import dagger.Module
@@ -18,4 +20,7 @@ import dagger.hilt.components.SingletonComponent
 abstract class AssetsModule {
     @Binds
     abstract fun assetScope(impl: KtorAssetScopeRepository): AssetScopeRepository
+
+    @Binds
+    abstract fun assetExtras(impl: KtorAssetExtrasService): AssetExtrasService
 }
