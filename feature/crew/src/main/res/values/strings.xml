@@ -4,7 +4,7 @@
     <string name="crew_back">Back</string>
     <string name="crew_refresh">Refresh</string>
     <string name="crew_retry">Retry</string>
-    <string name="crew_loading">Loading?</string>
+    <string name="crew_loading">Loading…</string>
     <string name="crew_err_offline">You\'re offline. Check your connection and try again.</string>
     <string name="crew_err_forbidden">You don\'t have access to this.</string>
     <string name="crew_err_not_found">Not found. It may have been removed.</string>
@@ -24,7 +24,7 @@
     <string name="crew_add_photo">Add photo</string>
     <string name="crew_replace_photo">Replace photo</string>
     <string name="crew_photo_attached">Photo attached</string>
-    <string name="crew_uploading">Uploading photos?</string>
+    <string name="crew_uploading">Uploading photos…</string>
     <string name="crew_load_more">Load more</string>
     <string name="crew_share">Share</string>
     <string name="crew_today">Today</string>
@@ -107,10 +107,10 @@
     <string name="crew_revoke">Revoke</string>
     <string name="crew_revoked">Revoked</string>
     <string name="crew_activity">Activity</string>
-    <string name="crew_ev_inspection">Inspection ? %1$s ? %2$s</string>
-    <string name="crew_ev_clock">Worked on %1$s ? %2$s</string>
-    <string name="crew_ev_meter">Meter ? %1$s ? %2$s</string>
-    <string name="crew_ev_incident">Fault reported ? %1$s</string>
+    <string name="crew_ev_inspection">Inspection · %1$s · %2$s</string>
+    <string name="crew_ev_clock">Worked on %1$s · %2$s</string>
+    <string name="crew_ev_meter">Meter · %1$s · %2$s</string>
+    <string name="crew_ev_incident">Fault reported · %1$s</string>
     <string name="crew_loans">Equipment loans</string>
     <string name="crew_loan">Loan</string>
     <string name="crew_borrowing">Borrowing (%1$d)</string>
@@ -151,7 +151,7 @@
     <string name="crew_coownership">Co-ownership</string>
     <string name="crew_no_coownership">No shared machines</string>
     <string name="crew_no_coownership_hint">When someone invites you to co-own a machine it shows up here.</string>
-    <string name="crew_share_members">Your share %1$s ? %2$d members</string>
+    <string name="crew_share_members">Your share %1$s · %2$d members</string>
     <string name="crew_bookings">Bookings</string>
     <string name="crew_balances">Balances</string>
     <string name="crew_book">Book</string>
@@ -164,7 +164,7 @@
     <string name="crew_to_hour">To (hour)</string>
     <string name="crew_invalid_window">The end must be after the start.</string>
     <string name="crew_total_costs">Shared costs: %1$s</string>
-    <string name="crew_paid_owed">Paid %1$s ? share %2$s</string>
+    <string name="crew_paid_owed">Paid %1$s · share %2$s</string>
     <string name="crew_settle_up">Settle up</string>
     <string name="crew_all_settled">Everyone is settled up.</string>
     <string name="crew_pays">%1$s pays %2$s %3$s</string>
@@ -229,7 +229,7 @@
     <string name="crew_opt_needs_repair">Needs repair</string>
     <string name="crew_transfer_title">Ownership transfer</string>
     <string name="crew_transfer_from">From %1$s</string>
-    <string name="crew_transfer_counts">%1$d service records ? %2$d inspections</string>
+    <string name="crew_transfer_counts">%1$d service records · %2$d inspections</string>
     <string name="crew_transfer_hint">Claiming adds this machine and its history to your current account.</string>
     <string name="crew_claim">Claim machine</string>
     <string name="crew_transfer_claimed">Machine claimed</string>
