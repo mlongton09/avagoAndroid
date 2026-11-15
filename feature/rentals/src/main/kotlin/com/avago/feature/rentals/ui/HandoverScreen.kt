@@ -1,5 +1,25 @@
 package com.avago.feature.rentals.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import java.io.File
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.filled.AddAPhoto
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import coil3.compose.AsyncImage
+import com.avago.core.data.db.entity.PhotoEntity
+import com.avago.core.design.theme.AvagoSpacing
 import java.time.Instant
 import java.time.ZoneId
 import java.util.UUID
@@ -205,6 +225,44 @@ class HandoverViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val logId = MutableStateFlow<String?>(null)
+
+    /** Condition photos on the selected inspection log (uploaded with the handover). */
+    val photos: StateFlow<List<PhotoEntity>> = logId.flatMapLatest { id ->
+        val acc = identity.getActiveAccountId()
+        if (id == null || acc == null) flowOf(emptyList())
+        else dbFactory.get(acc).photoDao().observeByEntity(id, "log").map { ps -> ps.filter { it.deletedAt == null }.sortedBy { it.sortOrder } }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** Adds a camera photo to inspection log [forLogId]; the rental outbox uploads it before the handover. */
+    fun addPhoto(forLogId: String, file: java.io.File) = viewModelScope.launch {
+        try {
+            val acc = identity.getActiveAccountId() ?: return@launch
+            val now = System.currentTimeMillis()
+            dbFactory.get(acc).photoDao().upsert(
+                PhotoEntity(
+                    photoId = UUID.randomUUID().toString(),
+                    entityId = forLogId,
+                    entityType = "log",
+                    accountId = acc,
+                    storageKey = null,
+                    downloadUrl = null,
+                    sortOrder = photos.value.size.toLong(),
+                    isPrimary = false,
+                    createdAt = now,
+                    updatedAt = now,
+                    deletedAt = null,
+                    serverVersion = 0,
+                    localPath = file.absolutePath,
+                ),
+            )
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w(e, "add handover photo failed")
+            _errors.emit(e.message ?: e.javaClass.simpleName)
+        }
+    }
+
     val marks = MutableStateFlow<List<SketchMark>>(emptyList())
     /** Charge / waive decision per new check-in mark id. */
     val decisions = MutableStateFlow<Map<String, DamageDecision>>(emptyMap())
@@ -330,6 +388,13 @@ fun HandoverScreen(
     val decisions by viewModel.decisions.collectAsStateWithLifecycle()
     val currency by viewModel.currency.collectAsStateWithLifecycle()
     val undecided by viewModel.undecided.collectAsStateWithLifecycle()
+    val photos by viewModel.photos.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val cameraDenied = stringResource(R.string.rentals_readiness_camera_denied)
+    // Pending capture (log id + file) survives the camera activity / process death.
+    var captureLog by rememberSaveable { mutableStateOf<String?>(null) }
+    var capturePath by rememberSaveable { mutableStateOf<String?>(null) }
     val defaultSigner = stringResource(R.string.rentals_customer)
     var addZone by remember { mutableStateOf<String?>(null) }
     var editMark by remember { mutableStateOf<SketchMark?>(null) }
@@ -339,6 +404,40 @@ fun HandoverScreen(
     val snackbar = remember { SnackbarHostState() }
     val haptics = rememberHaptics()
     val scroll = rememberScrollState()
+    val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        val forLog = captureLog
+        val file = capturePath?.let(::File)
+        captureLog = null
+        capturePath = null
+        if (ok && forLog != null && file != null && file.length() > 0) {
+            haptics.tick()
+            viewModel.addPhoto(forLog, file)
+        } else {
+            file?.delete()
+        }
+    }
+    fun launchCamera(forLog: String) {
+        val dir = File(context.filesDir, "rental_photos").apply { mkdirs() }
+        val file = File(dir, "handover_${UUID.randomUUID()}.jpg")
+        captureLog = forLog
+        capturePath = file.absolutePath
+        takePicture.launch(FileProvider.getUriForFile(context, "${context.packageName}.provider", file))
+    }
+    var permissionFor by rememberSaveable { mutableStateOf<String?>(null) }
+    val requestCamera = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val forLog = permissionFor
+        permissionFor = null
+        if (granted && forLog != null) launchCamera(forLog)
+        else if (!granted) scope.launch { snackbar.showSnackbar(cameraDenied) }
+    }
+    fun takePhoto(forLog: String) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            launchCamera(forLog)
+        } else {
+            permissionFor = forLog
+            requestCamera.launch(Manifest.permission.CAMERA)
+        }
+    }
     LaunchedEffect(Unit) {
         viewModel.done.collect {
             haptics.success()
@@ -443,7 +542,7 @@ fun HandoverScreen(
                                 unit?.let {
                                     ListItem(
                                         colors = cardListItemColors(),
-                                        leadingContent = { LeadingBadge(Icons.Default.DirectionsCar, if (out) StatusTone.Accent else StatusTone.Success) },
+                                        leadingContent = { UnitThumbnail(it.assetId, Icons.Default.DirectionsCar, if (out) StatusTone.Accent else StatusTone.Success) },
                                         headlineContent = { Text(it.name, style = MaterialTheme.typography.titleMedium) },
                                     )
                                 }
@@ -502,6 +601,12 @@ fun HandoverScreen(
                                 )
                             }
                         }
+                        ConditionPhotoStrip(
+                            photos = photos,
+                            logId = logId,
+                            onAdd = { takePhoto(it) },
+                            onStartInspection = unit?.let { u -> { onStartInspection(u.assetId) } },
+                        )
                         if (marks.isNotEmpty()) {
                             SectionCard {
                                 marks.forEachIndexed { i, m ->
@@ -602,6 +707,7 @@ fun HandoverScreen(
                                     inspections.firstOrNull { it.logId == logId }?.title ?: stringResource(R.string.rentals_not_recorded),
                                 )
                                 LabelValue(stringResource(R.string.rentals_damage), stringResource(R.string.rentals_marks_count, marks.size, marks.count { it.isNew }))
+                                if (photos.isNotEmpty()) LabelValue(stringResource(R.string.rentals_condition_photos), photos.size.toString())
                                 LabelValue(
                                     stringResource(if (meterKind == "hours") R.string.rentals_meter_hours else R.string.rentals_meter_distance),
                                     meter.ifBlank { stringResource(R.string.rentals_not_recorded) },
@@ -784,6 +890,68 @@ private fun CustomerSignatureDialog(
                     modifier = Modifier.fillMaxWidth().weight(1f).semantics { contentDescription = desc },
                 )
                 Button(onClick = onDone, modifier = Modifier.fillMaxWidth().heightIn(min = MinTouch)) { Text(stringResource(R.string.rentals_done)) }
+            }
+        }
+    }
+}
+
+/**
+ * Condition photo strip (72dp tiles + "Add photo"). Photos belong to the selected inspection
+ * log and are uploaded with the handover; with no inspection selected the add tile starts one.
+ */
+@Composable
+private fun ConditionPhotoStrip(
+    photos: List<PhotoEntity>,
+    logId: String?,
+    onAdd: (logId: String) -> Unit,
+    onStartInspection: (() -> Unit)?,
+) {
+    SectionCard(
+        title = stringResource(R.string.rentals_condition_photos),
+        trailing = if (photos.isNotEmpty()) {
+            { StatusPill(photos.size.toString(), StatusTone.Neutral) }
+        } else {
+            null
+        },
+        contentPadding = true,
+    ) {
+        if (logId == null) {
+            Text(
+                stringResource(R.string.rentals_condition_photos_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = AvagoSpacing.sm),
+            )
+        }
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm)) {
+            items(photos, key = { it.photoId }) { p ->
+                val model = remember(p.photoId, p.localPath, p.downloadUrl) { photoModel(p) }
+                Box(
+                    Modifier
+                        .size(AvagoSpacing.photoTile)
+                        .clip(MaterialTheme.shapes.small)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                ) {
+                    if (model != null) {
+                        AsyncImage(model = model, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                    }
+                }
+            }
+            item(key = "add") {
+                val label = stringResource(if (logId == null) R.string.rentals_start_inspection else R.string.rentals_add_photo)
+                val enabled = logId != null || onStartInspection != null
+                Surface(
+                    onClick = { if (logId != null) onAdd(logId) else onStartInspection?.invoke() },
+                    enabled = enabled,
+                    shape = MaterialTheme.shapes.small,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size(AvagoSpacing.photoTile).semantics { contentDescription = label },
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(if (logId == null) Icons.Default.Add else Icons.Default.AddAPhoto, contentDescription = null)
+                    }
+                }
             }
         }
     }
