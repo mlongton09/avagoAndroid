@@ -7,4 +7,9 @@
     <string name="rentals_all_clear">All clear</string>
     <string name="rentals_all_clear_body">Nothing is overdue, going out or due back today.</string>
     <string name="rentals_unassigned_unit">Unit not assigned</string>
+    <string name="rentals_cancel_order_title">Cancel this order?</string>
+    <string name="rentals_cancel_order_confirm">Cancel order</string>
+    <string name="rentals_no_show_title">Mark this order as no-show?</string>
+    <string name="rentals_no_show_confirm">Mark no-show</string>
+    <string name="rentals_keep_order">Keep order</string>
 </resources>

@@ -3,7 +3,17 @@ package com.avago.feature.rentals.ui
 import java.io.File
 import javax.inject.Inject
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
+import com.avago.core.ui.components.rememberHaptics
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -68,6 +78,9 @@ import kotlinx.coroutines.flow.stateIn
 
 /** Rows shown before "Show all (N)" in long histories (customer orders, unit bookings). */
 internal const val PREVIEW_ROWS = 3
+
+/** Permission for recording payments (`rental.payment_record`, same key as iOS). */
+internal const val PERMISSION_PAYMENT_RECORD = "rental.payment_record"
 
 /** Lifecycle actions that end an order early; always red, grouped last and confirmed. */
 internal val DESTRUCTIVE_ORDER_ACTIONS = setOf("cancel", "no-show")
@@ -204,6 +217,72 @@ private fun OverflowItem(a: MenuAction, close: () -> Unit) {
         },
         modifier = Modifier.heightIn(min = MinTouch),
     )
+}
+
+/** One swipe action (also exposed to TalkBack as a custom action). */
+internal data class SwipeAction(val label: String, val icon: ImageVector, val tone: StatusTone, val onAction: () -> Unit)
+
+/** TalkBack custom actions mirroring swipe gestures; apply to the row's focusable (clickable) node. */
+internal fun Modifier.swipeA11y(actions: List<SwipeAction>): Modifier =
+    if (actions.isEmpty()) this else semantics { customActions = actions.map { a -> CustomAccessibilityAction(a.label) { a.onAction(); true } } }
+
+/**
+ * Reveal-and-act swipe row: swipe right runs [start], swipe left runs [end]; the row springs
+ * back (nothing is dismissed). [content] receives the modifier carrying the TalkBack actions
+ * ([start], [end] and [more]) for its clickable node.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun SwipeActionsRow(
+    start: SwipeAction?,
+    end: SwipeAction?,
+    modifier: Modifier = Modifier,
+    more: List<SwipeAction> = emptyList(),
+    content: @Composable (a11y: Modifier) -> Unit,
+) {
+    val a11y = Modifier.swipeA11y(listOfNotNull(start, end) + more)
+    if (start == null && end == null) {
+        Box(modifier) { content(a11y) }
+        return
+    }
+    val haptics = rememberHaptics()
+    val state = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            val action = when (value) {
+                SwipeToDismissBoxValue.StartToEnd -> start
+                SwipeToDismissBoxValue.EndToStart -> end
+                else -> null
+            }
+            if (action != null) {
+                haptics.tick()
+                action.onAction()
+            }
+            false
+        },
+        positionalThreshold = { it * 0.35f },
+    )
+    SwipeToDismissBox(
+        state = state,
+        modifier = modifier,
+        enableDismissFromStartToEnd = start != null,
+        enableDismissFromEndToStart = end != null,
+        backgroundContent = {
+            val fromStart = state.dismissDirection == SwipeToDismissBoxValue.StartToEnd
+            val action = if (fromStart) start else if (state.dismissDirection == SwipeToDismissBoxValue.EndToStart) end else null
+            if (action != null) {
+                val c = toneColors(action.tone)
+                Box(
+                    Modifier.fillMaxSize().clip(MaterialTheme.shapes.large).background(c.container).padding(horizontal = AvagoSpacing.xl),
+                    contentAlignment = if (fromStart) Alignment.CenterStart else Alignment.CenterEnd,
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm)) {
+                        Icon(action.icon, contentDescription = null, tint = c.content)
+                        Text(action.label, color = c.content, style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+            }
+        },
+    ) { content(a11y) }
 }
 
 /** "Show all (N)" / "Show less" under a list trimmed to [PREVIEW_ROWS]. Hidden when nothing is trimmed. */
