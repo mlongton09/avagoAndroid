@@ -115,6 +115,7 @@ import com.avago.core.ui.components.StickyDayHeader
 import com.avago.core.ui.components.TimelineEntry
 import com.avago.core.ui.invoiceStatusText
 import com.avago.feature.rentals.data.RentalRepository
+import com.avago.feature.rentals.domain.FeeBreakdown
 import com.avago.feature.rentals.domain.LineView
 import com.avago.feature.rentals.domain.long
 import com.avago.feature.rentals.domain.obj
@@ -126,7 +127,11 @@ import com.avago.feature.rentals.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import com.avago.core.network.rentals.RentalsApi
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -296,6 +301,7 @@ data class HandoverRow(val id: String, val kind: String, val at: String?, val as
 @HiltViewModel
 class RentalOrderViewModel @Inject constructor(
     private val repo: RentalRepository,
+    private val api: RentalsApi,
     savedState: SavedStateHandle,
 ) : ViewModel() {
     private val requestedId: String = requireNotNull(savedState["orderId"])
@@ -324,6 +330,24 @@ class RentalOrderViewModel @Inject constructor(
         HandoverRow(r.id, o.str("kind") ?: "", o.str("at"), o.str("asset_id") ?: r.assetId, r.localState)
     }
 
+    /** Online-only platform fee / payout breakdown; stays null offline, for drafts or without access. */
+    val fees: StateFlow<FeeBreakdown?> = order
+        .map { o -> o?.takeIf { !it.isDraft }?.id }
+        .distinctUntilChanged()
+        .mapLatest { id -> id?.let { loadFees(it) } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    private suspend fun loadFees(orderId: String): FeeBreakdown? {
+        val acc = repo.accountId.first() ?: return null
+        return try {
+            FeeBreakdown.from(api.feeBreakdown(acc, orderId))
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.d(e, "fee breakdown unavailable")
+            null
+        }
+    }
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val messages: SharedFlow<String> = _messages
 
@@ -359,6 +383,7 @@ fun RentalOrderScreen(
     val ledger by viewModel.ledger.collectAsStateWithLifecycle()
     val invoices by viewModel.invoices.collectAsStateWithLifecycle()
     val handovers by viewModel.handovers.collectAsStateWithLifecycle()
+    val fees by viewModel.fees.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val haptics = rememberHaptics()
     var showPayment by remember { mutableStateOf(false) }
@@ -501,6 +526,7 @@ fun RentalOrderScreen(
                     }
                 }
             }
+            fees?.let { f -> item(key = "fees", contentType = "section") { FeeBreakdownCard(f) } }
             if (handovers.isNotEmpty()) {
                 item(key = "history", contentType = "section") {
                     SectionCard(title = stringResource(R.string.rentals_order_history), contentPadding = true) {

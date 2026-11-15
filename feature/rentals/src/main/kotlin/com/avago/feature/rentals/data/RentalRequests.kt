@@ -42,6 +42,14 @@ internal object RentalRequests {
         put("lines", JsonArray(listOf(line)))
     }
 
+    /** Instant-book evaluate body (instant.rs `EvaluateBody`): ids are optional, the period is required. */
+    fun instantBookEvaluate(input: RentalRepository.BookingInput) = buildJsonObject {
+        input.classId?.let { put("class_id", it) }
+        input.assetId?.let { put("asset_id", it) }
+        input.customerId?.let { put("customer_id", it) }
+        put("start_at", input.start.toString())
+        put("end_at", input.end.toString())
+    }
     /** `PreviewBody` (pricing.rs): authoritative online price for the QuickBook live preview. */
     fun pricingPreview(input: RentalRepository.BookingInput) = buildJsonObject {
         put("currency", input.currency)
