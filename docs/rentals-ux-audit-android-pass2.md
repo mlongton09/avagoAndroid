@@ -23,7 +23,7 @@ Status: ✅ fixed in this pass · ➖ deliberately kept (reason given) · 🔎 d
 | X5 | Long histories render in full (customer orders, asset bookings), pushing primary content off-screen. | "Show 3, then **Show all (N)**" row (`ShowAllRow`), state saved across rotation. ✅ |
 | X6 | Hard-coded spacings (`16.dp`, `56.dp` divider insets, `144.dp` FAB clearance) and sizes scattered through screens. | New tokens `AvagoSpacing.listInset` (divider inset next to a 40 dp leading element), `fabClearance`, `thumbnail`, `thumbnailLg`, `readableMaxWidth`. ✅ |
 | X7 | Section headers use `labelLarge`/onSurfaceVariant while card titles use `titleSmall` — two competing heading levels on the same screen. | ➖ Kept: the shared `SectionCard` title is the single in-card heading; standalone `SectionHeader` is only used for date groups. Verified consistent. |
-| X8 | German strings ~30 % longer: two-button bars at 200 % font truncate ("Zahlung erfassen", "Rückgabe annehmen"). | Bars now have at most one weighted primary + one secondary; labels wrap to 2 lines (`maxLines = 2`), no ellipsis on primary verbs. ✅ 🔎 |
+| X8 | German strings ~30 % longer: two-button bars at 200 % font truncate ("Zahlung erfassen", "Rückgabe annehmen"). | Bars now have at most one weighted primary + one secondary; labels wrap to 2 lines (`maxLines = 2`) before ellipsizing. ✅ 🔎 |
 | X9 | Swipe actions exist only on home agenda rows; nowhere else, and not consistently mirrored for TalkBack. | Swipe + TalkBack custom actions on customers (Book / Call / Email) and orders (Record payment, permission-gated). ✅ |
 
 ## Home (H)
@@ -54,7 +54,7 @@ Status: ✅ fixed in this pass · ➖ deliberately kept (reason given) · 🔎 d
 | ID | Issue | Fix |
 | --- | --- | --- |
 | F1 | Each card carries badge, name, class, pill, timing, reasons, a divider and up to four buttons — the list reads as a wall of buttons. | Card = thumbnail · name · class · timing · status pill, **one** contextual action (Hand over › Book › Readiness), the rest in a per-card overflow. ✅ |
-| F2 | Name in `titleMedium` bold competes with the status pill. | `titleSmall` name, `bodyMedium` supporting line. ✅ |
+| F2 | Name, class, timing and reasons stack as four text lines of different weights; the status pill competes with the name. | Regular-weight `titleMedium` name (M3 card title), one `bodyMedium` supporting line "class · timing" (error colour when overdue), pill + sync badge in a wrapping row below. ✅ |
 | F3 | Refresh failure invisible. | X1. ✅ |
 
 ## Schedule (S)
@@ -64,6 +64,7 @@ Status: ✅ fixed in this pass · ➖ deliberately kept (reason given) · 🔎 d
 | S1 | Rows lead with time/type overline and unit headline; the order·customer line repeats on every row. | Title = unit (or "Unassigned"), subtitle = time · kind · order · customer, unit thumbnail. Same row on home. ✅ |
 | S2 | Refresh failure invisible. | X1. ✅ |
 | S3 | Gantt chart colours are hard-coded. | ➖ Kept: chart palette is defined by the chart style guide and checked for both themes. |
+| S4 | `readableWidth()` on the schedule would squeeze the Gantt timeline on tablets. | ➖ Kept full width on purpose: the timeline benefits from every dp; list-mode rows are short. |
 
 ## Customers (C)
 
@@ -87,7 +88,7 @@ Status: ✅ fixed in this pass · ➖ deliberately kept (reason given) · 🔎 d
 | ID | Issue | Fix |
 | --- | --- | --- |
 | HO1 | Condition step shows a selected inspection by name only; photos taken are invisible until the review step / server. | Condition photo strip (horizontal, 72 dp tiles) with an **Add photo** tile (camera; starts an inspection first if none is selected). ✅ |
-| HO2 | Unit rows in the units step and review show generic icons. | Unit thumbnails. ✅ |
+| HO2 | Unit rows in the units step show generic icons; the review doesn't mention photos. | Unit thumbnail on the units step; review lists the condition photo count. ✅ |
 | HO3 | Multi-step Back. | ➖ Already correct (system Back + Back button step back; Cancel on step 1). |
 
 ## Quick book (Q)

@@ -82,3 +82,83 @@ ViewModels, repositories, sync/outbox, permissions and navigation routes are **u
   - [ ] Per-toggle spinner while saving.
 - [ ] Tablet and foldable (≥ 600 dp): wide schedule layout, KPI reflow, rows on the other screens are not uncomfortably stretched, and rotation and fold/unfold keep state.
 - [ ] German locale: formal "Sie" wording, and long words wrap in pills and buttons.
+
+## Pass 2 — design rules
+
+Pass 2 ("calm") builds on pass 1. The issue-by-issue audit is in
+`docs/rentals-ux-audit-android-pass2.md`; the IDs match the iOS pass-2 audit.
+The shared pass-2 pieces live in `feature/rentals/.../ui/RentalsKit.kt`
+(internal to the module).
+
+1. **One primary action per screen.**
+   - The bottom bar holds one filled next step, plus at most one tonal secondary.
+   - Order priority: check out › check in › close › reserve › hold › quote.
+   - Asset priority: hand over › readiness › book.
+   - Fleet cards show one tonal contextual action each.
+2. **Overflow for rare actions.**
+   - Rare actions go in `OverflowMenu(List<MenuAction>)`.
+   - Destructive entries (`destructive = true`) are grouped last, below a divider, with red text and a red icon.
+   - Destructive actions always confirm. The confirm dialog has a red icon and a red confirm button.
+3. **No duplicate numbers.**
+   - Order detail shows money once (Total · Paid · Balance hero).
+   - Home doesn't repeat the KPI counts as chips.
+4. **Hide empty sections.**
+   - Don't render cards that only say "Nothing …".
+   - When every group on home is empty, show one **All clear** card.
+5. **Long lists of history** show 3 rows (`PREVIEW_ROWS`), then `ShowAllRow` ("Show all (N)"). The expanded state survives rotation.
+6. **Honest refresh.** `RefreshFailedBanner(SyncRefresh)` shows "Couldn't refresh. Showing saved data." with **Retry** at the top of every refreshable list.
+7. **Photos over icons.**
+   - `UnitThumbnail(assetId, icon, tone)` loads the unit's primary photo from the shared photo pipeline (Coil).
+   - It falls back to the tonal badge, so it never shows a blank box.
+   - The thumbnail is decorative (`contentDescription = null`) because the row text names the unit.
+8. **Swipe = shortcut, never the only way.**
+   - `SwipeActionsRow` is reveal-and-act: the row springs back and gives a tick haptic.
+   - Every swipe action is also a TalkBack custom action (`swipeA11y`), and is reachable from the detail screen.
+   - Permission-gated swipes (record payment, `rental.payment_record`) are hidden without the permission.
+9. **Readable width.**
+   - `Modifier.readableWidth()` centres lists and details at ≤ `AvagoSpacing.readableMaxWidth` (720 dp).
+   - The schedule stays full width for the Gantt timeline.
+10. **Tokens only.**
+    - Spacings and sizes come from `AvagoSpacing`: `listInset`, `fabClearance`, `thumbnail`, `thumbnailLg`, `photoTile`, `readableMaxWidth`, plus the xs…xxl scale.
+    - Colours come from `toneColors()` / `MaterialTheme`.
+11. **Strings.**
+    - Every new string is in `strings_ux2.xml` in both `values/` and `values-de/` (formal "Sie").
+    - Button labels wrap to 2 lines before ellipsizing.
+
+### Pass-2 device QA checklist
+
+- [ ] Home:
+  - [ ] Quiet day shows a single "All clear" card.
+  - [ ] Quick book is the only FAB.
+  - [ ] Agenda rows show unit photos, with an icon fallback.
+  - [ ] Airplane-mode refresh shows the banner, and Retry recovers.
+- [ ] Schedule: row title = unit, subtitle = time · kind · order · customer. The Gantt stays full width on a tablet.
+- [ ] Orders list: swipe right on an order with a balance opens Record payment.
+  - [ ] Hidden without `rental.payment_record`.
+  - [ ] The TalkBack "Actions" menu offers the same action.
+- [ ] Order detail:
+  - [ ] An on-rent order's primary is **Check in**, not Extend.
+  - [ ] Cancel / No-show are red at the bottom of the overflow and ask for a reason.
+  - [ ] Money appears once; empty Payments and Invoices cards are hidden.
+- [ ] Fleet:
+  - [ ] Each card has one action and an overflow; an overdue timing line is red.
+  - [ ] Thumbnails load, and the grid reflows on a tablet.
+- [ ] Customers:
+  - [ ] Swipe right = Book (opens Quick book with the customer preselected).
+  - [ ] Swipe left = Call (dialer), or Email when there is no phone.
+  - [ ] Do-not-rent customers have no Book.
+  - [ ] Detail shows 3 orders, then Show all.
+- [ ] Asset detail:
+  - [ ] Hero photo, and one primary in the bottom bar.
+  - [ ] "Stop renting" is red, last in the overflow, and confirms.
+  - [ ] Bookings show 3, then Show all.
+- [ ] Handover condition step:
+  - [ ] Add photo opens the camera, asks for permission once, and the denied snackbar shows.
+  - [ ] Thumbnails appear in the strip.
+  - [ ] The review shows the photo count.
+  - [ ] Photos upload with the handover after a sync.
+  - [ ] Without an inspection, the tile starts one.
+- [ ] Ops home on a tablet: content centred at ≤ 720 dp, and divider insets line up with the text.
+- [ ] 200 % font + German on every screen above: no clipped button labels, and pills wrap.
+- [ ] Dark mode: thumbnail placeholders, destructive red and banners keep their contrast.
+- [ ] TalkBack: thumbnails are skipped; swipe rows expose custom actions; overflow items read in order with "Stop renting" last.
