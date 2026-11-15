@@ -7,12 +7,14 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -20,7 +22,11 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Login
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.EventAvailable
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Schedule
@@ -62,6 +68,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.data.rental.FleetStatus
 import com.avago.core.data.rental.LocalFleet
+import com.avago.core.design.theme.AvagoSpacing
 import com.avago.core.ui.components.LeadingBadge
 import com.avago.core.ui.components.SkeletonListItem
 import com.avago.core.ui.components.StatusPill
@@ -122,14 +129,17 @@ fun RentalFleetScreen(
             LazyVerticalGrid(
                 columns = GridCells.Fixed(columns),
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = pad.calculateBottomPadding() + 32.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(bottom = pad.calculateBottomPadding() + AvagoSpacing.xxl),
+                verticalArrangement = Arrangement.spacedBy(AvagoSpacing.md),
             ) {
+                if (refresh.failed) {
+                    item(key = "refresh-failed", span = { GridItemSpan(maxLineSpan) }, contentType = "banner") { RefreshFailedBanner(refresh) }
+                }
                 item(key = "sync", span = { GridItemSpan(maxLineSpan) }, contentType = "sync") {
                     LastSyncedRow(lastSynced, queue.size, viewModel::syncNow)
                 }
                 item(key = "search", span = { GridItemSpan(maxLineSpan) }, contentType = "search") {
-                    RentalSearchField(query, viewModel::setQuery, stringResource(R.string.rentals_search_fleet), Modifier.padding(top = 0.dp))
+                    RentalSearchField(query, viewModel::setQuery, stringResource(R.string.rentals_search_fleet))
                 }
                 item(key = "filters", span = { GridItemSpan(maxLineSpan) }, contentType = "filters") {
                     ChipRow {
@@ -176,7 +186,7 @@ fun RentalFleetScreen(
                         onOpenOrder = (r.current ?: r.next)?.orderId?.let { id -> { onOpenOrder(id) } },
                         onReadiness = onReadiness?.let { f -> { f(r.unit.assetId) } },
                         onHandover = onHandover?.let { f -> HandoverTarget.of(r)?.let { h -> h to { f(h.orderId, h.direction) } } },
-                        modifier = Modifier.padding(horizontal = if (columns == 1) 16.dp else 8.dp),
+                        modifier = Modifier.padding(horizontal = if (columns == 1) AvagoSpacing.cardHorizontal else AvagoSpacing.sm),
                     )
                 }
             }
@@ -192,8 +202,9 @@ fun RentalFleetScreen(
 }
 
 /**
- * Unit card: status-tinted thumbnail, name / class, status pill (icon + text), due / next change
- * and the next actions. The whole card opens the asset.
+ * Unit card: photo thumbnail, name, "class · timing" supporting line and a status pill, then
+ * at most one contextual action (handover > book > readiness) with the rest in an overflow
+ * menu. The whole card opens the asset.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -208,6 +219,28 @@ private fun FleetUnitCard(
     modifier: Modifier = Modifier,
 ) {
     val unitZone = zoneOf(r.unit.timeZone ?: zone.id)
+    val overdue = r.status == FleetStatus.OVERDUE
+    val timing = when {
+        r.dueAt != null && r.status in setOf(FleetStatus.ON_RENT, FleetStatus.OVERDUE) ->
+            stringResource(R.string.rentals_due_back, formatDateTime(r.dueAt, unitZone))
+        r.nextChangeAt != null -> stringResource(R.string.rentals_next_change, formatDateTime(r.nextChangeAt, unitZone))
+        else -> null
+    }
+    // Contextual actions in priority order; the first is the card's single visible action.
+    val actions = buildList {
+        onHandover?.let { (h, go) ->
+            val label = if (h.direction == HandoverTarget.IN) R.string.rentals_action_checkin else R.string.rentals_action_checkout
+            val icon = if (h.direction == HandoverTarget.IN) Icons.AutoMirrored.Filled.Login else Icons.AutoMirrored.Filled.Logout
+            add(MenuAction(stringResource(label), icon, onClick = go))
+        }
+        if (r.status == FleetStatus.AVAILABLE || r.status == FleetStatus.RESERVED) {
+            add(MenuAction(stringResource(R.string.rentals_book), Icons.Default.EventAvailable, onClick = onBook))
+        }
+        if (onReadiness != null && (r.status == FleetStatus.NOT_READY || r.checklist?.open == true)) {
+            add(MenuAction(stringResource(R.string.rentals_readiness_open), Icons.Default.Checklist, onClick = onReadiness))
+        }
+        onOpenOrder?.let { add(MenuAction(stringResource(R.string.rentals_open_order), Icons.AutoMirrored.Filled.ReceiptLong, onClick = it)) }
+    }
     Surface(
         onClick = onOpen,
         shape = MaterialTheme.shapes.large,
@@ -215,36 +248,29 @@ private fun FleetUnitCard(
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)),
         modifier = modifier.fillMaxWidth(),
     ) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                LeadingBadge(fleetStatusIcon(r.status), fleetStatusTone(r.status))
-                Column(Modifier.weight(1f)) {
+        Column(Modifier.padding(AvagoSpacing.md), verticalArrangement = Arrangement.spacedBy(AvagoSpacing.sm)) {
+            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.md)) {
+                UnitThumbnail(r.unit.assetId, fleetStatusIcon(r.status), fleetStatusTone(r.status))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AvagoSpacing.xxs)) {
                     Text(r.unit.name, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    r.unit.className?.let {
-                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    val supporting = listOfNotNull(r.unit.className, timing).joinToString(" · ")
+                    if (supporting.isNotEmpty()) {
+                        Text(
+                            supporting,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (overdue) toneColors(StatusTone.Danger).content else MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
-                }
-            }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                FleetStatusChip(r.status)
-                if (r.local || r.readinessPending) SyncStateBadge(com.avago.core.data.db.rental.RentalRecordEntity.STATE_PENDING)
-            }
-            val timing = when {
-                r.dueAt != null && r.status in setOf(FleetStatus.ON_RENT, FleetStatus.OVERDUE) ->
-                    stringResource(R.string.rentals_due_back, formatDateTime(r.dueAt, unitZone))
-                r.nextChangeAt != null -> stringResource(R.string.rentals_next_change, formatDateTime(r.nextChangeAt, unitZone))
-                else -> null
-            }
-            timing?.let {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(
-                        Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(16.dp),
-                        tint = if (r.status == FleetStatus.OVERDUE) toneColors(StatusTone.Danger).content else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        it, style = MaterialTheme.typography.bodyMedium,
-                        color = if (r.status == FleetStatus.OVERDUE) toneColors(StatusTone.Danger).content else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    FlowRow(
+                        Modifier.padding(top = AvagoSpacing.xs),
+                        horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm),
+                        verticalArrangement = Arrangement.spacedBy(AvagoSpacing.xs),
+                    ) {
+                        FleetStatusChip(r.status)
+                        if (r.local || r.readinessPending) SyncStateBadge(com.avago.core.data.db.rental.RentalRecordEntity.STATE_PENDING)
+                    }
                 }
             }
             if (r.unit.readiness.isNotEmpty() && r.status == FleetStatus.NOT_READY) {
@@ -254,30 +280,19 @@ private fun FleetUnitCard(
                     color = toneColors(StatusTone.Danger).content,
                 )
             }
-            val hasActions = onHandover != null || r.status == FleetStatus.AVAILABLE || r.status == FleetStatus.RESERVED ||
-                (onReadiness != null && (r.status == FleetStatus.NOT_READY || r.checklist?.open == true)) || onOpenOrder != null
-            if (hasActions) {
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    onHandover?.let { (h, go) ->
-                        val label = if (h.direction == HandoverTarget.IN) R.string.rentals_action_checkin else R.string.rentals_action_checkout
-                        FilledTonalButton(onClick = go, modifier = Modifier.heightIn(min = MinTouch)) { Text(stringResource(label)) }
+            actions.firstOrNull()?.let { primary ->
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm)) {
+                    FilledTonalButton(onClick = primary.onClick, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
+                        Icon(primary.icon, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(AvagoSpacing.sm))
+                        Text(primary.label, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
-                    if (r.status == FleetStatus.AVAILABLE || r.status == FleetStatus.RESERVED) {
-                        TextButton(onClick = onBook, modifier = Modifier.heightIn(min = MinTouch)) { Text(stringResource(R.string.rentals_book)) }
-                    }
-                    if (onReadiness != null && (r.status == FleetStatus.NOT_READY || r.checklist?.open == true)) {
-                        TextButton(onClick = onReadiness, modifier = Modifier.heightIn(min = MinTouch)) { Text(stringResource(R.string.rentals_readiness_open)) }
-                    }
-                    onOpenOrder?.let {
-                        TextButton(onClick = it, modifier = Modifier.heightIn(min = MinTouch)) { Text(stringResource(R.string.rentals_open_order)) }
-                    }
+                    OverflowMenu(actions.drop(1))
                 }
             }
         }
     }
 }
-
 /** Availability search (§11.1): offline answer from synced allocations, confirmed online. */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
