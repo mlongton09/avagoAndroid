@@ -160,14 +160,14 @@
     <string name="asset_scope_saved">Gespeichert</string>
     <string name="asset_scope_retry">Erneut versuchen</string>
     <string name="asset_scope_refresh">Aktualisieren</string>
-    <string name="asset_scope_err_offline">Du bist offline. Prüfe die Verbindung und versuche es erneut.</string>
-    <string name="asset_scope_err_rate_limited">Zu viele Anfragen. Versuche es in einer Minute erneut.</string>
+    <string name="asset_scope_err_offline">Sie sind offline. Prüfen Sie die Verbindung und versuchen Sie es erneut.</string>
+    <string name="asset_scope_err_rate_limited">Zu viele Anfragen. Versuchen Sie es in einer Minute erneut.</string>
     <string name="asset_scope_err_vin_unavailable">Die FIN-Abfrage ist gerade nicht verfügbar.</string>
-    <string name="asset_scope_err_forbidden">Du darfst dieses Asset nicht ändern.</string>
+    <string name="asset_scope_err_forbidden">Sie dürfen diese Anlage nicht ändern.</string>
     <string name="asset_scope_err_not_found">Nicht gefunden. Es wurde eventuell entfernt.</string>
     <string name="asset_scope_err_date">Format JJJJ-MM-TT verwenden</string>
     <string name="asset_scope_err_interval">1 bis 3650 Tage eingeben</string>
-    <string name="asset_scope_err_number">Gültige Zahl eingeben</string>
+    <string name="asset_scope_err_number">Geben Sie eine gültige Zahl ein</string>
     <string name="asset_scope_err_currency">Dreistelligen Währungscode verwenden</string>
     <string name="asset_scope_err_length">Zu lang</string>
     <string name="asset_scope_err_tag_in_use">Dieser Tracker wird bereits für ein anderes Asset verwendet</string>
@@ -205,7 +205,7 @@
     <string name="asset_scope_expires_on">Gültig bis</string>
     <string name="asset_scope_insurance">Versicherung</string>
     <string name="asset_scope_policy_number">Policennummer</string>
-    <string name="asset_scope_recalls_unsupported">Für dieses Asset sind keine Rückrufprüfungen verfügbar. Hinterlege bei einem Straßenfahrzeug eine FIN, um sie zu aktivieren.</string>
+    <string name="asset_scope_recalls_unsupported">Für diese Anlage sind keine Rückrufprüfungen verfügbar. Hinterlegen Sie bei einem Straßenfahrzeug eine FIN, um sie zu aktivieren.</string>
     <string name="asset_scope_recalls_none_open">Keine offenen Rückrufe</string>
     <string name="asset_scope_recalls_open">%1$d offene Rückrufe</string>
     <string name="asset_scope_recalls_unavailable">Der Rückrufdienst ist nicht verfügbar. Es werden die zuletzt gespeicherten Ergebnisse angezeigt.</string>
