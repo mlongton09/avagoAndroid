@@ -28,4 +28,12 @@ object AvagoSpacing {
     val cardHorizontal = 16.dp  // card left/right margin in list (iOS: 16pt)
     val cardVertical   = 4.dp   // card top/bottom margin (iOS: 4pt)
     val priorityBarWidth = 4.dp // WO card left priority stripe (iOS: 4pt)
+
+    // Lists & layout (rentals UX pass 2)
+    val listInset        = 72.dp  // divider inset aligning with M3 ListItem text after a 40dp leading element
+    val fabClearance     = 96.dp  // bottom list padding so the last row clears an extended FAB
+    val thumbnail        = 40.dp  // list-row photo thumbnail (same footprint as LeadingBadge)
+    val thumbnailLg      = 64.dp  // detail hero photo
+    val photoTile        = 72.dp  // photo strip tile (handover condition photos)
+    val readableMaxWidth = 720.dp // max content width on tablets / landscape
 }

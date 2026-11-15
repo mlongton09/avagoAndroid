@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Rentals UX pass 2 – formal German ("Sie"). -->
+<resources>
+    <string name="rentals_refresh_failed">Aktualisierung fehlgeschlagen. Gespeicherte Daten werden angezeigt.</string>
+    <string name="rentals_show_all">Alle anzeigen (%1$d)</string>
+    <string name="rentals_show_less">Weniger anzeigen</string>
+</resources>

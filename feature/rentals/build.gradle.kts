@@ -25,6 +25,8 @@ dependencies {
     debugImplementation(libs.compose.ui.tooling)
     implementation(libs.compose.material3.adaptive)
     implementation(libs.compose.icons)
+    // Unit photo thumbnails from the shared asset photo pipeline (already used by core:ui / feature:assets).
+    implementation(libs.coil.compose)
     implementation(libs.nav.compose)
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.lifecycle.runtime.compose)

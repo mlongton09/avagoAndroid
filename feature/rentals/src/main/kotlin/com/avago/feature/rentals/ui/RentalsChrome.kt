@@ -137,23 +137,32 @@ internal fun isWide(): Boolean = currentWindowAdaptiveInfo().windowSizeClass.min
  * Pull-to-refresh state for screens backed by the background sync: [onSync] only enqueues work,
  * so the indicator stays up until [lastSyncedAt] changes or 8 s pass — never spins forever.
  */
-internal class SyncRefresh(val refreshing: Boolean, val onRefresh: () -> Unit)
+internal class SyncRefresh(val refreshing: Boolean, val onRefresh: () -> Unit, val failed: Boolean = false)
 
+/**
+ * [SyncRefresh.failed] turns true when a user-started refresh times out without a new sync
+ * stamp, and clears as soon as a sync lands or the user retries — so a failed pull is never
+ * silent ([RefreshFailedBanner]).
+ */
 @Composable
 internal fun rememberSyncRefresh(lastSyncedAt: Long?, onSync: () -> Unit): SyncRefresh {
     var refreshing by remember { mutableStateOf(false) }
+    var failed by remember { mutableStateOf(false) }
     val latest by rememberUpdatedState(lastSyncedAt)
     val sync by rememberUpdatedState(onSync)
+    LaunchedEffect(lastSyncedAt) { failed = false }
     LaunchedEffect(refreshing) {
         if (!refreshing) return@LaunchedEffect
         val start = latest
-        withTimeoutOrNull(8_000) { snapshotFlow { latest }.first { it != start } }
+        val landed = withTimeoutOrNull(8_000) { snapshotFlow { latest }.first { it != start }; true }
+        failed = landed == null
         refreshing = false
     }
-    return SyncRefresh(refreshing) {
+    return SyncRefresh(refreshing, {
+        failed = false
         refreshing = true
         sync()
-    }
+    }, failed)
 }
 
 /**

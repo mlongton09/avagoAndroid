@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Rentals UX pass 2 (docs/rentals-ux-audit-android-pass2.md). en + de only; other locales fall back to English. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="rentals_refresh_failed">Couldn\'t refresh. Showing saved data.</string>
+    <string name="rentals_show_all">Show all (%1$d)</string>
+    <string name="rentals_show_less">Show less</string>
+</resources>

@@ -1,0 +1,250 @@
+package com.avago.feature.rentals.ui
+
+import java.io.File
+import javax.inject.Inject
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
+import coil3.compose.AsyncImage
+import com.avago.core.auth.IdentityManager
+import com.avago.core.data.DatabaseFactory
+import com.avago.core.data.db.entity.PhotoEntity
+import com.avago.core.design.theme.AvagoSpacing
+import com.avago.core.ui.components.ErrorBanner
+import com.avago.core.ui.components.StatusTone
+import com.avago.core.ui.components.toneColors
+import com.avago.feature.rentals.R
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+
+// Rentals UX pass 2 kit: unit photos, overflow menu with a destructive group, "Show all (N)",
+// readable width on tablets and the refresh-failed banner. See docs/rentals-ux-polish-android.md.
+
+/** Rows shown before "Show all (N)" in long histories (customer orders, unit bookings). */
+internal const val PREVIEW_ROWS = 3
+
+/** Lifecycle actions that end an order early; always red, grouped last and confirmed. */
+internal val DESTRUCTIVE_ORDER_ACTIONS = setOf("cancel", "no-show")
+
+private val ORDER_PRIMARY_PRIORITY = listOf("checkout", "checkin", "close", "reserve", "hold", "quote")
+
+/**
+ * The single filled next step of an order: hand-overs first, then closing, then the booking
+ * ladder. Never extend / swap / off-rent (secondary) and never a destructive action.
+ */
+internal fun primaryOrderAction(actions: List<String>): String? =
+    ORDER_PRIMARY_PRIORITY.firstOrNull { it in actions }
+
+/**
+ * Unit photos from the shared asset photo pipeline (`photos` table, entityType "asset"), keyed
+ * by assetId. Read-only and screen-scoped: every [UnitThumbnail] on a screen shares one query.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+@HiltViewModel
+class RentalPhotosViewModel @Inject constructor(
+    dbFactory: DatabaseFactory,
+    identity: IdentityManager,
+) : ViewModel() {
+    val thumbnails: StateFlow<Map<String, Any>> = identity.activeAccountId
+        .flatMapLatest { acc ->
+            if (acc == null) flowOf(emptyList()) else dbFactory.get(acc).photoDao().observeAll(acc)
+        }
+        .map { assetThumbnails(it) }
+        .flowOn(Dispatchers.Default)
+        .catch { emit(emptyMap()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+}
+
+/** Best photo per asset: primary first, then the lowest sort order; deleted photos ignored. */
+internal fun assetThumbnails(photos: List<PhotoEntity>, fileExists: (String) -> Boolean = { File(it).exists() }): Map<String, Any> =
+    photos.asSequence()
+        .filter { it.entityType.equals("asset", ignoreCase = true) && it.deletedAt == null }
+        .groupBy { it.entityId }
+        .mapNotNull { (assetId, list) ->
+            list.sortedWith(compareByDescending<PhotoEntity> { it.isPrimary }.thenBy { it.sortOrder })
+                .firstNotNullOfOrNull { photoModel(it, fileExists) }
+                ?.let { assetId to it }
+        }
+        .toMap()
+
+/** Coil model for a photo: the local file while it exists (offline / not yet uploaded), else the URL. */
+internal fun photoModel(p: PhotoEntity, fileExists: (String) -> Boolean = { File(it).exists() }): Any? {
+    val path = p.localPath?.takeIf { it.isNotBlank() }
+    val url = p.downloadUrl?.takeIf { it.isNotBlank() }
+    return when {
+        path != null && fileExists(path) -> File(path)
+        url != null -> url
+        else -> null
+    }
+}
+
+/**
+ * Unit photo (cropped, rounded) with the status icon on a tonal square underneath — shown while
+ * loading, when the unit has no photo, or if the image fails. Decorative: the row text names
+ * the unit, so TalkBack skips it.
+ */
+@Composable
+internal fun UnitThumbnail(
+    assetId: String?,
+    icon: ImageVector,
+    tone: StatusTone,
+    modifier: Modifier = Modifier,
+    size: Dp = AvagoSpacing.thumbnail,
+) {
+    val model = if (LocalInspectionMode.current || assetId == null) null else rememberUnitPhoto(assetId)
+    val c = toneColors(tone)
+    Box(
+        modifier
+            .size(size)
+            .clip(MaterialTheme.shapes.small)
+            .background(c.container),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = null, tint = c.content, modifier = Modifier.size(size * 0.55f))
+        if (model != null) {
+            AsyncImage(model = model, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        }
+    }
+}
+
+@Composable
+private fun rememberUnitPhoto(assetId: String): Any? {
+    val vm: RentalPhotosViewModel = hiltViewModel()
+    val map by vm.thumbnails.collectAsStateWithLifecycle()
+    return map[assetId]
+}
+
+/** One overflow entry. [destructive] entries are grouped last, below a divider, in red. */
+internal data class MenuAction(
+    val label: String,
+    val icon: ImageVector,
+    val destructive: Boolean = false,
+    val onClick: () -> Unit,
+)
+
+/**
+ * "More actions" (⋮) for rare and destructive actions so the screen keeps a single primary.
+ * Destructive entries are separated and red (text + icon, never colour alone); callers confirm
+ * them in a dialog.
+ */
+@Composable
+internal fun OverflowMenu(actions: List<MenuAction>, modifier: Modifier = Modifier) {
+    if (actions.isEmpty()) return
+    var open by remember { mutableStateOf(false) }
+    Box(modifier) {
+        IconButton(onClick = { open = true }, modifier = Modifier.size(MinTouch)) {
+            Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.rentals_more_actions))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            val (normal, destructive) = actions.partition { !it.destructive }
+            normal.forEach { a -> OverflowItem(a) { open = false } }
+            if (normal.isNotEmpty() && destructive.isNotEmpty()) HorizontalDivider(Modifier.padding(vertical = AvagoSpacing.xs))
+            destructive.forEach { a -> OverflowItem(a) { open = false } }
+        }
+    }
+}
+
+@Composable
+private fun OverflowItem(a: MenuAction, close: () -> Unit) {
+    val danger = toneColors(StatusTone.Danger).content
+    DropdownMenuItem(
+        text = { Text(a.label) },
+        leadingIcon = { Icon(a.icon, contentDescription = null) },
+        onClick = { close(); a.onClick() },
+        colors = if (a.destructive) {
+            MenuDefaults.itemColors(textColor = danger, leadingIconColor = danger)
+        } else {
+            MenuDefaults.itemColors()
+        },
+        modifier = Modifier.heightIn(min = MinTouch),
+    )
+}
+
+/** "Show all (N)" / "Show less" under a list trimmed to [PREVIEW_ROWS]. Hidden when nothing is trimmed. */
+@Composable
+internal fun ShowAllRow(total: Int, expanded: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
+    if (total <= PREVIEW_ROWS) return
+    TextButton(
+        onClick = onToggle,
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = MinTouch)
+            .padding(horizontal = AvagoSpacing.xs),
+    ) {
+        Text(
+            if (expanded) stringResource(R.string.rentals_show_less) else stringResource(R.string.rentals_show_all, total),
+            modifier = Modifier.weight(1f),
+        )
+        Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, contentDescription = null)
+    }
+}
+
+/**
+ * Centres content at a readable line length (≤ [AvagoSpacing.readableMaxWidth]) on tablets and
+ * landscape; a no-op on phones.
+ */
+internal fun Modifier.readableWidth(): Modifier = this
+    .fillMaxWidth()
+    .wrapContentWidth(Alignment.CenterHorizontally)
+    .widthIn(max = AvagoSpacing.readableMaxWidth)
+    .fillMaxWidth()
+
+/** Shown when a pull-to-refresh / Sync now did not complete: saved data stays, Retry is one tap away. */
+@Composable
+internal fun RefreshFailedBanner(refresh: SyncRefresh, modifier: Modifier = Modifier) {
+    if (!refresh.failed) return
+    ErrorBanner(
+        stringResource(R.string.rentals_refresh_failed),
+        modifier = modifier,
+        onRetry = refresh.onRefresh,
+        retryLabel = stringResource(R.string.rentals_retry),
+        tone = StatusTone.Warning,
+        icon = Icons.Default.CloudOff,
+    )
+}
