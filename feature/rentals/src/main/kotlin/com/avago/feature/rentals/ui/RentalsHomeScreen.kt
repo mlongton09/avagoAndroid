@@ -313,7 +313,7 @@ private fun PrimaryTasks(actions: RentalsHomeActions) {
 
 /** Shown instead of empty Overdue / Going out / Due back cards on a quiet day. */
 @Composable
-private fun AllClearCard() {
+internal fun AllClearCard() {
     SectionCard {
         ListItem(
             leadingContent = { LeadingBadge(Icons.Default.CheckCircle, StatusTone.Success) },

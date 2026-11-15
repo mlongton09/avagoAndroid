@@ -709,7 +709,7 @@ private fun OrderSummaryCard(o: OrderView, zone: ZoneId, onOpenCustomer: (String
  * font scales so amounts never truncate.
  */
 @Composable
-private fun MoneyStats(stats: List<Triple<String, String, StatusTone?>>) {
+internal fun MoneyStats(stats: List<Triple<String, String, StatusTone?>>) {
     if (LocalDensity.current.fontScale > 1.3f) {
         Column(Modifier.padding(vertical = AvagoSpacing.sm)) {
             stats.forEach { (label, value, tone) -> LabelValue(label, value, emphasise = tone != null) }
