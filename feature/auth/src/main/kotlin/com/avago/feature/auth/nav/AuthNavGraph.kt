@@ -18,6 +18,7 @@ object AuthRoute {
 fun NavGraphBuilder.authNavGraph(
     navController: NavController,
     onSignedIn: () -> Unit,
+    onFindRentals: (() -> Unit)? = null,
 ) {
     navigation(
         startDestination = AuthRoute.SignIn,
@@ -27,6 +28,7 @@ fun NavGraphBuilder.authNavGraph(
             SignInScreen(
                 onSignedIn = onSignedIn,
                 onNavigateToEmail = { navController.navigate(AuthRoute.EmailSignIn) },
+                onFindRentals = onFindRentals,
             )
         }
 

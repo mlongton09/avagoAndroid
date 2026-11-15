@@ -30,24 +30,24 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.EventAvailable
 import androidx.compose.material.icons.filled.EventBusy
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Button
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
@@ -83,7 +83,9 @@ import com.avago.core.data.db.rental.RentalRecordEntity
 import com.avago.core.data.rental.FleetStatus
 import com.avago.core.data.rental.LocalFleet
 import com.avago.core.data.rental.MoneyFormatter
+import com.avago.core.design.theme.AvagoSpacing
 import com.avago.core.ui.components.BottomActionBar
+import com.avago.core.ui.components.toneColors
 import com.avago.core.ui.components.CardDivider
 import com.avago.core.ui.components.cardListItemColors
 import com.avago.core.ui.components.ErrorBanner
@@ -225,66 +227,46 @@ fun AssetRentalScreen(
     val zone = zoneOf(status?.unit?.timeZone)
 
     val haptics = rememberHaptics()
-    var menuOpen by remember { mutableStateOf(false) }
+    var confirmStop by rememberSaveable { mutableStateOf(false) }
+    var showAllBookings by rememberSaveable { mutableStateOf(false) }
     val s = status
     val handover = if (s != null && onHandover != null) HandoverTarget.of(s) else null
+    val needsReadiness = s != null && onReadiness != null && (s.status == FleetStatus.NOT_READY || s.checklist?.open == true)
     val canMakeRentable = currency.length == 3 && MoneyFormatter.parse(day, currency)?.let { it.minor > 0 } == true
     val dayInvalid = day.isNotBlank() && MoneyFormatter.parse(day, currency)?.let { it.minor > 0 } != true
+
+    // One primary per screen: handover > readiness > book. Everything else goes to the overflow.
+    val bookAction = MenuAction(stringResource(R.string.rentals_book), Icons.Default.EventAvailable) { onBook(viewModel.assetId) }
+    val readinessAction = MenuAction(stringResource(R.string.rentals_readiness_open), Icons.Default.Checklist) { onReadiness?.invoke(viewModel.assetId) }
+    val handoverAction = handover?.let { h ->
+        val inbound = h.direction == HandoverTarget.IN
+        MenuAction(
+            stringResource(if (inbound) R.string.rentals_action_checkin else R.string.rentals_action_checkout),
+            if (inbound) Icons.AutoMirrored.Filled.Login else Icons.AutoMirrored.Filled.Logout,
+        ) { onHandover?.invoke(h.orderId, h.direction) }
+    }
+    val primary = handoverAction ?: if (needsReadiness) readinessAction else bookAction
+    val overflow = if (s == null) emptyList() else buildList {
+        if (primary !== bookAction) add(bookAction)
+        if (needsReadiness && primary !== readinessAction) add(readinessAction)
+        add(MenuAction(stringResource(R.string.rentals_legacy_rentals), Icons.Default.History) { onOpenLegacy(viewModel.assetId) })
+        add(MenuAction(stringResource(R.string.rentals_disable_rentable), Icons.Default.Block, destructive = true) { confirmStop = true })
+    }
 
     Scaffold(
         topBar = {
             RentalsTopBar(asset?.name ?: stringResource(R.string.rentals_title), onBack) {
-                if (s != null) {
-                    Box {
-                        IconButton(onClick = { menuOpen = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.rentals_more_actions))
-                        }
-                        DropdownMenu(menuOpen, onDismissRequest = { menuOpen = false }) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.rentals_legacy_rentals)) },
-                                leadingIcon = { Icon(Icons.Default.History, null) },
-                                onClick = { menuOpen = false; onOpenLegacy(viewModel.assetId) },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.rentals_disable_rentable)) },
-                                leadingIcon = { Icon(Icons.Default.Block, null) },
-                                onClick = { menuOpen = false; viewModel.setRentable(false, "", "", "") },
-                            )
-                        }
-                    }
-                }
+                OverflowMenu(overflow)
             }
         },
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
             BottomActionBar {
                 if (s != null) {
-                    if (onReadiness != null && (s.status == FleetStatus.NOT_READY || s.checklist?.open == true)) {
-                        OutlinedButton(onClick = { onReadiness(viewModel.assetId) }, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
-                            Text(stringResource(R.string.rentals_readiness_open), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
-                    if (handover != null) {
-                        val inbound = handover.direction == HandoverTarget.IN
-                        if (onReadiness == null || !(s.status == FleetStatus.NOT_READY || s.checklist?.open == true)) {
-                            OutlinedButton(onClick = { onBook(viewModel.assetId) }, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
-                                Text(stringResource(R.string.rentals_book))
-                            }
-                        }
-                        Button(
-                            onClick = { onHandover?.invoke(handover.orderId, handover.direction) },
-                            modifier = Modifier.weight(1f).heightIn(min = MinTouch),
-                        ) {
-                            Icon(if (inbound) Icons.AutoMirrored.Filled.Login else Icons.AutoMirrored.Filled.Logout, null, Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(if (inbound) R.string.rentals_action_checkin else R.string.rentals_action_checkout), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    } else {
-                        Button(onClick = { onBook(viewModel.assetId) }, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
-                            Icon(Icons.Default.EventAvailable, null, Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.rentals_book))
-                        }
+                    Button(onClick = primary.onClick, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
+                        Icon(primary.icon, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(AvagoSpacing.sm))
+                        Text(primary.label, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                 } else {
                     Button(
@@ -302,15 +284,33 @@ fun AssetRentalScreen(
                 .padding(pad)
                 .consumeWindowInsets(pad)
                 .imePadding()
+                .readableWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(vertical = 8.dp),
+                .padding(vertical = AvagoSpacing.sm),
         ) {
             if (s != null) {
                 SectionCard(title = stringResource(R.string.rentals_status)) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            FleetStatusChip(s.status)
-                            if (s.local || s.readinessPending) SyncStateBadge(RentalRecordEntity.STATE_PENDING)
+                    // Hero: unit photo, name, class and status at a glance.
+                    Row(
+                        Modifier.padding(AvagoSpacing.lg),
+                        horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.lg),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        UnitThumbnail(viewModel.assetId, fleetStatusIcon(s.status), fleetStatusTone(s.status), size = AvagoSpacing.thumbnailLg)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AvagoSpacing.xs)) {
+                            Text(
+                                asset?.name ?: s.unit.name,
+                                style = MaterialTheme.typography.titleLarge,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            s.unit.className?.let {
+                                Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm), verticalAlignment = Alignment.CenterVertically) {
+                                FleetStatusChip(s.status)
+                                if (s.local || s.readinessPending) SyncStateBadge(RentalRecordEntity.STATE_PENDING)
+                            }
                         }
                     }
                     if (s.status == FleetStatus.NOT_READY && s.unit.readiness.isNotEmpty()) {
@@ -321,7 +321,6 @@ fun AssetRentalScreen(
                         )
                     }
                     val rows = listOfNotNull(
-                        s.unit.className?.let { stringResource(R.string.rentals_class) to it },
                         s.dueAt?.let { stringResource(R.string.rentals_due) to formatDateTime(it, zone) },
                         s.nextChangeAt?.let { stringResource(R.string.rentals_next_change_label) to formatDateTime(it, zone) },
                     )
@@ -369,7 +368,7 @@ fun AssetRentalScreen(
                 if (bookings.isEmpty()) {
                     EmptyState(stringResource(R.string.rentals_bookings_empty), icon = Icons.Default.EventBusy)
                 }
-                bookings.forEachIndexed { i, b ->
+                bookings.take(if (showAllBookings) bookings.size else PREVIEW_ROWS).forEachIndexed { i, b ->
                     if (i > 0) CardDivider()
                     ListItem(
                         colors = cardListItemColors(),
@@ -390,8 +389,33 @@ fun AssetRentalScreen(
                         trailingContent = { Text(formatMoney(b.line.amount), style = MaterialTheme.typography.titleSmall) },
                     )
                 }
+                ShowAllRow(bookings.size, showAllBookings, { showAllBookings = !showAllBookings })
             }
         }
+    }
+    if (confirmStop) {
+        val name = asset?.name ?: s?.unit?.name ?: viewModel.assetId
+        AlertDialog(
+            onDismissRequest = { confirmStop = false },
+            icon = { Icon(Icons.Default.Warning, contentDescription = null, tint = toneColors(StatusTone.Danger).content) },
+            title = { Text(stringResource(R.string.rentals_stop_renting_title, name)) },
+            text = { Text(stringResource(R.string.rentals_stop_renting_body)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmStop = false
+                        haptics.tick()
+                        viewModel.setRentable(false, "", "", "")
+                    },
+                    modifier = Modifier.heightIn(min = MinTouch),
+                ) { Text(stringResource(R.string.rentals_disable_rentable), color = toneColors(StatusTone.Danger).content) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmStop = false }, modifier = Modifier.heightIn(min = MinTouch)) {
+                    Text(stringResource(R.string.rentals_cancel))
+                }
+            },
+        )
     }
 }
 

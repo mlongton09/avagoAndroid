@@ -10,6 +10,7 @@
     <string name="sign_in_show_password">Passwort anzeigen</string>
     <string name="sign_in_button">Anmelden</string>
     <string name="sign_in_continue_anonymous">Ohne Konto fortfahren</string>
+    <string name="sign_in_find_rentals">Mietartikel in Ihrer Nähe finden</string>
 
     <!-- Email Sign In -->
     <string name="email_sign_in_title">Anmelden</string>

@@ -35,6 +35,8 @@ import com.avago.feature.log.nav.LogRoute
 import com.avago.feature.log.nav.logNavGraph
 import com.avago.feature.log.ui.AssetOpenDefectsPanel
 import com.avago.feature.rentals.nav.RentalsRoute
+import com.avago.feature.rentals.marketplace.nav.MarketplaceRoutes
+import com.avago.feature.rentals.marketplace.nav.marketplaceNavGraph
 import com.avago.feature.rentals.nav.rentalsNavGraph
 import com.avago.feature.rentals.ui.RentalsFleetSummaryCard
 import com.avago.feature.assets.ui.GlobalCategoryReportScreen
@@ -85,8 +87,9 @@ fun AvagoNavHost(
             navController.navigate("assets_graph") {
                 popUpTo(AuthRoute.GRAPH) { inclusive = true }
             }
-        } else if (activeAccountId == null && !inAuthGraph) {
-            // Sign-out: navigate back to auth and clear the entire back stack.
+        } else if (activeAccountId == null && !inAuthGraph && !MarketplaceRoutes.isPublic(currentRoute)) {
+            // Sign-out: navigate back to auth and clear the entire back stack. Public marketplace
+            // (renter) screens work without a staff account and stay where they are.
             navController.navigate(AuthRoute.GRAPH) {
                 popUpTo(0) { inclusive = true }
             }
@@ -106,6 +109,10 @@ fun AvagoNavHost(
                     navController.navigate("assets_graph") {
                         popUpTo(AuthRoute.GRAPH) { inclusive = true }
                     }
+                },
+                // Renters need no Avago account: open the marketplace search on top of sign-in.
+                onFindRentals = {
+                    navController.navigate(MarketplaceRoutes.SEARCH) { launchSingleTop = true }
                 },
             )
 
@@ -238,6 +245,8 @@ fun AvagoNavHost(
             // ── Rental operations (P2) ────────────────────────────────────────────
             rentalOpsNavGraph(navController = navController)
 
+            // ── Avago Marketplace (renter: public; owner: permission-gated) ───────
+            marketplaceNavGraph(navController = navController)
             // ── Field crew, QR passport, lending (D/B/J) and growth (E/A/K/G/H) ─────
             crewNavGraph(
                 navController = navController,

@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SearchOff
+import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Button
@@ -85,6 +86,8 @@ import com.avago.feature.rentals.domain.HandoverTarget
 import com.avago.feature.rentals.domain.obj
 import com.avago.feature.rentals.domain.RentalEntity
 import com.avago.feature.rentals.domain.ScanCode
+import com.avago.feature.rentals.domain.ScanResolution
+import com.avago.feature.rentals.data.RentalsOnline
 import com.avago.feature.rentals.domain.str
 import com.avago.feature.rentals.R
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -107,7 +110,11 @@ sealed interface ScanResult {
     ) : ScanResult
     data class Order(val orderId: String, val number: String) : ScanResult
     data class Licence(val licence: Aamva.License) : ScanResult
-    data class NotFound(val raw: String) : ScanResult
+    /** [offline]: only this device was searched (the server could not be asked). */
+    data class NotFound(val raw: String, val offline: Boolean = false) : ScanResult
+
+    /** Wave 2: a bulk part label (`P` code) resolved by the server. */
+    data class Part(val partId: String, val name: String, val partNumber: String?) : ScanResult
 }
 
 /** Last licence read on the device, handed to the customer form (process memory only). */
@@ -120,6 +127,7 @@ object LicenceScanBuffer {
 @HiltViewModel
 class RentalScanViewModel @Inject constructor(
     private val repo: RentalRepository,
+    private val online: RentalsOnline,
     private val dbFactory: DatabaseFactory,
     private val identity: IdentityManager,
 ) : ViewModel() {
@@ -156,13 +164,34 @@ class RentalScanViewModel @Inject constructor(
             val handover = if (rentable) handoverFor(id) else null
             return ScanResult.Asset(id, a?.name ?: fleet[id]?.name ?: code, rentable, handover)
         }
+        /** Wave 2: `GET /scan/resolve` for label short codes, serials and part numbers this device doesn't know. */
+        suspend fun server(code: String): ScanResult = when (val r = online.scanResolve(code, null)) {
+            is RentalsOnline.Result.Ok -> {
+                val s = ScanResolution.parse(r.value)
+                when {
+                    s == null -> ScanResult.NotFound(raw)
+                    s.isAsset -> {
+                        val id = s.assetId!!
+                        asset(id) ?: run {
+                            val rentable = fleet.containsKey(id) || s.rentalClassId != null
+                            ScanResult.Asset(id, s.assetName ?: code, rentable, if (rentable) handoverFor(id) else null)
+                        }
+                    }
+                    s.isPart -> ScanResult.Part(s.partId!!, s.partName ?: s.partNumber ?: code, s.partNumber)
+                    else -> ScanResult.NotFound(raw)
+                }
+            }
+            is RentalsOnline.Result.Refused -> ScanResult.NotFound(raw)
+            is RentalsOnline.Result.Offline -> ScanResult.NotFound(raw, offline = true)
+        }
         return when (val k = ScanCode.classify(raw)) {
             is ScanCode.Kind.Licence -> Aamva.parse(k.raw)?.let { LicenceScanBuffer.put(it); ScanResult.Licence(it) } ?: ScanResult.NotFound(raw)
-            is ScanCode.Kind.AssetId -> asset(k.id) ?: ScanResult.NotFound(raw)
+            is ScanCode.Kind.AssetId -> asset(k.id) ?: server(k.id)
             is ScanCode.Kind.OrderNumber -> repo.records(RentalEntity.ORDER).first()
                 .firstOrNull { it.obj.str("number").equals(k.number, true) }
                 ?.let { ScanResult.Order(it.id, k.number) } ?: asset(k.number) ?: ScanResult.NotFound(raw)
-            is ScanCode.Kind.Text -> asset(k.value) ?: ScanResult.NotFound(raw)
+            is ScanCode.Kind.ShortCode -> asset(k.code) ?: server(k.code)
+            is ScanCode.Kind.Text -> asset(k.value) ?: server(k.value)
         }
     }
 }
@@ -284,6 +313,7 @@ private fun ScanResultCard(
                 is ScanResult.Order -> Icons.AutoMirrored.Filled.ReceiptLong to StatusTone.Info
                 is ScanResult.Licence -> Icons.Default.Badge to StatusTone.Info
                 is ScanResult.NotFound -> Icons.Default.SearchOff to StatusTone.Warning
+                is ScanResult.Part -> Icons.Default.Widgets to StatusTone.Info
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 LeadingBadge(icon, tone)
@@ -293,6 +323,7 @@ private fun ScanResultCard(
                         is ScanResult.Order -> r.number
                         is ScanResult.Licence -> r.licence.fullName
                         is ScanResult.NotFound -> stringResource(R.string.rentals_scan_not_found, r.raw.take(64))
+                        is ScanResult.Part -> r.name
                     }
                     Text(headline, style = MaterialTheme.typography.titleMedium)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -308,6 +339,17 @@ private fun ScanResultCard(
                                         icon = if (inbound) Icons.AutoMirrored.Filled.Login else Icons.AutoMirrored.Filled.Logout,
                                     )
                                 }
+                            }
+                            is ScanResult.Part -> StatusPill(
+                                listOfNotNull(stringResource(R.string.rentals_scan_bulk_item), r.partNumber).joinToString(" · "),
+                                StatusTone.Info,
+                            )
+                            is ScanResult.NotFound -> if (r.offline) {
+                                Text(
+                                    stringResource(R.string.rentals_scan_offline_hint),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
                             is ScanResult.Licence -> Text(
                                 stringResource(R.string.rentals_licence_read),
@@ -355,7 +397,7 @@ private fun ScanResultCard(
                     is ScanResult.Licence -> Button(onClick = onLicence, modifier = Modifier.heightIn(min = MinTouch)) {
                         Text(stringResource(R.string.rentals_new_customer))
                     }
-                    is ScanResult.NotFound -> Unit
+                    is ScanResult.NotFound, is ScanResult.Part -> Unit
                 }
             }
         }

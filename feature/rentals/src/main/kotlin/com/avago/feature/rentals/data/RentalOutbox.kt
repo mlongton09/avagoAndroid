@@ -7,11 +7,16 @@ import com.avago.core.data.db.rental.RentalRecordEntity.Companion.STATE_CONFLICT
 import com.avago.core.data.db.rental.RentalRecordEntity.Companion.STATE_SYNCED
 import com.avago.core.data.rental.LocalFleet
 import com.avago.core.data.sync.QueueRetryPolicy
+import com.avago.core.network.AvagoServiceClient
+import com.avago.core.network.NetworkResult
+import com.avago.core.network.model.PresignedUploadRequest
 import com.avago.core.network.rentals.RentalsApi
 import com.avago.core.network.rentals.RentalsApiException
 import com.avago.core.sync.ExternalOutbox
 import com.avago.core.sync.PhotoUploader
 import com.avago.feature.rentals.domain.ConflictMerge
+import com.avago.feature.rentals.domain.Esign
+import com.avago.feature.rentals.domain.HandoverGates
 import com.avago.feature.rentals.domain.OutboxPlanner
 import com.avago.feature.rentals.domain.Readiness
 import com.avago.feature.rentals.domain.RentalEntity
@@ -62,6 +67,8 @@ class RentalOutbox @Inject constructor(
     private val api: RentalsApi,
     private val photoUploader: Provider<PhotoUploader>,
     private val sync: Provider<RentalSync>,
+    private val files: AvagoServiceClient,
+    private val online: Provider<RentalsOnline>,
 ) : ExternalOutbox {
 
     private val mutex = Mutex()
@@ -184,7 +191,10 @@ class RentalOutbox @Inject constructor(
             OutboxPlanner.Disposition.FAILED ->
                 Res.Failed(api?.let { "HTTP ${it.status}: ${it.message ?: it.code ?: "route not found"}" } ?: detail)
             OutboxPlanner.Disposition.RETRY -> Res.Retry(detail)
-            OutboxPlanner.Disposition.CONFLICT -> Res.Conflict(api?.let(::conflictNotice) ?: detail)
+            OutboxPlanner.Disposition.CONFLICT -> Res.Conflict(
+                api?.takeIf { HandoverGates.isGate(it.code) }?.let { HandoverGates.notice(it.code!!, it.message, it.body?.obj("details")) }
+                    ?: api?.let(::conflictNotice) ?: detail,
+            )
         }
     }
 
@@ -267,7 +277,19 @@ class RentalOutbox @Inject constructor(
             }
             OutboxPlanner.TYPE_CUSTOMER_DOCUMENT -> {
                 val cid = requiredServerId(accountId, p, "customer_id")
-                val resp = api.createCustomerChild(accountId, cid, "documents", body, key)
+                // G2 counter photo: reserve → PUT → finalize once, then send it as `file_ids`.
+                val fileId = p.str("photo_path")?.let { path ->
+                    uploadOnce(accountId, row, p, "photo_file_id", path) { cu ->
+                        val r = api.customerDocumentUpload(
+                            accountId, cid,
+                            buildJsonObject { put("client_uuid", cu); put("filename", "document.jpg"); put("content_type", "image/jpeg") },
+                            cu,
+                        )
+                        Reservation(r.str("file_upload_id") ?: throw IllegalStateException("document upload without file_upload_id"), r.str("upload_url"))
+                    }
+                }
+                val docBody = if (fileId != null) JsonObject(body + ("file_ids" to JsonArray(listOf(JsonPrimitive(fileId))))) else body
+                val resp = api.createCustomerChild(accountId, cid, "documents", docBody, key)
                 val doc = resp.obj("document") ?: resp
                 replaceLocal(accountId, RentalEntity.CUSTOMER_DOCUMENT, p.str("local_id"), doc)
             }
@@ -307,7 +329,22 @@ class RentalOutbox @Inject constructor(
                         buildJsonObject { put("file_id", id); put("storage_key", k) }
                     }
                 }
-                val full = JsonObject(body + ("photos" to JsonArray(photos)))
+                val full0 = JsonObject(body + ("photos" to JsonArray(photos)))
+                // Wave 2 meter photo: an account file upload, sent as `meter_photo_file_id`.
+                val meterPhoto = p.str("meter_photo_path")?.let { path ->
+                    uploadOnce(accountId, row, p, "meter_photo_file_id", path) { cu ->
+                        val r = files.getPresignedUploadUrl(
+                            accountId,
+                            PresignedUploadRequest(entity_id = body.str("asset_id"), entity_type = "asset", filename = "meter_$cu.jpg", content_type = "image/jpeg"),
+                        )
+                        when (r) {
+                            is NetworkResult.Success -> Reservation(r.data.file_upload_id, r.data.upload_url)
+                            is NetworkResult.Error -> throw uploadError(r.code, r.message, "meter photo reserve")
+                            else -> throw IllegalStateException("meter photo reserve")
+                        }
+                    }
+                }
+                val full = if (meterPhoto != null) JsonObject(full0 + ("meter_photo_file_id" to JsonPrimitive(meterPhoto))) else full0
                 val kind = p.str("kind") ?: RentalsApi.HANDOVER_CHECKOUT
                 val resp = api.lineHandover(accountId, oid, lid, kind, full, key)
                 val localId = p.str("local_id")
@@ -355,9 +392,82 @@ class RentalOutbox @Inject constructor(
                 val resp = api.createInvoice(accountId, oid, body, key)
                 replaceLocal(accountId, RentalEntity.INVOICE, p.str("local_id"), resp.obj("invoice") ?: resp, warningNotice(resp))
             }
+            OutboxPlanner.TYPE_ESIGN -> {
+                val requestId = p.required("request_id")
+                val oid = p.str("order_id")?.let { mappedId(accountId, it) }
+                try {
+                    api.signSignatureRequest(accountId, requestId, body, key)
+                } catch (e: RentalsApiException) {
+                    // 409/410: signed elsewhere, voided or expired — drop the capture and refresh.
+                    if (!Esign.dropOnConflict(e.status) || e.code == "duplicate_client_uuid") throw e
+                    Timber.i("[RentalOutbox] e-sign capture dropped: ${e.code}")
+                    oid?.let { dao.get(RentalEntity.ORDER, it) }?.let {
+                        dao.setState(it.entity, it.id, it.localState, NOTICE_ESIGN_DROPPED_PREFIX + (e.code ?: e.status.toString()))
+                    }
+                }
+                oid?.let { online.get().refreshSignatures(accountId, it) }
+            }
+            OutboxPlanner.TYPE_BULK_RETURN -> {
+                val oid = requiredServerId(accountId, p, "order_id")
+                val lid = requiredServerId(accountId, p, "line_id")
+                val resp = api.bulkReturn(accountId, oid, lid, body, key)
+                val ret = resp.obj("return")
+                if (ret != null) replaceLocal(accountId, RentalEntity.BULK_RETURN, p.str("local_id"), ret, warningNotice(resp))
+                else p.str("local_id")?.let { dao.setState(RentalEntity.BULK_RETURN, it, STATE_SYNCED, warningNotice(resp)) }
+                resp.obj("order")?.let { applyOrder(accountId, null, it, confirmedDraft = false) }
+                warningNotice(resp)?.let { n -> dao.get(RentalEntity.ORDER, oid)?.let { dao.setState(it.entity, it.id, it.localState, n) } }
+            }
             else -> throw OutboxPlanner.MalformedItem("unknown rental outbox type ${row.entityType}")
         }
     }
+
+    private class Reservation(val fileId: String, val uploadUrl: String?)
+
+    /**
+     * Uploads the local JPEG at [path] once per queued item: the reserved file id is stored in the
+     * payload ([idKey]) before the PUT and finalize, so a retry after a lost answer never reserves a
+     * second file. Returns the file id to reference. A missing local file fails visibly.
+     */
+    private suspend fun uploadOnce(
+        accountId: String,
+        row: SyncQueueEntity,
+        p: JsonObject,
+        idKey: String,
+        path: String,
+        reserve: suspend (clientUuid: String) -> Reservation,
+    ): String {
+        p.str("${idKey}_done")?.let { return it }
+        val file = java.io.File(path)
+        if (!file.exists() || file.length() == 0L) throw OutboxPlanner.MalformedItem("photo file missing: ${file.name}")
+        val dao = dbFactory.get(accountId).rentalDao()
+        val cu = p.str("${idKey}_client_uuid") ?: UUID.randomUUID().toString().also {
+            dao.updateQueuePayload(row.queueId, encode(JsonObject(p + ("${idKey}_client_uuid" to JsonPrimitive(it)))))
+        }
+        val res = reserve(cu)
+        if (res.uploadUrl != null) {
+            when (val put = files.uploadPhotoBinary(res.uploadUrl, file.readBytes())) {
+                is NetworkResult.Success -> Unit
+                is NetworkResult.Error -> throw uploadError(put.code, put.message, "photo upload")
+                else -> throw IllegalStateException("photo upload")
+            }
+            when (val fin = files.finalizeFileUpload(accountId, res.fileId, file.length())) {
+                is NetworkResult.Success -> Unit
+                is NetworkResult.Error -> throw uploadError(fin.code, fin.message, "photo finalize")
+                else -> throw IllegalStateException("photo finalize")
+            }
+        }
+        val latest = dao.queueItemsOfTypes(listOf(row.entityType)).firstOrNull { it.queueId == row.queueId }
+            ?.let { parseObj(it.payload) } ?: p
+        dao.updateQueuePayload(
+            row.queueId,
+            encode(JsonObject(latest + mapOf("${idKey}_done" to JsonPrimitive(res.fileId), "${idKey}_client_uuid" to JsonPrimitive(cu)))),
+        )
+        return res.fileId
+    }
+
+    /** No answer → offline (no attempt used); an answered upload error is retried (bounded). */
+    private fun uploadError(code: Int, message: String, what: String): Exception =
+        if (QueueRetryPolicy.isNoResponse(code)) java.io.IOException("$what: $message") else IllegalStateException("$what failed: HTTP $code")
 
     /**
      * Sends a versioned edit; a 409 version `conflict` goes through the hybrid policy
@@ -600,6 +710,7 @@ class RentalOutbox @Inject constructor(
             OutboxPlanner.TYPE_SIGNATURE -> RentalEntity.SIGNATURE to p.str("local_id")
             OutboxPlanner.TYPE_READINESS -> RentalEntity.READINESS_CHECK to p.str("local_id")
             OutboxPlanner.TYPE_LINE_SWAP -> RentalEntity.ORDER_LINE to p.str("line_id")
+            OutboxPlanner.TYPE_BULK_RETURN -> RentalEntity.BULK_RETURN to p.str("local_id")
             else -> RentalEntity.ORDER to (p.str("local_id") ?: p.str("order_id"))
         }
         id ?: return
@@ -619,5 +730,7 @@ class RentalOutbox @Inject constructor(
         const val NOTICE_WARNINGS_PREFIX = "server_warnings:"
         /** `field_conflict:<field,field>` — a version conflict on these fields (changed here and on the server). */
         const val NOTICE_FIELD_CONFLICT_PREFIX = "field_conflict:"
+        /** `esign_dropped:<code>` — a queued in-person signature was refused (signed elsewhere / voided / expired). */
+        const val NOTICE_ESIGN_DROPPED_PREFIX = "esign_dropped:"
     }
 }

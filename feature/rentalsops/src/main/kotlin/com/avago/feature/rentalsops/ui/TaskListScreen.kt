@@ -29,6 +29,7 @@ import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Pending
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material.icons.Icons
@@ -84,6 +85,8 @@ data class TaskListState(
     val filter: TaskFilter = TaskFilter.OPEN,
     val mineOnly: Boolean = true,
     val canSeeAll: Boolean = false,
+    /** `rental.drive`: the G5 route view is available. */
+    val canRoute: Boolean = false,
     val loaded: Boolean = false,
 )
 
@@ -103,7 +106,7 @@ class TaskListViewModel @Inject constructor(private val repo: RentalOpsRepositor
                     .thenBy { it.task.routeSeq ?: Int.MAX_VALUE },
             )
             .let { if (f == TaskFilter.DONE) it.reversed() else it }
-        TaskListState(visible, f, mine, canSeeAll, loaded = true)
+        TaskListState(visible, f, mine, canSeeAll, canRoute = access.drive, loaded = true)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TaskListState())
 
     fun setFilter(f: TaskFilter) { filter.value = f }
@@ -125,6 +128,11 @@ fun TaskListScreen(onNavigate: (String) -> Unit, onBack: () -> Unit, vm: TaskLis
     Scaffold(
         topBar = {
             OpsTopBar(stringResource(R.string.rentalops_tasks_title), onBack) {
+                if (s.canRoute) {
+                    IconButton(onClick = { onNavigate(RentalOpsRoutes.ROUTE) }) {
+                        Icon(Icons.Filled.Route, contentDescription = stringResource(R.string.rentalops_route_title))
+                    }
+                }
                 IconButton(onClick = vm::sync) { Icon(Icons.Filled.Sync, contentDescription = stringResource(R.string.rentalops_sync_now)) }
             }
         },

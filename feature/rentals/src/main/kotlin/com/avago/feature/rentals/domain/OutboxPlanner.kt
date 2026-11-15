@@ -32,10 +32,15 @@ object OutboxPlanner {
     const val TYPE_READINESS = "rental_readiness"
     /** Line swap (POST /orders/{o}/lines/{l}/swap; group `order:<id>`, after handovers). */
     const val TYPE_LINE_SWAP = "rental_line_swap"
+    /** Wave 2 in-person e-signature capture (POST /signature-requests/{id}/sign; before the check-out). */
+    const val TYPE_ESIGN = "rental_esign_sign"
+    /** Wave 2 partial bulk return (POST /orders/{o}/lines/{l}/bulk-return; group `order:<id>`). */
+    const val TYPE_BULK_RETURN = "rental_bulk_return"
 
     val TYPES = setOf(
         TYPE_CUSTOMER, TYPE_CUSTOMER_DOCUMENT, TYPE_ORDER, TYPE_ORDER_ACTION, TYPE_ASSET,
         TYPE_SIGNATURE, TYPE_HANDOVER, TYPE_LEDGER, TYPE_INVOICE, TYPE_READINESS, TYPE_LINE_SWAP,
+        TYPE_ESIGN, TYPE_BULK_RETURN,
     )
 
     fun rank(type: String): Int = when (type) {
@@ -43,8 +48,9 @@ object OutboxPlanner {
         TYPE_CUSTOMER_DOCUMENT -> 1
         TYPE_ORDER -> 2
         TYPE_ORDER_ACTION, TYPE_ASSET -> 3
+        TYPE_ESIGN -> 4
         TYPE_SIGNATURE -> 5
-        TYPE_HANDOVER, TYPE_LINE_SWAP, TYPE_READINESS -> 6
+        TYPE_HANDOVER, TYPE_LINE_SWAP, TYPE_READINESS, TYPE_BULK_RETURN -> 6
         TYPE_LEDGER -> 7
         TYPE_INVOICE -> 8
         else -> 9
@@ -153,7 +159,7 @@ object OutboxPlanner {
     }
 
     /** Server types that live on the stage B routes (handovers, swaps, readiness, signatures, ledger, invoices). */
-    val STAGE_B_TYPES = setOf(TYPE_SIGNATURE, TYPE_HANDOVER, TYPE_LEDGER, TYPE_INVOICE, TYPE_READINESS, TYPE_LINE_SWAP)
+    val STAGE_B_TYPES = setOf(TYPE_SIGNATURE, TYPE_HANDOVER, TYPE_LEDGER, TYPE_INVOICE, TYPE_READINESS, TYPE_LINE_SWAP, TYPE_ESIGN, TYPE_BULK_RETURN)
 
     /** Queue status of a row parked after a 404/405 (visible error, retry by the user). */
     const val STATUS_FAILED = "failed"

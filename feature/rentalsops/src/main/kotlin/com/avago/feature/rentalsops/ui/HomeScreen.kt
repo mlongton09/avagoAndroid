@@ -5,6 +5,9 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
@@ -40,7 +43,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.ViewModel
@@ -102,7 +104,10 @@ fun RentalOpsHomeScreen(onNavigate: (String) -> Unit, onBack: (() -> Unit)?, vm:
             onRefresh = { refreshing = true; vm.sync() },
             modifier = Modifier.fillMaxSize().padding(pad),
         ) {
-            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = AvagoSpacing.sm)) {
+            LazyColumn(
+                Modifier.fillMaxSize().wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = AvagoSpacing.readableMaxWidth),
+                contentPadding = PaddingValues(vertical = AvagoSpacing.sm),
+            ) {
                 if (s.access.statements || s.access.tasks) {
                     item(key = "kpis", contentType = "kpis") { CountsRow(s.counts, onOpenTasks = if (s.access.tasks) { { onNavigate(RentalOpsRoutes.TASKS) } } else null) }
                 }
@@ -175,7 +180,7 @@ private fun CountsRow(c: OpsCounts, onOpenTasks: (() -> Unit)?) {
 private fun EntryCard(title: String?, entries: List<Entry>, onNavigate: (String) -> Unit) {
     SectionCard(title = title) {
         entries.forEachIndexed { i, e ->
-            if (i > 0) CardDivider(Modifier.padding(start = 56.dp))
+            if (i > 0) CardDivider(Modifier.padding(start = AvagoSpacing.listInset))
             ListItem(
                 headlineContent = { Text(stringResource(e.title)) },
                 supportingContent = { Text(stringResource(e.sub)) },

@@ -180,6 +180,7 @@ fun DeveloperScreen(
         ) {
             // ── Environment ──────────────────────────────────────────────────
             item { DevSectionHeader("Environment") }
+            item { InfoRow(label = "API Target", value = BuildConfig.API_TARGET) }
             item { InfoRow(label = "Base URL", value = BuildConfig.BASE_URL) }
             item { InfoRow(label = "Build Type", value = BuildConfig.BUILD_TYPE) }
             item {

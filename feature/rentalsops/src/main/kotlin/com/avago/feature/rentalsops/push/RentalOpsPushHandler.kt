@@ -86,6 +86,13 @@ internal object PushText {
         "rental_task_failed_delivery_title" to R.string.rental_task_failed_delivery_title,
         "rental_task_failed_pickup_title" to R.string.rental_task_failed_pickup_title,
         "rental_task_failed_transfer_title" to R.string.rental_task_failed_transfer_title,
+        // Wave 2 (G2 / G3): no order number in these pushes.
+        "rental_doc_expiring_title" to R.string.rental_doc_expiring_title,
+        "rental_credit_application_title" to R.string.rental_credit_application_title,
+        "rental_dunning_hold_title" to R.string.rental_dunning_hold_title,
+        "rental_subrental_return_due_title" to R.string.rental_subrental_return_due_title,
+        // Marketplace: title only; the server body names the renter / item / time.
+        "rental_marketplace_meetup_title" to R.string.rental_marketplace_meetup_title,
     )
 
     /** Body key → (string, takes the order number). */
@@ -105,7 +112,7 @@ internal object PushText {
         "rental_task_failed_transfer_body" to (R.string.rental_task_failed_transfer_body to true),
     )
 
-    /** Every server loc key the app ships (26 = 13 titles + 13 bodies). */
+    /** Every server loc key the app ships (31 = 18 titles + 13 bodies; wave 2 / marketplace titles only). */
     val KEYS: Set<String> get() = TITLES.keys + BODIES.keys
 
     fun resolve(spec: RentalPushRouter.Spec): Text {

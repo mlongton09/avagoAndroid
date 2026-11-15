@@ -28,6 +28,7 @@ import com.avago.feature.rentals.ui.RentalScheduleScreen
 import com.avago.feature.rentals.ui.RentalsHomeActions
 import com.avago.feature.rentals.ui.RentalsHomeScreen
 import com.avago.feature.rentals.ui.ReadinessScreen
+import com.avago.feature.rentals.ui.SignAgreementScreen
 import com.avago.feature.rentals.ui.SwapScreen
 import java.time.Instant
 
@@ -39,7 +40,7 @@ object RentalsRoute {
     const val SCHEDULE = "rentals/schedule"
     const val ORDERS = "rentals/orders"
     const val ORDER = "rentals/order/{orderId}"
-    const val QUICK_BOOK = "rentals/quickbook?assetId={assetId}&start={start}&end={end}"
+    const val QUICK_BOOK = "rentals/quickbook?assetId={assetId}&start={start}&end={end}&customerId={customerId}"
     const val CUSTOMERS = "rentals/customers"
     const val CUSTOMER = "rentals/customer/{customerId}"
     const val DOCUMENT = "rentals/document/{customerId}"
@@ -48,6 +49,7 @@ object RentalsRoute {
     const val ASSET = "rentals/asset/{assetId}"
     const val READINESS = "rentals/readiness/{assetId}"
     const val SWAP = "rentals/swap/{orderId}"
+    const val SIGN = "rentals/order/{orderId}/sign"
 
     // Legacy (pre-v2) rental screens kept reachable from the asset Rental tab.
     const val LEGACY_ASSET = "rentals/legacy/asset/{assetId}"
@@ -62,14 +64,16 @@ object RentalsRoute {
     /** Scan; [mode] is `out` / `in` when started as check-out / check-in. */
     fun scan(mode: String? = null) = if (mode == null) "rentals/scan" else "rentals/scan?mode=$mode"
     fun order(orderId: String) = "rentals/order/${Uri.encode(orderId)}"
-    fun quickBook(assetId: String? = null, start: Instant? = null, end: Instant? = null) =
-        "rentals/quickbook?assetId=${Uri.encode(assetId.orEmpty())}&start=${start?.toEpochMilli() ?: ""}&end=${end?.toEpochMilli() ?: ""}"
+    fun quickBook(assetId: String? = null, start: Instant? = null, end: Instant? = null, customerId: String? = null) =
+        "rentals/quickbook?assetId=${Uri.encode(assetId.orEmpty())}&start=${start?.toEpochMilli() ?: ""}&end=${end?.toEpochMilli() ?: ""}" +
+            "&customerId=${Uri.encode(customerId.orEmpty())}"
     fun customer(customerId: String?) = "rentals/customer/${Uri.encode(customerId ?: "new")}"
     fun document(customerId: String?) = "rentals/document/${Uri.encode(customerId ?: "new")}"
     fun handover(orderId: String, direction: String) = "rentals/handover/${Uri.encode(orderId)}/$direction"
     fun asset(assetId: String) = "rentals/asset/${Uri.encode(assetId)}"
     fun readiness(assetId: String) = "rentals/readiness/${Uri.encode(assetId)}"
     fun swap(orderId: String) = "rentals/swap/${Uri.encode(orderId)}"
+    fun sign(orderId: String) = "rentals/order/${Uri.encode(orderId)}/sign"
     fun legacyAsset(assetId: String) = "rentals/legacy/asset/${Uri.encode(assetId)}"
     fun legacyBooking(assetId: String) = "rentals/legacy/booking/${Uri.encode(assetId)}"
     fun legacyCustomerForm(customerId: String?) = "rentals/legacy/customer_form?customerId=${Uri.encode(customerId.orEmpty())}"
@@ -141,11 +145,13 @@ fun NavGraphBuilder.rentalsNavGraph(
             onHandover = { orderId, direction -> go(RentalsRoute.handover(orderId, direction)) },
             onOpenCustomer = { go(RentalsRoute.customer(it)) },
             onSwap = { go(RentalsRoute.swap(it)) },
+            onSign = { go(RentalsRoute.sign(it)) },
+            onAddDocument = { go(RentalsRoute.document(it)) },
         )
     }
     composable(
         RentalsRoute.QUICK_BOOK,
-        arguments = listOf(optString("assetId"), optString("start"), optString("end")),
+        arguments = listOf(optString("assetId"), optString("start"), optString("end"), optString("customerId")),
     ) {
         QuickBookScreen(
             onBack = back,
@@ -162,6 +168,7 @@ fun NavGraphBuilder.rentalsNavGraph(
             onBack = back,
             onOpen = { go(RentalsRoute.customer(it)) },
             onNew = { go(RentalsRoute.customer(null)) },
+            onBook = { go(RentalsRoute.quickBook(customerId = it)) },
         )
     }
     composable(RentalsRoute.CUSTOMER, arguments = listOf(reqString("customerId"))) {
@@ -171,6 +178,7 @@ fun NavGraphBuilder.rentalsNavGraph(
             onScanLicence = { go(RentalsRoute.document(null)) },
             onAddDocument = { go(RentalsRoute.document(it)) },
             onOpenOrder = { go(RentalsRoute.order(it)) },
+            onBook = { go(RentalsRoute.quickBook(customerId = it)) },
         )
     }
     composable(RentalsRoute.DOCUMENT, arguments = listOf(reqString("customerId"))) {
@@ -186,7 +194,12 @@ fun NavGraphBuilder.rentalsNavGraph(
                     popUpTo(RentalsRoute.HANDOVER) { inclusive = true }
                 }
             },
+            onSign = { go(RentalsRoute.sign(it)) },
+            onAddDocument = { go(RentalsRoute.document(it)) },
         )
+    }
+    composable(RentalsRoute.SIGN, arguments = listOf(reqString("orderId"))) {
+        SignAgreementScreen(onBack = back)
     }
     composable(RentalsRoute.READINESS, arguments = listOf(reqString("assetId"))) {
         ReadinessScreen(onBack = back, onDone = back)

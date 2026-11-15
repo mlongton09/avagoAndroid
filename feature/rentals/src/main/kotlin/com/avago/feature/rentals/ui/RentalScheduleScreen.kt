@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.avago.core.design.theme.AvagoSpacing
 import com.avago.core.ui.components.isDarkScheme
 import com.avago.core.ui.components.SectionCard
 import com.avago.core.ui.components.SkeletonListItem
@@ -96,7 +97,12 @@ fun RentalScheduleScreen(
             modifier = Modifier.fillMaxSize().padding(top = pad.calculateTopPadding()),
         ) {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = pad.calculateBottomPadding() + 32.dp)) {
-                item(key = "sync", contentType = "sync") { LastSyncedRow(lastSynced, queue.size, viewModel::syncNow) }
+                item(key = "sync", contentType = "sync") {
+                    Column {
+                        LastSyncedRow(lastSynced, queue.size, viewModel::syncNow)
+                        RefreshFailedBanner(refresh)
+                    }
+                }
                 item(key = "range", contentType = "filters") {
                     ChipRow {
                         listOf(1, 7, 14).forEach { n ->
@@ -141,7 +147,7 @@ fun RentalScheduleScreen(
                     items(evs, key = { "e:${it.type}:${it.allocationId}:${it.at}" }, contentType = { "event" }) { ev ->
                         Column(Modifier.animateItem()) {
                             AgendaRow(ev, zone, onClick = ev.orderId?.let { id -> { onOpenOrder(id) } })
-                            HorizontalDivider(Modifier.padding(start = 72.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                            HorizontalDivider(Modifier.padding(start = AvagoSpacing.listInset), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
                         }
                     }
                 }

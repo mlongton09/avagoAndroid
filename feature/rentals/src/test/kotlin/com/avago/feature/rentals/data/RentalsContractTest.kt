@@ -248,8 +248,12 @@ class RentalsContractTest {
             assertEquals("asset_id", RentalEntity.pkOf(RentalEntity.ASSET))
             assertEquals("location_id", RentalEntity.pkOf(RentalEntity.LOCATION_SETTING))
             assertTrue(RentalEntity.FEEDS.containsAll(RentalEntity.STAGE_B_FEEDS))
+            assertTrue(RentalEntity.FEEDS.containsAll(RentalEntity.WAVE2_FEEDS))
+            val optional = RentalEntity.STAGE_B_FEEDS + RentalEntity.WAVE2_FEEDS
             val firstStageB = RentalEntity.FEEDS.indexOfFirst { it in RentalEntity.STAGE_B_FEEDS }
-            assertTrue(RentalEntity.FEEDS.drop(firstStageB).all { it in RentalEntity.STAGE_B_FEEDS })
+            assertTrue(RentalEntity.FEEDS.drop(firstStageB).all { it in optional })
+            // Wave 2 feeds come after every stage B feed.
+            assertTrue(RentalEntity.FEEDS.takeLast(RentalEntity.WAVE2_FEEDS.size).toSet() == RentalEntity.WAVE2_FEEDS)
         }
     }
 

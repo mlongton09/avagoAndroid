@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Rentals UX pass 2 (docs/rentals-ux-audit-android-pass2.md). en + de only; other locales fall back to English. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="rentals_refresh_failed">Couldn\'t refresh. Showing saved data.</string>
+    <string name="rentals_show_all">Show all (%1$d)</string>
+    <string name="rentals_show_less">Show less</string>
+    <string name="rentals_all_clear">All clear</string>
+    <string name="rentals_all_clear_body">Nothing is overdue, going out or due back today.</string>
+    <string name="rentals_unassigned_unit">Unit not assigned</string>
+    <string name="rentals_cancel_order_title">Cancel this order?</string>
+    <string name="rentals_cancel_order_confirm">Cancel order</string>
+    <string name="rentals_no_show_title">Mark this order as no-show?</string>
+    <string name="rentals_no_show_confirm">Mark no-show</string>
+    <string name="rentals_keep_order">Keep order</string>
+    <string name="rentals_call">Call</string>
+    <string name="rentals_send_email">Email</string>
+    <string name="rentals_stop_renting_title">Stop renting %1$s?</string>
+    <string name="rentals_stop_renting_body">The unit will no longer be bookable. Existing orders and history stay as they are.</string>
+    <string name="rentals_add_photo">Add photo</string>
+    <string name="rentals_condition_photos">Condition photos</string>
+    <string name="rentals_condition_photos_hint">Start the inspection to add condition photos.</string>
+</resources>

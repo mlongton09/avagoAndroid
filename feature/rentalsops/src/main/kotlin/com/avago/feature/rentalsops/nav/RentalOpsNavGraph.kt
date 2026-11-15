@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.LocalShipping
+import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
@@ -41,6 +42,7 @@ import com.avago.feature.rentalsops.R
 import com.avago.feature.rentalsops.ui.AgingScreen
 import com.avago.feature.rentalsops.ui.AssignLineScreen
 import com.avago.feature.rentalsops.ui.AssignListScreen
+import com.avago.feature.rentalsops.ui.DriverRouteScreen
 import com.avago.feature.rentalsops.ui.RentalDeliveryScreen
 import com.avago.feature.rentalsops.ui.RentalOpsHomeScreen
 import com.avago.feature.rentalsops.ui.RentalOpsSettingsScreen
@@ -57,6 +59,7 @@ fun NavGraphBuilder.rentalOpsNavGraph(navController: NavHostController) {
     val go: (String) -> Unit = { navController.navigate(it) { launchSingleTop = true } }
     composable(RentalOpsRoutes.HOME) { RentalOpsHomeScreen(onNavigate = go, onBack = back) }
     composable(RentalOpsRoutes.TASKS) { TaskListScreen(onNavigate = go, onBack = back) }
+    composable(RentalOpsRoutes.ROUTE) { DriverRouteScreen(onNavigate = go, onBack = back) }
     composable(RentalOpsRoutes.TASK, arguments = listOf(navArgument("taskId") { type = NavType.StringType })) {
         RentalDeliveryScreen(onBack = back)
     }
@@ -114,6 +117,10 @@ fun RentalOpsHomeEntries(onNavigate: (String) -> Unit, vm: RentalOpsDrawerViewMo
     if (!access.drive && !access.operations) return
     SectionCard(title = stringResource(R.string.rentalops_section_team)) {
         if (access.drive) {
+            OpsEntry(Icons.Filled.Route, StatusTone.Accent, R.string.rentalops_route_title, R.string.rentalops_route_sub) {
+                onNavigate(RentalOpsRoutes.ROUTE)
+            }
+            CardDivider(Modifier.padding(start = 56.dp))
             OpsEntry(Icons.Filled.LocalShipping, StatusTone.Info, R.string.rentalops_my_deliveries, R.string.rentalops_my_deliveries_sub) {
                 onNavigate(RentalOpsRoutes.TASKS)
             }

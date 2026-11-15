@@ -122,6 +122,7 @@ class QuickBookViewModel @Inject constructor(
     private val initialAsset: String? = savedState.get<String>("assetId")?.takeIf { it.isNotBlank() }
     private val initialStart: Long? = savedState.get<String>("start")?.toLongOrNull()
     private val initialEnd: Long? = savedState.get<String>("end")?.toLongOrNull()
+    private val initialCustomer: String? = savedState.get<String>("customerId")?.takeIf { it.isNotBlank() }
 
     private val _form: MutableStateFlow<QuickBookForm> = MutableStateFlow(
         defaultWindow(ZoneId.systemDefault()).let { (s, e) ->
@@ -152,6 +153,13 @@ class QuickBookViewModel @Inject constructor(
         viewModelScope.launch {
             val u = units.first { list -> initialAsset == null || list.any { it.assetId == initialAsset } }
             initialAsset?.let { id -> u.firstOrNull { it.assetId == id }?.let(::selectUnit) }
+        }
+        // Book from a customer (swipe / detail): preselect them once the customer list is loaded.
+        initialCustomer?.let { id ->
+            viewModelScope.launch {
+                val c = customers.first { list -> list.any { it.id == id } }.first { it.id == id }
+                if (_form.value.customer == null) selectCustomer(c)
+            }
         }
     }
 

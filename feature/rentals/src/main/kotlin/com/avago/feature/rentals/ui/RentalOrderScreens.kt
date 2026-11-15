@@ -37,15 +37,24 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.EditCalendar
+import androidx.compose.material.icons.filled.EventAvailable
+import androidx.compose.material.icons.filled.EventBusy
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PauseCircle
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonOff
 import androidx.compose.material.icons.filled.SearchOff
+import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.TaskAlt
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -53,6 +62,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -80,6 +90,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
@@ -100,6 +114,8 @@ import com.avago.core.data.db.rental.RentalRecordEntity
 import com.avago.core.data.rental.Money
 import com.avago.core.data.rental.MoneyFormatter
 import com.avago.core.data.rental.RentalTime
+import com.avago.core.design.theme.AvagoSpacing
+import com.avago.core.permissions.PermissionsManager
 import com.avago.core.ui.components.BottomActionBar
 import com.avago.core.ui.components.CardDivider
 import com.avago.core.ui.components.cardListItemColors
@@ -113,6 +129,7 @@ import com.avago.core.ui.components.StatusPill
 import com.avago.core.ui.components.StatusTone
 import com.avago.core.ui.components.StickyDayHeader
 import com.avago.core.ui.components.TimelineEntry
+import com.avago.core.ui.components.toneColors
 import com.avago.core.ui.invoiceStatusText
 import com.avago.feature.rentals.data.RentalRepository
 import com.avago.feature.rentals.domain.FeeBreakdown
@@ -147,7 +164,23 @@ import timber.log.Timber
 // ── Orders list ──────────────────────────────────────────────────────────────────────
 
 @HiltViewModel
-class RentalOrdersViewModel @Inject constructor(private val repo: RentalRepository) : ViewModel() {
+class RentalOrdersViewModel @Inject constructor(
+    private val repo: RentalRepository,
+    permissions: PermissionsManager,
+) : ViewModel() {
+    /** Gates the "Record payment" swipe (server enforces it too). */
+    val canRecordPayment: Boolean = permissions.can(PERMISSION_PAYMENT_RECORD)
+
+    fun recordPayment(input: RentalRepository.PaymentInput) = viewModelScope.launch {
+        try {
+            repo.recordPayment(input)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w(e, "record payment from list failed")
+        }
+    }
+
     val activeOnly = MutableStateFlow(true)
     val query = MutableStateFlow("")
     val orders: StateFlow<List<OrderView>> = combine(repo.records(RentalEntity.ORDER), activeOnly, query) { rows, active, q ->
@@ -181,8 +214,15 @@ fun RentalOrdersScreen(
     val zone = ZoneId.systemDefault()
     // Sticky day headers: orders are sorted by start (newest first) so groups stay contiguous.
     val groups = remember(orders) { orders.groupBy { o -> o.startAt?.atZone(zone)?.toLocalDate() } }
+    var payFor by remember { mutableStateOf<OrderView?>(null) }
+    val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val haptics = rememberHaptics()
+    val recordPaymentLabel = stringResource(R.string.rentals_record_payment)
+    val paymentRecorded = stringResource(R.string.rentals_payment_recorded)
     Scaffold(
         topBar = { RentalsTopBar(stringResource(R.string.rentals_orders), onBack) },
+        snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onQuickBook,
@@ -197,7 +237,14 @@ fun RentalOrdersScreen(
             onRefresh = refresh.onRefresh,
             modifier = Modifier.fillMaxSize().padding(top = pad.calculateTopPadding()),
         ) {
-            LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = pad.calculateBottomPadding() + 96.dp)) {
+            LazyColumn(
+                Modifier.fillMaxSize().readableWidth(),
+                state = listState,
+                contentPadding = PaddingValues(bottom = pad.calculateBottomPadding() + AvagoSpacing.fabClearance),
+            ) {
+                if (refresh.failed) {
+                    item(key = "refresh-failed", contentType = "banner") { RefreshFailedBanner(refresh) }
+                }
                 item(key = "search", contentType = "search") {
                     RentalSearchField(query, { viewModel.query.value = it }, stringResource(R.string.rentals_search_orders))
                 }
@@ -239,11 +286,36 @@ fun RentalOrdersScreen(
                         StickyDayHeader(day?.let { dayLabel(it, zone) } ?: stringResource(R.string.rentals_no_date), count = rows.size)
                     }
                     items(rows, key = { it.id }, contentType = { "order" }) { o ->
-                        OrderRow(o, zone, Modifier.animateItem()) { onOpenOrder(o.id) }
+                        val owes = !o.isDraft && (o.balance?.minor ?: 0L) > 0
+                        val pay = if (viewModel.canRecordPayment && owes) {
+                            SwipeAction(recordPaymentLabel, Icons.Default.Payments, StatusTone.Success) { payFor = o }
+                        } else null
+                        SwipeActionsRow(
+                            start = pay,
+                            end = null,
+                            shape = MaterialTheme.shapes.large,
+                            modifier = Modifier.animateItem().padding(horizontal = AvagoSpacing.cardHorizontal, vertical = AvagoSpacing.cardVertical),
+                        ) { a11y ->
+                            OrderRow(o, zone, a11y) { onOpenOrder(o.id) }
+                        }
                     }
                 }
             }
         }
+    }
+    payFor?.let { o ->
+        PaymentSheet(
+            orderId = o.id,
+            currency = o.currency,
+            suggested = o.balance?.takeIf { it.minor > 0 },
+            onDismiss = { payFor = null },
+            onSave = {
+                viewModel.recordPayment(it)
+                payFor = null
+                haptics.success()
+                scope.launch { snackbar.showSnackbar(paymentRecorded) }
+            },
+        )
     }
 }
 
@@ -256,12 +328,12 @@ private fun OrderRow(o: OrderView, zone: ZoneId, modifier: Modifier = Modifier, 
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)),
-        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        modifier = modifier.fillMaxWidth(),
     ) {
-        Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.padding(AvagoSpacing.md), horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.md)) {
             LeadingBadge(orderStatusIcon(o.status), orderStatusTone(o.status))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AvagoSpacing.xs)) {
+                Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm)) {
                     Column(Modifier.weight(1f)) {
                         Text(
                             o.customerName ?: o.number ?: stringResource(R.string.rentals_draft_order),
@@ -376,13 +448,28 @@ fun RentalOrderScreen(
     onHandover: (orderId: String, direction: String) -> Unit,
     onOpenCustomer: (String) -> Unit,
     onSwap: ((orderId: String) -> Unit)? = null,
+    onSign: ((orderId: String) -> Unit)? = null,
+    onAddDocument: ((customerId: String) -> Unit)? = null,
     viewModel: RentalOrderViewModel = hiltViewModel(),
+    wave2: OrderWave2ViewModel = hiltViewModel(),
 ) {
     val order by viewModel.order.collectAsStateWithLifecycle()
     val lines by viewModel.lines.collectAsStateWithLifecycle()
     val ledger by viewModel.ledger.collectAsStateWithLifecycle()
     val invoices by viewModel.invoices.collectAsStateWithLifecycle()
     val handovers by viewModel.handovers.collectAsStateWithLifecycle()
+    val gate by wave2.gate.collectAsStateWithLifecycle()
+    val esign by wave2.esign.collectAsStateWithLifecycle()
+    val credit by wave2.credit.collectAsStateWithLifecycle()
+    val payments by wave2.payments.collectAsStateWithLifecycle()
+    val contracts by wave2.contracts.collectAsStateWithLifecycle()
+    val buyouts by wave2.buyouts.collectAsStateWithLifecycle()
+    val bulkLineIds by wave2.bulkLineIds.collectAsStateWithLifecycle()
+    val bulkReturns by wave2.bulkReturns.collectAsStateWithLifecycle()
+    val subrented by wave2.subrented.collectAsStateWithLifecycle()
+    val wave2Busy by wave2.busy.collectAsStateWithLifecycle()
+    var bulkReturn by remember { mutableStateOf<Pair<LineView, java.math.BigDecimal>?>(null) }
+    val context = LocalContext.current
     val fees by viewModel.fees.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val haptics = rememberHaptics()
@@ -396,6 +483,30 @@ fun RentalOrderScreen(
             snackbar.showSnackbar(it)
         }
     }
+    val w2Texts = mapOf(
+        OrderWave2ViewModel.Msg.FIX_INCOMPLETE to stringResource(R.string.rentals_gate_fix_incomplete),
+        OrderWave2ViewModel.Msg.OFFLINE to stringResource(R.string.rentals_online_offline),
+        OrderWave2ViewModel.Msg.LINK_SENT to stringResource(R.string.rentals_pay_link_sent),
+        OrderWave2ViewModel.Msg.BULK_QUEUED to stringResource(R.string.rentals_bulk_queued),
+        OrderWave2ViewModel.Msg.FAILED to stringResource(R.string.rentals_online_failed_generic),
+    )
+    val failedWith = stringResource(R.string.rentals_online_failed, "%s")
+    val shareTitle = stringResource(R.string.rentals_pay_share)
+    val pdfFailed = stringResource(R.string.rentals_sign_pdf_failed)
+    LaunchedEffect(Unit) {
+        wave2.events.collect { e ->
+            when (e) {
+                is OrderWave2ViewModel.Event.Message -> {
+                    val ok = e.msg == OrderWave2ViewModel.Msg.LINK_SENT || e.msg == OrderWave2ViewModel.Msg.BULK_QUEUED
+                    if (ok) haptics.success() else haptics.error()
+                    val text = if (e.msg == OrderWave2ViewModel.Msg.FAILED && !e.detail.isNullOrBlank()) failedWith.replace("%s", e.detail) else w2Texts.getValue(e.msg)
+                    snackbar.showSnackbar(text)
+                }
+                is OrderWave2ViewModel.Event.Share -> runCatching { sharePayLink(context, e.url, shareTitle) }
+                is OrderWave2ViewModel.Event.OpenPdf -> if (!openPdfFile(context, e.file)) snackbar.showSnackbar(pdfFailed)
+            }
+        }
+    }
     LaunchedEffect(Unit) {
         delay(1_500)
         missingTimedOut = true
@@ -405,26 +516,35 @@ fun RentalOrderScreen(
     val o = order
     val zone = zoneOf(null)
 
+    val onOrderAction: (String) -> Unit = { a ->
+        if (o != null) {
+            when (a) {
+                "checkout" -> onHandover(o.id, "out")
+                "checkin" -> onHandover(o.id, "in")
+                "swap" -> onSwap?.invoke(o.id)
+                "extend" -> showExtend = true
+                "cancel", "no-show" -> confirmAction = a
+                else -> viewModel.action(a)
+            }
+        }
+    }
+
     Scaffold(
-        topBar = { RentalsTopBar(o?.number ?: stringResource(R.string.rentals_draft_order), onBack) },
+        topBar = {
+            RentalsTopBar(o?.number ?: stringResource(R.string.rentals_draft_order), onBack) {
+                if (o != null) {
+                    OverflowMenu(
+                        orderOverflow(
+                            o, canSwap = onSwap != null, onAction = onOrderAction,
+                            onPayment = { showPayment = true }, onInvoice = viewModel::createInvoice,
+                        ),
+                    )
+                }
+            }
+        },
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
-            if (o != null) {
-                OrderActionBar(
-                    o, canSwap = onSwap != null,
-                    onCollect = { showPayment = true },
-                    onAction = { a ->
-                        when (a) {
-                            "checkout" -> onHandover(o.id, "out")
-                            "checkin" -> onHandover(o.id, "in")
-                            "swap" -> onSwap?.invoke(o.id)
-                            "extend" -> showExtend = true
-                            "cancel", "no-show" -> confirmAction = a
-                            else -> viewModel.action(a)
-                        }
-                    },
-                )
-            }
+            if (o != null) OrderActionBar(o, onCollect = { showPayment = true }, onAction = onOrderAction)
         },
     ) { pad ->
         if (o == null) {
@@ -437,45 +557,71 @@ fun RentalOrderScreen(
             return@Scaffold
         }
         LazyColumn(
-            Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = pad.calculateTopPadding(), bottom = pad.calculateBottomPadding() + 16.dp),
+            Modifier.fillMaxSize().readableWidth(),
+            contentPadding = PaddingValues(top = pad.calculateTopPadding(), bottom = pad.calculateBottomPadding() + AvagoSpacing.lg),
         ) {
             item(key = "summary", contentType = "summary") { OrderSummaryCard(o, zone, onOpenCustomer) }
-            item(key = "lines", contentType = "section") {
-                SectionCard(title = stringResource(R.string.rentals_lines)) {
-                    if (lines.isEmpty()) CardNote(stringResource(R.string.rentals_handover_no_unit))
-                    lines.forEachIndexed { i, l ->
-                        if (i > 0) CardDivider()
-                        val statusText = l.status?.let { lineStatusLabel(it) }?.let { stringResource(it) }
-                        ListItem(
-                            colors = cardListItemColors(),
-                            leadingContent = { LeadingBadge(Icons.Default.Inventory2, if (l.status == "out") StatusTone.Accent else StatusTone.Neutral) },
-                            overlineContent = statusText?.let { { Text(it) } },
-                            headlineContent = { Text(l.description ?: l.kind) },
-                            supportingContent = { Text("${PricingQty(l.qty)} × · ${formatDateTime(l.startAt, zone)} → ${formatDateTime(l.endAt, zone)}") },
-                            trailingContent = {
-                                Column(horizontalAlignment = Alignment.End) {
-                                    Text(formatMoney(l.amount), style = MaterialTheme.typography.bodyMedium)
-                                    SyncStateBadge(l.localState)
-                                }
-                            },
-                        )
-                    }
+            gate?.let { g ->
+                item(key = "gate", contentType = "gate") {
+                    OrderGateCard(
+                        gate = g.gate,
+                        canOverride = wave2.can(g.gate.permission),
+                        busy = wave2Busy,
+                        onSign = onSign?.let { s -> { s(o.id) } },
+                        onAddDocument = o.customerId?.let { c -> onAddDocument?.let { a -> { a(c) } } },
+                        onFix = { reason, meter -> wave2.fixGate(g, reason, meter) },
+                        onRetry = { wave2.retryGate(g) },
+                        onDiscard = { wave2.discardGate(g) },
+                    )
                 }
             }
-            item(key = "payments", contentType = "section") {
-                SectionCard(
-                    title = stringResource(R.string.rentals_payments),
-                    trailing = {
-                        TextButton(onClick = { showPayment = true }, modifier = Modifier.heightIn(min = MinTouch)) {
-                            Icon(Icons.Default.Add, null, Modifier.size(18.dp))
-                            Text(stringResource(R.string.rentals_record_payment), Modifier.padding(start = 4.dp))
-                        }
-                    },
-                ) {
-                    if (ledger.isEmpty()) CardNote(stringResource(R.string.rentals_payments_empty))
+            if (!o.isDraft) {
+                item(key = "agreement", contentType = "section") {
+                    OrderAgreementCard(esign, onSign?.let { s -> { s(o.id) } })
+                }
+                item(key = "credit", contentType = "section") {
+                    OrderCreditCard(credit, o.customerId?.let { c -> onAddDocument?.let { a -> { a(c) } } })
+                }
+            }
+            item(key = "lines", contentType = "section") {
+                OrderLinesCard(
+                    lines = lines,
+                    zone = zone,
+                    subrented = subrented,
+                    bulkLineIds = bulkLineIds,
+                    bulkReturns = bulkReturns,
+                    onBulkReturn = if (o.isDraft) null else { l, out -> bulkReturn = l to out },
+                )
+            }
+            contracts.forEach { c ->
+                item(key = "contract_" + c.id, contentType = "section") {
+                    ContractCard(
+                        contract = c,
+                        buyout = buyouts[c.id],
+                        busy = wave2Busy,
+                        onLoadQuote = { wave2.loadBuyout(c.id) },
+                        onEquityStatement = { wave2.equityStatement(c.id) },
+                    )
+                }
+            }
+            payments?.let { pay ->
+                item(key = "pay_links", contentType = "section") {
+                    OnlinePaymentsCard(
+                        payments = pay,
+                        owes = (o.balance?.minor ?: 0) > 0 && !o.isDraft,
+                        busy = wave2Busy,
+                        zone = zone,
+                        onRequest = wave2::requestPayLink,
+                        onShare = { url -> runCatching { sharePayLink(context, url, shareTitle) } },
+                        onEmail = wave2::emailLink,
+                    )
+                }
+            }
+            // Payments and invoices only appear once they exist; adding them lives in the bar / overflow.
+            if (ledger.isNotEmpty()) item(key = "payments", contentType = "section") {
+                SectionCard(title = stringResource(R.string.rentals_payments)) {
                     ledger.forEachIndexed { i, p ->
-                        if (i > 0) CardDivider()
+                        if (i > 0) CardDivider(Modifier.padding(start = AvagoSpacing.listInset))
                         val outgoing = p.kind == "refund" || p.kind == "deposit_refunded"
                         val at = p.at?.let { RentalTime.parseInstant(it) }?.let { formatDateTime(it, zone) }
                         val method = p.method?.let { stringResource(methodLabel(it)) }
@@ -499,18 +645,10 @@ fun RentalOrderScreen(
                     }
                 }
             }
-            item(key = "invoices", contentType = "section") {
-                SectionCard(
-                    title = stringResource(R.string.rentals_invoices),
-                    trailing = {
-                        TextButton(onClick = viewModel::createInvoice, modifier = Modifier.heightIn(min = MinTouch)) {
-                            Text(stringResource(R.string.rentals_create_invoice))
-                        }
-                    },
-                ) {
-                    if (invoices.isEmpty()) CardNote(stringResource(R.string.rentals_invoices_none))
+            if (invoices.isNotEmpty()) item(key = "invoices", contentType = "section") {
+                SectionCard(title = stringResource(R.string.rentals_invoices)) {
                     invoices.forEachIndexed { i, inv ->
-                        if (i > 0) CardDivider()
+                        if (i > 0) CardDivider(Modifier.padding(start = AvagoSpacing.listInset))
                         ListItem(
                             colors = cardListItemColors(),
                             leadingContent = { LeadingBadge(Icons.Default.Description, StatusTone.Info) },
@@ -576,8 +714,21 @@ fun RentalOrderScreen(
             viewModel.action("extend", endAt = end); showExtend = false
         }
     }
+    bulkReturn?.let { (line, out) ->
+        BulkReturnDialog(line, out, onDismiss = { bulkReturn = null }) { counts, notes ->
+            bulkReturn = null
+            wave2.bulkReturn(line, counts, notes)
+        }
+    }
     confirmAction?.let { a ->
-        ReasonDialog(stringResource(actionLabel(a)), onDismiss = { confirmAction = null }) { reason ->
+        val cancel = a == "cancel"
+        ReasonDialog(
+            title = stringResource(if (cancel) R.string.rentals_cancel_order_title else R.string.rentals_no_show_title),
+            destructive = true,
+            confirmLabel = stringResource(if (cancel) R.string.rentals_cancel_order_confirm else R.string.rentals_no_show_confirm),
+            dismissLabel = stringResource(R.string.rentals_keep_order),
+            onDismiss = { confirmAction = null },
+        ) { reason ->
             viewModel.action(a, reason = reason); confirmAction = null
         }
     }
@@ -635,76 +786,124 @@ private fun OrderSummaryCard(o: OrderView, zone: ZoneId, onOpenCustomer: (String
             )
         }
         CardDivider()
-        Column(Modifier.padding(vertical = 8.dp)) {
+        Column(Modifier.padding(vertical = AvagoSpacing.sm)) {
             LabelValue(stringResource(R.string.rentals_from), formatDateTime(o.startAt, zone))
             LabelValue(stringResource(R.string.rentals_to), formatDateTime(o.endAt, zone))
             o.holdExpiresAt?.let { LabelValue(stringResource(R.string.rentals_hold_expires), formatDateTime(it, zone)) }
         }
         CardDivider()
-        Column(Modifier.padding(vertical = 8.dp)) {
-            LabelValue(stringResource(R.string.rentals_total), formatMoney(o.total) + if (o.isDraft) " *" else "")
-            LabelValue(stringResource(R.string.rentals_paid), formatMoney(o.paid))
-            o.depositRequired?.let { LabelValue(stringResource(R.string.rentals_deposit), formatMoney(it)) }
-            LabelValue(stringResource(R.string.rentals_balance), formatMoney(o.balance), emphasise = true)
+        // The one place money is shown on this screen: Total · Paid · Balance (+ deposit).
+        MoneyStats(
+            listOf(
+                Triple(stringResource(R.string.rentals_total), formatMoney(o.total) + if (o.isDraft) " *" else "", null),
+                Triple(stringResource(R.string.rentals_paid), formatMoney(o.paid), null),
+                Triple(
+                    stringResource(R.string.rentals_balance),
+                    formatMoney(o.balance),
+                    if (orderOwes(o)) StatusTone.Warning else null,
+                ),
+            ),
+        )
+        o.depositRequired?.let {
+            LabelValue(stringResource(R.string.rentals_deposit), formatMoney(it), Modifier.padding(bottom = AvagoSpacing.sm))
         }
     }
 }
 
-private fun PricingQty(q: Double): String = if (q % 1.0 == 0.0) q.toLong().toString() else q.toString()
-
 /**
- * Sticky bottom bar with the next step: the first lifecycle action as the primary button,
- * "Collect payment" when a balance is open, and the remaining actions in an overflow menu.
+ * Equal-width money figures (label over value). Falls back to stacked label/value rows at large
+ * font scales so amounts never truncate.
  */
 @Composable
-private fun OrderActionBar(o: OrderView, canSwap: Boolean, onCollect: () -> Unit, onAction: (String) -> Unit) {
-    // `swap` is line level (stage B): shown when the caller can open the swap screen.
-    val actions = OrderStatus.actions(o.status).filter { it != "swap" || canSwap }
-    val owes = !o.isDraft && (o.balance?.minor ?: 0) > 0
-    if (actions.isEmpty() && !owes) return
-    var menu by remember { mutableStateOf(false) }
-    val primary = actions.firstOrNull()
-    val rest = actions.drop(1)
-    BottomActionBar {
-        if (rest.isNotEmpty()) {
-            Box {
-                IconButton(onClick = { menu = true }, modifier = Modifier.size(MinTouch)) {
-                    Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.rentals_more_actions))
-                }
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    rest.forEach { a ->
-                        DropdownMenuItem(
-                            text = { Text(stringResource(actionLabel(a))) },
-                            onClick = {
-                                menu = false
-                                onAction(a)
-                            },
-                            modifier = Modifier.heightIn(min = MinTouch),
-                        )
-                    }
-                }
+internal fun MoneyStats(stats: List<Triple<String, String, StatusTone?>>) {
+    if (LocalDensity.current.fontScale > 1.3f) {
+        Column(Modifier.padding(vertical = AvagoSpacing.sm)) {
+            stats.forEach { (label, value, tone) -> LabelValue(label, value, emphasise = tone != null) }
+        }
+        return
+    }
+    Row(Modifier.fillMaxWidth().padding(horizontal = AvagoSpacing.lg, vertical = AvagoSpacing.md)) {
+        stats.forEach { (label, value, tone) ->
+            Column(Modifier.weight(1f).semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(AvagoSpacing.xxs)) {
+                Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    value,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = tone?.let { toneColors(it).content } ?: MaterialTheme.colorScheme.onSurface,
+                )
             }
         }
+    }
+}
+
+
+/**
+ * Sticky bottom bar with the single next step ([primaryOrderAction]) and, when a balance is
+ * open, "Collect payment" as the tonal secondary (or the primary when no lifecycle step is left).
+ * Everything else lives in the top-bar overflow ([orderOverflow]).
+ */
+@Composable
+private fun OrderActionBar(o: OrderView, onCollect: () -> Unit, onAction: (String) -> Unit) {
+    val primary = primaryOrderAction(OrderStatus.actions(o.status))
+    val owes = orderOwes(o)
+    if (primary == null && !owes) return
+    BottomActionBar {
         if (owes) {
             val label = stringResource(R.string.rentals_collect_payment)
             if (primary == null) {
                 Button(onClick = onCollect, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
                     Icon(Icons.Default.Payments, null, Modifier.size(18.dp))
-                    Text(label, Modifier.padding(start = 8.dp), textAlign = TextAlign.Center)
+                    Text(label, Modifier.padding(start = AvagoSpacing.sm), textAlign = TextAlign.Center, maxLines = 2)
                 }
             } else {
-                OutlinedButton(onClick = onCollect, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
+                FilledTonalButton(onClick = onCollect, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
                     Icon(Icons.Default.Payments, null, Modifier.size(18.dp))
-                    Text(label, Modifier.padding(start = 8.dp), textAlign = TextAlign.Center)
+                    Text(label, Modifier.padding(start = AvagoSpacing.sm), textAlign = TextAlign.Center, maxLines = 2)
                 }
             }
         }
         primary?.let { a ->
             Button(onClick = { onAction(a) }, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
-                Text(stringResource(actionLabel(a)), textAlign = TextAlign.Center)
+                Icon(orderActionIcon(a), null, Modifier.size(18.dp))
+                Text(stringResource(actionLabel(a)), Modifier.padding(start = AvagoSpacing.sm), textAlign = TextAlign.Center, maxLines = 2)
             }
         }
     }
+}
+
+private fun orderOwes(o: OrderView): Boolean = !o.isDraft && (o.balance?.minor ?: 0) > 0
+
+/**
+ * Overflow entries for an order: remaining lifecycle steps, Record payment (when not already in
+ * the bar), Create invoice, then Cancel / No-show in the red destructive group.
+ */
+@Composable
+private fun orderOverflow(o: OrderView, canSwap: Boolean, onAction: (String) -> Unit, onPayment: () -> Unit, onInvoice: () -> Unit): List<MenuAction> {
+    val all = OrderStatus.actions(o.status).filter { it != "swap" || canSwap }
+    val primary = primaryOrderAction(all)
+    val secondary = all.filter { it != primary && it !in DESTRUCTIVE_ORDER_ACTIONS }
+    val destructive = all.filter { it in DESTRUCTIVE_ORDER_ACTIONS }
+    return buildList {
+        secondary.forEach { a -> add(MenuAction(stringResource(actionLabel(a)), orderActionIcon(a)) { onAction(a) }) }
+        if (!orderOwes(o)) add(MenuAction(stringResource(R.string.rentals_record_payment), Icons.Default.Payments, onClick = onPayment))
+        add(MenuAction(stringResource(R.string.rentals_create_invoice), Icons.Default.Description, onClick = onInvoice))
+        destructive.forEach { a -> add(MenuAction(stringResource(actionLabel(a)), orderActionIcon(a), destructive = true) { onAction(a) }) }
+    }
+}
+
+private fun orderActionIcon(a: String): ImageVector = when (a) {
+    "checkout" -> Icons.AutoMirrored.Filled.Logout
+    "checkin" -> Icons.AutoMirrored.Filled.Login
+    "close" -> Icons.Default.TaskAlt
+    "reserve" -> Icons.Default.EventAvailable
+    "hold" -> Icons.Default.PauseCircle
+    "quote" -> Icons.Default.Description
+    "extend" -> Icons.Default.EditCalendar
+    "swap" -> Icons.Default.SwapHoriz
+    "off-rent" -> Icons.Default.EventBusy
+    "no-show" -> Icons.Default.PersonOff
+    "cancel" -> Icons.Default.Block
+    else -> Icons.Default.MoreHoriz
 }
 
 @Composable
@@ -726,10 +925,23 @@ private fun ExtendDialog(current: Instant, zone: ZoneId, onDismiss: () -> Unit, 
 }
 
 @Composable
-internal fun ReasonDialog(title: String, onDismiss: () -> Unit, onConfirm: (String?) -> Unit) {
+internal fun ReasonDialog(
+    title: String,
+    destructive: Boolean = false,
+    confirmLabel: String? = null,
+    dismissLabel: String? = null,
+    onDismiss: () -> Unit,
+    onConfirm: (String?) -> Unit,
+) {
     var reason by remember { mutableStateOf("") }
+    val danger = toneColors(StatusTone.Danger).content
     AlertDialog(
         onDismissRequest = onDismiss,
+        icon = if (destructive) {
+            { Icon(Icons.Default.Warning, null, tint = danger) }
+        } else {
+            null
+        },
         title = { Text(title) },
         text = {
             OutlinedTextField(
@@ -739,8 +951,13 @@ internal fun ReasonDialog(title: String, onDismiss: () -> Unit, onConfirm: (Stri
                 modifier = Modifier.fillMaxWidth(),
             )
         },
-        confirmButton = { TextButton(onClick = { onConfirm(reason.takeIf { it.isNotBlank() }) }) { Text(stringResource(R.string.rentals_ok)) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.rentals_cancel)) } },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(reason.takeIf { it.isNotBlank() }) }) {
+                // Destructive confirm names the action in red (colour plus wording).
+                Text(confirmLabel ?: stringResource(R.string.rentals_ok), color = if (destructive) danger else Color.Unspecified)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(dismissLabel ?: stringResource(R.string.rentals_cancel)) } },
     )
 }
 

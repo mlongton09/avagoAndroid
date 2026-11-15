@@ -160,6 +160,7 @@ class MainActivity : ComponentActivity() {
                         val syncState by syncEngine.state.collectAsStateWithLifecycle()
                         val syncReady by syncGate.isOpen.collectAsStateWithLifecycle()
                         val isOffline by mainViewModel.isOffline.collectAsStateWithLifecycle()
+                        val activeAccountId by mainViewModel.activeAccountId.collectAsStateWithLifecycle()
 
                         MainScaffold(
                             syncState = syncState,
@@ -168,6 +169,7 @@ class MainActivity : ComponentActivity() {
                             toast = mainViewModel.toast,
                             pendingNavRoute = mainViewModel.pendingNavRoute,
                             permissionStore = permissionStore,
+                            signedIn = activeAccountId != null,
                         )
                     }
                 }
@@ -200,9 +202,12 @@ class MainActivity : ComponentActivity() {
             ?.let { mainViewModel.openRoute(it) }
         when (intent?.action) {
             android.content.Intent.ACTION_VIEW -> {
-                // QR passport / transfer-claim links (crew) and renter-portal magic links (growth).
+                // Marketplace web links, QR passport / transfer-claim links (crew) and
+                // renter-portal magic links (growth).
                 val link = intent.dataString
-                (com.avago.feature.crew.nav.CrewRoutes.forLink(link) ?: com.avago.feature.growth.nav.GrowthRoutes.forLink(link))
+                (marketplaceRoute(intent.data)
+                    ?: com.avago.feature.crew.nav.CrewRoutes.forLink(link)
+                    ?: com.avago.feature.growth.nav.GrowthRoutes.forLink(link))
                     ?.let { mainViewModel.openRoute(it) }
             }
             ACTION_START_INSPECTION ->
@@ -213,6 +218,14 @@ class MainActivity : ComponentActivity() {
                 assetId?.let { mainViewModel.openRoute(com.avago.feature.assets.nav.AssetsRoute.detail(it)) }
             }
         }
+    }
+
+    /** https://(www.)avagomate.com/marketplace/… → marketplace route (null for other hosts/paths). */
+    private fun marketplaceRoute(uri: android.net.Uri?): String? {
+        if (uri == null || uri.scheme != "https" || uri.host !in MARKETPLACE_HOSTS) return null
+        val query = listOf("token", "next").mapNotNull { k -> uri.getQueryParameter(k)?.let { k to it } }.toMap()
+        return com.avago.feature.rentals.marketplace.nav.MarketplaceRoutes.fromWebPath(uri.path.orEmpty(), query)
+            .also { Timber.i("MainActivity: marketplace link -> ${it ?: "(unsupported)"}") }
     }
 
     /** First asset id found in the tag: intent data URI, then URI / text / MIME records. */
@@ -247,5 +260,7 @@ class MainActivity : ComponentActivity() {
     companion object {
         /** Static launcher shortcut action (res/xml/shortcuts.xml). */
         const val ACTION_START_INSPECTION = "com.avago.action.START_INSPECTION"
+        /** Hosts of the marketplace App Links (AndroidManifest intent filter). */
+        private val MARKETPLACE_HOSTS = setOf("www.avagomate.com", "avagomate.com")
     }
 }

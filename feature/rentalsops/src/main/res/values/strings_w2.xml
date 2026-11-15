@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Rentals wave 2 (G2 push categories, G3 sub-rent, G5 driver route). en + de only; other locales fall back to English. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="rentalops_route_title">My route</string>
+    <string name="rentalops_route_sub">Today\'s stops in driving order</string>
+    <string name="rentalops_route_empty">No stops on your route today.</string>
+    <string name="rentalops_route_stop">Stop %1$d</string>
+    <string name="rentalops_route_eta">ETA %1$s</string>
+    <string name="rentalops_route_window">Window %1$s</string>
+    <string name="rentalops_route_summary">Stops done: %1$d of %2$d</string>
+    <string name="rentalops_route_next">Next stop</string>
+    <string name="rentalops_route_on_my_way">On my way</string>
+    <string name="rentalops_route_arrived">Arrived</string>
+    <string name="rentalops_route_offline">Couldn\'t load the route. Showing your stops saved on this device.</string>
+    <string name="rentalops_channel_credit">Credit and documents</string>
+    <string name="rentalops_channel_credit_desc">Expiring customer documents and new credit applications</string>
+    <string name="rentalops_channel_collections">Collections</string>
+    <string name="rentalops_channel_collections_desc">Customer accounts put on hold by dunning</string>
+    <string name="rentalops_channel_subrental">Sub-rentals due back</string>
+    <string name="rentalops_channel_subrental_desc">Sub-rented units that are due back to the supplier</string>
+    <string name="rental_doc_expiring_title">Customer document expiring</string>
+    <string name="rental_credit_application_title">New credit application</string>
+    <string name="rental_dunning_hold_title">Customer account on hold</string>
+    <string name="rental_subrental_return_due_title">Sub-rented unit due back</string>
+    <string name="rentalops_event_doc_expiring">Expiring documents</string>
+    <string name="rentalops_event_doc_expiring_desc">A customer\'s ID, licence or insurance is expiring or expired</string>
+    <string name="rentalops_event_credit_application">Credit applications</string>
+    <string name="rentalops_event_credit_application_desc">A customer submitted a credit application</string>
+    <string name="rentalops_event_dunning_hold">Accounts on hold</string>
+    <string name="rentalops_event_dunning_hold_desc">Dunning put a customer account on hold</string>
+    <string name="rentalops_event_subrental_return_due">Sub-rentals due back</string>
+    <string name="rentalops_event_subrental_return_due_desc">A sub-rented unit is due back to its supplier</string>
+    <string name="rentalops_event_payment_received">Online payments received</string>
+    <string name="rentalops_event_payment_failed">Online payments failed</string>
+    <string name="rentalops_event_payment_dispute">Card disputes</string>
+    <string name="rentalops_event_autopay_failed">Automatic payments failed</string>
+    <string name="rentalops_event_deposit_auth_expiring">Deposit holds expiring</string>
+    <!-- Central marketplace (owner side). -->
+    <string name="rentalops_channel_meetup">Marketplace meet-up requests</string>
+    <string name="rentalops_channel_meetup_desc">Renters asking to meet, cancelling or accepting your suggested time</string>
+    <string name="rental_marketplace_meetup_title">Marketplace meet-up request</string>
+    <string name="rentalops_event_marketplace_meetup">Marketplace meet-ups</string>
+    <string name="rentalops_event_marketplace_meetup_desc">A marketplace renter asked to meet or cancelled a meet-up</string>
+</resources>

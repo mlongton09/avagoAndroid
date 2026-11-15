@@ -225,6 +225,8 @@ class RentalRepository @Inject constructor(
         val issuedOn: String?,
         val expiresOn: String?,
         val notes: String? = null,
+        /** Wave 2 / G2: local JPEG of the document, uploaded by the outbox before the document is created. */
+        val photoPath: String? = null,
     )
 
     suspend fun addCustomerDocument(customerId: String, doc: DocumentInput): String {
@@ -240,7 +242,10 @@ class RentalRepository @Inject constructor(
             )
             enqueue(
                 acc, OutboxPlanner.TYPE_CUSTOMER_DOCUMENT, localId, "customer:$customerId", body,
-                buildJsonObject { put("customer_id", customerId); put("local_id", localId) },
+                buildJsonObject {
+                    put("customer_id", customerId); put("local_id", localId)
+                    doc.photoPath?.let { put("photo_path", it) }
+                },
                 dependsOn = listOfNotNull(customerId.takeIf { pendingCreate(acc, it) }),
             )
             localId
@@ -416,6 +421,14 @@ class RentalRepository @Inject constructor(
         /** Device clock at the moment of handover (spec §15: event time is the device time). */
         val occurredAt: Instant,
         val zoneId: String,
+        /** Wave 2: reason for a meter override (`meter_override`, rental.meter_override). */
+        val meterOverrideReason: String? = null,
+        /** Wave 2: local JPEG of the meter, uploaded by the outbox as `meter_photo_file_id`. */
+        val meterPhotoPath: String? = null,
+        /** Wave 2: check out without the signed agreement (rental.override_signature). */
+        val overrideSignature: Boolean = false,
+        /** Wave 2 / G2: reason for a credit / document override (rental.credit_override). */
+        val creditOverrideReason: String? = null,
     ) {
         /**
          * A sketch mark. New check-in damage carries either a [chargeMinor] (> 0, order
@@ -489,6 +502,7 @@ class RentalRepository @Inject constructor(
                     put("local_id", handoverId)
                     input.logId?.let { put("log_id", it) }
                     put("photo_ids", JsonArray(input.photoIds.map(::JsonPrimitive)))
+                    input.meterPhotoPath?.let { put("meter_photo_path", it) }
                 },
                 dependsOn = listOfNotNull(signatureId, input.orderId.takeIf { orderPending }),
             )
@@ -801,6 +815,94 @@ class RentalRepository @Inject constructor(
         }
     }
 
+    // ── Wave 2 writes ──────────────────────────────────────────────────────────────
+
+    /**
+     * Queues an in-person e-signature capture (G1 §1). It runs before the order's queued
+     * check-out (same group, lower rank), so the agreement is signed when the check-out replays.
+     */
+    suspend fun queueSignatureCapture(orderId: String, requestId: String, signerId: String, body: JsonObject): String =
+        write { acc ->
+            val id = newId()
+            enqueue(
+                acc, OutboxPlanner.TYPE_ESIGN, id, "order:$orderId", body,
+                buildJsonObject { put("order_id", orderId); put("request_id", requestId); put("signer_id", signerId) },
+                dependsOn = listOfNotNull(orderId.takeIf { pendingCreate(acc, it) }),
+            )
+            id
+        }
+
+    /** Pending in-person captures as (request id, signer id) — the signer shows "signed, syncing". */
+    fun pendingSignatureCaptures(): Flow<Set<Pair<String, String>>> = queue().map { rows ->
+        rows.filter { it.entityType == OutboxPlanner.TYPE_ESIGN && it.syncStatus != "conflict" }
+            .mapNotNull { r ->
+                val p = com.avago.feature.rentals.domain.parseObj(r.payload) ?: return@mapNotNull null
+                val req = p.str("request_id") ?: return@mapNotNull null
+                val signer = p.str("signer_id") ?: return@mapNotNull null
+                req to signer
+            }.toSet()
+    }
+
+    /** Queues a partial bulk return (G3 §2) and records it locally (pending until confirmed). */
+    suspend fun bulkReturn(orderId: String, lineId: String, partId: String?, body: JsonObject): String =
+        write { acc ->
+            val localId = newId()
+            dao(acc).upsert(
+                localRecord(
+                    RentalEntity.BULK_RETURN,
+                    body.with(
+                        "id" to JsonPrimitive(localId),
+                        "order_id" to JsonPrimitive(orderId),
+                        "order_line_id" to JsonPrimitive(lineId),
+                        "part_id" to partId?.let(::JsonPrimitive),
+                        // Feed field names, so the outstanding count includes the pending return.
+                        "returned_qty" to body["returned"],
+                        "damaged_qty" to body["damaged"],
+                        "lost_qty" to body["lost"],
+                    ),
+                    STATE_PENDING, localId,
+                ),
+            )
+            enqueue(
+                acc, OutboxPlanner.TYPE_BULK_RETURN, localId, "order:$orderId", body,
+                buildJsonObject { put("order_id", orderId); put("line_id", lineId); put("local_id", localId) },
+                dependsOn = listOfNotNull(orderId.takeIf { pendingCreate(acc, it) }),
+            )
+            localId
+        }
+
+    /**
+     * Resends a hand-over refused by a gate (`signature_required`, a meter rule, or a G2 credit /
+     * document block) with the user's fix. The patch is added to the item's body — earlier
+     * approvals stay — and to every other queued hand-over of the same order and direction, so the
+     * remaining lines do not stop at the same gate. Returns false when the fix is incomplete.
+     */
+    suspend fun retryWithOverride(queueId: String, gate: com.avago.feature.rentals.domain.HandoverGates.Gate, reason: String?, meterValue: String?): Boolean {
+        val acc = requireAccount()
+        val d = dao(acc)
+        val all = d.queueItemsOfTypes(listOf(OutboxPlanner.TYPE_HANDOVER))
+        val item = all.firstOrNull { it.queueId == queueId } ?: return false
+        val p = com.avago.feature.rentals.domain.parseObj(item.payload) ?: return false
+        val body = p.obj("body") ?: return false
+        if (com.avago.feature.rentals.domain.HandoverGates.patch(body, gate, reason, meterValue) == null) return false
+        val group = p.str("group")
+        val kind = p.str("kind")
+        // A meter reading belongs to one unit; overrides apply to the order's whole hand-over.
+        val targets = if (gate.needsReading) listOf(item) else all.filter { r ->
+            r.queueId == queueId || com.avago.feature.rentals.domain.parseObj(r.payload)?.let { it.str("group") == group && it.str("kind") == kind } == true
+        }
+        dbFactory.get(acc).withTransaction {
+            targets.forEach { r ->
+                val rp = com.avago.feature.rentals.domain.parseObj(r.payload) ?: return@forEach
+                val rb = rp.obj("body") ?: return@forEach
+                val patched = com.avago.feature.rentals.domain.HandoverGates.patch(rb, gate, reason, meterValue) ?: return@forEach
+                d.updateQueuePayload(r.queueId, encode(rp.with("body" to patched)))
+            }
+        }
+        retry(queueId)
+        return true
+    }
+
     /** Re-queues a conflicted or failed action after the user reviewed the notice. */
     suspend fun retry(queueId: String) {
         return write { acc ->
@@ -833,6 +935,7 @@ class RentalRepository @Inject constructor(
         OutboxPlanner.TYPE_SIGNATURE -> RentalEntity.SIGNATURE
         OutboxPlanner.TYPE_CUSTOMER_DOCUMENT -> RentalEntity.CUSTOMER_DOCUMENT
         OutboxPlanner.TYPE_READINESS -> RentalEntity.READINESS_CHECK
+        OutboxPlanner.TYPE_BULK_RETURN -> RentalEntity.BULK_RETURN
         else -> null
     }
 

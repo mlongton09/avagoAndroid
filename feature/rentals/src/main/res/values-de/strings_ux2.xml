@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Rentals UX pass 2 – formal German ("Sie"). -->
+<resources>
+    <string name="rentals_refresh_failed">Aktualisierung fehlgeschlagen. Gespeicherte Daten werden angezeigt.</string>
+    <string name="rentals_show_all">Alle anzeigen (%1$d)</string>
+    <string name="rentals_show_less">Weniger anzeigen</string>
+    <string name="rentals_all_clear">Alles erledigt</string>
+    <string name="rentals_all_clear_body">Heute ist nichts überfällig und keine Ausgabe oder Rückgabe fällig.</string>
+    <string name="rentals_unassigned_unit">Keine Einheit zugewiesen</string>
+    <string name="rentals_cancel_order_title">Diesen Auftrag stornieren?</string>
+    <string name="rentals_cancel_order_confirm">Auftrag stornieren</string>
+    <string name="rentals_no_show_title">Diesen Auftrag als Nichterscheinen markieren?</string>
+    <string name="rentals_no_show_confirm">Nichterscheinen markieren</string>
+    <string name="rentals_keep_order">Auftrag behalten</string>
+    <string name="rentals_call">Anrufen</string>
+    <string name="rentals_send_email">E-Mail senden</string>
+    <string name="rentals_stop_renting_title">%1$s nicht mehr vermieten?</string>
+    <string name="rentals_stop_renting_body">Die Einheit kann dann nicht mehr gebucht werden. Bestehende Aufträge und der Verlauf bleiben erhalten.</string>
+    <string name="rentals_add_photo">Foto hinzufügen</string>
+    <string name="rentals_condition_photos">Zustandsfotos</string>
+    <string name="rentals_condition_photos_hint">Starten Sie die Inspektion, um Zustandsfotos hinzuzufügen.</string>
+</resources>
