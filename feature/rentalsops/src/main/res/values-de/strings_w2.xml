@@ -35,4 +35,10 @@
     <string name="rentalops_event_payment_dispute">Kartenrückbuchungen</string>
     <string name="rentalops_event_autopay_failed">Fehlgeschlagene automatische Zahlungen</string>
     <string name="rentalops_event_deposit_auth_expiring">Ablaufende Kautionsreservierungen</string>
+    <!-- Zentraler Marktplatz (Vermieterseite). -->
+    <string name="rentalops_channel_meetup">Treffanfragen aus dem Marktplatz</string>
+    <string name="rentalops_channel_meetup_desc">Mieter, die ein Treffen anfragen, absagen oder Ihren Terminvorschlag annehmen</string>
+    <string name="rental_marketplace_meetup_title">Treffanfrage aus dem Marktplatz</string>
+    <string name="rentalops_event_marketplace_meetup">Marktplatz-Treffen</string>
+    <string name="rentalops_event_marketplace_meetup_desc">Ein Mieter aus dem Marktplatz hat ein Treffen angefragt oder abgesagt</string>
 </resources>

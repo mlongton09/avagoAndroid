@@ -67,6 +67,7 @@ class RentalOpsNotifier @Inject constructor(
         RentalPushRouter.Category.CREDIT -> R.string.rentalops_channel_credit to R.string.rentalops_channel_credit_desc
         RentalPushRouter.Category.COLLECTIONS -> R.string.rentalops_channel_collections to R.string.rentalops_channel_collections_desc
         RentalPushRouter.Category.SUBRENTAL_DUE -> R.string.rentalops_channel_subrental to R.string.rentalops_channel_subrental_desc
+        RentalPushRouter.Category.MEETUP_REQUEST -> R.string.rentalops_channel_meetup to R.string.rentalops_channel_meetup_desc
     }
     /** [route] null = just open the app (e.g. a push for another account). */
     fun post(channel: String, key: String, title: String, text: String, route: String?) {
@@ -129,6 +130,8 @@ class RentalOpsNotifier @Inject constructor(
             RentalPushRouter.Category.DELIVERY,
             RentalPushRouter.Category.PICKUP,
             RentalPushRouter.Category.TRANSFER,
+            // A renter is waiting for an answer; requests expire.
+            RentalPushRouter.Category.MEETUP_REQUEST,
         )
         private val HIGH_CHANNELS = HIGH.map { it.channelId }.toSet()
     }

@@ -35,4 +35,10 @@
     <string name="rentalops_event_payment_dispute">Card disputes</string>
     <string name="rentalops_event_autopay_failed">Automatic payments failed</string>
     <string name="rentalops_event_deposit_auth_expiring">Deposit holds expiring</string>
+    <!-- Central marketplace (owner side). -->
+    <string name="rentalops_channel_meetup">Marketplace meet-up requests</string>
+    <string name="rentalops_channel_meetup_desc">Renters asking to meet, cancelling or accepting your suggested time</string>
+    <string name="rental_marketplace_meetup_title">Marketplace meet-up request</string>
+    <string name="rentalops_event_marketplace_meetup">Marketplace meet-ups</string>
+    <string name="rentalops_event_marketplace_meetup_desc">A marketplace renter asked to meet or cancelled a meet-up</string>
 </resources>

@@ -77,9 +77,9 @@ class RentalPushRouterTest {
         val events = listOf("booking_request", "off_rent_requested", "overdue", "cycle_invoiced")
         val tasks = listOf("assigned", "completed", "failed").flatMap { a -> listOf("delivery", "pickup", "transfer").map { "task_${a}_$it" } }
         // Wave 2 (G2/G3): titles only; the body is the server's text (customer / document detail).
-        val wave2 = listOf("doc_expiring", "credit_application", "dunning_hold", "subrental_return_due").map { "rental_${it}_title" }
+        val wave2 = listOf("doc_expiring", "credit_application", "dunning_hold", "subrental_return_due", "marketplace_meetup").map { "rental_${it}_title" }
         val expected = (events + tasks).flatMap { listOf("rental_${it}_title", "rental_${it}_body") }.toSet() + wave2
-        assertEquals(30, expected.size)
+        assertEquals(31, expected.size)
         assertEquals(expected, PushText.KEYS)
         val cycle = PushText.resolve(spec(title = "rental_cycle_invoiced_title", body = "rental_cycle_invoiced_body"))
         assertFalse(cycle.bodyTakesNumber)
@@ -138,5 +138,40 @@ class RentalPushRouterTest {
         assertTrue(RentalOpsRoutes.isSafe(RentalOpsRoutes.p1Customer("c-1")))
         assertFalse(RentalOpsRoutes.isSafe("rentals/customer/../x"))
         assertFalse(RentalOpsRoutes.isSafe("rentals/customers/c-1"))
+    }
+
+    @Test
+    fun `marketplace meet-up push opens the owner request, else the inbox`() {
+        val id = "0b4a1d2e-aaaa-4bbb-8ccc-123456789abc"
+        val full = RentalPushRouter.route(
+            mapOf("type" to "rental.marketplace_meetup", "meetup_id" to id, "category" to "RENTAL_MEETUP_REQUEST", "account_id" to "a-1"),
+        )!!
+        assertEquals(RentalPushRouter.Category.MEETUP_REQUEST, full.category)
+        assertEquals("rental_meetup_request", full.category.channelId)
+        assertEquals("rentals/mkt/owner/meetup/$id", full.route)
+        assertTrue(RentalOpsRoutes.isSafe(full.route))
+        assertEquals("rental:rental.marketplace_meetup:$id", full.notificationKey)
+        // In-app row payload (entity_type/entity_id) without the category: same route via fallback.
+        val legacy = RentalPushRouter.route(
+            mapOf("type" to "rental.marketplace_meetup", "entity_type" to "rental_meetup", "entity_id" to "m-2"),
+        )!!
+        assertEquals(RentalPushRouter.Category.MEETUP_REQUEST, legacy.category)
+        assertEquals("rentals/mkt/owner/meetup/m-2", legacy.route)
+        // Missing or unsafe id: the inbox, never the raw id.
+        assertEquals(RentalOpsRoutes.MKT_MEETUPS, RentalPushRouter.route(mapOf("type" to "rental.marketplace_meetup"))!!.route)
+        assertEquals(RentalOpsRoutes.MKT_MEETUPS, RentalPushRouter.route(mapOf("type" to "rental.marketplace_meetup", "meetup_id" to "../x"))!!.route)
+        assertTrue(RentalOpsRoutes.isSafe(RentalOpsRoutes.MKT_MEETUPS))
+        assertTrue("rental.marketplace_meetup" in RentalPushRouter.EVENTS)
+        assertTrue(PushText.resolve(full.copy(titleLocKey = "rental_marketplace_meetup_title")).titleRes != null)
+    }
+
+    @Test
+    fun `marketplace deep link guard rejects other marketplace shapes`() {
+        assertFalse(RentalOpsRoutes.isSafe("rentals/mkt/owner/meetup/../../x"))
+        assertFalse(RentalOpsRoutes.isSafe("rentals/mkt/owner/meetup/a?x=1"))
+        assertFalse(RentalOpsRoutes.isSafe("rentals/mkt/owner/settings"))
+        assertFalse(RentalOpsRoutes.isSafe("rentals/mkt/owner/blocks"))
+        assertFalse(RentalOpsRoutes.isSafe("rentals/mkt/renter/meetup/m-1"))
+        assertFalse(RentalOpsRoutes.isSafe("rentals/x/owner/meetups"))
     }
 }

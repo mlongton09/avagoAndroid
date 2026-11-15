@@ -35,6 +35,8 @@ object RentalPushRouter {
         COLLECTIONS("RENTAL_COLLECTIONS", "rental_collections"),
         /** Wave 2 G3: a sub-rented unit is due back to its supplier. */
         SUBRENTAL_DUE("RENTAL_SUBRENTAL_DUE", "rental_subrental_due"),
+        /** Central marketplace: a renter asked to meet (or cancelled / accepted a counter). */
+        MEETUP_REQUEST("RENTAL_MEETUP_REQUEST", "rental_meetup_request"),
         ;
 
         companion object {
@@ -56,6 +58,8 @@ object RentalPushRouter {
         "rental.credit_application",
         "rental.dunning_hold",
         "rental.subrental_return_due",
+        // Central marketplace (rentals-api-marketplace.md §8).
+        "rental.marketplace_meetup",
     )
 
     data class Spec(
@@ -97,17 +101,22 @@ object RentalPushRouter {
         val taskId = value(data, "task_id") ?: value(data, "entity_id").takeIf { value(data, "entity_type") == "rental_delivery_task" }
         val orderId = value(data, "order_id")
         val customerId = value(data, "customer_id")
+        val meetupId = value(data, "meetup_id") ?: value(data, "entity_id").takeIf { value(data, "entity_type") == "rental_meetup" }
         val category = Category.fromWire(value(data, "category")) ?: fallbackCategory(event, kind) ?: return null
         val route = when {
             event.startsWith("rental.task_") && taskId != null -> RentalOpsRoutes.task(taskId)
             event.startsWith("rental.task_") -> RentalOpsRoutes.TASKS
+            // Marketplace meet-up: the owner's request detail, else the meet-up inbox.
+            event == "rental.marketplace_meetup" && meetupId != null && RentalOpsRoutes.SAFE_ID.matches(meetupId) ->
+                RentalOpsRoutes.mktMeetup(meetupId)
+            event == "rental.marketplace_meetup" -> RentalOpsRoutes.MKT_MEETUPS
             orderId != null && RentalOpsRoutes.SAFE_ID.matches(orderId) -> RentalOpsRoutes.p1Order(orderId)
             // G2 credit / collections pushes are about a customer (document, application, hold).
             customerId != null && RentalOpsRoutes.SAFE_ID.matches(customerId) -> RentalOpsRoutes.p1Customer(customerId)
             event == "rental.cycle_invoiced" -> RentalOpsRoutes.AGING
             else -> RentalOpsRoutes.P1_HOME
         }
-        val subject = taskId ?: orderId ?: value(data, "entity_id") ?: customerId ?: event
+        val subject = taskId ?: meetupId ?: orderId ?: value(data, "entity_id") ?: customerId ?: event
         return Spec(
             event = event,
             category = category,
@@ -138,6 +147,7 @@ object RentalPushRouter {
         event == "rental.doc_expiring" || event == "rental.credit_application" -> Category.CREDIT
         event == "rental.dunning_hold" -> Category.COLLECTIONS
         event == "rental.subrental_return_due" -> Category.SUBRENTAL_DUE
+        event == "rental.marketplace_meetup" -> Category.MEETUP_REQUEST
         // G6 payment events carry no server category; they belong with invoices.
         event.startsWith("rental.payment_") || event == "rental.autopay_failed" || event == "rental.deposit_auth_expiring" -> Category.INVOICE
         else -> null
@@ -168,6 +178,13 @@ object RentalOpsRoutes {
     fun p1Order(orderId: String) = "rentals/order/$orderId"
     fun p1Customer(customerId: String) = "rentals/customer/$customerId"
 
+    /**
+     * Marketplace owner routes (feature:rentals `MarketplaceRoutes.OWNER_MEETUPS` /
+     * `MarketplaceRoutes.ownerMeetup()`), literals for the same reason.
+     */
+    const val MKT_MEETUPS = "rentals/mkt/owner/meetups"
+    fun mktMeetup(meetupId: String) = "rentals/mkt/owner/meetup/$meetupId"
+
     /** Intent extra MainActivity forwards to navigation (only [isSafe] routes are accepted). */
     const val EXTRA_ROUTE = "com.avago.extra.RENTALOPS_ROUTE"
 
@@ -177,8 +194,9 @@ object RentalOpsRoutes {
     fun assignLine(id: String) = "rentalops/assign/$id"
 
     /**
-     * Guards deep links: this module's static routes, `task/{id}` / `assign/{id}`, and P1's
-     * `rentals/home` / `rentals/order/{id}`, each with a safe id.
+     * Guards deep links: this module's static routes, `task/{id}` / `assign/{id}`, P1's
+     * `rentals/home` / `rentals/order/{id}` / `rentals/customer/{id}`, and the marketplace
+     * owner inbox `rentals/mkt/owner/meetups` / `rentals/mkt/owner/meetup/{id}`, each with a safe id.
      */
     fun isSafe(route: String?): Boolean {
         if (route == null || route.length > 200) return false
@@ -187,6 +205,8 @@ object RentalOpsRoutes {
             return when (parts.size) {
                 1 -> parts[0] == "home"
                 2 -> parts[0] in setOf("order", "customer") && SAFE_ID.matches(parts[1])
+                3 -> route == MKT_MEETUPS
+                4 -> parts[0] == "mkt" && parts[1] == "owner" && parts[2] == "meetup" && SAFE_ID.matches(parts[3])
                 else -> false
             }
         }

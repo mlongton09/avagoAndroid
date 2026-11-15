@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.EventAvailable
+import androidx.compose.material.icons.filled.Handshake
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.PhoneAndroid
@@ -224,6 +225,7 @@ private fun eventIcon(e: String): ImageVector = when (e) {
     "rental.doc_expiring", "rental.credit_application" -> Icons.Filled.Badge
     "rental.dunning_hold" -> Icons.Filled.Block
     "rental.subrental_return_due" -> Icons.Filled.Schedule
+    "rental.marketplace_meetup" -> Icons.Filled.Handshake
     else -> Icons.Filled.Notifications
 }
 
@@ -251,6 +253,7 @@ private fun eventTitle(e: String): Int? = when (e) {
     "rental.payment_dispute" -> R.string.rentalops_event_payment_dispute
     "rental.autopay_failed" -> R.string.rentalops_event_autopay_failed
     "rental.deposit_auth_expiring" -> R.string.rentalops_event_deposit_auth_expiring
+    "rental.marketplace_meetup" -> R.string.rentalops_event_marketplace_meetup
     else -> null
 }
 
@@ -266,5 +269,6 @@ private fun eventDesc(e: String): Int? = when (e) {
     "rental.credit_application" -> R.string.rentalops_event_credit_application_desc
     "rental.dunning_hold" -> R.string.rentalops_event_dunning_hold_desc
     "rental.subrental_return_due" -> R.string.rentalops_event_subrental_return_due_desc
+    "rental.marketplace_meetup" -> R.string.rentalops_event_marketplace_meetup_desc
     else -> null
 }
