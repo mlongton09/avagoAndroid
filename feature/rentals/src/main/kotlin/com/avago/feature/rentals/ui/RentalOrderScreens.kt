@@ -531,6 +531,7 @@ fun RentalOrderScreen(
                 PostChargesSection(
                     orderId = o.id.takeIf { !o.isDraft },
                     orderStatus = o.status,
+                    currency = o.currency,
                     zone = zone,
                     onMessage = { msg -> scope.launch { snackbar.showSnackbar(msg) } },
                 )
