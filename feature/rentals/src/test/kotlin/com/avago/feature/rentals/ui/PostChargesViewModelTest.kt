@@ -129,7 +129,7 @@ class PostChargesViewModelTest {
     fun `a timed-out charge re-syncs the list without a second error`() = runTest {
         val fake = Fake(ok()).apply { chargeResult = ApiResult.Err(ApiError(0, null, "timeout")) }
         val vm = PostChargesViewModel(fake)
-        vm.bind("o1", "returned")
+        vm.bind("o1", "returned", "USD")
         assertEquals(1, fake.listCalls)
         val charged = PostChargeList.from(json("""{"items":[{"id":"p1","status":"charged","amount_minor":100,"currency":"USD"}]}"""))
         fake.listResult = ApiResult.Ok(charged)
