@@ -92,6 +92,7 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
@@ -423,13 +424,28 @@ fun RentalOrderScreen(
     onHandover: (orderId: String, direction: String) -> Unit,
     onOpenCustomer: (String) -> Unit,
     onSwap: ((orderId: String) -> Unit)? = null,
+    onSign: ((orderId: String) -> Unit)? = null,
+    onAddDocument: ((customerId: String) -> Unit)? = null,
     viewModel: RentalOrderViewModel = hiltViewModel(),
+    wave2: OrderWave2ViewModel = hiltViewModel(),
 ) {
     val order by viewModel.order.collectAsStateWithLifecycle()
     val lines by viewModel.lines.collectAsStateWithLifecycle()
     val ledger by viewModel.ledger.collectAsStateWithLifecycle()
     val invoices by viewModel.invoices.collectAsStateWithLifecycle()
     val handovers by viewModel.handovers.collectAsStateWithLifecycle()
+    val gate by wave2.gate.collectAsStateWithLifecycle()
+    val esign by wave2.esign.collectAsStateWithLifecycle()
+    val credit by wave2.credit.collectAsStateWithLifecycle()
+    val payments by wave2.payments.collectAsStateWithLifecycle()
+    val contracts by wave2.contracts.collectAsStateWithLifecycle()
+    val buyouts by wave2.buyouts.collectAsStateWithLifecycle()
+    val bulkLineIds by wave2.bulkLineIds.collectAsStateWithLifecycle()
+    val bulkReturns by wave2.bulkReturns.collectAsStateWithLifecycle()
+    val subrented by wave2.subrented.collectAsStateWithLifecycle()
+    val wave2Busy by wave2.busy.collectAsStateWithLifecycle()
+    var bulkReturn by remember { mutableStateOf<Pair<LineView, java.math.BigDecimal>?>(null) }
+    val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val haptics = rememberHaptics()
     var showPayment by remember { mutableStateOf(false) }
@@ -440,6 +456,30 @@ fun RentalOrderScreen(
         viewModel.messages.collect {
             haptics.error()
             snackbar.showSnackbar(it)
+        }
+    }
+    val w2Texts = mapOf(
+        OrderWave2ViewModel.Msg.FIX_INCOMPLETE to stringResource(R.string.rentals_gate_fix_incomplete),
+        OrderWave2ViewModel.Msg.OFFLINE to stringResource(R.string.rentals_online_offline),
+        OrderWave2ViewModel.Msg.LINK_SENT to stringResource(R.string.rentals_pay_link_sent),
+        OrderWave2ViewModel.Msg.BULK_QUEUED to stringResource(R.string.rentals_bulk_queued),
+        OrderWave2ViewModel.Msg.FAILED to stringResource(R.string.rentals_online_failed_generic),
+    )
+    val failedWith = stringResource(R.string.rentals_online_failed, "%s")
+    val shareTitle = stringResource(R.string.rentals_pay_share)
+    val pdfFailed = stringResource(R.string.rentals_sign_pdf_failed)
+    LaunchedEffect(Unit) {
+        wave2.events.collect { e ->
+            when (e) {
+                is OrderWave2ViewModel.Event.Message -> {
+                    val ok = e.msg == OrderWave2ViewModel.Msg.LINK_SENT || e.msg == OrderWave2ViewModel.Msg.BULK_QUEUED
+                    if (ok) haptics.success() else haptics.error()
+                    val text = if (e.msg == OrderWave2ViewModel.Msg.FAILED && !e.detail.isNullOrBlank()) failedWith.replace("%s", e.detail) else w2Texts.getValue(e.msg)
+                    snackbar.showSnackbar(text)
+                }
+                is OrderWave2ViewModel.Event.Share -> runCatching { sharePayLink(context, e.url, shareTitle) }
+                is OrderWave2ViewModel.Event.OpenPdf -> if (!openPdfFile(context, e.file)) snackbar.showSnackbar(pdfFailed)
+            }
         }
     }
     LaunchedEffect(Unit) {
@@ -496,35 +536,60 @@ fun RentalOrderScreen(
             contentPadding = PaddingValues(top = pad.calculateTopPadding(), bottom = pad.calculateBottomPadding() + AvagoSpacing.lg),
         ) {
             item(key = "summary", contentType = "summary") { OrderSummaryCard(o, zone, onOpenCustomer) }
+            gate?.let { g ->
+                item(key = "gate", contentType = "gate") {
+                    OrderGateCard(
+                        gate = g.gate,
+                        canOverride = wave2.can(g.gate.permission),
+                        busy = wave2Busy,
+                        onSign = onSign?.let { s -> { s(o.id) } },
+                        onAddDocument = o.customerId?.let { c -> onAddDocument?.let { a -> { a(c) } } },
+                        onFix = { reason, meter -> wave2.fixGate(g, reason, meter) },
+                        onRetry = { wave2.retryGate(g) },
+                        onDiscard = { wave2.discardGate(g) },
+                    )
+                }
+            }
+            if (!o.isDraft) {
+                item(key = "agreement", contentType = "section") {
+                    OrderAgreementCard(esign, onSign?.let { s -> { s(o.id) } })
+                }
+                item(key = "credit", contentType = "section") {
+                    OrderCreditCard(credit, o.customerId?.let { c -> onAddDocument?.let { a -> { a(c) } } })
+                }
+            }
             item(key = "lines", contentType = "section") {
-                SectionCard(title = stringResource(R.string.rentals_lines)) {
-                    if (lines.isEmpty()) CardNote(stringResource(R.string.rentals_handover_no_unit))
-                    lines.forEachIndexed { i, l ->
-                        if (i > 0) CardDivider(Modifier.padding(start = AvagoSpacing.listInset))
-                        val statusText = l.status?.let { lineStatusLabel(it) }?.let { stringResource(it) }
-                        ListItem(
-                            colors = cardListItemColors(),
-                            leadingContent = {
-                                UnitThumbnail(l.assetId, Icons.Default.Inventory2, if (l.status == "out") StatusTone.Accent else StatusTone.Neutral)
-                            },
-                            headlineContent = { Text(l.description ?: l.kind, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-                            supportingContent = {
-                                Text(
-                                    listOfNotNull(
-                                        statusText,
-                                        "${PricingQty(l.qty)} ×",
-                                        "${formatDateTime(l.startAt, zone)} → ${formatDateTime(l.endAt, zone)}",
-                                    ).joinToString(" · "),
-                                )
-                            },
-                            trailingContent = {
-                                Column(horizontalAlignment = Alignment.End) {
-                                    Text(formatMoney(l.amount), style = MaterialTheme.typography.bodyMedium)
-                                    SyncStateBadge(l.localState)
-                                }
-                            },
-                        )
-                    }
+                OrderLinesCard(
+                    lines = lines,
+                    zone = zone,
+                    subrented = subrented,
+                    bulkLineIds = bulkLineIds,
+                    bulkReturns = bulkReturns,
+                    onBulkReturn = if (o.isDraft) null else { l, out -> bulkReturn = l to out },
+                )
+            }
+            contracts.forEach { c ->
+                item(key = "contract_" + c.id, contentType = "section") {
+                    ContractCard(
+                        contract = c,
+                        buyout = buyouts[c.id],
+                        busy = wave2Busy,
+                        onLoadQuote = { wave2.loadBuyout(c.id) },
+                        onEquityStatement = { wave2.equityStatement(c.id) },
+                    )
+                }
+            }
+            payments?.let { pay ->
+                item(key = "pay_links", contentType = "section") {
+                    OnlinePaymentsCard(
+                        payments = pay,
+                        owes = (o.balance?.minor ?: 0) > 0 && !o.isDraft,
+                        busy = wave2Busy,
+                        zone = zone,
+                        onRequest = wave2::requestPayLink,
+                        onShare = { url -> runCatching { sharePayLink(context, url, shareTitle) } },
+                        onEmail = wave2::emailLink,
+                    )
                 }
             }
             // Payments and invoices only appear once they exist; adding them lives in the bar / overflow.
@@ -612,6 +677,12 @@ fun RentalOrderScreen(
     if (showExtend && o != null) {
         ExtendDialog(o.endAt ?: Instant.now(), zone, onDismiss = { showExtend = false }) { end ->
             viewModel.action("extend", endAt = end); showExtend = false
+        }
+    }
+    bulkReturn?.let { (line, out) ->
+        BulkReturnDialog(line, out, onDismiss = { bulkReturn = null }) { counts, notes ->
+            bulkReturn = null
+            wave2.bulkReturn(line, counts, notes)
         }
     }
     confirmAction?.let { a ->
@@ -730,7 +801,6 @@ internal fun MoneyStats(stats: List<Triple<String, String, StatusTone?>>) {
     }
 }
 
-private fun PricingQty(q: Double): String = if (q % 1.0 == 0.0) q.toLong().toString() else q.toString()
 
 /**
  * Sticky bottom bar with the single next step ([primaryOrderAction]) and, when a balance is

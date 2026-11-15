@@ -183,6 +183,8 @@ fun RentalsHomeScreen(
                 } else {
                     item(key = "kpis", contentType = "kpis") { HomeKpis(fleet, actions) }
                 }
+                // G4: 30-day KPIs for staff with rental.reports (hidden otherwise / while empty).
+                item(key = "kpi30", contentType = "kpi30") { RentalsKpiCard() }
                 item(key = "tasks", contentType = "tasks") { PrimaryTasks(actions) }
                 if (notices.isNotEmpty()) {
                     item(key = "notices", contentType = "header") { SectionHeader(stringResource(R.string.rentals_notices)) }

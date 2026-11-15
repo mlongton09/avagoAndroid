@@ -33,6 +33,10 @@ object RentalEntity {
     const val DOCUMENT = "rental_document"
     const val TERMS_TEMPLATE = "rental_terms_template"
     const val READINESS_CHECK = "rental_readiness_check"
+    // Wave 2 / G3 feeds (docs/rentals-api-wave2-kits-subrent-longterm.md).
+    const val BULK_RETURN = "rental_bulk_return"
+    const val SUBRENTAL = "rental_subrental"
+    const val CONTRACT = "rental_contract"
     const val META = "rental_meta"
     const val ID_MAP = "rental_id_map"
 
@@ -43,7 +47,12 @@ object RentalEntity {
         ORDER, ORDER_LINE, ALLOCATION, BULK_ALLOCATION, ASSET,
         // Stage B — skipped while the server answers 400 unknown_entity.
         TERMS_TEMPLATE, READINESS_CHECK, DOCUMENT, SIGNATURE, HANDOVER, PAYMENT_REQUEST, LEDGER, INVOICE,
+        // Wave 2 — skipped (404 / unknown_entity) on servers without G3.
+        BULK_RETURN, SUBRENTAL, CONTRACT,
     )
+
+    /** Wave 2 / G3 feeds (absent on older servers; skipped on 404 / unknown_entity). */
+    val WAVE2_FEEDS = setOf(BULK_RETURN, SUBRENTAL, CONTRACT)
 
     /** Feeds not served by stage A servers (all eight stage B feeds). */
     val STAGE_B_FEEDS = setOf(
@@ -150,7 +159,15 @@ data class LineView(
     /** Line status (open | out | returned | swapped | cancelled); null on old rows. */
     val status: String? = null,
     val localState: String = RentalRecordEntity.STATE_SYNCED,
+    /** G3: kit grouping (`kind: "kit"` is the header) and the part of bulk / accessory lines. */
+    val kitInstanceId: String? = null,
+    val partId: String? = null,
+    val rentalKind: String? = null,
+    /** G4: rule adjustments applied to the line price. */
+    val adjustments: List<PriceAdjustment> = emptyList(),
 ) {
+    val isKitHeader: Boolean get() = kind == "kit"
+
     companion object {
         fun of(r: RentalRecordEntity, currency: String): LineView {
             val o = r.obj
@@ -168,6 +185,10 @@ data class LineView(
                 tax = o.money("tax_minor", currency),
                 status = o.str("status"),
                 localState = r.localState,
+                kitInstanceId = o.str("kit_instance_id"),
+                partId = o.str("part_id"),
+                rentalKind = o.str("rental_kind") ?: o.str("part_rental_kind"),
+                adjustments = PriceAdjustment.of(o, currency),
             )
         }
     }

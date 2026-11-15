@@ -197,6 +197,10 @@ internal fun noticeText(notice: String?, conflict: Boolean): String = when {
                 .map { f -> conflictFieldLabel(f)?.let { stringResource(it) } ?: f.replace('_', ' ') }
                 .joinToString(),
         )
+    notice.startsWith(com.avago.feature.rentals.domain.HandoverGates.NOTICE_PREFIX) ->
+        com.avago.feature.rentals.domain.HandoverGates.parse(notice)?.let { gateText(it) } ?: notice
+    notice.startsWith(RentalOutbox.NOTICE_ESIGN_DROPPED_PREFIX) ->
+        stringResource(R.string.rentals_notice_esign_dropped, notice.removePrefix(RentalOutbox.NOTICE_ESIGN_DROPPED_PREFIX))
     else -> notice
 }
 

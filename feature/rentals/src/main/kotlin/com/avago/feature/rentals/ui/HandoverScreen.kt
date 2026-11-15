@@ -121,6 +121,14 @@ import com.avago.feature.log.ui.SignaturePad
 import com.avago.feature.log.ui.VehicleSketchLegend
 import com.avago.feature.log.ui.VehicleSketchView
 import com.avago.feature.rentals.data.RentalRepository
+import com.avago.feature.rentals.data.RentalsOnline
+import com.avago.feature.rentals.domain.CreditCheck
+import com.avago.feature.rentals.domain.Esign
+import com.avago.feature.rentals.domain.HandoverChecks
+import com.avago.feature.rentals.domain.HandoverGates
+import com.avago.feature.rentals.domain.MeterInfo
+import com.avago.core.permissions.PermissionsManager
+import kotlinx.coroutines.flow.distinctUntilChanged
 import com.avago.feature.rentals.domain.bool
 import com.avago.feature.rentals.domain.obj
 import com.avago.feature.rentals.domain.objs
@@ -184,6 +192,8 @@ class HandoverViewModel @Inject constructor(
     private val repo: RentalRepository,
     private val dbFactory: DatabaseFactory,
     private val identity: IdentityManager,
+    private val online: RentalsOnline,
+    permissions: PermissionsManager,
     savedState: SavedStateHandle,
 ) : ViewModel() {
     val orderId: String = requireNotNull(savedState["orderId"])
@@ -273,8 +283,86 @@ class HandoverViewModel @Inject constructor(
     val signature = MutableStateFlow<String?>(null)
     val signer = MutableStateFlow("")
 
+    // ── Wave 2: meter rules, e-signature and credit gates ───────────────────────────
+
+    val canOverrideMeter: Boolean = permissions.can(HandoverGates.PERMISSION_METER_OVERRIDE)
+    val canOverrideSignature: Boolean = permissions.can(Esign.PERMISSION_OVERRIDE)
+    val canOverrideCredit: Boolean = permissions.can(HandoverGates.PERMISSION_CREDIT_OVERRIDE)
+    val meterOverrideReason = MutableStateFlow("")
+    val meterPhotoPath = MutableStateFlow<String?>(null)
+    val overrideSignature = MutableStateFlow(false)
+    val creditOverrideReason = MutableStateFlow("")
+
+    /** Meter of the selected unit (last cached answer; refreshed when the unit changes). */
+    val meterInfo: StateFlow<MeterInfo?> = unit.flatMapLatest { u ->
+        if (u == null) flowOf(null) else online.observe(online.meterKey(u.assetId)).map { MeterInfo.parse(it?.data) }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    private val esignCached = online.observe(online.signaturesKey(orderId))
+    /** Signature status with queued in-person captures counted as signed; null when unknown. */
+    val esign: StateFlow<Esign.Status?> = combine(esignCached, repo.pendingSignatureCaptures()) { c, pending ->
+        c?.let { Esign.parse(it.data) }?.let { Esign.withLocalCaptures(it, pending) }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    private val esignFresh = esignCached.map { HandoverChecks.fresh(it?.at, System.currentTimeMillis()) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    private val creditCached = online.observe(online.creditKey(orderId))
+    val credit: StateFlow<CreditCheck?> = creditCached.map { CreditCheck.parse(it?.data) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    private val creditFresh = creditCached.map { HandoverChecks.fresh(it?.at, System.currentTimeMillis()) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    /** True after a failed / offline credit refresh (the screen says the status is unknown). */
+    val creditUnknown = MutableStateFlow(false)
+
+    private val checksInput: StateFlow<HandoverChecks.Input> = combine(
+        combine(meterInfo, meter, meterOverrideReason) { m, t, r -> Triple(m, t, r) },
+        combine(esign, esignFresh, overrideSignature) { e, f, o -> e.takeIf { f } to o },
+        combine(credit, creditFresh, creditOverrideReason) { c, f, r -> c.takeIf { f } to r },
+    ) { (m, t, r), (e, o), (c, cr) ->
+        HandoverChecks.Input(direction, m, t, r, canOverrideMeter, e, o, c, cr, canOverrideCredit)
+    }.stateIn(
+        viewModelScope, SharingStarted.Eagerly,
+        HandoverChecks.Input(direction, null, "", "", canOverrideMeter, null, false, null, "", canOverrideCredit),
+    )
+
+    val blockers: StateFlow<List<HandoverChecks.Blocker>> = checksInput.map(HandoverChecks::blockers)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** Check-out below the last reading (meter replaced?) — a warning, not a block. */
+    val meterBelowPrevious: StateFlow<Boolean> = checksInput.map {
+        it.meter?.check(it.meterText, direction) == MeterInfo.Check.BELOW_PREVIOUS
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    init {
+        viewModelScope.launch {
+            unit.map { it?.assetId }.distinctUntilChanged().collect { id ->
+                id ?: return@collect
+                meterPhotoPath.value = null
+                (online.refreshMeter(id) as? RentalsOnline.Result.Ok)?.value?.let(MeterInfo::parse)?.let { m ->
+                    // The unit's meter decides the kind (distance meters count km / mi).
+                    when (m.kind) {
+                        "hours" -> meterKind.value = "hours"
+                        "distance", "odometer" -> meterKind.value = "distance"
+                    }
+                }
+            }
+        }
+        if (direction == "out") refreshGates()
+    }
+
+    /** Refreshes the signature status and the credit check (check-out only). */
+    fun refreshGates() = viewModelScope.launch {
+        online.refreshSignatures(orderId)
+        val lineIds = units.value.mapNotNull { it.lineId }
+        creditUnknown.value = online.refreshCreditCheck(orderId, lineIds) !is RentalsOnline.Result.Ok
+    }
+
     /** Currency of the order (damage charges are in the order currency). */
     val currency: StateFlow<String?> = repo.record(RentalEntity.ORDER, orderId).map { it?.obj?.str("currency")?.trim()?.takeIf { c -> c.length == 3 } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /** The order's customer (missing documents are added on the customer). */
+    val customerId: StateFlow<String?> = repo.record(RentalEntity.ORDER, orderId).map { it?.customerId ?: it?.obj?.str("customer_id") }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     /** New check-in damage still without a charge or a waive reason (save is blocked). */
@@ -345,6 +433,12 @@ class HandoverViewModel @Inject constructor(
                     signerName = signer.value.takeIf { it.isNotBlank() } ?: defaultSigner,
                     occurredAt = Instant.now(),
                     zoneId = ZoneId.systemDefault().id,
+                    meterOverrideReason = meterOverrideReason.value.takeIf { HandoverChecks.meterOverrideNeeded(checksInput.value) },
+                    meterPhotoPath = meterPhotoPath.value,
+                    overrideSignature = direction == "out" && overrideSignature.value,
+                    creditOverrideReason = creditOverrideReason.value.takeIf {
+                        direction == "out" && credit.value?.allowed == false && canOverrideCredit
+                    },
                 ),
             )
             _done.emit(id)
@@ -371,6 +465,10 @@ fun HandoverScreen(
     onStartInspection: (assetId: String) -> Unit,
     /** After a check-in: open the unit's readiness checklist instead of just going back. */
     onCheckedIn: ((assetId: String) -> Unit)? = null,
+    /** Wave 2: capture the agreement signature in person (signing screen). */
+    onSign: ((orderId: String) -> Unit)? = null,
+    /** Wave 2 / G2: add a missing / expired customer document (photo capture). */
+    onAddDocument: ((customerId: String) -> Unit)? = null,
     viewModel: HandoverViewModel = hiltViewModel(),
 ) {
     val units by viewModel.units.collectAsStateWithLifecycle()
@@ -389,6 +487,17 @@ fun HandoverScreen(
     val currency by viewModel.currency.collectAsStateWithLifecycle()
     val undecided by viewModel.undecided.collectAsStateWithLifecycle()
     val photos by viewModel.photos.collectAsStateWithLifecycle()
+    val meterInfo by viewModel.meterInfo.collectAsStateWithLifecycle()
+    val meterReason by viewModel.meterOverrideReason.collectAsStateWithLifecycle()
+    val meterPhoto by viewModel.meterPhotoPath.collectAsStateWithLifecycle()
+    val belowPrevious by viewModel.meterBelowPrevious.collectAsStateWithLifecycle()
+    val esign by viewModel.esign.collectAsStateWithLifecycle()
+    val overrideSignature by viewModel.overrideSignature.collectAsStateWithLifecycle()
+    val credit by viewModel.credit.collectAsStateWithLifecycle()
+    val creditUnknown by viewModel.creditUnknown.collectAsStateWithLifecycle()
+    val creditReason by viewModel.creditOverrideReason.collectAsStateWithLifecycle()
+    val blockers by viewModel.blockers.collectAsStateWithLifecycle()
+    val customerId by viewModel.customerId.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val cameraDenied = stringResource(R.string.rentals_readiness_camera_denied)
@@ -436,6 +545,35 @@ fun HandoverScreen(
         } else {
             permissionFor = forLog
             requestCamera.launch(Manifest.permission.CAMERA)
+        }
+    }
+    // Wave 2 meter photo (its own file; uploaded by the outbox as `meter_photo_file_id`).
+    var meterCapturePath by rememberSaveable { mutableStateOf<String?>(null) }
+    val takeMeterPicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        val file = meterCapturePath?.let(::File)
+        meterCapturePath = null
+        if (ok && file != null && file.length() > 0) {
+            haptics.tick()
+            viewModel.meterPhotoPath.value?.let { File(it).delete() }
+            viewModel.meterPhotoPath.value = file.absolutePath
+        } else {
+            file?.delete()
+        }
+    }
+    fun launchMeterCamera() {
+        val dir = File(context.filesDir, "rental_photos").apply { mkdirs() }
+        val file = File(dir, "meter_${UUID.randomUUID()}.jpg")
+        meterCapturePath = file.absolutePath
+        takeMeterPicture.launch(FileProvider.getUriForFile(context, "${context.packageName}.provider", file))
+    }
+    val requestMeterCamera = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) launchMeterCamera() else scope.launch { snackbar.showSnackbar(cameraDenied) }
+    }
+    fun takeMeterPhoto() {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            launchMeterCamera()
+        } else {
+            requestMeterCamera.launch(Manifest.permission.CAMERA)
         }
     }
     LaunchedEffect(Unit) {
@@ -488,7 +626,7 @@ fun HandoverScreen(
                             saving = true
                             viewModel.save(defaultSigner)
                         },
-                        enabled = unit != null && undecided == 0 && !saving,
+                        enabled = unit != null && undecided == 0 && blockers.isEmpty() && !saving,
                         modifier = Modifier.weight(1f).heightIn(min = MinTouch),
                     ) {
                         if (saving) {
@@ -638,11 +776,14 @@ fun HandoverScreen(
                             OutlinedTextField(
                                 meter, { viewModel.meter.value = it },
                                 label = { Text(stringResource(if (meterKind == "hours") R.string.rentals_meter_hours else R.string.rentals_meter_distance)) },
+                                suffix = meterInfo?.takeIf { it.hasMeter }?.let { m -> { Text(meterUnitLabel(m.unit)) } },
+                                isError = blockers.any { blockerStep(it) == 2 },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth(),
                             )
-                            ChipRow(Modifier.padding(top = 8.dp)) {
+                            // The unit's meter fixes the kind; the chips stay for units without meter rules.
+                            if (meterInfo?.hasMeter != true) ChipRow(Modifier.padding(top = 8.dp)) {
                                 FilterChip(
                                     meterKind == "hours", { viewModel.meterKind.value = "hours" },
                                     { Text(stringResource(R.string.rentals_meter_hours)) }, Modifier.heightIn(min = MinTouch),
@@ -652,6 +793,21 @@ fun HandoverScreen(
                                     { Text(stringResource(R.string.rentals_meter_distance)) }, Modifier.heightIn(min = MinTouch),
                                 )
                             }
+                            MeterRules(
+                                info = meterInfo,
+                                check = meterInfo?.takeIf { it.hasMeter }?.check(meter, viewModel.direction)
+                                    ?: if (blockers.contains(HandoverChecks.Blocker.METER_INVALID)) MeterInfo.Check.INVALID else null,
+                                belowPrevious = belowPrevious,
+                                canOverride = viewModel.canOverrideMeter,
+                                reason = meterReason,
+                                onReason = { viewModel.meterOverrideReason.value = it },
+                                photoPath = meterPhoto,
+                                onTakePhoto = { takeMeterPhoto() },
+                                onRemovePhoto = {
+                                    meterPhoto?.let { File(it).delete() }
+                                    viewModel.meterPhotoPath.value = null
+                                },
+                            )
                         }
                         SectionCard(title = stringResource(R.string.rentals_meter_fuel), contentPadding = true) {
                             val fuelText = fuel?.let { "$it %" } ?: stringResource(R.string.rentals_not_recorded)
@@ -718,6 +874,30 @@ fun HandoverScreen(
                                 )
                                 if (notes.isNotBlank()) LabelValue(stringResource(R.string.rentals_notes), notes)
                             }
+                        }
+                        if (out) {
+                            CheckoutGates(
+                                esign = esign,
+                                canOverrideSignature = viewModel.canOverrideSignature,
+                                overrideSignature = overrideSignature,
+                                onOverrideSignature = { viewModel.overrideSignature.value = it },
+                                onSignNow = onSign?.let { f -> { f(viewModel.orderId) } },
+                                credit = credit,
+                                creditUnknown = creditUnknown,
+                                canOverrideCredit = viewModel.canOverrideCredit,
+                                creditReason = creditReason,
+                                onCreditReason = { viewModel.creditOverrideReason.value = it },
+                                onAddDocument = customerId?.let { c -> onAddDocument?.let { f -> { f(c) } } },
+                            )
+                        }
+                        blockers.firstOrNull()?.let { b ->
+                            ErrorBanner(
+                                blockerText(b),
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                onRetry = if (blockerStep(b) != step) ({ step = blockerStep(b) }) else null,
+                                retryLabel = stringResource(R.string.rentals_meter),
+                                tone = StatusTone.Danger,
+                            )
                         }
                         if (undecided > 0) {
                             ErrorBanner(

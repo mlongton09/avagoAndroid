@@ -159,6 +159,17 @@ internal object RentalRequests {
         input.notes?.takeIf { it.isNotBlank() }?.let { put("notes", it.trim()) }
         signatureId?.let { put("customer_signature_id", it) }
         put("damage", JsonArray(input.marks.map { damage(input.direction, it) }))
+        // Wave 2 gates approved up front on the hand-over screen (all approvals travel together).
+        if (input.overrideSignature) put("override_signature", true)
+        input.meterOverrideReason?.trim()?.takeIf { it.isNotEmpty() }?.let {
+            put("meter_override", true)
+            put("meter_override_reason", it)
+        }
+        input.creditOverrideReason?.trim()?.takeIf { it.isNotEmpty() }?.let {
+            put("override_credit", true)
+            put("override_docs", true)
+            put("override_reason", it)
+        }
     }
 
     /** One `DamageIn`; `location` carries the inspection v2 sketch zone key. */

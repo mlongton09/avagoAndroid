@@ -319,6 +319,121 @@ class RentalsApi @Inject constructor(
         }.bodyAsBytes()
     }
 
+    // ---- Wave 2 / G1: e-signature, scan, meter (docs/rentals-api-wave2-esign-scan-meter.md) ----
+
+    /**
+     * GET /orders/{o}/signature-requests → `{items:[request{…, signers[]}], agreement_id,
+     * agreement_signed, signed_document_id, require_signed_agreement_before_checkout}`.
+     */
+    suspend fun signatureRequests(accountId: String, orderId: String): JsonObject = call {
+        client.get(r(accountId, "/orders/$orderId/signature-requests")).body()
+    }
+
+    /** POST /orders/{o}/signature-requests (in-person create) → 201 `{data, links}`. */
+    suspend fun createSignatureRequest(accountId: String, orderId: String, body: JsonObject, idempotencyKey: String): JsonObject = call {
+        client.post(r(accountId, "/orders/$orderId/signature-requests")) { json(body); idem(idempotencyKey) }.body()
+    }
+
+    /** GET /signature-requests/{id}/pdf — the pinned document (hash-checked by the server). */
+    suspend fun signatureRequestPdf(accountId: String, requestId: String): ByteArray = call {
+        client.get(r(accountId, "/signature-requests/$requestId/pdf")) {
+            header(HttpHeaders.Accept, ContentType.Application.Pdf.toString())
+        }.bodyAsBytes()
+    }
+
+    /**
+     * POST /signature-requests/{id}/sign — `{client_uuid, signer_id, image_png_base64 | typed_name,
+     * consent:true, consent_text_version, signed_at, device_id}`; a replay answers 200 `replayed`.
+     */
+    suspend fun signSignatureRequest(accountId: String, requestId: String, body: JsonObject, idempotencyKey: String): JsonObject = call {
+        client.post(r(accountId, "/signature-requests/$requestId/sign")) { json(body); idem(idempotencyKey) }.body()
+    }
+
+    /** GET /scan/resolve?code&order_id → `{code, type: asset|part, matched_by, asset?, part?, order_lines[]}` (404 `scan_not_found`). */
+    suspend fun scanResolve(accountId: String, code: String, orderId: String? = null): JsonObject = call {
+        client.get(r(accountId, "/scan/resolve")) {
+            parameter("code", code)
+            orderId?.let { parameter("order_id", it) }
+        }.body()
+    }
+
+    /** GET /assets/{id}/meter-readings → `{items, next_before, meter:{kind, requirement, unit, max_per_day}}`. */
+    suspend fun meterReadings(accountId: String, assetId: String, limit: Int = 5): JsonObject = call {
+        client.get(r(accountId, "/assets/$assetId/meter-readings")) { parameter("limit", limit) }.body()
+    }
+
+    // ---- Wave 2 / G3: bulk returns, contracts (docs/rentals-api-wave2-kits-subrent-longterm.md) ----
+
+    /**
+     * POST /orders/{o}/lines/{l}/bulk-return — `{returned, damaged, lost, damage_charge_minor, notes,
+     * at, location_id, client_uuid}` → `{order, return, warnings}` (idempotent by client_uuid).
+     */
+    suspend fun bulkReturn(accountId: String, orderId: String, lineId: String, body: JsonObject, idempotencyKey: String): JsonObject = call {
+        client.post(r(accountId, "/orders/$orderId/lines/$lineId/bulk-return")) { json(body); idem(idempotencyKey) }.body()
+    }
+
+    /** GET /contracts/{id}/buyout-quote → `{quote_minor, equity_minor, paid_rent_minor, …, payments[]}`. */
+    suspend fun buyoutQuote(accountId: String, contractId: String): JsonObject = call {
+        client.get(r(accountId, "/contracts/$contractId/buyout-quote")).body()
+    }
+
+    /** GET /contracts/{id}/equity-statement?format=pdf. */
+    suspend fun equityStatementPdf(accountId: String, contractId: String): ByteArray = call {
+        client.get(r(accountId, "/contracts/$contractId/equity-statement")) {
+            parameter("format", "pdf")
+            header(HttpHeaders.Accept, ContentType.Application.Pdf.toString())
+        }.bodyAsBytes()
+    }
+
+    // ---- Wave 2 / G4: KPI summary (docs/rentals-api-wave2-pricing-reports.md) ----------
+
+    /** GET /analytics/kpi-summary?days (rental.reports). */
+    suspend fun kpiSummary(accountId: String, days: Int = 30): JsonObject = call {
+        client.get(r(accountId, "/analytics/kpi-summary")) { parameter("days", days) }.body()
+    }
+
+    // ---- Wave 2 / G6: online payments (docs/rentals-api-wave2-stripe.md) ---------------
+
+    /** GET /payments/status → `{online_payments_enabled, provider, reason, …}`. */
+    suspend fun paymentsStatus(accountId: String): JsonObject = call {
+        client.get(r(accountId, "/payments/status")).body()
+    }
+
+    /** GET /orders/{o}/payments → `{online_payments_enabled, payment_requests[], can{charge, refund, request}, …}`. */
+    suspend fun orderPayments(accountId: String, orderId: String): JsonObject = call {
+        client.get(r(accountId, "/orders/$orderId/payments")).body()
+    }
+
+    /** POST /payment-requests — `{order_id, amount_minor, currency, purpose, client_uuid, …}`; online accounts get a hosted `pay_url`. */
+    suspend fun createPaymentRequest(accountId: String, body: JsonObject, idempotencyKey: String): JsonObject = call {
+        client.post(r(accountId, "/payment-requests")) { json(body); idem(idempotencyKey) }.body()
+    }
+
+    /** POST /payment-requests/{id}/send — `{to?}` emails the pay link. */
+    suspend fun sendPaymentRequest(accountId: String, requestId: String, to: String?): JsonObject = call {
+        client.post(r(accountId, "/payment-requests/$requestId/send")) {
+            json(JsonObject(if (to.isNullOrBlank()) emptyMap() else mapOf("to" to kotlinx.serialization.json.JsonPrimitive(to))))
+        }.body()
+    }
+
+    // ---- Wave 2 / G2: credit & documents (docs/rentals-api-wave2-credit-collections-bank.md) ----
+
+    /** GET /orders/{o}/credit-check?stage=checkout&line_ids → dry run of the credit / documents gate. */
+    suspend fun creditCheck(accountId: String, orderId: String, stage: String, lineIds: List<String>): JsonObject = call {
+        client.get(r(accountId, "/orders/$orderId/credit-check")) {
+            parameter("stage", stage)
+            if (lineIds.isNotEmpty()) parameter("line_ids", lineIds.joinToString(","))
+        }.body()
+    }
+
+    /**
+     * POST /customers/{c}/document-uploads `{client_uuid, filename, content_type}` →
+     * `{file_upload_id, upload_url (null when already uploaded), storage_key, replayed}`.
+     */
+    suspend fun customerDocumentUpload(accountId: String, customerId: String, body: JsonObject, idempotencyKey: String): JsonObject = call {
+        client.post(r(accountId, "/customers/$customerId/document-uploads")) { json(body); idem(idempotencyKey) }.body()
+    }
+
     // ---- plumbing ---------------------------------------------------------------------
 
     companion object {

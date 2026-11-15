@@ -28,6 +28,7 @@ import com.avago.feature.rentals.ui.RentalScheduleScreen
 import com.avago.feature.rentals.ui.RentalsHomeActions
 import com.avago.feature.rentals.ui.RentalsHomeScreen
 import com.avago.feature.rentals.ui.ReadinessScreen
+import com.avago.feature.rentals.ui.SignAgreementScreen
 import com.avago.feature.rentals.ui.SwapScreen
 import java.time.Instant
 
@@ -48,6 +49,7 @@ object RentalsRoute {
     const val ASSET = "rentals/asset/{assetId}"
     const val READINESS = "rentals/readiness/{assetId}"
     const val SWAP = "rentals/swap/{orderId}"
+    const val SIGN = "rentals/order/{orderId}/sign"
 
     // Legacy (pre-v2) rental screens kept reachable from the asset Rental tab.
     const val LEGACY_ASSET = "rentals/legacy/asset/{assetId}"
@@ -71,6 +73,7 @@ object RentalsRoute {
     fun asset(assetId: String) = "rentals/asset/${Uri.encode(assetId)}"
     fun readiness(assetId: String) = "rentals/readiness/${Uri.encode(assetId)}"
     fun swap(orderId: String) = "rentals/swap/${Uri.encode(orderId)}"
+    fun sign(orderId: String) = "rentals/order/${Uri.encode(orderId)}/sign"
     fun legacyAsset(assetId: String) = "rentals/legacy/asset/${Uri.encode(assetId)}"
     fun legacyBooking(assetId: String) = "rentals/legacy/booking/${Uri.encode(assetId)}"
     fun legacyCustomerForm(customerId: String?) = "rentals/legacy/customer_form?customerId=${Uri.encode(customerId.orEmpty())}"
@@ -142,6 +145,8 @@ fun NavGraphBuilder.rentalsNavGraph(
             onHandover = { orderId, direction -> go(RentalsRoute.handover(orderId, direction)) },
             onOpenCustomer = { go(RentalsRoute.customer(it)) },
             onSwap = { go(RentalsRoute.swap(it)) },
+            onSign = { go(RentalsRoute.sign(it)) },
+            onAddDocument = { go(RentalsRoute.document(it)) },
         )
     }
     composable(
@@ -189,7 +194,12 @@ fun NavGraphBuilder.rentalsNavGraph(
                     popUpTo(RentalsRoute.HANDOVER) { inclusive = true }
                 }
             },
+            onSign = { go(RentalsRoute.sign(it)) },
+            onAddDocument = { go(RentalsRoute.document(it)) },
         )
+    }
+    composable(RentalsRoute.SIGN, arguments = listOf(reqString("orderId"))) {
+        SignAgreementScreen(onBack = back)
     }
     composable(RentalsRoute.READINESS, arguments = listOf(reqString("assetId"))) {
         ReadinessScreen(onBack = back, onDone = back)

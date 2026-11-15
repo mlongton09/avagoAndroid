@@ -563,13 +563,14 @@ private fun Field(
     )
 }
 
-internal val DOCUMENT_KINDS = listOf("licence", "id", "coi", "tax_exempt", "operator_cert", "credit_app", "other")
+internal val DOCUMENT_KINDS = listOf("licence", "id", "coi", "business_licence", "tax_exempt", "operator_cert", "credit_app", "other")
 
 @StringRes
 internal fun documentKindLabel(kind: String): Int = when (kind) {
     "licence" -> R.string.rentals_doc_licence
     "id" -> R.string.rentals_doc_id
     "coi" -> R.string.rentals_doc_coi
+    "business_licence" -> R.string.rentals_doc_business_licence
     "tax_exempt" -> R.string.rentals_doc_tax_exempt
     "operator_cert" -> R.string.rentals_doc_operator_cert
     "credit_app" -> R.string.rentals_doc_credit_app
@@ -593,6 +594,8 @@ class DocumentCaptureViewModel @Inject constructor(
     val issued = MutableStateFlow("")
     val expires = MutableStateFlow("")
     val scanned = MutableStateFlow<Aamva.License?>(null)
+    /** Wave 2 / G2: photo of the document (ID / insurance), uploaded by the outbox. */
+    val photoPath = MutableStateFlow<String?>(null)
     private val _done = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val done: SharedFlow<Unit> = _done
 
@@ -626,6 +629,7 @@ class DocumentCaptureViewModel @Inject constructor(
                     classCodes = classes.value,
                     issuedOn = issued.value.takeIf { RentalCustomerViewModel.DATE.matches(it) },
                     expiresOn = expires.value.takeIf { RentalCustomerViewModel.DATE.matches(it) },
+                    photoPath = photoPath.value,
                 ),
             )
             _done.emit(Unit)
@@ -653,6 +657,7 @@ fun DocumentCaptureScreen(
     val classes by viewModel.classes.collectAsStateWithLifecycle()
     val issued by viewModel.issued.collectAsStateWithLifecycle()
     val expires by viewModel.expires.collectAsStateWithLifecycle()
+    val photo by viewModel.photoPath.collectAsStateWithLifecycle()
     val analyzer = remember { MlKitBarcodeAnalyzer(pdf417Only = true) }
     var manual by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { viewModel.done.collect { onDone() } }
@@ -685,6 +690,11 @@ fun DocumentCaptureScreen(
                 Field(classes, stringResource(R.string.rentals_class_codes)) { viewModel.classes.value = it }
                 Field(issued, stringResource(R.string.rentals_issued_on)) { viewModel.issued.value = it }
                 Field(expires, stringResource(R.string.rentals_expires)) { viewModel.expires.value = it }
+                DocumentPhotoRow(
+                    photoPath = photo,
+                    onPhoto = { viewModel.photoPath.value?.let { java.io.File(it).delete() }; viewModel.photoPath.value = it },
+                    onRemove = { viewModel.photoPath.value?.let { java.io.File(it).delete() }; viewModel.photoPath.value = null },
+                )
                 Button(
                     onClick = viewModel::save,
                     enabled = viewModel.customerId != null,
