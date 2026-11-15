@@ -123,14 +123,15 @@ class PostChargesViewModel @Inject constructor(private val service: PostChargeSe
         refresh()
     }
 
-    fun refresh() {
+    /** [quiet]: a background re-sync after a failed mutation; its own failure is not reported again. */
+    fun refresh(quiet: Boolean = false) {
         val id = orderId ?: return
         viewModelScope.launch {
             if (_state.value !is PostChargesState.Ready) _state.value = PostChargesState.Loading
             when (val r = service.list(id)) {
                 is ApiResult.Ok -> _state.value = PostChargesState.Ready(r.value)
                 is ApiResult.Err -> if (_state.value is PostChargesState.Ready) {
-                    _events.emit(PostChargeEvent.Failed(r.error))
+                    if (!quiet) _events.emit(PostChargeEvent.Failed(r.error))
                 } else {
                     _state.value = PostChargesState.Failed(r.error)
                 }
@@ -204,7 +205,13 @@ class PostChargesViewModel @Inject constructor(private val service: PostChargeSe
                         }
                         refresh()
                     }
-                    is ApiResult.Err -> _events.emit(PostChargeEvent.Failed(r.error))
+                    is ApiResult.Err -> {
+                        _events.emit(PostChargeEvent.Failed(r.error))
+                        // A timeout / 5xx is ambiguous (the charge may have gone through) and a
+                        // 409 means the row moved on: re-sync so the list shows the server's
+                        // outcome instead of a stale "chargeable" row inviting a second tap.
+                        refresh(quiet = true)
+                    }
                 }
             } finally {
                 _busy.value = false
