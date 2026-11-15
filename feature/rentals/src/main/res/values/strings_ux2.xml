@@ -12,4 +12,6 @@
     <string name="rentals_no_show_title">Mark this order as no-show?</string>
     <string name="rentals_no_show_confirm">Mark no-show</string>
     <string name="rentals_keep_order">Keep order</string>
+    <string name="rentals_call">Call</string>
+    <string name="rentals_send_email">Email</string>
 </resources>

@@ -43,6 +43,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalInspectionMode
@@ -238,6 +240,7 @@ internal fun SwipeActionsRow(
     end: SwipeAction?,
     modifier: Modifier = Modifier,
     more: List<SwipeAction> = emptyList(),
+    shape: Shape = RectangleShape,
     content: @Composable (a11y: Modifier) -> Unit,
 ) {
     val a11y = Modifier.swipeA11y(listOfNotNull(start, end) + more)
@@ -272,7 +275,7 @@ internal fun SwipeActionsRow(
             if (action != null) {
                 val c = toneColors(action.tone)
                 Box(
-                    Modifier.fillMaxSize().clip(MaterialTheme.shapes.large).background(c.container).padding(horizontal = AvagoSpacing.xl),
+                    Modifier.fillMaxSize().clip(shape).background(c.container).padding(horizontal = AvagoSpacing.xl),
                     contentAlignment = if (fromStart) Alignment.CenterStart else Alignment.CenterEnd,
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm)) {

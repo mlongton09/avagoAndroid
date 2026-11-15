@@ -39,7 +39,7 @@ object RentalsRoute {
     const val SCHEDULE = "rentals/schedule"
     const val ORDERS = "rentals/orders"
     const val ORDER = "rentals/order/{orderId}"
-    const val QUICK_BOOK = "rentals/quickbook?assetId={assetId}&start={start}&end={end}"
+    const val QUICK_BOOK = "rentals/quickbook?assetId={assetId}&start={start}&end={end}&customerId={customerId}"
     const val CUSTOMERS = "rentals/customers"
     const val CUSTOMER = "rentals/customer/{customerId}"
     const val DOCUMENT = "rentals/document/{customerId}"
@@ -62,8 +62,9 @@ object RentalsRoute {
     /** Scan; [mode] is `out` / `in` when started as check-out / check-in. */
     fun scan(mode: String? = null) = if (mode == null) "rentals/scan" else "rentals/scan?mode=$mode"
     fun order(orderId: String) = "rentals/order/${Uri.encode(orderId)}"
-    fun quickBook(assetId: String? = null, start: Instant? = null, end: Instant? = null) =
-        "rentals/quickbook?assetId=${Uri.encode(assetId.orEmpty())}&start=${start?.toEpochMilli() ?: ""}&end=${end?.toEpochMilli() ?: ""}"
+    fun quickBook(assetId: String? = null, start: Instant? = null, end: Instant? = null, customerId: String? = null) =
+        "rentals/quickbook?assetId=${Uri.encode(assetId.orEmpty())}&start=${start?.toEpochMilli() ?: ""}&end=${end?.toEpochMilli() ?: ""}" +
+            "&customerId=${Uri.encode(customerId.orEmpty())}"
     fun customer(customerId: String?) = "rentals/customer/${Uri.encode(customerId ?: "new")}"
     fun document(customerId: String?) = "rentals/document/${Uri.encode(customerId ?: "new")}"
     fun handover(orderId: String, direction: String) = "rentals/handover/${Uri.encode(orderId)}/$direction"
@@ -145,7 +146,7 @@ fun NavGraphBuilder.rentalsNavGraph(
     }
     composable(
         RentalsRoute.QUICK_BOOK,
-        arguments = listOf(optString("assetId"), optString("start"), optString("end")),
+        arguments = listOf(optString("assetId"), optString("start"), optString("end"), optString("customerId")),
     ) {
         QuickBookScreen(
             onBack = back,
@@ -162,6 +163,7 @@ fun NavGraphBuilder.rentalsNavGraph(
             onBack = back,
             onOpen = { go(RentalsRoute.customer(it)) },
             onNew = { go(RentalsRoute.customer(null)) },
+            onBook = { go(RentalsRoute.quickBook(customerId = it)) },
         )
     }
     composable(RentalsRoute.CUSTOMER, arguments = listOf(reqString("customerId"))) {
@@ -171,6 +173,7 @@ fun NavGraphBuilder.rentalsNavGraph(
             onScanLicence = { go(RentalsRoute.document(null)) },
             onAddDocument = { go(RentalsRoute.document(it)) },
             onOpenOrder = { go(RentalsRoute.order(it)) },
+            onBook = { go(RentalsRoute.quickBook(customerId = it)) },
         )
     }
     composable(RentalsRoute.DOCUMENT, arguments = listOf(reqString("customerId"))) {

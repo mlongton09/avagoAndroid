@@ -1,5 +1,10 @@
 package com.avago.feature.rentals.ui
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import com.avago.core.design.theme.AvagoSpacing
 import java.time.ZoneId
 import javax.inject.Inject
 import androidx.annotation.StringRes
@@ -26,6 +31,9 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.EventAvailable
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Check
@@ -54,11 +62,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -126,11 +136,16 @@ fun RentalCustomersScreen(
     onBack: () -> Unit,
     onOpen: (String) -> Unit,
     onNew: () -> Unit,
+    onBook: ((customerId: String) -> Unit)? = null,
     viewModel: RentalCustomersViewModel = hiltViewModel(),
 ) {
     val customers by viewModel.customers.collectAsStateWithLifecycle()
     val query by viewModel.query.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
+    val context = LocalContext.current
+    val bookLabel = stringResource(R.string.rentals_book)
+    val callLabel = stringResource(R.string.rentals_call)
+    val emailLabel = stringResource(R.string.rentals_send_email)
     // A–Z sticky headers (list is sorted by name).
     val groups = remember(customers) { customers.groupBy { c -> c.name.firstOrNull()?.uppercaseChar()?.takeIf { it.isLetter() } ?: '#' } }
     Scaffold(
@@ -145,9 +160,9 @@ fun RentalCustomersScreen(
         },
     ) { pad ->
         LazyColumn(
-            Modifier.fillMaxSize(),
+            Modifier.fillMaxSize().readableWidth(),
             state = listState,
-            contentPadding = PaddingValues(top = pad.calculateTopPadding(), bottom = pad.calculateBottomPadding() + 96.dp),
+            contentPadding = PaddingValues(top = pad.calculateTopPadding(), bottom = pad.calculateBottomPadding() + AvagoSpacing.fabClearance),
         ) {
             item(key = "search", contentType = "search") {
                 RentalSearchField(query, { viewModel.query.value = it }, stringResource(R.string.rentals_search_customers))
@@ -174,28 +189,55 @@ fun RentalCustomersScreen(
             groups.forEach { (letter, rows) ->
                 stickyHeader(key = "h:$letter", contentType = "header") { StickyDayHeader(letter.toString()) }
                 items(rows, key = { it.id }, contentType = { "customer" }) { c ->
-                    Column(Modifier.animateItem()) {
-                        ListItem(
-                            modifier = Modifier.clickable(role = Role.Button) { onOpen(c.id) },
-                            leadingContent = { InitialsAvatar(c.name, if (c.doNotRent) StatusTone.Danger else StatusTone.Info) },
-                            headlineContent = { Text(c.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                            supportingContent = {
-                                listOfNotNull(c.company, c.email, c.phone).takeIf { it.isNotEmpty() }?.let {
-                                    Text(it.joinToString(" · "), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                }
-                            },
-                            trailingContent = {
-                                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    if (c.doNotRent) StatusPill(stringResource(R.string.rentals_do_not_rent), StatusTone.Danger, icon = Icons.Default.Block)
-                                    SyncStateBadge(c.localState)
-                                }
-                            },
-                        )
-                        HorizontalDivider(Modifier.padding(start = 72.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                    val book = if (onBook != null && !c.doNotRent) {
+                        SwipeAction(bookLabel, Icons.Default.EventAvailable, StatusTone.Accent) { onBook(c.id) }
+                    } else null
+                    val call = c.phone?.takeIf { it.isNotBlank() }?.let { phone ->
+                        SwipeAction(callLabel, Icons.Default.Call, StatusTone.Info) { launchContact(context, Intent.ACTION_DIAL, Uri.fromParts("tel", phone, null)) }
+                    }
+                    val mail = c.email?.takeIf { it.isNotBlank() }?.let { email ->
+                        SwipeAction(emailLabel, Icons.Default.Email, StatusTone.Info) { launchContact(context, Intent.ACTION_SENDTO, Uri.fromParts("mailto", email, null)) }
+                    }
+                    // Swipe right = Book, swipe left = Call (or Email); the rest are TalkBack actions.
+                    val end = call ?: mail
+                    SwipeActionsRow(
+                        start = book,
+                        end = end,
+                        more = listOfNotNull(mail).filter { it !== end },
+                        modifier = Modifier.animateItem(),
+                    ) { a11y ->
+                        Column(Modifier.background(MaterialTheme.colorScheme.surface)) {
+                            ListItem(
+                                modifier = Modifier.clickable(role = Role.Button) { onOpen(c.id) }.then(a11y),
+                                leadingContent = { InitialsAvatar(c.name, if (c.doNotRent) StatusTone.Danger else StatusTone.Info) },
+                                headlineContent = { Text(c.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                supportingContent = {
+                                    listOfNotNull(c.company, c.email, c.phone).takeIf { it.isNotEmpty() }?.let {
+                                        Text(it.joinToString(" · "), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    }
+                                },
+                                trailingContent = {
+                                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(AvagoSpacing.xs)) {
+                                        if (c.doNotRent) StatusPill(stringResource(R.string.rentals_do_not_rent), StatusTone.Danger, icon = Icons.Default.Block)
+                                        SyncStateBadge(c.localState)
+                                    }
+                                },
+                            )
+                            HorizontalDivider(Modifier.padding(start = AvagoSpacing.listInset), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+/** Opens the dialer / mail app; silently ignored when no app can handle it. */
+private fun launchContact(context: Context, action: String, uri: Uri) {
+    try {
+        context.startActivity(Intent(action, uri))
+    } catch (e: ActivityNotFoundException) {
+        Timber.w(e, "no app for %s", action)
     }
 }
 
@@ -311,12 +353,14 @@ fun RentalCustomerScreen(
     onScanLicence: () -> Unit,
     onAddDocument: (customerId: String) -> Unit,
     onOpenOrder: (String) -> Unit,
+    onBook: ((customerId: String) -> Unit)? = null,
     viewModel: RentalCustomerViewModel = hiltViewModel(),
 ) {
     val form by viewModel.form.collectAsStateWithLifecycle()
     val view by viewModel.view.collectAsStateWithLifecycle()
     val docs by viewModel.documents.collectAsStateWithLifecycle()
     val orders by viewModel.orders.collectAsStateWithLifecycle()
+    var showAllOrders by rememberSaveable { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     val haptics = rememberHaptics()
     var attempted by remember { mutableStateOf(false) }
@@ -350,6 +394,12 @@ fun RentalCustomerScreen(
                 if (viewModel.customerId == null) stringResource(R.string.rentals_new_customer) else form.name.ifBlank { stringResource(R.string.rentals_customer) },
                 onBack,
             ) {
+                val id = viewModel.customerId
+                if (id != null && onBook != null && view?.doNotRent != true) {
+                    IconButton(onClick = { onBook(id) }, modifier = Modifier.size(MinTouch)) {
+                        Icon(Icons.Default.EventAvailable, contentDescription = stringResource(R.string.rentals_book))
+                    }
+                }
                 IconButton(onClick = onScanLicence, modifier = Modifier.size(MinTouch)) {
                     Icon(Icons.Default.DocumentScanner, contentDescription = stringResource(R.string.rentals_scan_licence))
                 }
@@ -370,8 +420,9 @@ fun RentalCustomerScreen(
                 .fillMaxSize()
                 .padding(pad)
                 .imePadding()
+                .readableWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(vertical = 8.dp),
+                .padding(vertical = AvagoSpacing.sm),
         ) {
             view?.let { v ->
                 if (v.doNotRent) {
@@ -460,7 +511,7 @@ fun RentalCustomerScreen(
                 }
                 if (orders.isNotEmpty()) {
                     SectionCard(title = stringResource(R.string.rentals_orders)) {
-                        orders.forEachIndexed { i, o ->
+                        orders.take(if (showAllOrders) orders.size else PREVIEW_ROWS).forEachIndexed { i, o ->
                             if (i > 0) CardDivider()
                             ListItem(
                                 colors = cardListItemColors(),
@@ -476,6 +527,7 @@ fun RentalCustomerScreen(
                                 trailingContent = { Text(formatMoney(o.total), style = MaterialTheme.typography.bodyMedium) },
                             )
                         }
+                        ShowAllRow(orders.size, showAllOrders, { showAllOrders = !showAllOrders })
                     }
                 }
             }

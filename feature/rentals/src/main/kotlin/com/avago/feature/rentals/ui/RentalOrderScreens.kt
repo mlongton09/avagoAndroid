@@ -287,6 +287,7 @@ fun RentalOrdersScreen(
                         SwipeActionsRow(
                             start = pay,
                             end = null,
+                            shape = MaterialTheme.shapes.large,
                             modifier = Modifier.animateItem().padding(horizontal = AvagoSpacing.cardHorizontal, vertical = AvagoSpacing.cardVertical),
                         ) { a11y ->
                             OrderRow(o, zone, a11y) { onOpenOrder(o.id) }

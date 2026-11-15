@@ -12,4 +12,6 @@
     <string name="rentals_no_show_title">Diesen Auftrag als Nichterscheinen markieren?</string>
     <string name="rentals_no_show_confirm">Nichterscheinen markieren</string>
     <string name="rentals_keep_order">Auftrag behalten</string>
+    <string name="rentals_call">Anrufen</string>
+    <string name="rentals_send_email">E-Mail senden</string>
 </resources>
