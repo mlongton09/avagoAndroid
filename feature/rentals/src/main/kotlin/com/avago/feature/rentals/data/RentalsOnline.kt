@@ -163,6 +163,20 @@ class RentalsOnline @Inject constructor(
 
     suspend fun equityStatementPdf(contractId: String) = pdf("equity_$contractId") { api.equityStatementPdf(it, contractId) }
 
+    // ── Avago Marketplace meet-up inbox (owner; display cache only, actions are online) ──
+
+    fun meetupInboxKey(status: String) = "mkt:meetups:$status"
+
+    /** First page of the owner meet-up inbox; the last good page stays readable offline. */
+    suspend fun refreshMeetupInbox(status: String) = run(meetupInboxKey(status)) { api.meetups(it, status, null) }
+
+    /** Drops cached inbox pages after a 403 (permission revoked) so stale requests are not shown. */
+    suspend fun clearMeetupInbox(status: String) {
+        val acc = acc() ?: return
+        runCatching { dbFactory.get(acc).rentalDao().delete(RentalEntity.META, PREFIX + meetupInboxKey(status)) }
+            .onFailure { Timber.d(it, "[RentalsOnline] inbox cache clear failed") }
+    }
+
     companion object {
         const val PREFIX = "w2:"
     }

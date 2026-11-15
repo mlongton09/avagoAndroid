@@ -41,6 +41,10 @@ dependencies {
     implementation(libs.timber)
     implementation(libs.serialization.json)
     implementation(libs.datastore.preferences)
+    // Avago Marketplace: renter session token (encrypted, separate from staff tokens) and the
+    // "Use my location" buttons (already used by feature/rentalsops / feature/assets).
+    implementation(libs.security.crypto)
+    implementation(libs.play.services.location)
     // Scan + document capture (already used by feature/log, feature/assets — no new weight).
     implementation(libs.mlkit.barcode)
     implementation(libs.mlkit.text)

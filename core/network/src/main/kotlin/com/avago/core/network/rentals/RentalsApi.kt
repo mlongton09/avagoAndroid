@@ -9,6 +9,8 @@ import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
+import io.ktor.client.request.put
+import io.ktor.client.request.delete
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsBytes
 import io.ktor.client.statement.bodyAsText
@@ -434,9 +436,73 @@ class RentalsApi @Inject constructor(
         client.post(r(accountId, "/customers/$customerId/document-uploads")) { json(body); idem(idempotencyKey) }.body()
     }
 
+    // ---- Avago Marketplace, owner side (docs/rentals-api-marketplace.md §7) -------------------
+
+    /** GET /marketplace → `{settings, readiness, categories, public_url}` (rental.marketplace_manage). */
+    suspend fun marketplaceSettings(accountId: String): JsonObject = call {
+        client.get(r(accountId, "/marketplace")).body()
+    }
+
+    /** PUT /marketplace — partial settings + `server_version`; 409 version_conflict / storefront_required / location_coordinates_required. */
+    suspend fun updateMarketplaceSettings(accountId: String, body: JsonObject): JsonObject = call {
+        client.put(r(accountId, "/marketplace")) { json(body) }.body()
+    }
+
+    /** GET /marketplace/listings → `{items}` (per-class listing options). */
+    suspend fun marketplaceListings(accountId: String): JsonObject = call {
+        client.get(r(accountId, "/marketplace/listings")).body()
+    }
+
+    /** PUT /marketplace/listings/{class_id} `{listed, category, summary_i18n, offer_*, clear_overrides}`. */
+    suspend fun updateMarketplaceListing(accountId: String, classId: String, body: JsonObject): JsonObject = call {
+        client.put(r(accountId, "/marketplace/listings/$classId")) { json(body) }.body()
+    }
+
+    /** PUT /marketplace/locations/{location_id} `{latitude, longitude, address…}`. */
+    suspend fun updateMarketplaceLocation(accountId: String, locationId: String, body: JsonObject): JsonObject = call {
+        client.put(r(accountId, "/marketplace/locations/$locationId")) { json(body) }.body()
+    }
+
+    /** GET /marketplace/blocks → `{items[{renter_id, name, reason, created_at}]}`. */
+    suspend fun marketplaceBlocks(accountId: String): JsonObject = call {
+        client.get(r(accountId, "/marketplace/blocks")).body()
+    }
+
+    /** DELETE /marketplace/blocks/{renter_id} (404 when not blocked). */
+    suspend fun unblockRenter(accountId: String, renterId: String): JsonObject = call {
+        client.delete(r(accountId, "/marketplace/blocks/$renterId")).bodyOrEmpty()
+    }
+
+    /** GET /meetups?status&cursor&limit → `{items, next_cursor, pending_count}` (rental.meetup_respond). */
+    suspend fun meetups(accountId: String, status: String, cursor: String?, limit: Int = 50): JsonObject = call {
+        client.get(r(accountId, "/meetups")) {
+            parameter("status", status)
+            cursor?.let { parameter("cursor", it) }
+            parameter("limit", limit)
+        }.body()
+    }
+
+    suspend fun meetup(accountId: String, meetupId: String): JsonObject = call {
+        client.get(r(accountId, "/meetups/$meetupId")).body()
+    }
+
+    /** POST /meetups/{id}/{action} with action in accept | counter | decline | block-renter. */
+    suspend fun meetupAction(accountId: String, meetupId: String, action: String, body: JsonObject): JsonObject = call {
+        require(action in MEETUP_ACTIONS) { "unknown meet-up action $action" }
+        client.post(r(accountId, "/meetups/$meetupId/$action")) { json(body) }.bodyOrEmpty()
+    }
+
+    private suspend fun io.ktor.client.statement.HttpResponse.bodyOrEmpty(): JsonObject {
+        val text = bodyAsText()
+        if (text.isBlank()) return JsonObject(emptyMap())
+        return runCatching { Json.parseToJsonElement(text).jsonObject }.getOrDefault(JsonObject(emptyMap()))
+    }
+
     // ---- plumbing ---------------------------------------------------------------------
 
     companion object {
+        val MEETUP_ACTIONS = setOf("accept", "counter", "decline", "block-renter")
+
         const val HANDOVER_CHECKOUT = "checkout"
         const val HANDOVER_CHECKIN = "checkin"
     }

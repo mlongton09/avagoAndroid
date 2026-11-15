@@ -1,0 +1,300 @@
+package com.avago.feature.rentals.marketplace
+
+import com.avago.feature.rentals.marketplace.domain.DistanceUnit
+import com.avago.feature.rentals.marketplace.domain.MktBodies
+import com.avago.feature.rentals.marketplace.domain.MktCoords
+import com.avago.feature.rentals.marketplace.domain.MktCounter
+import com.avago.feature.rentals.marketplace.domain.MktDates
+import com.avago.feature.rentals.marketplace.domain.MktDistance
+import com.avago.feature.rentals.marketplace.domain.MktEmail
+import com.avago.feature.rentals.marketplace.domain.MktError
+import com.avago.feature.rentals.marketplace.domain.MktFulfilment
+import com.avago.feature.rentals.marketplace.domain.MktNext
+import com.avago.feature.rentals.marketplace.domain.MktRadius
+import com.avago.feature.rentals.marketplace.domain.MktReserve
+import com.avago.feature.rentals.marketplace.domain.MktSearchQuery
+import com.avago.feature.rentals.marketplace.domain.MktSlot
+import com.avago.feature.rentals.marketplace.domain.MktSlots
+import com.avago.feature.rentals.marketplace.domain.MktSort
+import com.avago.feature.rentals.marketplace.domain.MktText
+import com.avago.feature.rentals.marketplace.domain.MktWindows
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonPrimitive
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+import java.time.Duration
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
+import java.util.Locale
+
+class MktLogicTest {
+    // Pacific time with US rules (UTC-8 in late November; BC moves to permanent UTC-7 in newer tzdata).
+    private val pacific = ZoneId.of("America/Los_Angeles")
+    private val now = Instant.parse("2026-11-16T18:00:00Z")
+
+    // ---- units / radius / distance ----
+
+    @Test
+    fun `miles only for US, Liberia and Myanmar`() {
+        assertEquals(DistanceUnit.MI, DistanceUnit.forRegion("US"))
+        assertEquals(DistanceUnit.MI, DistanceUnit.forRegion("lr"))
+        assertEquals(DistanceUnit.MI, DistanceUnit.forRegion("MM"))
+        assertEquals(DistanceUnit.KM, DistanceUnit.forRegion("CA"))
+        assertEquals(DistanceUnit.KM, DistanceUnit.forRegion("GB"))
+        assertEquals(DistanceUnit.KM, DistanceUnit.forRegion(null))
+    }
+
+    @Test
+    fun `radius is clamped and widened to the next chip`() {
+        assertEquals(1, MktRadius.clamp(0))
+        assertEquals(500, MktRadius.clamp(900))
+        assertEquals(100, MktRadius.wider(50))
+        assertEquals(10, MktRadius.wider(5))
+        assertNull(MktRadius.wider(200))
+    }
+
+    @Test
+    fun `distance uses the display unit and never shows below 1`() {
+        assertEquals(12L, MktDistance.value(12.4, 7.7, DistanceUnit.KM))
+        assertEquals(8L, MktDistance.value(12.4, 7.7, DistanceUnit.MI))
+        assertEquals(1L, MktDistance.value(0.2, 0.1, DistanceUnit.KM))
+        assertNull(MktDistance.value(null, null, DistanceUnit.KM))
+    }
+
+    // ---- search query ----
+
+    @Test
+    fun `coordinates win over a typed place and radius uses the unit param`() {
+        val q = MktSearchQuery(lat = 51.6448, lng = -121.2959, place = "100 Mile House", radius = 25, unit = DistanceUnit.MI)
+        val p = q.params(pacific).toMap()
+        assertEquals("51.64480", p["lat"])
+        assertEquals("-121.29590", p["lng"])
+        assertFalse(p.containsKey("place"))
+        assertEquals("25", p["radius_mi"])
+        assertFalse(p.containsKey("radius_km"))
+        assertEquals("distance", p["sort"])
+        assertEquals("20", p["limit"])
+    }
+
+    @Test
+    fun `typed place is sent with country and trimmed keyword`() {
+        val q = MktSearchQuery(place = " V0K ", country = "CA", keyword = "  trailer ", sort = MktSort.RELEVANCE)
+        val p = q.params(pacific).toMap()
+        assertEquals("V0K", p["place"])
+        assertEquals("CA", p["country"])
+        assertEquals("trailer", p["q"])
+        assertEquals("relevance", p["sort"])
+        assertEquals("50", p["radius_km"])
+    }
+
+    @Test
+    fun `relevance falls back to distance without a keyword`() {
+        assertEquals("distance", MktSearchQuery(place = "x", sort = MktSort.RELEVANCE).params(pacific).toMap()["sort"])
+        assertEquals("distance", MktSort.effective("bogus", "q"))
+    }
+
+    @Test
+    fun `dates are sent as local midnight in UTC with an exclusive end`() {
+        val q = MktSearchQuery(place = "x", firstDay = LocalDate.of(2026, 11, 20), lastDay = LocalDate.of(2026, 11, 22))
+        val p = q.params(pacific).toMap()
+        assertEquals("2026-11-20T08:00:00Z", p["start_at"])
+        assertEquals("2026-11-23T08:00:00Z", p["end_at"])
+        // A single day ends the next midnight.
+        val single = MktSearchQuery(place = "x", firstDay = LocalDate.of(2026, 11, 20)).params(pacific).toMap()
+        assertEquals("2026-11-21T08:00:00Z", single["end_at"])
+    }
+
+    @Test
+    fun `price bounds are ordered and carry the currency, invalid filters are dropped`() {
+        val q = MktSearchQuery(place = "x", minPriceMinor = 9000, maxPriceMinor = 1000, currency = "CAD", category = "nope", fulfilment = "drone")
+        val p = q.params(pacific, cursor = "o20").toMap()
+        assertEquals("1000", p["min_price"])
+        assertEquals("9000", p["max_price"])
+        assertEquals("CAD", p["currency"])
+        assertFalse(p.containsKey("category"))
+        assertFalse(p.containsKey("fulfilment"))
+        assertEquals("o20", p["cursor"])
+        assertFalse(MktSearchQuery(place = "x").params(pacific).toMap().containsKey("currency"))
+    }
+
+    @Test
+    fun `location and active filter count`() {
+        assertFalse(MktSearchQuery().hasLocation)
+        assertTrue(MktSearchQuery(place = "V0K").hasLocation)
+        assertTrue(MktSearchQuery(lat = 1.0, lng = 2.0).hasLocation)
+        assertEquals(3, MktSearchQuery(keyword = "a", category = "tools", fulfilment = MktFulfilment.MEETUP).activeFilters)
+    }
+
+    // ---- slots ----
+
+    private fun slot(h: Long, len: Long = 30) = MktSlot(now.plus(Duration.ofHours(h)), now.plus(Duration.ofHours(h)).plus(Duration.ofMinutes(len)))
+
+    @Test
+    fun `toggle keeps at most three slots in time order`() {
+        var s = MktSlots.toggle(emptyList(), slot(30))
+        s = MktSlots.toggle(s, slot(20))
+        s = MktSlots.toggle(s, slot(40))
+        assertEquals(listOf(slot(20), slot(30), slot(40)), s)
+        assertEquals(3, MktSlots.toggle(s, slot(50)).size)
+        assertEquals(listOf(slot(20), slot(40)), MktSlots.toggle(s, slot(30)))
+    }
+
+    @Test
+    fun `slot validation mirrors the server rules`() {
+        assertEquals("pick_slot", MktSlots.validate(emptyList(), 12, now))
+        assertNull(MktSlots.validate(listOf(slot(20), slot(30)), 12, now))
+        assertEquals("invalid_slots", MktSlots.validate(listOf(slot(30), slot(20)), 12, now))
+        assertEquals("invalid_slots", MktSlots.validate(listOf(slot(20), slot(20)), 12, now))
+        assertEquals("invalid_slots", MktSlots.validate(listOf(slot(20), slot(30), slot(40), slot(50)), 12, now))
+        assertEquals("invalid_slots", MktSlots.validate(listOf(slot(20, len = 5 * 60)), 12, now))
+        assertEquals("lead_time", MktSlots.validate(listOf(slot(5)), 12, now))
+        assertEquals("invalid_slots", MktSlots.validate(listOf(slot(24 * 91)), 12, now))
+    }
+
+    @Test
+    fun `slots group by the owner's local day`() {
+        // 2026-11-17T07:30Z is still the 16th in Pacific time.
+        val a = MktSlot(Instant.parse("2026-11-17T07:30:00Z"), Instant.parse("2026-11-17T08:00:00Z"))
+        val b = MktSlot(Instant.parse("2026-11-17T17:00:00Z"), Instant.parse("2026-11-17T17:30:00Z"))
+        val g = MktSlots.groupByDay(listOf(b, a), pacific)
+        assertEquals(listOf(LocalDate.of(2026, 11, 16), LocalDate.of(2026, 11, 17)), g.map { it.first })
+        assertTrue(MktSlots.zoneDiffers(pacific, ZoneId.of("Europe/Berlin"), now))
+        assertFalse(MktSlots.zoneDiffers(pacific, java.time.ZoneOffset.ofHours(-8), now))
+    }
+
+    // ---- reserve / counter ----
+
+    @Test
+    fun `reserve validation covers dates, lead time, max days and delivery address`() {
+        val d = LocalDate.of(2026, 11, 20)
+        val t = LocalTime.of(9, 0)
+        fun v(first: LocalDate?, last: LocalDate?, lead: Int = 60, max: Int? = 7, ful: String = "pickup", addr: String = "", qty: Int = 1) =
+            MktReserve.validate(first, last, t, pacific, lead, max, ful, addr, qty, now)
+        assertEquals("dates_required", v(null, null))
+        assertEquals("invalid_range", v(d, d.minusDays(1)))
+        assertEquals("invalid_value", v(d, d, qty = 0))
+        assertEquals("lead_time", v(LocalDate.of(2026, 11, 16), LocalDate.of(2026, 11, 16)))
+        assertEquals("too_long", v(d, d.plusDays(7)))
+        assertNull(v(d, d.plusDays(6)))
+        assertEquals("address_required", v(d, d, ful = "delivery"))
+        assertNull(v(d, d, ful = "delivery", addr = "1 Main St"))
+    }
+
+    @Test
+    fun `rental window ends at the same time after the last day`() {
+        val (s, e) = MktDates.rentalWindow(LocalDate.of(2026, 11, 20), LocalDate.of(2026, 11, 21), LocalTime.of(9, 0), pacific)
+        assertEquals(Instant.parse("2026-11-20T17:00:00Z"), s)
+        assertEquals(Instant.parse("2026-11-22T17:00:00Z"), e)
+        assertEquals(2, MktDates.days(LocalDate.of(2026, 11, 20), LocalDate.of(2026, 11, 21)))
+        assertEquals(LocalDate.of(2026, 2, 1) to 28, MktDates.monthWindow(LocalDate.of(2026, 2, 17)))
+    }
+
+    @Test
+    fun `counter proposal validation`() {
+        val s = now.plus(Duration.ofHours(2))
+        assertEquals("err_start", MktCounter.validate(null, null, now))
+        assertEquals("err_past", MktCounter.validate(now.minusSeconds(60), s, now))
+        assertEquals("err_end", MktCounter.validate(s, s, now))
+        assertEquals("invalid_slots", MktCounter.validate(s, s.plus(Duration.ofHours(5)), now))
+        assertNull(MktCounter.validate(s, s.plus(Duration.ofMinutes(30)), now))
+    }
+
+    // ---- owner editors ----
+
+    @Test
+    fun `coordinates accept comma decimals and reject 0,0 and out of range`() {
+        assertEquals(51.6448 to -121.2959, MktCoords.parse("51.6448", "-121,2959"))
+        assertNull(MktCoords.parse("0", "0"))
+        assertNull(MktCoords.parse("91", "10"))
+        assertNull(MktCoords.parse("abc", "10"))
+        assertFalse(MktCoords.valid(0.0, 0.0))
+        assertTrue(MktCoords.valid(51.6, -121.3))
+    }
+
+    @Test
+    fun `weekly windows parse, sort and reject overlaps`() {
+        assertEquals(listOf("09:00" to "12:00", "13:00" to "17:00"), MktWindows.parse("13:00-17:00, 9:00 – 12:00"))
+        assertEquals(emptyList<Pair<String, String>>(), MktWindows.parse(" "))
+        assertNull(MktWindows.parse("09:00-08:00"))
+        assertNull(MktWindows.parse("09:00-12:00, 11:00-13:00"))
+        assertNull(MktWindows.parse("9-5"))
+        assertEquals("09:00-12:00, 13:00-17:00", MktWindows.format(listOf("09:00" to "12:00", "13:00" to "17:00")))
+    }
+
+    @Test
+    fun `blackouts parse single dates and ranges`() {
+        val b = MktWindows.parseBlackouts("2026-12-24..2026-12-26\n2027-01-01")!!
+        assertEquals(LocalDate.of(2026, 12, 24) to LocalDate.of(2026, 12, 26), b[0])
+        assertEquals(LocalDate.of(2027, 1, 1) to LocalDate.of(2027, 1, 1), b[1])
+        assertNull(MktWindows.parseBlackouts("2026-12-26..2026-12-24"))
+        assertNull(MktWindows.parseBlackouts("tomorrow"))
+        assertEquals("2026-12-24..2026-12-26\n2027-01-01", MktWindows.formatBlackouts(b))
+    }
+
+    // ---- text / errors / bodies ----
+
+    @Test
+    fun `locale text prefers exact, then language, then en-US, then the fallback`() {
+        val m = mapOf("en-US" to "Trailer", "de-DE" to "Anhänger")
+        assertEquals("Anhänger", MktText.pick(m, Locale.GERMANY))
+        assertEquals("Anhänger", MktText.pick(m, Locale("de", "AT")))
+        assertEquals("Trailer", MktText.pick(m, Locale.FRANCE))
+        assertEquals("Base", MktText.pick(mapOf("de-DE" to "Anhänger"), Locale.US, "Base"))
+        assertEquals("Anhänger", MktText.pick(mapOf("de-DE" to "Anhänger"), Locale.US))
+        assertNull(MktText.pick(emptyMap(), Locale.US))
+        assertEquals("100 Mile House, BC", MktText.area("100 Mile House", "BC", "CA"))
+        assertEquals("CA", MktText.area(" ", null, "CA"))
+    }
+
+    @Test
+    fun `error codes map to friendly errors`() {
+        assertEquals(MktError.Network, MktError.of(null, null))
+        assertEquals(MktError.RateLimited, MktError.of(429, null))
+        assertEquals(MktError.Unavailable, MktError.of(409, "unavailable"))
+        assertEquals(MktError.MeetupExists, MktError.of(409, "meetup_exists"))
+        assertEquals(MktError.Unauthorized, MktError.of(401, null))
+        assertTrue(MktError.of(401, "unauthorized").needsSignIn)
+        assertEquals(MktError.Forbidden, MktError.of(403, "forbidden_x"))
+        assertEquals(MktError.Network, MktError.of(503, null))
+        assertEquals(MktError.Generic, MktError.of(400, "weird"))
+        assertEquals(MktError.LeadTime, MktError.ofCode("lead_time"))
+    }
+
+    @Test
+    fun `email and next path`() {
+        assertTrue(MktEmail.valid(" ann@example.com "))
+        assertFalse(MktEmail.valid("ann@"))
+        assertEquals("/marketplace/abc", MktNext.sanitize("/marketplace/abc"))
+        assertNull(MktNext.sanitize("/app/settings"))
+        assertNull(MktNext.sanitize("/marketplace//evil.com"))
+    }
+
+    @Test
+    fun `reserve body only sends the address for delivery`() {
+        val s = Instant.parse("2026-11-20T17:00:00Z")
+        val e = Instant.parse("2026-11-21T17:00:00Z")
+        val pickup = MktBodies.reserve(s, e, null, 1, "pickup", "1 Main", " ", "u1")
+        assertEquals(JsonNull, pickup["delivery_address"])
+        assertEquals(JsonNull, pickup["notes"])
+        assertEquals("u1", pickup["client_uuid"]!!.jsonPrimitive.content)
+        val delivery = MktBodies.reserve(s, e, "loc", 2, "delivery", "1 Main", "hi", "u1")
+        assertEquals("1 Main", delivery["delivery_address"]!!.jsonPrimitive.content)
+        assertEquals("2026-11-20T17:00:00Z", delivery["start_at"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `meetup body sends the rental period only when complete`() {
+        val a = slot(20)
+        val body = MktBodies.meetup(listOf(a), "x".repeat(800), 1, null, Instant.EPOCH, null)
+        assertEquals(1, body["slots"]!!.jsonArray.size)
+        assertEquals(500, body["message"]!!.jsonPrimitive.content.length)
+        assertEquals(JsonNull, body["rental_start_at"])
+        assertEquals(JsonNull, body["rental_end_at"])
+    }
+}
