@@ -14,4 +14,9 @@
     <string name="rentals_keep_order">Auftrag behalten</string>
     <string name="rentals_call">Anrufen</string>
     <string name="rentals_send_email">E-Mail senden</string>
+    <string name="rentals_stop_renting_title">%1$s nicht mehr vermieten?</string>
+    <string name="rentals_stop_renting_body">Die Einheit kann dann nicht mehr gebucht werden. Bestehende Aufträge und der Verlauf bleiben erhalten.</string>
+    <string name="rentals_add_photo">Foto hinzufügen</string>
+    <string name="rentals_condition_photos">Zustandsfotos</string>
+    <string name="rentals_condition_photos_hint">Starten Sie die Inspektion, um Zustandsfotos hinzuzufügen.</string>
 </resources>

@@ -14,4 +14,9 @@
     <string name="rentals_keep_order">Keep order</string>
     <string name="rentals_call">Call</string>
     <string name="rentals_send_email">Email</string>
+    <string name="rentals_stop_renting_title">Stop renting %1$s?</string>
+    <string name="rentals_stop_renting_body">The unit will no longer be bookable. Existing orders and history stay as they are.</string>
+    <string name="rentals_add_photo">Add photo</string>
+    <string name="rentals_condition_photos">Condition photos</string>
+    <string name="rentals_condition_photos_hint">Start the inspection to add condition photos.</string>
 </resources>
