@@ -79,4 +79,29 @@ class MoneyTest {
         assertNull(Money.of(1, ""))
         assertEquals(Money(1, "USD"), Money.of(1, "usd"))
     }
+
+    @Test
+    fun `plain minor parsing is strict and follows ISO digits`() {
+        assertEquals(123450L, MoneyFormatter.parsePlainMinor("1,234.50", "USD"))
+        assertEquals(500L, MoneyFormatter.parsePlainMinor(" 5 ", "USD"))
+        assertNull(MoneyFormatter.parsePlainMinor("1.234", "USD"), "no silent rounding")
+        assertNull(MoneyFormatter.parsePlainMinor("-1", "USD"))
+        assertNull(MoneyFormatter.parsePlainMinor("", "USD"))
+        assertNull(MoneyFormatter.parsePlainMinor("abc", "USD"))
+        assertEquals(1234L, MoneyFormatter.parsePlainMinor("1,234", "JPY"))
+        assertNull(MoneyFormatter.parsePlainMinor("12.5", "jpy"))
+        assertEquals(1250L, MoneyFormatter.parsePlainMinor("1.250", "KWD"))
+        assertEquals(1999L, MoneyFormatter.parsePlainMinor("19.99", ""), "blank currency uses 2 digits")
+        assertNull(MoneyFormatter.parsePlainMinor("99999999999999999999", "USD"))
+    }
+
+    @Test
+    fun `plain minor text round-trips`() {
+        assertEquals("1234.50", MoneyFormatter.toPlain(123450, "USD"))
+        assertEquals("1234", MoneyFormatter.toPlain(1234, "jpy"))
+        assertEquals("1.250", MoneyFormatter.toPlain(1250, "KWD"))
+        for ((minor, cur) in listOf(123450L to "USD", 1234L to "JPY", 1250L to "KWD")) {
+            assertEquals(minor, MoneyFormatter.parsePlainMinor(MoneyFormatter.toPlain(minor, cur), cur))
+        }
+    }
 }

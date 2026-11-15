@@ -42,6 +42,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.avago.core.data.rental.MoneyFormatter
 import com.avago.core.design.theme.AvagoSpacing
 import com.avago.core.network.json.ApiError
 import com.avago.core.network.json.ApiResult
@@ -178,11 +179,8 @@ internal object Fmt {
 
     fun epochDate(seconds: Long?): String = seconds?.let { Instant.ofEpochSecond(it).atZone(ZoneId.systemDefault()).format(date) } ?: "—"
 
-    fun money(minor: Long, currency: String): String = runCatching {
-        val f = java.text.NumberFormat.getCurrencyInstance()
-        f.currency = java.util.Currency.getInstance(currency.uppercase())
-        f.format(minor / 100.0)
-    }.getOrDefault("%.2f %s".format(minor / 100.0, currency.uppercase()))
+    /** Minor units to a locale currency string using the currency's ISO 4217 digits (JPY 0, KWD 3). */
+    fun money(minor: Long, currency: String): String = MoneyFormatter.format(minor, currency)
 
     fun score(v: Double?): String = v?.let { "%.1f".format(it) } ?: "—"
 }

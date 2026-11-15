@@ -6,7 +6,6 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.time.Instant
@@ -54,17 +53,26 @@ class PostChargesTest {
 
     @Test
     fun `form validation`() {
-        val blank = PostChargeForm(incurredAt = now.plusSeconds(3600))
+        val blank = PostChargeForm(currency = "USD", incurredAt = now.plusSeconds(3600))
         assertEquals(mapOf("amount" to "required", "incurred_at" to "future", "evidence" to "evidence"), blank.errors(now))
-        val bad = PostChargeForm(amount = "0", adminFee = "1.234", incurredAt = now, evidenceFileId = "f1")
+        val bad = PostChargeForm(currency = "USD", amount = "0", adminFee = "1.234", incurredAt = now, evidenceFileId = "f1")
         assertEquals(mapOf("amount" to "amount", "admin_fee" to "amount"), bad.errors(now))
-        assertNull(PostCharges.parseMinor("-2"))
-        assertEquals(123450L, PostCharges.parseMinor("1,234.5"))
+        val yen = PostChargeForm(currency = "JPY", amount = "12.5", adminFee = "100", incurredAt = now, evidenceFileId = "f1")
+        assertEquals(mapOf("amount" to "amount"), yen.errors(now), "JPY has no minor digits")
+    }
+
+    @Test
+    fun `form body uses the order currency's minor units`() {
+        val yen = PostChargeForm(currency = "JPY", amount = "1500", adminFee = "1,000", incurredAt = now, evidenceFileId = "f1")
+        val body = yen.toBody("cu-2")
+        assertEquals(1500L, body["amount_minor"]!!.jsonPrimitive.long)
+        assertEquals(1000L, body["admin_fee_minor"]!!.jsonPrimitive.long)
     }
 
     @Test
     fun `form body`() {
         val body = PostChargeForm(
+            currency = "USD",
             kind = "ticket", amount = "45.50", incurredAt = now, reference = " TK-1 ", evidenceFileId = "f1", chargeNow = true,
         ).toBody("cu-1")
         assertEquals("ticket", body["kind"]!!.jsonPrimitive.content)

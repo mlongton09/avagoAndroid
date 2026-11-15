@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.avago.core.data.rental.MoneyFormatter
 import com.avago.core.design.theme.AvagoSpacing
 import com.avago.core.network.json.ApiError
 import com.avago.core.network.json.ApiResult
@@ -203,11 +204,8 @@ internal object Fmt {
         return runCatching { LocalDate.parse(iso.take(10)).format(date) }.getOrDefault(iso)
     }
 
-    fun money(minor: Long, currency: String): String = runCatching {
-        val f = java.text.NumberFormat.getCurrencyInstance()
-        f.currency = java.util.Currency.getInstance(currency.uppercase())
-        f.format(minor / 100.0)
-    }.getOrDefault("%.2f %s".format(minor / 100.0, currency.uppercase()))
+    /** Minor units to a locale currency string using the currency's ISO 4217 digits (JPY 0, KWD 3). */
+    fun money(minor: Long, currency: String): String = MoneyFormatter.format(minor, currency)
 
     fun number(v: Double): String = if (v % 1.0 == 0.0) v.toLong().toString() else "%.2f".format(v).trimEnd('0').trimEnd('.', ',')
 }

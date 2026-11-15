@@ -40,6 +40,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import com.avago.core.data.rental.MoneyFormatter
 import com.avago.core.design.theme.AvagoSpacing
 import com.avago.core.network.json.ApiError
 import com.avago.core.ui.components.ErrorBanner
@@ -156,11 +157,8 @@ internal object Fmt {
 
     fun hours(h: Double?): String = h?.let { "%.1f h".format(it) } ?: "—"
 
-    fun money(minor: Long, currency: String): String = runCatching {
-        val f = java.text.NumberFormat.getCurrencyInstance()
-        f.currency = java.util.Currency.getInstance(currency.uppercase())
-        f.format(minor / 100.0)
-    }.getOrDefault("%.2f %s".format(minor / 100.0, currency.uppercase()))
+    /** Minor units to a locale currency string using the currency's ISO 4217 digits (JPY 0, KWD 3). */
+    fun money(minor: Long, currency: String): String = MoneyFormatter.format(minor, currency)
 }
 
 /** Opens the system share sheet for [text]. */

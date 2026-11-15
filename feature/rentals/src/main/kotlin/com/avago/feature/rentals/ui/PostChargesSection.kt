@@ -106,11 +106,13 @@ class PostChargesViewModel @Inject constructor(private val service: PostChargeSe
     val events: SharedFlow<PostChargeEvent> = _events
 
     private var orderId: String? = null
+    private var currency: String = ""
     /** Idempotency key for the open form, so a retried create can't double-bill. */
     private var clientUuid: String = UUID.randomUUID().toString()
 
-    /** Shows the section for a synced order whose status accepts post-charges. */
-    fun bind(orderId: String?, orderStatus: String) {
+    /** Shows the section for a synced order whose status accepts post-charges; [currency] is the order's. */
+    fun bind(orderId: String?, orderStatus: String, currency: String) {
+        this.currency = currency
         if (orderId == null || !PostCharges.allowedFor(orderStatus)) {
             this.orderId = null
             _state.value = PostChargesState.Hidden
@@ -139,7 +141,7 @@ class PostChargesViewModel @Inject constructor(private val service: PostChargeSe
     fun openForm(now: Instant = Instant.now()) {
         clientUuid = UUID.randomUUID().toString()
         _errors.value = emptyMap()
-        _form.value = PostChargeForm(incurredAt = now)
+        _form.value = PostChargeForm(currency = currency, incurredAt = now)
     }
 
     fun closeForm() {
@@ -262,11 +264,12 @@ private suspend fun readEvidence(ctx: Context, uri: Uri): Triple<String, String,
 internal fun PostChargesSection(
     orderId: String?,
     orderStatus: String,
+    currency: String,
     zone: ZoneId,
     onMessage: (String) -> Unit,
     viewModel: PostChargesViewModel = hiltViewModel(),
 ) {
-    LaunchedEffect(orderId, orderStatus) { viewModel.bind(orderId, orderStatus) }
+    LaunchedEffect(orderId, orderStatus, currency) { viewModel.bind(orderId, orderStatus, currency) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val form by viewModel.form.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()

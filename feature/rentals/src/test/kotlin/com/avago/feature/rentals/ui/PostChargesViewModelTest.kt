@@ -54,14 +54,14 @@ class PostChargesViewModelTest {
     fun `section stays hidden for orders that did not go out`() {
         val fake = Fake(ok())
         val vm = PostChargesViewModel(fake)
-        vm.bind("o1", "reserved")
+        vm.bind("o1", "reserved", "USD")
         assertEquals(PostChargesState.Hidden, vm.state.value)
-        vm.bind(null, "on_rent")
+        vm.bind(null, "on_rent", "USD")
         assertEquals(PostChargesState.Hidden, vm.state.value)
         assertEquals(0, fake.listCalls)
-        vm.bind("o1", "returned")
+        vm.bind("o1", "returned", "USD")
         assertTrue(vm.state.value is PostChargesState.Ready)
-        vm.bind("o1", "returned")
+        vm.bind("o1", "returned", "USD")
         assertEquals(1, fake.listCalls)
     }
 
@@ -69,7 +69,7 @@ class PostChargesViewModelTest {
     fun `submit requires evidence and reuses the idempotency key on retry`() {
         val fake = Fake(ok())
         val vm = PostChargesViewModel(fake)
-        vm.bind("o1", "on_rent")
+        vm.bind("o1", "on_rent", "USD")
         val now = Instant.now()
         vm.openForm(now.minusSeconds(60))
         vm.update(vm.form.value!!.copy(amount = "12.50"))
@@ -87,10 +87,22 @@ class PostChargesViewModelTest {
     }
 
     @Test
+    fun `form amounts are parsed in the bound order currency`() {
+        val fake = Fake(ok())
+        val vm = PostChargesViewModel(fake)
+        vm.bind("o1", "on_rent", "JPY")
+        val now = Instant.now()
+        vm.openForm(now.minusSeconds(60))
+        vm.update(vm.form.value!!.copy(amount = "1200", evidenceFileId = "f"))
+        vm.submit(now)
+        assertEquals(1200L, fake.bodies.single()["amount_minor"]!!.jsonPrimitive.content.toLong())
+    }
+
+    @Test
     fun `successful create closes the form and reloads`() = runTest {
         val fake = Fake(ok()).apply { createResult = ApiResult.Ok(PostCharge.from(json("""{"id":"p2","status":"billed"}"""))!!) }
         val vm = PostChargesViewModel(fake)
-        vm.bind("o1", "on_rent")
+        vm.bind("o1", "on_rent", "USD")
         vm.openForm(Instant.now().minusSeconds(60))
         vm.update(vm.form.value!!.copy(amount = "5", evidenceFileId = "f"))
         val event = async(UnconfinedTestDispatcher(testScheduler)) { vm.events.first() }
@@ -106,7 +118,7 @@ class PostChargesViewModelTest {
             chargeResult = ApiResult.Ok(PostCharge.from(json("""{"id":"p1","status":"requires_action","pay_url":"https://pay/x"}"""))!!)
         }
         val vm = PostChargesViewModel(fake)
-        vm.bind("o1", "returned")
+        vm.bind("o1", "returned", "USD")
         val event = async(UnconfinedTestDispatcher(testScheduler)) { vm.events.first() }
         vm.charge("p1")
         assertEquals(PostChargeEvent.OpenUrl("https://pay/x"), event.await())

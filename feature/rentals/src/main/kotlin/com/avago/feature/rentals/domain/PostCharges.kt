@@ -1,6 +1,7 @@
 package com.avago.feature.rentals.domain
 
 import com.avago.core.data.rental.Money
+import com.avago.core.data.rental.MoneyFormatter
 import com.avago.core.network.json.jsonBody
 import com.avago.core.network.json.long
 import com.avago.core.network.json.obj
@@ -9,7 +10,6 @@ import com.avago.core.network.json.str
 import com.avago.core.network.json.strs
 import com.avago.core.network.json.int
 import kotlinx.serialization.json.JsonObject
-import java.math.RoundingMode
 import java.time.Instant
 
 // Feature I post-rental charges (tolls, tickets, citations) on an order:
@@ -86,19 +86,11 @@ object PostCharges {
     )
 
     fun allowedFor(orderStatus: String): Boolean = orderStatus in ORDER_STATUSES
-
-    /** "12.50" → 1250; null when blank, negative or more than 2 decimals. */
-    fun parseMinor(s: String): Long? {
-        val t = s.trim().replace(",", "").replace(" ", "")
-        if (t.isEmpty()) return null
-        val d = t.toBigDecimalOrNull() ?: return null
-        if (d.signum() < 0 || d.scale() > 2) return null
-        return d.movePointRight(2).setScale(0, RoundingMode.UNNECESSARY).toLong()
-    }
 }
 
-/** Fields of the add-charge dialog. */
+/** Fields of the add-charge dialog; amounts are in the order's [currency]. */
 data class PostChargeForm(
+    val currency: String,
     val kind: String = "toll",
     val amount: String = "",
     val adminFee: String = "",
@@ -112,19 +104,19 @@ data class PostChargeForm(
 ) {
     /** Field → error code (`required`, `amount`, `future`, `evidence`). */
     fun errors(now: Instant): Map<String, String> = buildMap {
-        when (val a = PostCharges.parseMinor(amount)) {
+        when (val a = MoneyFormatter.parsePlainMinor(amount, currency)) {
             null -> put("amount", if (amount.isBlank()) "required" else "amount")
             else -> if (a <= 0) put("amount", "amount")
         }
-        if (adminFee.isNotBlank() && PostCharges.parseMinor(adminFee) == null) put("admin_fee", "amount")
+        if (adminFee.isNotBlank() && MoneyFormatter.parsePlainMinor(adminFee, currency) == null) put("admin_fee", "amount")
         if (incurredAt.isAfter(now)) put("incurred_at", "future")
         if (evidenceFileId == null) put("evidence", "evidence")
     }
 
     fun toBody(clientUuid: String): JsonObject = jsonBody(
         "kind" to kind,
-        "amount_minor" to PostCharges.parseMinor(amount),
-        "admin_fee_minor" to PostCharges.parseMinor(adminFee),
+        "amount_minor" to MoneyFormatter.parsePlainMinor(amount, currency),
+        "admin_fee_minor" to MoneyFormatter.parsePlainMinor(adminFee, currency),
         "incurred_at" to incurredAt.toString(),
         "reference" to reference.trim().ifEmpty { null },
         "authority" to authority.trim().ifEmpty { null },
