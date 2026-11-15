@@ -213,7 +213,8 @@ fun MainScaffold(
     // Rental-ops screens draw their own top bar with back navigation.
     val isRentalOpsDestination = currentRoute?.startsWith(com.avago.feature.rentalsops.push.RentalOpsRoutes.PREFIX) == true ||
         currentRoute?.startsWith(com.avago.feature.crew.nav.CrewRoutes.PREFIX) == true ||
-        currentRoute?.startsWith(com.avago.feature.growth.nav.GrowthRoutes.PREFIX) == true
+        currentRoute?.startsWith(com.avago.feature.growth.nav.GrowthRoutes.PREFIX) == true ||
+        currentRoute?.startsWith(com.avago.feature.provider.nav.ProviderRoutes.PREFIX) == true
     AvagoToastHost(toastManager = toast) {
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -581,6 +582,11 @@ fun SideMenuContent(
             modifier = Modifier.padding(horizontal = 8.dp),
         )
         com.avago.feature.growth.nav.GrowthDrawerItem(
+            currentRoute = currentRoute,
+            onNavigate = onNavigate,
+            modifier = Modifier.padding(horizontal = 8.dp),
+        )
+        com.avago.feature.provider.nav.ProviderDrawerItem(
             currentRoute = currentRoute,
             onNavigate = onNavigate,
             modifier = Modifier.padding(horizontal = 8.dp),

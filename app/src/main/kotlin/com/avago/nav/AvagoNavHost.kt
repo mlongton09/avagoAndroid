@@ -3,6 +3,7 @@ package com.avago.nav
 import com.avago.feature.rentalsops.nav.rentalOpsNavGraph
 import com.avago.feature.crew.nav.crewNavGraph
 import com.avago.feature.growth.nav.growthNavGraph
+import com.avago.feature.provider.nav.providerNavGraph
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -243,6 +244,8 @@ fun AvagoNavHost(
                 onOpenAsset = { id: String -> navController.navigate(com.avago.feature.assets.nav.AssetsRoute.detail(id)) },
             )
             growthNavGraph(navController = navController)
+            // Provider workspace for field mechanics (C).
+            providerNavGraph(navController = navController)
         }
 
         if (SHOW_SYNC_CONFLICT_SHEET) {
