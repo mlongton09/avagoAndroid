@@ -199,6 +199,12 @@ class MainActivity : ComponentActivity() {
             ?.takeIf { it.startsWith(com.avago.feature.rentals.nav.RentalsRoute.PREFIX) }
             ?.let { mainViewModel.openRoute(it) }
         when (intent?.action) {
+            android.content.Intent.ACTION_VIEW -> {
+                // QR passport / transfer-claim links (crew) and renter-portal magic links (growth).
+                val link = intent.dataString
+                (com.avago.feature.crew.nav.CrewRoutes.forLink(link) ?: com.avago.feature.growth.nav.GrowthRoutes.forLink(link))
+                    ?.let { mainViewModel.openRoute(it) }
+            }
             ACTION_START_INSPECTION ->
                 mainViewModel.openRoute(com.avago.feature.log.nav.LogRoute.addEdit(category = "inspection"))
             android.nfc.NfcAdapter.ACTION_NDEF_DISCOVERED -> {
