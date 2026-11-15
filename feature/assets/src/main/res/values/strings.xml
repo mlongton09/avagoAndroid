@@ -352,4 +352,15 @@
         <item quantity="one">%d day</item>
         <item quantity="other">%d days</item>
     </plurals>
+    <string name="asset_type_car">Car</string>
+    <string name="asset_type_group_tools">Tools</string>
+    <string name="asset_type_survey_layout">Survey &amp; Layout</string>
+    <string name="asset_type_drone">Drone</string>
+    <string name="asset_type_welding_cutting">Welding &amp; Cutting</string>
+    <string name="asset_type_concrete_compaction">Concrete &amp; Compaction</string>
+    <string name="asset_type_test_measurement">Test &amp; Measurement</string>
+    <string name="asset_type_power_tools">Power Tools</string>
+    <string name="asset_field_serial_number">Serial Number</string>
+    <string name="asset_field_mileage">Current Mileage</string>
+    <string name="asset_field_mileage_hint">Odometer reading in whole miles or kilometres</string>
 </resources>

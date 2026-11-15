@@ -1,18 +1,21 @@
-package com.avago.feature.assets.di
+﻿package com.avago.feature.assets.di
 
-import com.avago.core.data.repository.AssetRepository
-import com.avago.core.sync.SyncEngine
+import com.avago.feature.assets.data.AssetScopeRepository
+import com.avago.feature.assets.data.KtorAssetScopeRepository
+import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
-import dagger.hilt.android.components.ViewModelComponent
+import dagger.hilt.components.SingletonComponent
 
 /**
  * Hilt module for the assets feature.
  *
- * [AssetRepository] and [SyncEngine] are both @Singleton and provided by their
- * respective core modules — no explicit @Provides needed here. This module exists
- * as a placeholder for any feature-local bindings added in future phases.
+ * [com.avago.core.data.repository.AssetRepository] and [com.avago.core.sync.SyncEngine]
+ * are @Singleton and provided by their core modules.
  */
 @Module
-@InstallIn(ViewModelComponent::class)
-object AssetsModule
+@InstallIn(SingletonComponent::class)
+abstract class AssetsModule {
+    @Binds
+    abstract fun assetScope(impl: KtorAssetScopeRepository): AssetScopeRepository
+}

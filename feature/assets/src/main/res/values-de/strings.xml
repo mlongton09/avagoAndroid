@@ -141,4 +141,15 @@
         <item quantity="one">%d Tag</item>
         <item quantity="other">%d Tage</item>
     </plurals>
+    <string name="asset_type_car">Pkw</string>
+    <string name="asset_type_group_tools">Werkzeuge</string>
+    <string name="asset_type_survey_layout">Vermessung &amp; Absteckung</string>
+    <string name="asset_type_drone">Drohne</string>
+    <string name="asset_type_welding_cutting">Schweißen &amp; Schneiden</string>
+    <string name="asset_type_concrete_compaction">Beton &amp; Verdichtung</string>
+    <string name="asset_type_test_measurement">Prüf- &amp; Messtechnik</string>
+    <string name="asset_type_power_tools">Elektrowerkzeuge</string>
+    <string name="asset_field_serial_number">Seriennummer</string>
+    <string name="asset_field_mileage">Aktueller Kilometerstand</string>
+    <string name="asset_field_mileage_hint">Tachostand in ganzen Meilen oder Kilometern</string>
 </resources>
