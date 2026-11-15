@@ -34,7 +34,6 @@ import androidx.compose.material.icons.filled.EventAvailable
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.PauseCircle
 import androidx.compose.material.icons.filled.People
-import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Warning
@@ -46,10 +45,8 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
-import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -76,7 +73,9 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.data.db.rental.RentalRecordEntity
 import com.avago.core.data.rental.FleetStatus
+import com.avago.core.design.theme.AvagoSpacing
 import com.avago.core.ui.components.CardDivider
+import com.avago.core.ui.components.StatusPill
 import com.avago.core.ui.components.ErrorBanner
 import com.avago.core.ui.components.KpiGrid
 import com.avago.core.ui.components.KpiItem
@@ -141,24 +140,15 @@ fun RentalsHomeScreen(
         // As a top-level tab the host Scaffold already applies the system-bar insets.
         contentWindowInsets = if (onBack == null) WindowInsets(0, 0, 0, 0) else ScaffoldDefaults.contentWindowInsets,
         floatingActionButton = {
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SmallFloatingActionButton(
-                    onClick = actions.onScanCheckOut,
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.size(MinTouch),
-                ) {
-                    Icon(Icons.Default.QrCodeScanner, contentDescription = stringResource(R.string.rentals_scan_checkout))
-                }
-                ExtendedFloatingActionButton(
-                    onClick = actions.onNewBooking,
-                    expanded = fabExpanded,
-                    icon = { Icon(Icons.Default.Add, contentDescription = if (fabExpanded) null else stringResource(R.string.rentals_quick_book)) },
-                    text = { Text(stringResource(R.string.rentals_quick_book)) },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                )
-            }
+            // The one primary action of the rentals home; scan jobs live in the task row below.
+            ExtendedFloatingActionButton(
+                onClick = actions.onNewBooking,
+                expanded = fabExpanded,
+                icon = { Icon(Icons.Default.Add, contentDescription = if (fabExpanded) null else stringResource(R.string.rentals_quick_book)) },
+                text = { Text(stringResource(R.string.rentals_quick_book)) },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            )
         },
     ) { pad ->
         PullToRefreshBox(
@@ -167,11 +157,16 @@ fun RentalsHomeScreen(
             modifier = Modifier.fillMaxSize().padding(top = pad.calculateTopPadding()),
         ) {
             LazyColumn(
-                Modifier.fillMaxSize(),
+                Modifier.fillMaxSize().readableWidth(),
                 state = listState,
-                contentPadding = PaddingValues(bottom = pad.calculateBottomPadding() + 144.dp),
+                contentPadding = PaddingValues(bottom = pad.calculateBottomPadding() + AvagoSpacing.fabClearance),
             ) {
-                item(key = "sync", contentType = "sync") { SyncStatus(online, lastSynced, queue.size, viewModel::syncNow) }
+                item(key = "sync", contentType = "sync") {
+                    Column {
+                        SyncStatus(online, lastSynced, queue.size, viewModel::syncNow)
+                        RefreshFailedBanner(refresh)
+                    }
+                }
                 if (firstLoad) {
                     item(key = "skeleton", contentType = "skeleton") { HomeSkeleton() }
                     return@LazyColumn
@@ -187,9 +182,6 @@ fun RentalsHomeScreen(
                     }
                 } else {
                     item(key = "kpis", contentType = "kpis") { HomeKpis(fleet, actions) }
-                    item(key = "breakdown", contentType = "breakdown") {
-                        FleetSummaryContent(fleet, actions.onOpenFleet, Modifier.padding(top = 4.dp), compact = true)
-                    }
                 }
                 item(key = "tasks", contentType = "tasks") { PrimaryTasks(actions) }
                 if (notices.isNotEmpty()) {
@@ -199,7 +191,7 @@ fun RentalsHomeScreen(
                         Surface(
                             shape = MaterialTheme.shapes.large,
                             color = MaterialTheme.colorScheme.surface,
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = AvagoSpacing.cardHorizontal, vertical = AvagoSpacing.cardVertical),
                         ) {
                             NoticeRow(
                                 rec,
@@ -211,28 +203,22 @@ fun RentalsHomeScreen(
                     }
                 }
                 item(key = "today", contentType = "header") { SectionHeader(stringResource(R.string.rentals_today)) }
-                agendaSection(
-                    "overdue", R.string.rentals_today_overdue, R.string.rentals_today_overdue_empty, fleet.agenda.overdue, zone, actions,
-                    HandoverTarget.IN,
-                )
-                agendaSection(
-                    "out", R.string.rentals_today_going_out, R.string.rentals_today_going_out_empty, fleet.agenda.goingOut, zone, actions,
-                    HandoverTarget.OUT,
-                )
-                agendaSection(
-                    "back", R.string.rentals_today_due_back, R.string.rentals_today_due_back_empty, fleet.agenda.dueBack, zone, actions,
-                    HandoverTarget.IN,
-                )
-                if (fleet.agenda.maintenance.isNotEmpty()) {
-                    agendaSection("maint", R.string.rentals_today_maintenance, null, fleet.agenda.maintenance, zone, actions, null)
+                val agenda = fleet.agenda
+                if (agenda.overdue.isEmpty() && agenda.goingOut.isEmpty() && agenda.dueBack.isEmpty() && agenda.maintenance.isEmpty()) {
+                    // One calm card instead of three empty boxes.
+                    item(key = "all-clear", contentType = "agenda") { AllClearCard() }
                 }
+                agendaSection("overdue", R.string.rentals_today_overdue, agenda.overdue, zone, actions, HandoverTarget.IN)
+                agendaSection("out", R.string.rentals_today_going_out, agenda.goingOut, zone, actions, HandoverTarget.OUT)
+                agendaSection("back", R.string.rentals_today_due_back, agenda.dueBack, zone, actions, HandoverTarget.IN)
+                agendaSection("maint", R.string.rentals_today_maintenance, agenda.maintenance, zone, actions, null)
 
                 item(key = "fleet-tools", contentType = "card") {
                     SectionCard(title = stringResource(R.string.rentals_fleet_availability)) {
                         NavRow(Icons.Default.DirectionsCar, StatusTone.Accent, R.string.rentals_fleet, R.string.rentals_fleet_board_sub) { actions.onOpenFleet(null) }
-                        CardDivider(Modifier.padding(start = 56.dp))
+                        CardDivider(Modifier.padding(start = AvagoSpacing.listInset))
                         NavRow(Icons.Default.CalendarMonth, StatusTone.Info, R.string.rentals_schedule, R.string.rentals_schedule_sub, actions.onOpenSchedule)
-                        CardDivider(Modifier.padding(start = 56.dp))
+                        CardDivider(Modifier.padding(start = AvagoSpacing.listInset))
                         NavRow(Icons.Default.EventAvailable, StatusTone.Success, R.string.rentals_find_free, R.string.rentals_find_free_sub, actions.onFindFree)
                     }
                 }
@@ -240,7 +226,7 @@ fun RentalsHomeScreen(
                 item(key = "records", contentType = "card") {
                     SectionCard(title = stringResource(R.string.rentals_bookings_customers)) {
                         NavRow(Icons.Default.Receipt, StatusTone.Neutral, R.string.rentals_orders, null, actions.onOpenOrders)
-                        CardDivider(Modifier.padding(start = 56.dp))
+                        CardDivider(Modifier.padding(start = AvagoSpacing.listInset))
                         NavRow(Icons.Default.People, StatusTone.Neutral, R.string.rentals_customers, null, actions.onOpenCustomers)
                     }
                 }
@@ -302,62 +288,67 @@ private fun SyncStatus(online: Boolean, lastSynced: Long?, pending: Int, onSyncN
     }
 }
 
-/** The counter's scan jobs (Quick book lives in the FAB); wraps for large fonts. */
+/** The counter's two scan jobs, equal weight (Quick book is the FAB); wraps for large fonts. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PrimaryTasks(actions: RentalsHomeActions) {
     FlowRow(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(horizontal = AvagoSpacing.lg, vertical = AvagoSpacing.md),
+        horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.md),
+        verticalArrangement = Arrangement.spacedBy(AvagoSpacing.sm),
         maxItemsInEachRow = 2,
     ) {
-        FilledTonalButton(onClick = actions.onScanCheckOut, modifier = Modifier.weight(1f).heightIn(min = 56.dp)) {
+        FilledTonalButton(onClick = actions.onScanCheckOut, modifier = Modifier.weight(1f).heightIn(min = AvagoSpacing.rowHeight)) {
             Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(20.dp))
-            Text(stringResource(R.string.rentals_scan_checkout), Modifier.padding(start = 8.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(stringResource(R.string.rentals_scan_checkout), Modifier.padding(start = AvagoSpacing.sm), maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
-        OutlinedButton(onClick = actions.onScanCheckIn, modifier = Modifier.weight(1f).heightIn(min = 56.dp)) {
+        FilledTonalButton(onClick = actions.onScanCheckIn, modifier = Modifier.weight(1f).heightIn(min = AvagoSpacing.rowHeight)) {
             Icon(Icons.AutoMirrored.Filled.Login, contentDescription = null, modifier = Modifier.size(20.dp))
-            Text(stringResource(R.string.rentals_check_in), Modifier.padding(start = 8.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(stringResource(R.string.rentals_check_in), Modifier.padding(start = AvagoSpacing.sm), maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }
 
-/** One "Today" group as a grouped card with its own heading, count and empty-state guidance. */
+/** Shown instead of empty Overdue / Going out / Due back cards on a quiet day. */
+@Composable
+private fun AllClearCard() {
+    SectionCard {
+        ListItem(
+            leadingContent = { LeadingBadge(Icons.Default.CheckCircle, StatusTone.Success) },
+            headlineContent = { Text(stringResource(R.string.rentals_all_clear)) },
+            supportingContent = { Text(stringResource(R.string.rentals_all_clear_body)) },
+            colors = cardListItemColors(),
+            modifier = Modifier.semantics(mergeDescendants = true) {},
+        )
+    }
+}
+
+/** One non-empty "Today" group as a grouped card: title, count pill and the agenda rows. */
 private fun LazyListScope.agendaSection(
     key: String,
     @StringRes title: Int,
-    @StringRes empty: Int?,
     events: List<ScheduleEvent>,
     zone: ZoneId,
     actions: RentalsHomeActions,
     direction: String?,
 ) {
+    if (events.isEmpty()) return
     item(key = "g:$key", contentType = "agenda") {
-        val heading = "${stringResource(title)} · ${events.size}"
+        val overdue = key == "overdue"
         SectionCard(
-            title = heading,
-            trailing = if (key == "overdue" && events.isNotEmpty()) {
-                { Icon(Icons.Default.Warning, contentDescription = null, tint = toneColors(StatusTone.Danger).content, modifier = Modifier.size(18.dp)) }
-            } else {
-                null
+            title = stringResource(title),
+            trailing = {
+                StatusPill(
+                    events.size.toString(),
+                    if (overdue) StatusTone.Danger else StatusTone.Neutral,
+                    icon = if (overdue) Icons.Default.Warning else null,
+                )
             },
         ) {
-            if (events.isEmpty()) {
-                if (empty != null) {
-                    Text(
-                        stringResource(empty),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(16.dp),
-                    )
-                }
-                return@SectionCard
-            }
             events.forEachIndexed { i, ev ->
-                if (i > 0) CardDivider(Modifier.padding(start = 56.dp))
+                if (i > 0) CardDivider(Modifier.padding(start = AvagoSpacing.listInset))
                 val orderId = ev.orderId
                 // Holds are not handed over; only pickups / returns get the next-step button.
                 val canHandover = orderId != null && direction != null && ev.type != "hold" && ev.type != "maintenance"
@@ -552,12 +543,18 @@ internal fun AgendaRow(
                         Modifier
                     },
                 ),
-            leadingContent = { LeadingBadge(eventIcon(ev.type), eventTone(ev)) },
-            overlineContent = { Text("${formatTime(ev.at, zone)} · $type") },
-            headlineContent = { Text(ev.assetName ?: ev.assetId ?: "—", maxLines = 2, overflow = TextOverflow.Ellipsis) },
+            leadingContent = { UnitThumbnail(ev.assetId, eventIcon(ev.type), eventTone(ev)) },
+            headlineContent = {
+                Text(
+                    ev.assetName ?: ev.assetId ?: stringResource(R.string.rentals_unassigned_unit),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            },
             supportingContent = {
-                val parts = listOfNotNull(ev.orderNumber, ev.customerName)
-                if (parts.isNotEmpty()) Text(parts.joinToString(" · "), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                // time · kind · order · customer — one scannable line under the unit.
+                val parts = listOfNotNull(formatTime(ev.at, zone), type, ev.orderNumber, ev.customerName)
+                Text(parts.joinToString(" · "), maxLines = 2, overflow = TextOverflow.Ellipsis)
             },
             trailingContent = {
                 when {
@@ -591,8 +588,8 @@ internal fun AgendaRow(
         enableDismissFromEndToStart = false,
         backgroundContent = {
             val c = toneColors(if (ev.type == "return" || ev.overdue) StatusTone.Success else StatusTone.Info)
-            Box(Modifier.fillMaxSize().background(c.container).padding(horizontal = 20.dp), contentAlignment = Alignment.CenterStart) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.fillMaxSize().background(c.container).padding(horizontal = AvagoSpacing.xl), contentAlignment = Alignment.CenterStart) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm)) {
                     Icon(eventIcon(ev.type), contentDescription = null, tint = c.content)
                     Text(actionLabel, color = c.content, style = MaterialTheme.typography.labelLarge)
                 }

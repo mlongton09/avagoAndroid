@@ -4,4 +4,7 @@
     <string name="rentals_refresh_failed">Couldn\'t refresh. Showing saved data.</string>
     <string name="rentals_show_all">Show all (%1$d)</string>
     <string name="rentals_show_less">Show less</string>
+    <string name="rentals_all_clear">All clear</string>
+    <string name="rentals_all_clear_body">Nothing is overdue, going out or due back today.</string>
+    <string name="rentals_unassigned_unit">Unit not assigned</string>
 </resources>
