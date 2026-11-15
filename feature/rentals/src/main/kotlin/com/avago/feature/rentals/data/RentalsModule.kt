@@ -14,4 +14,7 @@ abstract class RentalsModule {
     @Binds
     @IntoSet
     abstract fun rentalOutbox(impl: RentalOutbox): ExternalOutbox
+
+    @Binds
+    abstract fun postCharges(impl: KtorPostChargeService): PostChargeService
 }

@@ -1,4 +1,4 @@
-plugins {
+﻿plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.ksp)
@@ -37,6 +37,7 @@ dependencies {
     implementation(libs.camera.lifecycle)
     implementation(libs.camera.view)
     implementation(libs.coil.compose)
+    implementation(libs.serialization.json)
     implementation(project(":core:design"))
     implementation(project(":core:ui"))
     implementation(project(":core:data"))
@@ -44,4 +45,14 @@ dependencies {
     implementation(project(":core:auth"))
     implementation(project(":core:sync"))
     implementation(project(":core:permissions"))
+    testImplementation(libs.junit5)
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.coroutines.test)
+    testImplementation(libs.serialization.json)
+    testRuntimeOnly(libs.junit5.engine)
+    testRuntimeOnly(libs.junit.platform.launcher)
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
 }

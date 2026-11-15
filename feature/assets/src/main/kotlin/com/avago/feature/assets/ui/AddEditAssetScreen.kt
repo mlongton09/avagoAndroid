@@ -1,4 +1,4 @@
-package com.avago.feature.assets.ui
+﻿package com.avago.feature.assets.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -86,6 +86,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.avago.feature.assets.R
+import com.avago.feature.assets.model.AssetScope
 import com.avago.feature.assets.model.AssetTypes
 import com.avago.feature.assets.viewmodel.AddEditAssetViewModel
 import com.avago.feature.assets.viewmodel.GeocodeResult
@@ -313,7 +314,7 @@ fun AddEditAssetScreen(
             }
 
             // License Plate
-            item {
+            if (AssetScope.showsLicensePlate(form.assetType)) item {
                 OutlinedTextField(
                     value = form.licensePlate,
                     onValueChange = { viewModel.onLicensePlateChanged(it) },
@@ -325,7 +326,8 @@ fun AddEditAssetScreen(
             }
 
             // VIN / Serial with barcode scan button
-            item {
+            val showsVin = AssetScope.showsVin(form.assetType)
+            if (!AssetScope.isRealEstate(form.assetType)) item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -334,7 +336,9 @@ fun AddEditAssetScreen(
                     OutlinedTextField(
                         value = form.vinSerial,
                         onValueChange = { viewModel.onVinSerialChanged(it) },
-                        label = { Text(stringResource(R.string.asset_field_vin)) },
+                        label = {
+                            Text(stringResource(if (showsVin) R.string.asset_field_vin else R.string.asset_field_serial_number))
+                        },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
                         modifier = Modifier.weight(1f),
@@ -349,14 +353,14 @@ fun AddEditAssetScreen(
                             }
                         } else null,
                     )
-                    if (isVinDecoding) {
+                    if (showsVin && isVinDecoding) {
                         CircularProgressIndicator(
                             modifier = Modifier
                                 .padding(bottom = 12.dp)
                                 .size(24.dp),
                             strokeWidth = 2.dp,
                         )
-                    } else {
+                    } else if (showsVin) {
                         FilledTonalButton(
                             onClick = { viewModel.decodeVin() },
                             enabled = form.vinSerial.isNotBlank(),
@@ -366,6 +370,19 @@ fun AddEditAssetScreen(
                         }
                     }
                 }
+            }
+
+            // Current mileage (road vehicles with a distance meter)
+            if (AssetScope.tracksMileage(form.assetType)) item {
+                OutlinedTextField(
+                    value = form.mileage,
+                    onValueChange = { viewModel.onMileageChanged(it) },
+                    label = { Text(stringResource(R.string.asset_field_mileage)) },
+                    supportingText = { Text(stringResource(R.string.asset_field_mileage_hint)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
 
             // Fleet Number
@@ -497,7 +514,7 @@ fun AddEditAssetScreen(
                 )
             }
 
-            // Change 106: Tags section — chips-with-add-button pattern
+            // Change 106: Tags section â€” chips-with-add-button pattern
             item {
                 TagsInputSection(
                     tags = form.tags,
@@ -881,7 +898,7 @@ private fun FloorMapSection(
     val attrKey = floorAttributeKeyFor(assetType)
     val unitLabel = floorUnitLabelFor(assetType)
 
-    // Local state — parsed from currentJson on first load
+    // Local state â€” parsed from currentJson on first load
     var mode by rememberSaveable { mutableStateOf("numeric") }
     var floorCount by rememberSaveable { mutableIntStateOf(1) }
     // Store range strings for up to 50 floors; list grows with floorCount
@@ -1118,7 +1135,7 @@ private fun FieldRow(
 }
 
 // ---------------------------------------------------------------------------
-// Change 106: Tags input section — chips-with-add-button pattern
+// Change 106: Tags input section â€” chips-with-add-button pattern
 // ---------------------------------------------------------------------------
 
 @Composable

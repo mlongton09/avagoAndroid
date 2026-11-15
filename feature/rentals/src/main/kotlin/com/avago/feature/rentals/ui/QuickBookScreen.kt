@@ -81,6 +81,7 @@ import com.avago.feature.rentals.domain.ClassView
 import com.avago.feature.rentals.domain.CustomerView
 import com.avago.feature.rentals.domain.LocalSchedule
 import com.avago.feature.rentals.domain.obj
+import com.avago.feature.rentals.domain.InstantBookCheck
 import com.avago.feature.rentals.domain.PricingDisplay
 import com.avago.feature.rentals.domain.RentalEntity
 import com.avago.feature.rentals.R
@@ -169,6 +170,10 @@ class QuickBookViewModel @Inject constructor(
     private val _serverPreview = MutableStateFlow<PricingDisplay?>(null)
     val serverPreview: StateFlow<PricingDisplay?> = _serverPreview.asStateFlow()
 
+    /** Would a renter booking this online be confirmed instantly? Null offline or before a unit/class is picked. */
+    private val _instant = MutableStateFlow<InstantBookCheck?>(null)
+    val instant: StateFlow<InstantBookCheck?> = _instant.asStateFlow()
+
     /** Offline conflict check against synced allocations. */
     val conflict: StateFlow<Availability.UnitResult?> = combine(_form, fleetRecords) { f, recs ->
         val id = f.assetId ?: return@combine null
@@ -185,6 +190,7 @@ class QuickBookViewModel @Inject constructor(
         viewModelScope.launch {
             _form.debounce(600).collect { f ->
                 _serverPreview.value = null
+                _instant.value = null
                 if (!f.end.isAfter(f.start) || (f.assetId == null && f.classId == null)) return@collect
                 val acc = repo.accountId.first() ?: return@collect
                 try {
@@ -194,6 +200,14 @@ class QuickBookViewModel @Inject constructor(
                     throw e
                 } catch (e: Exception) {
                     Timber.d(e, "pricing preview offline")
+                }
+                try {
+                    _instant.value = InstantBookCheck.from(api.instantBookEvaluate(acc, RentalRequests.instantBookEvaluate(input(f, null))))
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // Older servers (404) and staff without rental.view simply hide the badge.
+                    Timber.d(e, "instant-book evaluate unavailable")
                 }
             }
         }
@@ -279,6 +293,7 @@ fun QuickBookScreen(
     val customers by viewModel.customers.collectAsStateWithLifecycle()
     val local by viewModel.preview.collectAsStateWithLifecycle()
     val server by viewModel.serverPreview.collectAsStateWithLifecycle()
+    val instant by viewModel.instant.collectAsStateWithLifecycle()
     val conflict by viewModel.conflict.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val haptics = rememberHaptics()
@@ -414,6 +429,7 @@ fun QuickBookScreen(
                 }
             }
             PricePreviewCard(server ?: local)
+            instant?.let { InstantBookCard(it) }
             Text(
                 stringResource(R.string.rentals_booking_offline_note),
                 style = MaterialTheme.typography.bodySmall,

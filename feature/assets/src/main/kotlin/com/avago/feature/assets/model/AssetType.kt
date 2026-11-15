@@ -1,4 +1,4 @@
-package com.avago.feature.assets.model
+﻿package com.avago.feature.assets.model
 
 import androidx.annotation.DrawableRes
 import androidx.compose.ui.graphics.Color
@@ -12,6 +12,8 @@ data class AssetTypeItem(
     val heroImageName: String? = null,
     /** Background color hex for the asset avatar, matching iOS AvatarView.colorForAssetType(). */
     val colorHex: String = "#2563EB",
+    /** Display label for server types the app has no string for ([labelResId] is 0). */
+    val fallbackLabel: String? = null,
 )
 
 data class AssetTypeGroup(
@@ -25,6 +27,7 @@ object AssetTypes {
     val all: List<AssetTypeItem> = listOf(
         AssetTypeItem("vehicle",              R.string.asset_type_vehicle,              R.drawable.ic_asset_light_vehicle,        "hero_light_vehicle",        "#3882C8"),
         AssetTypeItem("light_vehicle",        R.string.asset_type_light_vehicle,        R.drawable.ic_asset_light_vehicle,        "hero_light_vehicle",        "#3882C8"),
+        AssetTypeItem("car",                  R.string.asset_type_car,                  R.drawable.ic_asset_light_vehicle,        "hero_light_vehicle",        "#3882C8"),
         AssetTypeItem("motorcycle",           R.string.asset_type_motorcycle,           R.drawable.ic_asset_motorcycle,           "hero_motorcycle",           "#7038C0"),
         AssetTypeItem("ev",                   R.string.asset_type_ev,                   R.drawable.ic_asset_light_vehicle,        "hero_light_vehicle",        "#3882C8"),
         AssetTypeItem("truck",                R.string.asset_type_truck,                R.drawable.ic_asset_commercial_vehicle,   "hero_commercial_vehicle",   "#F07828"),
@@ -41,6 +44,12 @@ object AssetTypes {
         AssetTypeItem("compressor",           R.string.asset_type_compressor,           R.drawable.ic_asset_generator,            null,                        "#F0D820"),
         AssetTypeItem("forklift",             R.string.asset_type_forklift,             R.drawable.ic_asset_heavy_equipment,      "hero_heavy_equipment",      "#F5A020"),
         AssetTypeItem("crane",                R.string.asset_type_crane,                R.drawable.ic_asset_heavy_equipment,      "hero_heavy_equipment",      "#F5A020"),
+        AssetTypeItem("survey_layout",        R.string.asset_type_survey_layout,        R.drawable.ic_asset_industrial,           null,                        "#5856D6"),
+        AssetTypeItem("drone",                R.string.asset_type_drone,                R.drawable.ic_asset_generator,            null,                        "#30B0C7"),
+        AssetTypeItem("welding_cutting",      R.string.asset_type_welding_cutting,      R.drawable.ic_asset_generator,            null,                        "#FF3B30"),
+        AssetTypeItem("concrete_compaction",  R.string.asset_type_concrete_compaction,  R.drawable.ic_asset_heavy_equipment,      null,                        "#A2845E"),
+        AssetTypeItem("test_measurement",     R.string.asset_type_test_measurement,     R.drawable.ic_asset_industrial,           null,                        "#0A84FF"),
+        AssetTypeItem("power_tools",          R.string.asset_type_power_tools,          R.drawable.ic_asset_lawn_equipment,       null,                        "#FF9500"),
         AssetTypeItem("personal_watercraft",  R.string.asset_type_personal_watercraft,  R.drawable.ic_asset_personal_watercraft,  null,                        "#2888C8"),
         AssetTypeItem("pleasure_craft",       R.string.asset_type_pleasure_craft,       R.drawable.ic_asset_pleasure_craft,       "hero_pleasure_craft",       "#2850C0"),
         AssetTypeItem("commercial_vessel",    R.string.asset_type_commercial_vessel,    R.drawable.ic_asset_commercial_vessel,    "hero_commercial_vessel",    "#2040B0"),
@@ -61,6 +70,9 @@ object AssetTypes {
             color = Color(0xFF0A84FF),
             types = itemsFor(
                 "light_vehicle",
+                "car",
+                "ev",
+                "truck",
                 "motorcycle",
                 "commercial_vehicle",
                 "recreational_vehicle",
@@ -76,7 +88,6 @@ object AssetTypes {
                 "residential",
                 "multifamily",
                 "office",
-                "industrial",
                 "healthcare",
                 "restaurant",
             ),
@@ -88,6 +99,20 @@ object AssetTypes {
             types = itemsFor(
                 "lawn_equipment",
                 "generator",
+                "industrial",
+            ),
+        ),
+        AssetTypeGroup(
+            id = "tools",
+            titleResId = R.string.asset_type_group_tools,
+            color = Color(0xFF5856D6),
+            types = itemsFor(
+                "survey_layout",
+                "drone",
+                "welding_cutting",
+                "concrete_compaction",
+                "test_measurement",
+                "power_tools",
             ),
         ),
         AssetTypeGroup(

@@ -33,6 +33,9 @@ import com.avago.feature.assets.ui.CategoryReportScreen
 import com.avago.feature.assets.ui.CostReportScreen
 import com.avago.feature.assets.ui.WheelConfigBuilderScreen
 import com.avago.feature.assets.ui.WheelConfigScreen
+import com.avago.feature.assets.ui.ToolDetailsScreen
+import com.avago.feature.assets.ui.VehicleDetailsScreen
+import com.avago.feature.assets.ui.RecallsScreen
 import com.avago.feature.assets.ui.WheelDataInputScreen
 import com.avago.feature.assets.viewmodel.WheelSaveViewModel
 
@@ -61,6 +64,13 @@ object AssetsRoute {
     const val ONBOARDING = "assets/onboarding"
     const val COST_REPORT = "assets/cost_report"
     const val CATEGORY_REPORT = "assets/category_report/{assetId}"
+    const val TOOL_DETAILS = "assets/tool_details/{assetId}"
+    const val VEHICLE_DETAILS = "assets/vehicle_details/{assetId}"
+    const val RECALLS = "assets/recalls/{assetId}"
+
+    fun toolDetails(assetId: String) = "assets/tool_details/$assetId"
+    fun vehicleDetails(assetId: String) = "assets/vehicle_details/$assetId"
+    fun recalls(assetId: String) = "assets/recalls/$assetId"
 
     fun detail(assetId: String) = "assets/detail/$assetId"
     fun workOrders(assetId: String) = "assets/work_orders/$assetId"
@@ -185,8 +195,32 @@ fun NavGraphBuilder.assetsNavGraph(
                     // No asset->thread mapping yet on Android; route to the chat list.
                     navController.navigate("chat/list")
                 },
+                onOpenToolDetails = { navController.navigate(AssetsRoute.toolDetails(assetId)) },
+                onOpenVehicleDetails = { navController.navigate(AssetsRoute.vehicleDetails(assetId)) },
+                onOpenRecalls = { navController.navigate(AssetsRoute.recalls(assetId)) },
                 logTabHeader = assetLogHeader?.let { header -> @Composable { header(assetId) } },
             )
+        }
+
+        composable(
+            route = AssetsRoute.TOOL_DETAILS,
+            arguments = listOf(navArgument("assetId") { type = NavType.StringType }),
+        ) {
+            ToolDetailsScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(
+            route = AssetsRoute.VEHICLE_DETAILS,
+            arguments = listOf(navArgument("assetId") { type = NavType.StringType }),
+        ) {
+            VehicleDetailsScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(
+            route = AssetsRoute.RECALLS,
+            arguments = listOf(navArgument("assetId") { type = NavType.StringType }),
+        ) {
+            RecallsScreen(onBack = { navController.popBackStack() })
         }
 
         composable(

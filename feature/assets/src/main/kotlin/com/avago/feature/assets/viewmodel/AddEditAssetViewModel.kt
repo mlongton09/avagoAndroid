@@ -1,4 +1,4 @@
-package com.avago.feature.assets.viewmodel
+﻿package com.avago.feature.assets.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.util.UUID
+import com.avago.feature.assets.model.AssetScope
 import javax.inject.Inject
 
 /**
@@ -40,6 +41,8 @@ data class AssetFormState(
     val avatarColor: String = "#4FC3F7",
     val licensePlate: String = "",
     val vinSerial: String = "",
+    /** Current odometer reading for road vehicles (attribute `odometer`). */
+    val mileage: String = "",
     val purchaseDate: Long? = null,
     val purchasePrice: String = "",
     val location: String = "",
@@ -66,7 +69,7 @@ data class AssetFormState(
 
 /** Keys that are handled explicitly and should not appear in the custom attributes section. */
 private val KNOWN_ATTRIBUTE_KEYS = setOf(
-    "name", "make", "model", "year", "color", "license_plate", "vin",
+    "name", "make", "model", "year", "color", "license_plate", "vin", "serial_number", "odometer",
     "purchase_date", "purchase_price", "notes",
     "street_address", "city", "state", "zip_code", "country", "fleet_number",
     "latitude", "longitude",
@@ -145,7 +148,10 @@ class AddEditAssetViewModel @Inject constructor(
                 year = entity.year?.toString() ?: "",
                 avatarColor = entity.avatarColor ?: "#4FC3F7",
                 licensePlate = extractAttribute(entity.attributes, "license_plate"),
-                vinSerial = extractAttribute(entity.attributes, "vin"),
+                vinSerial = extractAttribute(entity.attributes, "vin")
+                    .ifBlank { extractAttribute(entity.attributes, "serial_number") },
+                mileage = extractAttribute(entity.attributes, "odometer")
+                    .ifBlank { extractLongAttribute(entity.attributes, "odometer")?.toString().orEmpty() },
                 purchaseDate = extractLongAttribute(entity.attributes, "purchase_date"),
                 purchasePrice = extractAttribute(entity.attributes, "purchase_price"),
                 location = entity.addressLine1 ?: "",
@@ -175,6 +181,7 @@ class AddEditAssetViewModel @Inject constructor(
     fun onAvatarColorChanged(value: String) { _form.value = _form.value.copy(avatarColor = value) }
     fun onLicensePlateChanged(value: String) { _form.value = _form.value.copy(licensePlate = value) }
     fun onVinSerialChanged(value: String) { _form.value = _form.value.copy(vinSerial = value) }
+    fun onMileageChanged(value: String) { _form.value = _form.value.copy(mileage = normalizeMileage(value)) }
     fun onPurchaseDateChanged(value: Long?) { _form.value = _form.value.copy(purchaseDate = value) }
     fun onPurchasePriceChanged(value: String) { _form.value = _form.value.copy(purchasePrice = value) }
     fun onLocationChanged(value: String) { _form.value = _form.value.copy(location = value) }
@@ -258,7 +265,7 @@ class AddEditAssetViewModel @Inject constructor(
     }
 
     // ---------------------------------------------------------------------------
-    // Geocode (real-estate address section — mirrors iOS geocodeLookupTapped)
+    // Geocode (real-estate address section â€” mirrors iOS geocodeLookupTapped)
     // ---------------------------------------------------------------------------
 
     private val _geocodeResult = MutableStateFlow<GeocodeResult?>(null)
@@ -316,7 +323,7 @@ class AddEditAssetViewModel @Inject constructor(
                                 formattedAddress = response.formatted_address,
                             )
                             // Store coordinates in customAttributes so they round-trip through
-                            // the attributes JSON (mirrors iOS attributeValues["latitude"] = …).
+                            // the attributes JSON (mirrors iOS attributeValues["latitude"] = â€¦).
                             val updated = _form.value.customAttributes.toMutableMap()
                             updated["latitude"] = lat.toString()
                             updated["longitude"] = lon.toString()
@@ -375,6 +382,8 @@ class AddEditAssetViewModel @Inject constructor(
                 val attributesJson = buildAttributesJson(
                     licensePlate = current.licensePlate,
                     vin = current.vinSerial,
+                    serialKey = if (AssetScope.isTool(current.assetType)) "serial_number" else "vin",
+                    mileage = current.mileage.takeIf { AssetScope.tracksMileage(current.assetType) },
                     purchaseDate = current.purchaseDate,
                     purchasePrice = current.purchasePrice.toDoubleOrNull(),
                     notes = current.notes,
@@ -441,6 +450,8 @@ class AddEditAssetViewModel @Inject constructor(
     private fun buildAttributesJson(
         licensePlate: String,
         vin: String,
+        serialKey: String,
+        mileage: String?,
         purchaseDate: Long?,
         purchasePrice: Double?,
         notes: String,
@@ -449,7 +460,8 @@ class AddEditAssetViewModel @Inject constructor(
     ): String? {
         val parts = mutableListOf<String>()
         if (licensePlate.isNotBlank()) parts += "\"license_plate\":\"${licensePlate.trim()}\""
-        if (vin.isNotBlank()) parts += "\"vin\":\"${vin.trim()}\""
+        if (vin.isNotBlank()) parts += "\"$serialKey\":\"${vin.trim()}\""
+        if (!mileage.isNullOrBlank()) parts += "\"odometer\":\"$mileage\""
         if (purchaseDate != null) parts += "\"purchase_date\":$purchaseDate"
         if (purchasePrice != null) parts += "\"purchase_price\":$purchasePrice"
         if (notes.isNotBlank()) parts += "\"notes\":\"${notes.trim().replace("\"", "\\\"")}\""
@@ -506,4 +518,11 @@ class AddEditAssetViewModel @Inject constructor(
         if (tags.isEmpty()) return null
         return "[${tags.joinToString(",") { "\"${it.replace("\"", "\\\"")}\"" }}]"
     }
+}
+
+/** Whole-unit odometer input: digits only, no leading zeros, at most 9 digits ("12,345 mi" -> "12345"). */
+internal fun normalizeMileage(input: String): String {
+    val digits = input.filter { it.isDigit() }
+    if (digits.isEmpty()) return ""
+    return digits.trimStart('0').ifEmpty { "0" }.take(9)
 }

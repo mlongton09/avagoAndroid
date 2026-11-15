@@ -67,6 +67,23 @@
                 <data android:host="avagomate.com" />
                 <data android:pathPrefix="/marketplace" />
             </intent-filter>
+            <!-- QR asset passport (/a/{id}, /passport/{id}, /passport/claim/{token}) and renter-portal links. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="www.avagomate.com" />
+                <data android:pathPrefix="/a/" />
+                <data android:pathPrefix="/passport/" />
+                <data android:pathPattern="/rent/.*/portal" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="avago" android:host="passport" />
+                <data android:host="rent" />
+            </intent-filter>
             <meta-data
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />

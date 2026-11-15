@@ -136,6 +136,22 @@ class RentalsApi @Inject constructor(
         client.post(r(accountId, "/pricing/preview")) { json(body) }.body()
     }
 
+    /**
+     * POST /rentals/instant-book/evaluate — staff preview of whether a booking would be instant
+     * (AvagoSvc docs/rentals-api-instant-network.md §2.1). Body `{class_id?, asset_id?,
+     * customer_id?, start_at, end_at, delivery?}` → `{data:{eligible, outcome, reasons[], …}}`.
+     */
+    suspend fun instantBookEvaluate(accountId: String, body: JsonObject): JsonObject = call {
+        client.post(r(accountId, "/instant-book/evaluate")) { json(body) }.body()
+    }
+
+    /**
+     * GET /rentals/orders/{id}/fee-breakdown — platform fee, renter fee and the owner's net payout
+     * (AvagoSvc payments/connect.rs, `platform_fees::breakdown_json`), in `{data:{…}}`.
+     */
+    suspend fun feeBreakdown(accountId: String, orderId: String): JsonObject = call {
+        client.get(r(accountId, "/orders/$orderId/fee-breakdown")).body()
+    }
     // ---- Orders -----------------------------------------------------------------------
 
     suspend fun getOrder(accountId: String, orderId: String): JsonObject = call {

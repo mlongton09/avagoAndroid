@@ -1,4 +1,4 @@
-package com.avago.feature.assets.ui
+﻿package com.avago.feature.assets.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -31,6 +31,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -41,9 +45,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.avago.feature.assets.R
+import com.avago.feature.assets.model.AssetScope
 import com.avago.feature.assets.model.AssetTypeGroup
 import com.avago.feature.assets.model.AssetTypeItem
 import com.avago.feature.assets.model.AssetTypes
+import com.avago.feature.assets.viewmodel.AssetScopeViewModel
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -51,7 +57,11 @@ import java.util.Locale
 fun AssetTypePickerScreen(
     onTypeSelected: (typeKey: String) -> Unit,
     onBack: () -> Unit,
+    currentType: String? = null,
+    scopeViewModel: AssetScopeViewModel = hiltViewModel(),
 ) {
+    val catalog by scopeViewModel.catalog.collectAsStateWithLifecycle()
+    val groups = remember(catalog, currentType) { AssetScope.pickerGroups(catalog, currentType) }
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -76,7 +86,7 @@ fun AssetTypePickerScreen(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            AssetTypes.grouped.forEach { group ->
+            groups.forEach { group ->
                 item(
                     key = "header-${group.id}",
                     span = { GridItemSpan(maxLineSpan) },
@@ -158,7 +168,7 @@ private fun AssetTypeCard(
             }
             Spacer(Modifier.width(10.dp))
             Text(
-                text = stringResource(typeItem.labelResId),
+                text = if (typeItem.labelResId != 0) stringResource(typeItem.labelResId) else typeItem.fallbackLabel ?: typeItem.key,
                 style = MaterialTheme.typography.bodyLarge,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
