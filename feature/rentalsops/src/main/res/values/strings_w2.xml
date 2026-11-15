@@ -41,4 +41,21 @@
     <string name="rental_marketplace_meetup_title">Marketplace meet-up request</string>
     <string name="rentalops_event_marketplace_meetup">Marketplace meet-ups</string>
     <string name="rentalops_event_marketplace_meetup_desc">A marketplace renter asked to meet or cancelled a meet-up</string>
+    <!-- G5 location sharing (RouteTrackingService) -->
+    <string name="rentalops_w2_track_title">Share my location</string>
+    <string name="rentalops_w2_track_desc">While your route has active stops, dispatch sees where you are and customers get live ETAs. Sharing stops when the route is done or at midnight.</string>
+    <string name="rentalops_w2_track_on">Sharing your location</string>
+    <string name="rentalops_w2_track_off">Not sharing</string>
+    <string name="rentalops_w2_track_no_route">Starts when your route has an active stop.</string>
+    <string name="rentalops_w2_track_denied">Location access is off. Allow it in Settings to share your location.</string>
+    <string name="rentalops_w2_track_settings">Open settings</string>
+    <string name="rentalops_w2_track_bg_title">Keep sharing if Android closes the app?</string>
+    <string name="rentalops_w2_track_bg_text">Choose \"Allow all the time\" so sharing can resume if Android stops the app during your route. Avago only uses your location while a route is active and you have sharing turned on.</string>
+    <string name="rentalops_w2_track_bg_allow">Continue</string>
+    <string name="rentalops_w2_track_bg_skip">Not now</string>
+    <string name="rentalops_w2_track_notif_title">Sharing your location</string>
+    <string name="rentalops_w2_track_notif_text">Dispatch sees your position while your route is active.</string>
+    <string name="rentalops_w2_track_stop">Stop sharing</string>
+    <string name="rentalops_w2_track_channel">Route location sharing</string>
+    <string name="rentalops_w2_track_channel_desc">Shown while your location is shared during a delivery route</string>
 </resources>

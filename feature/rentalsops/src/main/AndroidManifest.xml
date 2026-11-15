@@ -1,7 +1,21 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- CAMERA, POST_NOTIFICATIONS and location permissions are declared by :app.
+    <!-- CAMERA and POST_NOTIFICATIONS are declared by :app.
          The home-screen widget is P1's RentalFleetWidget (feature:rentals). -->
-    <application />
+
+    <!-- Wave 2 G5 driver location sharing (RouteTrackingService). Background location is
+         optional: it only lets Android restart sharing after it stopped the app mid-route. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+    <application>
+        <service
+            android:name=".tracking.RouteTrackingService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+    </application>
 </manifest>

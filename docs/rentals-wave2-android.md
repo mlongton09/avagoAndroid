@@ -151,6 +151,16 @@ Overdue alerts use the existing `rental.overdue` push.
   - proof photos and signature.
 - Older servers, which answer with an uncoded 404 or a 405, fall back to the stage C task action.
 
+#### Location sharing (pings)
+
+- **Opt-in:** a "Share my location" switch on My route, off by default and stored per account. It is shown when the route has an active stop or sharing is on.
+- **Permission flow:** location (precise or approximate), then notifications on Android 13+, then an optional "Allow all the time" step with an in-app rationale first. While-in-use access is enough because the service starts from the visible route screen. Background access only lets Android restart sharing after it killed the app mid-route. After a refusal, the switch shows a banner with **Open settings**.
+- **Service:** `RouteTrackingService`, a foreground service of type `location` with a low-importance ongoing notification ("Route location sharing" channel) and a **Stop sharing** action. It starts only when the driver opted in and the server route (not the offline fallback) says `tracking: true`.
+- **Cadence:** `ping_interval_seconds` from `my-route` (15–900 s, default 60), replaced by `next_interval_seconds` from each upload. It doubles below 30 % battery and quadruples below 15 % unless charging. After 2 minutes below 1 m/s it switches to balanced accuracy at twice the interval until the driver moves again.
+- **Upload:** `POST …/routing/pings` in batches of at most 50, at most every 15 s. Each ping carries `accuracy_m`, `speed_mps`, `heading`, `battery_pct` and the `task_id` of the en-route or arrived stop.
+- **Offline queue:** pings are kept in a per-account file (survives process death), deduplicated by the server's 10 s rule, capped at 1,000 and dropped after 2 days. Offline and 5xx keep the batch; 429 waits for `details.retry_after`; other 4xx drop the batch.
+- **Stop:** the service stops when the driver turns sharing off or taps Stop, when `my-route` (re-read every 5 minutes) no longer says `tracking`, at local midnight, or on 401/403. It sends what is queued before stopping.
+
 ### G6 — Stripe online payments (feature:rentals)
 
 - All online-payment UI is hidden unless `/payments/status` reports `online_payments_enabled: true`. That UI covers:
@@ -163,12 +173,7 @@ Overdue alerts use the existing `rental.overdue` push.
 
 ## Deviations and deferred items
 
-- **G5 location pings and the foreground service (§7) are not implemented.** The app does not send background location pings while `tracking` is true. That needs:
-  - a location foreground service;
-  - `ACCESS_BACKGROUND_LOCATION` and the Play policy declaration;
-  - battery testing.
-
-  The route view and check-ins work without pings. `ping_interval_seconds` and `tracking` are parsed for a follow-up.
+- **G5 background location needs a Play Console declaration.** The app declares `ACCESS_BACKGROUND_LOCATION` and `FOREGROUND_SERVICE_LOCATION`. Before release, complete the Play location-permissions declaration (driver route sharing) and run battery testing on devices.
 - **Check-in conflicts are not dropped silently.** The doc says to drop queued `client_uuid_reused` and `invalid_transition` items. The app keeps them as visible conflict rows with Retry and Discard, which is the established outbox rule. An `invalid_transition` that is already applied (`details.from`) is still resolved automatically.
 - **Push bodies for the new G2/G3 events** use the server's text. Only titles are localized.
 - **Field names are not verified against a live server.** The KPI, meter and payment-request field names follow the contract docs.
@@ -226,6 +231,11 @@ Test on a phone in light and dark mode, at 200 % font size, and in German.
 - [ ] Tap **On my way** and then **Arrived** while offline. Both should be queued with pending pills, and the route should refresh after sync.
 - [ ] A stop without coordinates should show no Navigate button. Navigate on a stop with coordinates should open the maps app.
 - [ ] Turn on airplane mode before the first load of the day. The device fallback banner should appear.
+- [ ] With an assigned stop, turn on **Share my location**. Grant location and notifications. The "Allow all the time" rationale should appear; Not now should keep sharing on. The ongoing "Sharing your location" notification should appear, and the server should receive pings (`GET …/routing/drivers/{user_id}/track`).
+- [ ] Drive with the app in the background, then in airplane mode for a few minutes. Pings should be queued and uploaded after reconnecting.
+- [ ] Tap **Stop sharing** in the notification. The notification should go away and the switch should be off.
+- [ ] Complete the last stop. Within 5 minutes the service should stop by itself.
+- [ ] Deny location. The switch should stay off and show the **Open settings** banner.
 
 ### Push
 

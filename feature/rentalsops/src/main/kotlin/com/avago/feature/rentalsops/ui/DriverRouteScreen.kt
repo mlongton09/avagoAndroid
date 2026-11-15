@@ -84,6 +84,7 @@ import com.avago.feature.rentalsops.domain.TaskStatus
 import com.avago.feature.rentalsops.domain.TransitionError
 import com.avago.feature.rentalsops.domain.TransitionResult
 import com.avago.feature.rentalsops.push.RentalOpsRoutes
+import com.avago.feature.rentalsops.tracking.RouteTracker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -127,6 +128,7 @@ sealed class RouteEvent {
 class DriverRouteViewModel @Inject constructor(
     @ApplicationContext private val ctx: Context,
     private val repo: RentalOpsRepository,
+    private val tracker: RouteTracker,
 ) : ViewModel() {
     private val fetch = MutableStateFlow<Fetch?>(null)
     private val loading = MutableStateFlow(false)
@@ -138,6 +140,30 @@ class DriverRouteViewModel @Inject constructor(
 
     private val _events = MutableSharedFlow<RouteEvent>(extraBufferCapacity = 4)
     val events: SharedFlow<RouteEvent> = _events
+
+    /** G5 location sharing: the driver's opt-in, the service state and whether the route is live. */
+    val sharing: StateFlow<SharingState> = combine(tracker.sharingEnabled, tracker.running, state) { on, running, s ->
+        SharingState(enabled = on, running = running, routeActive = s.route?.tracking == true)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SharingState())
+
+    fun setSharing(on: Boolean) = viewModelScope.launch {
+        tracker.setSharing(on)
+        if (on) syncTracking() else tracker.stop()
+    }
+
+    /**
+     * Starts the service while this screen is visible when the driver opted in and the server
+     * route is live (the service itself stops when the route ends). Only a server-confirmed
+     * route counts: the device fallback can't tell whether dispatch expects pings.
+     */
+    fun syncTracking() = viewModelScope.launch {
+        val s = state.value
+        val live = s.source == RouteSource.SERVER && s.route?.tracking == true
+        if (live && !tracker.running.value && tracker.isSharingEnabled()) {
+            s.route?.pingIntervalSeconds?.let { if (tracker.baseIntervalSeconds == null) tracker.baseIntervalSeconds = it }
+            tracker.start()
+        }
+    }
 
     init {
         // §7 "refresh after each check-in": whenever a queued driver update is acknowledged the
@@ -226,6 +252,7 @@ class DriverRouteViewModel @Inject constructor(
 @Composable
 fun DriverRouteScreen(onNavigate: (String) -> Unit, onBack: () -> Unit, vm: DriverRouteViewModel = hiltViewModel()) {
     val s by vm.state.collectAsStateWithLifecycle()
+    val sharing by vm.sharing.collectAsStateWithLifecycle()
     val ctx = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val haptics = rememberHaptics()
@@ -239,6 +266,7 @@ fun DriverRouteScreen(onNavigate: (String) -> Unit, onBack: () -> Unit, vm: Driv
     val errDriver = stringResource(R.string.rentalops_err_driver)
     val errProof = stringResource(R.string.rentalops_err_proof)
     val errReason = stringResource(R.string.rentalops_err_reason)
+    LaunchedEffect(s.source, s.route?.tracking, sharing.enabled) { vm.syncTracking() }
     LaunchedEffect(vm) {
         vm.events.collect { e ->
             when (e) {
@@ -272,13 +300,14 @@ fun DriverRouteScreen(onNavigate: (String) -> Unit, onBack: () -> Unit, vm: Driv
                 !s.loaded -> SkeletonList(rows = 4)
                 route == null || route.stops.isEmpty() -> Column(Modifier.fillMaxSize()) {
                     RouteBanner(s, vm::refresh)
+                    if (sharing.enabled) RouteSharingCard(sharing, vm::setSharing)
                     EmptyState(
                         stringResource(R.string.rentalops_route_empty),
                         Modifier.verticalScroll(rememberScrollState()),
                         icon = Icons.Filled.Route,
                     )
                 }
-                else -> RouteList(route, s, onRetry = vm::refresh, onStep = vm::step, onOpen = { onNavigate(RentalOpsRoutes.task(it.taskId)) }, onNavigateTo = { openStop(ctx, it) })
+                else -> RouteList(route, s, sharing, onShare = vm::setSharing, onRetry = vm::refresh, onStep = vm::step, onOpen = { onNavigate(RentalOpsRoutes.task(it.taskId)) }, onNavigateTo = { openStop(ctx, it) })
             }
         }
     }
@@ -288,6 +317,8 @@ fun DriverRouteScreen(onNavigate: (String) -> Unit, onBack: () -> Unit, vm: Driv
 private fun RouteList(
     route: DriverRoute,
     s: RouteState,
+    sharing: SharingState,
+    onShare: (Boolean) -> Unit,
     onRetry: () -> Unit,
     onStep: (RouteStop) -> Unit,
     onOpen: (RouteStop) -> Unit,
@@ -297,6 +328,9 @@ private fun RouteList(
     val done = route.stops.count { !it.status.isOpen }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = AvagoSpacing.xxl)) {
         item(key = "banner", contentType = "banner") { RouteBanner(s, onRetry) }
+        if (route.tracking || sharing.enabled) {
+            item(key = "sharing", contentType = "sharing") { RouteSharingCard(sharing, onShare) }
+        }
         item(key = "summary", contentType = "header") {
             SectionHeader(stringResource(R.string.rentalops_route_summary, done, route.stops.size))
         }
@@ -498,7 +532,7 @@ private fun previewStops(): DriverRoute {
 @Composable
 private fun RoutePreviewBody() {
     val r = previewStops()
-    RouteList(r, RouteState(route = r, source = RouteSource.SERVER, loaded = true), {}, {}, {}, {})
+    RouteList(r, RouteState(route = r, source = RouteSource.SERVER, loaded = true), SharingState(enabled = true, running = true, routeActive = true), {}, {}, {}, {}, {})
 }
 
 @Preview(name = "Route light", showBackground = true, widthDp = 380)
