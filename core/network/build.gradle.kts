@@ -10,7 +10,15 @@ android {
     compileSdk = 37
     defaultConfig {
         minSdk = 26
-        buildConfigField("String", "BASE_URL", "\"https://api.avagomate.com\"")
+        // API target (see root build.gradle.kts): release is always production.
+        buildConfigField("String", "BASE_URL", "\"${rootProject.extra["avago.prodBaseUrl"]}\"")
+        buildConfigField("String", "API_TARGET", "\"prod\"")
+    }
+    buildTypes {
+        debug {
+            buildConfigField("String", "BASE_URL", "\"${rootProject.extra["avago.debugBaseUrl"]}\"")
+            buildConfigField("String", "API_TARGET", "\"${rootProject.extra["avago.debugApiTarget"]}\"")
+        }
     }
     buildFeatures { buildConfig = true }
     compileOptions {

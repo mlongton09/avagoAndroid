@@ -21,13 +21,17 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        val baseUrl = project.findProperty("avago.base.url") as? String ?: "https://api.avagomate.com"
-        buildConfigField("String", "BASE_URL", "\"$baseUrl\"")
+        // API target (see root build.gradle.kts): production by default and
+        // always for release; debug may point at a local AvagoSvc.
+        buildConfigField("String", "BASE_URL", "\"${rootProject.extra["avago.prodBaseUrl"]}\"")
+        buildConfigField("String", "API_TARGET", "\"prod\"")
     }
 
     buildTypes {
         debug {
             isDebuggable = true
+            buildConfigField("String", "BASE_URL", "\"${rootProject.extra["avago.debugBaseUrl"]}\"")
+            buildConfigField("String", "API_TARGET", "\"${rootProject.extra["avago.debugApiTarget"]}\"")
         }
         release {
             isMinifyEnabled = true

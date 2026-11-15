@@ -63,12 +63,37 @@ Restart, then launch the AVD from Android Studio. The emulator maps `10.0.2.2` t
 
 ## Backend
 
-Talks to AvagoSvc at `https://api.avagomate.com` (production) or `http://10.0.2.2:8080` (local dev).
+Talks to AvagoSvc at `https://api.avagomate.com` (production) or a local
+AvagoSvc (debug builds only). The switch uses the same flag as AvagoWeb and
+AvagoAdmin. Put it in `local.properties` (git-ignored) and rebuild:
 
-Configure via `local.properties`:
+```properties
+# Production API (default)
+avago.api.target=prod
+
+# Local AvagoSvc running on this PC with PORT=8080
+avago.api.target=local
+# Emulator → host PC (default):
+avago.local.api.url=http://10.0.2.2:8080
+# Physical device on the same Wi-Fi → the PC's LAN IP instead:
+#avago.local.api.url=http://192.168.0.7:8080
 ```
-avago.base.url=https://api.avagomate.com
-```
+
+Each setting can also be passed as `-Pavago.api.target=local` or via the
+`AVAGO_API_TARGET` / `AVAGO_LOCAL_API_URL` environment variables
+(lookup order: `-P`/`gradle.properties` → `local.properties` → env).
+
+- The URL is written to `BuildConfig.BASE_URL` of `:app`, `:core:network`
+  (which `NetworkModule` uses) and `:feature:settings`; chat derives its
+  `ws://`/`wss://` URL from it. Developer settings show the target.
+- **Release builds always use production**, whatever the flag says.
+- Debug builds allow cleartext HTTP (`app/src/debug/res/xml/network_security_config.xml`)
+  so `http://` local URLs work; release stays HTTPS-only.
+- The Gradle output prints `[avago] API target (debug builds): local → …`.
+- Legacy `avago.base.url=<url>` still works for debug builds when
+  `avago.api.target` is not set.
+- On a physical device, make sure AvagoSvc listens on all interfaces and the
+  Windows firewall allows inbound TCP 8080.
 
 ## Offline sync & conflicts
 

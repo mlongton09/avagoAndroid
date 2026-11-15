@@ -10,8 +10,9 @@ android {
     compileSdk = 37
     defaultConfig {
         minSdk = 26
-        val baseUrl = project.findProperty("avago.base.url") as? String ?: "https://api.avagomate.com"
-        buildConfigField("String", "BASE_URL", "\"$baseUrl\"")
+        // API target (see root build.gradle.kts): release is always production.
+        buildConfigField("String", "BASE_URL", "\"${rootProject.extra["avago.prodBaseUrl"]}\"")
+        buildConfigField("String", "API_TARGET", "\"prod\"")
         val versionName = project.findProperty("avago.version.name") as? String ?: "1.0.0"
         val versionCode = (project.findProperty("avago.version.code") as? String)?.toInt() ?: 1
         buildConfigField("String", "VERSION_NAME", "\"$versionName\"")
@@ -20,6 +21,12 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
+    }
+    buildTypes {
+        debug {
+            buildConfigField("String", "BASE_URL", "\"${rootProject.extra["avago.debugBaseUrl"]}\"")
+            buildConfigField("String", "API_TARGET", "\"${rootProject.extra["avago.debugApiTarget"]}\"")
+        }
     }
     buildFeatures {
         compose = true
