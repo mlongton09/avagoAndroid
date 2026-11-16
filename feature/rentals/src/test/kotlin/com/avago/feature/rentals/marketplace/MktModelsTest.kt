@@ -3,6 +3,7 @@ package com.avago.feature.rentals.marketplace
 import com.avago.feature.rentals.domain.parseObj
 import com.avago.feature.rentals.marketplace.domain.MktBodies
 import com.avago.feature.rentals.marketplace.domain.MktListing
+import com.avago.feature.rentals.marketplace.domain.MktCancelMode
 import com.avago.feature.rentals.marketplace.domain.MktMyRequests
 import com.avago.feature.rentals.marketplace.domain.MktOwnerListing
 import com.avago.feature.rentals.marketplace.domain.MktOwnerMarketplace
@@ -99,6 +100,31 @@ class MktModelsTest {
         assertEquals("Q-1", r.bookings[0].reference)
     }
 
+    @Test
+    fun `renter changes, actions and the display number are parsed`() {
+        val r = MktMyRequests.of(
+            json(
+                """{"meetups":[{"id":"m1","status":"accepted","title":"Trailer","actions":{"reschedule":true,"cancel":false},
+                  "pending_change":{"id":"c1","kind":"meetup_time","proposed_slots":[{"start_at":"2026-11-22T17:00:00Z","end_at":"2026-11-22T17:30:00Z"}]},
+                  "history":[{"action":"requested","actor":"renter","at":"2026-11-19T10:00:00Z"},{"action":"reschedule_requested","actor":"renter"}]}],
+                "bookings":[{"order_id":"o1","number":"RO-1","quote_number":"Q-1","display_number":"RQ-1","status":"quoted",
+                  "actions":{"change_dates":true,"cancel":"free"},
+                  "last_change":{"id":"c2","kind":"booking_dates","status":"declined","owner_message":"Busy"}}]}""",
+            ),
+        )
+        val m = r.meetups[0]
+        assertTrue(m.canReschedule)
+        assertFalse(m.canCancel)
+        assertEquals("c1", m.pendingChange!!.id)
+        assertEquals(Instant.parse("2026-11-22T17:00:00Z"), m.pendingChange!!.proposed.single().start)
+        assertEquals(listOf("requested", "reschedule_requested"), m.history.map { it.action })
+        val b = r.bookings[0]
+        assertEquals("RQ-1", b.reference)
+        assertTrue(b.canChangeDates)
+        assertEquals(MktCancelMode.FREE, b.cancelMode)
+        assertEquals("declined", b.lastChange!!.status)
+        assertNull(b.pendingChange)
+    }
     @Test
     fun `reservation reads the order view`() {
         val q = MktReservation.of(json("""{"order":{"id":"o1","quote_number":"Q-7","status":"quoted"},"online_payments":true}"""))

@@ -1,11 +1,14 @@
 package com.avago.feature.rentals.marketplace
 
 import com.avago.feature.rentals.marketplace.domain.DistanceUnit
+import com.avago.feature.rentals.marketplace.domain.MktAvailabilityHint
 import com.avago.feature.rentals.marketplace.domain.MktBodies
+import com.avago.feature.rentals.marketplace.domain.MktChangeDates
 import com.avago.feature.rentals.marketplace.domain.MktCoords
 import com.avago.feature.rentals.marketplace.domain.MktCounter
 import com.avago.feature.rentals.marketplace.domain.MktDates
 import com.avago.feature.rentals.marketplace.domain.MktDistance
+import com.avago.feature.rentals.marketplace.domain.MktEarliest
 import com.avago.feature.rentals.marketplace.domain.MktEmail
 import com.avago.feature.rentals.marketplace.domain.MktError
 import com.avago.feature.rentals.marketplace.domain.MktFulfilment
@@ -100,14 +103,45 @@ class MktLogicTest {
     }
 
     @Test
-    fun `dates are sent as local midnight in UTC with an exclusive end`() {
+    fun `dates are sent as the renter's local calendar days with the zone`() {
         val q = MktSearchQuery(place = "x", firstDay = LocalDate.of(2026, 11, 20), lastDay = LocalDate.of(2026, 11, 22))
         val p = q.params(pacific).toMap()
-        assertEquals("2026-11-20T08:00:00Z", p["start_at"])
-        assertEquals("2026-11-23T08:00:00Z", p["end_at"])
-        // A single day ends the next midnight.
-        val single = MktSearchQuery(place = "x", firstDay = LocalDate.of(2026, 11, 20)).params(pacific).toMap()
-        assertEquals("2026-11-21T08:00:00Z", single["end_at"])
+        assertEquals("2026-11-20", p["start_date"])
+        assertEquals("2026-11-22", p["end_date"])
+        assertEquals(pacific.id, p["tz"])
+        assertFalse(p.containsKey("start_at"))
+        // A single day is both start and end; fixed offsets send no tz.
+        val single = MktSearchQuery(place = "x", firstDay = LocalDate.of(2026, 11, 20)).params(java.time.ZoneOffset.ofHours(-8)).toMap()
+        assertEquals("2026-11-20", single["end_date"])
+        assertFalse(single.containsKey("tz"))
+    }
+
+    @Test
+    fun `availability hint uses the earliest bookable start`() {
+        val now = Instant.parse("2026-11-20T18:00:00Z")
+        assertEquals(MktAvailabilityHint.Now, MktEarliest.hint(now, now.plusSeconds(600), now))
+        val later = now.plusSeconds(3 * 3600)
+        assertEquals(MktAvailabilityHint.From(later), MktEarliest.hint(now, later, now))
+        val days = now.plusSeconds(3 * 86400)
+        assertEquals(MktAvailabilityHint.Next(days), MktEarliest.hint(days, later, now))
+        assertEquals(MktAvailabilityHint.None, MktEarliest.hint(null, null, now))
+        assertEquals(MktAvailabilityHint.Now, MktEarliest.hint(now, null, now))
+    }
+
+    @Test
+    fun `change dates keeps the booking's times of day and rejects the same window`() {
+        val start = Instant.parse("2026-11-20T17:00:00Z") // 09:00 Pacific
+        val end = Instant.parse("2026-11-23T17:00:00Z")
+        assertEquals(LocalDate.of(2026, 11, 20) to LocalDate.of(2026, 11, 22), MktChangeDates.days(start, end, pacific))
+        val (s, e) = MktChangeDates.window(LocalDate.of(2026, 11, 25), LocalDate.of(2026, 11, 26), start, end, pacific)
+        assertEquals(Instant.parse("2026-11-25T17:00:00Z"), s)
+        assertEquals(Instant.parse("2026-11-27T17:00:00Z"), e)
+        val now = Instant.parse("2026-11-19T00:00:00Z")
+        assertNull(MktChangeDates.validate(s, e, start, end, null, null, now))
+        assertEquals("same_dates", MktChangeDates.validate(start, end, start, end, null, null, now))
+        assertEquals("lead_time", MktChangeDates.validate(s, e, start, end, s.plusSeconds(60), null, now))
+        assertEquals("too_long", MktChangeDates.validate(s, e, start, end, null, 1, now))
+        assertEquals(MktError.SameDates, MktError.ofCode("same_dates"))
     }
 
     @Test

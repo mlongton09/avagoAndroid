@@ -17,6 +17,7 @@ import com.avago.feature.rentals.marketplace.domain.MktRenter
 import com.avago.feature.rentals.marketplace.domain.MktRenterMeetup
 import com.avago.feature.rentals.marketplace.domain.MktReservation
 import com.avago.feature.rentals.marketplace.domain.MktSearchPage
+import com.avago.feature.rentals.marketplace.domain.MktRenterBooking
 import com.avago.feature.rentals.marketplace.domain.MktSlot
 import com.avago.feature.rentals.marketplace.nav.MarketplaceRoutes
 import com.avago.feature.rentals.marketplace.owner.MktDraftError
@@ -91,6 +92,10 @@ class MktViewModelsTest {
         override suspend fun myRequests(): MktResult<MktMyRequests> = MktResult.Err(MktError.Network)
         override suspend fun cancelMeetup(id: String): MktResult<MktRenterMeetup?> = MktResult.Err(MktError.Network)
         override suspend fun acceptCounter(id: String): MktResult<MktRenterMeetup?> = MktResult.Err(MktError.Network)
+        override suspend fun rescheduleMeetup(id: String, slots: List<MktSlot>, message: String?): MktResult<MktRenterMeetup?> = MktResult.Err(MktError.Network)
+        override suspend fun changeBookingDates(orderId: String, start: Instant, end: Instant, message: String?): MktResult<MktRenterBooking?> = MktResult.Err(MktError.Network)
+        override suspend fun cancelBooking(orderId: String, reason: String?): MktResult<MktRenterBooking?> = MktResult.Err(MktError.Network)
+        override suspend fun withdrawChange(changeId: String): MktResult<Unit> = MktResult.Err(MktError.Network)
     }
 
     private fun listing() = MktListing.of(

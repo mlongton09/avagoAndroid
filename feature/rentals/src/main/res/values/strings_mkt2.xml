@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Marketplace renter changes, cancellation and earliest start (docs/rentals-marketplace-android.md §6.5). -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="mkt_available_from">Available from %1$s</string>
+    <string name="mkt_earliest_start">Earliest start: %1$s</string>
+    <string name="mkt_change_sent">Change sent to the owner</string>
+    <string name="mkt_booking_cancelled">Booking cancelled</string>
+    <string name="mkt_cancel_requested">Cancellation requested</string>
+    <string name="mkt_change_withdrawn">Change request withdrawn</string>
+    <string name="mkt_change_time">Change time</string>
+    <string name="mkt_change_time_body">Pick up to %1$d new times (%2$s). The owner confirms one; your current time stays until then.</string>
+    <string name="mkt_change_message">Message to the owner (optional)</string>
+    <string name="mkt_send_change">Send request</string>
+    <string name="mkt_change_dates">Change dates</string>
+    <string name="mkt_change_dates_body">Pick the new rental dates. The times of day stay the same and the owner has to confirm the change.</string>
+    <string name="mkt_cancel_booking_title">Cancel this booking?</string>
+    <string name="mkt_request_cancel_title">Ask to cancel?</string>
+    <string name="mkt_cancel_booking_free">The booking has not been confirmed yet, so you can cancel it free of charge. The owner is notified.</string>
+    <string name="mkt_cancel_booking_request">This booking is confirmed. The owner decides on the cancellation and any refund; nothing is refunded automatically.</string>
+    <string name="mkt_cancel_reason">Reason (optional)</string>
+    <string name="mkt_cancel_booking">Cancel booking</string>
+    <string name="mkt_request_cancel">Request cancellation</string>
+    <string name="mkt_change_waiting">Waiting for the owner</string>
+    <string name="mkt_change_pending_time">You asked to move the meet-up to: %1$s</string>
+    <string name="mkt_change_pending_dates">You asked to change the dates to %1$s</string>
+    <string name="mkt_change_pending_cancel">You asked to cancel this booking</string>
+    <string name="mkt_withdraw_change">Withdraw request</string>
+    <string name="mkt_change_declined">The owner declined your last change request.</string>
+    <string name="mkt_show_history">Show history (%1$d)</string>
+    <string name="mkt_hide_history">Hide history (%1$d)</string>
+    <string name="mkt_hist_requested">Requested</string>
+    <string name="mkt_hist_countered">Owner suggested another time</string>
+    <string name="mkt_hist_accepted">Accepted</string>
+    <string name="mkt_hist_declined">Declined</string>
+    <string name="mkt_hist_cancelled">Cancelled</string>
+    <string name="mkt_hist_change_requested">Change requested</string>
+    <string name="mkt_hist_cancel_requested">Cancellation requested</string>
+    <string name="mkt_hist_change_accepted">Change accepted</string>
+    <string name="mkt_hist_change_declined">Change declined</string>
+    <string name="mkt_hist_change_withdrawn">Change withdrawn</string>
+    <string name="mkt_err_change_pending">A change request is already waiting for the owner.</string>
+    <string name="mkt_err_allocation_conflict">The item is not available for those dates.</string>
+    <string name="mkt_err_same_dates">Pick dates that differ from the current booking.</string>
+</resources>

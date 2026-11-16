@@ -91,6 +91,8 @@ import com.avago.feature.rentals.marketplace.domain.DistanceUnit
 import com.avago.feature.rentals.marketplace.domain.MktArea
 import com.avago.feature.rentals.marketplace.domain.MktCardPrice
 import com.avago.feature.rentals.marketplace.domain.MktCategories
+import com.avago.feature.rentals.marketplace.domain.MktAvailabilityHint
+import com.avago.feature.rentals.marketplace.domain.MktEarliest
 import com.avago.feature.rentals.marketplace.domain.MktError
 import com.avago.feature.rentals.marketplace.domain.MktFulfilment
 import com.avago.feature.rentals.marketplace.domain.MktFulfilmentFlags
@@ -442,12 +444,18 @@ private fun AvailabilityPill(item: MktSearchItem) {
     when {
         item.available == true -> StatusPill(stringResource(R.string.mkt_available_dates), StatusTone.Success)
         item.available == false -> StatusPill(stringResource(R.string.mkt_not_available_dates), StatusTone.Warning)
-        next == null -> StatusPill(stringResource(R.string.mkt_no_availability_30), StatusTone.Neutral)
-        !next.isAfter(Instant.now()) -> StatusPill(stringResource(R.string.mkt_available_now), StatusTone.Success)
-        else -> StatusPill(
-            stringResource(R.string.mkt_next_available, DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withZone(zone).format(next)),
-            StatusTone.Info,
-        )
+        else -> when (val h = MktEarliest.hint(next, item.earliestStart, Instant.now())) {
+            MktAvailabilityHint.None -> StatusPill(stringResource(R.string.mkt_no_availability_30), StatusTone.Neutral)
+            MktAvailabilityHint.Now -> StatusPill(stringResource(R.string.mkt_available_now), StatusTone.Success)
+            is MktAvailabilityHint.From -> StatusPill(
+                stringResource(R.string.mkt_available_from, DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withZone(zone).format(h.at)),
+                StatusTone.Success,
+            )
+            is MktAvailabilityHint.Next -> StatusPill(
+                stringResource(R.string.mkt_next_available, DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withZone(zone).format(h.at)),
+                StatusTone.Info,
+            )
+        }
     }
 }
 

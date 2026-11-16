@@ -95,6 +95,9 @@ internal fun mktErrorRes(e: MktError, owner: Boolean = false): Int = when (e) {
     MktError.CounterStart -> R.string.mkt_inbox_err_start
     MktError.CounterPast -> R.string.mkt_inbox_err_past
     MktError.CounterEnd -> R.string.mkt_inbox_err_end
+    MktError.ChangePending -> R.string.mkt_err_change_pending
+    MktError.AllocationConflict -> R.string.mkt_err_allocation_conflict
+    MktError.SameDates -> R.string.mkt_err_same_dates
     MktError.Generic -> R.string.mkt_err_generic
 }
 

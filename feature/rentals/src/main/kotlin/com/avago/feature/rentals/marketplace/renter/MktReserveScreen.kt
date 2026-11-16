@@ -152,6 +152,12 @@ internal fun MktReserveContent(state: MktReserveState, signedIn: Boolean, onBack
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                    l.earliestStart?.takeIf { it.isAfter(java.time.Instant.now()) }?.let { e ->
+                        Text(
+                            stringResource(R.string.mkt_earliest_start, DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT).withZone(java.time.ZoneId.systemDefault()).format(e)),
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     SectionHeader(stringResource(R.string.mkt_pickup_time), Modifier.padding(start = 0.dp))
                     OutlinedButton(onClick = { pickTime = true }, modifier = Modifier.heightIn(min = MinTouch)) {
                         Text(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).format(state.time))

@@ -69,6 +69,21 @@ object MktBodies {
         slots.forEach { s -> add(buildJsonObject { put("start_at", s.start.toString()); put("end_at", s.end.toString()) }) }
     }
 
+    // ---- renter changes (§6.5) -------------------------------------------------------------
+
+    fun reschedule(slots: List<MktSlot>, message: String?): JsonObject = buildJsonObject {
+        put("slots", slotsArray(slots))
+        put("message", text(message, MktSlots.MESSAGE_LIMIT) ?: JsonNull)
+    }
+
+    fun changeDates(start: Instant, end: Instant, message: String?): JsonObject = buildJsonObject {
+        put("start_at", start.toString())
+        put("end_at", end.toString())
+        put("message", text(message, 2000) ?: JsonNull)
+    }
+
+    fun cancelBooking(reason: String?): JsonObject = buildJsonObject { put("reason", text(reason, 2000) ?: JsonNull) }
+
     // ---- owner -----------------------------------------------------------------------------
 
     fun accept(slotIndex: Int, message: String?, createReservation: Boolean, serverVersion: Long?): JsonObject = buildJsonObject {

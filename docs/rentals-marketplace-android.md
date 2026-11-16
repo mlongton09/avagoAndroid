@@ -78,7 +78,11 @@ All new text is in English and formal German ("Sie"):
   - Sort: distance, price, soonest, relevance. Relevance applies only when a keyword is set.
 - **Search results:**
   - Cursor paging.
-  - Result cards show the photo, price, approximate distance and next available date.
+  - Result cards show the photo, price, approximate distance and availability. Availability
+    combines `next_available` with `earliest_start_at` (owner lead time plus opening and
+    meet-up hours): "Available now", "Available from <time>" or the next available date
+    (`MktLogic`). The listing shows the same as "Earliest start".
+  - Date filters are the renter's local calendar days, sent with the device time zone (`tz`).
   - Empty results offer "Search a wider area".
 - **Listing detail:** photos, description, pricing, approximate area (never the exact address),
   an availability calendar by month, policies (deposit, cancellation, ID, minimum age) and the
@@ -86,6 +90,9 @@ All new text is in English and formal German ("Sie"):
 - **Reserve** (hold or quote mode, per the owner's settings):
   - The date range and quantity are validated.
   - Retries are idempotent.
+  - The first start is never before the listing's `earliest_start_at`.
+  - The reference shown is `display_number` (the quote number for quote requests, never the
+    internal `RO-` number of a quote).
   - Online-payment wording appears only when `online_payments` is true. Otherwise an in-person
     payment note is shown.
 - **Propose meet-up:**
@@ -99,6 +106,16 @@ All new text is in English and formal German ("Sie"):
   - That file is excluded from cloud backup and device transfer.
 - **My requests:** status of reservations and meet-ups. Renters can accept or decline an owner's
   counter-proposal.
+- **Changes (Svc §6.5),** shown from the server's `actions`:
+  - Meet-ups: **Change time** proposes 1–3 new slots (`POST meetups/{id}/reschedule`). An
+    accepted meet-up keeps its agreed time until the owner accepts.
+  - Bookings: **Change dates** of a pending booking (`POST bookings/{id}/change-dates`) and
+    **Cancel booking**: `free` cancels at once; `request` sends an optional reason and the owner
+    decides. Nothing is refunded automatically.
+  - An open change shows "Waiting for the owner" with **Withdraw** (`POST changes/{id}/withdraw`).
+    A declined change shows a note, and the request history can be expanded.
+  - Owners answer change requests on the web (`/rentals/meetups`); the Android owner inbox does
+    not list them yet.
 - **Profile:** name and phone; sign out.
 
 ### Guest mode
@@ -169,6 +186,9 @@ The owner ViewModels have no unit tests. `PermissionsManager` is a final class b
    - the message is sent;
    - the request shows in My requests.
 10. Owner counters the meet-up. As the renter, accept or decline it in My requests.
+    - Change the time of a pending and of an accepted meet-up, then withdraw a change.
+    - Change the dates of a held booking, cancel a held booking (free) and ask to cancel a
+      reserved one. Answer the changes as the owner on the web, then refresh My requests.
 11. Staff owner with permissions:
     - turn the marketplace on;
     - set the location from the current position;

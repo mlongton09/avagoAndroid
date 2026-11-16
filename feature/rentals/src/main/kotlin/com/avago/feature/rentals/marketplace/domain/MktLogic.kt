@@ -97,6 +97,9 @@ object MktDates {
     fun rentalWindow(firstDay: LocalDate, lastDay: LocalDate, time: LocalTime, zone: ZoneId): Pair<Instant, Instant> =
         ZonedDateTime.of(firstDay, time, zone).toInstant() to ZonedDateTime.of(lastDay.plusDays(1), time, zone).toInstant()
 
+    /** IANA id for the `tz` query parameter; null for fixed offsets the server cannot name (it then uses UTC). */
+    fun tzParam(zone: ZoneId): String? = zone.id.takeIf { it == "UTC" || it.contains('/') }
+
     /** Number of picked days (inclusive). */
     fun days(firstDay: LocalDate, lastDay: LocalDate): Long = lastDay.toEpochDay() - firstDay.toEpochDay() + 1
 
@@ -151,8 +154,10 @@ data class MktSearchQuery(
         category?.takeIf { it in MktCategories.ALL }?.let { add("category" to it) }
         if (firstDay != null) {
             val last = lastDay?.takeIf { !it.isBefore(firstDay) } ?: firstDay
-            add("start_at" to MktDates.startOfDay(firstDay, zone).toString())
-            add("end_at" to MktDates.endExclusive(last, zone).toString())
+            // Local calendar days of the renter (§4 `start_date`/`end_date`/`tz`), not UTC midnights.
+            add("start_date" to firstDay.toString())
+            add("end_date" to last.toString())
+            MktDates.tzParam(zone)?.let { add("tz" to it) }
         }
         var min = minPriceMinor
         var max = maxPriceMinor
@@ -235,6 +240,71 @@ object MktReserve {
         if (maxDays != null && maxDays > 0 && MktDates.days(firstDay, lastDay) > maxDays) return "too_long"
         if (fulfilment == MktFulfilment.DELIVERY && deliveryAddress.isBlank()) return "address_required"
         return null
+    }
+}
+
+/** Search-card availability: "now" only when the earliest start (lead time, hours) is imminent (§4). */
+sealed interface MktAvailabilityHint {
+    data object Now : MktAvailabilityHint
+    /** Bookable later today / within 24 h, from [at]. */
+    data class From(val at: Instant) : MktAvailabilityHint
+    data class Next(val at: Instant) : MktAvailabilityHint
+    data object None : MktAvailabilityHint
+}
+
+object MktEarliest {
+    private val IMMINENT: Duration = Duration.ofMinutes(15)
+    private val SOON: Duration = Duration.ofHours(24)
+
+    fun hint(next: Instant?, earliest: Instant?, now: Instant): MktAvailabilityHint {
+        if (earliest != null) {
+            val at = if (next != null && next.isAfter(earliest)) next else earliest
+            return when {
+                !at.isAfter(now.plus(IMMINENT)) -> MktAvailabilityHint.Now
+                !at.isAfter(now.plus(SOON)) -> MktAvailabilityHint.From(at)
+                else -> MktAvailabilityHint.Next(at)
+            }
+        }
+        return when {
+            next == null -> MktAvailabilityHint.None
+            !next.isAfter(now) -> MktAvailabilityHint.Now
+            else -> MktAvailabilityHint.Next(next)
+        }
+    }
+}
+
+/** Renter "Change dates" of a pending booking (§6.5) — returns an error code or null. */
+object MktChangeDates {
+    fun validate(
+        start: Instant,
+        end: Instant,
+        currentStart: Instant?,
+        currentEnd: Instant?,
+        earliest: Instant?,
+        maxDays: Int?,
+        now: Instant,
+    ): String? = when {
+        !end.isAfter(start) -> "invalid_range"
+        start == currentStart && end == currentEnd -> "same_dates"
+        start.isBefore(earliest ?: now) -> "lead_time"
+        maxDays != null && maxDays > 0 && Duration.between(start, end) > Duration.ofDays(maxDays.toLong()) -> "too_long"
+        else -> null
+    }
+
+    /** New window keeping the booking's times of day: [first]..[last] picked days in [zone]. */
+    fun window(first: LocalDate, last: LocalDate, currentStart: Instant?, currentEnd: Instant?, zone: ZoneId): Pair<Instant, Instant> {
+        val startTime = currentStart?.atZone(zone)?.toLocalTime() ?: LocalTime.of(9, 0)
+        val endTime = currentEnd?.atZone(zone)?.toLocalTime() ?: startTime
+        val endDay = if (endTime == LocalTime.MIDNIGHT || !endTime.isAfter(startTime)) last.plusDays(1) else last
+        return ZonedDateTime.of(first, startTime, zone).toInstant() to ZonedDateTime.of(endDay, endTime, zone).toInstant()
+    }
+
+    /** Inverse of [window]: the picked days of a booking. */
+    fun days(start: Instant, end: Instant, zone: ZoneId): Pair<LocalDate, LocalDate> {
+        val a = start.atZone(zone)
+        val b = end.atZone(zone)
+        val last = if (!b.toLocalTime().isAfter(a.toLocalTime()) && b.toLocalDate().isAfter(a.toLocalDate())) b.toLocalDate().minusDays(1) else b.toLocalDate()
+        return a.toLocalDate() to last
     }
 }
 
@@ -340,7 +410,7 @@ enum class MktError {
     FulfilmentUnavailable, MeetupUnavailable, MeetupExists, InvalidState, BookingUnavailable,
     ClientUuidConflict, InvalidValue, SlotPassed, VersionConflict, StorefrontRequired,
     LocationCoordinatesRequired, NotFound, Forbidden, InvalidEmail, DatesRequired, AddressRequired,
-    PickSlot, CounterStart, CounterPast, CounterEnd, Generic,
+    PickSlot, CounterStart, CounterPast, CounterEnd, ChangePending, AllocationConflict, SameDates, Generic,
     ;
 
     /** The renter must sign in again (token cleared). */
@@ -394,6 +464,9 @@ enum class MktError {
             "err_start" to CounterStart,
             "err_past" to CounterPast,
             "err_end" to CounterEnd,
+            "change_pending" to ChangePending,
+            "allocation_conflict" to AllocationConflict,
+            "same_dates" to SameDates,
         )
     }
 }

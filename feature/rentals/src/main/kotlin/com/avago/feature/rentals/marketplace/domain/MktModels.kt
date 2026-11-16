@@ -100,6 +100,10 @@ data class MktSearchItem(
     val bookingMode: String?,
     val available: Boolean?,
     val nextAvailable: Instant?,
+    /** Earliest possible start (owner lead time + hours, §4); null = unknown. */
+    val earliestStart: Instant? = null,
+    /** Owner zone for [earliestStart]. */
+    val timezone: String? = null,
 ) {
     fun title(locale: Locale): String = MktText.pick(titleI18n, locale, title) ?: title
     fun summary(locale: Locale): String? = MktText.pick(summaryI18n, locale)
@@ -123,6 +127,8 @@ data class MktSearchItem(
                 bookingMode = o.str("booking_mode"),
                 available = o.bool("available"),
                 nextAvailable = o.instant("next_available"),
+                earliestStart = o.instant("earliest_start_at"),
+                timezone = o.str("timezone"),
             )
         }
     }
@@ -222,6 +228,10 @@ data class MktListing(
     val meetup: MktMeetupInfo?,
     val policies: MktPolicies,
     val onlinePayments: Boolean,
+    /** Earliest possible rental start (lead time + opening hours, §5). */
+    val earliestStart: Instant? = null,
+    /** Owner zone of the shown location. */
+    val bookingTimezone: String? = null,
 ) {
     fun title(locale: Locale): String = MktText.pick(titleI18n, locale, title) ?: title
     fun summary(locale: Locale): String? = MktText.pick(summaryI18n, locale)
@@ -270,6 +280,8 @@ data class MktListing(
                 meetup = meet?.let { MktMeetupInfo(it.int("slot_minutes") ?: 30, it.int("lead_hours") ?: 0, it.str("timezone")) },
                 policies = MktPolicies.of(o.obj("policies") ?: l),
                 onlinePayments = o.bool("online_payments") == true,
+                earliestStart = booking?.instant("earliest_start_at"),
+                bookingTimezone = booking?.str("timezone"),
             )
         }
     }
@@ -354,6 +366,61 @@ data class MktContact(val email: String?, val phone: String?) {
     }
 }
 
+// ---- renter changes, cancellation and history (§6.5) ------------------------------------------
+
+object MktChangeKind {
+    const val MEETUP_TIME = "meetup_time"
+    const val BOOKING_DATES = "booking_dates"
+    const val BOOKING_CANCEL = "booking_cancel"
+}
+
+/** Booking `actions.cancel`: cancelled at once, or the owner decides. */
+object MktCancelMode {
+    const val FREE = "free"
+    const val REQUEST = "request"
+}
+
+/** The renter's open change request (waiting for the owner). */
+data class MktPendingChange(
+    val id: String,
+    val kind: String,
+    val proposed: List<MktSlot>,
+    val start: Instant?,
+    val end: Instant?,
+    val message: String?,
+    val createdAt: Instant?,
+) {
+    companion object {
+        fun of(o: JsonObject?): MktPendingChange? {
+            val id = o?.str("id") ?: return null
+            return MktPendingChange(
+                id, o.str("kind").orEmpty(), o.objs("proposed_slots").mapNotNull { MktMeetSlots.slot(it) },
+                o.instant("start_at"), o.instant("end_at"), o.str("message"), o.instant("created_at"),
+            )
+        }
+    }
+}
+
+/** The latest answered / closed change request. */
+data class MktLastChange(val id: String, val kind: String, val status: String, val ownerMessage: String?, val respondedAt: Instant?) {
+    companion object {
+        fun of(o: JsonObject?): MktLastChange? {
+            val id = o?.str("id") ?: return null
+            return MktLastChange(id, o.str("kind").orEmpty(), o.str("status").orEmpty(), o.str("owner_message"), o.instant("responded_at"))
+        }
+    }
+}
+
+/** One request-history step; `status` only for the synthetic order-status action. */
+data class MktHistoryEvent(val action: String, val actor: String, val at: Instant?, val status: String?) {
+    companion object {
+        fun list(o: JsonObject): List<MktHistoryEvent> = o.objs("history").mapNotNull { e ->
+            val action = e.str("action") ?: return@mapNotNull null
+            MktHistoryEvent(action, e.str("actor") ?: "system", e.instant("at"), e.obj("data")?.str("status"))
+        }
+    }
+}
+
 object MktMeetupStatus {
     const val PENDING = "pending"
     const val COUNTERED = "countered"
@@ -390,12 +457,21 @@ data class MktRenterMeetup(
     val area: MktArea?,
     val address: MktAddress?,
     val contact: MktContact?,
+    val pendingChange: MktPendingChange? = null,
+    val lastChange: MktLastChange? = null,
+    val history: List<MktHistoryEvent> = emptyList(),
+    /** `actions.reschedule` (§6.5). */
+    val canReschedule: Boolean = false,
+    /** `actions.cancel`; null when the server did not send actions. */
+    val cancelAction: Boolean? = null,
 ) {
     fun title(locale: Locale): String = MktText.pick(titleI18n, locale, title) ?: title
+    val canCancel: Boolean get() = cancelAction ?: MktMeetupStatus.renterCanCancel(status)
 
     companion object {
         fun of(o: JsonObject): MktRenterMeetup? {
             val id = o.str("id") ?: return null
+            val actions = o.obj("actions")
             return MktRenterMeetup(
                 id = id,
                 status = o.str("status") ?: MktMeetupStatus.PENDING,
@@ -417,6 +493,11 @@ data class MktRenterMeetup(
                 area = MktArea.of(o.obj("area")),
                 address = MktAddress.of(o.obj("address")),
                 contact = MktContact.of(o.obj("owner_contact")),
+                pendingChange = MktPendingChange.of(o.obj("pending_change")),
+                lastChange = MktLastChange.of(o.obj("last_change")),
+                history = MktHistoryEvent.list(o),
+                canReschedule = actions?.bool("reschedule") == true,
+                cancelAction = actions?.bool("cancel"),
             )
         }
     }
@@ -441,13 +522,23 @@ data class MktRenterBooking(
     val quoteExpiresAt: Instant?,
     val address: MktAddress?,
     val contact: MktContact?,
+    /** Renter-facing reference (quote number for quote requests, §6). */
+    val displayNumber: String? = null,
+    val pendingChange: MktPendingChange? = null,
+    val lastChange: MktLastChange? = null,
+    val history: List<MktHistoryEvent> = emptyList(),
+    /** `actions.change_dates`. */
+    val canChangeDates: Boolean = false,
+    /** `actions.cancel`: [MktCancelMode.FREE], [MktCancelMode.REQUEST] or null. */
+    val cancelMode: String? = null,
 ) {
     fun title(locale: Locale): String = MktText.pick(titleI18n, locale, title) ?: title
-    val reference: String? get() = number ?: quoteNumber
+    val reference: String? get() = displayNumber ?: quoteNumber ?: number
 
     companion object {
         fun of(o: JsonObject): MktRenterBooking? {
             val id = o.str("order_id") ?: return null
+            val actions = o.obj("actions")
             return MktRenterBooking(
                 orderId = id,
                 number = o.str("number"),
@@ -467,6 +558,12 @@ data class MktRenterBooking(
                 quoteExpiresAt = o.instant("quote_expires_at"),
                 address = MktAddress.of(o.obj("address")),
                 contact = MktContact.of(o.obj("owner_contact")),
+                displayNumber = o.str("display_number"),
+                pendingChange = MktPendingChange.of(o.obj("pending_change")),
+                lastChange = MktLastChange.of(o.obj("last_change")),
+                history = MktHistoryEvent.list(o),
+                canChangeDates = actions?.bool("change_dates") == true,
+                cancelMode = actions?.str("cancel")?.takeIf { it == MktCancelMode.FREE || it == MktCancelMode.REQUEST },
             )
         }
     }
@@ -491,7 +588,7 @@ data class MktReservation(val orderId: String?, val reference: String?, val stat
             val order = o.obj("order")
             return MktReservation(
                 orderId = order?.str("id"),
-                reference = order?.str("number") ?: order?.str("quote_number"),
+                reference = order?.str("display_number") ?: order?.str("quote_number") ?: order?.str("number"),
                 status = order?.str("status"),
                 onlinePayments = o.bool("online_payments") == true,
                 replay = replay,

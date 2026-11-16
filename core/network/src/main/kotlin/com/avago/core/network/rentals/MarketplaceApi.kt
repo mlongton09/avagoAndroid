@@ -143,6 +143,28 @@ class MarketplaceApi @Inject constructor(
         client.post(p("/meetups/$id/accept-counter")) { renter(token); json(JsonObject(emptyMap())) }.body()
     }
 
+    // ---- renter changes (§6.5) -------------------------------------------------------------
+
+    /** POST /meetups/{id}/reschedule `{slots, message}` → renter meet-up. */
+    suspend fun rescheduleMeetup(token: String, id: String, body: JsonObject): JsonObject = call {
+        client.post(p("/meetups/$id/reschedule")) { renter(token); json(body) }.body()
+    }
+
+    /** POST /bookings/{order_id}/change-dates `{start_at, end_at, message}` → renter booking. */
+    suspend fun changeBookingDates(token: String, orderId: String, body: JsonObject): JsonObject = call {
+        client.post(p("/bookings/$orderId/change-dates")) { renter(token); json(body) }.body()
+    }
+
+    /** POST /bookings/{order_id}/cancel `{reason}` → renter booking (cancelled, or a cancel request). */
+    suspend fun cancelBooking(token: String, orderId: String, body: JsonObject): JsonObject = call {
+        client.post(p("/bookings/$orderId/cancel")) { renter(token); json(body) }.body()
+    }
+
+    /** POST /changes/{id}/withdraw → the meet-up or booking. */
+    suspend fun withdrawChange(token: String, id: String): JsonObject = call {
+        client.post(p("/changes/$id/withdraw")) { renter(token); json(JsonObject(emptyMap())) }.body()
+    }
+
     // ---- plumbing --------------------------------------------------------------------------
 
     private fun HttpRequestBuilder.renter(token: String) {

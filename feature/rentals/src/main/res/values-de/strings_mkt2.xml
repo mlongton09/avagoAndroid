@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="mkt_available_from">Verfügbar ab %1$s</string>
+    <string name="mkt_earliest_start">Frühester Beginn: %1$s</string>
+    <string name="mkt_change_sent">Änderung an den Vermieter gesendet</string>
+    <string name="mkt_booking_cancelled">Buchung storniert</string>
+    <string name="mkt_cancel_requested">Stornierung angefragt</string>
+    <string name="mkt_change_withdrawn">Änderungsanfrage zurückgezogen</string>
+    <string name="mkt_change_time">Zeit ändern</string>
+    <string name="mkt_change_time_body">Wählen Sie bis zu %1$d neue Zeiten (%2$s). Der Vermieter bestätigt eine davon; bis dahin bleibt Ihre aktuelle Zeit bestehen.</string>
+    <string name="mkt_change_message">Nachricht an den Vermieter (optional)</string>
+    <string name="mkt_send_change">Anfrage senden</string>
+    <string name="mkt_change_dates">Daten ändern</string>
+    <string name="mkt_change_dates_body">Wählen Sie die neuen Mietdaten. Die Uhrzeiten bleiben gleich und der Vermieter muss die Änderung bestätigen.</string>
+    <string name="mkt_cancel_booking_title">Diese Buchung stornieren?</string>
+    <string name="mkt_request_cancel_title">Stornierung anfragen?</string>
+    <string name="mkt_cancel_booking_free">Die Buchung ist noch nicht bestätigt, daher können Sie sie kostenlos stornieren. Der Vermieter wird benachrichtigt.</string>
+    <string name="mkt_cancel_booking_request">Diese Buchung ist bestätigt. Der Vermieter entscheidet über die Stornierung und eine eventuelle Erstattung; es wird nichts automatisch erstattet.</string>
+    <string name="mkt_cancel_reason">Grund (optional)</string>
+    <string name="mkt_cancel_booking">Buchung stornieren</string>
+    <string name="mkt_request_cancel">Stornierung anfragen</string>
+    <string name="mkt_change_waiting">Wartet auf den Vermieter</string>
+    <string name="mkt_change_pending_time">Sie haben eine Verlegung des Treffens angefragt: %1$s</string>
+    <string name="mkt_change_pending_dates">Sie haben neue Daten angefragt: %1$s</string>
+    <string name="mkt_change_pending_cancel">Sie haben die Stornierung dieser Buchung angefragt</string>
+    <string name="mkt_withdraw_change">Anfrage zurückziehen</string>
+    <string name="mkt_change_declined">Der Vermieter hat Ihre letzte Änderungsanfrage abgelehnt.</string>
+    <string name="mkt_show_history">Verlauf anzeigen (%1$d)</string>
+    <string name="mkt_hide_history">Verlauf ausblenden (%1$d)</string>
+    <string name="mkt_hist_requested">Angefragt</string>
+    <string name="mkt_hist_countered">Vermieter hat eine andere Zeit vorgeschlagen</string>
+    <string name="mkt_hist_accepted">Angenommen</string>
+    <string name="mkt_hist_declined">Abgelehnt</string>
+    <string name="mkt_hist_cancelled">Storniert</string>
+    <string name="mkt_hist_change_requested">Änderung angefragt</string>
+    <string name="mkt_hist_cancel_requested">Stornierung angefragt</string>
+    <string name="mkt_hist_change_accepted">Änderung angenommen</string>
+    <string name="mkt_hist_change_declined">Änderung abgelehnt</string>
+    <string name="mkt_hist_change_withdrawn">Änderung zurückgezogen</string>
+    <string name="mkt_err_change_pending">Eine Änderungsanfrage wartet bereits auf den Vermieter.</string>
+    <string name="mkt_err_allocation_conflict">Der Artikel ist für diese Daten nicht verfügbar.</string>
+    <string name="mkt_err_same_dates">Wählen Sie andere Daten als die aktuelle Buchung.</string>
+</resources>

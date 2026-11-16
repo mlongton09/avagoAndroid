@@ -20,9 +20,11 @@ import com.avago.feature.rentals.marketplace.domain.MktMeetSlots
 import com.avago.feature.rentals.marketplace.domain.MktMyRequests
 import com.avago.feature.rentals.marketplace.domain.MktPlaces
 import com.avago.feature.rentals.marketplace.domain.MktRenter
+import com.avago.feature.rentals.marketplace.domain.MktRenterBooking
 import com.avago.feature.rentals.marketplace.domain.MktRenterMeetup
 import com.avago.feature.rentals.marketplace.domain.MktReservation
 import com.avago.feature.rentals.marketplace.domain.MktSearchPage
+import com.avago.feature.rentals.marketplace.domain.MktSlot
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -126,6 +128,12 @@ interface MarketplaceRepository {
     suspend fun myRequests(): MktResult<MktMyRequests>
     suspend fun cancelMeetup(id: String): MktResult<MktRenterMeetup?>
     suspend fun acceptCounter(id: String): MktResult<MktRenterMeetup?>
+
+    /** §6.5: new proposed times for a meet-up (replaces a pending proposal, asks the owner when accepted). */
+    suspend fun rescheduleMeetup(id: String, slots: List<MktSlot>, message: String?): MktResult<MktRenterMeetup?>
+    suspend fun changeBookingDates(orderId: String, start: Instant, end: Instant, message: String?): MktResult<MktRenterBooking?>
+    suspend fun cancelBooking(orderId: String, reason: String?): MktResult<MktRenterBooking?>
+    suspend fun withdrawChange(changeId: String): MktResult<Unit>
 }
 
 @Singleton
@@ -241,6 +249,17 @@ class MarketplaceRepositoryImpl @Inject constructor(
     override suspend fun cancelMeetup(id: String) = renter("cancel") { t -> MktRenterMeetup.of(api.cancelMeetup(t, id)) }
 
     override suspend fun acceptCounter(id: String) = renter("accept-counter") { t -> MktRenterMeetup.of(api.acceptCounter(t, id)) }
+
+    override suspend fun rescheduleMeetup(id: String, slots: List<MktSlot>, message: String?) =
+        renter("reschedule") { t -> MktRenterMeetup.of(api.rescheduleMeetup(t, id, MktBodies.reschedule(slots, message))) }
+
+    override suspend fun changeBookingDates(orderId: String, start: Instant, end: Instant, message: String?) =
+        renter("change-dates") { t -> MktRenterBooking.of(api.changeBookingDates(t, orderId, MktBodies.changeDates(start, end, message))) }
+
+    override suspend fun cancelBooking(orderId: String, reason: String?) =
+        renter("cancel-booking") { t -> MktRenterBooking.of(api.cancelBooking(t, orderId, MktBodies.cancelBooking(reason))) }
+
+    override suspend fun withdrawChange(changeId: String) = renter("withdraw-change") { t -> api.withdrawChange(t, changeId); Unit }
 
     companion object {
         /** `en-US` / `de-DE` for the magic-link email and the renter profile (the server supports en and de). */

@@ -88,11 +88,14 @@ class MktReserveViewModel @Inject constructor(
         val code = MktReserve.validate(
             s.firstDay, s.lastDay, s.time, zone, l.minLeadMinutes, l.maxDays, s.fulfilment, s.address, s.qty, clock.instant(),
         )
-        if (code != null) {
-            _state.update { it.copy(error = MktError.ofCode(code)) }
+        val window = if (code == null) MktDates.rentalWindow(s.firstDay!!, s.lastDay!!, s.time, zone) else null
+        // The server's earliest start also covers opening hours and the owner's lead time (§4).
+        val err = code ?: l.earliestStart?.takeIf { e -> window!!.first.isBefore(e) }?.let { "lead_time" }
+        if (err != null || window == null) {
+            _state.update { it.copy(error = MktError.ofCode(err ?: "invalid_value")) }
             return
         }
-        val (start, end) = MktDates.rentalWindow(s.firstDay!!, s.lastDay!!, s.time, zone)
+        val (start, end) = window
         val body = MktBodies.reserve(start, end, l.locationId, s.qty, s.fulfilment, s.address, s.notes, clientUuid)
         _state.update { it.copy(submitting = true, error = null) }
         viewModelScope.launch {
