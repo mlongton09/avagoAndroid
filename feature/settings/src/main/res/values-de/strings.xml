@@ -48,4 +48,21 @@
     <string name="retry">Wiederholen</string>
     <string name="no_results">Keine Ergebnisse</string>
     <string name="pull_to_refresh">Zum Aktualisieren ziehen</string>
+
+    <!-- Developer: sample workspaces (system admin only) -->
+    <string name="sample_workspaces_title">Beispiel-Arbeitsbereiche</string>
+    <string name="sample_workspaces_footer">Öffnet ein Demo-Konto in Ihrem Besitz mit den ausgewählten Beispieldaten. Ihr aktuelles Konto bleibt unverändert.</string>
+    <string name="sample_workspaces_profile_meta">%1$s · %2$d Anlagen</string>
+    <string name="sample_workspaces_saved">Gespeicherter Arbeitsbereich: %1$s (%2$d Anlagen)</string>
+    <string name="sample_workspaces_not_created">Kein gespeicherter Arbeitsbereich – wird erstellt</string>
+    <string name="sample_workspaces_unavailable">Beispieldaten nicht verfügbar</string>
+    <string name="sample_workspaces_current">Aktuell</string>
+    <string name="sample_workspaces_switching">%1$s wird geöffnet…</string>
+    <string name="sample_workspaces_switching_hint">Das Erstellen eines Arbeitsbereichs kann einige Minuten dauern.</string>
+    <string name="sample_workspaces_switched">Gewechselt zu %1$s</string>
+    <string name="sample_workspaces_error_title">Beispiel-Arbeitsbereich konnte nicht geöffnet werden</string>
+    <string name="sample_workspaces_requires_admin">Erfordert ein Systemadministrator-Konto</string>
+    <string name="sample_workspaces_account_missing">Der Arbeitsbereich wurde erstellt, ist aber noch nicht in Ihrer Kontoliste. Bitte erneut versuchen.</string>
+    <string name="sample_workspaces_load_failed">Beispiel-Arbeitsbereiche konnten nicht geladen werden: %1$s</string>
+    <string name="sample_workspaces_empty">Keine Beispielprofile verfügbar</string>
 </resources>

@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,6 +35,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -141,7 +143,10 @@ fun DeveloperScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: DeveloperViewModel = hiltViewModel(),
+    sampleWorkspacesViewModel: SampleWorkspacesViewModel = hiltViewModel(),
 ) {
+    val sampleState by sampleWorkspacesViewModel.state.collectAsStateWithLifecycle()
+    val sampleActiveAccountId by sampleWorkspacesViewModel.activeAccountId.collectAsStateWithLifecycle()
     val accountId by viewModel.activeAccountId.collectAsStateWithLifecycle()
     val userId by viewModel.activeUserId.collectAsStateWithLifecycle()
     val devRoleOverride by viewModel.devRoleOverride.collectAsStateWithLifecycle()
@@ -151,6 +156,13 @@ fun DeveloperScreen(
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val switchedMessage = sampleState.switchedLabel?.let { stringResource(R.string.sample_workspaces_switched, it) }
+    LaunchedEffect(switchedMessage) {
+        if (switchedMessage != null) {
+            scope.launch { snackbarHostState.showSnackbar(switchedMessage) }
+            sampleWorkspacesViewModel.consumeSwitched()
+        }
+    }
     val context = LocalContext.current
     val versionName = remember(context) {
         runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?" }.getOrDefault("?")
@@ -196,6 +208,14 @@ fun DeveloperScreen(
             item { InfoRow(label = "Account ID", value = accountId ?: "none") }
             item { InfoRow(label = "User ID", value = userId ?: "none") }
             item { HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp)) }
+
+            // ── Sample workspaces (system admin only; hidden on 401/403) ─────
+            sampleWorkspacesSection(
+                state = sampleState,
+                activeAccountId = sampleActiveAccountId,
+                onSelect = sampleWorkspacesViewModel::switchTo,
+                header = { DevSectionHeader(it) },
+            )
 
             // ── Role Override ─────────────────────────────────────────────────
             if (BuildConfig.DEBUG && canOverride) {
@@ -295,6 +315,11 @@ fun DeveloperScreen(
             }
         }
     }
+
+    SampleWorkspacesDialogs(
+        state = sampleState,
+        onDismissError = sampleWorkspacesViewModel::dismissError,
+    )
 
     if (showWipeConfirm) {
         AlertDialog(

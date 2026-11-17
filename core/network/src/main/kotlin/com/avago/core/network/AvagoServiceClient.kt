@@ -177,8 +177,14 @@ import com.avago.core.network.model.PmPlan
 import com.avago.core.network.model.PermissionSet
 import com.avago.core.network.model.CreatePartTransferRequestBody
 import com.avago.core.network.model.PartTransferRequestResponse
+import com.avago.core.network.model.SampleWorkspaceJson
+import com.avago.core.network.model.SampleWorkspacesResponse
+import com.avago.core.network.model.SwitchSampleWorkspaceRequest
+import com.avago.core.network.model.SwitchSampleWorkspaceResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.plugins.HttpRequestTimeoutException
+import io.ktor.client.plugins.timeout
 import io.ktor.client.plugins.auth.Auth
 import io.ktor.client.plugins.auth.authProviders
 import io.ktor.client.plugins.auth.providers.BearerAuthProvider
@@ -361,6 +367,44 @@ class AvagoServiceClient @Inject constructor(
                 client.post("$baseUrl/accounts/$accountId/load-sample-data")
             if (!response.status.isSuccess()) {
                 throw NetworkException(response.status.value, response.status.description)
+            }
+        }
+
+    // ---------------------------------------------------------------------------
+    // Sample workspaces (SystemAdmin only — non-admins get 401/403)
+    // ---------------------------------------------------------------------------
+
+    /** GET /admin/sample-data/workspaces — sample profiles plus the caller's saved demo account per profile. */
+    suspend fun getSampleWorkspaces(): NetworkResult<SampleWorkspacesResponse> =
+        safeNetworkCall {
+            SampleWorkspaceJson.decodeProfiles(
+                client.get("$baseUrl/admin/sample-data/workspaces").body<JsonObject>(),
+            )
+        }
+
+    /**
+     * POST /admin/sample-data/workspaces/switch — creates (or reopens) the caller's demo account
+     * for [profileKey]. Does NOT change the current account; the caller switches locally.
+     * Creating a large (e.g. rental) workspace can take tens of seconds, so this call gets a
+     * long per-request timeout, and a timeout is reported instead of being retried (a retry would
+     * restart the same long server-side job).
+     */
+    suspend fun switchSampleWorkspace(profileKey: String): NetworkResult<SwitchSampleWorkspaceResponse> =
+        safeNetworkCall {
+            try {
+                SampleWorkspaceJson.decodeSwitch(
+                    client.post("$baseUrl/admin/sample-data/workspaces/switch") {
+                        timeout {
+                            requestTimeoutMillis = SAMPLE_WORKSPACE_SWITCH_TIMEOUT_MS
+                            socketTimeoutMillis = SAMPLE_WORKSPACE_SWITCH_TIMEOUT_MS
+                        }
+                        setBody(SwitchSampleWorkspaceRequest(profileKey = profileKey))
+                    }.body<JsonObject>(),
+                )
+            } catch (e: HttpRequestTimeoutException) {
+                throw NetworkException(-1, e.message ?: "Request timed out")
+            } catch (e: java.net.SocketTimeoutException) {
+                throw NetworkException(-1, e.message ?: "Request timed out")
             }
         }
 
@@ -3780,6 +3824,7 @@ class NetworkException(
 ) : Exception(message)
 class UnauthorizedException : Exception("Unauthorized")
 
+private const val SAMPLE_WORKSPACE_SWITCH_TIMEOUT_MS = 180_000L
 private const val RUNTIME_FLAGS_PREFS = "avago_runtime_flags"
 private const val FORCE_OFFLINE_PREF_KEY = "force_offline"
 private const val OFFLINE_MODE_CODE = 0

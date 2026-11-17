@@ -647,6 +647,36 @@ class IdentityManager @Inject constructor(
     // Multi-account prefetch
     // ---------------------------------------------------------------------------
 
+    /**
+     * Fetches GET /accounts and upserts every returned account into the manifest (same
+     * upsertFromServer path as sign-in), so an account created server-side for this user
+     * — e.g. a sample workspace — becomes switchable via [switchAccount]. Never removes
+     * entries. Returns false when the fetch fails.
+     */
+    suspend fun refreshAccountsFromServer(): Boolean = withContext(Dispatchers.IO) {
+        val result = client.getAllAccounts()
+        if (result !is NetworkResult.Success) {
+            Timber.w("IdentityManager: refreshAccountsFromServer failed: $result")
+            return@withContext false
+        }
+        val userId = _activeUserId.value
+            ?: accountManifest.allAccounts().firstOrNull { it.accountId == _activeAccountId.value }?.userId
+            ?: runCatching { client.getMe() }.getOrNull()?.user_id
+        result.data.forEach { acct ->
+            accountManifest.upsertFromServer(
+                AccountRecord(
+                    accountId = acct.account_id,
+                    userId = userId,
+                    accountName = acct.name,
+                    role = acct.role,
+                )
+            )
+        }
+        _accountsChanged.tryEmit(Unit)
+        Timber.d("IdentityManager: refreshed ${result.data.size} account(s) from server")
+        true
+    }
+
     private fun fetchMyAccountsAsync() {
         backgroundScope.launch {
             try {

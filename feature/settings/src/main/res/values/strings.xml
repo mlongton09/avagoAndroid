@@ -97,4 +97,21 @@
     <string name="retry">Retry</string>
     <string name="no_results">No results</string>
     <string name="pull_to_refresh">Pull to refresh</string>
+
+    <!-- Developer: sample workspaces (system admin only) -->
+    <string name="sample_workspaces_title">Sample workspaces</string>
+    <string name="sample_workspaces_footer">Opens a demo account you own, filled with the selected sample data. Your current account is not changed.</string>
+    <string name="sample_workspaces_profile_meta">%1$s · %2$d assets</string>
+    <string name="sample_workspaces_saved">Saved workspace: %1$s (%2$d assets)</string>
+    <string name="sample_workspaces_not_created">No saved workspace — will be created</string>
+    <string name="sample_workspaces_unavailable">Sample data unavailable</string>
+    <string name="sample_workspaces_current">Current</string>
+    <string name="sample_workspaces_switching">Opening %1$s…</string>
+    <string name="sample_workspaces_switching_hint">Creating a workspace can take up to a few minutes.</string>
+    <string name="sample_workspaces_switched">Switched to %1$s</string>
+    <string name="sample_workspaces_error_title">Could not open sample workspace</string>
+    <string name="sample_workspaces_requires_admin">Requires a system admin account</string>
+    <string name="sample_workspaces_account_missing">The workspace was created but is not in your account list yet. Try again.</string>
+    <string name="sample_workspaces_load_failed">Could not load sample workspaces: %1$s</string>
+    <string name="sample_workspaces_empty">No sample profiles available</string>
 </resources>
