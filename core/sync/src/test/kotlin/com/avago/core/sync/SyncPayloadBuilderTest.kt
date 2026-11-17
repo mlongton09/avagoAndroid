@@ -17,6 +17,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonPrimitive
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -211,6 +212,22 @@ class SyncPayloadBuilderTest {
     }
 
     @Test
+    fun `asset payload includes real serial number without changing other fields`() = runTest {
+        val attributes = """{"nested":{"keep":true},"notes":"original"}"""
+        coEvery { mockAssetDao.getById("asset-serial") } returns buildAssetEntity().copy(
+            assetId = "asset-serial", serialNumber = "Tool-AbC-42", attributes = attributes,
+        )
+
+        val json = builder.buildPayload(ACCOUNT_ID, "asset", "asset-serial")!!
+
+        assertEquals(JsonPrimitive("Tool-AbC-42"), json["serial_number"])
+        assertFalse(json.containsKey("serialNumber"))
+        assertEquals(JsonPrimitive(attributes), json["attributes"])
+        assertEquals(JsonPrimitive("asset-serial"), json["asset_id"])
+        assertEquals(JsonPrimitive(ACCOUNT_ID), json["account_id"])
+    }
+
+    @Test
     fun `log payload contains required fields`() = runTest {
         coEvery { mockLogDao.getById("log-006") } returns buildLogEntity()
 
@@ -251,6 +268,7 @@ class SyncPayloadBuilderTest {
 
         assertFalse(json.containsKey("make"))
         assertFalse(json.containsKey("model"))
+        assertFalse(json.containsKey("serial_number"), "Missing serial must stay omitted for legacy compatibility")
         assertFalse(json.containsKey("purchase_price"))
         assertFalse(json.containsKey("depreciation_method"))
     }

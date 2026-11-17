@@ -806,6 +806,7 @@ class SyncEngine @Inject constructor(
                             name = item.str("name") ?: "",
                             make = item.str("make"),
                             model = item.str("model"),
+                            serialNumber = item.str("serial_number"),
                             year = item.lng("year"),
                             assetType = item.str("asset_type"),
                             meterType = item.str("meter_type"),

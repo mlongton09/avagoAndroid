@@ -131,6 +131,9 @@ fun AddEditAssetScreen(
     photoUris: List<String> = emptyList(),
     onOpenWheelConfig: (() -> Unit)? = null,
 ) {
+    val taxonomy by viewModel.taxonomy.collectAsStateWithLifecycle()
+    val classificationError by viewModel.classificationError.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { viewModel.loadTaxonomy() }
     // Load for edit mode
     LaunchedEffect(assetId) {
         if (assetId != null) {
@@ -167,8 +170,16 @@ fun AddEditAssetScreen(
     var unitsExpanded by remember { mutableStateOf(false) }
 
     // Show error in snackbar
-    LaunchedEffect(form.saveError) {
-        form.saveError?.let { error ->
+    val saveError = when (form.saveError) {
+        "asset_metadata_invalid" -> stringResource(R.string.asset_metadata_invalid)
+        "asset_classification_required" -> stringResource(R.string.asset_classification_required)
+        "asset_types_unavailable" -> stringResource(R.string.asset_types_unavailable)
+        "asset_serial_required" -> stringResource(R.string.asset_serial_required)
+        "asset_attributes_invalid" -> stringResource(R.string.asset_attributes_invalid)
+        else -> form.saveError
+    }
+    LaunchedEffect(saveError) {
+        saveError?.let { error ->
             snackbarHostState.showSnackbar(error)
         }
     }
@@ -279,6 +290,13 @@ fun AddEditAssetScreen(
 
             // Make
             item {
+                AssetClassificationPicker(taxonomy, form.classification, viewModel::selectClassification)
+                classificationError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                if (taxonomy == null) TextButton(onClick = viewModel::loadTaxonomy) {
+                    Text(stringResource(R.string.classification_choose))
+                }
+            }
+            item {
                 OutlinedTextField(
                     value = form.make,
                     onValueChange = { viewModel.onMakeChanged(it) },
@@ -305,7 +323,7 @@ fun AddEditAssetScreen(
             item {
                 OutlinedTextField(
                     value = form.year,
-                    onValueChange = { viewModel.onYearChanged(it.filter { c -> c.isDigit() }.take(4)) },
+                    onValueChange = viewModel::onYearChanged,
                     label = { Text(stringResource(R.string.asset_field_year)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),

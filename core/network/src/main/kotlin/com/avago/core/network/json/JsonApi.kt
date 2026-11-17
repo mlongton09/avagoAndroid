@@ -3,6 +3,7 @@ package com.avago.core.network.json
 import com.avago.core.network.AvagoHttpClient
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.ResponseException
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.request.request
@@ -65,19 +66,19 @@ class JsonApi @Inject constructor(
     @Named("baseUrl") val baseUrl: String,
 ) {
     suspend fun get(path: String, query: Map<String, Any?> = emptyMap(), headers: Map<String, String> = emptyMap()): ApiResult<JsonObject> =
-        send(HttpMethod.Get, path, null, query, headers, null)
+        send(HttpMethod.Get, path, null, RequestOptions(query = query, headers = headers))
 
-    suspend fun post(path: String, body: JsonObject = EMPTY, headers: Map<String, String> = emptyMap(), idempotencyKey: String = newKey()): ApiResult<JsonObject> =
-        send(HttpMethod.Post, path, body, emptyMap(), headers, idempotencyKey)
+    suspend fun post(path: String, body: JsonObject = EMPTY, headers: Map<String, String> = emptyMap(), idempotencyKey: String = newKey(), timeoutMs: Long? = null): ApiResult<JsonObject> =
+        send(HttpMethod.Post, path, body, RequestOptions(idempotencyKey, timeoutMs, headers = headers))
 
     suspend fun put(path: String, body: JsonObject, headers: Map<String, String> = emptyMap()): ApiResult<JsonObject> =
-        send(HttpMethod.Put, path, body, emptyMap(), headers, newKey())
+        send(HttpMethod.Put, path, body, RequestOptions(newKey(), headers = headers))
 
     suspend fun patch(path: String, body: JsonObject): ApiResult<JsonObject> =
-        send(HttpMethod.Patch, path, body, emptyMap(), emptyMap(), newKey())
+        send(HttpMethod.Patch, path, body, RequestOptions(newKey()))
 
     suspend fun delete(path: String): ApiResult<JsonObject> =
-        send(HttpMethod.Delete, path, null, emptyMap(), emptyMap(), newKey())
+        send(HttpMethod.Delete, path, null, RequestOptions(newKey()))
 
     /** PUT raw bytes to a presigned upload URL with a client that sends no auth header. */
     suspend fun upload(url: String, bytes: ByteArray, contentType: String = "image/jpeg"): ApiResult<Unit> {
@@ -99,19 +100,25 @@ class JsonApi @Inject constructor(
         }
     }
 
+    private data class RequestOptions(
+        val idempotencyKey: String? = null,
+        val timeoutMs: Long? = null,
+        val query: Map<String, Any?> = emptyMap(),
+        val headers: Map<String, String> = emptyMap(),
+    )
+
     private suspend fun send(
         method: HttpMethod,
         path: String,
         body: JsonObject?,
-        query: Map<String, Any?>,
-        headers: Map<String, String>,
-        idempotencyKey: String?,
+        options: RequestOptions,
     ): ApiResult<JsonObject> = try {
         val response = client.request(if (path.startsWith("http")) path else "$baseUrl$path") {
             this.method = method
-            query.forEach { (k, v) -> if (v != null) parameter(k, v.toString()) }
-            headers.forEach { (k, v) -> header(k, v) }
-            idempotencyKey?.let { header("Idempotency-Key", it) }
+            options.timeoutMs?.let { timeout { requestTimeoutMillis = it; socketTimeoutMillis = it } }
+            options.query.forEach { (k, v) -> if (v != null) parameter(k, v.toString()) }
+            options.headers.forEach { (k, v) -> header(k, v) }
+            options.idempotencyKey?.let { header("Idempotency-Key", it) }
             if (body != null) setBody(TextContent(body.toString(), ContentType.Application.Json))
         }
         val text = response.bodyAsText()

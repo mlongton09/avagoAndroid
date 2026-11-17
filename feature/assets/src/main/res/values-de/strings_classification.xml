@@ -1,0 +1,11 @@
+<resources>
+    <string name="classification_choose">Anlagenkategorie auswählen</string>
+    <string name="classification_search">Kategorien durchsuchen</string>
+    <string name="classification_back">Zurück zu Kategorien</string>
+    <string name="classification_close">Schließen</string>
+    <string name="asset_metadata_invalid">Geben Sie einen Anlagennamen ein. Lassen Sie das Baujahr leer oder geben Sie ein gültiges vierstelliges Jahr ein.</string>
+    <string name="asset_classification_required">Wählen Sie eine gültige Anlagenkategorie. Versuchen Sie es erneut, falls der Kategoriedienst nicht verfügbar ist.</string>
+    <string name="asset_types_unavailable">Anlagentypen sind nicht verfügbar oder dieser Typ ist nicht zulässig. Bitte versuchen Sie es erneut.</string>
+    <string name="asset_serial_required">Geben Sie eine echte Seriennummer für diesen Anlagentyp ein.</string>
+    <string name="asset_attributes_invalid">Alte Anlagenattribute können nicht sicher bearbeitet werden. Es wurden keine Daten geändert.</string>
+</resources>

@@ -1,0 +1,12 @@
+<!-- EN/DE feature scope, matching strings_mkt.xml; other locales use the English fallback. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="classification_choose">Choose asset category</string>
+    <string name="classification_search">Search categories</string>
+    <string name="classification_back">Back to categories</string>
+    <string name="classification_close">Close</string>
+    <string name="asset_metadata_invalid">Enter an asset name. Leave year blank or enter a valid four-digit year.</string>
+    <string name="asset_classification_required">Choose a valid asset category. Retry the category service if unavailable.</string>
+    <string name="asset_types_unavailable">Asset type configuration is unavailable or the type is not permitted. Please retry.</string>
+    <string name="asset_serial_required">Enter a real serial number for this asset type.</string>
+    <string name="asset_attributes_invalid">Legacy asset attributes cannot be safely edited. No data has been changed.</string>
+</resources>

@@ -18,6 +18,24 @@ import timber.log.Timber
 import java.util.UUID
 import com.avago.feature.assets.model.AssetScope
 import javax.inject.Inject
+import com.avago.feature.assets.data.AssetTaxonomyRepository
+import com.avago.feature.assets.data.AssetScopeRepository
+import com.avago.feature.assets.model.AssetTaxonomy
+import com.avago.feature.assets.model.text
+import com.avago.feature.assets.model.validAssetMetadata
+import com.avago.feature.assets.model.mergeAssetAttributes
+import com.avago.feature.assets.model.AssetTypeInfo
+import com.avago.feature.assets.model.AssetTypeCatalog
+import com.avago.feature.assets.model.AssetSuggestionTarget
+import com.avago.feature.assets.model.decodeAssetAttributes
+import com.avago.core.network.json.ApiResult
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /**
  * Result of a geocode lookup triggered from the address section of the add/edit form.
@@ -63,6 +81,7 @@ data class AssetFormState(
     val isSaving: Boolean = false,
     val saveError: String? = null,
     val savedAssetId: String? = null,
+    val classification: JsonObject? = null,
 ) {
     val isNameValid: Boolean get() = name.isNotBlank()
 }
@@ -75,6 +94,12 @@ private val KNOWN_ATTRIBUTE_KEYS = setOf(
     "latitude", "longitude",
     "floor_unit_ranges", "floor_suite_ranges", "bay_ranges",
     "wheel_config",
+    "classification",
+)
+private const val SUGGESTION_MIN_NAME = 3
+private const val SUGGESTION_DEBOUNCE_MS = 700L
+private val EDITED_ATTRIBUTE_KEYS = setOf(
+    "license_plate", "vin", "serial_number", "odometer", "purchase_date", "purchase_price", "notes", "fleet_number",
 )
 
 @HiltViewModel
@@ -83,6 +108,8 @@ class AddEditAssetViewModel @Inject constructor(
     private val identityManager: IdentityManager,
     private val serviceClient: AvagoServiceClient,
     private val formFillRouter: FormFillRouter,
+    private val taxonomyRepository: AssetTaxonomyRepository,
+    private val scopeRepository: AssetScopeRepository,
 ) : ViewModel() {
 
     init {
@@ -113,12 +140,83 @@ class AddEditAssetViewModel @Inject constructor(
         fields["asset_type"]?.trim()?.takeIf { it.isNotEmpty() }?.let {
             updated = updated.copy(assetType = it); touched.add("type")
         }
-        if (updated !== current) _form.value = updated
+        if (updated !== current) { _form.value = updated; suggestClassification() }
         return touched
     }
 
     private val _form = MutableStateFlow(AssetFormState())
     val form: StateFlow<AssetFormState> = _form.asStateFlow()
+    val taxonomy = MutableStateFlow<AssetTaxonomy?>(null)
+    val classificationError = MutableStateFlow<String?>(null)
+    private var suggestionJob: Job? = null
+    private var originalAttributes = JsonObject(emptyMap())
+    private var originalAttributesReadable = true
+    private var formAccount: String? = identityManager.getActiveAccountId()
+
+    init {
+        viewModelScope.launch {
+            identityManager.activeAccountId.collect { id ->
+                if (id != formAccount) {
+                    suggestionJob?.cancel()
+                    formAccount = id
+                    editingAssetId = null
+                    originalAttributes = JsonObject(emptyMap())
+                    originalAttributesReadable = true
+                    _form.value = AssetFormState()
+                    taxonomy.value = null
+                    loadTaxonomy()
+                }
+            }
+        }
+    }
+
+    fun loadTaxonomy() {
+        viewModelScope.launch {
+            val account = identityManager.getActiveAccountId()
+            when (val r = taxonomyRepository.load()) {
+                is ApiResult.Ok -> if (account == identityManager.getActiveAccountId()) taxonomy.value = r.value
+                is ApiResult.Err -> if (account == identityManager.getActiveAccountId()) {
+                    classificationError.value = "Category service: ${r.error.status} ${r.error.message}"
+                }
+            }
+        }
+    }
+
+    fun selectClassification(value: JsonObject) {
+        suggestionJob?.cancel()
+        _form.value = _form.value.copy(classification = value)
+    }
+
+    private fun suggestClassification() {
+        suggestionJob?.cancel()
+        val snapshot = _form.value
+        val automatic = editingAssetId == null && snapshot.classification?.text("source") != "manual"
+        if (!automatic || snapshot.name.trim().length < SUGGESTION_MIN_NAME ||
+            snapshot.assetType.isNullOrBlank()) return
+        val account = identityManager.getActiveAccountId() ?: return
+        suggestionJob = viewModelScope.launch {
+            delay(SUGGESTION_DEBOUNCE_MS)
+            val result = taxonomyRepository.suggest(
+                account, snapshot.name.trim(), snapshot.assetType, snapshot.make, snapshot.model,
+            )
+            val target = AssetSuggestionTarget(account, "new", snapshot.name, snapshot.assetType)
+            val live = _form.value
+            val liveTarget = AssetSuggestionTarget(
+                identityManager.getActiveAccountId().orEmpty(), "new", live.name, live.assetType.orEmpty(),
+            )
+            when (result) {
+                is ApiResult.Ok -> if (target.matches(liveTarget, live.classification) &&
+                    live.make == snapshot.make && live.model == snapshot.model) {
+                    _form.value = live.copy(
+                        classification = taxonomy.value?.acceptSuggestion(live.classification, result.value),
+                    )
+                }
+                is ApiResult.Err -> if (account == identityManager.getActiveAccountId()) {
+                    classificationError.value = "Qwen: ${result.error.status} ${result.error.message}"
+                }
+            }
+        }
+    }
 
     private val _isVinDecoding = MutableStateFlow(false)
     val isVinDecoding: StateFlow<Boolean> = _isVinDecoding.asStateFlow()
@@ -139,44 +237,56 @@ class AddEditAssetViewModel @Inject constructor(
         viewModelScope.launch {
             val accountId = identityManager.getActiveAccountId() ?: return@launch
             val entity = repository.getAssetById(accountId, assetId) ?: return@launch
-            val customAttrs = extractCustomAttributes(entity.attributes)
-            _form.value = AssetFormState(
-                name = entity.name,
-                assetType = entity.assetType,
-                make = entity.make ?: "",
-                model = entity.model ?: "",
-                year = entity.year?.toString() ?: "",
-                avatarColor = entity.avatarColor ?: "#4FC3F7",
-                licensePlate = extractAttribute(entity.attributes, "license_plate"),
-                vinSerial = extractAttribute(entity.attributes, "vin")
-                    .ifBlank { extractAttribute(entity.attributes, "serial_number") },
-                mileage = extractAttribute(entity.attributes, "odometer")
-                    .ifBlank { extractLongAttribute(entity.attributes, "odometer")?.toString().orEmpty() },
-                purchaseDate = extractLongAttribute(entity.attributes, "purchase_date"),
-                purchasePrice = extractAttribute(entity.attributes, "purchase_price"),
-                location = entity.addressLine1 ?: "",
-                notes = extractAttribute(entity.attributes, "notes"),
-                streetAddress = entity.addressLine1 ?: extractAttribute(entity.attributes, "street_address"),
-                city = entity.city ?: extractAttribute(entity.attributes, "city"),
-                stateProvince = entity.state ?: extractAttribute(entity.attributes, "state"),
-                postalCode = entity.postalCode ?: extractAttribute(entity.attributes, "zip_code"),
-                country = entity.country ?: extractAttribute(entity.attributes, "country"),
-                fleetNumber = extractAttribute(entity.attributes, "fleet_number"),
-                customAttributes = customAttrs,
-                tags = parseTagsJson(entity.tagsJson),
-                isRental = entity.isRental,
-            )
+            if (accountId != identityManager.getActiveAccountId()) return@launch
+            try {
+                originalAttributes = decodeAssetAttributes(entity.attributes)
+                originalAttributesReadable = true
+            } catch (_: IllegalArgumentException) {
+                originalAttributesReadable = false
+                _form.value = AssetFormState(name = entity.name, saveError = "asset_attributes_invalid")
+                return@launch
+            }
+            _form.value = formFor(entity)
         }
     }
+
+    private fun formFor(entity: AssetEntity) = AssetFormState(
+        name = entity.name,
+        assetType = entity.assetType,
+        make = entity.make.orEmpty(),
+        model = entity.model.orEmpty(),
+        year = entity.year?.toString().orEmpty(),
+        avatarColor = entity.avatarColor ?: "#4FC3F7",
+        licensePlate = extractAttribute(entity.attributes, "license_plate"),
+        vinSerial = serialFor(entity),
+        mileage = extractAttribute(entity.attributes, "odometer")
+            .ifBlank { extractLongAttribute(entity.attributes, "odometer")?.toString().orEmpty() },
+        purchaseDate = extractLongAttribute(entity.attributes, "purchase_date"),
+        purchasePrice = (originalAttributes["purchase_price"] as? JsonPrimitive)?.content.orEmpty(),
+        location = entity.addressLine1.orEmpty(),
+        notes = extractAttribute(entity.attributes, "notes"),
+        streetAddress = entity.addressLine1 ?: extractAttribute(entity.attributes, "street_address"),
+        city = entity.city ?: extractAttribute(entity.attributes, "city"),
+        stateProvince = entity.state ?: extractAttribute(entity.attributes, "state"),
+        postalCode = entity.postalCode ?: extractAttribute(entity.attributes, "zip_code"),
+        country = entity.country ?: extractAttribute(entity.attributes, "country"),
+        fleetNumber = extractAttribute(entity.attributes, "fleet_number"),
+        customAttributes = extractCustomAttributes(entity.attributes),
+        tags = parseTagsJson(entity.tagsJson),
+        isRental = entity.isRental,
+        classification = originalAttributes["classification"] as? JsonObject,
+    )
 
     // ---------------------------------------------------------------------------
     // Field updates
     // ---------------------------------------------------------------------------
 
-    fun onNameChanged(value: String) { _form.value = _form.value.copy(name = value) }
-    fun onAssetTypeChanged(value: String?) { _form.value = _form.value.copy(assetType = value) }
-    fun onMakeChanged(value: String) { _form.value = _form.value.copy(make = value) }
-    fun onModelChanged(value: String) { _form.value = _form.value.copy(model = value) }
+    fun onNameChanged(value: String) { _form.value = _form.value.copy(name = value); suggestClassification() }
+    fun onAssetTypeChanged(value: String?) {
+        _form.value = _form.value.copy(assetType = value); suggestClassification()
+    }
+    fun onMakeChanged(value: String) { _form.value = _form.value.copy(make = value); suggestClassification() }
+    fun onModelChanged(value: String) { _form.value = _form.value.copy(model = value); suggestClassification() }
     fun onYearChanged(value: String) { _form.value = _form.value.copy(year = value) }
     fun onAvatarColorChanged(value: String) { _form.value = _form.value.copy(avatarColor = value) }
     fun onLicensePlateChanged(value: String) { _form.value = _form.value.copy(licensePlate = value) }
@@ -358,37 +468,58 @@ class AddEditAssetViewModel @Inject constructor(
     // Save
     // ---------------------------------------------------------------------------
 
+    private fun serialFor(entity: AssetEntity): String =
+        entity.serialNumber.orEmpty().ifBlank { extractAttribute(entity.attributes, "vin") }
+            .ifBlank { extractAttribute(entity.attributes, "serial_number") }
+
+    private fun validateType(current: AssetFormState, catalog: AssetTypeCatalog): AssetTypeInfo? {
+        val info = catalog.info(current.assetType)
+        if (editingAssetId == null) {
+            require(info != null && catalog.isVisible(info.id)) { "asset_types_unavailable" }
+        }
+        val serialRequired = info?.serialRequired ?: AssetScope.isTool(current.assetType)
+        require(!serialRequired || current.vinSerial.isNotBlank()) { "asset_serial_required" }
+        return info
+    }
+
+    private fun formError(current: AssetFormState): String? = when {
+        !originalAttributesReadable -> "asset_attributes_invalid"
+        !validAssetMetadata(current.name, current.year) -> "asset_metadata_invalid"
+        editingAssetId == null && taxonomy.value?.valid(current.classification) != true ->
+            "asset_classification_required"
+        else -> null
+    }
+
     fun save(onSuccess: (assetId: String) -> Unit) {
         val current = _form.value
-        if (!current.isNameValid) {
-            _form.value = current.copy(saveError = "Please enter an asset name.")
+        val error = formError(current)
+        if (error != null) {
+            _form.value = current.copy(saveError = error)
             return
         }
 
         _form.value = current.copy(isSaving = true, saveError = null)
+        val accountAtSave = identityManager.getActiveAccountId()
 
         viewModelScope.launch {
             try {
-                val accountId = identityManager.getActiveAccountId()
+                val accountId = accountAtSave
                 if (accountId == null) {
                     _form.value = _form.value.copy(isSaving = false, saveError = "No active account")
                     return@launch
                 }
+                val catalog = scopeRepository.catalog()
+                if (accountId != identityManager.getActiveAccountId()) return@launch
+                val typeInfo = validateType(current, catalog)
 
                 val assetId = editingAssetId ?: UUID.randomUUID().toString()
+                val existing = editingAssetId?.let { repository.getAssetById(accountId, it) }
                 val now = System.currentTimeMillis()
 
                 // Build the attributes JSON for optional fields not covered by columns
                 val attributesJson = buildAttributesJson(
-                    licensePlate = current.licensePlate,
-                    vin = current.vinSerial,
-                    serialKey = if (AssetScope.isTool(current.assetType)) "serial_number" else "vin",
-                    mileage = current.mileage.takeIf { AssetScope.tracksMileage(current.assetType) },
-                    purchaseDate = current.purchaseDate,
-                    purchasePrice = current.purchasePrice.toDoubleOrNull(),
-                    notes = current.notes,
-                    fleetNumber = current.fleetNumber,
-                    customAttributes = current.customAttributes,
+                    current = current,
+                    serialKey = if (typeInfo?.kind == "tool") "serial_number" else "vin",
                 )
 
                 val entity = AssetEntity(
@@ -399,6 +530,7 @@ class AddEditAssetViewModel @Inject constructor(
                     model = current.model.trim().ifBlank { null },
                     year = current.year.trim().toLongOrNull(),
                     assetType = current.assetType,
+                    serialNumber = current.vinSerial.trim().ifBlank { null },
                     meterType = null,
                     avatarColor = current.avatarColor,
                     avatarInitial = current.name.firstOrNull()?.uppercaseChar()?.toString(),
@@ -418,27 +550,26 @@ class AddEditAssetViewModel @Inject constructor(
                     isRental = current.isRental,
                     rentalRate = null,
                     rentalRateUnit = null,
-                    createdAt = if (editingAssetId != null) {
-                        // Preserve original createdAt for edits
-                        repository.getAssetById(accountId, assetId)?.createdAt ?: now
-                    } else now,
+                    createdAt = existing?.createdAt ?: now,
                     updatedAt = now,
                     deletedAt = null,
-                    serverVersion = if (editingAssetId != null) {
-                        repository.getAssetById(accountId, assetId)?.serverVersion ?: 0L
-                    } else 0L,
+                    serverVersion = existing?.serverVersion ?: 0L,
                     seq = null,
                     tagsJson = serializeTagsJson(current.tags),
                 )
 
+                if (accountId != identityManager.getActiveAccountId()) return@launch
                 repository.upsertAsset(accountId, entity)
+                if (accountId != identityManager.getActiveAccountId()) return@launch
 
                 _form.value = _form.value.copy(isSaving = false, savedAssetId = assetId)
                 Timber.d("[AddEditAssetViewModel] Saved asset $assetId")
                 onSuccess(assetId)
             } catch (e: Exception) {
                 Timber.e(e, "[AddEditAssetViewModel] Save failed")
-                _form.value = _form.value.copy(isSaving = false, saveError = e.message ?: "Save failed")
+                if (accountAtSave == identityManager.getActiveAccountId()) {
+                    _form.value = _form.value.copy(isSaving = false, saveError = e.message ?: "Save failed")
+                }
             }
         }
     }
@@ -448,30 +579,25 @@ class AddEditAssetViewModel @Inject constructor(
     // ---------------------------------------------------------------------------
 
     private fun buildAttributesJson(
-        licensePlate: String,
-        vin: String,
+        current: AssetFormState,
         serialKey: String,
-        mileage: String?,
-        purchaseDate: Long?,
-        purchasePrice: Double?,
-        notes: String,
-        fleetNumber: String,
-        customAttributes: Map<String, String>,
     ): String? {
-        val parts = mutableListOf<String>()
-        if (licensePlate.isNotBlank()) parts += "\"license_plate\":\"${licensePlate.trim()}\""
-        if (vin.isNotBlank()) parts += "\"$serialKey\":\"${vin.trim()}\""
-        if (!mileage.isNullOrBlank()) parts += "\"odometer\":\"$mileage\""
-        if (purchaseDate != null) parts += "\"purchase_date\":$purchaseDate"
-        if (purchasePrice != null) parts += "\"purchase_price\":$purchasePrice"
-        if (notes.isNotBlank()) parts += "\"notes\":\"${notes.trim().replace("\"", "\\\"")}\""
-        if (fleetNumber.isNotBlank()) parts += "\"fleet_number\":\"${fleetNumber.trim()}\""
-        for ((key, value) in customAttributes) {
-            if (value.isNotBlank()) {
-                parts += "\"${key.replace("\"", "\\\"")}\":\"${value.trim().replace("\"", "\\\"")}\""
+        val retained = JsonObject(originalAttributes - EDITED_ATTRIBUTE_KEYS - current.customAttributes.keys)
+        return mergeAssetAttributes(retained, buildJsonObject {
+            if (current.licensePlate.isNotBlank()) put("license_plate", current.licensePlate.trim())
+            if (current.vinSerial.isNotBlank()) put(serialKey, current.vinSerial.trim())
+            if (current.mileage.isNotBlank() && AssetScope.tracksMileage(current.assetType)) {
+                put("odometer", current.mileage)
             }
-        }
-        return if (parts.isEmpty()) null else "{${parts.joinToString(",")}}"
+            current.purchaseDate?.let { put("purchase_date", it) }
+            current.purchasePrice.toDoubleOrNull()?.let { put("purchase_price", it) }
+            if (current.notes.isNotBlank()) put("notes", current.notes.trim())
+            if (current.fleetNumber.isNotBlank()) put("fleet_number", current.fleetNumber.trim())
+            current.customAttributes.forEach { (key, value) ->
+                if (value.isNotBlank() && key != "classification") put(key, JsonPrimitive(value.trim()))
+            }
+            current.classification?.let { put("classification", it) }
+        }).toString()
     }
 
     private fun extractAttribute(attributes: String?, key: String): String {
@@ -491,18 +617,11 @@ class AddEditAssetViewModel @Inject constructor(
      * not in [KNOWN_ATTRIBUTE_KEYS].
      */
     private fun extractCustomAttributes(attributes: String?): Map<String, String> {
-        if (attributes.isNullOrBlank()) return emptyMap()
-        val result = mutableMapOf<String, String>()
-        // Match both string values: "key":"value"
-        val stringPattern = Regex("\"([^\"]+)\"\\s*:\\s*\"([^\"]*)\"")
-        for (match in stringPattern.findAll(attributes)) {
-            val key = match.groupValues[1]
-            val value = match.groupValues[2]
-            if (key !in KNOWN_ATTRIBUTE_KEYS) {
-                result[key] = value
-            }
-        }
-        return result
+        val obj = attributes?.takeIf(String::isNotBlank)?.let { Json.parseToJsonElement(it) as? JsonObject }
+            ?: return emptyMap()
+        return obj.filterKeys { it !in KNOWN_ATTRIBUTE_KEYS }.mapNotNull { (k, v) ->
+            (v as? JsonPrimitive)?.takeIf { it.isString }?.let { k to it.content }
+        }.toMap()
     }
 
     // Change 106: tags JSON helpers

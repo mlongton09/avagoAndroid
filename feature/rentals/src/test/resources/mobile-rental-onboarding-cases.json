@@ -1,0 +1,54 @@
+{
+  "contract_version": 1,
+  "new_asset_validation": [
+    { "id": "name-only-light-vehicle", "asset_type": "light_vehicle", "name": "Farm pickup", "make": "", "model": "", "year": "", "valid": true },
+    { "id": "name-only-trailer", "asset_type": "trailer", "name": "Flatbed trailer", "make": "", "model": "", "year": "", "valid": true },
+    { "id": "blank-name", "asset_type": "light_vehicle", "name": "   ", "make": "", "model": "", "year": "", "valid": false }
+  ],
+  "money": [
+    { "id": "usd-two-decimals", "currency": "USD", "major": "12.50", "minor": 1250, "valid": true },
+    { "id": "jpy-no-decimals", "currency": "JPY", "major": "1250", "minor": 1250, "valid": true },
+    { "id": "kwd-three-decimals", "currency": "KWD", "major": "1.250", "minor": 1250, "valid": true },
+    { "id": "excess-jpy-precision", "currency": "JPY", "major": "12.5", "valid": false },
+    { "id": "excess-kwd-precision", "currency": "KWD", "major": "1.2345", "valid": false },
+    { "id": "zero-price", "currency": "USD", "major": "0", "valid": false },
+    { "id": "negative-price", "currency": "USD", "major": "-1", "valid": false },
+    { "id": "unsafe-integer", "currency": "USD", "major": "90071992547409.92", "valid": false }
+  ],
+  "inventory": [
+    { "id": "ten-identical", "mode": "same", "row_count": 1, "quantity_per_row": 10, "valid": true },
+    { "id": "ten-distinct", "mode": "different", "row_count": 10, "quantity_per_row": 1, "valid": true },
+    { "id": "488-identical", "mode": "same", "row_count": 1, "quantity_per_row": 488, "valid": true },
+    { "id": "488-distinct", "mode": "different", "row_count": 488, "quantity_per_row": 1, "valid": true },
+    { "id": "500-total", "mode": "different", "row_count": 250, "quantity_per_row": 2, "valid": true },
+    { "id": "501-total", "mode": "same", "row_count": 1, "quantity_per_row": 501, "valid": false },
+    { "id": "aggregate-overflow", "mode": "different", "row_count": 251, "quantity_per_row": 2, "valid": false },
+    { "id": "same-with-multiple-rows", "mode": "same", "row_count": 2, "quantity_per_row": 1, "valid": false },
+    { "id": "empty-inventory", "mode": "different", "row_count": 0, "quantity_per_row": 1, "valid": false }
+  ],
+  "classification": {
+    "valid": { "category_id": "power_distribution", "subcategory_id": "power_distribution.generators", "taxonomy_version": 1, "source": "manual" },
+    "other_valid": { "category_id": "agriculture", "subcategory_id": "agriculture.tractors", "taxonomy_version": 1, "source": "manual" },
+    "mismatched": { "category_id": "agriculture", "subcategory_id": "power_distribution.generators", "taxonomy_version": 1, "source": "manual" },
+    "minimum_auto_apply_confidence": 0.8,
+    "manual_selection_wins": true
+  },
+  "serials": [
+    { "id": "required-missing", "required": true, "quantity": 2, "serials": [], "valid": false },
+    { "id": "required-complete", "required": true, "quantity": 2, "serials": ["SERIAL-1", "SERIAL-2"], "valid": true },
+    { "id": "case-insensitive-duplicate", "required": true, "quantity": 2, "serials": ["SERIAL-1", "serial-1"], "valid": false },
+    { "id": "optional-omitted", "required": false, "quantity": 2, "serials": [], "valid": true }
+  ],
+  "journey": {
+    "steps": ["store", "inventory", "rental", "review"],
+    "pickup_location_required": false,
+    "payments_required_to_publish": false,
+    "public_marketplace_opt_in": false,
+    "revision_conflict_preserves_local_draft": true,
+    "publish_receipt_required_for_success": true,
+    "unsupported_service_is_explicit": true,
+    "import_never_commits_assets_before_publish": true,
+    "manual_classification_available_without_ai": true,
+    "csv_and_xlsx_use_account_scoped_parse_endpoint": true
+  }
+}

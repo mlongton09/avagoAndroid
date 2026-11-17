@@ -38,6 +38,7 @@ class SyncPayloadBuilder @Inject constructor(
                         put("name", e.name)
                         e.make?.let { put("make", it) }
                         e.model?.let { put("model", it) }
+                        e.serialNumber?.let { put("serial_number", it) }
                         e.year?.let { put("year", it) }
                         e.assetType?.let { put("asset_type", it) }
                         e.meterType?.let { put("meter_type", it) }

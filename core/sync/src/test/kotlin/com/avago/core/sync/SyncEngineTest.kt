@@ -528,6 +528,48 @@ class SyncEngineTest {
     // ─── resetErrorsToPending on push start ───────────────────────────────────
 
     @Test
+    fun `pulled asset serial round trips through Room entity and actual push builder`() = runTest {
+        coEvery { mockSyncQueueDao.pendingItemsList() } returns emptyList()
+        val attributes = """{"unknown":{"keep":[1,true]}}"""
+        val withSerial = buildJsonItem(
+            "asset_id" to "asset-serial",
+            "account_id" to ACCOUNT_ID,
+            "name" to "Real tool",
+            "asset_type" to "power_tools",
+            "make" to "Original make",
+            "serial_number" to "Tool-AbC-42",
+            "attributes" to attributes,
+            "server_version" to "1",
+        )
+        val legacy = buildJsonItem("asset_id" to "asset-legacy", "name" to "Legacy asset", "server_version" to "1")
+        val explicitNull = JsonObject(legacy + mapOf(
+            "asset_id" to JsonPrimitive("asset-null"),
+            "serial_number" to kotlinx.serialization.json.JsonNull,
+        ))
+        coEvery { mockClient.syncPull(ACCOUNT_ID, "asset", any()) } returns SyncPullResponse(
+            items = listOf(withSerial, legacy, explicitNull), has_more = false, max_seq = 5L,
+        )
+        coEvery { mockClient.syncPull(ACCOUNT_ID, match { it != "asset" }, any()) } returns emptyPullResponse()
+        val captured = mutableListOf<com.avago.core.data.db.entity.AssetEntity>()
+        coEvery { mockAssetDao.upsert(capture(captured)) } just Runs
+
+        engine.sync()
+
+        assertEquals(3, captured.size)
+        val tool = captured.single { it.assetId == "asset-serial" }
+        assertEquals("Tool-AbC-42", tool.serialNumber)
+        assertEquals("Real tool", tool.name)
+        assertEquals("Original make", tool.make)
+        assertEquals(attributes, tool.attributes)
+        assertTrue(captured.filter { it.assetId != tool.assetId }.all { it.serialNumber == null })
+        coEvery { mockAssetDao.getById(tool.assetId) } returns tool
+        val payload = SyncPayloadBuilder(mockDbFactory).buildPayload(ACCOUNT_ID, "asset", tool.assetId)!!
+        assertEquals(JsonPrimitive("Tool-AbC-42"), payload["serial_number"])
+        assertEquals(JsonPrimitive(attributes), payload["attributes"])
+        assertEquals(JsonPrimitive("Original make"), payload["make"])
+    }
+
+    @Test
     fun `runSync resets error items to pending at start of push phase`() = runTest {
         coEvery { mockSyncQueueDao.pendingItemsList() } returns emptyList()
         coEvery { mockClient.syncPull(any(), any(), any()) } returns emptyPullResponse()
