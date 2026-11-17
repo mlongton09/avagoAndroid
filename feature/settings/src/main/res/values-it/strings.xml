@@ -33,6 +33,55 @@
     <string name="settings_licenses">Licenze open source</string>
     <string name="settings_privacy_policy">Informativa sulla privacy</string>
     <string name="settings_privacy_policy_url">https://avagomate.com/privacy</string>
+    <string name="appearance_system">Predefinito di sistema</string>
+    <string name="settings_currency">Valuta</string>
+    <string name="settings_fuel_volume_unit">Unità carburante</string>
+    <string name="settings_temperature_unit">Unità di temperatura</string>
+    <string name="settings_ai">IA</string>
+    <string name="settings_human_in_loop">Rivedi i moduli prima che Scout salvi</string>
+    <string name="settings_human_in_loop_desc">Se attivo, Scout ti chiederà di rivedere i suggerimenti dell\'IA prima di salvare le modifiche.</string>
+    <string name="settings_hitl">Rivedi i moduli prima che Scout salvi</string>
+    <string name="settings_hitl_footer">Se attivo, Scout ti chiederà di rivedere i suggerimenti dell\'IA prima di salvare le modifiche.</string>
+    <string name="settings_disable_quotes">Disattiva preventivi</string>
+    <string name="settings_terms_of_service">Termini di utilizzo</string>
+    <string name="settings_terms">Termini di utilizzo</string>
+    <string name="settings_terms_of_service_url">https://avagomate.com/terms</string>
+    <string name="settings_notifications_granted_hint">Tocca per gestire nelle impostazioni di sistema</string>
+    <string name="account_role_label">Ruolo</string>
+    <string name="role_root">Root</string>
+    <string name="role_admin">Amministratore</string>
+    <string name="role_manager">Responsabile</string>
+    <string name="role_dispatcher">Dispatcher</string>
+    <string name="role_technician">Tecnico</string>
+    <string name="role_operator">Operatore</string>
+    <string name="role_reader">Lettore</string>
+    <string name="settings_invite_team_member">Invita utenti</string>
+    <string name="invite_title">Invita utenti</string>
+    <string name="invite_add_person">+ Aggiungi un\'altra persona</string>
+    <string name="settings_my_tech_profile">Il mio profilo tecnico</string>
+    <string name="tech_profile_title">Il mio profilo tecnico</string>
+    <string name="tech_profile_display_name">Nome visualizzato</string>
+    <string name="tech_profile_skills">Competenze</string>
+    <string name="tech_profile_skills_hint">es. climatizzazione, impianti elettrici</string>
+    <string name="tech_profile_certifications">Certificazioni</string>
+    <string name="tech_profile_certifications_hint">es. EPA 608</string>
+    <string name="tech_profile_hourly_rate">Tariffa oraria</string>
+    <string name="tech_profile_max_active_wos">Max ordini di lavoro attivi</string>
+    <string name="tech_profile_available_label">Disponibile per ordini di lavoro</string>
+    <string name="tech_profile_home_location">Posizione di base</string>
+    <string name="tech_profile_no_home_location">Nessuna posizione di base</string>
+    <string name="tech_profile_save_success">Profilo salvato</string>
+    <string name="tech_profile_not_found">Nessun profilo tecnico trovato per il tuo account</string>
+
+    <!-- About screen -->
+    <string name="about_title">Informazioni su avago</string>
+    <string name="about_tagline">Monitoraggio della manutenzione per il mondo reale.</string>
+    <string name="about_back">Indietro</string>
+    <string name="about_section_legal">Note legali</string>
+    <string name="about_section_acknowledgements">Ringraziamenti</string>
+    <string name="about_privacy_policy">Informativa sulla privacy</string>
+    <string name="about_terms_of_service">Termini di servizio</string>
+    <string name="about_open_source_licenses">Licenze open source</string>
 
     <!-- Common actions -->
     <string name="add">Aggiungi</string>
@@ -48,4 +97,29 @@
     <string name="retry">Riprova</string>
     <string name="no_results">Nessun risultato</string>
     <string name="pull_to_refresh">Trascina per aggiornare</string>
+
+    <!-- Developer: sample workspaces (system admin only) -->
+    <string name="sample_workspaces_title">Aree di lavoro di esempio</string>
+    <string name="sample_workspaces_footer">Apre un account demo di tua proprietà con i dati di esempio selezionati. Il tuo account attuale non viene modificato.</string>
+    <plurals name="sample_workspaces_profile_meta">
+        <item quantity="one">%1$s · %2$d risorsa</item>
+        <item quantity="many">%1$s · %2$d risorse</item>
+        <item quantity="other">%1$s · %2$d risorse</item>
+    </plurals>
+    <plurals name="sample_workspaces_saved">
+        <item quantity="one">Area di lavoro salvata: %1$s (%2$d risorsa)</item>
+        <item quantity="many">Area di lavoro salvata: %1$s (%2$d risorse)</item>
+        <item quantity="other">Area di lavoro salvata: %1$s (%2$d risorse)</item>
+    </plurals>
+    <string name="sample_workspaces_not_created">Nessuna area di lavoro salvata — verrà creata</string>
+    <string name="sample_workspaces_unavailable">Dati di esempio non disponibili</string>
+    <string name="sample_workspaces_current">Attuale</string>
+    <string name="sample_workspaces_switching">Apertura di %1$s…</string>
+    <string name="sample_workspaces_switching_hint">La creazione di un\'area di lavoro può richiedere alcuni minuti.</string>
+    <string name="sample_workspaces_switched">Passato a %1$s</string>
+    <string name="sample_workspaces_error_title">Impossibile aprire l\'area di lavoro di esempio</string>
+    <string name="sample_workspaces_requires_admin">Richiede un account amministratore di sistema</string>
+    <string name="sample_workspaces_account_missing">L\'area di lavoro è stata creata ma non è ancora nel tuo elenco di account. Riprova.</string>
+    <string name="sample_workspaces_load_failed">Impossibile caricare le aree di lavoro di esempio: %1$s</string>
+    <string name="sample_workspaces_empty">Nessun profilo di esempio disponibile</string>
 </resources>

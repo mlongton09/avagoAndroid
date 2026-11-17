@@ -33,6 +33,55 @@
     <string name="settings_licenses">Open-Source-Lizenzen</string>
     <string name="settings_privacy_policy">Datenschutzrichtlinie</string>
     <string name="settings_privacy_policy_url">https://avagomate.com/privacy</string>
+    <string name="appearance_system">Systemstandard</string>
+    <string name="settings_currency">Währung</string>
+    <string name="settings_fuel_volume_unit">Kraftstoffeinheit</string>
+    <string name="settings_temperature_unit">Temperatureinheit</string>
+    <string name="settings_ai">KI</string>
+    <string name="settings_human_in_loop">Formulare prüfen, bevor Scout speichert</string>
+    <string name="settings_human_in_loop_desc">Wenn aktiviert, bittet Scout Sie, KI-Vorschläge zu prüfen, bevor Änderungen gespeichert werden.</string>
+    <string name="settings_hitl">Formulare prüfen, bevor Scout speichert</string>
+    <string name="settings_hitl_footer">Wenn aktiviert, bittet Scout Sie, KI-Vorschläge zu prüfen, bevor Änderungen gespeichert werden.</string>
+    <string name="settings_disable_quotes">Angebote deaktivieren</string>
+    <string name="settings_terms_of_service">Nutzungsbedingungen</string>
+    <string name="settings_terms">Nutzungsbedingungen</string>
+    <string name="settings_terms_of_service_url">https://avagomate.com/terms</string>
+    <string name="settings_notifications_granted_hint">Tippen, um in den Systemeinstellungen zu verwalten</string>
+    <string name="account_role_label">Rolle</string>
+    <string name="role_root">Root</string>
+    <string name="role_admin">Administrator</string>
+    <string name="role_manager">Manager</string>
+    <string name="role_dispatcher">Disponent</string>
+    <string name="role_technician">Techniker</string>
+    <string name="role_operator">Bediener</string>
+    <string name="role_reader">Leser</string>
+    <string name="settings_invite_team_member">Benutzer einladen</string>
+    <string name="invite_title">Benutzer einladen</string>
+    <string name="invite_add_person">+ Weitere Person hinzufügen</string>
+    <string name="settings_my_tech_profile">Mein Technikerprofil</string>
+    <string name="tech_profile_title">Mein Technikerprofil</string>
+    <string name="tech_profile_display_name">Anzeigename</string>
+    <string name="tech_profile_skills">Fähigkeiten</string>
+    <string name="tech_profile_skills_hint">z. B. HLK, Elektrik</string>
+    <string name="tech_profile_certifications">Zertifizierungen</string>
+    <string name="tech_profile_certifications_hint">z. B. EPA 608</string>
+    <string name="tech_profile_hourly_rate">Stundensatz</string>
+    <string name="tech_profile_max_active_wos">Max. aktive Arbeitsaufträge</string>
+    <string name="tech_profile_available_label">Verfügbar für Arbeitsaufträge</string>
+    <string name="tech_profile_home_location">Heimatstandort</string>
+    <string name="tech_profile_no_home_location">Kein Heimatstandort</string>
+    <string name="tech_profile_save_success">Profil gespeichert</string>
+    <string name="tech_profile_not_found">Für Ihr Konto wurde kein Technikerprofil gefunden</string>
+
+    <!-- About screen -->
+    <string name="about_title">Über avago</string>
+    <string name="about_tagline">Wartungsverfolgung für die echte Welt.</string>
+    <string name="about_back">Zurück</string>
+    <string name="about_section_legal">Rechtliches</string>
+    <string name="about_section_acknowledgements">Danksagungen</string>
+    <string name="about_privacy_policy">Datenschutzrichtlinie</string>
+    <string name="about_terms_of_service">Nutzungsbedingungen</string>
+    <string name="about_open_source_licenses">Open-Source-Lizenzen</string>
 
     <!-- Common actions -->
     <string name="add">Hinzufügen</string>
@@ -52,8 +101,14 @@
     <!-- Developer: sample workspaces (system admin only) -->
     <string name="sample_workspaces_title">Beispiel-Arbeitsbereiche</string>
     <string name="sample_workspaces_footer">Öffnet ein Demo-Konto in Ihrem Besitz mit den ausgewählten Beispieldaten. Ihr aktuelles Konto bleibt unverändert.</string>
-    <string name="sample_workspaces_profile_meta">%1$s · %2$d Anlagen</string>
-    <string name="sample_workspaces_saved">Gespeicherter Arbeitsbereich: %1$s (%2$d Anlagen)</string>
+    <plurals name="sample_workspaces_profile_meta">
+        <item quantity="one">%1$s · %2$d Anlage</item>
+        <item quantity="other">%1$s · %2$d Anlagen</item>
+    </plurals>
+    <plurals name="sample_workspaces_saved">
+        <item quantity="one">Gespeicherter Arbeitsbereich: %1$s (%2$d Anlage)</item>
+        <item quantity="other">Gespeicherter Arbeitsbereich: %1$s (%2$d Anlagen)</item>
+    </plurals>
     <string name="sample_workspaces_not_created">Kein gespeicherter Arbeitsbereich – wird erstellt</string>
     <string name="sample_workspaces_unavailable">Beispieldaten nicht verfügbar</string>
     <string name="sample_workspaces_current">Aktuell</string>

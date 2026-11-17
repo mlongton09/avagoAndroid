@@ -33,6 +33,55 @@
     <string name="settings_licenses">Öppen källkod-licenser</string>
     <string name="settings_privacy_policy">Integritetspolicy</string>
     <string name="settings_privacy_policy_url">https://avagomate.com/privacy</string>
+    <string name="appearance_system">Systemstandard</string>
+    <string name="settings_currency">Valuta</string>
+    <string name="settings_fuel_volume_unit">Bränsleenhet</string>
+    <string name="settings_temperature_unit">Temperaturenhet</string>
+    <string name="settings_ai">AI</string>
+    <string name="settings_human_in_loop">Granska formulär innan Scout sparar</string>
+    <string name="settings_human_in_loop_desc">När det är aktiverat ber Scout dig granska AI-förslag innan ändringar sparas.</string>
+    <string name="settings_hitl">Granska formulär innan Scout sparar</string>
+    <string name="settings_hitl_footer">När det är aktiverat ber Scout dig granska AI-förslag innan ändringar sparas.</string>
+    <string name="settings_disable_quotes">Inaktivera offerter</string>
+    <string name="settings_terms_of_service">Användarvillkor</string>
+    <string name="settings_terms">Användarvillkor</string>
+    <string name="settings_terms_of_service_url">https://avagomate.com/terms</string>
+    <string name="settings_notifications_granted_hint">Tryck för att hantera i systeminställningarna</string>
+    <string name="account_role_label">Roll</string>
+    <string name="role_root">Root</string>
+    <string name="role_admin">Administratör</string>
+    <string name="role_manager">Chef</string>
+    <string name="role_dispatcher">Arbetsfördelare</string>
+    <string name="role_technician">Tekniker</string>
+    <string name="role_operator">Operatör</string>
+    <string name="role_reader">Läsare</string>
+    <string name="settings_invite_team_member">Bjud in användare</string>
+    <string name="invite_title">Bjud in användare</string>
+    <string name="invite_add_person">+ Lägg till en person till</string>
+    <string name="settings_my_tech_profile">Min teknikerprofil</string>
+    <string name="tech_profile_title">Min teknikerprofil</string>
+    <string name="tech_profile_display_name">Visningsnamn</string>
+    <string name="tech_profile_skills">Kompetenser</string>
+    <string name="tech_profile_skills_hint">t.ex. VVS, el</string>
+    <string name="tech_profile_certifications">Certifieringar</string>
+    <string name="tech_profile_certifications_hint">t.ex. EPA 608</string>
+    <string name="tech_profile_hourly_rate">Timpris</string>
+    <string name="tech_profile_max_active_wos">Max aktiva arbetsorder</string>
+    <string name="tech_profile_available_label">Tillgänglig för arbetsorder</string>
+    <string name="tech_profile_home_location">Hemplats</string>
+    <string name="tech_profile_no_home_location">Ingen hemplats</string>
+    <string name="tech_profile_save_success">Profil sparad</string>
+    <string name="tech_profile_not_found">Ingen teknikerprofil hittades för ditt konto</string>
+
+    <!-- About screen -->
+    <string name="about_title">Om avago</string>
+    <string name="about_tagline">Underhållsuppföljning för den verkliga världen.</string>
+    <string name="about_back">Tillbaka</string>
+    <string name="about_section_legal">Juridiskt</string>
+    <string name="about_section_acknowledgements">Tack</string>
+    <string name="about_privacy_policy">Integritetspolicy</string>
+    <string name="about_terms_of_service">Tjänstevillkor</string>
+    <string name="about_open_source_licenses">Öppen källkod-licenser</string>
 
     <!-- Common actions -->
     <string name="add">Lägg till</string>
@@ -48,4 +97,27 @@
     <string name="retry">Försök igen</string>
     <string name="no_results">Inga resultat</string>
     <string name="pull_to_refresh">Dra för att uppdatera</string>
+
+    <!-- Developer: sample workspaces (system admin only) -->
+    <string name="sample_workspaces_title">Exempelarbetsytor</string>
+    <string name="sample_workspaces_footer">Öppnar ett demokonto som du äger, fyllt med valda exempeldata. Ditt nuvarande konto ändras inte.</string>
+    <plurals name="sample_workspaces_profile_meta">
+        <item quantity="one">%1$s · %2$d tillgång</item>
+        <item quantity="other">%1$s · %2$d tillgångar</item>
+    </plurals>
+    <plurals name="sample_workspaces_saved">
+        <item quantity="one">Sparad arbetsyta: %1$s (%2$d tillgång)</item>
+        <item quantity="other">Sparad arbetsyta: %1$s (%2$d tillgångar)</item>
+    </plurals>
+    <string name="sample_workspaces_not_created">Ingen sparad arbetsyta — skapas</string>
+    <string name="sample_workspaces_unavailable">Exempeldata är inte tillgängliga</string>
+    <string name="sample_workspaces_current">Nuvarande</string>
+    <string name="sample_workspaces_switching">Öppnar %1$s…</string>
+    <string name="sample_workspaces_switching_hint">Det kan ta några minuter att skapa en arbetsyta.</string>
+    <string name="sample_workspaces_switched">Bytte till %1$s</string>
+    <string name="sample_workspaces_error_title">Det gick inte att öppna exempelarbetsytan</string>
+    <string name="sample_workspaces_requires_admin">Kräver ett systemadministratörskonto</string>
+    <string name="sample_workspaces_account_missing">Arbetsytan skapades men finns inte i din kontolista ännu. Försök igen.</string>
+    <string name="sample_workspaces_load_failed">Det gick inte att läsa in exempelarbetsytor: %1$s</string>
+    <string name="sample_workspaces_empty">Inga exempelprofiler tillgängliga</string>
 </resources>

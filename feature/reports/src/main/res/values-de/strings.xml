@@ -174,4 +174,15 @@
     <string name="cost_report_chart_a11y_negative">Niedrigster Wert %1$s: %2$s.</string>
     <string name="chart_loading">Diagramm wird geladen…</string>
     <string name="chart_other">Sonstige</string>
+    <string name="sort_newest">Neueste zuerst</string>
+    <string name="sort_oldest">Älteste zuerst</string>
+    <string name="sort_highest">Höchste zuerst</string>
+    <string name="sort_lowest">Niedrigste zuerst</string>
+    <string name="reports_empty_state">Keine Ergebnisse</string>
+    <string name="report_category">Kategoriebericht</string>
+    <string name="report_cost">Kostenbericht</string>
+    <string name="cost_report_mode_all">Alle</string>
+    <string name="cost_report_mode_by_asset">Nach Anlage</string>
+    <string name="cost_report_mode_by_type">Nach Typ</string>
+    <string name="cost_report_mode_tco">TCO</string>
 </resources>

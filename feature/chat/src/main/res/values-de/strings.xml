@@ -130,4 +130,12 @@
     <string name="thread_notifications_all">All messages</string>
     <string name="thread_notifications_mentions">Mentions only</string>
     <string name="thread_notifications_off">Off</string>
+    <string name="thread_members_leave_title">Thread verlassen?</string>
+    <string name="thread_members_leave_message">Sie erhalten keine Nachrichten mehr aus diesem Thread.</string>
+    <string name="thread_members_leave_action">Verlassen</string>
+    <string name="thread_members_rename_group">Gruppe umbenennen</string>
+    <string name="thread_members_notifications">Benachrichtigungen</string>
+    <string name="thread_members_add">Mitglieder hinzufügen</string>
+    <string name="thread_members_remove">Mitglied entfernen</string>
+    <string name="chat_settings_quiet_message">Während der Ruhezeiten werden keine Benachrichtigungen gesendet.</string>
 </resources>

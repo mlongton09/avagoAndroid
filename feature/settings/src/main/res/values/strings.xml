@@ -101,8 +101,14 @@
     <!-- Developer: sample workspaces (system admin only) -->
     <string name="sample_workspaces_title">Sample workspaces</string>
     <string name="sample_workspaces_footer">Opens a demo account you own, filled with the selected sample data. Your current account is not changed.</string>
-    <string name="sample_workspaces_profile_meta">%1$s · %2$d assets</string>
-    <string name="sample_workspaces_saved">Saved workspace: %1$s (%2$d assets)</string>
+    <plurals name="sample_workspaces_profile_meta">
+        <item quantity="one">%1$s · %2$d asset</item>
+        <item quantity="other">%1$s · %2$d assets</item>
+    </plurals>
+    <plurals name="sample_workspaces_saved">
+        <item quantity="one">Saved workspace: %1$s (%2$d asset)</item>
+        <item quantity="other">Saved workspace: %1$s (%2$d assets)</item>
+    </plurals>
     <string name="sample_workspaces_not_created">No saved workspace — will be created</string>
     <string name="sample_workspaces_unavailable">Sample data unavailable</string>
     <string name="sample_workspaces_current">Current</string>

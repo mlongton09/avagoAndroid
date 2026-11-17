@@ -19,6 +19,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -238,8 +239,9 @@ private fun SampleWorkspaceRow(
         supportingContent = {
             Column {
                 Text(
-                    stringResource(
-                        R.string.sample_workspaces_profile_meta,
+                    pluralStringResource(
+                        R.plurals.sample_workspaces_profile_meta,
+                        profile.assetCount.toInt(),
                         profile.locale?.ifBlank { null } ?: "—",
                         profile.assetCount.toInt(),
                     ),
@@ -248,8 +250,9 @@ private fun SampleWorkspaceRow(
                 Text(
                     text = when {
                         !profile.available -> stringResource(R.string.sample_workspaces_unavailable)
-                        workspace != null -> stringResource(
-                            R.string.sample_workspaces_saved,
+                        workspace != null -> pluralStringResource(
+                            R.plurals.sample_workspaces_saved,
+                            workspace.assetCount.toInt(),
                             workspace.accountName?.ifBlank { null } ?: workspace.accountId,
                             workspace.assetCount.toInt(),
                         )

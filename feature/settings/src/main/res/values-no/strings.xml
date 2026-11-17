@@ -33,6 +33,55 @@
     <string name="settings_licenses">Åpen kildekode-lisenser</string>
     <string name="settings_privacy_policy">Personvernregler</string>
     <string name="settings_privacy_policy_url">https://avagomate.com/privacy</string>
+    <string name="appearance_system">Systemstandard</string>
+    <string name="settings_currency">Valuta</string>
+    <string name="settings_fuel_volume_unit">Drivstoffenhet</string>
+    <string name="settings_temperature_unit">Temperaturenhet</string>
+    <string name="settings_ai">KI</string>
+    <string name="settings_human_in_loop">Gjennomgå skjemaer før Scout lagrer</string>
+    <string name="settings_human_in_loop_desc">Når dette er aktivert, ber Scout deg gjennomgå KI-forslag før endringer lagres.</string>
+    <string name="settings_hitl">Gjennomgå skjemaer før Scout lagrer</string>
+    <string name="settings_hitl_footer">Når dette er aktivert, ber Scout deg gjennomgå KI-forslag før endringer lagres.</string>
+    <string name="settings_disable_quotes">Deaktiver tilbud</string>
+    <string name="settings_terms_of_service">Bruksvilkår</string>
+    <string name="settings_terms">Bruksvilkår</string>
+    <string name="settings_terms_of_service_url">https://avagomate.com/terms</string>
+    <string name="settings_notifications_granted_hint">Trykk for å administrere i systeminnstillinger</string>
+    <string name="account_role_label">Rolle</string>
+    <string name="role_root">Root</string>
+    <string name="role_admin">Administrator</string>
+    <string name="role_manager">Leder</string>
+    <string name="role_dispatcher">Disponent</string>
+    <string name="role_technician">Tekniker</string>
+    <string name="role_operator">Operatør</string>
+    <string name="role_reader">Leser</string>
+    <string name="settings_invite_team_member">Inviter brukere</string>
+    <string name="invite_title">Inviter brukere</string>
+    <string name="invite_add_person">+ Legg til en person til</string>
+    <string name="settings_my_tech_profile">Min teknikerprofil</string>
+    <string name="tech_profile_title">Min teknikerprofil</string>
+    <string name="tech_profile_display_name">Visningsnavn</string>
+    <string name="tech_profile_skills">Ferdigheter</string>
+    <string name="tech_profile_skills_hint">f.eks. VVS, elektro</string>
+    <string name="tech_profile_certifications">Sertifiseringer</string>
+    <string name="tech_profile_certifications_hint">f.eks. EPA 608</string>
+    <string name="tech_profile_hourly_rate">Timepris</string>
+    <string name="tech_profile_max_active_wos">Maks. aktive arbeidsordrer</string>
+    <string name="tech_profile_available_label">Tilgjengelig for arbeidsordrer</string>
+    <string name="tech_profile_home_location">Hjemmelokasjon</string>
+    <string name="tech_profile_no_home_location">Ingen hjemmelokasjon</string>
+    <string name="tech_profile_save_success">Profil lagret</string>
+    <string name="tech_profile_not_found">Fant ingen teknikerprofil for kontoen din</string>
+
+    <!-- About screen -->
+    <string name="about_title">Om avago</string>
+    <string name="about_tagline">Vedlikeholdssporing for den virkelige verden.</string>
+    <string name="about_back">Tilbake</string>
+    <string name="about_section_legal">Juridisk</string>
+    <string name="about_section_acknowledgements">Takk</string>
+    <string name="about_privacy_policy">Personvernregler</string>
+    <string name="about_terms_of_service">Tjenestevilkår</string>
+    <string name="about_open_source_licenses">Åpen kildekode-lisenser</string>
 
     <!-- Common actions -->
     <string name="add">Legg til</string>
@@ -48,4 +97,27 @@
     <string name="retry">Prøv igjen</string>
     <string name="no_results">Ingen resultater</string>
     <string name="pull_to_refresh">Dra for å oppdatere</string>
+
+    <!-- Developer: sample workspaces (system admin only) -->
+    <string name="sample_workspaces_title">Eksempelarbeidsområder</string>
+    <string name="sample_workspaces_footer">Åpner en demokonto du eier, fylt med de valgte eksempeldataene. Den nåværende kontoen din endres ikke.</string>
+    <plurals name="sample_workspaces_profile_meta">
+        <item quantity="one">%1$s · %2$d eiendel</item>
+        <item quantity="other">%1$s · %2$d eiendeler</item>
+    </plurals>
+    <plurals name="sample_workspaces_saved">
+        <item quantity="one">Lagret arbeidsområde: %1$s (%2$d eiendel)</item>
+        <item quantity="other">Lagret arbeidsområde: %1$s (%2$d eiendeler)</item>
+    </plurals>
+    <string name="sample_workspaces_not_created">Ikke noe lagret arbeidsområde — opprettes</string>
+    <string name="sample_workspaces_unavailable">Eksempeldata er ikke tilgjengelig</string>
+    <string name="sample_workspaces_current">Nåværende</string>
+    <string name="sample_workspaces_switching">Åpner %1$s…</string>
+    <string name="sample_workspaces_switching_hint">Det kan ta noen minutter å opprette et arbeidsområde.</string>
+    <string name="sample_workspaces_switched">Byttet til %1$s</string>
+    <string name="sample_workspaces_error_title">Kunne ikke åpne eksempelarbeidsområdet</string>
+    <string name="sample_workspaces_requires_admin">Krever en systemadministratorkonto</string>
+    <string name="sample_workspaces_account_missing">Arbeidsområdet ble opprettet, men er ikke i kontolisten din ennå. Prøv igjen.</string>
+    <string name="sample_workspaces_load_failed">Kunne ikke laste inn eksempelarbeidsområder: %1$s</string>
+    <string name="sample_workspaces_empty">Ingen eksempelprofiler tilgjengelig</string>
 </resources>

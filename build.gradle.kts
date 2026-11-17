@@ -16,7 +16,27 @@ plugins {
     alias(libs.plugins.hilt) apply false
     alias(libs.plugins.google.services) apply false
     alias(libs.plugins.firebase.crashlytics) apply false
-    alias(libs.plugins.detekt) apply false
+    alias(libs.plugins.detekt)
+}
+
+// ---- detekt (static analysis) ---------------------------------------------
+// One aggregate root task (`./gradlew detekt`, as run by CI) over every
+// module's Kotlin sources, using detekt's default rule set. Pre-existing
+// findings are recorded in detekt-baseline.xml; anything new fails the build.
+// Regenerate the baseline only deliberately: `./gradlew detektBaseline`.
+detekt {
+    buildUponDefaultConfig = true
+    // Composables are PascalCase by convention.
+    config.setFrom(file("config/detekt/detekt.yml"))
+    parallel = true
+    baseline = file("detekt-baseline.xml")
+    source.setFrom(
+        subprojects.flatMap { p ->
+            listOf("main", "test", "androidTest", "debug", "release").flatMap { set ->
+                listOf(p.file("src/$set/kotlin"), p.file("src/$set/java"))
+            }
+        }.filter { it.isDirectory },
+    )
 }
 
 // ---- Developer API target switch -----------------------------------------
