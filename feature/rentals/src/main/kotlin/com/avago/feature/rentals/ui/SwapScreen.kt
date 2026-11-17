@@ -90,6 +90,7 @@ class SwapViewModel @Inject constructor(
         repo.byOrder(RentalEntity.ORDER_LINE, orderId),
         repo.records(RentalEntity.FLEET),
     ) { order, ls, fleet ->
+        if (order?.obj?.str("source") == "legacy") return@combine emptyList()
         val names = fleet.mapNotNull(LocalFleet::unitOf).associate { it.assetId to it.name }
         val status = order?.obj?.str("status")
         ls.filter { LineSwap.swappable(it.obj, status) }.mapNotNull { l ->

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- G6 staff gateway actions (saved card, deposit holds, provider refunds). Shown only while online payments are enabled. -->
+<resources>
+    <string name="rentals_gw_card_on_file">Carta salvata %1$s</string>
+    <string name="rentals_gw_card_exp">Scade %1$s</string>
+    <string name="rentals_gw_charge">Addebita carta</string>
+    <string name="rentals_gw_hold">Preautorizzazione %1$s</string>
+    <string name="rentals_gw_hold_expires">La preautorizzazione scade %1$s</string>
+    <string name="rentals_gw_hold_expiring">Scade a breve</string>
+    <string name="rentals_gw_capture">Incassa</string>
+    <string name="rentals_gw_release">Rilascia</string>
+    <string name="rentals_gw_deposit_paid">Cauzione pagata con carta %1$s</string>
+    <string name="rentals_gw_card_paid">Pagato con carta %1$s</string>
+    <string name="rentals_gw_refundable_left">%1$s rimborsabile</string>
+    <string name="rentals_gw_disputed">Contestato: %1$s</string>
+    <string name="rentals_gw_refund">Rimborsa</string>
+    <string name="rentals_gw_charge_title">Addebita %1$s</string>
+    <string name="rentals_gw_charge_hint">La carta salvata viene addebitata ora, senza il cliente presente. Usa Rimborsa per restituire denaro in seguito.</string>
+    <string name="rentals_gw_charge_confirm">Addebita %1$s</string>
+    <string name="rentals_gw_capture_title">Incassa preautorizzazione</string>
+    <string name="rentals_gw_capture_hint">Un importo minore incassa una parte e rilascia il resto.</string>
+    <string name="rentals_gw_capture_confirm">Incassa %1$s</string>
+    <string name="rentals_gw_release_title">Rilasciare la preautorizzazione?</string>
+    <string name="rentals_gw_release_hint">La preautorizzazione di %1$s viene annullata e non viene addebitato nulla.</string>
+    <string name="rentals_gw_refund_title">Rimborsa tramite il fornitore di pagamento</string>
+    <string name="rentals_gw_refund_hint">Il denaro torna sulla carta del cliente. Sono possibili rimborsi parziali.</string>
+    <string name="rentals_gw_refund_confirm">Rimborsa %1$s</string>
+    <string name="rentals_gw_purpose_payment">Pagamento</string>
+    <string name="rentals_gw_purpose_deposit">Cauzione</string>
+    <string name="rentals_gw_amount">Importo (%1$s)</string>
+    <string name="rentals_gw_amount_max">Al massimo %1$s</string>
+    <string name="rentals_gw_refund_reason">Motivo</string>
+    <string name="rentals_gw_charged">Carta addebitata.</string>
+    <string name="rentals_gw_hold_placed">Preautorizzazione creata.</string>
+    <string name="rentals_gw_processing">Il pagamento è in elaborazione. L’ordine si aggiorna al termine.</string>
+    <string name="rentals_gw_action_required">Il cliente deve confermare questo pagamento. È stato creato e inviato un link di pagamento.</string>
+    <string name="rentals_gw_captured">Preautorizzazione incassata.</string>
+    <string name="rentals_gw_released">Preautorizzazione rilasciata.</string>
+    <string name="rentals_gw_refunded">Rimborso inviato.</string>
+    <string name="rentals_gw_uncertain">Nessuna conferma ricevuta. Riprova con lo stesso importo; non verrà addebitato due volte.</string>
+    <string name="rentals_gw_pending_other_generic">Un tentativo precedente non è confermato. Riprovalo prima con lo stesso importo.</string>
+    <string name="rentals_gw_pending_other">Un tentativo precedente di %1$s non è confermato. Riprovalo prima con lo stesso importo.</string>
+    <string name="rentals_gw_account_changed">L’account è cambiato. Non è stato inviato nulla.</string>
+</resources>

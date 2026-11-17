@@ -1,0 +1,13 @@
+<resources>
+    <string name="rentals_worklist_overdue">Te late teruggaven</string>
+    <string name="rentals_worklist_balance_due">Openstaand bedrag</string>
+    <string name="rentals_worklist_status">Status</string>
+    <string name="rentals_worklist_balances">Openstaand bedrag · getoonde orders</string>
+    <string name="rentals_worklist_snapshot">Lokale gegevens, inclusief wachtende wijzigingen. Valuta worden niet omgerekend. Dit is geen rapport van achterstallige facturen.</string>
+    <string name="rentals_worklist_empty">Geen orders in deze weergave.</string>
+    <string name="rentals_worklist_legacy_title">Oude verhuur</string>
+    <string name="rentals_worklist_legacy">Deze order weerspiegelt een oude verhuur. Beheer deze via het scherm voor oude verhuur van het object.</string>
+    <string name="rentals_worklist_legacy_open">Oude verhuur openen · %1$s</string>
+    <string name="rentals_worklist_payment_unconfigured">Laatst bekende betaalstatus: online betalingen zijn niet ingesteld. Met de juiste rechten kunt u betalingen handmatig registreren; er wordt geen kaart belast.</string>
+    <string name="rentals_worklist_payment_disabled">Laatst bekende betaalstatus: online betalingen zijn uitgeschakeld. Met de juiste rechten kunt u betalingen handmatig registreren; er wordt geen kaart belast.</string>
+</resources>

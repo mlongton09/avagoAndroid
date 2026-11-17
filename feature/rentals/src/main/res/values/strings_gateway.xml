@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- G6 staff gateway actions (saved card, deposit holds, provider refunds). Shown only while online payments are enabled. -->
+<resources>
+    <string name="rentals_gw_card_on_file">Saved card %1$s</string>
+    <string name="rentals_gw_card_exp">Expires %1$s</string>
+    <string name="rentals_gw_charge">Charge card</string>
+    <string name="rentals_gw_hold">Card hold %1$s</string>
+    <string name="rentals_gw_hold_expires">Hold expires %1$s</string>
+    <string name="rentals_gw_hold_expiring">Expires soon</string>
+    <string name="rentals_gw_capture">Capture</string>
+    <string name="rentals_gw_release">Release</string>
+    <string name="rentals_gw_deposit_paid">Deposit paid by card %1$s</string>
+    <string name="rentals_gw_card_paid">Paid by card %1$s</string>
+    <string name="rentals_gw_refundable_left">%1$s refundable</string>
+    <string name="rentals_gw_disputed">Disputed: %1$s</string>
+    <string name="rentals_gw_refund">Refund</string>
+    <string name="rentals_gw_charge_title">Charge %1$s</string>
+    <string name="rentals_gw_charge_hint">The saved card is charged now, without the customer present. Use Refund to return money afterwards.</string>
+    <string name="rentals_gw_charge_confirm">Charge %1$s</string>
+    <string name="rentals_gw_capture_title">Capture card hold</string>
+    <string name="rentals_gw_capture_hint">A smaller amount captures part of the hold and releases the rest.</string>
+    <string name="rentals_gw_capture_confirm">Capture %1$s</string>
+    <string name="rentals_gw_release_title">Release card hold?</string>
+    <string name="rentals_gw_release_hint">The hold of %1$s is cancelled and nothing is charged.</string>
+    <string name="rentals_gw_refund_title">Refund via payment provider</string>
+    <string name="rentals_gw_refund_hint">The money goes back to the customer’s card. Partial refunds are possible.</string>
+    <string name="rentals_gw_refund_confirm">Refund %1$s</string>
+    <string name="rentals_gw_purpose_payment">Payment</string>
+    <string name="rentals_gw_purpose_deposit">Deposit</string>
+    <string name="rentals_gw_amount">Amount (%1$s)</string>
+    <string name="rentals_gw_amount_max">At most %1$s</string>
+    <string name="rentals_gw_refund_reason">Reason</string>
+    <string name="rentals_gw_charged">Card charged.</string>
+    <string name="rentals_gw_hold_placed">Card hold placed.</string>
+    <string name="rentals_gw_processing">The payment is processing. The order updates when it completes.</string>
+    <string name="rentals_gw_action_required">The customer must confirm this payment. A payment link was created and emailed.</string>
+    <string name="rentals_gw_captured">Hold captured.</string>
+    <string name="rentals_gw_released">Hold released.</string>
+    <string name="rentals_gw_refunded">Refund submitted.</string>
+    <string name="rentals_gw_uncertain">No confirmation was received. Retry with the same amount; it will not be charged twice.</string>
+    <string name="rentals_gw_pending_other_generic">An earlier attempt is still unconfirmed. Retry it with the same amount first.</string>
+    <string name="rentals_gw_pending_other">An earlier attempt of %1$s is still unconfirmed. Retry it with the same amount first.</string>
+    <string name="rentals_gw_account_changed">The account changed. Nothing was sent.</string>
+</resources>

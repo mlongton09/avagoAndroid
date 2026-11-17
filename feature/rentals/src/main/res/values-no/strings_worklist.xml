@@ -1,0 +1,13 @@
+<resources>
+    <string name="rentals_worklist_overdue">Forsinkede returer</string>
+    <string name="rentals_worklist_balance_due">Utestående beløp</string>
+    <string name="rentals_worklist_status">Status</string>
+    <string name="rentals_worklist_balances">Utestående beløp · viste ordrer</string>
+    <string name="rentals_worklist_snapshot">Lokale data, inkludert ventende endringer. Valutaer omregnes ikke. Dette er ikke en rapport over forfalte fakturaer.</string>
+    <string name="rentals_worklist_empty">Ingen ordrer i denne visningen.</string>
+    <string name="rentals_worklist_legacy_title">Eldre utleie</string>
+    <string name="rentals_worklist_legacy">Denne ordren gjenspeiler en eldre utleie. Administrer den fra objektets skjerm for eldre utleie.</string>
+    <string name="rentals_worklist_legacy_open">Åpne eldre utleie · %1$s</string>
+    <string name="rentals_worklist_payment_unconfigured">Sist kjente betalingsstatus: nettbetalinger er ikke konfigurert. Med tillatelse kan du registrere betalinger manuelt; ingen kort belastes.</string>
+    <string name="rentals_worklist_payment_disabled">Sist kjente betalingsstatus: nettbetalinger er deaktivert. Med tillatelse kan du registrere betalinger manuelt; ingen kort belastes.</string>
+</resources>

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- G6 staff gateway actions (saved card, deposit holds, provider refunds). Shown only while online payments are enabled. -->
+<resources>
+    <string name="rentals_gw_card_on_file">Opgeslagen kaart %1$s</string>
+    <string name="rentals_gw_card_exp">Verloopt %1$s</string>
+    <string name="rentals_gw_charge">Kaart belasten</string>
+    <string name="rentals_gw_hold">Kaartreservering %1$s</string>
+    <string name="rentals_gw_hold_expires">Reservering verloopt %1$s</string>
+    <string name="rentals_gw_hold_expiring">Verloopt binnenkort</string>
+    <string name="rentals_gw_capture">Innen</string>
+    <string name="rentals_gw_release">Vrijgeven</string>
+    <string name="rentals_gw_deposit_paid">Borg betaald met kaart %1$s</string>
+    <string name="rentals_gw_card_paid">Betaald met kaart %1$s</string>
+    <string name="rentals_gw_refundable_left">%1$s terug te betalen</string>
+    <string name="rentals_gw_disputed">Betwist: %1$s</string>
+    <string name="rentals_gw_refund">Terugbetalen</string>
+    <string name="rentals_gw_charge_title">%1$s belasten</string>
+    <string name="rentals_gw_charge_hint">De opgeslagen kaart wordt nu belast, zonder dat de klant aanwezig is. Gebruik Terugbetalen om later geld terug te geven.</string>
+    <string name="rentals_gw_charge_confirm">%1$s belasten</string>
+    <string name="rentals_gw_capture_title">Kaartreservering innen</string>
+    <string name="rentals_gw_capture_hint">Een lager bedrag int een deel en geeft de rest vrij.</string>
+    <string name="rentals_gw_capture_confirm">%1$s innen</string>
+    <string name="rentals_gw_release_title">Kaartreservering vrijgeven?</string>
+    <string name="rentals_gw_release_hint">De reservering van %1$s wordt geannuleerd en er wordt niets belast.</string>
+    <string name="rentals_gw_refund_title">Terugbetalen via betaalprovider</string>
+    <string name="rentals_gw_refund_hint">Het geld gaat terug naar de kaart van de klant. Gedeeltelijke terugbetalingen zijn mogelijk.</string>
+    <string name="rentals_gw_refund_confirm">%1$s terugbetalen</string>
+    <string name="rentals_gw_purpose_payment">Betaling</string>
+    <string name="rentals_gw_purpose_deposit">Borg</string>
+    <string name="rentals_gw_amount">Bedrag (%1$s)</string>
+    <string name="rentals_gw_amount_max">Maximaal %1$s</string>
+    <string name="rentals_gw_refund_reason">Reden</string>
+    <string name="rentals_gw_charged">Kaart belast.</string>
+    <string name="rentals_gw_hold_placed">Kaartreservering geplaatst.</string>
+    <string name="rentals_gw_processing">De betaling wordt verwerkt. De order wordt bijgewerkt zodra deze klaar is.</string>
+    <string name="rentals_gw_action_required">De klant moet deze betaling bevestigen. Er is een betaallink gemaakt en gemaild.</string>
+    <string name="rentals_gw_captured">Reservering geïnd.</string>
+    <string name="rentals_gw_released">Reservering vrijgegeven.</string>
+    <string name="rentals_gw_refunded">Terugbetaling verzonden.</string>
+    <string name="rentals_gw_uncertain">Geen bevestiging ontvangen. Probeer opnieuw met hetzelfde bedrag; het wordt niet dubbel belast.</string>
+    <string name="rentals_gw_pending_other_generic">Een eerdere poging is nog niet bevestigd. Probeer die eerst opnieuw met hetzelfde bedrag.</string>
+    <string name="rentals_gw_pending_other">Een eerdere poging van %1$s is nog niet bevestigd. Probeer die eerst opnieuw met hetzelfde bedrag.</string>
+    <string name="rentals_gw_account_changed">Het account is gewijzigd. Er is niets verzonden.</string>
+</resources>

@@ -1,0 +1,13 @@
+<resources>
+    <string name="rentals_worklist_overdue">Restituzioni in ritardo</string>
+    <string name="rentals_worklist_balance_due">Saldo da pagare</string>
+    <string name="rentals_worklist_status">Stato</string>
+    <string name="rentals_worklist_balances">Saldo da pagare · ordini visualizzati</string>
+    <string name="rentals_worklist_snapshot">Dati locali, incluse le modifiche in sospeso. Le valute non vengono convertite. Non è un rapporto sulle fatture scadute.</string>
+    <string name="rentals_worklist_empty">Nessun ordine in questa vista.</string>
+    <string name="rentals_worklist_legacy_title">Noleggio precedente</string>
+    <string name="rentals_worklist_legacy">Questo ordine rispecchia un noleggio precedente. Lo gestisca dalla schermata dei noleggi precedenti del bene.</string>
+    <string name="rentals_worklist_legacy_open">Apri noleggi precedenti · %1$s</string>
+    <string name="rentals_worklist_payment_unconfigured">Ultimo stato dei pagamenti noto: i pagamenti online non sono configurati. Con la relativa autorizzazione è possibile registrare pagamenti manualmente; non viene effettuato alcun addebito su carta.</string>
+    <string name="rentals_worklist_payment_disabled">Ultimo stato dei pagamenti noto: i pagamenti online sono disattivati. Con la relativa autorizzazione è possibile registrare pagamenti manualmente; non viene effettuato alcun addebito su carta.</string>
+</resources>

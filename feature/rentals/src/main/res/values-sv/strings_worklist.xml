@@ -1,0 +1,13 @@
+<resources>
+    <string name="rentals_worklist_overdue">Försenade returer</string>
+    <string name="rentals_worklist_balance_due">Utestående belopp</string>
+    <string name="rentals_worklist_status">Status</string>
+    <string name="rentals_worklist_balances">Utestående belopp · visade order</string>
+    <string name="rentals_worklist_snapshot">Lokala data, inklusive väntande ändringar. Valutor räknas inte om. Detta är inte en rapport över förfallna fakturor.</string>
+    <string name="rentals_worklist_empty">Inga order i den här vyn.</string>
+    <string name="rentals_worklist_legacy_title">Äldre uthyrning</string>
+    <string name="rentals_worklist_legacy">Den här ordern speglar en äldre uthyrning. Hantera den från objektets skärm för äldre uthyrningar.</string>
+    <string name="rentals_worklist_legacy_open">Öppna äldre uthyrningar · %1$s</string>
+    <string name="rentals_worklist_payment_unconfigured">Senast kända betalningsstatus: onlinebetalningar är inte konfigurerade. Med behörighet kan du registrera betalningar manuellt; inget kort debiteras.</string>
+    <string name="rentals_worklist_payment_disabled">Senast kända betalningsstatus: onlinebetalningar är avstängda. Med behörighet kan du registrera betalningar manuellt; inget kort debiteras.</string>
+</resources>

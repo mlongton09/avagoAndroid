@@ -18,12 +18,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.AssignmentReturn
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Draw
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Handshake
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Share
@@ -32,6 +36,7 @@ import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
@@ -59,6 +64,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.data.rental.Money
+import com.avago.core.data.rental.MoneyFormatter
 import com.avago.core.design.theme.AvagoSpacing
 import com.avago.core.design.theme.AvagoTheme
 import com.avago.core.permissions.PermissionsManager
@@ -77,6 +83,7 @@ import com.avago.feature.rentals.domain.BuyoutQuote
 import com.avago.feature.rentals.domain.ContractView
 import com.avago.feature.rentals.domain.CreditCheck
 import com.avago.feature.rentals.domain.Esign
+import com.avago.feature.rentals.domain.GatewayPayments
 import com.avago.feature.rentals.domain.HandoverGates
 import com.avago.feature.rentals.domain.Kits
 import com.avago.feature.rentals.domain.LineView
@@ -128,7 +135,7 @@ class OrderWave2ViewModel @Inject constructor(
     private val repo: RentalRepository,
     private val online: RentalsOnline,
     private val permissions: PermissionsManager,
-    savedState: SavedStateHandle,
+    private val savedState: SavedStateHandle,
 ) : ViewModel() {
     private val requestedId: String = requireNotNull(savedState["orderId"])
 
@@ -171,6 +178,11 @@ class OrderWave2ViewModel @Inject constructor(
         .map { CreditCheck.parse(it?.data) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    /** Last-known disabled state only; an absent answer does not imply missing configuration. */
+    val paymentUnavailable = online.observe(online.paymentsStatusKey)
+        .map { OnlinePayments.unavailable(it?.data) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 0), null)
+
     /** Null unless the account has online payments switched on (Stripe is never required). */
     val payments: StateFlow<OnlinePayments.OrderPayments?> = combine(
         online.observe(online.paymentsStatusKey).map { OnlinePayments.enabled(it?.data) },
@@ -211,7 +223,17 @@ class OrderWave2ViewModel @Inject constructor(
 
     // ── Events ───────────────────────────────────────────────────────────────────────
 
-    enum class Msg { FIX_INCOMPLETE, OFFLINE, LINK_SENT, FAILED, BULK_QUEUED }
+    enum class Msg {
+        FIX_INCOMPLETE, OFFLINE, LINK_SENT, FAILED, BULK_QUEUED,
+        CHARGED, HOLD_PLACED, PROCESSING, ACTION_REQUIRED, CAPTURED, RELEASED, REFUNDED,
+
+        /** No definitive answer: the same key is kept so a retry cannot move money twice. */
+        UNCERTAIN,
+
+        /** Another amount is unconfirmed for the same target; [Event.Message.detail] is its amount. */
+        PENDING_OTHER,
+        ACCOUNT_CHANGED,
+    }
 
     sealed interface Event {
         data class Message(val msg: Msg, val detail: String? = null) : Event
@@ -296,6 +318,106 @@ class OrderWave2ViewModel @Inject constructor(
 
     fun loadBuyout(contractId: String) = launchSafe { report(online.refreshBuyout(contractId)) }
 
+    // ── G6 gateway actions (only offered while online_payments_enabled) ──────────────
+
+    private val attempts = GatewayPayments.Attempts.decode(savedState.get<String>(ATTEMPTS_STATE))
+
+    /** The unconfirmed amount of an earlier [action] on [target] in the active account, to prefill a retry. */
+    fun pendingAmount(action: String, target: String): Long? =
+        online.activeAccountId()?.let { attempts.pending(GatewayPayments.Attempts.scope(it, action, target))?.amountMinor }
+
+    private suspend fun gatewayAction(
+        action: String,
+        target: String,
+        fingerprint: String,
+        amount: Money?,
+        call: suspend (acc: String, key: String) -> RentalsOnline.Result<JsonObject>,
+        onOk: suspend (JsonObject) -> Unit,
+    ) {
+        val acc = online.activeAccountId() ?: run { _events.emit(Event.Message(Msg.OFFLINE)); return }
+        if (order.value?.isLegacy == true) return // Legacy mirrors never use modern money endpoints.
+        val orderAtStart = orderId.value
+        val scope = GatewayPayments.Attempts.scope(acc, action, target)
+        val key = when (val b = attempts.begin(scope, fingerprint, amount?.minor) { UUID.randomUUID().toString() }) {
+            is GatewayPayments.Attempts.Begin.Go -> b.key
+            is GatewayPayments.Attempts.Begin.Blocked -> {
+                val pending = b.pending.amountMinor?.let { m -> amount?.currency?.let { formatMoney(Money(m, it)) } }
+                _events.emit(Event.Message(Msg.PENDING_OTHER, pending))
+                return
+            }
+        }
+        savedState[ATTEMPTS_STATE] = attempts.encode()
+        val r = call(acc, key)
+        val uncertain = when (r) {
+            is RentalsOnline.Result.Ok -> false
+            is RentalsOnline.Result.Offline -> true
+            is RentalsOnline.Result.Refused -> GatewayPayments.isUncertain(r.status.takeIf { it > 0 } ?: 400)
+        }
+        attempts.settle(scope, key, uncertain)
+        savedState[ATTEMPTS_STATE] = attempts.encode()
+        when (r) {
+            is RentalsOnline.Result.Ok -> onOk(r.value)
+            is RentalsOnline.Result.Offline -> _events.emit(Event.Message(Msg.UNCERTAIN))
+            is RentalsOnline.Result.Refused -> _events.emit(
+                when {
+                    r.code == RentalsOnline.ACCOUNT_CHANGED -> Event.Message(Msg.ACCOUNT_CHANGED)
+                    uncertain -> Event.Message(Msg.UNCERTAIN, r.message)
+                    else -> Event.Message(Msg.FAILED, r.message)
+                },
+            )
+        }
+        // The server is authoritative: re-read holds, refunds and requests of the account acted in.
+        if (r !is RentalsOnline.Result.Refused || r.code != RentalsOnline.ACCOUNT_CHANGED) {
+            online.refreshOrderPayments(acc, orderAtStart)
+        }
+    }
+
+    fun chargeSavedCard(amount: Money, purpose: String) = launchSafe {
+        if (!can(PERMISSION_PAYMENT_CHARGE)) return@launchSafe
+        val id = orderId.value
+        gatewayAction(
+            action = "charge", target = id, fingerprint = "${amount.minor}|${amount.currency}|$purpose", amount = amount,
+            call = { acc, key -> online.chargeSavedCard(acc, id, GatewayPayments.chargeBody(amount.minor, purpose, key), key) },
+        ) { body ->
+            val res = GatewayPayments.parseCharge(body)
+            when (res.status) {
+                GatewayPayments.ChargeStatus.SUCCEEDED -> _events.emit(Event.Message(Msg.CHARGED))
+                GatewayPayments.ChargeStatus.HOLD_PLACED -> _events.emit(Event.Message(Msg.HOLD_PLACED))
+                GatewayPayments.ChargeStatus.PROCESSING, GatewayPayments.ChargeStatus.UNKNOWN -> _events.emit(Event.Message(Msg.PROCESSING))
+                GatewayPayments.ChargeStatus.REQUIRES_ACTION -> {
+                    _events.emit(Event.Message(Msg.ACTION_REQUIRED))
+                    res.payUrl?.let { _events.emit(Event.Share(it)) }
+                }
+            }
+        }
+    }
+
+    fun captureHold(hold: GatewayPayments.Authorization, amountMinor: Long) = launchSafe {
+        if (!can(PERMISSION_PAYMENT_CHARGE)) return@launchSafe
+        val body = GatewayPayments.captureBody(amountMinor, hold.amount.minor)
+        gatewayAction(
+            action = "capture", target = hold.id, fingerprint = "$amountMinor", amount = Money(amountMinor, hold.amount.currency),
+            call = { acc, key -> online.captureAuthorization(acc, hold.id, body, key) },
+        ) { _events.emit(Event.Message(Msg.CAPTURED)) }
+    }
+
+    fun releaseHold(hold: GatewayPayments.Authorization) = launchSafe {
+        if (!can(PERMISSION_REFUND)) return@launchSafe
+        gatewayAction(
+            action = "release", target = hold.id, fingerprint = "release", amount = hold.amount,
+            call = { acc, key -> online.releaseAuthorization(acc, hold.id, key) },
+        ) { _events.emit(Event.Message(Msg.RELEASED)) }
+    }
+
+    fun refundPayment(entry: GatewayPayments.Refundable, amountMinor: Long, reason: String) = launchSafe {
+        if (!can(PERMISSION_REFUND)) return@launchSafe
+        val body = GatewayPayments.refundBody(amountMinor, entry.refundable.minor, reason)
+        gatewayAction(
+            action = "refund", target = entry.id, fingerprint = "$amountMinor", amount = Money(amountMinor, entry.refundable.currency),
+            call = { acc, key -> online.refundGatewayPayment(acc, entry.id, body, key) },
+        ) { _events.emit(Event.Message(Msg.REFUNDED)) }
+    }
+
     fun equityStatement(contractId: String) = launchSafe {
         val r = online.equityStatementPdf(contractId)
         if (report(r)) _events.emit(Event.OpenPdf((r as RentalsOnline.Result.Ok).value))
@@ -310,6 +432,9 @@ class OrderWave2ViewModel @Inject constructor(
         private val CLOSED = setOf(OrderStatus.CLOSED, OrderStatus.CANCELLED, OrderStatus.RETURNED)
         private val OPEN_LINE = setOf(null, "open", "reserved")
         private val OPEN_CONTRACT = setOf("active", "notice_given")
+        private const val ATTEMPTS_STATE = "gateway_attempts"
+        internal const val PERMISSION_PAYMENT_CHARGE = "rental.payment_charge"
+        internal const val PERMISSION_REFUND = "rental.refund"
 
         /**
          * What the pay-links card shows: nothing while online payments are off (or unknown);
@@ -594,10 +719,13 @@ internal fun OnlinePaymentsCard(
     onRequest: () -> Unit,
     onShare: (String) -> Unit,
     onEmail: (String) -> Unit,
+    gatewayActions: GatewayActions? = null,
 ) {
     var qr by rememberSaveable { mutableStateOf<String?>(null) }
     val canRequest = owes && payments.canRequest && payments.requests.none { it.isOpen }
-    if (payments.requests.isEmpty() && !canRequest) return
+    val gw = payments.gateway
+    val showGateway = gatewayActions != null && !gw.isEmpty
+    if (payments.requests.isEmpty() && !canRequest && !showGateway) return
     SectionCard(title = stringResource(R.string.rentals_pay_links)) {
         payments.requests.forEachIndexed { i, r ->
             if (i > 0) CardDivider(Modifier.padding(start = AvagoSpacing.listInset))
@@ -637,6 +765,10 @@ internal fun OnlinePaymentsCard(
                 }
             }
         }
+        if (showGateway && gatewayActions != null) {
+            if (payments.requests.isNotEmpty() || canRequest) CardDivider()
+            GatewaySection(gw, gatewayActions, busy, zone)
+        }
     }
     qr?.let { url ->
         val bmp = remember(url) { generateQrBitmap(url) }
@@ -661,6 +793,223 @@ internal fun OnlinePaymentsCard(
 internal fun sharePayLink(context: Context, url: String, title: String) {
     val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, url)
     context.startActivity(Intent.createChooser(send, title))
+}
+
+// ── Gateway actions (G6: saved card, deposit holds, provider refunds) ────────────────
+
+/**
+ * Staff gateway actions of an order. [canCharge]/[canRefund] are the local permissions; each
+ * action additionally needs the server's `can` flag. [currency] is the order currency.
+ */
+internal class GatewayActions(
+    val orderId: String,
+    val currency: String?,
+    val suggestedChargeMinor: Long?,
+    val allowCharge: Boolean,
+    val canCharge: Boolean,
+    val canRefund: Boolean,
+    val pendingAmount: (action: String, target: String) -> Long?,
+    val onCharge: (Money, String) -> Unit,
+    val onCapture: (GatewayPayments.Authorization, Long) -> Unit,
+    val onRelease: (GatewayPayments.Authorization) -> Unit,
+    val onRefund: (GatewayPayments.Refundable, Long, String) -> Unit,
+)
+
+private sealed interface GatewayDialog {
+    data object Charge : GatewayDialog
+    data class Capture(val hold: GatewayPayments.Authorization) : GatewayDialog
+    data class Release(val hold: GatewayPayments.Authorization) : GatewayDialog
+    data class Refund(val entry: GatewayPayments.Refundable) : GatewayDialog
+}
+
+private fun cardText(brand: String?, last4: String?): String =
+    listOfNotNull(brand?.replaceFirstChar { it.titlecase() }, last4?.let { "•••• $it" }).joinToString(" ")
+
+@Composable
+private fun GatewaySection(gw: GatewayPayments.Gateway, a: GatewayActions, busy: Boolean, zone: ZoneId) {
+    var dialog by remember { mutableStateOf<GatewayDialog?>(null) }
+    val currency = a.currency?.trim()?.takeIf { it.length == 3 }
+    val charge = a.allowCharge && gw.canChargeCard && a.canCharge && currency != null
+    if (charge) {
+        ListItem(
+            colors = cardListItemColors(),
+            leadingContent = { LeadingBadge(Icons.Default.CreditCard, StatusTone.Info) },
+            headlineContent = { Text(stringResource(R.string.rentals_gw_card_on_file, cardText(gw.card?.brand, gw.card?.last4))) },
+            supportingContent = gw.card?.exp?.let { exp -> { Text(stringResource(R.string.rentals_gw_card_exp, exp)) } },
+            trailingContent = {
+                TextButton(onClick = { dialog = GatewayDialog.Charge }, enabled = !busy) { Text(stringResource(R.string.rentals_gw_charge)) }
+            },
+        )
+    }
+    gw.authorizations.forEach { h ->
+        ListItem(
+            colors = cardListItemColors(),
+            leadingContent = { LeadingBadge(Icons.Default.Lock, if (h.expiringSoon) StatusTone.Warning else StatusTone.Info) },
+            headlineContent = { Text(stringResource(R.string.rentals_gw_hold, formatMoney(h.amount))) },
+            supportingContent = {
+                Text(
+                    listOfNotNull(
+                        cardText(h.cardBrand, h.cardLast4).takeIf { it.isNotBlank() },
+                        h.expiresAt?.let { stringResource(R.string.rentals_gw_hold_expires, formatDateTime(it, zone)) },
+                        stringResource(R.string.rentals_gw_hold_expiring).takeIf { h.expiringSoon },
+                    ).joinToString(" · "),
+                )
+            },
+            trailingContent = {
+                val actions = listOfNotNull(
+                    MenuAction(stringResource(R.string.rentals_gw_capture), Icons.Default.CheckCircle) { dialog = GatewayDialog.Capture(h) }
+                        .takeIf { gw.canCharge && a.canCharge },
+                    MenuAction(stringResource(R.string.rentals_gw_release), Icons.Default.LockOpen) { dialog = GatewayDialog.Release(h) }
+                        .takeIf { gw.canRefund && a.canRefund },
+                )
+                if (actions.isNotEmpty() && !busy) OverflowMenu(actions)
+            },
+        )
+    }
+    gw.refundable.filter { it.canRefund }.forEach { e ->
+        ListItem(
+            colors = cardListItemColors(),
+            leadingContent = { LeadingBadge(Icons.Default.Payments, if (e.disputeStatus != null) StatusTone.Warning else StatusTone.Success) },
+            headlineContent = {
+                Text(stringResource(if (e.kind == "deposit_received") R.string.rentals_gw_deposit_paid else R.string.rentals_gw_card_paid, formatMoney(e.amount)))
+            },
+            supportingContent = {
+                Text(
+                    listOfNotNull(
+                        stringResource(R.string.rentals_gw_refundable_left, formatMoney(e.refundable)),
+                        e.disputeStatus?.let { stringResource(R.string.rentals_gw_disputed, it) },
+                    ).joinToString(" · "),
+                )
+            },
+            trailingContent = if (gw.canRefund && a.canRefund) {
+                { TextButton(onClick = { dialog = GatewayDialog.Refund(e) }, enabled = !busy) { Text(stringResource(R.string.rentals_gw_refund)) } }
+            } else {
+                null
+            },
+        )
+    }
+    when (val d = dialog) {
+        null -> Unit
+        GatewayDialog.Charge -> if (currency != null) {
+            GatewayAmountDialog(
+                title = stringResource(R.string.rentals_gw_charge_title, cardText(gw.card?.brand, gw.card?.last4)),
+                hint = stringResource(R.string.rentals_gw_charge_hint),
+                currency = currency,
+                initialMinor = a.pendingAmount("charge", a.orderId) ?: a.suggestedChargeMinor,
+                maxMinor = null,
+                purposes = if (gw.offersDeposit) listOf(GatewayPayments.PURPOSE_PAYMENT, GatewayPayments.PURPOSE_DEPOSIT) else null,
+                needsReason = false,
+                confirm = R.string.rentals_gw_charge_confirm,
+                onDismiss = { dialog = null },
+            ) { minor, purpose, _ ->
+                dialog = null
+                a.onCharge(Money(minor, currency.uppercase()), purpose ?: GatewayPayments.PURPOSE_PAYMENT)
+            }
+        }
+        is GatewayDialog.Capture -> GatewayAmountDialog(
+            title = stringResource(R.string.rentals_gw_capture_title),
+            hint = stringResource(R.string.rentals_gw_capture_hint),
+            currency = d.hold.amount.currency,
+            initialMinor = a.pendingAmount("capture", d.hold.id) ?: d.hold.amount.minor,
+            maxMinor = d.hold.amount.minor,
+            purposes = null,
+            needsReason = false,
+            confirm = R.string.rentals_gw_capture_confirm,
+            onDismiss = { dialog = null },
+        ) { minor, _, _ ->
+            dialog = null
+            a.onCapture(d.hold, minor)
+        }
+        is GatewayDialog.Release -> AlertDialog(
+            onDismissRequest = { dialog = null },
+            title = { Text(stringResource(R.string.rentals_gw_release_title)) },
+            text = { Text(stringResource(R.string.rentals_gw_release_hint, formatMoney(d.hold.amount))) },
+            confirmButton = {
+                TextButton(onClick = { dialog = null; a.onRelease(d.hold) }) { Text(stringResource(R.string.rentals_gw_release)) }
+            },
+            dismissButton = { TextButton(onClick = { dialog = null }) { Text(stringResource(R.string.rentals_gate_cancel)) } },
+        )
+        is GatewayDialog.Refund -> GatewayAmountDialog(
+            title = stringResource(R.string.rentals_gw_refund_title),
+            hint = stringResource(R.string.rentals_gw_refund_hint),
+            currency = d.entry.refundable.currency,
+            initialMinor = a.pendingAmount("refund", d.entry.id) ?: d.entry.refundable.minor,
+            maxMinor = d.entry.refundable.minor,
+            purposes = null,
+            needsReason = true,
+            confirm = R.string.rentals_gw_refund_confirm,
+            onDismiss = { dialog = null },
+        ) { minor, _, reason ->
+            dialog = null
+            a.onRefund(d.entry, minor, reason.orEmpty())
+        }
+    }
+}
+
+/** Amount (+ purpose / reason) entry; the confirm button names the exact amount that moves. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun GatewayAmountDialog(
+    title: String,
+    hint: String,
+    currency: String,
+    initialMinor: Long?,
+    maxMinor: Long?,
+    purposes: List<String>?,
+    needsReason: Boolean,
+    confirm: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (minor: Long, purpose: String?, reason: String?) -> Unit,
+) {
+    var text by rememberSaveable { mutableStateOf(initialMinor?.takeIf { it > 0 }?.let { MoneyFormatter.toPlain(it, currency) }.orEmpty()) }
+    var purpose by rememberSaveable { mutableStateOf(purposes?.firstOrNull()) }
+    var reason by rememberSaveable { mutableStateOf("") }
+    val minor = GatewayPayments.amountMinor(text, currency, maxMinor)
+    val valid = minor != null && (!needsReason || reason.isNotBlank())
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(AvagoSpacing.sm)) {
+                Text(hint, style = MaterialTheme.typography.bodyMedium)
+                if (purposes != null) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm)) {
+                        purposes.forEach { p ->
+                            FilterChip(
+                                selected = purpose == p,
+                                onClick = { purpose = p },
+                                label = {
+                                    Text(stringResource(if (p == GatewayPayments.PURPOSE_DEPOSIT) R.string.rentals_gw_purpose_deposit else R.string.rentals_gw_purpose_payment))
+                                },
+                            )
+                        }
+                    }
+                }
+                OutlinedTextField(
+                    text, { text = it },
+                    label = { Text(stringResource(R.string.rentals_gw_amount, currency)) },
+                    isError = text.isNotBlank() && minor == null,
+                    supportingText = maxMinor?.let { m -> { Text(stringResource(R.string.rentals_gw_amount_max, formatMoney(Money(m, currency)))) } },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (needsReason) {
+                    OutlinedTextField(
+                        reason, { reason = it },
+                        label = { Text(stringResource(R.string.rentals_gw_refund_reason)) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { minor?.let { onConfirm(it, purpose, reason.takeIf { needsReason }) } }, enabled = valid) {
+                Text(stringResource(confirm, minor?.let { formatMoney(Money(it, currency)) } ?: "—"))
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.rentals_gate_cancel)) } },
+    )
 }
 
 // ── Contracts (G3, read-only) ────────────────────────────────────────────────────────

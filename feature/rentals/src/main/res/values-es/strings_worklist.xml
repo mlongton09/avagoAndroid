@@ -1,0 +1,13 @@
+<resources>
+    <string name="rentals_worklist_overdue">Devoluciones atrasadas</string>
+    <string name="rentals_worklist_balance_due">Saldo pendiente</string>
+    <string name="rentals_worklist_status">Estado</string>
+    <string name="rentals_worklist_balances">Saldo pendiente · pedidos mostrados</string>
+    <string name="rentals_worklist_snapshot">Datos locales, incluidos los cambios pendientes. No se convierten divisas. No es un informe de facturas vencidas.</string>
+    <string name="rentals_worklist_empty">No hay pedidos en esta vista.</string>
+    <string name="rentals_worklist_legacy_title">Alquiler anterior</string>
+    <string name="rentals_worklist_legacy">Este pedido refleja un alquiler anterior. Gestiónelo desde la pantalla de alquileres anteriores del activo.</string>
+    <string name="rentals_worklist_legacy_open">Abrir alquileres anteriores · %1$s</string>
+    <string name="rentals_worklist_payment_unconfigured">Último estado de pagos conocido: los pagos en línea no están configurados. Con permiso puede registrar pagos manualmente; esto no realiza ningún cargo en una tarjeta.</string>
+    <string name="rentals_worklist_payment_disabled">Último estado de pagos conocido: los pagos en línea están desactivados. Con permiso puede registrar pagos manualmente; esto no realiza ningún cargo en una tarjeta.</string>
+</resources>

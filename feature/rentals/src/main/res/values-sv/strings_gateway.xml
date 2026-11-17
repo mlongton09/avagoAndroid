@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- G6 staff gateway actions (saved card, deposit holds, provider refunds). Shown only while online payments are enabled. -->
+<resources>
+    <string name="rentals_gw_card_on_file">Sparat kort %1$s</string>
+    <string name="rentals_gw_card_exp">Går ut %1$s</string>
+    <string name="rentals_gw_charge">Debitera kort</string>
+    <string name="rentals_gw_hold">Kortreservation %1$s</string>
+    <string name="rentals_gw_hold_expires">Reservationen går ut %1$s</string>
+    <string name="rentals_gw_hold_expiring">Går ut snart</string>
+    <string name="rentals_gw_capture">Dra</string>
+    <string name="rentals_gw_release">Släpp</string>
+    <string name="rentals_gw_deposit_paid">Deposition betald med kort %1$s</string>
+    <string name="rentals_gw_card_paid">Betalt med kort %1$s</string>
+    <string name="rentals_gw_refundable_left">%1$s kan återbetalas</string>
+    <string name="rentals_gw_disputed">Bestridd: %1$s</string>
+    <string name="rentals_gw_refund">Återbetala</string>
+    <string name="rentals_gw_charge_title">Debitera %1$s</string>
+    <string name="rentals_gw_charge_hint">Det sparade kortet debiteras nu, utan att kunden är närvarande. Använd Återbetala för att betala tillbaka senare.</string>
+    <string name="rentals_gw_charge_confirm">Debitera %1$s</string>
+    <string name="rentals_gw_capture_title">Dra kortreservation</string>
+    <string name="rentals_gw_capture_hint">Ett lägre belopp drar en del och släpper resten.</string>
+    <string name="rentals_gw_capture_confirm">Dra %1$s</string>
+    <string name="rentals_gw_release_title">Släppa kortreservationen?</string>
+    <string name="rentals_gw_release_hint">Reservationen på %1$s hävs och inget debiteras.</string>
+    <string name="rentals_gw_refund_title">Återbetala via betalleverantör</string>
+    <string name="rentals_gw_refund_hint">Pengarna går tillbaka till kundens kort. Delvis återbetalning är möjlig.</string>
+    <string name="rentals_gw_refund_confirm">Återbetala %1$s</string>
+    <string name="rentals_gw_purpose_payment">Betalning</string>
+    <string name="rentals_gw_purpose_deposit">Deposition</string>
+    <string name="rentals_gw_amount">Belopp (%1$s)</string>
+    <string name="rentals_gw_amount_max">Högst %1$s</string>
+    <string name="rentals_gw_refund_reason">Orsak</string>
+    <string name="rentals_gw_charged">Kortet har debiterats.</string>
+    <string name="rentals_gw_hold_placed">Kortreservation skapad.</string>
+    <string name="rentals_gw_processing">Betalningen behandlas. Ordern uppdateras när den är klar.</string>
+    <string name="rentals_gw_action_required">Kunden måste bekräfta betalningen. En betallänk skapades och skickades via e-post.</string>
+    <string name="rentals_gw_captured">Reservationen har dragits.</string>
+    <string name="rentals_gw_released">Reservationen har släppts.</string>
+    <string name="rentals_gw_refunded">Återbetalning skickad.</string>
+    <string name="rentals_gw_uncertain">Ingen bekräftelse mottogs. Försök igen med samma belopp; det debiteras inte två gånger.</string>
+    <string name="rentals_gw_pending_other_generic">Ett tidigare försök är fortfarande obekräftat. Försök först igen med samma belopp.</string>
+    <string name="rentals_gw_pending_other">Ett tidigare försök på %1$s är fortfarande obekräftat. Försök först igen med samma belopp.</string>
+    <string name="rentals_gw_account_changed">Kontot byttes. Inget skickades.</string>
+</resources>

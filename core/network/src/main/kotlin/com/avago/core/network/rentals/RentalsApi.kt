@@ -434,6 +434,31 @@ class RentalsApi @Inject constructor(
         }.body()
     }
 
+    /**
+     * POST /orders/{o}/payments/charge-saved-card (rental.payment_charge) —
+     * `{amount_minor, purpose, client_uuid}`; the server derives the provider key from `client_uuid`.
+     * → `{status: succeeded|requires_capture|processing|requires_action, payment_intent, ledger_entry_id?, pay_url?}`;
+     * a decline is 402 `payment_failed`.
+     */
+    suspend fun chargeSavedCard(accountId: String, orderId: String, body: JsonObject, idempotencyKey: String): JsonObject = call {
+        client.post(r(accountId, "/orders/$orderId/payments/charge-saved-card")) { json(body); idem(idempotencyKey) }.body()
+    }
+
+    /** POST /ledger/{id}/capture `{amount_minor?}` (rental.payment_charge) → `{entry}`. */
+    suspend fun captureAuthorization(accountId: String, entryId: String, body: JsonObject, idempotencyKey: String): JsonObject = call {
+        client.post(r(accountId, "/ledger/$entryId/capture")) { json(body); idem(idempotencyKey) }.body()
+    }
+
+    /** POST /ledger/{id}/release (rental.refund) → `{entry}`. */
+    suspend fun releaseAuthorization(accountId: String, entryId: String, idempotencyKey: String): JsonObject = call {
+        client.post(r(accountId, "/ledger/$entryId/release")) { json(JsonObject(emptyMap())); idem(idempotencyKey) }.body()
+    }
+
+    /** POST /ledger/{id}/refund `{amount_minor, reason}` (rental.refund); `Idempotency-Key` keys the provider refund. */
+    suspend fun refundGatewayPayment(accountId: String, entryId: String, body: JsonObject, idempotencyKey: String): JsonObject = call {
+        client.post(r(accountId, "/ledger/$entryId/refund")) { json(body); idem(idempotencyKey) }.body()
+    }
+
     // ---- Wave 2 / G2: credit & documents (docs/rentals-api-wave2-credit-collections-bank.md) ----
 
     /** GET /orders/{o}/credit-check?stage=checkout&line_ids → dry run of the credit / documents gate. */

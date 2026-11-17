@@ -11,6 +11,8 @@ import com.avago.core.data.db.rental.RentalRecordEntity.Companion.STATE_SYNCED
 import com.avago.core.data.rental.LocalFleet
 import com.avago.core.data.rental.Money
 import com.avago.feature.rentals.domain.ConflictMerge
+import com.avago.feature.rentals.domain.HandoverProgress
+import com.avago.feature.rentals.domain.OrderView
 import com.avago.feature.rentals.domain.LineSwap
 import com.avago.feature.rentals.domain.OrderStatus
 import com.avago.feature.rentals.domain.OutboxPlanner
@@ -59,7 +61,10 @@ class RentalRepository @Inject constructor(
 
     private fun <T> perAccount(empty: T, block: suspend (String) -> Flow<T>): Flow<T> =
         identity.activeAccountId.flatMapLatest { id ->
-            if (id == null) flowOf(empty) else kotlinx.coroutines.flow.flow { emitAll(block(id)) }
+            if (id == null) flowOf(empty) else kotlinx.coroutines.flow.flow {
+                emit(empty) // Do not retain another account's rows while opening this database.
+                emitAll(block(id))
+            }
         }
 
     private suspend fun dao(accountId: String) = dbFactory.get(accountId).rentalDao()
@@ -346,10 +351,11 @@ class RentalRepository @Inject constructor(
     suspend fun orderAction(orderId: String, action: String, reason: String? = null, endAt: Instant? = null, at: Instant? = null) {
         return write { acc ->
             val d = dao(acc)
-            val rec = d.get(RentalEntity.ORDER, orderId)
-            val o = rec?.obj ?: JsonObject(emptyMap())
+            val rec = requireNotNull(d.get(RentalEntity.ORDER, orderId)) { "Order not found in the active account" }
+            val o = rec.obj
+            require(o.str("source") != "legacy") { "Legacy rentals must be managed through legacy endpoints" }
             val status = o.str("status") ?: OrderStatus.DRAFT
-            val synced = rec?.takeIf { it.localState == STATE_SYNCED }?.obj
+            val synced = rec.takeIf { it.localState == STATE_SYNCED }?.obj
             val body = RentalRequests.transition(reason, endAt, at ?: Instant.now(), synced?.get("version"))
             val newStatus = statusAfter(action, status)
             // Only the fields this transition really changes (ConflictMerge compares them with the server's).
@@ -357,13 +363,11 @@ class RentalRepository @Inject constructor(
                 if (newStatus != status) put("status", newStatus)
                 endAt?.toString()?.takeIf { !ConflictMerge.same(o["end_at"], JsonPrimitive(it)) }?.let { put("end_at", it) }
             }
-            if (rec != null) {
-                var updated = o.with("status" to JsonPrimitive(newStatus))
-                if (endAt != null) updated = updated.with("end_at" to JsonPrimitive(endAt.toString()))
-                val state = if (action == "extend" || rec.localState == STATE_DRAFT) STATE_DRAFT else STATE_PENDING
-                d.upsert(localRecord(RentalEntity.ORDER, updated, state, rec.clientUuid).copy(id = rec.id))
-                applyAllocationEffects(acc, orderId, action, endAt)
-            }
+            var updated = o.with("status" to JsonPrimitive(newStatus))
+            if (endAt != null) updated = updated.with("end_at" to JsonPrimitive(endAt.toString()))
+            val state = if (action == "extend" || rec.localState == STATE_DRAFT) STATE_DRAFT else STATE_PENDING
+            d.upsert(localRecord(RentalEntity.ORDER, updated, state, rec.clientUuid).copy(id = rec.id))
+            applyAllocationEffects(acc, orderId, action, endAt)
             enqueue(
                 acc, OutboxPlanner.TYPE_ORDER_ACTION, newId(), "order:$orderId", body,
                 buildJsonObject { put("order_id", orderId); put("action", action); mergeContext(synced, changes) },
@@ -382,11 +386,12 @@ class RentalRepository @Inject constructor(
         put(ConflictMerge.KEY_CHANGES, changes)
     }
 
-    private suspend fun applyAllocationEffects(acc: String, orderId: String, action: String, endAt: Instant?) {
+    private suspend fun applyAllocationEffects(acc: String, orderId: String, action: String, endAt: Instant?, lineId: String? = null) {
         val d = dao(acc)
         val allocs = d.byOrder(RentalEntity.ALLOCATION, orderId)
         val changed = allocs.mapNotNull { r ->
             val o = r.obj
+            if (lineId != null && !HandoverProgress.affectsAllocation(o, lineId)) return@mapNotNull null
             val next = when (action) {
                 "checkout" -> o.with("kind" to JsonPrimitive("on_rent"))
                 "checkin", "cancel", "no-show", "close" -> o.with("active" to JsonPrimitive(false))
@@ -449,6 +454,8 @@ class RentalRepository @Inject constructor(
     suspend fun saveHandover(input: HandoverInput): String {
         return write { acc ->
             val d = dao(acc)
+            val order = d.get(RentalEntity.ORDER, input.orderId)?.let(OrderView::of)
+            require(HandoverProgress.mayHandover(order, input.direction)) { "Order cannot be handed over in this workflow" }
             val group = "order:${input.orderId}"
             // The stage B route is per line: POST /orders/{o}/lines/{l}/checkout|checkin.
             val lineId = input.orderLineId
@@ -507,8 +514,8 @@ class RentalRepository @Inject constructor(
                 dependsOn = listOfNotNull(signatureId, input.orderId.takeIf { orderPending }),
             )
             // Optimistic status (the handover performs the transition on the server).
-            orderStatusLocal(acc, input.orderId, if (input.direction == "out") "checkout" else "checkin", input.occurredAt)
             lineStatusLocal(acc, lineId, input.direction, input.occurredAt)
+            orderStatusLocal(acc, input.orderId, input.direction, lineId, input.occurredAt)
             if (input.direction == "in") {
                 // The server opens a readiness checklist on check-in (stage B §2): mirror it so the
                 // unit shows Not ready offline. Replaced by the server row once the handover syncs.
@@ -653,6 +660,7 @@ class RentalRepository @Inject constructor(
         return write { acc ->
             val d = dao(acc)
             val order = d.get(RentalEntity.ORDER, input.orderId) ?: throw IllegalStateException("order not found")
+            require(!OrderView.of(order).isLegacy) { "Legacy rentals must be managed through legacy endpoints" }
             val line = d.get(RentalEntity.ORDER_LINE, input.lineId) ?: throw IllegalStateException("line not found")
             require(LineSwap.swappable(line.obj, order.obj.str("status"))) { "only a checked-out rental line can be swapped" }
             val newLineId = newId()
@@ -699,15 +707,19 @@ class RentalRepository @Inject constructor(
         }
     }
 
-    private suspend fun orderStatusLocal(acc: String, orderId: String, action: String, at: Instant) {
+    private suspend fun orderStatusLocal(acc: String, orderId: String, direction: String, lineId: String, at: Instant) {
         val d = dao(acc)
         val rec = d.get(RentalEntity.ORDER, orderId) ?: return
         val o = rec.obj
-        val key = if (action == "checkout") "actual_out_at" else "actual_in_at"
-        val updated = o.with("status" to JsonPrimitive(statusAfter(action, o.str("status") ?: "")), key to JsonPrimitive(at.toString()))
+        val status = HandoverProgress.status(
+            o.str("status") ?: "", direction, d.byOrder(RentalEntity.ORDER_LINE, orderId).map { it.obj },
+        )
+        val key = if (direction == "out") "actual_out_at" else "actual_in_at"
+        var updated = o.with("status" to JsonPrimitive(status))
+        if (direction == "out" || status == OrderStatus.RETURNED) updated = updated.with(key to JsonPrimitive(at.toString()))
         val state = if (rec.localState == STATE_DRAFT) STATE_DRAFT else STATE_PENDING
         d.upsert(localRecord(RentalEntity.ORDER, updated, state, rec.clientUuid).copy(id = rec.id))
-        applyAllocationEffects(acc, orderId, action, null)
+        applyAllocationEffects(acc, orderId, if (direction == "out") "checkout" else "checkin", null, lineId)
     }
 
     data class PaymentInput(
@@ -742,6 +754,10 @@ class RentalRepository @Inject constructor(
         require(input.last4 == null || input.last4.matches(Regex("\\d{4}"))) { "last4 must be 4 digits" }
         require(input.amount.minor > 0) { "amount must be positive" }
         return write { acc ->
+            val order = requireNotNull(dao(acc).get(RentalEntity.ORDER, input.orderId)) { "Order not found in the active account" }
+            require(order.obj.str("source") != "legacy") {
+                "Legacy rentals must be managed through legacy endpoints"
+            }
             val id = newId()
             val body = RentalRequests.ledgerEntry(input)
             dao(acc).upsert(
@@ -763,6 +779,10 @@ class RentalRepository @Inject constructor(
     /** Invoice drafted on the device; numbered and priced by the server on sync. */
     suspend fun createInvoiceDraft(orderId: String): String {
         return write { acc ->
+            val order = requireNotNull(dao(acc).get(RentalEntity.ORDER, orderId)) { "Order not found in the active account" }
+            require(order.obj.str("source") != "legacy") {
+                "Legacy rentals must be managed through legacy endpoints"
+            }
             val id = newId()
             val body = RentalRequests.invoice()
             dao(acc).upsert(

@@ -82,13 +82,22 @@ object OrderStatus {
     const val CLOSED = "closed"
     const val CANCELLED = "cancelled"
 
+    fun permission(action: String): String = when (action) {
+        "quote" -> "rental.quote"
+        "hold", "reserve", "cancel", "no-show", "extend" -> "rental.reserve"
+        "checkout", "swap" -> "rental.checkout"
+        "checkin", "off-rent" -> "rental.checkin"
+        "close" -> "rental.invoice_issue"
+        else -> error("Unknown rental action: $action")
+    }
+
     /** Transitions offered per status (server enforces; this only drives the UI). */
     fun actions(status: String): List<String> = when (status) {
         DRAFT -> listOf("quote", "hold", "reserve", "cancel")
         QUOTED -> listOf("hold", "reserve", "cancel")
         HELD -> listOf("reserve", "cancel")
-        RESERVED -> listOf("checkout", "no-show", "cancel")
-        ON_RENT -> listOf("extend", "swap", "off-rent", "checkin")
+        RESERVED -> listOf("checkout", "extend", "no-show", "cancel")
+        ON_RENT -> listOf("extend", "swap", "off-rent", "checkin", "checkout")
         OFF_RENT_REQUESTED -> listOf("checkin")
         RETURNED -> listOf("close")
         else -> emptyList()
@@ -113,7 +122,10 @@ data class OrderView(
     val version: Int?,
     val localState: String,
     val notice: String?,
+    val source: String? = null,
 ) {
+    val isLegacy: Boolean get() = source == "legacy"
+    val actions: List<String> get() = if (isLegacy) emptyList() else OrderStatus.actions(status)
     val isDraft: Boolean get() = localState == RentalRecordEntity.STATE_DRAFT
     val isPending: Boolean get() = localState != RentalRecordEntity.STATE_SYNCED
 
@@ -139,6 +151,7 @@ data class OrderView(
                 version = o.long("version")?.toInt(),
                 localState = r.localState,
                 notice = r.notice,
+                source = o.str("source"),
             )
         }
     }

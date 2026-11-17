@@ -125,6 +125,8 @@ import com.avago.feature.rentals.data.RentalsOnline
 import com.avago.feature.rentals.domain.CreditCheck
 import com.avago.feature.rentals.domain.Esign
 import com.avago.feature.rentals.domain.HandoverChecks
+import com.avago.feature.rentals.domain.HandoverProgress
+import com.avago.feature.rentals.domain.OrderView
 import com.avago.feature.rentals.domain.HandoverGates
 import com.avago.feature.rentals.domain.MeterInfo
 import com.avago.core.permissions.PermissionsManager
@@ -198,6 +200,11 @@ class HandoverViewModel @Inject constructor(
 ) : ViewModel() {
     val orderId: String = requireNotNull(savedState["orderId"])
     val direction: String = savedState.get<String>("direction")?.takeIf { it == "in" } ?: "out"
+    val mayHandover = combine(
+        repo.record(RentalEntity.ORDER, orderId),
+        permissions.observeCan(if (direction == "out") "rental.checkout" else "rental.checkin"),
+    ) { record, permitted -> permitted && HandoverProgress.mayHandover(record?.let(OrderView::of), direction) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     private val lines = repo.byOrder(RentalEntity.ORDER_LINE, orderId)
     private val allocations = repo.byOrder(RentalEntity.ALLOCATION, orderId)
@@ -472,6 +479,7 @@ fun HandoverScreen(
     viewModel: HandoverViewModel = hiltViewModel(),
 ) {
     val units by viewModel.units.collectAsStateWithLifecycle()
+    val mayHandover by viewModel.mayHandover.collectAsStateWithLifecycle()
     val unit by viewModel.currentUnit.collectAsStateWithLifecycle()
     val baseline by viewModel.baseline.collectAsStateWithLifecycle()
     val inspections by viewModel.inspections.collectAsStateWithLifecycle()
@@ -614,7 +622,7 @@ fun HandoverScreen(
                 if (step < last) {
                     Button(
                         onClick = { step++ },
-                        enabled = unit != null,
+                        enabled = unit != null && mayHandover,
                         modifier = Modifier.weight(1f).heightIn(min = MinTouch),
                     ) {
                         Text(stringResource(R.string.rentals_next_step))
@@ -626,7 +634,7 @@ fun HandoverScreen(
                             saving = true
                             viewModel.save(defaultSigner)
                         },
-                        enabled = unit != null && undecided == 0 && blockers.isEmpty() && !saving,
+                        enabled = unit != null && mayHandover && undecided == 0 && blockers.isEmpty() && !saving,
                         modifier = Modifier.weight(1f).heightIn(min = MinTouch),
                     ) {
                         if (saving) {

@@ -1,0 +1,13 @@
+<resources>
+    <string name="rentals_worklist_overdue">Overdue returns</string>
+    <string name="rentals_worklist_balance_due">Balance due</string>
+    <string name="rentals_worklist_status">Status</string>
+    <string name="rentals_worklist_balances">Balance due · shown orders</string>
+    <string name="rentals_worklist_snapshot">Local snapshot, including pending changes. Currencies are not converted. This is not an overdue-invoice report.</string>
+    <string name="rentals_worklist_empty">No orders in this view.</string>
+    <string name="rentals_worklist_legacy_title">Legacy rental</string>
+    <string name="rentals_worklist_legacy">This order mirrors a legacy rental. Manage it from the asset’s legacy rentals screen.</string>
+    <string name="rentals_worklist_legacy_open">Open legacy rentals · %1$s</string>
+    <string name="rentals_worklist_payment_unconfigured">Last known payment status: online payments are not configured. Manual payment recording remains available with permission; it does not charge a card.</string>
+    <string name="rentals_worklist_payment_disabled">Last known payment status: online payments are disabled. Manual payment recording remains available with permission; it does not charge a card.</string>
+</resources>

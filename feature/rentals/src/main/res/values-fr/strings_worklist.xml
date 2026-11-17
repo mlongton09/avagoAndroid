@@ -1,0 +1,13 @@
+<resources>
+    <string name="rentals_worklist_overdue">Retours en retard</string>
+    <string name="rentals_worklist_balance_due">Solde dû</string>
+    <string name="rentals_worklist_status">Statut</string>
+    <string name="rentals_worklist_balances">Solde dû · commandes affichées</string>
+    <string name="rentals_worklist_snapshot">Données locales, modifications en attente incluses. Les devises ne sont pas converties. Ce n’est pas un rapport de factures échues.</string>
+    <string name="rentals_worklist_empty">Aucune commande dans cette vue.</string>
+    <string name="rentals_worklist_legacy_title">Ancienne location</string>
+    <string name="rentals_worklist_legacy">Cette commande reflète une ancienne location. Gérez-la depuis l’écran des anciennes locations de l’équipement.</string>
+    <string name="rentals_worklist_legacy_open">Ouvrir les anciennes locations · %1$s</string>
+    <string name="rentals_worklist_payment_unconfigured">Dernier état des paiements connu : les paiements en ligne ne sont pas configurés. Avec l’autorisation requise, vous pouvez enregistrer des paiements manuellement ; aucune carte n’est débitée.</string>
+    <string name="rentals_worklist_payment_disabled">Dernier état des paiements connu : les paiements en ligne sont désactivés. Avec l’autorisation requise, vous pouvez enregistrer des paiements manuellement ; aucune carte n’est débitée.</string>
+</resources>

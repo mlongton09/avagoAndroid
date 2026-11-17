@@ -58,6 +58,7 @@ class RentalsOnline @Inject constructor(
     fun observe(key: String): Flow<Cached?> = identity.activeAccountId.flatMapLatest { acc ->
         if (acc == null) flowOf(null)
         else kotlinx.coroutines.flow.flow<RentalRecordEntity?> {
+            emit(null) // Payment gates and cached read models must not cross an account switch.
             emitAll(dbFactory.get(acc).rentalDao().observe(RentalEntity.META, PREFIX + key))
         }.map { r: RentalRecordEntity? -> r?.let { parseObj(it.json) }?.let { o -> o.obj("data")?.let { Cached(o.longAt(), it) } } }
     }
@@ -79,6 +80,11 @@ class RentalsOnline @Inject constructor(
     /** Runs [fetch]; on success caches the answer under [key] (when given). */
     private suspend fun run(key: String?, fetch: suspend (acc: String) -> JsonObject): Result<JsonObject> {
         val acc = acc() ?: return Result.Offline("no account")
+        return runAs(acc, key, fetch)
+    }
+
+    /** Like [run] for an explicit account; the cache write goes to that account's store only. */
+    private suspend fun runAs(acc: String, key: String?, fetch: suspend (acc: String) -> JsonObject): Result<JsonObject> {
         return try {
             val data = fetch(acc)
             key?.let { store(acc, it, data) }
@@ -92,6 +98,17 @@ class RentalsOnline @Inject constructor(
             Result.Offline(e.message)
         }
     }
+
+    /**
+     * Money-moving call bound to the account the user acted in: nothing is sent when the active
+     * account changed in between ([ACCOUNT_CHANGED], status 0, a definitive "not sent").
+     */
+    private suspend fun runFor(accountId: String, fetch: suspend (acc: String) -> JsonObject): Result<JsonObject> {
+        if (acc() != accountId) return Result.Refused(0, ACCOUNT_CHANGED, null)
+        return runAs(accountId, null, fetch)
+    }
+
+    fun activeAccountId(): String? = acc()
 
     // ── keys ─────────────────────────────────────────────────────────────────────────
 
@@ -136,6 +153,25 @@ class RentalsOnline @Inject constructor(
 
     suspend fun sendPaymentRequest(requestId: String, to: String?) = run(null) { api.sendPaymentRequest(it, requestId, to) }
 
+    /** Refreshes the order's payments in [accountId]'s store (after a gateway action in that account). */
+    suspend fun refreshOrderPayments(accountId: String, orderId: String) =
+        runAs(accountId, orderPaymentsKey(orderId)) { api.orderPayments(it, orderId) }
+
+    // G6 gateway actions: the gateway is off by default; these are only offered while the server
+    // reports online_payments_enabled. [key] stays stable across uncertain retries.
+
+    suspend fun chargeSavedCard(accountId: String, orderId: String, body: JsonObject, key: String) =
+        runFor(accountId) { api.chargeSavedCard(it, orderId, body, key) }
+
+    suspend fun captureAuthorization(accountId: String, entryId: String, body: JsonObject, key: String) =
+        runFor(accountId) { api.captureAuthorization(it, entryId, body, key) }
+
+    suspend fun releaseAuthorization(accountId: String, entryId: String, key: String) =
+        runFor(accountId) { api.releaseAuthorization(it, entryId, key) }
+
+    suspend fun refundGatewayPayment(accountId: String, entryId: String, body: JsonObject, key: String) =
+        runFor(accountId) { api.refundGatewayPayment(it, entryId, body, key) }
+
     suspend fun refreshBuyout(contractId: String) = run(buyoutKey(contractId)) { api.buyoutQuote(it, contractId) }
 
     suspend fun refreshCreditCheck(orderId: String, lineIds: List<String>) =
@@ -179,5 +215,8 @@ class RentalsOnline @Inject constructor(
 
     companion object {
         const val PREFIX = "w2:"
+
+        /** [Result.Refused.code] when a money action was not sent because the account changed. */
+        const val ACCOUNT_CHANGED = "account_changed"
     }
 }

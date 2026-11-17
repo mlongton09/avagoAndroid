@@ -147,6 +147,7 @@ fun NavGraphBuilder.rentalsNavGraph(
             onSwap = { go(RentalsRoute.swap(it)) },
             onSign = { go(RentalsRoute.sign(it)) },
             onAddDocument = { go(RentalsRoute.document(it)) },
+            onOpenLegacyAsset = { go(RentalsRoute.legacyAsset(it)) },
         )
     }
     composable(

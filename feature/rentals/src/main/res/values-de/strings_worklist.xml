@@ -1,0 +1,13 @@
+<resources>
+    <string name="rentals_worklist_overdue">Überfällige Rückgaben</string>
+    <string name="rentals_worklist_balance_due">Offener Betrag</string>
+    <string name="rentals_worklist_status">Status</string>
+    <string name="rentals_worklist_balances">Offener Betrag · angezeigte Aufträge</string>
+    <string name="rentals_worklist_snapshot">Lokaler Stand einschließlich ausstehender Änderungen. Währungen werden nicht umgerechnet. Dies ist kein Bericht über überfällige Rechnungen.</string>
+    <string name="rentals_worklist_empty">Keine Aufträge in dieser Ansicht.</string>
+    <string name="rentals_worklist_legacy_title">Bisherige Vermietung</string>
+    <string name="rentals_worklist_legacy">Dieser Auftrag bildet eine bisherige Vermietung ab. Verwalten Sie diese in der bisherigen Vermietungsansicht des Objekts.</string>
+    <string name="rentals_worklist_legacy_open">Bisherige Vermietungen öffnen · %1$s</string>
+    <string name="rentals_worklist_payment_unconfigured">Letzter bekannter Zahlungsstatus: Onlinezahlungen sind nicht eingerichtet. Mit entsprechender Berechtigung können Sie Zahlungen manuell erfassen; dabei wird keine Karte belastet.</string>
+    <string name="rentals_worklist_payment_disabled">Letzter bekannter Zahlungsstatus: Onlinezahlungen sind deaktiviert. Mit entsprechender Berechtigung können Sie Zahlungen manuell erfassen; dabei wird keine Karte belastet.</string>
+</resources>

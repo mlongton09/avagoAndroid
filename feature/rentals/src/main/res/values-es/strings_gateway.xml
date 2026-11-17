@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- G6 staff gateway actions (saved card, deposit holds, provider refunds). Shown only while online payments are enabled. -->
+<resources>
+    <string name="rentals_gw_card_on_file">Tarjeta guardada %1$s</string>
+    <string name="rentals_gw_card_exp">Caduca %1$s</string>
+    <string name="rentals_gw_charge">Cobrar tarjeta</string>
+    <string name="rentals_gw_hold">Retención en tarjeta %1$s</string>
+    <string name="rentals_gw_hold_expires">La retención caduca %1$s</string>
+    <string name="rentals_gw_hold_expiring">Caduca pronto</string>
+    <string name="rentals_gw_capture">Capturar</string>
+    <string name="rentals_gw_release">Liberar</string>
+    <string name="rentals_gw_deposit_paid">Fianza pagada con tarjeta %1$s</string>
+    <string name="rentals_gw_card_paid">Pagado con tarjeta %1$s</string>
+    <string name="rentals_gw_refundable_left">%1$s reembolsable</string>
+    <string name="rentals_gw_disputed">En disputa: %1$s</string>
+    <string name="rentals_gw_refund">Reembolsar</string>
+    <string name="rentals_gw_charge_title">Cobrar %1$s</string>
+    <string name="rentals_gw_charge_hint">Se cobra ahora la tarjeta guardada, sin el cliente presente. Use Reembolsar para devolver dinero después.</string>
+    <string name="rentals_gw_charge_confirm">Cobrar %1$s</string>
+    <string name="rentals_gw_capture_title">Capturar retención</string>
+    <string name="rentals_gw_capture_hint">Un importe menor captura parte de la retención y libera el resto.</string>
+    <string name="rentals_gw_capture_confirm">Capturar %1$s</string>
+    <string name="rentals_gw_release_title">¿Liberar la retención?</string>
+    <string name="rentals_gw_release_hint">Se cancela la retención de %1$s y no se cobra nada.</string>
+    <string name="rentals_gw_refund_title">Reembolsar mediante el proveedor de pagos</string>
+    <string name="rentals_gw_refund_hint">El dinero vuelve a la tarjeta del cliente. Se admiten reembolsos parciales.</string>
+    <string name="rentals_gw_refund_confirm">Reembolsar %1$s</string>
+    <string name="rentals_gw_purpose_payment">Pago</string>
+    <string name="rentals_gw_purpose_deposit">Fianza</string>
+    <string name="rentals_gw_amount">Importe (%1$s)</string>
+    <string name="rentals_gw_amount_max">Como máximo %1$s</string>
+    <string name="rentals_gw_refund_reason">Motivo</string>
+    <string name="rentals_gw_charged">Tarjeta cobrada.</string>
+    <string name="rentals_gw_hold_placed">Retención creada.</string>
+    <string name="rentals_gw_processing">El pago se está procesando. El pedido se actualizará al completarse.</string>
+    <string name="rentals_gw_action_required">El cliente debe confirmar este pago. Se creó y envió por correo un enlace de pago.</string>
+    <string name="rentals_gw_captured">Retención capturada.</string>
+    <string name="rentals_gw_released">Retención liberada.</string>
+    <string name="rentals_gw_refunded">Reembolso enviado.</string>
+    <string name="rentals_gw_uncertain">No se recibió confirmación. Reintente con el mismo importe; no se cobrará dos veces.</string>
+    <string name="rentals_gw_pending_other_generic">Un intento anterior sigue sin confirmar. Reinténtelo primero con el mismo importe.</string>
+    <string name="rentals_gw_pending_other">Un intento anterior de %1$s sigue sin confirmar. Reinténtelo primero con el mismo importe.</string>
+    <string name="rentals_gw_account_changed">La cuenta cambió. No se envió nada.</string>
+</resources>

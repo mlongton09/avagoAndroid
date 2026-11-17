@@ -157,6 +157,13 @@ data class KpiSummary(
 
 /** G6: online payments (`GET /payments/status`, `GET /orders/{id}/payments`). */
 object OnlinePayments {
+    enum class Unavailable { NOT_CONFIGURED, DISABLED }
+
+    /** Unknown/offline is not evidence that the account is unconfigured. */
+    fun unavailable(status: JsonObject?): Unavailable? {
+        if (status?.bool("online_payments_enabled") != false) return null
+        return if (status.str("reason") == "not_configured") Unavailable.NOT_CONFIGURED else Unavailable.DISABLED
+    }
 
     data class PayRequest(
         val id: String,
@@ -173,7 +180,13 @@ object OnlinePayments {
         val shareable: Boolean get() = isOpen && linkAvailable && !payUrl.isNullOrBlank()
     }
 
-    data class OrderPayments(val enabled: Boolean, val canRequest: Boolean, val requests: List<PayRequest>)
+    data class OrderPayments(
+        val enabled: Boolean,
+        val canRequest: Boolean,
+        val requests: List<PayRequest>,
+        /** Saved card, holds and refundable gateway payments ([GatewayPayments.Gateway.NONE] while off/unknown). */
+        val gateway: GatewayPayments.Gateway = GatewayPayments.Gateway.NONE,
+    )
 
     /** `online_payments_enabled` of `/payments/status` (false when unknown — never require Stripe). */
     fun enabled(status: JsonObject?): Boolean = status?.bool("online_payments_enabled") == true
@@ -201,6 +214,7 @@ object OnlinePayments {
             enabled = enabled,
             canRequest = enabled && o.obj("can")?.bool("request") != false,
             requests = o.objs("payment_requests").mapNotNull { parseRequest(it, currency) },
+            gateway = GatewayPayments.parse(o, currency, enabled),
         )
     }
 

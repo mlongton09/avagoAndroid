@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- G6 staff gateway actions (saved card, deposit holds, provider refunds). Shown only while online payments are enabled. -->
+<resources>
+    <string name="rentals_gw_card_on_file">Gespeicherte Karte %1$s</string>
+    <string name="rentals_gw_card_exp">Gültig bis %1$s</string>
+    <string name="rentals_gw_charge">Karte belasten</string>
+    <string name="rentals_gw_hold">Kartenreservierung %1$s</string>
+    <string name="rentals_gw_hold_expires">Reservierung läuft ab am %1$s</string>
+    <string name="rentals_gw_hold_expiring">Läuft bald ab</string>
+    <string name="rentals_gw_capture">Einziehen</string>
+    <string name="rentals_gw_release">Freigeben</string>
+    <string name="rentals_gw_deposit_paid">Kaution per Karte bezahlt %1$s</string>
+    <string name="rentals_gw_card_paid">Per Karte bezahlt %1$s</string>
+    <string name="rentals_gw_refundable_left">%1$s erstattbar</string>
+    <string name="rentals_gw_disputed">Angefochten: %1$s</string>
+    <string name="rentals_gw_refund">Erstatten</string>
+    <string name="rentals_gw_charge_title">%1$s belasten</string>
+    <string name="rentals_gw_charge_hint">Die gespeicherte Karte wird jetzt ohne Anwesenheit des Kunden belastet. Rückzahlungen erfolgen danach über Erstatten.</string>
+    <string name="rentals_gw_charge_confirm">%1$s belasten</string>
+    <string name="rentals_gw_capture_title">Kartenreservierung einziehen</string>
+    <string name="rentals_gw_capture_hint">Ein kleinerer Betrag zieht einen Teil ein und gibt den Rest frei.</string>
+    <string name="rentals_gw_capture_confirm">%1$s einziehen</string>
+    <string name="rentals_gw_release_title">Kartenreservierung freigeben?</string>
+    <string name="rentals_gw_release_hint">Die Reservierung über %1$s wird aufgehoben; es wird nichts belastet.</string>
+    <string name="rentals_gw_refund_title">Über Zahlungsanbieter erstatten</string>
+    <string name="rentals_gw_refund_hint">Das Geld geht zurück auf die Karte des Kunden. Teilerstattungen sind möglich.</string>
+    <string name="rentals_gw_refund_confirm">%1$s erstatten</string>
+    <string name="rentals_gw_purpose_payment">Zahlung</string>
+    <string name="rentals_gw_purpose_deposit">Kaution</string>
+    <string name="rentals_gw_amount">Betrag (%1$s)</string>
+    <string name="rentals_gw_amount_max">Höchstens %1$s</string>
+    <string name="rentals_gw_refund_reason">Grund</string>
+    <string name="rentals_gw_charged">Karte belastet.</string>
+    <string name="rentals_gw_hold_placed">Kartenreservierung erstellt.</string>
+    <string name="rentals_gw_processing">Die Zahlung wird verarbeitet. Der Auftrag aktualisiert sich nach Abschluss.</string>
+    <string name="rentals_gw_action_required">Der Kunde muss diese Zahlung bestätigen. Ein Zahlungslink wurde erstellt und per E-Mail gesendet.</string>
+    <string name="rentals_gw_captured">Reservierung eingezogen.</string>
+    <string name="rentals_gw_released">Reservierung freigegeben.</string>
+    <string name="rentals_gw_refunded">Erstattung übermittelt.</string>
+    <string name="rentals_gw_uncertain">Keine Bestätigung erhalten. Mit demselben Betrag erneut versuchen; es wird nicht doppelt belastet.</string>
+    <string name="rentals_gw_pending_other_generic">Ein früherer Versuch ist noch unbestätigt. Wiederholen Sie ihn zuerst mit demselben Betrag.</string>
+    <string name="rentals_gw_pending_other">Ein früherer Versuch über %1$s ist noch unbestätigt. Wiederholen Sie ihn zuerst mit demselben Betrag.</string>
+    <string name="rentals_gw_account_changed">Das Konto wurde gewechselt. Es wurde nichts gesendet.</string>
+</resources>
