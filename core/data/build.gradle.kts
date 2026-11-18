@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
     alias(libs.plugins.room)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -37,11 +38,16 @@ dependencies {
     implementation(libs.firebase.crashlytics)
     // Rentals: JSON-record store helpers (LocalFleet parses synced rows).
     implementation(libs.serialization.json)
+    // Schema v2 store (V2Database): bundled SQLite, never the platform build (L16).
+    implementation(libs.androidx.sqlite.bundled)
 
     // Rentals domain unit tests (Money, fleet status rule fixtures).
     testImplementation(libs.junit5)
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.serialization.json)
+    testImplementation(libs.coroutines.test)
+    // v2 store/sync tests run the generated DDL on a real SQLite (>= 3.45) through JDBC.
+    testImplementation(libs.sqlite.jdbc)
     testRuntimeOnly(libs.junit5.engine)
     testRuntimeOnly(libs.junit.platform.launcher)
 

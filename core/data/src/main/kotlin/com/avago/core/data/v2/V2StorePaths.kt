@@ -12,10 +12,10 @@ object V2StorePaths {
     /** Account directory root shared by the legacy and v2 stores, under `Context.filesDir`. */
     const val ACCOUNTS_DIR = "accounts"
 
-    /** Per-user/account v2 business database (Room schema version 1, plan §15.6). */
+    /** Per-user/account v2 business database (`PRAGMA user_version` 1, plan §15.6). */
     const val V2_BUSINESS_DB = "avago_v2.db"
 
-    /** Reserved name of the per-user/account v2 chat database (plan §4.1); not created yet. */
+    /** Per-user/account v2 chat database (plan §4.1). */
     const val V2_CHAT_DB = "chat_v2.db"
 
     /** Generation directory name under `accounts/<account>/<user>/`. */
