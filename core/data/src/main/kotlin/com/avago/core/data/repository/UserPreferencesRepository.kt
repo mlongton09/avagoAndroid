@@ -184,9 +184,19 @@ class UserPreferencesRepository @Inject constructor(
         }
     }
 
+    /** Removes every chat composer draft; other preferences are untouched (v2 legacy reset). */
+    suspend fun clearChatDrafts() {
+        dataStore.edit { prefs ->
+            prefs.asMap().keys
+                .filter { it.name.startsWith(CHAT_DRAFT_PREFIX) }
+                .forEach { prefs.remove(it) }
+        }
+    }
+
     // ── Keys ──────────────────────────────────────────────────────────────────
 
     companion object {
+        const val CHAT_DRAFT_PREFIX = "chat_draft_"
         val THEME_KEY = stringPreferencesKey("theme_preference")
         val SUNLIGHT_MODE_KEY = booleanPreferencesKey("sunlight_mode")
         val DISTANCE_UNIT_KEY = stringPreferencesKey("distance_unit")
