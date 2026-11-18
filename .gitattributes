@@ -1,0 +1,2 @@
+# Generated contract DDL is hashed byte-for-byte (V2GeneratedSchema); never convert line endings.
+core/data/src/main/resources/com/avago/core/data/v2/*.sql -text
