@@ -17,4 +17,9 @@
     <string name="rentals_invoice_status_paid">Betaald</string>
     <string name="rentals_invoice_status_credited">Gecrediteerd</string>
     <string name="rentals_invoice_status_void">Vervallen</string>
+
+    <!-- Schema v2: API version incompatible (ServiceUnavailableUpdateScreen) -->
+    <string name="v2_update_required_title">Service niet beschikbaar</string>
+    <string name="v2_update_required_message">Deze versie van Avago kan geen verbinding meer maken met de service. Werk de app bij om verder te gaan.</string>
+    <string name="v2_update_required_action">App bijwerken</string>
 </resources>

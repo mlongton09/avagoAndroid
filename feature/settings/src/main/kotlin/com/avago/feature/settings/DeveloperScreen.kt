@@ -45,6 +45,7 @@ import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.ClientFeatureFlag
 import com.avago.core.data.FeatureFlags
+import com.avago.core.data.v2.V2Flag
 import com.avago.core.sync.SyncEngine
 import com.avago.feature.settings.BuildConfig
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -66,7 +67,16 @@ class DeveloperViewModel @Inject constructor(
     private val identityManager: IdentityManager,
     private val syncEngine: SyncEngine,
     private val featureFlags: FeatureFlags,
+    private val v2Flag: V2Flag,
 ) : ViewModel() {
+
+    private val _v2Override = MutableStateFlow(v2Flag.debugOverride)
+    val v2Override: StateFlow<Boolean?> = _v2Override
+
+    fun setV2Override(value: Boolean?) {
+        v2Flag.setDebugOverride(value)
+        _v2Override.value = v2Flag.debugOverride
+    }
 
     val activeAccountId: StateFlow<String?> = identityManager.activeAccountId
     val activeUserId: StateFlow<String?> = identityManager.activeUserId
@@ -152,6 +162,7 @@ fun DeveloperScreen(
     val devRoleOverride by viewModel.devRoleOverride.collectAsStateWithLifecycle()
     val canOverride by viewModel.canOverride.collectAsStateWithLifecycle()
     val featureFlagRows by viewModel.featureFlagRows.collectAsStateWithLifecycle()
+    val v2Override by viewModel.v2Override.collectAsStateWithLifecycle()
     var showWipeConfirm by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -276,6 +287,49 @@ fun DeveloperScreen(
                             },
                         )
                     }
+                }
+                item { HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp)) }
+            }
+
+            // ── Schema v2 (debug override; applies on next launch) ───────────
+            if (BuildConfig.DEBUG) {
+                item { DevSectionHeader("Schema v2") }
+                item {
+                    val v2Options = listOf("Server", "On", "Off")
+                    val selectedIndex = when (v2Override) {
+                        true -> 1
+                        false -> 2
+                        null -> 0
+                    }
+                    ListItem(
+                        headlineContent = {
+                            SingleChoiceSegmentedButtonRow {
+                                v2Options.forEachIndexed { index, label ->
+                                    SegmentedButton(
+                                        selected = selectedIndex == index,
+                                        onClick = {
+                                            viewModel.setV2Override(
+                                                when (index) {
+                                                    1 -> true
+                                                    2 -> false
+                                                    else -> null
+                                                },
+                                            )
+                                        },
+                                        shape = SegmentedButtonDefaults.itemShape(index, v2Options.size),
+                                    ) {
+                                        Text(label, style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                            }
+                        },
+                        supportingContent = {
+                            Text(
+                                "Takes effect on next launch. Turning v2 on wipes local data " +
+                                    "(sign-in is kept).",
+                            )
+                        },
+                    )
                 }
                 item { HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp)) }
             }

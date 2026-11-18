@@ -62,4 +62,9 @@
     <string name="core_step_progress">Step %1$d of %2$d: %3$s</string>
     <string name="core_step_done">Completed</string>
     <string name="core_step_current">Current step</string>
+
+    <!-- Schema v2: API version incompatible (ServiceUnavailableUpdateScreen) -->
+    <string name="v2_update_required_title">Service unavailable</string>
+    <string name="v2_update_required_message">This version of Avago can no longer connect to the service. Please update the app to continue.</string>
+    <string name="v2_update_required_action">Update the app</string>
 </resources>

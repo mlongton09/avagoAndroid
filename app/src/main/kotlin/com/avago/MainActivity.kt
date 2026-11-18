@@ -26,10 +26,12 @@ import com.avago.app.MainViewModel
 import com.avago.core.auth.IdentityManager
 import com.avago.core.auth.PermissionStore
 import com.avago.core.data.repository.UserPreferencesRepository
+import com.avago.core.data.v2.V2Flag
 import com.avago.core.design.theme.AvagoTheme
 import com.avago.core.push.NotificationPermissionHelper
 import com.avago.core.sync.SyncEngine
 import com.avago.core.sync.SyncGate
+import com.avago.core.ui.ServiceUnavailableUpdateScreen
 import com.avago.nav.MainScaffold
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.first
@@ -45,6 +47,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var userPreferencesRepository: UserPreferencesRepository
     @Inject lateinit var identityManager: IdentityManager
     @Inject lateinit var permissionStore: PermissionStore
+    @Inject lateinit var v2Flag: V2Flag
 
     private val mainViewModel: MainViewModel by viewModels()
 
@@ -148,8 +151,11 @@ class MainActivity : ComponentActivity() {
 
             AvagoTheme(darkTheme = isDark) {
                 Surface(modifier = Modifier.fillMaxSize()) {
+                    val updateRequired by v2Flag.updateRequired.collectAsStateWithLifecycle()
                     val identityReady by identityManager.isInitialized.collectAsStateWithLifecycle()
-                    if (!identityReady) {
+                    if (updateRequired) {
+                        ServiceUnavailableUpdateScreen(onUpdate = ::openStoreListing)
+                    } else if (!identityReady) {
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center,
@@ -175,6 +181,21 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /** Opens this app's Play Store listing, falling back to the web listing. */
+    private fun openStoreListing() {
+        val market = android.content.Intent(
+            android.content.Intent.ACTION_VIEW,
+            android.net.Uri.parse("market://details?id=$packageName"),
+        )
+        val web = android.content.Intent(
+            android.content.Intent.ACTION_VIEW,
+            android.net.Uri.parse("https://play.google.com/store/apps/details?id=$packageName"),
+        )
+        runCatching { startActivity(market) }
+            .recoverCatching { startActivity(web) }
+            .onFailure { Timber.w(it, "MainActivity: no app can open the store listing") }
     }
 
     override fun onNewIntent(intent: android.content.Intent) {

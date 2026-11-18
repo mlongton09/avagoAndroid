@@ -23,7 +23,13 @@ import java.util.concurrent.TimeUnit
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.CrashDiagnostics
 import com.avago.core.data.ExchangeRateService
+import com.avago.core.data.v2.LegacyStoreReset
+import com.avago.core.data.v2.ServerV2Capability
+import com.avago.core.data.v2.V2Contract
+import com.avago.core.data.v2.V2Flag
 import com.avago.core.network.AvagoServiceClient
+import com.avago.core.network.v2.V2CapabilitiesClient
+import com.avago.core.network.v2.V2ProbeResult
 import com.avago.core.ai.ScoutRepository
 import com.avago.core.seed.ConfigSeeder
 import com.avago.core.sync.ConnectivityMonitor
@@ -45,6 +51,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import timber.log.Timber
 import javax.inject.Inject
 
@@ -122,6 +129,9 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
     @Inject lateinit var chatRealtimeLazy: Lazy<ChatRealtimeClient>
     @Inject lateinit var scoutRepositoryLazy: Lazy<ScoutRepository>
     @Inject lateinit var rentalSyncSchedulerLazy: Lazy<com.avago.feature.rentals.data.RentalSyncScheduler>
+    @Inject lateinit var v2FlagLazy: Lazy<V2Flag>
+    @Inject lateinit var legacyStoreResetLazy: Lazy<LegacyStoreReset>
+    @Inject lateinit var v2CapabilitiesClientLazy: Lazy<V2CapabilitiesClient>
     private val identityManager get() = identityManagerLazy.get()
     private val crashDiagnostics get() = crashDiagnosticsLazy.get()
     private val serviceClient get() = serviceClientLazy.get()
@@ -146,6 +156,7 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
         if (BuildConfig.DEBUG) {
             Timber.plant(Timber.DebugTree())
         }
+        startSchemaV2Cutover()
         Trace.beginSection("AvagoApplication.initCoroutines")
         appScope.launch {
             try {
@@ -202,6 +213,42 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
         observeAppForeground()
         Trace.endSection() // AvagoApplication.initCoroutines
         Trace.endSection() // AvagoApplication.onCreate
+    }
+
+    /**
+     * Schema v2 cutover (plan §14.4, L13). Inert while [V2Flag] is off (the default; release builds
+     * do no I/O here). When on, the legacy stores are wiped **synchronously, before** anything opens
+     * a legacy Room database, SharedPreferences or DataStore file in this process. Auth tokens and
+     * the account manifest are kept (docs/v2-reset-spec.md). A failure leaves the marker at
+     * `reset_started`, so the next launch resumes. The capability probe starts only afterwards,
+     * because building the HTTP client opens stores the reset deletes.
+     */
+    private fun startSchemaV2Cutover() {
+        val flag = v2FlagLazy.get()
+        if (flag.isEnabled()) {
+            Trace.beginSection("LegacyStoreReset.runIfNeeded")
+            try {
+                runBlocking(Dispatchers.IO) {
+                    val result = legacyStoreResetLazy.get().runIfNeeded()
+                    if (result.ran) Timber.i("AvagoApplication: v2 legacy reset removed ${result.deleted.size} items")
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "AvagoApplication: v2 legacy reset interrupted; resumes next launch")
+            } finally {
+                Trace.endSection()
+            }
+        }
+        if (flag.shouldProbeServer()) appScope.launch { refreshV2Capability(flag) }
+    }
+
+    private suspend fun refreshV2Capability(flag: V2Flag) {
+        val capability = when (v2CapabilitiesClientLazy.get().probe(V2Contract.CLIENT_CONTRACT_VERSION)) {
+            V2ProbeResult.COMPATIBLE -> ServerV2Capability.COMPATIBLE
+            V2ProbeResult.INCOMPATIBLE -> ServerV2Capability.INCOMPATIBLE
+            V2ProbeResult.LEGACY -> ServerV2Capability.LEGACY
+            V2ProbeResult.UNREACHABLE -> ServerV2Capability.UNKNOWN
+        }
+        flag.recordServerCapability(capability)
     }
 
     private fun schedulePeriodicSync() {

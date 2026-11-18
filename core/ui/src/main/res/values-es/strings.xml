@@ -17,4 +17,9 @@
     <string name="rentals_invoice_status_paid">Pagada</string>
     <string name="rentals_invoice_status_credited">Abonada</string>
     <string name="rentals_invoice_status_void">Anulada</string>
+
+    <!-- Schema v2: API version incompatible (ServiceUnavailableUpdateScreen) -->
+    <string name="v2_update_required_title">Servicio no disponible</string>
+    <string name="v2_update_required_message">Esta versi?n de Avago ya no puede conectarse al servicio. Actualiza la aplicaci?n para continuar.</string>
+    <string name="v2_update_required_action">Actualizar la aplicaci?n</string>
 </resources>

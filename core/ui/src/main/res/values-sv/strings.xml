@@ -17,4 +17,9 @@
     <string name="rentals_invoice_status_paid">Betald</string>
     <string name="rentals_invoice_status_credited">Krediterad</string>
     <string name="rentals_invoice_status_void">Makulerad</string>
+
+    <!-- Schema v2: API version incompatible (ServiceUnavailableUpdateScreen) -->
+    <string name="v2_update_required_title">Tj?nsten ?r inte tillg?nglig</string>
+    <string name="v2_update_required_message">Den h?r versionen av Avago kan inte l?ngre ansluta till tj?nsten. Uppdatera appen f?r att forts?tta.</string>
+    <string name="v2_update_required_action">Uppdatera appen</string>
 </resources>
