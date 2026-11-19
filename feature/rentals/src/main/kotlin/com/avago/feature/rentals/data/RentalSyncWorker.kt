@@ -13,6 +13,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.avago.core.auth.IdentityManager
+import com.avago.core.data.v2.V2Flag
 import com.avago.feature.rentals.widget.RentalFleetWidgetUpdater
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -37,9 +38,12 @@ class RentalSyncWorker @AssistedInject constructor(
     private val outbox: RentalOutbox,
     private val sync: RentalSync,
     private val widget: RentalFleetWidgetUpdater,
+    private val v2Flag: V2Flag,
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
+        // The v2 server retired the rentals /sync feeds (426); nothing to drain or pull.
+        if (v2Flag.isEnabled()) return Result.success()
         val accountId = identity.getActiveAccountId() ?: return Result.success()
         if (runAttemptCount >= MAX_RUN_ATTEMPTS) return Result.failure()
         outbox.drainAll(accountId)
@@ -68,11 +72,16 @@ class RentalSyncWorker @AssistedInject constructor(
 @Singleton
 class RentalSyncScheduler @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val v2Flag: V2Flag,
 ) {
     private val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
 
     /** Periodic 15-minute pull (idempotent: KEEP). */
     fun schedulePeriodic() {
+        if (v2Flag.isEnabled()) {
+            runCatching { WorkManager.getInstance(context).cancelUniqueWork(RentalSyncWorker.UNIQUE_PERIODIC) }
+            return
+        }
         runCatching {
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 RentalSyncWorker.UNIQUE_PERIODIC,
@@ -86,6 +95,7 @@ class RentalSyncScheduler @Inject constructor(
 
     /** One run as soon as the device is online (after a local write or pull-to-refresh). */
     fun syncNow() {
+        if (v2Flag.isEnabled()) return
         runCatching {
             WorkManager.getInstance(context).enqueueUniqueWork(
                 RentalSyncWorker.UNIQUE_NOW,

@@ -109,6 +109,7 @@ import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Provider
 import com.avago.core.data.v2.V2SyncResult
+import com.avago.core.sync.v2.V2LegacyBridge
 import com.avago.core.sync.v2.V2SyncHook
 import javax.inject.Singleton
 import kotlin.math.roundToLong
@@ -139,6 +140,8 @@ class SyncEngine @Inject constructor(
     private val externalOutboxes: Provider<Set<@JvmSuppressWildcards ExternalOutbox>> = Provider { emptySet() },
     // Schema v2: while the v2 gate is open, cycles go to the v2 engine instead (inert by default).
     private val v2Sync: Provider<V2SyncHook> = Provider { V2SyncHook.Inactive },
+    // P3-12b: legacy queue → v2 REST bridge and v2 store → Room read mirror (v2 mode only).
+    private val v2Bridge: Provider<V2LegacyBridge>? = null,
 ) {
     private val mutex = Mutex()
 
@@ -365,8 +368,55 @@ class SyncEngine @Inject constructor(
      * cycle is a v2 pull + outbox flush. Retryable outcomes map to [SyncResult.Failed] so the
      * worker backs off; terminal ones (426, 403, revoked) to [SyncResult.Partial] so it does not.
      */
-    private suspend fun runV2IfActive(): SyncResult? = when (val result = v2Sync.get().runIfActive()) {
-        null -> null
+    private suspend fun runV2IfActive(): SyncResult? {
+        val first = v2Sync.get().runIfActive() ?: return null
+        var result: V2SyncResult = first
+        val bridge = v2Bridge?.get()
+        val accountId = identity.getActiveAccountId()
+        if (bridge != null && accountId != null && result !is V2SyncResult.Offline) {
+            val sent = runCatchingNonCancel("v2 bridge push") { bridge.push(accountId) } ?: 0
+            if (sent > 0) result = v2Sync.get().runIfActive() ?: result
+            if (result is V2SyncResult.Synced) {
+                runCatchingNonCancel("v2 mirror") { mirrorV2(bridge, accountId) }
+            }
+        }
+        if (result is V2SyncResult.Synced) {
+            syncGate.open()
+            _state.value = SyncState.Idle
+        }
+        return mapV2Result(result)
+    }
+
+    private suspend fun <T> runCatchingNonCancel(what: String, block: suspend () -> T): T? = try {
+        block()
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+        Timber.e(e, "[SyncEngine] $what failed")
+        null
+    }
+
+    private suspend fun mirrorV2(bridge: V2LegacyBridge, accountId: String) {
+        val db = dbFactory.get(accountId)
+        bridge.mirror(
+            accountId,
+            apply = { type, item -> upsertPulledItem(accountId, type, item, mirrored = true) },
+            roomIds = { table, pk ->
+                db.openHelper.readableDatabase.query("SELECT $pk FROM $table").use { cursor ->
+                    buildList { while (cursor.moveToNext()) cursor.getString(0)?.let { add(it) } }
+                }
+            },
+            delete = { table, pk, ids ->
+                val sqlDb = db.openHelper.writableDatabase
+                ids.chunked(500).forEach { chunk ->
+                    val marks = chunk.joinToString(",") { "?" }
+                    sqlDb.execSQL("DELETE FROM $table WHERE $pk IN ($marks)", chunk.toTypedArray())
+                }
+            },
+        )
+    }
+
+    private fun mapV2Result(result: V2SyncResult): SyncResult = when (result) {
         is V2SyncResult.Synced -> SyncResult.Success
         is V2SyncResult.Offline -> SyncResult.Failed(java.io.IOException(result.message))
         is V2SyncResult.RetryLater -> SyncResult.Failed(IllegalStateException("v2 retry later: ${result.reason}"))
@@ -770,7 +820,12 @@ class SyncEngine @Inject constructor(
     // Pull upsert dispatch
     // ---------------------------------------------------------------------------
 
-    private suspend fun upsertPulledItem(accountId: String, entityType: String, item: JsonObject) {
+    private suspend fun upsertPulledItem(
+        accountId: String,
+        entityType: String,
+        item: JsonObject,
+        mirrored: Boolean = false,
+    ) {
         val db = dbFactory.get(accountId)
 
         if (entityType == DefectOutbox.ENTITY_TYPE) {
@@ -791,13 +846,13 @@ class SyncEngine @Inject constructor(
             if (entityId != null) {
                 var localVersion = 0L
                 try {
-                    localVersion = queryLocalServerVersion(db, table, pkCol, entityId)
+                    localVersion = if (mirrored) 0L else queryLocalServerVersion(db, table, pkCol, entityId)
                     if (incomingVersion > 0L && incomingVersion <= localVersion) {
                         Timber.v("[SyncEngine] Skip pull $entityType $entityId — v$incomingVersion <= local v$localVersion")
                         return
                     }
                 } catch (_: Exception) { /* db query failed — proceed with upsert */ }
-                if (entityType in pendingPushGuardTypes) {
+                if (mirrored || entityType in pendingPushGuardTypes) {
                     try {
                         if (db.syncQueueDao().hasPendingPush(entityType, entityId) != null) {
                             Timber.d("[SyncEngine] Skip pull $entityType $entityId — pending push in queue")

@@ -196,13 +196,17 @@ import io.ktor.client.request.parameter
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.put
+import io.ktor.client.request.request
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
+import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.ByteArrayContent
+import io.ktor.http.contentType
 import io.ktor.http.isSuccess
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -868,6 +872,26 @@ class AvagoServiceClient @Inject constructor(
             if (!response.status.isSuccess()) {
                 throw NetworkException(response.status.value, response.status.description)
             }
+        }
+
+    /**
+     * Generic JSON request against `$baseUrl$path` (schema-v2 write bridge). Returns the response
+     * body text; a non-2xx status becomes [NetworkResult.Error] with the server's body.
+     */
+    suspend fun sendJson(method: String, path: String, body: JsonElement?): NetworkResult<String> =
+        safeNetworkCall {
+            val response: HttpResponse = client.request("$baseUrl$path") {
+                this.method = HttpMethod.parse(method)
+                if (body != null) {
+                    contentType(ContentType.Application.Json)
+                    setBody(body)
+                }
+            }
+            val text = response.bodyAsText()
+            if (!response.status.isSuccess()) {
+                throw NetworkException(response.status.value, text.ifBlank { response.status.description })
+            }
+            text
         }
 
     /** PATCH /accounts/{accountId}/work-orders/{woId} — partial update of a work order. */
