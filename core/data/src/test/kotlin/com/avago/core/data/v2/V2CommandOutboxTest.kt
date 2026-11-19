@@ -213,7 +213,7 @@ class V2CommandOutboxTest {
 
     @Test
     fun `a command waits until its uploads are finalized`() = runTest {
-        val upload = V2NewUpload("/files/p.jpg", "a".repeat(64), 10, "image/jpeg")
+        val upload = V2NewUpload(V2Uuid.v7(), "/files/p.jpg", "a".repeat(64), 10, "image/jpeg")
         val id = outbox.enqueue(update("A", uploads = listOf(upload)))
 
         assertEquals(1, outbox.flush().deferred)

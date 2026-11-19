@@ -1,15 +1,27 @@
 package com.avago.core.data.di
 
+import com.avago.core.data.domain.ActivityRepository
+import com.avago.core.data.domain.AssetRepository
 import com.avago.core.data.domain.ChangeQueueRepository
 import com.avago.core.data.domain.InventoryRepository
 import com.avago.core.data.domain.LocationRepository
+import com.avago.core.data.domain.PmRepository
 import com.avago.core.data.domain.PurchaseOrderRepository
+import com.avago.core.data.domain.ReferenceRepository
 import com.avago.core.data.domain.SupplierRepository
+import com.avago.core.data.domain.WorkOrderRepository
+import com.avago.core.data.domain.WorkerRepository
 import com.avago.core.data.v2.V2ChangeQueueRepository
+import com.avago.core.data.v2.repo.V2ActivityRepository
+import com.avago.core.data.v2.repo.V2AssetRepository
 import com.avago.core.data.v2.repo.V2InventoryRepository
 import com.avago.core.data.v2.repo.V2LocationRepository
+import com.avago.core.data.v2.repo.V2PmRepository
 import com.avago.core.data.v2.repo.V2PurchaseOrderRepository
+import com.avago.core.data.v2.repo.V2ReferenceRepository
 import com.avago.core.data.v2.repo.V2SupplierRepository
+import com.avago.core.data.v2.repo.V2WorkOrderRepository
+import com.avago.core.data.v2.repo.V2WorkerRepository
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -28,4 +40,16 @@ abstract class RepositoryModule {
     @Binds abstract fun purchaseOrders(impl: V2PurchaseOrderRepository): PurchaseOrderRepository
 
     @Binds abstract fun changeQueue(impl: V2ChangeQueueRepository): ChangeQueueRepository
+
+    @Binds abstract fun assets(impl: V2AssetRepository): AssetRepository
+
+    @Binds abstract fun workers(impl: V2WorkerRepository): WorkerRepository
+
+    @Binds abstract fun references(impl: V2ReferenceRepository): ReferenceRepository
+
+    @Binds abstract fun workOrders(impl: V2WorkOrderRepository): WorkOrderRepository
+
+    @Binds abstract fun activities(impl: V2ActivityRepository): ActivityRepository
+
+    @Binds abstract fun pm(impl: V2PmRepository): PmRepository
 }

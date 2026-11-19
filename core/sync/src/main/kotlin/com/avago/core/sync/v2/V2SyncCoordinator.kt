@@ -6,6 +6,7 @@ import com.avago.core.data.v2.ServerV2Capability
 import com.avago.core.data.v2.SharedPreferencesV2FlagStorage
 import com.avago.core.data.v2.V2ActiveStores
 import com.avago.core.data.v2.V2Api
+import com.avago.core.data.v2.V2ApiUploader
 import com.avago.core.data.v2.V2CommandOutbox
 import com.avago.core.data.v2.V2Flag
 import com.avago.core.data.v2.V2OutboxException
@@ -41,6 +42,7 @@ class V2SyncCoordinator @Inject constructor(
     private val factory: V2StoreFactory,
     private val active: V2ActiveStores,
     private val identityManager: IdentityManager,
+    private val blobs: V2HttpBlobTransport,
     private val transport: V2HttpTransport,
 ) : V2SyncHook {
     private val mutex = Mutex()
@@ -123,7 +125,7 @@ class V2SyncCoordinator @Inject constructor(
             stores = stores,
             api = api,
             engine = V2SyncEngine(api, stores.business, stores.chat, appVersion = appVersion()),
-            outbox = V2CommandOutbox(stores.business, api, stores.identity),
+            outbox = V2CommandOutbox(stores.business, api, stores.identity, uploader = V2ApiUploader(api, blobs)),
         )
         session = next
         active.publish(stores)

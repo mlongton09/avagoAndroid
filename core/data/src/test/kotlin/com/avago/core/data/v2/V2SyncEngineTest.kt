@@ -6,6 +6,7 @@ import com.avago.core.data.v2.V2Fixtures.error
 import com.avago.core.data.v2.V2Fixtures.location
 import com.avago.core.data.v2.V2Fixtures.open
 import com.avago.core.data.v2.V2Fixtures.page
+import com.avago.core.data.v2.repo.V2LocationRepository
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.math.BigDecimal
 
 class V2SyncEngineTest {
     private val server = ScriptedServer()
@@ -23,7 +25,14 @@ class V2SyncEngineTest {
     private val chat = V2Fixtures.chat()
     private val api = V2Api(server.transport, V2Fixtures.ACCOUNT, V2Fixtures.DEVICE)
     private val engine = V2SyncEngine(api, business, chat, appVersion = "test", clock = { 5_000 }, sleep = {})
-    private val reader = V2LocationReader(business)
+
+    /** Reads through the production mappers of the location repository. */
+    private val reader = object {
+        suspend fun locations() = business.read { V2LocationRepository.locations(it) }
+        suspend fun location(id: String) = business.read { V2LocationRepository.locationById(it, id) }
+        suspend fun bin(id: String) = business.read { c -> V2LocationRepository.bins(c, null).firstOrNull { it.id == id } }
+        suspend fun createdAt(id: String) = business.read { it.scalarLong("SELECT created_at FROM locations WHERE id = ?", listOf(id)) }
+    }
 
     private val s1 = V2Uuid.v7()
     private val s2 = V2Uuid.v7()
@@ -62,16 +71,16 @@ class V2SyncEngineTest {
         assertEquals("complete", stream("account")["bootstrap_state"])
         assertNull(business.meta(V2SyncEngine.META_CHAIN))
 
-        val locations = reader.locations(V2Fixtures.ACCOUNT)
-        assertEquals(setOf(locA, locB), locations.map { it.locationId }.toSet())
-        val a = locations.first { it.locationId == locA }
-        assertEquals("Oslo", a.city)
+        val locations = reader.locations()
+        assertEquals(setOf(locA, locB), locations.map { it.id }.toSet())
+        val a = locations.first { it.id == locA }
+        assertEquals("Oslo", a.locality)
         assertEquals(59.9139, a.latitude!!, 1e-9)
-        assertEquals(1767323045678L, a.createdAt)
+        assertEquals(1767323045678L, reader.createdAt(locA))
         val b = reader.bin(binA)!!
-        assertEquals(12L, b.capacity)
-        assertEquals("shelf", b.binType)
-        assertTrue(b.active)
+        assertEquals(0, BigDecimal("12.5").compareTo(b.capacity))
+        assertEquals("shelf", b.kind)
+        assertTrue(!b.archived)
     }
 
     @Test
@@ -92,7 +101,7 @@ class V2SyncEngineTest {
         assertEquals("3", openBody["global"]!!.jsonObject["cursor"]!!.jsonPrimitive.content)
         assertEquals("false", body(server.transport.matching("POST", "/sync/acks").last())["bootstrap_completed"]!!.jsonPrimitive.content)
         assertNull(reader.bin(binA))
-        assertEquals("Renamed", reader.location(V2Fixtures.ACCOUNT, locA)!!.name)
+        assertEquals("Renamed", reader.location(locA)!!.name)
         assertEquals(12L, stream("account")["cursor"])
         // The device is registered once.
         assertEquals(1, server.transport.matching("POST", "/v2/devices").size)
@@ -108,7 +117,7 @@ class V2SyncEngineTest {
         val result = engine.sync()
 
         assertInstanceOf(V2SyncResult.Failed::class.java, result)
-        assertEquals(listOf(locA), reader.locations(V2Fixtures.ACCOUNT).map { it.locationId })
+        assertEquals(listOf(locA), reader.locations().map { it.id })
         assertEquals("4", business.meta(V2SyncEngine.META_STAGED_ACCOUNT))
         assertEquals("in_progress", stream("account")["bootstrap_state"])
         assertEquals(0L, stream("account")["cursor"])
@@ -123,7 +132,7 @@ class V2SyncEngineTest {
         assertEquals(s1, reopen["continuation_of"]!!.jsonPrimitive.content)
         assertEquals("bootstrap", reopen["mode"]!!.jsonPrimitive.content)
         assertEquals("4", reopen["account"]!!.jsonObject["cursor"]!!.jsonPrimitive.content)
-        assertEquals(setOf(locA, locB), reader.locations(V2Fixtures.ACCOUNT).map { it.locationId }.toSet())
+        assertEquals(setOf(locA, locB), reader.locations().map { it.id }.toSet())
     }
 
     @Test
@@ -136,7 +145,7 @@ class V2SyncEngineTest {
 
         assertInstanceOf(V2ProtocolException::class.java, (result as V2SyncResult.Failed).error)
         assertNull(business.meta(V2SyncEngine.META_CHAIN))
-        assertEquals(listOf(locA), reader.locations(V2Fixtures.ACCOUNT).map { it.locationId })
+        assertEquals(listOf(locA), reader.locations().map { it.id })
     }
 
     @Test
@@ -146,7 +155,7 @@ class V2SyncEngineTest {
         server.pages["t2"] = page(s1, "account", 2, "4", "9", listOf(location(locA, 9)), next = null)
 
         assertInstanceOf(V2SyncResult.Synced::class.java, engine.sync())
-        assertEquals(locA, reader.location(V2Fixtures.ACCOUNT, locB)!!.parentLocationId)
+        assertEquals(locA, reader.location(locB)!!.parentId)
     }
 
     @Test
@@ -189,7 +198,7 @@ class V2SyncEngineTest {
 
         assertInstanceOf(V2SyncResult.Synced::class.java, engine.sync())
         assertEquals("""{"mode":"bootstrap"}""", server.transport.matching("POST", "/sync/sessions").last().body)
-        assertEquals(listOf(locB), reader.locations(V2Fixtures.ACCOUNT).map { it.locationId })
+        assertEquals(listOf(locB), reader.locations().map { it.id })
         assertNull(reader.bin(binA))
         assertEquals(2L, stream("account")["cursor"])
     }
@@ -207,7 +216,7 @@ class V2SyncEngineTest {
         assertInstanceOf(V2SyncResult.Synced::class.java, engine.sync())
         assertTrue(server.transport.requests.any { it.path.endsWith("/sessions/$s2/close") })
         assertEquals(2L, stream("account")["feed_generation"])
-        assertEquals(listOf(locA), reader.locations(V2Fixtures.ACCOUNT).map { it.locationId })
+        assertEquals(listOf(locA), reader.locations().map { it.id })
     }
 
     @Test
@@ -223,7 +232,7 @@ class V2SyncEngineTest {
         assertEquals(s1, reopen["continuation_of"]!!.jsonPrimitive.content)
         assertEquals("4", reopen["account"]!!.jsonObject["cursor"]!!.jsonPrimitive.content)
         assertEquals(s2, business.read { c -> c.scalarText("SELECT last_session_id FROM sync_state WHERE stream = 'account'") })
-        assertEquals(setOf(locA, locB), reader.locations(V2Fixtures.ACCOUNT).map { it.locationId }.toSet())
+        assertEquals(setOf(locA, locB), reader.locations().map { it.id }.toSet())
     }
 
     @Test
@@ -244,9 +253,9 @@ class V2SyncEngineTest {
 
         engine.sync()
 
-        val row = reader.location(V2Fixtures.ACCOUNT, locA)
+        val row = reader.location(locA)
         assertNotNull(row)
         assertEquals("New", row!!.name)
-        assertEquals(3L, row.serverVersion)
+        assertEquals(3L, row.version)
     }
 }

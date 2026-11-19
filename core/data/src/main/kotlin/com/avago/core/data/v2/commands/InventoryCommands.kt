@@ -313,12 +313,4 @@ object InventoryCommands {
 
     private fun movementPatch(id: String, set: Map<String, Any?>, nowMillis: Long) =
         V2OverlayPatch(listOf(V2RowOp.upsert("stock_movements", id, set + updated(nowMillis))))
-
-    internal fun created(nowMillis: Long, userId: String?): Map<String, Any?> = mapOf(
-        "created_at" to nowMillis, "updated_at" to nowMillis, "created_by" to userId, "version" to 1L,
-    )
-
-    internal fun updated(nowMillis: Long): Map<String, Any?> = mapOf("updated_at" to nowMillis)
-
-    internal fun String?.clean(): String? = this?.trim()?.ifEmpty { null }
 }

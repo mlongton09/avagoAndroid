@@ -8,8 +8,11 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
-/** A file a command needs uploaded and finalized before it may be sent (`upload_jobs`, E12). */
-data class V2NewUpload(val localPath: String, val sha256: String, val byteSize: Long, val mediaType: String)
+/**
+ * A file a command needs uploaded and finalized before it may be sent (`upload_jobs`, E12).
+ * [fileId] is the client UUIDv7 `file_id` the command payload references (`file_object_id`).
+ */
+data class V2NewUpload(val fileId: String, val localPath: String, val sha256: String, val byteSize: Long, val mediaType: String)
 
 /** A local write to queue (sync-protocol §8). */
 data class V2NewCommand(
@@ -84,9 +87,9 @@ sealed class V2OutboxException(message: String) : Exception(message) {
     class DeviceRevoked : V2OutboxException("401 device_revoked")
 }
 
-/** Upload seam for commands with `upload_jobs` (E12 endpoints are not on the server yet). */
+/** Upload seam for commands with `upload_jobs` ([V2ApiUploader] in the app). */
 fun interface V2Uploader {
-    /** Moves the job forward; returns its new `upload_jobs.state`. */
+    /** Moves the job forward; returns its new `upload_jobs.state`. [jobId] is the `file_id`. */
     suspend fun process(jobId: String, localPath: String, sha256: String, byteSize: Long, mediaType: String): String
 }
 

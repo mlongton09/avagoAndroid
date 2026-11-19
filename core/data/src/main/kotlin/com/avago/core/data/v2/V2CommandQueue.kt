@@ -56,10 +56,11 @@ class V2CommandQueue(
                 )
             }
             for (upload in command.uploads) {
+                if (!V2Uuid.isValid(upload.fileId)) throw V2OutboxException.InvalidCommand("bad file id ${upload.fileId}")
                 tx.execute(
                     "INSERT INTO upload_jobs (id, command_id, local_path, sha256, byte_size, media_type, state, attempts, created_at) " +
                         "VALUES (?, ?, ?, ?, ?, ?, 'pending', 0, ?)",
-                    listOf(V2Uuid.v7(now), id, upload.localPath, upload.sha256, upload.byteSize, upload.mediaType, now),
+                    listOf(upload.fileId, id, upload.localPath, upload.sha256, upload.byteSize, upload.mediaType, now),
                 )
             }
             val patch = command.overlayPatch

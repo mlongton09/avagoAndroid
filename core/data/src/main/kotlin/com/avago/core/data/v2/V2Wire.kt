@@ -270,6 +270,32 @@ class V2Api(
     suspend fun commandReceipt(commandId: String): V2CommandOutcome =
         decode(V2CommandOutcome.serializer(), raw("GET", "$accountPath/commands/$commandId"))
 
+    /**
+     * E12 register (sync-protocol ?9): idempotent per [fileId]. Returns the presigned `upload_url`
+     * for a pending upload, or null when the file is already finalized.
+     */
+    suspend fun registerUpload(fileId: String, sha256: String, byteSize: Long, mediaType: String, originalName: String?): String? {
+        val body = buildJsonObject {
+            put("file_id", JsonPrimitive(fileId))
+            put("sha256", JsonPrimitive(sha256))
+            put("byte_size", JsonPrimitive(byteSize))
+            put("media_type", JsonPrimitive(mediaType))
+            if (originalName != null) put("original_name", JsonPrimitive(originalName))
+        }
+        val answer = decode(JsonObject.serializer(), raw("POST", "$accountPath/uploads", body = body.toString()))
+        if (answer["state"]?.decimalText() == "finalized") return null
+        return answer["upload_url"]?.decimalText() ?: throw V2ApiException.Decoding("upload register: no upload_url")
+    }
+
+    /** E12 finalize: the server hashes the stored bytes; a mismatch is `422`. */
+    suspend fun finalizeUpload(fileId: String, sha256: String, byteSize: Long) {
+        val body = buildJsonObject {
+            put("sha256", JsonPrimitive(sha256))
+            put("byte_size", JsonPrimitive(byteSize))
+        }
+        raw("POST", "$accountPath/uploads/$fileId/finalize", body = body.toString())
+    }
+
     private suspend fun raw(
         method: String,
         path: String,
