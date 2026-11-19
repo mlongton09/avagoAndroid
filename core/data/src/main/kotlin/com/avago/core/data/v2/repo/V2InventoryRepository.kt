@@ -55,9 +55,9 @@ class V2InventoryRepository @Inject constructor(
 
     override fun observeProductStock(includeArchived: Boolean): Flow<List<ProductStock>> =
         store.observe(setOf("products", "categories", "stock_positions", "stocking_policies"), emptyList()) { conn ->
-            val onHand = conn.query(
-                "SELECT product_id, SUM(on_hand_qty_micros) AS qty FROM stock_positions GROUP BY product_id",
-            ).associate { it.str("product_id") to it.micros("qty") }
+            val onHand = V2OverlayMerge.query(conn, "stock_positions")
+                .groupBy { it.str("product_id") }
+                .mapValues { (_, rows) -> V2Micros.toDecimal(rows.sumOf { it.longOrNull("on_hand_qty_micros") ?: 0L }) }
             val policies = policies(conn, null).groupBy { it.productId }
             products(conn, includeArchived).map { p ->
                 ProductStock(p, onHand[p.id] ?: BigDecimal.ZERO, policies[p.id].orEmpty())

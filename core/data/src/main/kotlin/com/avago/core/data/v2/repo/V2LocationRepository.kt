@@ -5,12 +5,12 @@ import com.avago.core.data.domain.Location
 import com.avago.core.data.domain.LocationKind
 import com.avago.core.data.domain.LocationRepository
 import com.avago.core.data.v2.V2Connection
+import com.avago.core.data.v2.V2Micros
 import com.avago.core.data.v2.V2OverlayMerge
 import com.avago.core.data.v2.V2Row
 import com.avago.core.data.v2.V2StoreAccess
 import com.avago.core.data.v2.bool
 import com.avago.core.data.v2.longOrNull
-import com.avago.core.data.v2.micros
 import com.avago.core.data.v2.microsOrNull
 import com.avago.core.data.v2.str
 import com.avago.core.data.v2.strOrNull
@@ -63,9 +63,9 @@ class V2LocationRepository @Inject constructor(private val store: V2StoreAccess)
             ) { (locationId == null || it["location_id"] == locationId) && (includeArchived || it["archived_at"] == null) }
                 .map(::bin)
                 .let { list ->
-                    val onHand = conn.query(
-                        "SELECT bin_id, SUM(on_hand_qty_micros) AS qty FROM stock_positions WHERE bin_id IS NOT NULL GROUP BY bin_id",
-                    ).associate { it.str("bin_id") to it.micros("qty") }
+                    val onHand = V2OverlayMerge.query(conn, "stock_positions", "bin_id IS NOT NULL") { it["bin_id"] != null }
+                        .groupBy { it.str("bin_id") }
+                        .mapValues { (_, rows) -> V2Micros.toDecimal(rows.sumOf { it.longOrNull("on_hand_qty_micros") ?: 0L }) }
                     list.map { bin -> onHand[bin.id]?.let { bin.copy(onHand = it) } ?: bin }
                 }
                 .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER, Bin::code).thenBy(Bin::id))
