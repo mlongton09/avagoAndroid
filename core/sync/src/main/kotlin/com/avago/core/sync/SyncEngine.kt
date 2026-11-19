@@ -17,7 +17,7 @@ import javax.inject.Singleton
 /**
  * The app's sync cycle: one schema-v2 pull followed by an outbox flush ([V2SyncCoordinator]).
  * Every trigger (the periodic and one-off [SyncWorker], connectivity, foreground, pull-to-refresh,
- * FCM `sync_nudge`) ends here. With v2 gated off ([com.avago.core.data.v2.V2StoreGate]) a cycle
+ * FCM `sync_hint`) ends here. With v2 gated off ([com.avago.core.data.v2.V2StoreGate]) a cycle
  * is a no-op.
  *
  * Retryable outcomes (offline, 5xx, `Retry-After`) map to [SyncResult.Failed] so the worker backs

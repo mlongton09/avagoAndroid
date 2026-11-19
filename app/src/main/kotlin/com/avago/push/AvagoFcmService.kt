@@ -56,6 +56,11 @@ class AvagoFcmService : FirebaseMessagingService() {
     // -------------------------------------------------------------------------
 
     override fun onMessageReceived(msg: RemoteMessage) {
+        // E13 silent sync hint (P3-15b): `{"t":"sync_hint","account_id":?,"w":<account head>}`.
+        if (msg.data["t"] == "sync_hint") {
+            handleSyncHint(msg)
+            return
+        }
         val type = msg.data["type"]
         Timber.d("FCM: received type=$type")
         // Rental events (`rental.*` / `rental_*`) → rental-ops channels, prefs and deep links.
@@ -64,7 +69,6 @@ class AvagoFcmService : FirebaseMessagingService() {
             return
         }
         when (type) {
-            "sync_nudge" -> handleSyncNudge(msg)
             "chat_message" -> handleChatPush(msg)
             // Change 1/5: @mention in WO comment
             "mention", "wo_comment_mention" -> handleMentionPush(msg)
@@ -103,12 +107,12 @@ class AvagoFcmService : FirebaseMessagingService() {
     }
 
     // -------------------------------------------------------------------------
-    // Sync nudge
+    // Sync hint
     // -------------------------------------------------------------------------
 
-    /** A v2 sync nudge carries no payload to apply locally; it just starts one pull + flush. */
-    private fun handleSyncNudge(msg: RemoteMessage) {
-        Timber.d("FCM: sync_nudge (${msg.data["entity_type"]}) — enqueuing sync")
+    /** A sync hint is a silent invalidation with no rows to apply; it just starts one pull + flush. */
+    private fun handleSyncHint(msg: RemoteMessage) {
+        Timber.d("FCM: sync_hint (head ${msg.data["w"]}) — enqueuing sync")
         enqueueSyncWork()
     }
 
