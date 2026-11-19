@@ -2,219 +2,145 @@ package com.avago.feature.log.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.CurrencyManager
-import com.avago.core.data.DatabaseFactory
-import com.avago.core.data.db.entity.LogCostLineEntity
-import com.avago.core.data.db.entity.LogEntity
-import com.avago.core.data.db.entity.PhotoEntity
+import com.avago.core.data.domain.Activity
+import com.avago.core.data.domain.ActivityRepository
+import com.avago.core.data.domain.AssetRepository
+import com.avago.core.data.domain.Attachment
+import com.avago.core.data.domain.AttachmentTarget
+import com.avago.core.data.domain.ConfigDocuments
+import com.avago.core.data.domain.ConfigRepository
+import com.avago.core.data.domain.CostLine
 import com.avago.core.data.repository.UserPreferencesRepository
-import com.avago.core.sync.SyncEngine
 import com.avago.feature.log.model.parseInspectionLocaleStrings
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.math.BigDecimal
+import java.util.Currency
+import java.util.Locale
 import javax.inject.Inject
 
 data class LogDetailUiState(
-    val log: LogEntity? = null,
-    val costLines: List<LogCostLineEntity> = emptyList(),
-    val photos: List<PhotoEntity> = emptyList(),
+    val log: Activity? = null,
+    val costLines: List<CostLine> = emptyList(),
+    val photos: List<Attachment> = emptyList(),
     val isLoading: Boolean = true,
-    val isDeleted: Boolean = false,
     val error: String? = null,
 ) {
-    val partLines: List<LogCostLineEntity> get() = costLines.filter { it.kind == "part" }
-    val laborLines: List<LogCostLineEntity> get() = costLines.filter { it.kind == "labor" }
-    val totalCost: Double get() = costLines.sumOf { it.quantity * it.unitCost + (it.taxAmount ?: 0.0) }
+    /** Lines plus their tax, in the record currency. */
+    val totalCost: BigDecimal get() = costLines.fold(BigDecimal.ZERO) { acc, l -> acc + l.total + taxOf(l, log?.currency) }
+
+    companion object {
+        fun taxOf(line: CostLine, currency: String?): BigDecimal {
+            val minor = line.taxAmountMinor ?: return BigDecimal.ZERO
+            val digits = currency?.let { runCatching { Currency.getInstance(it.uppercase()).defaultFractionDigits }.getOrNull() }
+                ?.takeIf { it >= 0 } ?: 2
+            return BigDecimal.valueOf(minor, digits)
+        }
+    }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class LogDetailViewModel @Inject constructor(
-    private val dbFactory: DatabaseFactory,
-    private val identity: IdentityManager,
-    private val syncEngine: SyncEngine,
-    private val userPrefsRepository: UserPreferencesRepository,
-    private val currencyManager: CurrencyManager,
+    private val activities: ActivityRepository,
+    private val assets: AssetRepository,
+    private val config: ConfigRepository,
+    userPrefsRepository: UserPreferencesRepository,
 ) : ViewModel() {
 
-    val currencyCode: StateFlow<String> = userPrefsRepository.currencyFlow
+    private val _entryId = MutableStateFlow<String?>(null)
+    private val _errors = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val errors: SharedFlow<String> = _errors.asSharedFlow()
+
+    private val preferredCurrency: StateFlow<String> = userPrefsRepository.currencyFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "USD")
 
-    val distanceUnit: StateFlow<String> = userPrefsRepository.distanceUnitFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "mi")
-
-    /**
-     * Live USD→preferred-currency exchange rate, sourced from [CurrencyManager].
-     * Mirrors iOS CurrencyManager.rateFromUSD(to:). Defaults to 1.0 (no conversion)
-     * until the first emission.
-     */
-    val currencyRate: StateFlow<Double> = currencyCode.flatMapLatest { code ->
-        flow { emit(currencyManager.rateFromUSD(code)) }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 1.0)
-
-    private val _entryId = MutableStateFlow<String?>(null)
-
-    val uiState: StateFlow<LogDetailUiState> = combine(
-        identity.activeAccountId.filterNotNull(),
-        _entryId.filterNotNull(),
-    ) { accountId, entryId ->
-        Pair(accountId, entryId)
-    }.flatMapLatest { (accountId, entryId) ->
-        try {
-            val db = dbFactory.get(accountId)
+    val uiState: StateFlow<LogDetailUiState> = _entryId.filterNotNull()
+        .flatMapLatest { id ->
             combine(
-                flowOf(Unit).map { db.logDao().getById(entryId) },
-                db.logCostLineDao().observeAll(accountId).map { lines ->
-                    lines.filter { it.logId == entryId }.sortedBy { it.displayOrder }
-                },
-                db.photoDao().observeAll(accountId).map { photos ->
-                    photos.filter { it.entityId == entryId && it.entityType == "log" }
-                        .sortedWith(compareByDescending<PhotoEntity> { it.isPrimary }.thenBy { it.sortOrder })
-                },
-            ) { log, costLines, photos ->
+                activities.observeActivity(id),
+                activities.observeCostLines(id),
+                assets.observeAttachments(AttachmentTarget.ToActivity(id)),
+            ) { log, lines, files ->
                 LogDetailUiState(
                     log = log,
-                    costLines = costLines,
-                    photos = photos,
+                    costLines = lines,
+                    photos = files.filter { it.file?.isImage != false },
                     isLoading = false,
                 )
             }
-        } catch (e: Exception) {
-            Timber.e(e, "[LogDetailViewModel] Failed to observe log detail")
-            flowOf(LogDetailUiState(isLoading = false, error = e.message))
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LogDetailUiState())
+        .catch { e ->
+            Timber.e(e, "[LogDetailViewModel] observe failed")
+            emit(LogDetailUiState(isLoading = false, error = e.message))
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LogDetailUiState())
+
+    /** Money is shown in the record's own currency; the preference applies when the record has none. */
+    val currencyCode: StateFlow<String> = combine(uiState, preferredCurrency) { state, pref -> state.log?.currency ?: pref }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "USD")
+
+    /** Unit of the asset's default meter (mi, km, h); falls back to the distance preference. */
+    val distanceUnit: StateFlow<String> = combine(
+        uiState.map { it.log?.assetId }.flatMapLatest { id ->
+            if (id == null) flowOf(emptyList()) else assets.observeMeters(id)
+        },
+        userPrefsRepository.distanceUnitFlow,
+    ) { meters, pref ->
+        val meter = meters.firstOrNull { it.isDefault } ?: meters.firstOrNull()
+        when (meter?.unit?.lowercase()) {
+            null, "" -> pref
+            "h", "hr", "hrs", "hours" -> "hrs"
+            else -> meter.unit
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "mi")
 
     /** Asset type of the log's asset (damage-map outline, web `sketchKindFor`); null until known. */
-    val assetType: StateFlow<String?> = combine(
-        identity.activeAccountId.filterNotNull(),
-        _entryId.filterNotNull(),
-    ) { accountId, entryId -> accountId to entryId }
-        .flatMapLatest { (accountId, entryId) ->
-            flow {
-                val type = try {
-                    val db = dbFactory.get(accountId)
-                    db.logDao().getById(entryId)?.assetId?.let { db.assetDao().getById(it)?.assetType }
-                } catch (e: Exception) {
-                    Timber.w(e, "[LogDetailViewModel] asset type lookup failed")
-                    null
-                }
-                emit(type)
-            }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    val assetType: StateFlow<String?> = uiState.map { it.log?.assetId }
+        .flatMapLatest { id -> if (id == null) flowOf(null) else assets.observeAsset(id).map { it?.assetTypeCode } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** Flat `insp.*` -> localized text map for the device locale (resolves defect and item labels). */
+    val inspectionStrings: StateFlow<Map<String, String>> = config.observeDocuments(ConfigRepository.LOCALE)
+        .map { docs ->
+            ConfigDocuments.pick(docs, ConfigRepository.LOCALE_INSPECTION, null, Locale.getDefault())
+                ?.payload
+                .let(::parseInspectionLocaleStrings)
+        }
+        .catch { e ->
+            Timber.e(e, "[LogDetailViewModel] inspection locale strings failed")
+            emit(emptyMap())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     fun setEntryId(entryId: String) {
         _entryId.value = entryId
     }
 
-    /**
-     * Flat `insp.*` -> localized text map for the device locale (scope "Locale", key
-     * "Inspection_{locale}", falling back to en-us) — resolves defect / item labels in the
-     * read-only inspection card.
-     */
-    val inspectionStrings: StateFlow<Map<String, String>> = identity.activeAccountId.filterNotNull()
-        .flatMapLatest { accountId ->
-            flow {
-                val strings = try {
-                    val rows = dbFactory.get(accountId).configDao().getByPattern("Locale", "Inspection%")
-                    val locale = java.util.Locale.getDefault().toLanguageTag().lowercase()
-                    val row = rows.firstOrNull { it.key == "Inspection_$locale" }
-                        ?: rows.firstOrNull { it.key == "Inspection_en-us" }
-                        ?: rows.maxByOrNull { it.version }
-                    parseInspectionLocaleStrings(row?.value)
-                } catch (e: Exception) {
-                    Timber.e(e, "[LogDetailViewModel] inspection locale strings failed")
-                    emptyMap()
-                }
-                emit(strings)
-            }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
-
     fun deleteLog(onDeleted: () -> Unit) {
-        val accountId = identity.getActiveAccountId() ?: return
         val entryId = _entryId.value ?: return
         viewModelScope.launch {
-            try {
-                val db = dbFactory.get(accountId)
-                val now = System.currentTimeMillis()
-                db.logDao().softDelete(entryId, now)
-                enqueueSyncDelete(accountId, entryId, now)
-                Timber.d("[LogDetailViewModel] Soft-deleted log $entryId")
-                onDeleted()
-            } catch (e: Exception) {
-                Timber.e(e, "[LogDetailViewModel] Delete failed for $entryId")
-            }
-        }
-    }
-
-    fun setPrimaryPhoto(photoId: String) {
-        val accountId = identity.getActiveAccountId() ?: return
-        viewModelScope.launch {
-            try {
-                val db = dbFactory.get(accountId)
-                val now = System.currentTimeMillis()
-                val targetPhoto = db.photoDao().getById(photoId) ?: return@launch
-                db.photoDao().upsert(targetPhoto.copy(isPrimary = true, updatedAt = now))
-                // Sync the parent entity so the server learns which photo is primary
-                if (targetPhoto.entityType == "log") {
-                    val sv = db.logDao().getById(targetPhoto.entityId)?.serverVersion ?: 0L
-                    db.syncQueueDao().enqueueWithDedup(
-                        com.avago.core.data.db.entity.SyncQueueEntity(
-                            queueId = "log_${targetPhoto.entityId}",
-                            entityType = "log",
-                            entityId = targetPhoto.entityId,
-                            operation = "update",
-                            serverVersion = sv,
-                            payload = null,
-                            syncStatus = "pending",
-                            attempts = 0L,
-                            lastError = null,
-                            createdAt = now,
-                            updatedAt = now,
-                        )
-                    )
-                    syncEngine.pushIfNeeded()
+            runCatching { activities.delete(entryId) }
+                .onSuccess { onDeleted() }
+                .onFailure { e ->
+                    Timber.e(e, "[LogDetailViewModel] delete failed for $entryId")
+                    _errors.tryEmit(e.message ?: e.javaClass.simpleName)
                 }
-                Timber.d("[LogDetailViewModel] Set primary photo $photoId")
-            } catch (e: Exception) {
-                Timber.e(e, "[LogDetailViewModel] setPrimaryPhoto failed")
-            }
-        }
-    }
-
-    private suspend fun enqueueSyncDelete(accountId: String, entryId: String, now: Long) {
-        try {
-            val db = dbFactory.get(accountId)
-            val entity = com.avago.core.data.db.entity.SyncQueueEntity(
-                queueId = "log_$entryId",
-                entityType = "log",
-                entityId = entryId,
-                operation = "delete",
-                serverVersion = db.logDao().getById(entryId)?.serverVersion,
-                payload = null,
-                syncStatus = "pending",
-                attempts = 0L,
-                lastError = null,
-                createdAt = now,
-                updatedAt = now,
-            )
-            db.syncQueueDao().enqueueWithDedup(entity)
-            syncEngine.pushIfNeeded()
-        } catch (e: Exception) {
-            Timber.e(e, "[LogDetailViewModel] Failed to enqueue delete for $entryId")
         }
     }
 }

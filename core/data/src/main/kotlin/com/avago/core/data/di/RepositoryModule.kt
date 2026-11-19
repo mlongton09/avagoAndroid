@@ -3,6 +3,7 @@ package com.avago.core.data.di
 import com.avago.core.data.domain.ActivityRepository
 import com.avago.core.data.domain.AssetRepository
 import com.avago.core.data.domain.ChangeQueueRepository
+import com.avago.core.data.domain.ConfigRepository
 import com.avago.core.data.domain.InventoryRepository
 import com.avago.core.data.domain.LocationRepository
 import com.avago.core.data.domain.PmRepository
@@ -14,6 +15,7 @@ import com.avago.core.data.domain.WorkerRepository
 import com.avago.core.data.v2.V2ChangeQueueRepository
 import com.avago.core.data.v2.repo.V2ActivityRepository
 import com.avago.core.data.v2.repo.V2AssetRepository
+import com.avago.core.data.v2.repo.V2ConfigRepository
 import com.avago.core.data.v2.repo.V2InventoryRepository
 import com.avago.core.data.v2.repo.V2LocationRepository
 import com.avago.core.data.v2.repo.V2PmRepository
@@ -52,4 +54,6 @@ abstract class RepositoryModule {
     @Binds abstract fun activities(impl: V2ActivityRepository): ActivityRepository
 
     @Binds abstract fun pm(impl: V2PmRepository): PmRepository
+
+    @Binds abstract fun config(impl: V2ConfigRepository): ConfigRepository
 }

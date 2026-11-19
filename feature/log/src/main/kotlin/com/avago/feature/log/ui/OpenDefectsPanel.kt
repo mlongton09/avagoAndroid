@@ -20,7 +20,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MoreVert
@@ -135,7 +134,7 @@ fun AssetOpenDefectsPanel(
         nowMs = System.currentTimeMillis(),
         onOpenLog = onOpenLog,
         onCreateWorkOrder = createWo,
-        onSetStatus = if (state.lifecycleAvailable && state.canEdit) {
+        onSetStatus = if (state.canEdit) {
             { d, status, note -> viewModel.updateStatus(d, status, note) }
         } else {
             null
@@ -195,14 +194,6 @@ internal fun OpenDefectsPanelContent(
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.semantics { heading() },
-                )
-            }
-            if (!state.serverBacked) {
-                Text(
-                    text = stringResource(R.string.log_open_defects_hint_derived),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 40.dp, end = 12.dp, top = 2.dp),
                 )
             }
             Spacer(Modifier.padding(top = 8.dp))
@@ -337,22 +328,6 @@ private fun DefectRow(
                         modifier = Modifier.size(14.dp),
                     )
                     Text(age, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                if (d.id in state.pendingIds) {
-                    // Local change / inspection not synced yet (offline-first outbox).
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Icon(
-                            Icons.Default.CloudUpload,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(14.dp),
-                        )
-                        Text(
-                            stringResource(R.string.log_open_defects_pending_sync),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    }
                 }
             }
             if (!d.note.isNullOrBlank()) {

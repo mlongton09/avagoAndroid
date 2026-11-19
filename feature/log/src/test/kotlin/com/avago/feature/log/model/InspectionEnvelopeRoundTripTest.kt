@@ -139,18 +139,13 @@ class InspectionEnvelopeRoundTripTest {
     }
 
     @Test
-    fun `conflict review lists only keys both sides changed and rebase keeps their other edits`() {
+    fun `rebase re-applies my edits on top of their values`() {
         val original = InspectionV2.parseEnvelope(stored).values
         val mineNow = original + ("fluid" to "Normal") + ("pads__note" to "Mine") - "fluid__loc"
         val theirs = original + ("pads__note" to "Theirs") + ("web_only_item" to "Needs Repair")
         val mine = InspectionV2.diffValues(original, mineNow)
         assertEquals(setOf("fluid", "pads__note"), mine.changed.keys)
         assertEquals(setOf("fluid__loc"), mine.cleared)
-
-        val conflicts = InspectionV2.conflictingKeys(original, mine, theirs)
-        assertEquals(listOf("pads__note"), conflicts.map { it.key })
-        assertEquals("Mine", conflicts[0].mine)
-        assertEquals("Theirs", conflicts[0].theirs)
 
         val rebased = InspectionV2.rebaseValues(theirs, mine)
         assertEquals("Mine", rebased["pads__note"])

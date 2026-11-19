@@ -40,10 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.db.entity.UserEntity
 import com.avago.feature.log.viewmodel.PerformedByPickerViewModel
-import javax.inject.Inject
 
 /**
  * Screen for selecting a "Performed By" user.
@@ -130,11 +127,11 @@ fun PerformedByPickerScreen(
                 }
 
                 // Active members
-                items(state.members, key = { it.userId }) { user ->
+                items(state.members, key = { it.id }) { worker ->
                     MemberRow(
-                        displayName = user.displayName ?: user.email ?: user.userId,
-                        subtitle = user.email ?: user.role,
-                        onClick = { onSelected(user.userId, user.displayName) },
+                        displayName = worker.displayName,
+                        subtitle = worker.role,
+                        onClick = { onSelected(worker.userId, worker.displayName) },
                     )
                 }
 

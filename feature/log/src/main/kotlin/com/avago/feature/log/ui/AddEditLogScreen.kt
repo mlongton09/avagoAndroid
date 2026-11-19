@@ -337,60 +337,6 @@ fun AddEditLogScreen(
         )
     }
 
-    // ---- Optimistic-concurrency conflict (409 on inspection update) ----
-    if (form.inspectionConflict != null) {
-        AlertDialog(
-            onDismissRequest = { viewModel.dismissConflict() },
-            title = { Text(stringResource(R.string.log_inspection_conflict_title)) },
-            text = {
-                Column(Modifier.verticalScroll(rememberScrollState())) {
-                    Text(stringResource(R.string.log_inspection_conflict_message))
-                    Spacer(Modifier.height(12.dp))
-                    if (form.conflictKeys.isEmpty()) {
-                        Text(
-                            pluralStringResource(
-                                R.plurals.log_inspection_conflict_no_overlap,
-                                form.conflictMineCount,
-                                form.conflictMineCount,
-                            ),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    } else {
-                        Text(
-                            stringResource(R.string.log_inspection_conflict_both_changed),
-                            style = MaterialTheme.typography.titleSmall,
-                        )
-                        val empty = stringResource(R.string.log_inspection_conflict_empty_value)
-                        form.conflictKeys.forEach { c ->
-                            Column(Modifier.padding(top = 8.dp).semantics(mergeDescendants = true) {}) {
-                                Text(viewModel.conflictKeyLabel(c.key), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                                Text(
-                                    stringResource(
-                                        R.string.log_inspection_conflict_mine_theirs,
-                                        c.mine?.takeIf { it.isNotEmpty() } ?: empty,
-                                        c.theirs?.takeIf { it.isNotEmpty() } ?: empty,
-                                    ),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { viewModel.resolveConflictOverwrite() }) {
-                    Text(stringResource(R.string.log_inspection_conflict_overwrite))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.resolveConflictReloadTheirs() }) {
-                    Text(stringResource(R.string.log_inspection_conflict_reload))
-                }
-            },
-        )
-    }
-
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = form.entryDate)
     val dateFormatter = remember { SimpleDateFormat("MMMM d, yyyy", Locale.getDefault()) }
 
@@ -609,6 +555,7 @@ fun AddEditLogScreen(
             onUpdate = { viewModel.updateCostLine(it) },
             onRemove = { viewModel.removeCostLine(it) },
             onDismiss = { showCostSheet = false },
+            technicians = form.technicians,
             sheetState = costSheetState,
         )
     }
@@ -757,11 +704,8 @@ fun AddEditLogScreen(
         }
         DraftBanner(
             restoredAt = form.restoredDraftAt,
-            serverOffer = form.serverDraftOffer,
             onDiscard = { viewModel.discardDraft() },
             onKeep = { viewModel.dismissRestoredDraftBanner() },
-            onRestoreServer = { viewModel.acceptServerDraft() },
-            onDismissServer = { viewModel.dismissServerDraft() },
         )
         Column(
             modifier = Modifier
@@ -1317,11 +1261,7 @@ fun AddEditLogScreen(
                                         woRequest(listOf(defect), d.assetId)?.let(cb)
                                     }
                                 },
-                                onSetStatus = if (form.openDefectsServerBacked) {
-                                    { d, status, note -> viewModel.updateDefectStatus(d, status, note) }
-                                } else {
-                                    null
-                                },
+                                onSetStatus = { d, status, note -> viewModel.updateDefectStatus(d, status, note) },
                             )
                             Spacer(Modifier.height(12.dp))
                         }

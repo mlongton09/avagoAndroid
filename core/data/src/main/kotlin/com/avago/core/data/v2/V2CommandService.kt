@@ -2,6 +2,7 @@ package com.avago.core.data.v2
 
 import com.avago.core.data.domain.ChangeQueueRepository
 import com.avago.core.data.domain.FailedChange
+import com.avago.core.data.domain.RecordSyncState
 import com.avago.core.data.domain.StoreNotReadyException
 import com.avago.core.data.domain.SyncConflict
 import kotlinx.coroutines.flow.Flow
@@ -44,10 +45,23 @@ class V2ChangeQueueRepository @Inject constructor(
     override fun observePendingCount(): Flow<Int> = store.observe(setOf("pending_commands"), 0) { conn ->
         (
             conn.scalarLong(
-                "SELECT COUNT(*) FROM pending_commands WHERE state IN ('queued', 'leased', 'sent_unknown')",
+                "SELECT COUNT(*) FROM pending_commands WHERE state IN (${PENDING_STATES.joinToString { "'$it'" }})",
             ) ?: 0L
             ).toInt()
     }
+
+    override fun observeRecordState(entityType: String, entityKey: String): Flow<RecordSyncState> =
+        store.observe(setOf("pending_commands"), RecordSyncState.SAVED) { conn ->
+            val states = conn.query(
+                "SELECT state FROM pending_commands WHERE entity_type = ? AND entity_key = ?",
+                listOf(entityType, entityKey),
+            ).map { it.str("state") }
+            when {
+                states.any { it == "rejected" } -> RecordSyncState.FAILED
+                states.any { it in PENDING_STATES } -> RecordSyncState.PENDING
+                else -> RecordSyncState.SAVED
+            }
+        }
 
     override fun observeFailures(): Flow<List<FailedChange>> = store.observe(setOf("pending_commands"), emptyList()) { conn ->
         conn.query(
@@ -88,5 +102,9 @@ class V2ChangeQueueRepository @Inject constructor(
     override suspend fun dismiss(commandId: String) {
         val stores = store.current() ?: return
         V2CommandQueue(stores.business, stores.identity).dismissFailure(commandId)
+    }
+
+    private companion object {
+        val PENDING_STATES = listOf("queued", "leased", "sent_unknown")
     }
 }

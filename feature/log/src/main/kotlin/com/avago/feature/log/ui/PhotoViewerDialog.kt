@@ -43,8 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil3.compose.AsyncImage
-import com.avago.core.data.db.entity.PhotoEntity
-import java.io.File
+import com.avago.core.data.domain.Attachment
 import kotlin.math.max
 import kotlin.math.min
 
@@ -60,11 +59,10 @@ import kotlin.math.min
  */
 @Composable
 fun PhotoViewerDialog(
-    photos: List<PhotoEntity>,
+    photos: List<Attachment>,
     startIndex: Int,
     onDismiss: () -> Unit,
-    onDeletePhoto: (photoId: String) -> Unit,
-    onSetCoverPhoto: (photoId: String) -> Unit,
+    onDeletePhoto: (attachmentId: String) -> Unit,
 ) {
     if (photos.isEmpty()) {
         onDismiss(); return
@@ -143,17 +141,10 @@ fun PhotoViewerDialog(
                             onDismissRequest = { menuOpen = false },
                         ) {
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.log_photo_set_cover)) },
-                                onClick = {
-                                    menuOpen = false
-                                    onSetCoverPhoto(photos[pagerState.currentPage].photoId)
-                                },
-                            )
-                            DropdownMenuItem(
                                 text = { Text(stringResource(R.string.log_action_delete)) },
                                 onClick = {
                                     menuOpen = false
-                                    val toDelete = photos[pagerState.currentPage].photoId
+                                    val toDelete = photos[pagerState.currentPage].id
                                     onDeletePhoto(toDelete)
                                     // Closing the viewer is the friendliest
                                     // default after a destructive action;
@@ -194,19 +185,18 @@ fun PhotoViewerDialog(
 
 @Composable
 private fun ZoomableAsyncImage(
-    photo: PhotoEntity,
+    photo: Attachment,
     onTap: () -> Unit,
 ) {
-    val model: Any? = photo.localPath?.takeIf { it.isNotBlank() }?.let { File(it) }
-        ?: photo.downloadUrl?.takeIf { it.isNotBlank() }
-    var scale by remember(photo.photoId) { mutableFloatStateOf(1f) }
-    var offsetX by remember(photo.photoId) { mutableFloatStateOf(0f) }
-    var offsetY by remember(photo.photoId) { mutableFloatStateOf(0f) }
+    val model: Any? = photo.file?.localFile?.takeIf { photo.file?.isImage == true }
+    var scale by remember(photo.id) { mutableFloatStateOf(1f) }
+    var offsetX by remember(photo.id) { mutableFloatStateOf(0f) }
+    var offsetY by remember(photo.id) { mutableFloatStateOf(0f) }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .pointerInput(photo.photoId) {
+            .pointerInput(photo.id) {
                 detectTapGestures(
                     onTap = { onTap() },
                     onDoubleTap = {
@@ -220,7 +210,7 @@ private fun ZoomableAsyncImage(
                     },
                 )
             }
-            .pointerInput(photo.photoId) {
+            .pointerInput(photo.id) {
                 detectTransformGestures { _, pan, zoom, _ ->
                     val next = (scale * zoom).coerceIn(1f, 5f)
                     scale = next

@@ -276,7 +276,8 @@ internal fun LogVendorWoSection(
             var woOpen by remember { mutableStateOf(false) }
             val none = stringResource(R.string.log_pack_wo_none)
             val selected = form.woOptions.firstOrNull { it.woId == form.linkedWoId }
-            ExposedDropdownMenuBox(expanded = woOpen, onExpandedChange = { woOpen = it }) {
+            // An activity's work order is fixed once recorded (the update command has no work_order_id).
+            ExposedDropdownMenuBox(expanded = woOpen, onExpandedChange = { woOpen = it && !form.woLinkLocked }) {
                 OutlinedTextField(
                     value = selected?.title ?: form.linkedWoId ?: none,
                     onValueChange = {},

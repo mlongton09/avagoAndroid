@@ -506,20 +506,6 @@ object InspectionV2 {
         cleared = original.keys.filter { it !in current }.toSet(),
     )
 
-    /**
-     * Keys both sides changed to different results since [original]: "mine" is [mine], "theirs"
-     * is the server's current values. These need a human decision before "keep mine" re-sends.
-     */
-    data class ConflictKey(val key: String, val original: String?, val mine: String?, val theirs: String?)
-
-    fun conflictingKeys(original: Map<String, String>, mine: ValueEdits, theirs: Map<String, String>): List<ConflictKey> =
-        mine.keys.mapNotNull { k ->
-            val theirsV = theirs[k]
-            val mineV = mine.changed[k]
-            if (theirsV == original[k] || theirsV == mineV) null
-            else ConflictKey(k, original[k], mineV, theirsV)
-        }.sortedBy { it.key }
-
     /** Re-applies [mine] on top of the server's current values (the "keep mine" merge). */
     fun rebaseValues(theirs: Map<String, String>, mine: ValueEdits): Map<String, String> =
         mergeValues(theirs, mine.changed, mine.cleared)
@@ -554,7 +540,7 @@ object InspectionV2 {
     }
 
     // ------------------------------------------------------------------
-    // Open-defect register (client-side derivation)
+    // Open-defect register rows
     // ------------------------------------------------------------------
 
     data class OpenDefect(
@@ -576,99 +562,8 @@ object InspectionV2 {
         val status: String,
     )
 
-    data class HistoryEntry(
-        val logId: String?,
-        val assetId: String?,
-        /** ISO-8601 date/time used for ordering. */
-        val logDate: String,
-        val category: String?,
-        val data: JsonObject?,
-    )
-
-    /** Defects recorded on one saved entry: the envelope list (v2), else recomputed from its snapshot. */
-    fun entryDefects(data: JsonObject?): List<EnvelopeDefect> {
-        val parsed = parseEnvelope(data)
-        if (parsed.hasDefectsArray) return parsed.defects
-        val checklist = parsed.configSnapshot?.let { parseInspectionChecklist(it.toString()) }
-        if (checklist != null && checklist.groups.isNotEmpty()) return collectDefects(checklist, parsed.values)
-        return parsed.values.mapNotNull { (key, v) ->
-            val b = scoreBucket(v)
-            if ((b != Bucket.NR && b != Bucket.M) || key.contains("__")) return@mapNotNull null
-            EnvelopeDefect(itemId = key, key = key, label = key, answer = v, bucket = b, severity = defaultSeverity(b))
-        }
-    }
-
-    /** Replays inspection history oldest → newest; returns the defects still open, most severe first. */
-    fun deriveOpenDefects(entries: List<HistoryEntry>, excludeLogId: String? = null): List<OpenDefect> {
-        val inspections = entries
-            .filter { e ->
-                (excludeLogId == null || e.logId != excludeLogId) &&
-                    e.category?.contains("inspect", ignoreCase = true) == true && e.data != null
-            }
-            .sortedBy { it.logDate }
-        val open = LinkedHashMap<String, OpenDefect>()
-        for (e in inspections) {
-            val parsed = parseEnvelope(e.data)
-            val logId = e.logId
-            for ((key, v) in parsed.values) {
-                if (key.contains("__")) continue
-                val b = scoreBucket(v)
-                if (b == Bucket.N || b == Bucket.NA) open.remove(key)
-            }
-            parsed.resolvedDefects.filter { it.resolution == RESOLUTION_REPAIRED }.forEach { open.remove(it.key) }
-            for (d in entryDefects(e.data)) {
-                val prev = open[d.key]
-                open[d.key] = OpenDefect(
-                    id = prev?.id ?: "${logId ?: "local"}:${d.key}",
-                    assetId = e.assetId,
-                    itemId = d.itemId,
-                    key = d.key,
-                    label = d.label,
-                    cornerLabel = d.cornerLabel,
-                    sectionTitle = d.sectionTitle,
-                    bucket = d.bucket,
-                    severity = d.severity,
-                    note = d.note ?: prev?.note,
-                    location = d.location ?: prev?.location,
-                    sourceLogId = prev?.sourceLogId ?: logId,
-                    reportedAt = prev?.reportedAt ?: e.logDate,
-                    lastSeenLogId = logId,
-                    lastSeenAt = e.logDate,
-                    status = if (d.bucket == Bucket.M) "monitoring" else "open",
-                )
-            }
-        }
-        return sortOpen(open.values.toList())
-    }
-
     fun sortOpen(list: List<OpenDefect>): List<OpenDefect> =
         list.sortedWith(compareBy<OpenDefect> { rank(it.severity, it.bucket) }.thenByDescending { it.lastSeenAt })
-
-    /** Server register row (AvagoSvc `inspection_defects`) → [OpenDefect]. */
-    fun fromServerDefect(row: JsonObject): OpenDefect {
-        fun s(k: String) = row[k].textOrNull()
-        val bucket = if (s("bucket") == "M") Bucket.M else Bucket.NR
-        val sev = s("severity")?.takeIf { it == SEV_MINOR || it == SEV_OUT_OF_SERVICE } ?: SEV_MAJOR
-        val status = s("status")?.takeIf { it in setOf("open", "monitoring", "repaired", "deferred") } ?: "open"
-        return OpenDefect(
-            id = s("defect_id") ?: "${s("source_log_id")}:${s("item_key")}",
-            assetId = s("asset_id"),
-            itemId = s("item_id").orEmpty(),
-            key = s("item_key") ?: s("item_id").orEmpty(),
-            label = s("label").orEmpty(),
-            cornerLabel = s("corner_label"),
-            sectionTitle = s("section_title"),
-            bucket = bucket,
-            severity = sev,
-            note = s("note"),
-            location = s("location"),
-            sourceLogId = s("source_log_id"),
-            reportedAt = s("reported_at").orEmpty(),
-            lastSeenLogId = s("last_seen_log_id"),
-            lastSeenAt = s("last_seen_at") ?: s("reported_at").orEmpty(),
-            status = status,
-        )
-    }
 
     /** `resolvedDefects` entry for a carried-forward defect. */
     fun resolvedEntry(defect: OpenDefect, resolution: String, at: String): ResolvedDefect =

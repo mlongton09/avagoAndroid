@@ -1,20 +1,21 @@
 package com.avago.feature.log.model
 
-import com.avago.core.data.db.entity.LogEntity
+import com.avago.core.data.domain.Activity
+import com.avago.core.data.domain.ActivityType
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.math.BigDecimal
 
 class LogListFilterTest {
 
-    private fun log(id: String, title: String, notes: String? = null, category: String? = null) = LogEntity(
-        entryId = id, assetId = "a", accountId = "acc", title = title, entryDate = 0L, odometerValue = null,
-        category = category, cost = null, performedBy = null, performedByUserId = null, notes = notes,
-        data = null, attributes = null, costMode = null, costItems = null, costLabor = null, costTax = null,
-        currency = null, baseAmount = null, exchangeRateUsed = null, configId = null, configVersion = null,
-        serviceId = null, costMisc = null, parentId = null, createdAt = 0L, updatedAt = 0L, deletedAt = null,
-        serverVersion = 1L, seq = 1L,
+    private fun log(id: String, title: String, notes: String? = null, category: String? = null) = Activity(
+        id = id, assetId = "a", assetName = null, workOrderId = null, parentActivityId = null,
+        type = ActivityType.SERVICE, categoryLabel = category, title = title, occurredAt = 0L,
+        performedByUserId = null, performedByName = null, providerName = null, currency = null,
+        overtimeMultiplier = null, notes = notes, payload = "{}", attributes = "{}", meterValue = null,
+        totalCost = BigDecimal.ZERO, createdAt = 0L, version = 1L,
     )
 
     @Test
@@ -32,9 +33,9 @@ class LogListFilterTest {
             log("2", "Oil top-up", category = "fluids"),
             log("3", "Tires", notes = "oil leak spotted", category = "tire"),
         )
-        assertEquals(listOf("1", "2", "3"), LogListFilter.apply(list, null, "oil").map { it.entryId })
-        assertEquals(listOf("1"), LogListFilter.apply(list, "oil", "oil").map { it.entryId })
-        assertEquals(emptyList<String>(), LogListFilter.apply(list, "tire", "change").map { it.entryId })
+        assertEquals(listOf("1", "2", "3"), LogListFilter.apply(list, null, "oil").map { it.id })
+        assertEquals(listOf("1"), LogListFilter.apply(list, "oil", "oil").map { it.id })
+        assertEquals(emptyList<String>(), LogListFilter.apply(list, "tire", "change").map { it.id })
     }
 
     @Test

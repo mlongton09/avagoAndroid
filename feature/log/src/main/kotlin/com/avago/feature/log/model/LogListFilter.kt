@@ -1,6 +1,6 @@
 package com.avago.feature.log.model
 
-import com.avago.core.data.db.entity.LogEntity
+import com.avago.core.data.domain.Activity
 import java.text.Normalizer
 
 /**
@@ -24,14 +24,14 @@ object LogListFilter {
         return ts.all { hay.contains(it) }
     }
 
-    fun apply(list: List<LogEntity>, category: String?, query: String): List<LogEntity> =
+    fun apply(list: List<Activity>, category: String?, query: String): List<Activity> =
         list.filter { log ->
-            (category == null || log.category == category) && matches(log.title, log.notes, query)
+            (category == null || log.categoryLabel == category) && matches(log.displayTitle, log.notes, query)
         }
 
     /** (category, count) for every non-blank category, most used first then alphabetically. */
-    fun categoryCounts(list: List<LogEntity>): List<Pair<String, Int>> =
-        list.mapNotNull { it.category?.takeIf { c -> c.isNotBlank() } }
+    fun categoryCounts(list: List<Activity>): List<Pair<String, Int>> =
+        list.mapNotNull { it.categoryLabel?.takeIf { c -> c.isNotBlank() } }
             .groupingBy { it }.eachCount()
             .toList()
             .sortedWith(compareByDescending<Pair<String, Int>> { it.second }.thenBy { it.first })

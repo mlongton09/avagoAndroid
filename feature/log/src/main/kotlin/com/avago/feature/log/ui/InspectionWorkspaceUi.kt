@@ -461,19 +461,16 @@ fun LastMeterHint(last: InspectionValidation.MeterPoint?) {
 @Composable
 fun DraftBanner(
     restoredAt: Long?,
-    serverOffer: InspectionDraft?,
     onDiscard: () -> Unit,
     onKeep: () -> Unit,
-    onRestoreServer: () -> Unit,
-    onDismissServer: () -> Unit,
 ) {
-    if (restoredAt == null && serverOffer == null) return
+    if (restoredAt == null) return
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
     ) {
         Column(Modifier.padding(12.dp).semantics { liveRegion = LiveRegionMode.Polite }) {
-            if (restoredAt != null) {
+            run {
                 Text(
                     stringResource(R.string.log_insp_draft_restored, DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(restoredAt))),
                     style = MaterialTheme.typography.bodyMedium,
@@ -487,20 +484,6 @@ fun DraftBanner(
                     }
                 }
             }
-            if (serverOffer != null) {
-                Text(
-                    stringResource(R.string.log_insp_server_draft, DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(serverOffer.savedAt))),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = onRestoreServer, modifier = Modifier.heightIn(min = 48.dp)) {
-                        Text(stringResource(R.string.log_insp_server_draft_restore))
-                    }
-                    TextButton(onClick = onDismissServer, modifier = Modifier.heightIn(min = 48.dp)) {
-                        Text(stringResource(R.string.log_insp_dismiss))
-                    }
-                }
-            }
         }
     }
 }
@@ -511,7 +494,7 @@ fun SyncStatusChip(status: LogSyncStatus?, modifier: Modifier = Modifier) {
     val (icon, label, color) = when (status) {
         LogSyncStatus.SAVED -> Triple(Icons.Filled.CloudDone, stringResource(R.string.log_sync_saved), INSPECTION_OPTION_COLORS.getValue("normal"))
         LogSyncStatus.PENDING -> Triple(Icons.Filled.CloudOff, stringResource(R.string.log_sync_pending), INSPECTION_OPTION_COLORS.getValue("monitor"))
-        LogSyncStatus.CONFLICT -> Triple(Icons.Filled.Error, stringResource(R.string.log_sync_conflict), INSPECTION_OPTION_COLORS.getValue("needs_repair"))
+        LogSyncStatus.FAILED -> Triple(Icons.Filled.Error, stringResource(R.string.log_sync_failed), INSPECTION_OPTION_COLORS.getValue("needs_repair"))
     }
     Row(
         modifier = modifier

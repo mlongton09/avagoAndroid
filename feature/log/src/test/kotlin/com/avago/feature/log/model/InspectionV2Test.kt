@@ -57,23 +57,6 @@ class InspectionV2Test {
         """.trimIndent(),
     )
 
-    private fun entry(
-        logId: String,
-        date: String,
-        values: Map<String, String>,
-        resolved: List<InspectionV2.ResolvedDefect> = emptyList(),
-    ): InspectionV2.HistoryEntry {
-        val r = InspectionV2.computeResult(tires, values)
-        val data = InspectionV2.buildEnvelope(
-            stored = null, values = values, subtype = null, mode = null, configSnapshot = null,
-            defects = InspectionV2.collectDefects(tires, values), result = r.result,
-            outOfService = r.outOfService, newResolved = resolved,
-        )
-        return InspectionV2.HistoryEntry(logId, "asset", date, "Inspection", data)
-    }
-
-    // ---- progress ----
-
     @Test
     fun `counts select items and corner-select corners, skipping measurements`() {
         val p = InspectionV2.computeProgress(
@@ -207,73 +190,4 @@ class InspectionV2Test {
     }
 
     // ---- open defects ----
-
-    @Test
-    fun `keeps a defect open until a later inspection passes it`() {
-        val open = InspectionV2.deriveOpenDefects(
-            listOf(
-                entry("a", "2026-01-01", mapOf("tread" to "Needs Repair", "lights" to "Normal")),
-                entry("b", "2026-01-02", mapOf("lights" to "Monitor")),
-            ),
-        )
-        assertEquals(
-            listOf(listOf("tread", "a", "open"), listOf("lights", "b", "monitoring")),
-            open.map { listOf(it.key, it.sourceLogId, it.status) },
-        )
-        val after = InspectionV2.deriveOpenDefects(
-            listOf(
-                entry("a", "2026-01-01", mapOf("tread" to "Needs Repair")),
-                entry("c", "2026-01-03", mapOf("tread" to "Normal")),
-            ),
-        )
-        assertTrue(after.isEmpty())
-    }
-
-    @Test
-    fun `closes defects marked repaired and keeps the first report date`() {
-        val open = InspectionV2.deriveOpenDefects(
-            listOf(
-                entry("a", "2026-01-01", mapOf("tread" to "Needs Repair", "lights" to "Needs Repair")),
-                entry(
-                    "b", "2026-01-05", mapOf("lights" to "Needs Repair"),
-                    listOf(InspectionV2.ResolvedDefect("a", "tread", "tread", "repaired", null, "2026-01-05")),
-                ),
-            ),
-        )
-        assertEquals(1, open.size)
-        assertEquals("lights", open[0].key)
-        assertEquals("a", open[0].sourceLogId)
-        assertEquals("2026-01-01", open[0].reportedAt)
-        assertEquals("b", open[0].lastSeenLogId)
-    }
-
-    @Test
-    fun `derives v1 entries from the config snapshot and excludes the current log`() {
-        val data = InspectionV2.parseDataObject(
-            """{"values":{"tread":"insp.opt.needs_repair"},"configSnapshot":{"inspectionChecklist":{"groups":[
-              {"id":"g","sections":[{"id":"s","title":"Tires","items":[{"id":"tread","text":"Tread","options":["Normal","Needs Repair"]}]}]}]}}}""",
-        )
-        val history = listOf(InspectionV2.HistoryEntry("x", "asset", "2026-01-01", "Inspection", data))
-        val open = InspectionV2.deriveOpenDefects(history)
-        assertEquals("tread", open[0].key)
-        assertEquals("Tread", open[0].label)
-        assertEquals("Tires", open[0].sectionTitle)
-        assertEquals(Bucket.NR, open[0].bucket)
-        assertTrue(InspectionV2.deriveOpenDefects(history, excludeLogId = "x").isEmpty())
-    }
-
-    @Test
-    fun `maps server register rows`() {
-        val row = InspectionV2.parseDataObject(
-            """{"defect_id":"d1","item_id":"tires","item_key":"t_fl","label":"Tires","bucket":"M","severity":"weird",
-               "source_log_id":"a","reported_at":"2026-01-01","status":"deferred"}""",
-        )!!
-        val d = InspectionV2.fromServerDefect(row)
-        assertEquals("d1", d.id)
-        assertEquals("t_fl", d.key)
-        assertEquals(Bucket.M, d.bucket)
-        assertEquals("major", d.severity)
-        assertEquals("2026-01-01", d.lastSeenAt)
-        assertEquals("deferred", d.status)
-    }
 }

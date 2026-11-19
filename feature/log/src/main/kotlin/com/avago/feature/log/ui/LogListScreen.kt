@@ -37,6 +37,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
@@ -69,7 +71,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.avago.core.ai.ui.ScoutPaletteSheet
-import com.avago.core.data.db.entity.LogEntity
+import com.avago.core.data.domain.Activity
 import com.avago.core.ui.CategoryBadge
 import com.avago.core.ui.categoryBadgeColor
 import com.avago.core.ui.categoryIconName
@@ -114,15 +116,20 @@ fun LogListScreen(
     val hasAnyLogs by viewModel.hasAnyLogs.collectAsStateWithLifecycle()
     val analytics by viewModel.analytics.collectAsStateWithLifecycle()
     val currencyCode by viewModel.currencyCode.collectAsStateWithLifecycle()
-    val currencyRate by viewModel.currencyRate.collectAsStateWithLifecycle()
+    val meter by viewModel.meter.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
     val haptics = LocalHapticFeedback.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(Unit) {
+        viewModel.errors.collect { snackbarHostState.showSnackbar(it) }
+    }
 
     val grouped = logs.groupBy { log ->
-        Calendar.getInstance().apply { timeInMillis = log.entryDate }.get(Calendar.YEAR)
+        Calendar.getInstance().apply { timeInMillis = log.occurredAt }.get(Calendar.YEAR)
     }.toSortedMap(reverseOrder())
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
@@ -226,7 +233,6 @@ fun LogListScreen(
             LogAnalyticsSheet(
                 summary = summary,
                 currencyCode = currencyCode,
-                currencyRate = currencyRate,
                 onCategoryClick = { cat ->
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     viewModel.setFilter(cat.takeUnless { it == "other" })
@@ -254,7 +260,6 @@ fun LogListScreen(
                         lastServiceDate = lastServiceDate,
                         onAddPhotoUri = { uri -> viewModel.addAssetPhoto(uri) },
                         onDeletePhoto = { id -> viewModel.deleteAssetPhoto(id) },
-                        onSetCoverPhoto = { id -> viewModel.setCoverPhoto(id) },
                     )
                 }
 
@@ -371,11 +376,11 @@ fun LogListScreen(
                             stickyHeader(key = "year_$year") {
                                 YearHeader(year = year)
                             }
-                            items(yearLogs, key = { it.entryId }) { log ->
+                            items(yearLogs, key = { it.id }) { log ->
                                 LogListRow(
                                     log = log,
-                                    onClick = { onLogClick(log.entryId) },
-                                    meterType = asset?.meterType,
+                                    onClick = { onLogClick(log.id) },
+                                    meterUnit = meter?.unit,
                                 )
                             }
                         }
@@ -411,9 +416,9 @@ private fun YearHeader(year: Int) {
 
 @Composable
 private fun LogListRow(
-    log: LogEntity,
+    log: Activity,
     onClick: () -> Unit,
-    meterType: String?,
+    meterUnit: String?,
     modifier: Modifier = Modifier,
 ) {
     // iOS LogItemTableViewCell parity:
@@ -425,7 +430,6 @@ private fun LogListRow(
     // - Right bottom: "<odometer> <unit>" when present (alpha 0.72)
     // - No cost field on iOS
     val dateFormatter = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
-    val isPending = log.serverVersion == 0L && log.seq == null
 
     Row(
         modifier = modifier
@@ -435,37 +439,30 @@ private fun LogListRow(
             .padding(start = 14.dp, end = 16.dp, top = 7.dp, bottom = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CategoryBadge(categoryId = log.category)
+        CategoryBadge(categoryId = log.categoryLabel)
         Spacer(Modifier.width(10.dp))
 
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = log.title,
+                text = log.displayTitle,
                 style = MaterialTheme.typography.bodyLarge,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (isPending) {
-                Text(
-                    text = stringResource(R.string.log_list_pending),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.tertiary,
-                )
-            }
         }
 
         Spacer(Modifier.width(8.dp))
 
         Column(horizontalAlignment = Alignment.End) {
             Text(
-                text = "${dateFormatter.format(Date(log.entryDate))} \u2002|\u2002 ${agoString(log.entryDate)}",
+                text = "${dateFormatter.format(Date(log.occurredAt))} \u2002|\u2002 ${agoString(log.occurredAt)}",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            val odo = log.odometerValue
+            val odo = log.meterValue?.toDouble()
             if (odo != null && odo > 0) {
                 Text(
-                    text = formatOdometer(odo, meterType),
+                    text = formatOdometer(odo, meterUnit),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                 )
@@ -486,10 +483,10 @@ private fun agoString(epochMs: Long): String {
     }
 }
 
-private fun formatOdometer(value: Double, meterType: String?): String {
-    val unit = when (meterType?.lowercase()) {
+private fun formatOdometer(value: Double, meterUnit: String?): String {
+    val unit = when (meterUnit?.lowercase()) {
         "km", "kilometers" -> "km"
-        "hours", "hrs" -> "hrs"
+        "h", "hours", "hrs" -> "hrs"
         else -> "mi"
     }
     val n = NumberFormat.getIntegerInstance().format(value.toLong())

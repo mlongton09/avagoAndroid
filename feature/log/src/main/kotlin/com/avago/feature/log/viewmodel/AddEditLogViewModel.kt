@@ -1,30 +1,46 @@
 package com.avago.feature.log.viewmodel
 
+import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.FormFillRouter
-import com.avago.core.data.db.entity.LogCostLineEntity
-import com.avago.core.data.db.entity.LogEntity
-import com.avago.core.data.db.entity.PhotoEntity
-import com.avago.core.data.db.entity.SyncQueueEntity
+import com.avago.core.data.domain.Activity
+import com.avago.core.data.domain.ActivityDraft
+import com.avago.core.data.domain.ActivityRepository
+import com.avago.core.data.domain.ActivityType
+import com.avago.core.data.domain.AssetRepository
+import com.avago.core.data.domain.AttachmentTarget
+import com.avago.core.data.domain.ChangeQueueRepository
+import com.avago.core.data.domain.ConfigDocument
+import com.avago.core.data.domain.ConfigDocuments
+import com.avago.core.data.domain.ConfigRepository
+import com.avago.core.data.domain.CostLine
+import com.avago.core.data.domain.CostLineDraft
+import com.avago.core.data.domain.CostLineType
+import com.avago.core.data.domain.InventoryRepository
+import com.avago.core.data.domain.LocalFileRef
+import com.avago.core.data.domain.RecordSyncState
+import com.avago.core.data.domain.SupplierRepository
+import com.avago.core.data.domain.WorkOrderFilter
+import com.avago.core.data.domain.WorkOrderRepository
+import com.avago.core.data.domain.WorkerRepository
 import com.avago.core.data.repository.UserPreferencesRepository
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
-import com.avago.core.sync.SyncEngine
+import com.avago.core.ocr.AvagoTextRecognizer
 import com.avago.feature.log.data.InspectionDraftStore
 import com.avago.feature.log.model.InspectionChecklist
 import com.avago.feature.log.model.InspectionDraft
-import com.avago.feature.log.model.InspectionValidation
 import com.avago.feature.log.model.InspectionFieldDef
 import com.avago.feature.log.model.InspectionGroup
 import com.avago.feature.log.model.InspectionItem
 import com.avago.feature.log.model.InspectionOption
 import com.avago.feature.log.model.InspectionSection
 import com.avago.feature.log.model.InspectionV2
+import com.avago.feature.log.model.InspectionValidation
 import com.avago.feature.log.model.LogCostLineDraft
 import com.avago.feature.log.model.LogPacks
 import com.avago.feature.log.model.LogPacks.readBool
@@ -32,32 +48,33 @@ import com.avago.feature.log.model.LogPacks.readDouble
 import com.avago.feature.log.model.LogPacks.readNumMap
 import com.avago.feature.log.model.LogPacks.readString
 import com.avago.feature.log.model.LogPacks.readStringList
-import com.avago.core.ocr.AvagoTextRecognizer
-import android.content.Context
+import com.avago.feature.log.model.LogPersonOption
 import com.avago.feature.log.model.humanizeIfKey
 import com.avago.feature.log.model.parseInspectionChecklist
 import com.avago.feature.log.model.parseInspectionFields
 import com.avago.feature.log.model.parseInspectionLocaleStrings
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.jsonPrimitive
 import timber.log.Timber
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.time.Instant
 import java.time.ZoneId
-import java.time.ZoneOffset
+import java.util.Currency
+import java.util.Locale
 import java.util.UUID
 import javax.inject.Inject
 
@@ -78,8 +95,8 @@ data class InspectionSaveIssues(
     val isEmpty: Boolean get() = required.isEmpty() && notes.isEmpty() && !certificationNameMissing
 }
 
-/** Sync state of the entry being edited, from the sync queue row log_<entryId>. */
-enum class LogSyncStatus { SAVED, PENDING, CONFLICT }
+/** Sync state of the entry being edited (its queued commands). */
+enum class LogSyncStatus { SAVED, PENDING, FAILED }
 
 data class LogWoOption(val woId: String, val title: String, val status: String?)
 
@@ -145,9 +162,13 @@ data class AddEditLogFormState(
     val vendorName: String = "",
     val vendorOptions: List<LogVendorOption> = emptyList(),
 
-    // Link to a work order (log.wo_id)
+    // Link to a work order (activity work_order_id); fixed once the activity is recorded.
     val linkedWoId: String? = null,
     val woOptions: List<LogWoOption> = emptyList(),
+    val woLinkLocked: Boolean = false,
+
+    // People selectable as labor technician
+    val technicians: List<LogPersonOption> = emptyList(),
 
     // Receipt OCR
     val receiptOcrRunning: Boolean = false,
@@ -172,33 +193,26 @@ data class AddEditLogFormState(
     val inspectionSubtype: String? = null,
     val inspectionMode: String? = null,
     val inspectionConfigId: String? = null,
-    val inspectionConfigVersion: Long = 0L,
     val availableInspectionSubtypes: List<String> = emptyList(),
 
-    // Inspection field definitions loaded from ConfigEntity (scope="Inspection", key="{subtype}_{assetType}")
+    // Inspection field definitions from the `inspection` config document for {subtype, assetType}.
     // Populated by loadInspectionFields(); empty until the asset type is known.
     // Legacy flat format — kept for old configs that don't use the nested groups/sections schema below.
     val inspectionFields: List<InspectionFieldDef> = emptyList(),
 
-    // Full nested checklist (groups -> sections -> items), localized via the "Locale"/"Inspection"
-    // config. Preferred over [inspectionFields] when the config uses the newer schema (matches iOS).
+    // Full nested checklist (groups -> sections -> items), localized via the locale/Inspection
+    // config document. Preferred over [inspectionFields] when the config uses the newer schema (matches iOS).
     val inspectionChecklist: InspectionChecklist? = null,
 
     // `insp.*` key -> localized text for the active locale (labels of carried-forward defects).
     val inspectionStrings: Map<String, String> = emptyMap(),
 
-    // Open defects from previous inspections of this asset (new inspections only, contract §3.2).
+    // Open defects of this asset from the defect register (new inspections only, contract §3.2).
     val inspectionOpenDefects: List<InspectionV2.OpenDefect> = emptyList(),
     val openDefectsLoading: Boolean = false,
     // OpenDefect.key -> "repaired" | "still_present"; written to data.resolvedDefects on save.
     val openDefectResolutions: Map<String, String> = emptyMap(),
 
-    // Set when an inspection update was rejected with 409 — holds the server's current row.
-    val inspectionConflict: JsonObject? = null,
-    // Keys both this device and the newer server version changed (shown for review before "keep mine").
-    val conflictKeys: List<InspectionV2.ConflictKey> = emptyList(),
-    // Number of value keys this device changed (applied on top of the server version on "keep mine").
-    val conflictMineCount: Int = 0,
 
     // Inspector sign-off and DVIR certification (web signOff / certification envelope keys).
     val signOff: InspectionV2.SignOff? = null,
@@ -209,12 +223,9 @@ data class AddEditLogFormState(
     val meterIssue: InspectionValidation.MeterIssue? = null,
     // Latest earlier meter reading of this asset (hint + sanity check).
     val lastMeter: InspectionValidation.MeterPoint? = null,
-    // Draft autosave: epoch millis of the restored draft (banner) and a newer server draft offer.
+    // Draft autosave: epoch millis of the restored draft (banner).
     val restoredDraftAt: Long? = null,
-    val serverDraftOffer: InspectionDraft? = null,
-    /** Open defects came from the server register (lifecycle actions available). */
-    val openDefectsServerBacked: Boolean = false,
-    /** Result of the last defect lifecycle PATCH (snackbar), null when shown. */
+    /** Result of the last defect status change (snackbar), null when shown. */
     val defectUpdateOk: Boolean? = null,
     val syncStatus: LogSyncStatus? = null,
     // High-contrast "sunlight mode" (persisted in DataStore via UserPreferencesRepository).
@@ -256,9 +267,15 @@ data class AddEditLogFormState(
 
 @HiltViewModel
 class AddEditLogViewModel @Inject constructor(
-    private val dbFactory: DatabaseFactory,
+    private val activities: ActivityRepository,
+    private val assets: AssetRepository,
+    private val config: ConfigRepository,
+    private val workers: WorkerRepository,
+    private val workOrders: WorkOrderRepository,
+    private val inventory: InventoryRepository,
+    private val suppliers: SupplierRepository,
+    private val changes: ChangeQueueRepository,
     private val identity: IdentityManager,
-    private val syncEngine: SyncEngine,
     private val userPrefsRepository: UserPreferencesRepository,
     private val formFillRouter: FormFillRouter,
     private val serviceClient: AvagoServiceClient,
@@ -323,10 +340,12 @@ class AddEditLogViewModel @Inject constructor(
 
     init {
         loadVendors()
+        loadTechnicians()
     }
 
-    private var originalCreatedAt: Long? = null
-    private var originalServerVersion: Long = 0L
+    /** The activity being edited; null for a new entry. */
+    private var stored: Activity? = null
+    private var storedLines: List<CostLine> = emptyList()
 
     /** The stored `data` object of the entry being edited — the base every save merges into. */
     private var storedData: JsonObject? = null
@@ -334,7 +353,6 @@ class AddEditLogViewModel @Inject constructor(
     private var inspectionConfigRaw: String? = null
     /** True once the checklist came from the entry's own configSnapshot (don't replace it). */
     private var snapshotChecklistApplied = false
-    private var pendingOnSuccess: ((String) -> Unit)? = null
     private var openDefectsLoadedFor: String? = null
     /** `data.values` as loaded (text form). Keys missing from the form's answers were cleared by the user. */
     private var originalValues: Map<String, String> = emptyMap()
@@ -344,24 +362,19 @@ class AddEditLogViewModel @Inject constructor(
     // ---------------------------------------------------------------------------
 
     fun loadForEdit(entryId: String) {
-        val accountId = identity.getActiveAccountId() ?: return
         _form.update { it.copy(isLoadingExisting = true) }
         viewModelScope.launch {
             try {
-                val db = dbFactory.get(accountId)
-                val entity = db.logDao().getById(entryId) ?: run {
+                val entity = activities.activity(entryId) ?: run {
                     _form.update { it.copy(isLoadingExisting = false) }
                     return@launch
                 }
-                originalCreatedAt = entity.createdAt
-                originalMeterText = entity.odometerValue?.toString() ?: ""
-                originalServerVersion = entity.serverVersion
+                stored = entity
+                originalMeterText = entity.meterValue?.toPlainString() ?: ""
 
-                val dataObj = InspectionV2.parseDataObject(entity.data)
+                val dataObj = InspectionV2.parseDataObject(entity.payload)
                 storedData = dataObj
-                val storedLogType = (dataObj?.get("log_type") as? JsonPrimitive)?.takeIf { it.isString }?.content
-                val isInspection = storedLogType == "inspection" ||
-                    (storedLogType == null && entity.category?.lowercase()?.contains("inspect") == true)
+                val isInspection = entity.type == ActivityType.INSPECTION
                 val envelope = if (isInspection) InspectionV2.parseEnvelope(dataObj) else null
                 val inspectionAnswers = envelope?.values ?: emptyMap()
                 originalValues = inspectionAnswers
@@ -377,7 +390,7 @@ class AddEditLogViewModel @Inject constructor(
                 var snapshotChecklist: InspectionChecklist? = null
                 var inspectionStrings: Map<String, String> = emptyMap()
                 if (envelope != null) {
-                    inspectionStrings = loadInspectionLocaleStrings(db)
+                    inspectionStrings = loadInspectionLocaleStrings()
                     val snapshotCfg = envelope.configSnapshot?.get("inspectionChecklist") as? JsonObject
                     if (snapshotCfg != null) {
                         snapshotChecklist = parseInspectionChecklist(snapshotCfg.toString(), inspectionStrings)
@@ -388,45 +401,25 @@ class AddEditLogViewModel @Inject constructor(
                     }
                 }
 
-                // One-shot read of cost lines for this entry
-                val drafts = db.logCostLineDao().observeAll(accountId)
-                    .map { lines ->
-                        lines.filter { it.logId == entryId }
-                            .sortedBy { it.displayOrder }
-                            .mapIndexed { idx, line ->
-                                LogCostLineDraft(
-                                    lineId = line.lineId,
-                                    kind = line.kind,
-                                    inventoryId = line.inventoryId,
-                                    inventoryName = null,
-                                    userId = line.userId,
-                                    userName = null,
-                                    description = line.description ?: "",
-                                    quantity = line.quantity,
-                                    unitCost = line.unitCost,
-                                    taxAmount = line.taxAmount,
-                                    glCode = line.glCode,
-                                    displayOrder = idx,
-                                )
-                            }
-                    }
-                    .first()
+                val lines = activities.observeCostLines(entryId).first().sortedBy { it.sortOrder }
+                storedLines = lines
+                val currency = entity.currency ?: userPrefsRepository.currencyFlow.firstOrNull() ?: DEFAULT_CURRENCY
+                val totalLine = totalLineOf(lines)
+                val drafts = if (totalLine != null) emptyList() else toLineDrafts(lines, currency)
 
-                // Load meterType from asset
-                val asset = entity.assetId.let { db.assetDao().getById(it) }
-                val meterType = asset?.meterType
-                val assetType = asset?.assetType
+                val asset = entity.assetId?.let { assets.asset(it) }
+                val meter = entity.assetId?.let { defaultMeter(it) }
+                val assetType = asset?.assetTypeCode
 
-                // Restore §1 attributes from entity.attributes JSON (typed; unknown keys kept in storedAttributes)
+                // Restore §1 attributes (typed; unknown keys kept in storedAttributes)
                 val attrs = LogPacks.parse(entity.attributes)
                 storedAttributes = attrs
-                storedWoId = entity.woId
+                storedWoId = entity.workOrderId
                 val savedFuelVolume = attrs.readString("fuel_volume") ?: ""
                 val savedFuelUnit = attrs.readString("fuel_volume_unit")?.let(::fromContractVolumeUnit)
                     ?: userPrefsRepository.fuelVolumeUnitFlow.first()
-                val savedDistanceUnit = userPrefsRepository.distanceUnitFlow.first()
-                val packScalarKeys = PACK_SCALAR_KEYS
-                val savedPackFields = packScalarKeys.mapNotNull { k -> attrs.readString(k)?.let { k to it } }.toMap()
+                val savedDistanceUnit = distanceUnitOf(meter?.unit) ?: userPrefsRepository.distanceUnitFlow.first()
+                val savedPackFields = PACK_SCALAR_KEYS.mapNotNull { k -> attrs.readString(k)?.let { k to it } }.toMap()
                 val savedPackMaps = PACK_MAP_KEYS.associateWith { attrs.readNumMap(it) }.filterValues { it.isNotEmpty() }
                 // Restore server-defined item attribute values (all scalar keys; only keys with a
                 // matching def are edited/written back).
@@ -434,18 +427,19 @@ class AddEditLogViewModel @Inject constructor(
 
                 _form.update { state ->
                     state.copy(
-                        entryId = entity.entryId,
+                        entryId = entity.id,
                         assetId = entity.assetId,
+                        assetName = entity.assetName,
                         assetType = assetType,
-                        title = entity.title,
-                        category = entity.category,
-                        logType = storedLogType ?: if (isInspection) "inspection" else "service",
-                        entryDate = entity.entryDate,
+                        title = entity.title.orEmpty(),
+                        category = entity.categoryLabel,
+                        logType = logTypeOf(entity.type),
+                        entryDate = entity.occurredAt,
                         notes = entity.notes ?: "",
                         performedByUserId = entity.performedByUserId,
-                        performedByName = entity.performedBy,
-                        meterReading = entity.odometerValue?.toString() ?: "",
-                        meterType = meterType,
+                        performedByName = entity.performedByName,
+                        meterReading = entity.meterValue?.toPlainString() ?: "",
+                        meterType = meter?.kind,
                         distanceUnit = savedDistanceUnit,
                         fuelVolume = savedFuelVolume,
                         fuelVolumeUnit = savedFuelUnit,
@@ -457,16 +451,15 @@ class AddEditLogViewModel @Inject constructor(
                         tirePositions = attrs.readStringList("tire_positions").toSet(),
                         packMaps = savedPackMaps,
                         vendorId = attrs.readString("vendor_id"),
-                        vendorName = attrs.readString("vendor_name") ?: "",
-                        linkedWoId = entity.woId,
-                        costMode = if (entity.costMode == "itemized") CostMode.ITEMIZED else CostMode.TOTAL,
-                        totalCost = entity.cost?.toString() ?: "",
+                        vendorName = entity.providerName ?: attrs.readString("vendor_name") ?: "",
+                        linkedWoId = entity.workOrderId,
+                        woLinkLocked = true,
+                        costMode = if (drafts.isNotEmpty()) CostMode.ITEMIZED else CostMode.TOTAL,
+                        totalCost = totalLine?.unitCost?.stripTrailingZeros()?.toPlainString() ?: "",
                         pendingCostLines = drafts,
                         inspectionAnswers = inspectionAnswers,
                         inspectionSubtype = inspectionSubtype,
                         inspectionMode = inspectionMode,
-                        inspectionConfigId = entity.configId,
-                        inspectionConfigVersion = entity.configVersion ?: 0L,
                         inspectionChecklist = snapshotChecklist ?: state.inspectionChecklist,
                         inspectionFields = if (snapshotChecklist != null) emptyList() else state.inspectionFields,
                         inspectionStrings = inspectionStrings.ifEmpty { state.inspectionStrings },
@@ -480,15 +473,19 @@ class AddEditLogViewModel @Inject constructor(
                     setInspectionSubtype(inspectionSubtype, inspectionMode, assetType)
                 }
                 // Load item attribute defs for the restored category (so Add Details is shown for edits)
-                if (!entity.category.isNullOrBlank()) {
-                    loadItemAttributeDefs(entity.category)
+                if (!entity.categoryLabel.isNullOrBlank()) {
+                    loadItemAttributeDefs(entity.categoryLabel)
                 }
                 // Load available categories so the category picker is populated for edits
                 loadCategories(assetType)
-                loadAssetContext(entity.assetId)
-                loadMeterHistory(entity.assetId)
-                observeSyncStatus(accountId, entity.entryId)
-                if (envelope != null) restoreDraft(accountId, entity.assetId, entity.entryId)
+                entity.assetId?.let {
+                    loadAssetContext(it)
+                    loadMeterHistory(it)
+                }
+                observeSyncStatus(entity.id)
+                if (envelope != null) identity.getActiveAccountId()?.let { restoreDraft(it, entity.assetId, entity.id) }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Timber.e(e, "[AddEditLogViewModel] loadForEdit failed")
                 _form.update { it.copy(isLoadingExisting = false) }
@@ -496,21 +493,12 @@ class AddEditLogViewModel @Inject constructor(
         }
     }
 
+    /** Log categories of the asset type from the `item_category` config document. */
     fun loadCategories(assetType: String? = null) {
-        val accountId = identity.getActiveAccountId() ?: return
         viewModelScope.launch {
             try {
-                val db = dbFactory.get(accountId)
-                val type = (assetType ?: _form.value.assetType)?.takeIf { it.isNotBlank() } ?: "light_vehicle"
-
-                // 1. Try server-synced ItemCategory config for this asset type
-                val categories = db.configDao().getByKey("ItemCategory", type)
-                    ?.let { parseCategoriesFromConfig(it.value) }
-                    ?.takeIf { it.isNotEmpty() }
-                // 2. Fall back to seeded system/log_categories filtered by assetType
-                    ?: db.configDao().getByKey("system", "log_categories")
-                        ?.let { parseCategoriesFromSeeded(it.value, type) }
-                    ?: emptyList()
+                val type = (assetType ?: _form.value.assetType)?.takeIf { it.isNotBlank() } ?: DEFAULT_ASSET_TYPE
+                val categories = parseCategories(config.document(ConfigRepository.ITEM_CATEGORY, null, type)?.payload)
 
                 _form.update { it.copy(availableCategories = categories) }
 
@@ -520,34 +508,20 @@ class AddEditLogViewModel @Inject constructor(
                 if ((currentCat == null || currentCat !in categories) && categories.isNotEmpty()) {
                     onCategoryChanged(categories.first())
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Timber.e(e, "[AddEditLogViewModel] loadCategories failed")
             }
         }
     }
 
-    /**
-     * Loads available inspection subtypes for the given asset type.
-     * Queries configs with scope="Inspection" and key like "%_{assetType}".
-     * Extracts the subtype portion from the key.
-     *
-     * NOTE: the sync engine derives the local key as "{subtype}_{assetType}" (see
-     * SyncEngine.kt's config upsert — "Android schema: scope = type, key = subtype[_asset_type]"),
-     * matching the convention already used for ItemAttributes. This previously searched with the
-     * order reversed ("{assetType}_%"), which never matched real synced configs.
-     */
+    /** Inspection subtypes (Base, DVIR...) published for the asset type. */
     fun loadInspectionSubtypes(assetType: String? = null) {
-        val accountId = identity.getActiveAccountId() ?: return
-        val type = (assetType ?: _form.value.assetType)?.takeIf { it.isNotBlank() } ?: "light_vehicle"
+        val type = (assetType ?: _form.value.assetType)?.takeIf { it.isNotBlank() } ?: DEFAULT_ASSET_TYPE
         viewModelScope.launch {
             try {
-                val db = dbFactory.get(accountId)
-                val configs = db.configDao().getByPattern("Inspection", "%_$type")
-                val suffix = "_$type"
-                val subtypes = configs.mapNotNull { config ->
-                    val key = config.key
-                    if (key.endsWith(suffix)) key.removeSuffix(suffix) else null
-                }.distinct()
+                val subtypes = inspectionSubtypes(config.documents(ConfigRepository.INSPECTION), type)
                 _form.update { it.copy(availableInspectionSubtypes = subtypes) }
                 // Auto-load "Base" subtype if available and none selected
                 if (_form.value.inspectionSubtype == null && !snapshotChecklistApplied) {
@@ -558,6 +532,8 @@ class AddEditLogViewModel @Inject constructor(
                     }
                     defaultSubtype?.let { setInspectionSubtype(it, "Basic", type) }
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Timber.e(e, "[AddEditLogViewModel] loadInspectionSubtypes failed for assetType=$assetType")
             }
@@ -565,145 +541,99 @@ class AddEditLogViewModel @Inject constructor(
     }
 
     fun setInspectionSubtype(subtype: String, mode: String?, assetType: String? = null) {
-        val accountId = identity.getActiveAccountId() ?: return
-        val type = (assetType ?: _form.value.assetType)?.takeIf { it.isNotBlank() } ?: "light_vehicle"
+        val type = (assetType ?: _form.value.assetType)?.takeIf { it.isNotBlank() } ?: DEFAULT_ASSET_TYPE
         viewModelScope.launch {
             try {
-                val db = dbFactory.get(accountId)
-                val config = db.configDao().getByPattern("Inspection", "${subtype}_$type")
-                    .maxByOrNull { it.version }
-                    ?: db.configDao().getByPattern("Inspection", "${subtype}_light_vehicle")
-                        .maxByOrNull { it.version }
-                val localeStrings = loadInspectionLocaleStrings(db)
-                val checklist = parseInspectionChecklist(config?.value, localeStrings)
-                val fields = if (checklist == null) parseInspectionFields(config?.value) else emptyList()
-                inspectionConfigRaw = config?.value
+                val doc = inspectionDocument(subtype, type)
+                val localeStrings = loadInspectionLocaleStrings()
+                val checklist = parseInspectionChecklist(doc?.payload, localeStrings)
+                val fields = if (checklist == null) parseInspectionFields(doc?.payload) else emptyList()
+                inspectionConfigRaw = doc?.payload
                 snapshotChecklistApplied = false
                 _form.update {
                     it.copy(
                         inspectionSubtype = subtype,
                         inspectionMode = mode,
-                        inspectionConfigId = config?.configId,
-                        inspectionConfigVersion = config?.version ?: 0L,
+                        inspectionConfigId = doc?.id,
                         inspectionFields = fields,
                         inspectionChecklist = checklist,
                         inspectionStrings = localeStrings,
                     )
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Timber.e(e, "[AddEditLogViewModel] setInspectionSubtype failed for subtype=$subtype")
             }
         }
     }
 
-    /**
-     * Loads inspection field definitions from ConfigEntity.
-     * Scope="Inspection", key="{subtype}_{assetType}". Falls back to scope="system",
-     * key="inspection_fields_{assetType}" for backwards compatibility.
-     */
+    /** Loads the checklist of the selected subtype (default Base) for the asset type. */
     fun loadInspectionFields(assetType: String? = null) {
-        val accountId = identity.getActiveAccountId() ?: return
         val subtype = _form.value.inspectionSubtype ?: "Base"
-        val type = (assetType ?: _form.value.assetType)?.takeIf { it.isNotBlank() } ?: "light_vehicle"
+        val type = (assetType ?: _form.value.assetType)?.takeIf { it.isNotBlank() } ?: DEFAULT_ASSET_TYPE
         viewModelScope.launch {
             try {
-                val db = dbFactory.get(accountId)
-                // Try Inspection scope (iOS-style) first
-                val config = db.configDao().getByPattern("Inspection", "${subtype}_$type")
-                    .maxByOrNull { it.version }
-                    ?: db.configDao().getByKey("system", "inspection_fields_$type")
-                    ?: db.configDao().getByKey("system", "inspection_fields")
-                val localeStrings = if (config?.scope == "Inspection") loadInspectionLocaleStrings(db) else emptyMap()
-                val checklist = parseInspectionChecklist(config?.value, localeStrings)
-                val fields = if (checklist == null) parseInspectionFields(config?.value) else emptyList()
+                val doc = inspectionDocument(subtype, type)
+                val localeStrings = loadInspectionLocaleStrings()
+                val checklist = parseInspectionChecklist(doc?.payload, localeStrings)
+                val fields = if (checklist == null) parseInspectionFields(doc?.payload) else emptyList()
                 // An edited inspection already renders the checklist it was filled against.
                 if (snapshotChecklistApplied) return@launch
-                inspectionConfigRaw = config?.value
-                if (config != null && config.scope == "Inspection") {
-                    _form.update {
-                        it.copy(
-                            inspectionFields = fields,
-                            inspectionChecklist = checklist,
-                            inspectionConfigId = config.configId,
-                            inspectionConfigVersion = config.version,
-                            inspectionStrings = localeStrings,
-                        )
-                    }
-                } else {
-                    _form.update { it.copy(inspectionFields = fields, inspectionChecklist = checklist) }
+                inspectionConfigRaw = doc?.payload
+                _form.update {
+                    it.copy(
+                        inspectionFields = fields,
+                        inspectionChecklist = checklist,
+                        inspectionConfigId = doc?.id,
+                        inspectionStrings = localeStrings,
+                    )
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Timber.e(e, "[AddEditLogViewModel] loadInspectionFields failed")
             }
         }
     }
 
+    /** The subtype's checklist for the asset type, else the light-vehicle one. */
+    private suspend fun inspectionDocument(subtype: String, assetType: String): ConfigDocument? {
+        val docs = config.documents(ConfigRepository.INSPECTION)
+        return ConfigDocuments.pick(docs, subtype, assetType, Locale.getDefault())
+            ?: ConfigDocuments.pick(docs, subtype, DEFAULT_ASSET_TYPE, Locale.getDefault())
+    }
+
     /**
-     * Loads category-specific item attribute definitions from ConfigEntity.
-     * Mirrors iOS two-pass lookup:
-     *   1. scope="ItemAttributes", key="{category}_{assetType}" (asset-specific)
-     *   2. scope="ItemAttributes", key="{category}" (generic fallback)
-     * Uses version-ordered getByPattern to avoid stale configs.
+     * Category-specific item attribute definitions (`item_attributes` document with subtype =
+     * category): the asset-type specific document first, then the generic one (as on iOS).
      */
     private fun loadItemAttributeDefs(category: String?) {
         if (category.isNullOrBlank()) {
             _form.update { it.copy(itemAttributeDefs = emptyList()) }
             return
         }
-        val accountId = identity.getActiveAccountId() ?: return
         viewModelScope.launch {
             try {
-                val db = dbFactory.get(accountId)
                 val assetType = _form.value.assetType
-                // Two-pass lookup matching iOS behaviour
-                val config = if (!assetType.isNullOrBlank()) {
-                    db.configDao().getByPattern("ItemAttributes", "${category}_${assetType}%")
-                        .maxByOrNull { it.version }
-                        ?: db.configDao().getByPattern("ItemAttributes", "$category%")
-                            .filter { it.key == category }
-                            .maxByOrNull { it.version }
-                } else {
-                    db.configDao().getByPattern("ItemAttributes", "$category%")
-                        .filter { it.key == category }
-                        .maxByOrNull { it.version }
-                }
-                val rawDefs = parseItemAttributeDefs(config?.value)
-                val strings = loadItemAttrLocaleStrings(db)
+                val docs = config.documents(ConfigRepository.ITEM_ATTRIBUTES)
+                val doc = assetType?.takeIf { it.isNotBlank() }
+                    ?.let { ConfigDocuments.pick(docs, category, it, Locale.getDefault()) }
+                    ?: ConfigDocuments.pick(docs, category, null, Locale.getDefault())
+                val rawDefs = parseItemAttributeDefs(doc?.payload)
+                val strings = parseItemAttributeStrings(
+                    config.document(ConfigRepository.LOCALE, ConfigRepository.LOCALE_ITEM_ATTRIBUTES, null)?.payload,
+                )
                 val resolvedDefs = rawDefs.map { def ->
                     def.copy(label = strings[def.label] ?: def.label.toAttrDisplayLabel())
                 }
                 _form.update { it.copy(itemAttributeDefs = resolvedDefs) }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Timber.e(e, "[AddEditLogViewModel] loadItemAttributeDefs failed for category=$category")
                 _form.update { it.copy(itemAttributeDefs = emptyList()) }
             }
-        }
-    }
-
-    /** Fetches the locale strings map for item attribute labels (scope="Locale", key="ItemAttributes_{locale}"). */
-    private suspend fun loadItemAttrLocaleStrings(db: com.avago.core.data.db.AvagoDatabase): Map<String, String> {
-        return try {
-            val config = pickLocaleRow(db, "ItemAttributes")
-            if (config?.value.isNullOrBlank()) return emptyMap()
-            val stringsStart = config!!.value.indexOf("\"strings\"")
-            if (stringsStart < 0) return emptyMap()
-            val mapStart = config.value.indexOf('{', stringsStart)
-            if (mapStart < 0) return emptyMap()
-            var depth = 0
-            var mapEnd = mapStart
-            for (i in mapStart until config.value.length) {
-                when (config.value[i]) {
-                    '{' -> depth++
-                    '}' -> { depth--; if (depth == 0) { mapEnd = i; break } }
-                }
-            }
-            val mapJson = config.value.substring(mapStart, mapEnd + 1)
-            Regex("\"([^\"]+)\"\\s*:\\s*\"([^\"]*)\"")
-                .findAll(mapJson)
-                .associate { it.groupValues[1] to it.groupValues[2] }
-        } catch (e: Exception) {
-            Timber.e(e, "[AddEditLogViewModel] loadItemAttrLocaleStrings failed")
-            emptyMap()
         }
     }
 
@@ -712,68 +642,31 @@ class AddEditLogViewModel @Inject constructor(
         substringAfterLast('.').replace('_', ' ')
             .split(' ').joinToString(" ") { w -> w.replaceFirstChar { it.uppercaseChar() } }
 
-    /**
-     * Fetches the flat `insp.*` -> translated-string map (scope="Locale", key="Inspection_{locale}").
-     * Unlike [loadItemAttrLocaleStrings], this config's value is a flat top-level JSON object
-     * (no `"strings"` wrapper) — see parseInspectionLocaleStrings for details.
-     */
-    private suspend fun loadInspectionLocaleStrings(db: com.avago.core.data.db.AvagoDatabase): Map<String, String> {
-        return try {
-            parseInspectionLocaleStrings(pickLocaleRow(db, "Inspection")?.value)
-        } catch (e: Exception) {
-            Timber.e(e, "[AddEditLogViewModel] loadInspectionLocaleStrings failed")
-            emptyMap()
-        }
+    /** The flat `insp.*` -> translated-string map of the device locale (locale/Inspection document). */
+    private suspend fun loadInspectionLocaleStrings(): Map<String, String> = try {
+        parseInspectionLocaleStrings(config.document(ConfigRepository.LOCALE, ConfigRepository.LOCALE_INSPECTION, null)?.payload)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Timber.e(e, "[AddEditLogViewModel] loadInspectionLocaleStrings failed")
+        emptyMap()
     }
 
-    /**
-     * Picks the `Locale`-scope config row for [subtype] matching the device's active
-     * locale, falling back to en-us, then to whatever's cached if neither is present.
-     *
-     * `SyncEngine` stores one row PER LOCALE under keys like "Inspection_en-us" /
-     * "Inspection_de-de" (locale folded into the key since Room's `configs` table has
-     * no separate `locale` column). Without this locale-aware selection, every caller
-     * here was previously just grabbing whichever locale's row happened to have the
-     * highest `version` — which could silently serve the wrong language, or an older
-     * cached copy missing recently-added keys, instead of the user's selected locale.
-     */
-    private suspend fun pickLocaleRow(
-        db: com.avago.core.data.db.AvagoDatabase,
-        subtype: String,
-    ): com.avago.core.data.db.entity.ConfigEntity? {
-        val locale = java.util.Locale.getDefault().toLanguageTag().lowercase()
-        val rows = db.configDao().getByPattern("Locale", "$subtype%")
-        return rows.firstOrNull { it.key == "${subtype}_$locale" }
-            ?: rows.firstOrNull { it.key == "${subtype}_en-us" }
-            ?: rows.maxByOrNull { it.version }
-    }
+    private suspend fun defaultMeter(assetId: String) =
+        assets.observeMeters(assetId).first().let { meters -> meters.firstOrNull { it.isDefault } ?: meters.firstOrNull() }
 
-    /**
-     * Pre-fills the meter reading from the most recent log entry for this asset,
-     * but only when the current meter field is blank.
-     */
+    /** Pre-fills the meter reading from the asset's default meter when the field is blank. */
     private fun prefillMeterFromPriorEntry(assetId: String) {
-        val accountId = identity.getActiveAccountId() ?: return
         viewModelScope.launch {
             try {
-                val db = dbFactory.get(accountId)
-                // Only pre-fill when the field is currently blank
                 if (_form.value.meterReading.isNotBlank()) return@launch
-
-                val latestEntry = db.logDao()
-                    .observeAll(accountId)
-                    .map { logs ->
-                        logs.filter { it.assetId == assetId && it.odometerValue != null }
-                            .maxByOrNull { it.entryDate }
-                    }
-                    .first()
-
-                if (latestEntry?.odometerValue != null) {
-                    // Only set if still blank (avoid clobbering if user typed quickly)
-                    if (_form.value.meterReading.isBlank()) {
-                        _form.update { it.copy(meterReading = latestEntry.odometerValue.toString()) }
-                    }
+                val last = defaultMeter(assetId)?.lastValue ?: return@launch
+                // Only set if still blank (avoid clobbering if user typed quickly)
+                if (_form.value.meterReading.isBlank()) {
+                    _form.update { it.copy(meterReading = last.stripTrailingZeros().toPlainString()) }
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Timber.e(e, "[AddEditLogViewModel] prefillMeterFromPriorEntry failed for assetId=$assetId")
             }
@@ -787,15 +680,23 @@ class AddEditLogViewModel @Inject constructor(
     fun onAssetSelected(assetId: String, assetName: String?) {
         _form.update { it.copy(assetId = assetId, assetName = assetName) }
         loadMeterHistory(assetId)
-        val accountId = identity.getActiveAccountId() ?: return
         // Load asset details first so assetType is known before reloading categories/inspection
         viewModelScope.launch {
             try {
-                val asset = dbFactory.get(accountId).assetDao().getById(assetId)
-                _form.update { it.copy(meterType = asset?.meterType, assetType = asset?.assetType) }
+                val asset = assets.asset(assetId)
+                val meter = defaultMeter(assetId)
+                _form.update { s ->
+                    s.copy(
+                        meterType = meter?.kind,
+                        assetType = asset?.assetTypeCode,
+                        distanceUnit = distanceUnitOf(meter?.unit) ?: s.distanceUnit,
+                    )
+                }
                 // Reload categories and inspection fields with the correct assetType
-                loadCategories(asset?.assetType)
-                loadInspectionSubtypes(asset?.assetType)
+                loadCategories(asset?.assetTypeCode)
+                loadInspectionSubtypes(asset?.assetTypeCode)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Timber.e(e, "[AddEditLogViewModel] onAssetSelected: failed to load asset details")
             }
@@ -967,45 +868,59 @@ class AddEditLogViewModel @Inject constructor(
     }.getOrNull()
 
     private fun loadVendors() {
-        val accountId = identity.getActiveAccountId() ?: return
         viewModelScope.launch {
             try {
-                val vendors = dbFactory.get(accountId).vendorDao().observeAll(accountId).first()
-                    .filter { it.deletedAt == null && it.active }
-                    .sortedWith(compareByDescending<com.avago.core.data.db.entity.VendorEntity> { it.preferred }.thenBy { it.name.lowercase() })
-                    .map { LogVendorOption(it.vendorId, it.name) }
+                val vendors = suppliers.observeSuppliers().first()
+                    .sortedWith(compareByDescending<com.avago.core.data.domain.Supplier> { it.isPreferred }.thenBy { it.name.lowercase() })
+                    .map { LogVendorOption(it.partyId, it.name) }
                 _form.update { it.copy(vendorOptions = vendors) }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Timber.w(e, "[AddEditLogViewModel] loadVendors failed")
             }
         }
     }
 
-    /** Loads open work orders (WO link picker) and fuel history (economy) for the asset. */
-    private fun loadAssetContext(assetId: String) {
-        val accountId = identity.getActiveAccountId() ?: return
+    private fun loadTechnicians() {
         viewModelScope.launch {
             try {
-                val db = dbFactory.get(accountId)
-                val closed = setOf("completed", "complete", "cancelled")
-                val wos = db.workOrderDao().observeByAsset(assetId).first()
-                    .filter { it.deletedAt == null && (it.status?.lowercase() !in closed || it.woId == _form.value.linkedWoId) }
-                    .sortedByDescending { it.updatedAt }
-                    .map { LogWoOption(it.woId, it.title, it.status) }
-                val logs = db.logDao().observeAll(accountId).first()
-                    .filter { it.assetId == assetId && it.deletedAt == null && LogPacks.isFuel(it.category) }
-                fuelHistory = logs.map { l ->
+                val people = workers.observeWorkers().first()
+                    .mapNotNull { w -> w.userId?.let { LogPersonOption(it, w.displayName) } }
+                    .sortedBy { it.name.lowercase() }
+                _form.update { it.copy(technicians = people) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Timber.w(e, "[AddEditLogViewModel] loadTechnicians failed")
+            }
+        }
+    }
+
+    /** Loads open work orders (WO link picker) and fuel history (economy) for the asset. */
+    private fun loadAssetContext(assetId: String) {
+        viewModelScope.launch {
+            try {
+                val wos = workOrders.observeWorkOrders(WorkOrderFilter(assetId = assetId)).first()
+                    .filter { !it.status.isTerminal || it.id == _form.value.linkedWoId }
+                    .map { LogWoOption(it.id, it.title, it.status.wire) }
+                val fuelLogs = activities.observeActivities(
+                    com.avago.core.data.domain.ActivityFilter(assetId = assetId, types = setOf(ActivityType.FUEL)),
+                ).first()
+                fuelHistory = fuelLogs.map { l ->
                     val a = LogPacks.parse(l.attributes)
                     LogPacks.FuelFill(
-                        entryId = l.entryId,
-                        dateMs = l.entryDate,
-                        meter = l.odometerValue,
+                        entryId = l.id,
+                        dateMs = l.occurredAt,
+                        meter = l.meterValue?.toDouble(),
                         volume = a.readDouble("fuel_volume"),
                         fullFill = a.readBool("fuel_full_fill") ?: true,
                     )
                 }
                 _form.update { it.copy(woOptions = wos) }
                 refreshFuelEconomy()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Timber.w(e, "[AddEditLogViewModel] loadAssetContext failed")
             }
@@ -1057,17 +972,16 @@ class AddEditLogViewModel @Inject constructor(
      * scanned part's ID and name.
      */
     fun onScannedPartSelected(partId: String) {
-        val accountId = identity.getActiveAccountId() ?: return
         viewModelScope.launch {
             try {
-                val part = dbFactory.get(accountId).partDao().getById(partId)
+                val product = inventory.product(partId)
                 val draft = LogCostLineDraft(
                     kind = "part",
-                    inventoryId = partId,
-                    inventoryName = part?.name,
-                    description = part?.name ?: partId,
+                    productId = partId,
+                    productName = product?.name,
+                    description = product?.name ?: partId,
                     quantity = 1.0,
-                    unitCost = part?.cost ?: 0.0,
+                    unitCost = product?.standardUnitCost?.toDouble() ?: 0.0,
                 )
                 _form.update { state ->
                     state.copy(
@@ -1077,7 +991,8 @@ class AddEditLogViewModel @Inject constructor(
                         ),
                     )
                 }
-                Timber.d("[AddEditLogViewModel] Added scanned part cost line: $partId")
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Timber.e(e, "[AddEditLogViewModel] onScannedPartSelected failed for partId=$partId")
             }
@@ -1118,11 +1033,7 @@ class AddEditLogViewModel @Inject constructor(
         scheduleDraftSave()
     }
 
-    /**
-     * Loads open defects for [assetId] when starting a NEW inspection: the service's defect register
-     * first (GET /defects), falling back to replaying cached inspection history (contract §2) when
-     * the endpoint is unavailable (404/405), offline or failing.
-     */
+    /** Loads the asset's open defects from the register when starting a NEW inspection. */
     fun loadOpenDefects(assetId: String?, isNewEntry: Boolean) {
         if (!isNewEntry || assetId.isNullOrBlank()) {
             openDefectsLoadedFor = null
@@ -1131,39 +1042,39 @@ class AddEditLogViewModel @Inject constructor(
         }
         if (openDefectsLoadedFor == assetId) return
         openDefectsLoadedFor = assetId
-        val accountId = identity.getActiveAccountId() ?: return
         _form.update { it.copy(openDefectsLoading = true, inspectionOpenDefects = emptyList(), openDefectResolutions = emptyMap()) }
         viewModelScope.launch {
-            var serverBacked = false
             val defects = try {
-                when (val res = serviceClient.getDefects(accountId, assetId)) {
-                    is NetworkResult.Success -> InspectionV2.sortOpen(
-                        res.data.mapNotNull { it as? JsonObject }
-                            .map { InspectionV2.fromServerDefect(it) }
-                            .filter { it.status == "open" || it.status == "monitoring" || it.status == "deferred" },
-                    ).also { serverBacked = true }
-                    else -> deriveOpenDefectsLocally(accountId, assetId)
-                }
+                InspectionV2.sortOpen(
+                    activities.observeDefects(assetId, openOnly = false).first()
+                        .filter { it.status != com.avago.core.data.domain.DefectState.REPAIRED }
+                        .map(OpenDefectsViewModel::toOpenDefect),
+                )
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                Timber.w(e, "[AddEditLogViewModel] getDefects failed — deriving from local history")
-                runCatching { deriveOpenDefectsLocally(accountId, assetId) }.getOrDefault(emptyList())
+                Timber.w(e, "[AddEditLogViewModel] open defects failed")
+                emptyList()
             }
             if (openDefectsLoadedFor != assetId) return@launch
-            _form.update { it.copy(inspectionOpenDefects = defects, openDefectsLoading = false, openDefectsServerBacked = serverBacked) }
+            _form.update { it.copy(inspectionOpenDefects = defects, openDefectsLoading = false) }
         }
     }
 
-    /**
-     * Web OpenDefectsPanel lifecycle: PATCH the server register to repaired (with an optional
-     * resolution note), deferred or open. Only offered when the list came from the server.
-     */
+    /** Web OpenDefectsPanel lifecycle: repaired (with an optional resolution note), deferred or open. */
     fun updateDefectStatus(defect: InspectionV2.OpenDefect, status: String, note: String? = null) {
-        val accountId = identity.getActiveAccountId() ?: return
         viewModelScope.launch {
             val ok = try {
-                serviceClient.patchDefect(accountId, defect.id, status, note?.trim()?.takeIf { it.isNotEmpty() }) is NetworkResult.Success
+                activities.updateDefect(
+                    defect.id,
+                    OpenDefectsViewModel.stateFor(status, defect.bucket),
+                    note?.trim()?.takeIf { it.isNotEmpty() },
+                )
+                true
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                Timber.w(e, "[AddEditLogViewModel] patchDefect failed")
+                Timber.w(e, "[AddEditLogViewModel] defect update failed")
                 false
             }
             _form.update { state ->
@@ -1184,76 +1095,9 @@ class AddEditLogViewModel @Inject constructor(
 
     fun clearDefectUpdateResult() = _form.update { it.copy(defectUpdateOk = null) }
 
-    private suspend fun deriveOpenDefectsLocally(accountId: String, assetId: String): List<InspectionV2.OpenDefect> {
-        val logs = dbFactory.get(accountId).logDao().observeAll(accountId).first()
-        val history = logs.filter { it.assetId == assetId && it.deletedAt == null }.map { log ->
-            InspectionV2.HistoryEntry(
-                logId = log.entryId,
-                assetId = log.assetId,
-                logDate = Instant.ofEpochMilli(log.entryDate).toString(),
-                category = log.category,
-                data = InspectionV2.parseDataObject(log.data),
-            )
-        }
-        return InspectionV2.deriveOpenDefects(history, excludeLogId = _form.value.entryId)
-    }
-
     /** Localized display label for an `insp.*` key (defect labels, corner labels, section titles). */
     fun inspectionLabel(key: String?): String? =
         key?.let { _form.value.inspectionStrings[it] ?: humanizeIfKey(it) }
-
-    /** 409 → "Reload theirs": adopt the server row locally and reload the form from it. */
-    fun resolveConflictReloadTheirs() {
-        val current = _form.value.inspectionConflict ?: return
-        val accountId = identity.getActiveAccountId() ?: return
-        val entryId = _form.value.entryId
-        _form.update { it.copy(inspectionConflict = null, conflictKeys = emptyList(), conflictMineCount = 0) }
-        pendingOnSuccess = null
-        viewModelScope.launch {
-            try {
-                syncEngine.logEntityFromJson(current, accountId)?.let { dbFactory.get(accountId).logDao().upsert(it) }
-            } catch (e: Exception) {
-                Timber.e(e, "[AddEditLogViewModel] reload theirs: local upsert failed")
-            }
-            snapshotChecklistApplied = false
-            loadForEdit(entryId)
-        }
-    }
-
-    /**
-     * 409 → "Keep mine" after the user reviewed [AddEditLogFormState.conflictKeys]: rebases this
-     * device's edits onto the server's current row (their other changes survive) and re-sends with
-     * the server's current version as `expected_server_version`, so a further concurrent write
-     * raises a new conflict instead of being overwritten.
-     */
-    fun resolveConflictOverwrite() {
-        val theirs = _form.value.inspectionConflict ?: return
-        val accountId = identity.getActiveAccountId() ?: return
-        val onSuccess: (String) -> Unit = pendingOnSuccess ?: { _ -> }
-        val theirsEntity = syncEngine.logEntityFromJson(theirs, accountId)
-        val theirsData = InspectionV2.parseDataObject(theirsEntity?.data)
-        val theirsValues = InspectionV2.parseEnvelope(theirsData).values
-        val mine = InspectionV2.diffValues(originalValues, _form.value.inspectionAnswers)
-        storedData = theirsData
-        originalValues = theirsValues
-        theirsEntity?.let { originalServerVersion = it.serverVersion }
-        _form.update {
-            it.copy(
-                inspectionConflict = null,
-                conflictKeys = emptyList(),
-                conflictMineCount = 0,
-                inspectionAnswers = InspectionV2.rebaseValues(theirsValues, mine),
-            )
-        }
-        save(onSuccess, skipMeterCheck = true)
-    }
-
-    fun dismissConflict() {
-        _form.update { it.copy(inspectionConflict = null, conflictKeys = emptyList(), conflictMineCount = 0) }
-    }
-
-    /** Label for a conflicting values key, for the review list. */
-    fun conflictKeyLabel(key: String): String = InspectionV2.keyLabel(_form.value.inspectionChecklist, key)
 
     fun clearValidationError() {
         _form.update { it.copy(validationError = null) }
@@ -1308,16 +1152,18 @@ class AddEditLogViewModel @Inject constructor(
     }
 
     private fun loadMeterHistory(assetId: String) {
-        val accountId = identity.getActiveAccountId() ?: return
         viewModelScope.launch {
-            runCatching {
-                val logs = dbFactory.get(accountId).logDao().observeAll(accountId).first()
-                meterPoints = logs.filter { it.assetId == assetId && it.deletedAt == null }
-                    .mapNotNull { l -> l.odometerValue?.let { InspectionValidation.MeterPoint(it, l.entryDate, l.entryId) } }
+            try {
+                meterPoints = assets.observeReadings(assetId, limit = METER_HISTORY_LIMIT).first()
+                    .map { InspectionValidation.MeterPoint(it.value.toDouble(), it.readAt, it.activityId ?: it.id) }
                 val entryId = _form.value.entryId
                 val last = meterPoints.filter { it.logId != entryId && it.value > 0 }.maxByOrNull { it.atMs }
                 _form.update { it.copy(lastMeter = last) }
-            }.onFailure { Timber.w(it, "[AddEditLogViewModel] meter history failed") }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Timber.w(e, "[AddEditLogViewModel] meter history failed")
+            }
         }
     }
 
@@ -1342,15 +1188,14 @@ class AddEditLogViewModel @Inject constructor(
     }
 
     // ---------------------------------------------------------------------------
-    // Drafts (DataStore + SavedStateHandle, mirrored to the server drafts API)
+    // Drafts (DataStore + SavedStateHandle, on this device)
     // ---------------------------------------------------------------------------
 
     private var draftJob: Job? = null
-    private var serverDraftJob: Job? = null
     private var draftRestoreAttempted = false
     private val draftKeysToClear = mutableSetOf<String>()
 
-    private val isExistingEntry: Boolean get() = originalCreatedAt != null
+    private val isExistingEntry: Boolean get() = stored != null
 
     private fun currentDraft(): InspectionDraft? {
         val s = _form.value
@@ -1362,7 +1207,7 @@ class AddEditLogViewModel @Inject constructor(
             assetId = s.assetId,
             logId = logId,
             savedAt = System.currentTimeMillis(),
-            baseServerVersion = originalServerVersion.takeIf { it > 0 },
+            baseServerVersion = stored?.version,
             category = s.category,
             configId = s.inspectionConfigId,
             mode = s.inspectionMode,
@@ -1398,11 +1243,6 @@ class AddEditLogViewModel @Inject constructor(
             draftKeysToClear += d.key
             draftStore.save(d)
         }
-        serverDraftJob?.cancel()
-        serverDraftJob = viewModelScope.launch {
-            delay(10_000)
-            currentDraft()?.takeIf { isMeaningful(it) }?.let { draftStore.pushServer(it) }
-        }
     }
 
     /** New entries: restores a local draft for this account / asset (called once from the screen). */
@@ -1421,14 +1261,6 @@ class AddEditLogViewModel @Inject constructor(
         }?.takeIf { it.key == key }
         val local = listOfNotNull(fromState, draftStore.load(key)).maxByOrNull { it.savedAt }
         if (local != null && isMeaningful(local)) applyDraft(local)
-        if (assetId != null) {
-            val server = draftStore.fetchServer(acct, assetId, logId)
-            if (server != null && server.savedAt > (local?.savedAt ?: 0L) + 5_000 &&
-                server.values.isNotEmpty() && isMeaningful(server)
-            ) {
-                _form.update { it.copy(serverDraftOffer = server) }
-            }
-        }
     }
 
     private fun applyDraft(d: InspectionDraft) {
@@ -1454,7 +1286,6 @@ class AddEditLogViewModel @Inject constructor(
                 notes = d.form["notes"] ?: s.notes,
                 meterReading = d.form["meter"] ?: s.meterReading,
                 restoredDraftAt = d.savedAt,
-                serverDraftOffer = null,
             )
         }
         val subtype = d.subtype
@@ -1463,18 +1294,11 @@ class AddEditLogViewModel @Inject constructor(
         }
     }
 
-    fun acceptServerDraft() {
-        _form.value.serverDraftOffer?.let { applyDraft(it); scheduleDraftSave() }
-    }
-
-    fun dismissServerDraft() = _form.update { it.copy(serverDraftOffer = null) }
-
     fun dismissRestoredDraftBanner() = _form.update { it.copy(restoredDraftAt = null) }
 
     /** Drops the restored draft and returns the form to the stored entry (or a blank inspection). */
     fun discardDraft() {
         draftJob?.cancel()
-        serverDraftJob?.cancel()
         clearStoredDrafts()
         signOffDirty = false
         certificationDirty = false
@@ -1485,7 +1309,6 @@ class AddEditLogViewModel @Inject constructor(
                 signOff = storedSignOff,
                 certification = storedCertification,
                 restoredDraftAt = null,
-                serverDraftOffer = null,
             )
         }
     }
@@ -1505,19 +1328,23 @@ class AddEditLogViewModel @Inject constructor(
 
     private var syncStatusJob: Job? = null
 
-    private fun observeSyncStatus(accountId: String, entryId: String) {
+    private fun observeSyncStatus(entryId: String) {
         syncStatusJob?.cancel()
         syncStatusJob = viewModelScope.launch {
-            runCatching {
-                dbFactory.get(accountId).syncQueueDao().observeById("log_").collect { row ->
-                    val status = when (row?.syncStatus) {
-                        null -> LogSyncStatus.SAVED
-                        "conflict" -> LogSyncStatus.CONFLICT
-                        else -> LogSyncStatus.PENDING
+            try {
+                changes.observeRecordState(ACTIVITY_ENTITY, entryId).collect { state ->
+                    val status = when (state) {
+                        RecordSyncState.SAVED -> LogSyncStatus.SAVED
+                        RecordSyncState.PENDING -> LogSyncStatus.PENDING
+                        RecordSyncState.FAILED -> LogSyncStatus.FAILED
                     }
                     _form.update { it.copy(syncStatus = status) }
                 }
-            }.onFailure { Timber.w(it, "[AddEditLogViewModel] sync status observe failed") }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Timber.w(e, "[AddEditLogViewModel] sync status observe failed")
+            }
         }
     }
 
@@ -1620,170 +1447,43 @@ class AddEditLogViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                val db = dbFactory.get(accountId)
-                val now = System.currentTimeMillis()
-                val entryId = current.entryId
-
-                val dataJson = buildDataJson(current)
-
-                val costMode = if (current.costMode == CostMode.ITEMIZED) "itemized" else "total"
-                val cost = when (current.costMode) {
-                    CostMode.TOTAL -> current.totalCost.toDoubleOrNull()
-                    CostMode.ITEMIZED -> current.itemizedTotal.takeIf { it > 0 }
-                }
-
-                // Read the user's preferred currency code (mirrors iOS CurrencyManager.shared.preferredCurrencyCode)
-                val preferredCurrency = userPrefsRepository.currencyFlow.firstOrNull() ?: "USD"
-
-                val entity = LogEntity(
-                    entryId = entryId,
+                val existing = stored
+                val currency = existing?.currency ?: userPrefsRepository.currencyFlow.firstOrNull() ?: DEFAULT_CURRENCY
+                val draft = ActivityDraft(
                     assetId = current.assetId,
-                    accountId = accountId,
+                    workOrderId = current.linkedWoId ?: current.workOrderId ?: storedWoId,
+                    type = activityTypeOf(current.logType, current.category),
+                    categoryLabel = current.category,
                     title = current.title.trim(),
-                    entryDate = current.entryDate,
-                    odometerValue = current.meterReading.toDoubleOrNull(),
-                    category = current.category,
-                    cost = cost,
-                    performedBy = current.performedByName,
+                    occurredAt = current.entryDate,
+                    meterValue = parseDecimal(current.meterReading),
                     performedByUserId = current.performedByUserId,
+                    performedByName = current.performedByName?.trim()?.ifBlank { null },
+                    providerName = current.vendorName.trim().ifBlank { null },
+                    currency = currency,
+                    overtimeMultiplier = existing?.overtimeMultiplier,
                     notes = current.notes.trim().ifBlank { null },
-                    data = dataJson,
+                    payload = buildDataJson(current),
                     attributes = buildAttributesJson(current),
-                    costMode = costMode,
-                    costItems = if (current.costMode == CostMode.ITEMIZED) {
-                        current.pendingCostLines
-                            .filter { it.kind == "part" }
-                            .sumOf { it.quantity * it.unitCost }
-                    } else null,
-                    costLabor = if (current.costMode == CostMode.ITEMIZED) {
-                        current.pendingCostLines
-                            .filter { it.kind == "labor" }
-                            .sumOf { it.quantity * it.unitCost }
-                    } else null,
-                    costTax = if (current.costMode == CostMode.ITEMIZED) {
-                        current.pendingCostLines.sumOf { it.taxAmount ?: 0.0 }.takeIf { it > 0 }
-                    } else null,
-                    // Persist currency so server-side cost rollups and reporting can convert
-                    // to a common base amount — mirrors iOS CurrencyManager.shared.preferredCurrencyCode.
-                    // For USD the exchange rate is 1.0 and baseAmount == cost; for other currencies
-                    // this will need to be updated when ExchangeRateService is wired in.
-                    currency = preferredCurrency,
-                    baseAmount = if (preferredCurrency == "USD") cost else null,
-                    exchangeRateUsed = if (preferredCurrency == "USD") 1.0 else null,
-                    configId = current.inspectionConfigId,
-                    configVersion = current.inspectionConfigVersion.takeIf { it > 0 },
-                    serviceId = null,
-                    costMisc = null,
-                    parentId = null,
-                    createdAt = originalCreatedAt ?: now,
-                    updatedAt = now,
-                    deletedAt = null,
-                    serverVersion = originalServerVersion,
-                    seq = null,
-                    woId = current.linkedWoId ?: current.workOrderId ?: storedWoId,
                 )
-
-                // Inspection updates go straight to the service with expected_server_version so a
-                // concurrent edit from another device/web surfaces as a 409 instead of being
-                // silently overwritten. Offline / other failures fall back to the queued sync path.
-                var remoteRow: JsonObject? = null
-                if (current.logType == "inspection" && originalServerVersion > 0L) {
-                    val body = buildUpdateBody(entity, expectedServerVersion = originalServerVersion)
-                    when (val res = serviceClient.updateLog(accountId, entryId, body)) {
-                        is NetworkResult.Success -> remoteRow = res.data
-                        is NetworkResult.Error -> {
-                            val theirs = if (res.code == 409) conflictCurrentRow(res.message) else null
-                            if (theirs != null) {
-                                pendingOnSuccess = onSuccess
-                                val theirsValues = InspectionV2.parseEnvelope(
-                                    InspectionV2.parseDataObject(syncEngine.logEntityFromJson(theirs, accountId)?.data),
-                                ).values
-                                val mine = InspectionV2.diffValues(originalValues, current.inspectionAnswers)
-                                _form.update {
-                                    it.copy(
-                                        isSaving = false,
-                                        inspectionConflict = theirs,
-                                        conflictKeys = InspectionV2.conflictingKeys(originalValues, mine, theirsValues),
-                                        conflictMineCount = mine.keys.size,
-                                    )
-                                }
-                                return@launch
-                            }
-                            Timber.w("[AddEditLogViewModel] inspection PUT failed (${res.code}) — queuing sync")
-                        }
-                        else -> Timber.w("[AddEditLogViewModel] inspection PUT unauthorized — queuing sync")
-                    }
-                }
-
-                val stored = remoteRow?.let { syncEngine.logEntityFromJson(it, accountId) } ?: entity
-                db.logDao().upsert(stored)
-                if (remoteRow == null) {
-                    enqueueLogSync(accountId, entryId, now)
+                val lines = linesFor(current)
+                val files = current.photoUris.map { LocalFileRef(it.toString(), "image/jpeg") }
+                val entryId = if (existing == null) {
+                    activities.create(draft, lines.map { toCostLineDraft(it, currency) }, files)
                 } else {
-                    originalServerVersion = stored.serverVersion
-                    storedData = InspectionV2.parseDataObject(stored.data)
-                    originalValues = InspectionV2.parseEnvelope(storedData).values
+                    activities.update(existing.id, draft)
+                    saveLines(existing.id, lines, currency)
+                    files.forEach { assets.attach(AttachmentTarget.ToActivity(existing.id), it) }
+                    existing.id
                 }
-                pendingOnSuccess = null
-
-                // Upsert cost lines if itemized
-                if (current.costMode == CostMode.ITEMIZED) {
-                    current.pendingCostLines.forEachIndexed { idx, draft ->
-                        val lineEntity = LogCostLineEntity(
-                            lineId = draft.lineId,
-                            accountId = accountId,
-                            logId = entryId,
-                            kind = draft.kind,
-                            displayOrder = idx.toLong(),
-                            inventoryId = draft.inventoryId,
-                            userId = draft.userId,
-                            description = draft.description.ifBlank { null },
-                            quantity = draft.quantity,
-                            unitCost = draft.unitCost,
-                            taxAmount = draft.taxAmount,
-                            glCode = draft.glCode?.ifBlank { null },
-                            notes = null,
-                            woId = null,
-                            createdAt = now,
-                            updatedAt = now,
-                            deletedAt = null,
-                            serverVersion = 0L,
-                            seq = null,
-                        )
-                        db.logCostLineDao().upsert(lineEntity)
-                        enqueueCostLineSync(accountId, draft.lineId, now)
-                    }
-                }
-
-                // Stub: save local photo URIs to PhotoEntity
-                current.photoUris.forEachIndexed { idx, uri ->
-                    val photoId = UUID.randomUUID().toString()
-                    val photoEntity = PhotoEntity(
-                        photoId = photoId,
-                        entityId = entryId,
-                        entityType = "log",
-                        accountId = accountId,
-                        storageKey = null,
-                        downloadUrl = uri.toString(),
-                        sortOrder = idx.toLong(),
-                        isPrimary = idx == 0,
-                        createdAt = now,
-                        updatedAt = now,
-                        deletedAt = null,
-                        serverVersion = 0L,
-                    )
-                    db.photoDao().upsert(photoEntity)
-                }
-
-                // Trigger push
-                syncEngine.pushIfNeeded()
 
                 draftJob?.cancel()
-                serverDraftJob?.cancel()
                 clearStoredDrafts()
                 _form.update { it.copy(isSaving = false, savedEntryId = entryId) }
                 Timber.d("[AddEditLogViewModel] Saved log $entryId")
                 onSuccess(entryId)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Timber.e(e, "[AddEditLogViewModel] Save failed")
                 _form.update { it.copy(isSaving = false, saveError = "save_failed") }
@@ -1791,47 +1491,34 @@ class AddEditLogViewModel @Inject constructor(
         }
     }
 
-    // ---------------------------------------------------------------------------
-    // Sync helpers
-    // ---------------------------------------------------------------------------
-
-    private suspend fun enqueueLogSync(accountId: String, entryId: String, now: Long) {
-        val db = dbFactory.get(accountId)
-        db.syncQueueDao().enqueueWithDedup(
-            SyncQueueEntity(
-                queueId = "log_$entryId",
-                entityType = "log",
-                entityId = entryId,
-                operation = if (originalServerVersion == 0L) "insert" else "update",
-                serverVersion = originalServerVersion,
-                payload = null,
-                syncStatus = "pending",
-                attempts = 0L,
-                lastError = null,
-                createdAt = now,
-                updatedAt = now,
-            )
-        )
+    /** The form's cost as lines: the itemized lines, or one misc line holding the total. */
+    private fun linesFor(form: AddEditLogFormState): List<LogCostLineDraft> = when (form.costMode) {
+        CostMode.ITEMIZED -> form.pendingCostLines
+        CostMode.TOTAL -> {
+            val total = parseDecimal(form.totalCost)?.takeIf { it.signum() > 0 }
+            if (total == null) {
+                emptyList()
+            } else {
+                listOf(
+                    LogCostLineDraft(
+                        lineId = totalLineOf(storedLines)?.id ?: UUID.randomUUID().toString(),
+                        kind = CostLineType.MISC.wire,
+                        quantity = 1.0,
+                        unitCost = total.toDouble(),
+                    ),
+                )
+            }
+        }
     }
 
-    private suspend fun enqueueCostLineSync(accountId: String, lineId: String, now: Long) {
-        val db = dbFactory.get(accountId)
-        val existingVersion = db.logCostLineDao().getById(lineId)?.serverVersion ?: 0L
-        db.syncQueueDao().enqueueWithDedup(
-            SyncQueueEntity(
-                queueId = "log_cost_line_$lineId",
-                entityType = "log_cost_line",
-                entityId = lineId,
-                operation = if (existingVersion == 0L) "insert" else "update",
-                serverVersion = existingVersion,
-                payload = null,
-                syncStatus = "pending",
-                attempts = 0L,
-                lastError = null,
-                createdAt = now,
-                updatedAt = now,
-            )
-        )
+    /** Adds, changes and removes the stored lines of [activityId] to match [lines]. */
+    private suspend fun saveLines(activityId: String, lines: List<LogCostLineDraft>, currency: String) {
+        val storedIds = storedLines.map { it.id }.toSet()
+        storedLines.filter { line -> lines.none { it.lineId == line.id } }.forEach { activities.deleteCostLine(it.id) }
+        lines.forEach { line ->
+            val draft = toCostLineDraft(line, currency)
+            if (line.lineId in storedIds) activities.updateCostLine(line.lineId, draft) else activities.addCostLine(activityId, draft)
+        }
     }
 
     // ---------------------------------------------------------------------------
@@ -1848,12 +1535,8 @@ class AddEditLogViewModel @Inject constructor(
      */
     private fun buildDataJson(current: AddEditLogFormState): String? {
         val stored = storedData
-        if (current.logType != "inspection") {
-            if (stored == null) return null
-            val merged = LinkedHashMap<String, JsonElement>(stored)
-            merged["log_type"] = JsonPrimitive(current.logType)
-            return JsonObject(merged).toString()
-        }
+        // Other kinds keep their payload as stored (the kind itself is the activity's `kind`).
+        if (current.logType != "inspection") return stored?.toString()
 
         val checklist = current.inspectionChecklist ?: legacyChecklist(current.inspectionFields)
         // Only keys the user removed are dropped; every other stored key survives (contract rule 1).
@@ -1923,45 +1606,12 @@ class AddEditLogViewModel @Inject constructor(
         )
     }
 
-    /** PUT /log/:id body (service UpdateLogRequest) — `data` / `attributes` sent as JSON objects. */
-    private fun buildUpdateBody(entity: LogEntity, expectedServerVersion: Long?): JsonObject {
-        val body = LinkedHashMap<String, JsonElement>()
-        body["title"] = JsonPrimitive(entity.title)
-        val logDate = Instant.ofEpochMilli(entity.entryDate).atZone(ZoneId.systemDefault())
-            .toLocalDate().atTime(12, 0).toInstant(ZoneOffset.UTC)
-        body["log_date"] = JsonPrimitive(logDate.toString())
-        entity.odometerValue?.let { m ->
-            body["meter"] = JsonPrimitive(if (m % 1.0 == 0.0) m.toLong().toString() else m.toString())
-        }
-        entity.category?.let { body["category"] = JsonPrimitive(it) }
-        entity.cost?.let { body["cost"] = JsonPrimitive(it) }
-        entity.costMode?.let { body["cost_mode"] = JsonPrimitive(it) }
-        entity.performedBy?.let { body["performed_by"] = JsonPrimitive(it) }
-        body["performed_by_user_id"] = entity.performedByUserId?.let { JsonPrimitive(it) } ?: JsonNull
-        body["notes"] = JsonPrimitive(entity.notes ?: "")
-        InspectionV2.parseDataObject(entity.data)?.let { body["data"] = it }
-        InspectionV2.parseDataObject(entity.attributes)?.let { body["attributes"] = it }
-        entity.woId?.let { body["wo_id"] = JsonPrimitive(it) }
-        entity.currency?.let { body["currency"] = JsonPrimitive(it) }
-        entity.baseAmount?.let { body["base_amount"] = JsonPrimitive(it) }
-        entity.exchangeRateUsed?.let { body["exchange_rate_used"] = JsonPrimitive(it) }
-        if (expectedServerVersion != null) body["expected_server_version"] = JsonPrimitive(expectedServerVersion)
-        return JsonObject(body)
-    }
-
-    /** The `current` row from a 409 VersionConflict body; null for other 409s (no `current`). */
-    private fun conflictCurrentRow(body: String): JsonObject? {
-        val obj = InspectionV2.parseDataObject(body) ?: return null
-        val error = (obj["error"] as? JsonPrimitive)?.content
-        return (obj["current"] as? JsonObject)?.takeIf { error == null || error == "conflict" }
-    }
-
     /**
      * Builds the attributes JSON by merging this form's §1 keys over the attributes as stored,
      * so unknown keys (other platforms / future packs) survive the write. Packs that don't apply
      * to the current category are left untouched.
      */
-    private fun buildAttributesJson(form: AddEditLogFormState): String? {
+    private fun buildAttributesJson(form: AddEditLogFormState): String {
         val patch = LinkedHashMap<String, JsonElement?>()
         // Server-defined item attribute defs take precedence over the built-in packs for their keys.
         val defKeys = form.itemAttributeDefs.map { it.key }.toSet() - FUEL_CORE_KEYS
@@ -2018,41 +1668,12 @@ class AddEditLogViewModel @Inject constructor(
             patch["brake_rotor_mm"] = LogPacks.numMap(form.packMaps["brake_rotor_mm"] ?: emptyMap())
         }
         // Any category
+        // The vendor name is the activity's provider_name; the attribute links the vendor record.
         patch["vendor_id"] = LogPacks.str(form.vendorId)
-        patch["vendor_name"] = LogPacks.str(form.vendorName)
+        patch["vendor_name"] = null
         listOf("warranty_until", "warranty_provider").forEach(::scalar)
 
-        val merged = LogPacks.merge(storedAttributes, patch)
-        return if (merged.isEmpty()) null else merged.toString()
-    }
-
-    private fun parseJsonField(json: String, key: String): String? {
-        val pattern = Regex("\"$key\"\\s*:\\s*\"([^\"]*)\"")
-        return pattern.find(json)?.groupValues?.get(1)
-    }
-
-    private fun parseJsonMap(json: String?): Map<String, String> {
-        if (json.isNullOrBlank()) return emptyMap()
-        val result = mutableMapOf<String, String>()
-        val pattern = Regex("\"([^\"]+)\"\\s*:\\s*\"([^\"]*)\"")
-        pattern.findAll(json).forEach { match ->
-            result[match.groupValues[1]] = match.groupValues[2]
-        }
-        return result
-    }
-
-    private fun parseCategoriesFromConfig(json: String): List<String> {
-        // Server-synced ItemCategory value: {"categories":[{"id":"oil_change",...},...]}
-        val catKey = json.indexOf("\"categories\"")
-        val arrStart = if (catKey >= 0) json.indexOf('[', catKey) else json.indexOf('[')
-        if (arrStart < 0) return emptyList()
-        var depth = 0; var arrEnd = arrStart
-        for (i in arrStart until json.length) when (json[i]) {
-            '[' -> depth++; ']' -> { depth--; if (depth == 0) { arrEnd = i; break } }
-        }
-        return Regex("\"id\"\\s*:\\s*\"([^\"]+)\"")
-            .findAll(json.substring(arrStart, arrEnd + 1))
-            .map { it.groupValues[1] }.toList()
+        return LogPacks.merge(storedAttributes, patch).toString()
     }
 
     fun setWorkOrderId(woId: String?) {
@@ -2073,22 +1694,6 @@ class AddEditLogViewModel @Inject constructor(
     fun lapTimer(): Long {
         val started = _form.value.timerStartedAt ?: return 0L
         return (System.currentTimeMillis() - started) / 1000L
-    }
-
-    private fun parseCategoriesFromSeeded(json: String, assetType: String): List<String> {
-        // Seeded log_categories value: [{"asset_type":"light_vehicle","categories":[{"id":"oil_change",...}]}]
-        val assetKey = "\"asset_type\":\"$assetType\""
-        val blockStart = json.indexOf(assetKey).takeIf { it >= 0 }
-            ?: return parseCategoriesFromConfig(json) // no matching assetType block; try direct parse
-        val catKey = json.indexOf("\"categories\"", blockStart)
-        val arrStart = if (catKey >= 0) json.indexOf('[', catKey) else return emptyList()
-        var depth = 0; var arrEnd = arrStart
-        for (i in arrStart until json.length) when (json[i]) {
-            '[' -> depth++; ']' -> { depth--; if (depth == 0) { arrEnd = i; break } }
-        }
-        return Regex("\"id\"\\s*:\\s*\"([^\"]+)\"")
-            .findAll(json.substring(arrStart, arrEnd + 1))
-            .map { it.groupValues[1] }.toList()
     }
 
     /**
@@ -2155,6 +1760,107 @@ class AddEditLogViewModel @Inject constructor(
         } catch (e: Exception) {
             Timber.e(e, "[AddEditLogViewModel] parseItemAttributeDefs failed")
             emptyList()
+        }
+    }
+
+    /** Form lines of the stored [lines] ([currency] converts tax minor units). */
+    private suspend fun toLineDrafts(lines: List<CostLine>, currency: String): List<LogCostLineDraft> {
+        val people = workers.observeWorkers().first().associate { it.id to it.userId }
+        return lines.mapIndexed { idx, line ->
+            LogCostLineDraft(
+                lineId = line.id,
+                kind = line.kind.wire,
+                productId = line.productId,
+                productName = line.productId?.let { inventory.product(it)?.name },
+                performerUserId = line.performerWorkerId?.let { people[it] },
+                description = line.description.orEmpty(),
+                quantity = line.quantity.toDouble(),
+                unitCost = line.unitCost?.toDouble() ?: 0.0,
+                taxAmount = line.taxAmountMinor?.let { minorToMajor(it, currency).toDouble() },
+                displayOrder = idx,
+            )
+        }
+    }
+
+    companion object {
+        const val ACTIVITY_ENTITY = "activity_records"
+        const val DEFAULT_CURRENCY = "USD"
+        const val DEFAULT_ASSET_TYPE = "light_vehicle"
+        private const val METER_HISTORY_LIMIT = 500
+
+        /** A lone, unlabeled misc line is how the "total" cost mode is stored. */
+        fun totalLineOf(lines: List<CostLine>): CostLine? = lines.singleOrNull()?.takeIf {
+            it.kind == CostLineType.MISC && it.productId == null && it.performerWorkerId == null &&
+                it.description.isNullOrBlank() && it.quantity.compareTo(BigDecimal.ONE) == 0 && (it.taxAmountMinor ?: 0L) == 0L
+        }
+
+        fun toCostLineDraft(line: LogCostLineDraft, currency: String): CostLineDraft {
+            val kind = CostLineType.fromWire(line.kind)
+            return CostLineDraft(
+                kind = kind,
+                description = line.description.trim().ifBlank { null },
+                productId = line.productId.takeIf { kind == CostLineType.PART },
+                performerUserId = line.performerUserId.takeIf { kind == CostLineType.LABOR },
+                quantity = BigDecimal.valueOf(line.quantity),
+                unitCost = BigDecimal.valueOf(line.unitCost),
+                taxAmountMinor = line.taxAmount?.takeIf { it != 0.0 }?.let { majorToMinor(BigDecimal.valueOf(it), currency) },
+            )
+        }
+
+        private fun fractionDigits(currency: String): Int =
+            runCatching { Currency.getInstance(currency).defaultFractionDigits }.getOrNull()?.takeIf { it >= 0 } ?: 2
+
+        fun majorToMinor(amount: BigDecimal, currency: String): Long =
+            amount.movePointRight(fractionDigits(currency)).setScale(0, RoundingMode.HALF_UP).longValueExact()
+
+        fun minorToMajor(minor: Long, currency: String): BigDecimal =
+            BigDecimal.valueOf(minor).movePointLeft(fractionDigits(currency))
+
+        /** Form log type of an activity kind. */
+        fun logTypeOf(type: ActivityType): String = when (type) {
+            ActivityType.INSPECTION -> "inspection"
+            ActivityType.FUEL -> "fuel"
+            ActivityType.NOTE -> "note"
+            else -> "service"
+        }
+
+        /** Activity kind for the form's log type (service categories may still map to repair...). */
+        fun activityTypeOf(logType: String, category: String?): ActivityType = when (logType) {
+            "inspection" -> ActivityType.INSPECTION
+            "fuel" -> ActivityType.FUEL
+            "note" -> ActivityType.NOTE
+            else -> ActivityType.forCategory(category).takeUnless {
+                it == ActivityType.INSPECTION || it == ActivityType.FUEL || it == ActivityType.NOTE
+            } ?: ActivityType.SERVICE
+        }
+
+        /** Form distance unit for a meter unit (`mi` / `km`); null for non-distance meters. */
+        fun distanceUnitOf(meterUnit: String?): String? = when (meterUnit?.lowercase()) {
+            "mi" -> "mi"
+            "km" -> "km"
+            else -> null
+        }
+
+        fun parseDecimal(text: String): BigDecimal? = text.trim().replace(',', '.').takeIf { it.isNotEmpty() }?.toBigDecimalOrNull()
+
+        /** Category ids of an `item_category` document: `{"categories":[{"id":...}]}`. */
+        fun parseCategories(payload: String?): List<String> {
+            val root = payload?.let { InspectionV2.parseDataObject(it) } ?: return emptyList()
+            val arr = root["categories"] as? kotlinx.serialization.json.JsonArray ?: return emptyList()
+            return arr.mapNotNull { (it as? JsonObject)?.get("id")?.let { id -> (id as? JsonPrimitive)?.content } }
+        }
+
+        /** Subtypes with a checklist for [assetType], falling back to the light-vehicle set. */
+        fun inspectionSubtypes(docs: List<ConfigDocument>, assetType: String): List<String> {
+            fun of(type: String) = docs.filter { it.assetType == type }.mapNotNull { it.subtype }.distinct()
+            return of(assetType).ifEmpty { of(DEFAULT_ASSET_TYPE) }
+        }
+
+        /** Item attribute label strings: the locale/ItemAttributes payload wraps them in `strings`. */
+        fun parseItemAttributeStrings(payload: String?): Map<String, String> {
+            val root = payload?.let { InspectionV2.parseDataObject(it) } ?: return emptyMap()
+            val strings = root["strings"] as? JsonObject ?: return emptyMap()
+            return strings.mapNotNull { (k, v) -> (v as? JsonPrimitive)?.takeIf { it.isString }?.let { k to it.content } }.toMap()
         }
     }
 }

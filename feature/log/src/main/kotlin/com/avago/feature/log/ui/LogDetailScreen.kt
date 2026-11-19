@@ -3,7 +3,6 @@ package com.avago.feature.log.ui
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,7 +31,6 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Badge
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -40,6 +38,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -60,8 +60,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import coil3.compose.AsyncImage
-import com.avago.core.data.db.entity.LogCostLineEntity
+import com.avago.core.data.domain.Activity
+import com.avago.core.data.domain.ActivityType
+import com.avago.core.data.domain.CostLine
+import com.avago.core.data.domain.CostLineType
+import com.avago.core.ui.components.StoredFileImage
+import com.avago.feature.log.viewmodel.LogDetailUiState
+import java.math.BigDecimal
 import com.avago.core.ui.categoryBadgeColor
 import com.avago.core.ui.categoryIconName
 import com.avago.feature.log.model.InspectionV2
@@ -99,14 +104,14 @@ fun LogDetailScreen(
 
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val currencyCode by viewModel.currencyCode.collectAsStateWithLifecycle()
-    val currencyRate by viewModel.currencyRate.collectAsStateWithLifecycle()
     val distanceUnit by viewModel.distanceUnit.collectAsStateWithLifecycle()
     val inspectionStrings by viewModel.inspectionStrings.collectAsStateWithLifecycle()
     val assetType by viewModel.assetType.collectAsStateWithLifecycle()
     var showDeleteDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(state.isDeleted) {
-        if (state.isDeleted) onDeleted()
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(Unit) {
+        viewModel.errors.collect { snackbarHostState.showSnackbar(it) }
     }
 
     if (showDeleteDialog) {
@@ -129,9 +134,10 @@ fun LogDetailScreen(
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(state.log?.title ?: stringResource(R.string.log_detail_title_fallback)) },
+                title = { Text(state.log?.displayTitle ?: stringResource(R.string.log_detail_title_fallback)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.log_action_back))
@@ -140,12 +146,9 @@ fun LogDetailScreen(
                 actions = {
                     val log = state.log
                     val shareContext = LocalContext.current
-                    val isInspection = log != null && (
-                        log.category?.lowercase()?.contains("inspect") == true ||
-                            ((InspectionV2.parseDataObject(log.data)?.get("log_type") as? JsonPrimitive)?.content == "inspection")
-                        )
-                    if (log != null && isInspection) {
-                        IconButton(onClick = { InspectionReportShare.share(shareContext, log.assetId, log.entryId, log.title) }) {
+                    val shareAssetId = log?.assetId
+                    if (log != null && shareAssetId != null && isInspectionLog(log)) {
+                        IconButton(onClick = { InspectionReportShare.share(shareContext, shareAssetId, log.id, log.displayTitle) }) {
                             Icon(Icons.Default.Share, contentDescription = stringResource(R.string.log_share_report))
                         }
                     }
@@ -182,22 +185,16 @@ fun LogDetailScreen(
             else -> {
                 val log = state.log!!
                 val dateFormatter = remember { SimpleDateFormat("MMMM d, yyyy", Locale.getDefault()) }
-                // Use NumberFormat for symbol lookup, but apply live exchange rate
-                // to amounts (mirrors iOS CurrencyManager.format() conversion).
+                // Amounts are in the record currency.
                 val currencyFormat = remember(currencyCode) {
                     val fmt = NumberFormat.getCurrencyInstance(Locale.getDefault())
                     runCatching { fmt.currency = java.util.Currency.getInstance(currencyCode.uppercase()) }
                     fmt
                 }
-                // Conversion helper: multiply a USD base amount by the live rate.
-                fun convertUSD(usdAmount: Double) = usdAmount * currencyRate
 
-                val inspectionData = remember(log.data) { InspectionV2.parseDataObject(log.data) }
-                val logType = remember(log.data, log.category) {
-                    (inspectionData?.get("log_type") as? JsonPrimitive)?.content
-                        ?: if (log.category?.lowercase()?.contains("inspect") == true) "inspection" else "service"
-                }
-                val hasInspectionContent = remember(log.data) {
+                val inspectionData = remember(log.payload) { InspectionV2.parseDataObject(log.payload) }
+                val isInspection = remember(log) { isInspectionLog(log) }
+                val hasInspectionContent = remember(log.payload) {
                     val env = InspectionV2.parseEnvelope(inspectionData)
                     env.values.isNotEmpty() || env.defects.isNotEmpty() || env.signOff != null ||
                         env.resolvedDefects.isNotEmpty() || env.certification != null || env.result != null
@@ -217,7 +214,7 @@ fun LogDetailScreen(
                     // ── 1. Header card: title | separator | category pill + date ──
                     DetailCard(modifier = Modifier.padding(horizontal = 16.dp)) {
                         Text(
-                            text = log.title,
+                            text = log.displayTitle,
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier
@@ -235,7 +232,7 @@ fun LogDetailScreen(
                                 .padding(horizontal = 16.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            log.category?.let { cat ->
+                            log.categoryLabel?.let { cat ->
                                 val dotColor = categoryBadgeColor(categoryIconName(cat))
                                 val label = cat.replace("_", " ").split(" ")
                                     .joinToString(" ") { w -> w.replaceFirstChar { it.uppercaseChar() } }
@@ -265,7 +262,7 @@ fun LogDetailScreen(
                             }
                             Spacer(Modifier.weight(1f))
                             Text(
-                                text = dateFormatter.format(Date(log.entryDate)),
+                                text = dateFormatter.format(Date(log.occurredAt)),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -300,15 +297,14 @@ fun LogDetailScreen(
                                         androidx.compose.ui.unit.TextUnitType.Sp,
                                     ),
                                 )
-                                val displayCost = if (state.costLines.isNotEmpty()) state.totalCost else log.cost
+                                val displayCost = state.totalCost
                                 Text(
-                                    text = if (displayCost != null && displayCost > 0)
-                                        currencyFormat.format(convertUSD(displayCost)) else "—",
+                                    text = if (displayCost.signum() > 0) currencyFormat.format(displayCost) else "\u2014",
                                     style = MaterialTheme.typography.bodyMedium,
                                 )
                             }
                             // Right: ODOMETER / HOURS (only if recorded)
-                            log.odometerValue?.let { meter ->
+                            log.meterValue?.let { meter ->
                                 VerticalDivider(
                                     modifier = Modifier.fillMaxHeight(),
                                     thickness = 0.5.dp,
@@ -332,7 +328,7 @@ fun LogDetailScreen(
                                         ),
                                     )
                                     Text(
-                                        text = "${"%.1f".format(meter)} $distanceUnit",
+                                        text = "${"%.1f".format(meter.toDouble())} $distanceUnit",
                                         style = MaterialTheme.typography.bodyMedium,
                                     )
                                 }
@@ -378,7 +374,7 @@ fun LogDetailScreen(
 
                     // ── 4. Item attributes: localized pack sections (web PackFieldsView parity)
                     //       + any remaining non-pack keys as generic "Item details" rows.
-                    log.attributes?.takeIf { it.isNotBlank() }?.let { attrsJson ->
+                    log.attributes.takeIf { it.isNotBlank() && it != "{}" }?.let { attrsJson ->
                         val attrsObj = remember(attrsJson) { LogPacks.parse(attrsJson) }
                         val translator = rememberPackTranslator()
                         // Tire / brake per-position readings render as a coloured sketch + per-wheel
@@ -391,11 +387,11 @@ fun LogDetailScreen(
                                 if (brakeReadings != null) addAll(listOf("brake_pad_mm", "brake_rotor_mm"))
                             }
                         }
-                        val packSections = remember(attrsObj, translator, currencyFormat, currencyRate, readingKeys) {
+                        val packSections = remember(attrsObj, translator, currencyFormat, readingKeys) {
                             PackDisplay.build(
                                 attrs = attrsObj,
                                 t = translator,
-                                formatCurrency = { currencyFormat.format(convertUSD(it)) },
+                                formatCurrency = { currencyFormat.format(it) },
                                 formatDate = { iso -> formatIsoDate(iso) },
                                 skipKeys = readingKeys,
                             )
@@ -437,7 +433,7 @@ fun LogDetailScreen(
                     }
 
                     // ── 5. Performed By card ──────────────────────────────────────
-                    val performedByName = log.performedBy
+                    val performedByName = log.performedByName
                     val performedByUserId = log.performedByUserId
                     if (!performedByName.isNullOrBlank() || performedByUserId != null) {
                         Spacer(Modifier.height(16.dp))
@@ -500,37 +496,22 @@ fun LogDetailScreen(
                                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                             ) {
-                                items(state.photos) { photo ->
-                                    Box(
+                                items(state.photos, key = { it.id }) { photo ->
+                                    StoredFileImage(
+                                        file = photo.file,
                                         modifier = Modifier
                                             .size(width = 140.dp, height = 105.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .combinedClickable(
-                                                onClick = {},
-                                                onLongClick = { viewModel.setPrimaryPhoto(photo.photoId) },
-                                            ),
-                                    ) {
-                                        AsyncImage(
-                                            model = photo.downloadUrl ?: photo.storageKey,
-                                            contentDescription = stringResource(R.string.log_detail_photo_cd),
-                                            contentScale = ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize(),
-                                        )
-                                        if (photo.isPrimary) {
-                                            Badge(
-                                                modifier = Modifier
-                                                    .align(Alignment.TopEnd)
-                                                    .padding(6.dp),
-                                            ) { Text("★") }
-                                        }
-                                    }
+                                            .clip(RoundedCornerShape(8.dp)),
+                                        contentScale = ContentScale.Crop,
+                                        contentDescription = stringResource(R.string.log_detail_photo_cd),
+                                    )
                                 }
                             }
                         }
                     }
 
                     // ── 6. Cost breakdown (itemized) ──────────────────────────────
-                    if (log.costMode == "itemized" && state.costLines.isNotEmpty()) {
+                    if (state.costLines.isNotEmpty()) {
                         Spacer(Modifier.height(16.dp))
                         DetailCard(modifier = Modifier.padding(horizontal = 16.dp)) {
                             Row(
@@ -560,7 +541,7 @@ fun LogDetailScreen(
                                     CostLineDetailRow(
                                         line = line,
                                         currencyFormat = currencyFormat,
-                                        currencyRate = currencyRate,
+                                        currency = log.currency,
                                     )
                                     if (line != state.costLines.last()) {
                                         HorizontalDivider(
@@ -569,7 +550,7 @@ fun LogDetailScreen(
                                         )
                                     }
                                 }
-                                if (state.totalCost > 0) {
+                                if (state.totalCost.signum() > 0) {
                                     HorizontalDivider(
                                         modifier = Modifier.padding(vertical = 6.dp),
                                         color = MaterialTheme.colorScheme.outlineVariant,
@@ -580,7 +561,7 @@ fun LogDetailScreen(
                                     ) {
                                         Text(stringResource(R.string.log_detail_total), fontWeight = FontWeight.SemiBold)
                                         Text(
-                                            text = currencyFormat.format(convertUSD(state.totalCost)),
+                                            text = currencyFormat.format(state.totalCost),
                                             fontWeight = FontWeight.Bold,
                                         )
                                     }
@@ -589,98 +570,8 @@ fun LogDetailScreen(
                         }
                     }
 
-                    // ── 7. Parts Used card ────────────────────────────────────────
-                    if (state.partLines.isNotEmpty()) {
-                        Spacer(Modifier.height(16.dp))
-                        DetailCard(modifier = Modifier.padding(horizontal = 16.dp)) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(36.dp)
-                                    .padding(horizontal = 16.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    text = stringResource(R.string.log_entry_section_parts),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    letterSpacing = androidx.compose.ui.unit.TextUnit(
-                                        1.5f,
-                                        androidx.compose.ui.unit.TextUnitType.Sp,
-                                    ),
-                                )
-                            }
-                            HorizontalDivider(
-                                thickness = 0.5.dp,
-                                color = MaterialTheme.colorScheme.outline,
-                            )
-                            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                                state.partLines.forEach { line ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = line.description ?: stringResource(R.string.log_cost_line_part),
-                                                style = MaterialTheme.typography.bodyMedium,
-                                            )
-                                            Text(
-                                                text = "${line.quantity} × ${currencyFormat.format(line.unitCost)}",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        }
-                                        Text(
-                                            text = currencyFormat.format(line.quantity * line.unitCost),
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Medium,
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // ── 8. Labor card ─────────────────────────────────────────────
-                    if (state.laborLines.isNotEmpty()) {
-                        Spacer(Modifier.height(16.dp))
-                        DetailCard(modifier = Modifier.padding(horizontal = 16.dp)) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(36.dp)
-                                    .padding(horizontal = 16.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    text = stringResource(R.string.log_detail_section_labor),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    letterSpacing = androidx.compose.ui.unit.TextUnit(
-                                        1.5f,
-                                        androidx.compose.ui.unit.TextUnitType.Sp,
-                                    ),
-                                )
-                            }
-                            HorizontalDivider(
-                                thickness = 0.5.dp,
-                                color = MaterialTheme.colorScheme.outline,
-                            )
-                            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                                state.laborLines.forEach { line ->
-                                    CostLineRow(line = line, currencyFormat = currencyFormat)
-                                }
-                            }
-                        }
-                    }
-
                     // ── 9. Inspection card ────────────────────────────────────────
-                    if (logType == "inspection" && hasInspectionContent) {
+                    if (isInspection && hasInspectionContent) {
                         Spacer(Modifier.height(16.dp))
                         DetailCard(modifier = Modifier.padding(horizontal = 16.dp)) {
                             Row(
@@ -914,56 +805,26 @@ private fun DetailCard(
 }
 
 @Composable
-private fun CostLineRow(
-    line: LogCostLineEntity,
-    currencyFormat: NumberFormat,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = line.description ?: stringResource(if (line.kind == "part") R.string.log_cost_line_part else R.string.log_cost_line_labor),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Text(
-                text = "${line.quantity} × ${currencyFormat.format(line.unitCost)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Text(
-            text = currencyFormat.format(line.quantity * line.unitCost),
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
-        )
-    }
-}
-
-@Composable
 private fun CostLineDetailRow(
-    line: LogCostLineEntity,
+    line: CostLine,
     currencyFormat: NumberFormat,
-    currencyRate: Double = 1.0,
+    currency: String?,
     modifier: Modifier = Modifier,
 ) {
-    fun convert(usd: Double) = usd * currencyRate
-    val lineTotal = convert(line.quantity * line.unitCost + (line.taxAmount ?: 0.0))
+    val tax = LogDetailUiState.taxOf(line, currency)
+    val lineTotal = line.total + tax
+    val isPart = line.kind == CostLineType.PART
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            val kindLabel = stringResource(if (line.kind == "part") R.string.log_cost_line_part else R.string.log_cost_line_labor).uppercase(LocalConfiguration.current.locales[0])
-            val badgeColor = if (line.kind == "part")
+            val kindLabel = stringResource(if (isPart) R.string.log_cost_line_part else R.string.log_cost_line_labor).uppercase(LocalConfiguration.current.locales[0])
+            val badgeColor = if (isPart)
                 MaterialTheme.colorScheme.secondaryContainer
             else
                 MaterialTheme.colorScheme.tertiaryContainer
-            val badgeTextColor = if (line.kind == "part")
+            val badgeTextColor = if (isPart)
                 MaterialTheme.colorScheme.onSecondaryContainer
             else
                 MaterialTheme.colorScheme.onTertiaryContainer
@@ -981,7 +842,7 @@ private fun CostLineDetailRow(
             }
             Spacer(Modifier.width(8.dp))
             Text(
-                text = line.description ?: stringResource(if (line.kind == "part") R.string.log_cost_line_part else R.string.log_cost_line_labor),
+                text = line.description ?: stringResource(if (isPart) R.string.log_cost_line_part else R.string.log_cost_line_labor),
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(1f),
             )
@@ -994,15 +855,14 @@ private fun CostLineDetailRow(
         Spacer(Modifier.height(2.dp))
         Row(modifier = Modifier.fillMaxWidth()) {
             Text(
-                text = "${line.quantity} × ${currencyFormat.format(convert(line.unitCost))}",
+                text = "${line.quantity.stripTrailingZeros().toPlainString()} × ${currencyFormat.format(line.unitCost ?: BigDecimal.ZERO)}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
-            val tax = line.taxAmount
-            if (tax != null && tax > 0) {
+            if (tax.signum() > 0) {
                 Text(
-                    text = stringResource(R.string.log_cost_line_tax, currencyFormat.format(convert(tax))),
+                    text = stringResource(R.string.log_cost_line_tax, currencyFormat.format(tax)),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1066,3 +926,9 @@ private fun parseInspectionItemLabels(json: String?): Map<String, String> {
 @Composable
 internal fun tirePositionLabel(pos: String): String =
     PACK_LABELS["pos_$pos"]?.let { stringResource(it) } ?: pos.uppercase()
+
+/** Inspection records render the inspection card and can share the web report. */
+private fun isInspectionLog(log: Activity): Boolean =
+    log.type == ActivityType.INSPECTION ||
+        log.categoryLabel?.lowercase()?.contains("inspect") == true ||
+        (InspectionV2.parseDataObject(log.payload)?.get("log_type") as? JsonPrimitive)?.content == "inspection"

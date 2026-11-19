@@ -65,7 +65,6 @@ import java.text.NumberFormat
 fun LogAnalyticsSheet(
     summary: LogAnalytics.Summary,
     currencyCode: String,
-    currencyRate: Double,
     onCategoryClick: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -73,7 +72,7 @@ fun LogAnalyticsSheet(
     val locale = LocalConfiguration.current.locales[0]
     // Shared chart formatter: currency minor units, whole units from 1,000 and
     // accounting negatives (credits) — AvagoWeb docs/chart-style-guide.md § 5.
-    fun fmtMoney(usd: Double) = ChartFormat.money(usd * currencyRate, currencyCode, locale)
+    fun fmtMoney(amount: Double) = ChartFormat.money(amount, currencyCode, locale)
     val chartColors = ChartTheme.colors()
     val num1 = remember { NumberFormat.getNumberInstance(locale).apply { maximumFractionDigits = 1 } }
     val num0 = remember { NumberFormat.getIntegerInstance(locale) }

@@ -81,6 +81,8 @@ data class ActivityDraft(
 data class InspectionDefect(
     val id: String,
     val assetId: String,
+    /** Checklist item id within the template (the key may carry a corner suffix). */
+    val itemId: String?,
     val itemKey: String,
     val label: String?,
     val cornerLabel: String?,
@@ -92,6 +94,8 @@ data class InspectionDefect(
     val locationLabel: String?,
     val status: DefectState,
     val sourceActivityId: String?,
+    /** Latest inspection that still reported the defect. */
+    val lastSeenActivityId: String?,
     val reportedAt: Long,
     val lastSeenAt: Long?,
     val resolvedAt: Long?,

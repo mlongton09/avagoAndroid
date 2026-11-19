@@ -250,6 +250,7 @@ internal object V2MaintRows {
     fun defect(r: V2Row) = InspectionDefect(
         id = r.str("id"),
         assetId = r.str("asset_id"),
+        itemId = r.strOrNull("item_id"),
         itemKey = r.strOrNull("item_key") ?: "",
         label = r.strOrNull("label"),
         cornerLabel = r.strOrNull("corner_label"),
@@ -260,6 +261,7 @@ internal object V2MaintRows {
         locationLabel = r.strOrNull("location_label"),
         status = DefectState.fromWire(r.strOrNull("status")),
         sourceActivityId = r.strOrNull("source_activity_id"),
+        lastSeenActivityId = r.strOrNull("last_seen_activity_id"),
         reportedAt = r.longOrNull("reported_at") ?: 0L,
         lastSeenAt = r.longOrNull("last_seen_at"),
         resolvedAt = r.longOrNull("resolved_at"),

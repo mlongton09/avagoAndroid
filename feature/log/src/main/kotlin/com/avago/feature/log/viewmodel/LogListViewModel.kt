@@ -1,74 +1,59 @@
 package com.avago.feature.log.viewmodel
 
-import android.content.ContentResolver
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.CurrencyManager
-import com.avago.core.data.DatabaseFactory
+import com.avago.core.data.domain.Activity
+import com.avago.core.data.domain.ActivityFilter
+import com.avago.core.data.domain.ActivityRepository
+import com.avago.core.data.domain.Asset
+import com.avago.core.data.domain.AssetMeter
+import com.avago.core.data.domain.AssetRepository
+import com.avago.core.data.domain.Attachment
+import com.avago.core.data.domain.AttachmentTarget
+import com.avago.core.data.domain.LocalFileRef
+import com.avago.core.data.repository.UserPreferencesRepository
+import com.avago.core.sync.SyncEngine
 import com.avago.feature.log.model.LogAnalytics
 import com.avago.feature.log.model.LogListFilter
 import com.avago.feature.log.model.LogPacks
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
-import com.avago.core.data.db.entity.AssetEntity
-import com.avago.core.data.db.entity.LogEntity
-import com.avago.core.data.db.entity.PhotoEntity
-import com.avago.core.data.repository.AssetRepository
-import com.avago.core.data.repository.UserPreferencesRepository
-import com.avago.core.sync.PhotoDownloader
-import com.avago.core.sync.SyncEngine
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
-import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import timber.log.Timber
-import java.io.File
-import java.io.FileOutputStream
-import java.util.UUID
 import javax.inject.Inject
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class LogListViewModel @Inject constructor(
-    @ApplicationContext private val appContext: Context,
-    private val dbFactory: DatabaseFactory,
-    private val identity: IdentityManager,
+    private val activities: ActivityRepository,
+    private val assets: AssetRepository,
     private val syncEngine: SyncEngine,
-    private val photoDownloader: PhotoDownloader,
-    private val userPrefsRepository: UserPreferencesRepository,
-    private val assetRepository: AssetRepository,
-    private val currencyManager: CurrencyManager,
+    userPrefsRepository: UserPreferencesRepository,
 ) : ViewModel() {
 
     val assetId = MutableStateFlow<String?>(null)
     private val _categoryFilter = MutableStateFlow<String?>(null)
     private val _isRefreshing = MutableStateFlow(false)
+    private val _errors = MutableSharedFlow<String>(extraBufferCapacity = 4)
 
     val isRefreshing: StateFlow<Boolean> = _isRefreshing
 
-    val currencyCode: StateFlow<String> = userPrefsRepository.currencyFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "USD")
-
-    private val accountId: StateFlow<String?> = identity.activeAccountId
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.Eagerly,
-            initialValue = identity.getActiveAccountId(),
-        )
+    /** Failed photo writes, for a snackbar. */
+    val errors: SharedFlow<String> = _errors
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery
@@ -76,30 +61,22 @@ class LogListViewModel @Inject constructor(
     val distanceUnit: StateFlow<String> = userPrefsRepository.distanceUnitFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "mi")
 
-    /** Live USD→preferred-currency rate (same source as the detail screen). */
-    val currencyRate: StateFlow<Double> = currencyCode.flatMapLatest { code ->
-        flow { emit(runCatching { currencyManager.rateFromUSD(code) }.getOrDefault(1.0)) }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 1.0)
+    /** Logs scoped to the asset (if any), newest first, before search / category filters. */
+    private val scopedLogs: StateFlow<List<Activity>> = assetId
+        .flatMapLatest { id -> activities.observeActivities(ActivityFilter(assetId = id)) }
+        .map { list -> list.sortedByDescending { it.occurredAt } }
+        .catch { e ->
+            Timber.e(e, "[LogListViewModel] Failed to observe logs")
+            emit(emptyList())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    /** Logs scoped to the asset (if any), newest first — before search / category filters. */
-    private val scopedLogs: StateFlow<List<LogEntity>> = combine(
-        identity.activeAccountId.filterNotNull(),
-        assetId,
-    ) { accountId, assetIdVal -> accountId to assetIdVal }
-        .flatMapLatest { (accountId, assetIdVal) ->
-            try {
-                val db = dbFactory.get(accountId)
-                db.logDao().observeAll(accountId).map { list ->
-                    list.filter { log -> assetIdVal == null || log.assetId == assetIdVal }
-                        .sortedByDescending { it.entryDate }
-                }
-            } catch (e: Exception) {
-                Timber.e(e, "[LogListViewModel] Failed to observe logs")
-                flowOf(emptyList())
-            }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    /** Money in v2 is stored in each record's currency; the list shows the dominant one. */
+    val currencyCode: StateFlow<String> = combine(scopedLogs, userPrefsRepository.currencyFlow) { list, preferred ->
+        list.mapNotNull { it.currency }.groupingBy { it }.eachCount().maxByOrNull { it.value }?.key ?: preferred
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "USD")
 
-    val logs: StateFlow<List<LogEntity>> = combine(scopedLogs, _categoryFilter, _searchQuery) { list, filter, query ->
+    val logs: StateFlow<List<Activity>> = combine(scopedLogs, _categoryFilter, _searchQuery) { list, filter, query ->
         LogListFilter.apply(list, filter, query)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -107,119 +84,71 @@ class LogListViewModel @Inject constructor(
     val hasAnyLogs: StateFlow<Boolean> = scopedLogs.map { it.isNotEmpty() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    /**
-     * Distinct categories with entry counts over the unfiltered set (web category select parity),
-     * most used first, for building filter chips.
-     */
+    /** Distinct categories with entry counts over the unfiltered set, most used first. */
     val categoryCounts: StateFlow<List<Pair<String, Int>>> = scopedLogs.map { list ->
         LogListFilter.categoryCounts(list)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    /** All distinct categories observed in the current (unfiltered) log set. */
-    val availableCategories: StateFlow<List<String>> = categoryCounts.map { list ->
-        list.map { it.first }.sorted()
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
     val categoryFilter: StateFlow<String?> = _categoryFilter
 
-    // ─── Asset header state ─────────────────────────────────────────────────
-    // Mirrors iOS AssetDetailHeaderView.configure(withAsset:photos:latestEntry:entryCount:).
-
-    /** The current asset, or null when viewing all logs (assetId == null). */
-    val asset: StateFlow<AssetEntity?> = combine(
-        accountId,
-        assetId,
-    ) { acctId, aId -> acctId to aId }
-        .flatMapLatest { (acctId, aId) ->
-            if (acctId == null || aId == null) flowOf(null)
-            else try {
-                assetRepository.observeAssets(acctId).map { list ->
-                    list.firstOrNull { it.assetId == aId }
-                }
-            } catch (e: Exception) {
-                Timber.e(e, "[LogListViewModel] Error observing asset $aId")
-                flowOf(null)
-            }
+    /** The current asset, or null when viewing all logs. */
+    val asset: StateFlow<Asset?> = assetId
+        .flatMapLatest { id -> if (id == null) flowOf(null) else assets.observeAsset(id) }
+        .catch { e ->
+            Timber.e(e, "[LogListViewModel] Error observing asset")
+            emit(null)
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    /** Photos for the current asset, ordered by sort_order. Empty when assetId is null. */
-    val photos: StateFlow<List<PhotoEntity>> = combine(
-        accountId,
-        assetId,
-    ) { acctId, aId -> acctId to aId }
-        .flatMapLatest { (acctId, aId) ->
-            if (acctId == null || aId == null) flowOf(emptyList())
-            else try {
-                dbFactory.get(acctId).photoDao().observeByEntity(aId, "asset")
-            } catch (e: Exception) {
-                Timber.e(e, "[LogListViewModel] Error observing photos for $aId")
-                flowOf(emptyList())
-            }
+    /** The asset's default meter (else its first), for units on rows and analytics. */
+    val meter: StateFlow<AssetMeter?> = assetId
+        .flatMapLatest { id -> if (id == null) flowOf(emptyList()) else assets.observeMeters(id) }
+        .map { list -> list.firstOrNull { it.isDefault } ?: list.firstOrNull() }
+        .catch { emit(null) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** Pictures attached to the current asset. Empty when viewing all logs. */
+    val photos: StateFlow<List<Attachment>> = assetId
+        .flatMapLatest { id ->
+            if (id == null) flowOf(emptyList()) else assets.observeAttachments(AttachmentTarget.ToAsset(id))
+        }
+        .map { list -> list.filter { it.file?.isImage == true } }
+        .catch { e ->
+            Timber.e(e, "[LogListViewModel] Error observing photos")
+            emit(emptyList())
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** Most-recent log entryDate for the current asset, or null. */
+    /** Most-recent log date for the current asset, or null. */
     val lastServiceDate: StateFlow<Long?> = logs
-        .map { it.maxOfOrNull { entry -> entry.entryDate } }
+        .map { it.maxOfOrNull { entry -> entry.occurredAt } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    /** Total log count for the current asset (after assetId filter, before category filter). */
-    val entryCount: StateFlow<Int> = combine(
-        identity.activeAccountId.filterNotNull(),
-        assetId,
-    ) { acctId, aId -> acctId to aId }
-        .flatMapLatest { (acctId, aId) ->
-            if (aId == null) flowOf(0)
-            else try {
-                dbFactory.get(acctId).logDao().observeAll(acctId)
-                    .map { list -> list.count { it.assetId == aId } }
-            } catch (e: Exception) {
-                Timber.e(e, "[LogListViewModel] Error counting entries")
-                flowOf(0)
-            }
-        }
+    /** Log count for the current asset (before search / category filters). */
+    val entryCount: StateFlow<Int> = combine(assetId, scopedLogs) { id, list -> if (id == null) 0 else list.size }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     fun setAssetId(id: String?) {
-        val prior = assetId.value
         assetId.value = id
-        // iOS parity: opening the asset detail / log screen triggers
-        // LogPictureDAO.downloadIfNeeded for each attached photo. On Android
-        // we batch-fetch presigned download URLs once when the screen opens
-        // so server-side photos render in the carousel even on devices that
-        // didn't originally capture them. The generic /sync pull only brings
-        // down storage_key — short-lived presigned URLs have to be re-resolved
-        // here per-session.
-        if (id != null && id != prior) {
-            viewModelScope.launch {
-                val acctId = identity.activeAccountId.value ?: return@launch
-                try {
-                    photoDownloader.refreshForEntity(acctId, id)
-                } catch (e: Exception) {
-                    Timber.e(e, "[LogListViewModel] PhotoDownloader.refreshForEntity failed for $id")
-                }
-            }
-        }
     }
 
     /**
-     * Per-asset analytics (web AssetAnalyticsPanel parity). Only for a single asset with at
-     * least two entries — mixing assets would make economy and cost-per-meter meaningless.
+     * Per-asset analytics. Only for a single asset with at least two entries; mixing assets would
+     * make economy and cost-per-meter meaningless.
      */
-    val analytics: StateFlow<LogAnalytics.Summary?> = combine(scopedLogs, asset, distanceUnit) { list, a, unit ->
+    val analytics: StateFlow<LogAnalytics.Summary?> = combine(scopedLogs, meter, distanceUnit) { list, m, unit ->
         if (assetId.value == null || list.size < 2) return@combine null
         val entries = list.map { log ->
             LogAnalytics.Entry(
-                id = log.entryId,
-                dateMs = log.entryDate,
-                category = log.category,
-                meter = log.odometerValue,
-                cost = LogAnalytics.entryCost(log.cost, log.costItems, log.costLabor),
+                id = log.id,
+                dateMs = log.occurredAt,
+                category = log.categoryLabel,
+                meter = log.meterValue?.toDouble(),
+                cost = log.totalCost.toDouble().takeIf { log.totalCost.signum() != 0 },
                 attributes = LogPacks.parse(log.attributes),
             )
         }
-        LogAnalytics.summarize(entries, LogAnalytics.distanceUnitFor(a?.meterType, unit))
+        LogAnalytics.summarize(entries, LogAnalytics.distanceUnitFor(m?.unit, unit))
     }.flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
@@ -249,102 +178,27 @@ class LogListViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Persist a new asset photo from either a gallery URI or a camera-capture file URI.
-     *
-     * Mirrors the iOS path: copy the source bytes into an app-private file under
-     * `filesDir/asset_photos/`, insert a `PhotoEntity` with `localPath` set (and a stub
-     * `downloadUrl` so the header can render immediately), then trigger
-     * `SyncEngine.pushIfNeeded()`. The shared `PhotoUploader.sweep` will pick it up via
-     * `PhotoDao.pendingUpload`, fetch a presigned URL, upload the binary, and clear
-     * `localPath` on success.
-     */
+    /** Attaches a gallery or camera picture to the asset; the file uploads through the E12 endpoints. */
     fun addAssetPhoto(uri: Uri) {
-        val aId = assetId.value ?: return
+        val id = assetId.value ?: return
         viewModelScope.launch {
-            val acctId = identity.activeAccountId.value ?: return@launch
             try {
-                withContext(Dispatchers.IO) {
-                    val resolver: ContentResolver = appContext.contentResolver
-                    val dir = File(appContext.filesDir, "asset_photos").apply { mkdirs() }
-                    val photoId = UUID.randomUUID().toString()
-                    val outFile = File(dir, "$photoId.jpg")
-                    resolver.openInputStream(uri).use { input ->
-                        FileOutputStream(outFile).use { out ->
-                            if (input == null) {
-                                Timber.w("[LogListViewModel] Could not open URI $uri")
-                                return@withContext
-                            }
-                            input.copyTo(out)
-                        }
-                    }
-                    val now = System.currentTimeMillis()
-                    val db = dbFactory.get(acctId)
-                    val currentMaxOrder = db.photoDao().observeByEntity(aId, "asset")
-                        // Use synchronous max via the existing list snapshot
-                        .let { _ -> 0L }
-                    val entity = PhotoEntity(
-                        photoId = photoId,
-                        entityId = aId,
-                        entityType = "asset",
-                        accountId = acctId,
-                        storageKey = null,
-                        downloadUrl = Uri.fromFile(outFile).toString(),
-                        sortOrder = (photos.value.maxOfOrNull { it.sortOrder } ?: -1L) + 1L,
-                        isPrimary = photos.value.isEmpty(),
-                        createdAt = now,
-                        updatedAt = now,
-                        deletedAt = null,
-                        serverVersion = 0L,
-                        localPath = outFile.absolutePath,
-                    )
-                    db.photoDao().upsert(entity)
-                    Timber.d("[LogListViewModel] Added asset photo $photoId → ${outFile.absolutePath}")
-                }
-                syncEngine.pushIfNeeded()
+                assets.attach(AttachmentTarget.ToAsset(id), LocalFileRef(uri.toString()))
             } catch (e: Exception) {
                 Timber.e(e, "[LogListViewModel] addAssetPhoto failed for $uri")
+                _errors.tryEmit(e.message ?: "photo")
             }
         }
     }
 
-    /** Soft-deletes a photo and triggers a sync push. */
-    fun deleteAssetPhoto(photoId: String) {
+    fun deleteAssetPhoto(attachmentId: String) {
         viewModelScope.launch {
-            val acctId = identity.activeAccountId.value ?: return@launch
             try {
-                withContext(Dispatchers.IO) {
-                    val now = System.currentTimeMillis()
-                    dbFactory.get(acctId).photoDao().softDelete(photoId, now)
-                }
-                syncEngine.pushIfNeeded()
+                assets.detach(attachmentId)
             } catch (e: Exception) {
-                Timber.e(e, "[LogListViewModel] deleteAssetPhoto failed for $photoId")
-            }
-        }
-    }
-
-    /** Sets the given photo as primary (cover) and demotes others. */
-    fun setCoverPhoto(photoId: String) {
-        viewModelScope.launch {
-            val acctId = identity.activeAccountId.value ?: return@launch
-            try {
-                withContext(Dispatchers.IO) {
-                    val db = dbFactory.get(acctId)
-                    val now = System.currentTimeMillis()
-                    val current = photos.value
-                    current.forEach { p ->
-                        val shouldBePrimary = p.photoId == photoId
-                        if (p.isPrimary != shouldBePrimary) {
-                            db.photoDao().upsert(p.copy(isPrimary = shouldBePrimary, updatedAt = now))
-                        }
-                    }
-                }
-                syncEngine.pushIfNeeded()
-            } catch (e: Exception) {
-                Timber.e(e, "[LogListViewModel] setCoverPhoto failed for $photoId")
+                Timber.e(e, "[LogListViewModel] deleteAssetPhoto failed for $attachmentId")
+                _errors.tryEmit(e.message ?: "photo")
             }
         }
     }
 }
-

@@ -7,7 +7,6 @@
     <string name="maintenance_scanner_hint_part">Scan a part barcode to log parts used</string>
     <string name="maintenance_scanner_confirm">Confirm</string>
     <string name="maintenance_scanner_scan_again">Scan Again</string>
-    <string name="maintenance_scanner_not_found">Not found: %s</string>
     <string name="maintenance_scanner_asset_found">Asset found</string>
     <string name="maintenance_scanner_part_found">Part found</string>
     <string name="maintenance_scanner_permission_rationale">Camera permission is needed to scan barcodes</string>
@@ -21,19 +20,8 @@
     <string name="log_entry_placeholder_cost">—</string>
     <string name="log_entry_label_performed_by">Performed By</string>
     <string name="log_entry_placeholder_performed_by">Shop or person</string>
-    <string name="log_entry_section_parts">PARTS</string>
-    <string name="log_entry_section_service_parts">SERVICE PARTS</string>
-    <string name="log_entry_section_attachments">ATTACHMENTS</string>
-    <string name="log_entry_section_item_details">Details</string>
-    <string name="log_entry_section_location">Location</string>
     <string name="log_entry_action_add_details">add details</string>
     <string name="log_entry_action_add_attachment">add attachment</string>
-    <string name="log_entry_action_add_parts">add parts</string>
-    <string name="log_entry_action_add_part">Add A Part</string>
-    <string name="log_entry_action_add_from_inventory">Add From Inventory</string>
-    <string name="log_entry_action_add_service_item">Add Log Entry</string>
-    <string name="log_entry_fuel_volume_label">Volume</string>
-    <string name="log_entry_fuel_quick_note_btn">Add Note</string>
 
     <!-- Inspection type picker — mirrors iOS log_entry.inspection_* keys -->
     <string name="log_entry_inspection_type_title">Inspection Type</string>
@@ -45,9 +33,6 @@
     <string name="log_entry_alert_title_required_message">Please enter a title for this entry.</string>
     <string name="log_entry_alert_save_failed_title">Save Failed</string>
     <string name="log_entry_alert_save_failed_message">Could not save the entry. Please try again.</string>
-    <string name="log_entry_alert_log_limit_title">Log Limit Reached</string>
-    <string name="log_entry_alert_mark_done_title">Mark Schedule Done?</string>
-    <string name="log_entry_alert_mark_done_confirm">Mark Done</string>
 
     <!-- No-asset validation -->
     <string name="log_entry_alert_no_asset_title">Asset Required</string>
@@ -84,8 +69,6 @@
     <string name="log_pack_tire_dot_date">DOT date code</string>
     <string name="log_pack_tire_tread_unit">Tread unit</string>
     <string name="log_pack_tire_pressure_unit">Pressure unit</string>
-    <string name="log_pack_tire_tread">Tread</string>
-    <string name="log_pack_tire_psi">Pressure</string>
     <string name="log_pack_battery_title">Battery</string>
     <string name="log_pack_battery_rated_cca">Rated CCA</string>
     <string name="log_pack_battery_measured_cca">Measured CCA</string>
@@ -95,8 +78,6 @@
     <string name="log_pack_brake_title">Brakes</string>
     <string name="log_pack_brake_axle">Axle</string>
     <string name="log_pack_brake_fluid">Brake fluid</string>
-    <string name="log_pack_brake_pad_mm">Pad (mm)</string>
-    <string name="log_pack_brake_rotor_mm">Rotor (mm)</string>
     <string name="log_pack_vendor_section">Vendor &amp; work order</string>
     <string name="log_pack_vendor">Vendor</string>
     <string name="log_pack_wo_link">Work order</string>
@@ -108,41 +89,17 @@
     <string name="log_pack_receipt_attached">Receipt attached</string>
 
     <!-- Inline UI labels -->
-    <string name="log_entry_label_asset">Asset</string>
-    <string name="log_entry_placeholder_select_asset">Select asset</string>
-    <string name="log_entry_label_category">Category</string>
     <string name="log_entry_placeholder_select_category">Select category</string>
-    <string name="log_entry_label_date">Date</string>
     <string name="log_entry_label_cost">Cost</string>
-    <string name="log_entry_label_total_cost">Total cost</string>
     <string name="log_entry_cost_mode_total">Total</string>
     <string name="log_entry_cost_mode_itemized">Itemized</string>
     <string name="log_entry_itemize_label">Itemize parts &amp; labor</string>
-    <string name="log_entry_itemize_tap_hint">Tap to add parts and labor</string>
-    <string name="log_entry_itemize_lines">%1$d line · $%2$.2f total</string>
-    <string name="log_entry_itemize_lines_plural">%1$d lines · $%2$.2f total</string>
-    <string name="log_entry_meter_label_odometer">Odometer (%s)</string>
-    <string name="log_entry_meter_label_hours">Hours</string>
-    <string name="log_entry_meter_label_generic">Meter</string>
-    <string name="log_entry_meter_optional">%s (optional)</string>
     <string name="log_entry_fuel_unit_gallon">gal</string>
     <string name="log_entry_fuel_unit_liter">L</string>
-    <string name="log_entry_fuel_volume_optional">Volume (optional)</string>
-    <string name="log_entry_notes_label">Notes</string>
-    <string name="log_entry_notes_preview">Preview</string>
-    <string name="log_entry_notes_edit">Edit</string>
-    <string name="log_entry_notes_empty">No notes</string>
-    <string name="log_entry_photos_label">Photos</string>
-    <string name="log_entry_photo_gallery">Gallery</string>
-    <string name="log_entry_photo_camera">Camera</string>
-    <string name="log_entry_item_details_label">Item Details</string>
     <string name="log_entry_inspection_checklist_label">Inspection Checklist</string>
     <string name="log_entry_inspection_select_type">Select Type</string>
     <string name="log_entry_inspection_change_type">Change</string>
     <string name="log_entry_inspection_no_fields">No inspection fields configured for this asset type.</string>
-    <string name="log_entry_save_button">Save Log Entry</string>
-    <string name="log_entry_save_changes_button">Save Changes</string>
-    <string name="log_entry_saving">Saving\u2026</string>
 
     <!-- Details card column headers (mirrors iOS COST / ODOMETER / HOURS section labels) -->
     <string name="log_entry_section_odometer">ODOMETER</string>
@@ -171,7 +128,6 @@
     <string name="log_inspection_undo">Undo</string>
 
     <!-- Inspection v2: per-defect details -->
-    <string name="log_inspection_defect_details">Defect details</string>
     <string name="log_inspection_defect_severity">Severity</string>
     <string name="log_inspection_severity_minor">Minor</string>
     <string name="log_inspection_severity_major">Major</string>
@@ -205,10 +161,6 @@
     <string name="log_inspection_status_deferred">Deferred</string>
 
     <!-- Inspection v2: optimistic concurrency -->
-    <string name="log_inspection_conflict_title">This inspection was changed by someone else</string>
-    <string name="log_inspection_conflict_message">Someone saved this inspection after you opened it. Reload their version (your changes are discarded) or keep yours: your changes are applied on top of their version, and everything else they changed is kept.</string>
-    <string name="log_inspection_conflict_reload">Reload theirs</string>
-    <string name="log_inspection_conflict_overwrite">Keep mine</string>
 
     <!-- Inspection v2: read-only detail -->
     <string name="log_detail_inspection_result">Result</string>
@@ -224,13 +176,6 @@
     <string name="log_detail_inspection_signoff">Inspector sign-off</string>
     <string name="log_detail_inspection_signed_by">Signed by %1$s</string>
     <string name="log_detail_inspection_signed_by_on">Signed by %1$s on %2$s</string>
-    <string name="log_inspection_conflict_both_changed">Changed on both sides. Keeping yours replaces theirs:</string>
-    <string name="log_inspection_conflict_mine_theirs">Yours: %1$s · Theirs: %2$s</string>
-    <string name="log_inspection_conflict_empty_value">(empty)</string>
-    <plurals name="log_inspection_conflict_no_overlap">
-        <item quantity="one">No overlapping changes. Your %1$d change will be applied on top of their version.</item>
-        <item quantity="other">No overlapping changes. Your %1$d changes will be applied on top of their version.</item>
-    </plurals>
     <string name="log_insp_bar_answered">%1$d/%2$d answered</string>
     <string name="log_insp_bar_required">%1$d required left</string>
     <string name="log_insp_bar_notes">%1$d notes missing</string>
@@ -285,12 +230,9 @@
     <string name="log_insp_draft_discard">Discard</string>
     <string name="log_insp_draft_keep">Keep</string>
     <string name="log_insp_server_draft">A newer draft from another device (%1$s) is available.</string>
-    <string name="log_insp_server_draft_restore">Restore</string>
-    <string name="log_insp_dismiss">Dismiss</string>
     <string name="log_sync_saved">Saved</string>
     <string name="log_sync_pending">Pending sync</string>
     <string name="log_sync_conflict">Sync conflict</string>
-    <string name="log_sunlight_mode">Sunlight mode</string>
     <string name="log_sunlight_mode_cd_on">Sunlight mode on. Turn off high contrast</string>
     <string name="log_sunlight_mode_cd_off">Sunlight mode off. Turn on high contrast</string>
     <string name="log_insp_phrases_label">Quick phrases</string>
@@ -304,8 +246,6 @@
     <string name="log_insp_phrase_damaged">Damaged</string>
     <string name="log_insp_phrase_dirty">Dirty</string>
     <string name="log_insp_phrase_inoperative">Inoperative</string>
-    <string name="log_insp_sketch_label">Tap the vehicle to set the location</string>
-    <string name="log_insp_sketch_cd">Vehicle sketch. Location: %1$s</string>
     <string name="log_insp_sketch_zone_cd">Set location to %1$s</string>
     <string name="log_insp_sketch_title">Damage map</string>
     <string name="log_insp_sketch_hint">Tap an area to place the mark. Drag the pin to move it; tap or long-press it to change severity or remove it. Pinch to zoom.</string>
@@ -369,7 +309,6 @@
     <string name="log_action_close">Close</string>
     <string name="log_action_done">Done</string>
     <string name="log_list_empty">No log entries yet</string>
-    <string name="log_list_pending">Pending</string>
     <string name="log_list_search_placeholder">Search entries…</string>
     <string name="log_list_search_clear">Clear search</string>
     <string name="log_list_filter_all_count">All (%1$d)</string>
@@ -403,7 +342,6 @@
     <string name="log_detail_not_found">Log entry not found</string>
     <string name="log_detail_section_photos">PHOTOS</string>
     <string name="log_detail_section_cost_breakdown">COST BREAKDOWN</string>
-    <string name="log_detail_section_labor">LABOR</string>
     <string name="log_detail_section_inspection">INSPECTION</string>
     <string name="log_detail_section_item_details">ITEM DETAILS</string>
     <string name="log_detail_photo_cd">Log photo</string>
@@ -418,18 +356,15 @@
     <string name="log_cost_lines_add_part">Add Part</string>
     <string name="log_cost_lines_add_labor">Add Labor</string>
     <string name="log_cost_lines_remove">Remove line</string>
-    <string name="log_cost_lines_part_name">Part name / inventory</string>
     <string name="log_cost_lines_technician">Technician name</string>
     <string name="log_cost_lines_description">Description</string>
     <string name="log_cost_lines_qty">Qty</string>
     <string name="log_cost_lines_unit_cost">Unit cost</string>
     <string name="log_cost_lines_tax">Tax</string>
-    <string name="log_cost_lines_gl_code">GL code</string>
     <string name="log_cost_lines_show_advanced">Advanced (tax, GL)</string>
     <string name="log_cost_lines_hide_advanced">Hide advanced</string>
     <string name="log_photo_options_title">Photo options</string>
     <string name="log_photo_options_message">What would you like to do with this photo?</string>
-    <string name="log_photo_set_cover">Set as cover</string>
     <string name="log_photo_actions">Photo actions</string>
     <string name="log_photo_unavailable">Photo unavailable</string>
     <string name="log_performed_by_search">Search members</string>
@@ -437,7 +372,6 @@
     <string name="log_performed_by_type_name">Type a name</string>
     <string name="log_performed_by_select">Select</string>
     <string name="log_performed_by_use">Use \"%1$s\"</string>
-    <string name="log_performed_by_refresh_failed">Could not refresh members</string>
     <string name="log_timer_start">Start</string>
     <string name="log_timer_lap">Lap</string>
     <string name="log_timer_stop">Stop</string>
@@ -521,7 +455,6 @@
         <item quantity="one">%d open defect</item>
         <item quantity="other">%d open defects</item>
     </plurals>
-    <string name="log_open_defects_hint_derived">Derived from inspection history. Answer the item Normal on the next inspection to close it.</string>
     <string name="log_open_defects_reported_today">Reported today</string>
     <plurals name="log_open_defects_reported_ago">
         <item quantity="one">Reported %d day ago</item>
@@ -531,7 +464,6 @@
     <string name="log_open_defects_show_all">Show all (%1$d)</string>
     <string name="log_open_defects_show_less">Show less</string>
     <string name="log_open_defects_more_actions">More actions for %1$s</string>
-    <string name="log_open_defects_pending_sync">Waiting to sync</string>
 
     <!-- Per-position readings around the vehicle sketch (web PositionReadings) -->
     <string name="log_readings_front">Front</string>
@@ -550,4 +482,6 @@
     <string name="log_readings_pos_rro">Rear right outer</string>
     <string name="log_readings_pos_rri">Rear right inner</string>
     <string name="log_readings_pos_spare">Spare</string>
+    <string name="log_cost_lines_no_technician">No technician</string>
+    <string name="log_sync_failed">Sync failed - see Failed changes</string>
 </resources>

@@ -32,9 +32,18 @@ data class SyncConflict(
     val status: String,
 )
 
+/** Sync state of one record's local edits. */
+enum class RecordSyncState { SAVED, PENDING, FAILED }
+
 /** Local write queue state for the UI: pending count, failed changes and open conflicts. */
 interface ChangeQueueRepository {
     fun observePendingCount(): Flow<Int>
+
+    /**
+     * Whether edits of one record (wire entity type, e.g. `activity_records`, and its key) are still
+     * queued, were refused (and rolled back), or are all committed.
+     */
+    fun observeRecordState(entityType: String, entityKey: String): Flow<RecordSyncState>
 
     fun observeFailures(): Flow<List<FailedChange>>
 

@@ -15,7 +15,6 @@
     <string name="log_inspection_undo">Rückgängig</string>
 
     <!-- Inspection v2: per-defect details -->
-    <string name="log_inspection_defect_details">Mangeldetails</string>
     <string name="log_inspection_defect_severity">Schweregrad</string>
     <string name="log_inspection_severity_minor">Gering</string>
     <string name="log_inspection_severity_major">Erheblich</string>
@@ -49,10 +48,6 @@
     <string name="log_inspection_status_deferred">Zurückgestellt</string>
 
     <!-- Inspection v2: optimistic concurrency -->
-    <string name="log_inspection_conflict_title">Diese Inspektion wurde von jemand anderem geändert</string>
-    <string name="log_inspection_conflict_message">Jemand hat diese Inspektion gespeichert, nachdem Sie sie geöffnet haben. Laden Sie deren Version (Ihre Änderungen werden verworfen) oder behalten Sie Ihre: Ihre Änderungen werden auf deren Version angewendet, alle anderen Änderungen bleiben erhalten.</string>
-    <string name="log_inspection_conflict_reload">Deren Version laden</string>
-    <string name="log_inspection_conflict_overwrite">Meine behalten</string>
 
     <!-- Inspection v2: read-only detail -->
     <string name="log_detail_inspection_result">Ergebnis</string>
@@ -102,8 +97,6 @@
     <string name="log_pack_tire_dot_date">DOT-Datumscode</string>
     <string name="log_pack_tire_tread_unit">Profileinheit</string>
     <string name="log_pack_tire_pressure_unit">Druckeinheit</string>
-    <string name="log_pack_tire_tread">Profil</string>
-    <string name="log_pack_tire_psi">Druck</string>
     <string name="log_pack_battery_title">Batterie</string>
     <string name="log_pack_battery_rated_cca">Nenn-CCA</string>
     <string name="log_pack_battery_measured_cca">Gemessene CCA</string>
@@ -113,8 +106,6 @@
     <string name="log_pack_brake_title">Bremsen</string>
     <string name="log_pack_brake_axle">Achse</string>
     <string name="log_pack_brake_fluid">Bremsflüssigkeit</string>
-    <string name="log_pack_brake_pad_mm">Belag (mm)</string>
-    <string name="log_pack_brake_rotor_mm">Scheibe (mm)</string>
     <string name="log_pack_vendor_section">Lieferant &amp; Arbeitsauftrag</string>
     <string name="log_pack_vendor">Lieferant</string>
     <string name="log_pack_wo_link">Arbeitsauftrag</string>
@@ -124,13 +115,6 @@
     <string name="log_pack_scan_receipt">Beleg scannen</string>
     <string name="log_pack_receipt_applied">Belegdaten übernommen</string>
     <string name="log_pack_receipt_attached">Beleg angehängt</string>
-    <string name="log_inspection_conflict_both_changed">Auf beiden Seiten geändert. „Meine behalten“ ersetzt deren Werte:</string>
-    <string name="log_inspection_conflict_mine_theirs">Ihre: %1$s · Deren: %2$s</string>
-    <string name="log_inspection_conflict_empty_value">(leer)</string>
-    <plurals name="log_inspection_conflict_no_overlap">
-        <item quantity="one">Keine überschneidenden Änderungen. Ihre %1$d Änderung wird auf deren Version angewendet.</item>
-        <item quantity="other">Keine überschneidenden Änderungen. Ihre %1$d Änderungen werden auf deren Version angewendet.</item>
-    </plurals>
     <string name="log_insp_bar_answered">%1$d/%2$d beantwortet</string>
     <string name="log_insp_bar_required">%1$d Pflichtpunkte offen</string>
     <string name="log_insp_bar_notes">%1$d Notizen fehlen</string>
@@ -185,12 +169,9 @@
     <string name="log_insp_draft_discard">Verwerfen</string>
     <string name="log_insp_draft_keep">Behalten</string>
     <string name="log_insp_server_draft">Ein neuerer Entwurf von einem anderen Gerät (%1$s) ist verfügbar.</string>
-    <string name="log_insp_server_draft_restore">Wiederherstellen</string>
-    <string name="log_insp_dismiss">Ausblenden</string>
     <string name="log_sync_saved">Gespeichert</string>
     <string name="log_sync_pending">Synchronisierung ausstehend</string>
     <string name="log_sync_conflict">Synchronisierungskonflikt</string>
-    <string name="log_sunlight_mode">Sonnenlichtmodus</string>
     <string name="log_sunlight_mode_cd_on">Sonnenlichtmodus an. Hohen Kontrast ausschalten</string>
     <string name="log_sunlight_mode_cd_off">Sonnenlichtmodus aus. Hohen Kontrast einschalten</string>
     <string name="log_insp_phrases_label">Schnelltexte</string>
@@ -204,8 +185,6 @@
     <string name="log_insp_phrase_damaged">Beschädigt</string>
     <string name="log_insp_phrase_dirty">Verschmutzt</string>
     <string name="log_insp_phrase_inoperative">Funktionslos</string>
-    <string name="log_insp_sketch_label">Fahrzeug antippen, um die Position festzulegen</string>
-    <string name="log_insp_sketch_cd">Fahrzeugskizze. Position: %1$s</string>
     <string name="log_insp_sketch_zone_cd">Position auf %1$s setzen</string>
     <string name="log_insp_sketch_title">Schadensskizze</string>
     <string name="log_insp_sketch_hint">Tippen Sie auf einen Bereich, um die Markierung zu setzen. Ziehen Sie den Pin, um ihn zu verschieben; tippen oder lange drücken, um den Schweregrad zu ändern oder ihn zu entfernen. Mit zwei Fingern zoomen.</string>
@@ -269,7 +248,6 @@
     <string name="log_action_close">Schließen</string>
     <string name="log_action_done">Fertig</string>
     <string name="log_list_empty">Noch keine Logbucheinträge</string>
-    <string name="log_list_pending">Ausstehend</string>
     <string name="log_list_search_placeholder">Einträge durchsuchen…</string>
     <string name="log_list_search_clear">Suche löschen</string>
     <string name="log_list_filter_all_count">Alle (%1$d)</string>
@@ -303,7 +281,6 @@
     <string name="log_detail_not_found">Logbucheintrag nicht gefunden</string>
     <string name="log_detail_section_photos">FOTOS</string>
     <string name="log_detail_section_cost_breakdown">KOSTENAUFSTELLUNG</string>
-    <string name="log_detail_section_labor">ARBEIT</string>
     <string name="log_detail_section_inspection">INSPEKTION</string>
     <string name="log_detail_section_item_details">DETAILS</string>
     <string name="log_detail_photo_cd">Foto zum Eintrag</string>
@@ -318,18 +295,15 @@
     <string name="log_cost_lines_add_part">Teil hinzufügen</string>
     <string name="log_cost_lines_add_labor">Arbeit hinzufügen</string>
     <string name="log_cost_lines_remove">Position entfernen</string>
-    <string name="log_cost_lines_part_name">Teilename / Lager</string>
     <string name="log_cost_lines_technician">Name des Technikers</string>
     <string name="log_cost_lines_description">Beschreibung</string>
     <string name="log_cost_lines_qty">Menge</string>
     <string name="log_cost_lines_unit_cost">Einzelpreis</string>
     <string name="log_cost_lines_tax">Steuer</string>
-    <string name="log_cost_lines_gl_code">Sachkonto</string>
     <string name="log_cost_lines_show_advanced">Erweitert (Steuer, Sachkonto)</string>
     <string name="log_cost_lines_hide_advanced">Erweitert ausblenden</string>
     <string name="log_photo_options_title">Fotooptionen</string>
     <string name="log_photo_options_message">Was möchtest du mit diesem Foto tun?</string>
-    <string name="log_photo_set_cover">Als Titelbild festlegen</string>
     <string name="log_photo_actions">Fotoaktionen</string>
     <string name="log_photo_unavailable">Foto nicht verfügbar</string>
     <string name="log_performed_by_search">Mitglieder suchen</string>
@@ -337,7 +311,6 @@
     <string name="log_performed_by_type_name">Namen eingeben</string>
     <string name="log_performed_by_select">Auswählen</string>
     <string name="log_performed_by_use">„%1$s“ verwenden</string>
-    <string name="log_performed_by_refresh_failed">Mitglieder konnten nicht aktualisiert werden</string>
     <string name="log_timer_start">Start</string>
     <string name="log_timer_lap">Runde</string>
     <string name="log_timer_stop">Stopp</string>
@@ -422,7 +395,6 @@
     <string name="maintenance_scanner_hint_part">Scanne einen Teile-Barcode, um verwendete Teile zu erfassen</string>
     <string name="maintenance_scanner_confirm">Bestätigen</string>
     <string name="maintenance_scanner_scan_again">Erneut scannen</string>
-    <string name="maintenance_scanner_not_found">Nicht gefunden: %s</string>
     <string name="maintenance_scanner_asset_found">Objekt gefunden</string>
     <string name="maintenance_scanner_part_found">Teil gefunden</string>
     <string name="maintenance_scanner_permission_rationale">Zum Scannen von Barcodes wird die Kameraberechtigung benötigt</string>
@@ -434,19 +406,8 @@
     <string name="log_entry_placeholder_cost">—</string>
     <string name="log_entry_label_performed_by">Durchgeführt von</string>
     <string name="log_entry_placeholder_performed_by">Werkstatt oder Person</string>
-    <string name="log_entry_section_parts">TEILE</string>
-    <string name="log_entry_section_service_parts">SERVICETEILE</string>
-    <string name="log_entry_section_attachments">ANHÄNGE</string>
-    <string name="log_entry_section_item_details">Details</string>
-    <string name="log_entry_section_location">Standort</string>
     <string name="log_entry_action_add_details">Details hinzufügen</string>
     <string name="log_entry_action_add_attachment">Anhang hinzufügen</string>
-    <string name="log_entry_action_add_parts">Teile hinzufügen</string>
-    <string name="log_entry_action_add_part">Teil hinzufügen</string>
-    <string name="log_entry_action_add_from_inventory">Aus Lager hinzufügen</string>
-    <string name="log_entry_action_add_service_item">Logbucheintrag hinzufügen</string>
-    <string name="log_entry_fuel_volume_label">Menge</string>
-    <string name="log_entry_fuel_quick_note_btn">Notiz hinzufügen</string>
     <string name="log_entry_inspection_type_title">Inspektionsart</string>
     <string name="log_entry_inspection_basic">Einfach</string>
     <string name="log_entry_inspection_full">Vollständig</string>
@@ -454,46 +415,19 @@
     <string name="log_entry_alert_title_required_message">Bitte gib einen Titel für diesen Eintrag ein.</string>
     <string name="log_entry_alert_save_failed_title">Speichern fehlgeschlagen</string>
     <string name="log_entry_alert_save_failed_message">Der Eintrag konnte nicht gespeichert werden. Bitte versuche es erneut.</string>
-    <string name="log_entry_alert_log_limit_title">Eintragslimit erreicht</string>
-    <string name="log_entry_alert_mark_done_title">Plan als erledigt markieren?</string>
-    <string name="log_entry_alert_mark_done_confirm">Als erledigt markieren</string>
     <string name="log_entry_alert_no_asset_title">Objekt erforderlich</string>
     <string name="log_entry_alert_no_asset_message">Bitte wähle ein Objekt für diesen Logbucheintrag aus.</string>
-    <string name="log_entry_label_asset">Objekt</string>
-    <string name="log_entry_placeholder_select_asset">Objekt auswählen</string>
-    <string name="log_entry_label_category">Kategorie</string>
     <string name="log_entry_placeholder_select_category">Kategorie auswählen</string>
-    <string name="log_entry_label_date">Datum</string>
     <string name="log_entry_label_cost">Kosten</string>
-    <string name="log_entry_label_total_cost">Gesamtkosten</string>
     <string name="log_entry_cost_mode_total">Gesamt</string>
     <string name="log_entry_cost_mode_itemized">Einzeln</string>
     <string name="log_entry_itemize_label">Teile &amp; Arbeit aufschlüsseln</string>
-    <string name="log_entry_itemize_tap_hint">Tippen, um Teile und Arbeit hinzuzufügen</string>
-    <string name="log_entry_itemize_lines">%1$d Position · $%2$.2f gesamt</string>
-    <string name="log_entry_itemize_lines_plural">%1$d Positionen · $%2$.2f gesamt</string>
-    <string name="log_entry_meter_label_odometer">Kilometerstand (%s)</string>
-    <string name="log_entry_meter_label_hours">Stunden</string>
-    <string name="log_entry_meter_label_generic">Zählerstand</string>
-    <string name="log_entry_meter_optional">%s (optional)</string>
     <string name="log_entry_fuel_unit_gallon">gal</string>
     <string name="log_entry_fuel_unit_liter">L</string>
-    <string name="log_entry_fuel_volume_optional">Menge (optional)</string>
-    <string name="log_entry_notes_label">Notizen</string>
-    <string name="log_entry_notes_preview">Vorschau</string>
-    <string name="log_entry_notes_edit">Bearbeiten</string>
-    <string name="log_entry_notes_empty">Keine Notizen</string>
-    <string name="log_entry_photos_label">Fotos</string>
-    <string name="log_entry_photo_gallery">Galerie</string>
-    <string name="log_entry_photo_camera">Kamera</string>
-    <string name="log_entry_item_details_label">Details</string>
     <string name="log_entry_inspection_checklist_label">Inspektions-Checkliste</string>
     <string name="log_entry_inspection_select_type">Art auswählen</string>
     <string name="log_entry_inspection_change_type">Ändern</string>
     <string name="log_entry_inspection_no_fields">Für diesen Objekttyp sind keine Inspektionsfelder konfiguriert.</string>
-    <string name="log_entry_save_button">Logbucheintrag speichern</string>
-    <string name="log_entry_save_changes_button">Änderungen speichern</string>
-    <string name="log_entry_saving">Wird gespeichert…</string>
     <string name="log_entry_section_odometer">KILOMETERSTAND</string>
     <string name="log_entry_section_hours">STUNDEN</string>
     <string name="log_cost_mode_label">Kosten</string>
@@ -505,7 +439,6 @@
         <item quantity="one">%d offener Mangel</item>
         <item quantity="other">%d offene Mängel</item>
     </plurals>
-    <string name="log_open_defects_hint_derived">Aus dem Inspektionsverlauf abgeleitet. Beantworten Sie den Punkt bei der nächsten Inspektion mit Normal, um ihn zu schließen.</string>
     <string name="log_open_defects_reported_today">Heute gemeldet</string>
     <plurals name="log_open_defects_reported_ago">
         <item quantity="one">Vor %d Tag gemeldet</item>
@@ -515,7 +448,6 @@
     <string name="log_open_defects_show_all">Alle anzeigen (%1$d)</string>
     <string name="log_open_defects_show_less">Weniger anzeigen</string>
     <string name="log_open_defects_more_actions">Weitere Aktionen für %1$s</string>
-    <string name="log_open_defects_pending_sync">Wartet auf Synchronisierung</string>
     <string name="log_cost_itemize_cta_count">Teile &amp; Arbeit aufschlüsseln (%1$d)</string>
 
     <!-- Messwerte je Position an der Fahrzeugskizze (Web PositionReadings) -->

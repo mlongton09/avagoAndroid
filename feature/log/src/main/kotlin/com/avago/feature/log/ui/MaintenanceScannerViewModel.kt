@@ -2,8 +2,8 @@ package com.avago.feature.log.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
+import com.avago.core.data.domain.AssetRepository
+import com.avago.core.data.domain.InventoryRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -38,8 +38,8 @@ sealed class ScanResult {
 
 @HiltViewModel
 class MaintenanceScannerViewModel @Inject constructor(
-    private val databaseFactory: DatabaseFactory,
-    private val identityManager: IdentityManager,
+    private val assets: AssetRepository,
+    private val inventory: InventoryRepository,
 ) : ViewModel() {
 
     enum class ScanMode { ASSET_TAG, PART_BARCODE }
@@ -66,38 +66,31 @@ class MaintenanceScannerViewModel @Inject constructor(
     }
 
     fun onBarcodeScanned(barcode: String) {
-        val accountId = identityManager.getActiveAccountId() ?: run {
-            Timber.w("[MaintenanceScannerViewModel] No active account — ignoring scan")
-            return
-        }
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
             try {
-                val db = databaseFactory.get(accountId)
                 when (_scanMode.value) {
                     ScanMode.ASSET_TAG -> {
-                        val asset = db.assetDao().getByBarcode(barcode)
+                        val asset = assets.findByCode(barcode)
                         if (asset != null) {
                             _scanResult.value = ScanResult.AssetResult(
-                                assetId = asset.assetId,
+                                assetId = asset.id,
                                 assetName = asset.name,
-                                assetType = asset.assetType ?: "",
+                                assetType = asset.assetTypeCode.orEmpty(),
                             )
-                            Timber.d("[MaintenanceScannerViewModel] Asset found: ${asset.assetId}")
                         } else {
                             setError("Not found: $barcode")
                         }
                     }
                     ScanMode.PART_BARCODE -> {
-                        val part = db.partDao().getByBarcode(barcode)
-                        if (part != null) {
+                        val product = inventory.productByCode(barcode)
+                        if (product != null) {
                             _scanResult.value = ScanResult.PartResult(
-                                partId = part.partId,
-                                partName = part.name,
-                                sku = part.sku,
+                                partId = product.id,
+                                partName = product.name,
+                                sku = product.sku,
                             )
-                            Timber.d("[MaintenanceScannerViewModel] Part found: ${part.partId}")
                         } else {
                             setError("Not found: $barcode")
                         }

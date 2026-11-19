@@ -22,8 +22,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
-import com.avago.core.data.db.entity.AssetEntity
-import com.avago.core.data.db.entity.PhotoEntity
+import com.avago.core.data.domain.Asset
+import com.avago.core.data.domain.Attachment
 import com.avago.core.ui.PhotoSourceBottomSheet
 import com.avago.feature.assets.ui.AssetDetailHeader
 import com.avago.feature.assets.ui.AssetStatsRow
@@ -47,13 +47,12 @@ import java.io.File
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AssetLogHeader(
-    asset: AssetEntity,
-    photos: List<PhotoEntity>,
+    asset: Asset,
+    photos: List<Attachment>,
     entryCount: Int,
     lastServiceDate: Long?,
     onAddPhotoUri: (Uri) -> Unit,
-    onDeletePhoto: (photoId: String) -> Unit,
-    onSetCoverPhoto: (photoId: String) -> Unit,
+    onDeletePhoto: (attachmentId: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -130,15 +129,12 @@ fun AssetLogHeader(
                 text = { Text(stringResource(R.string.log_photo_options_message)) },
                 confirmButton = {
                     TextButton(onClick = {
-                        onSetCoverPhoto(photo.photoId)
-                        longPressedIndex = null
-                    }) { Text(stringResource(R.string.log_photo_set_cover)) }
-                },
-                dismissButton = {
-                    TextButton(onClick = {
-                        onDeletePhoto(photo.photoId)
+                        onDeletePhoto(photo.id)
                         longPressedIndex = null
                     }) { Text(stringResource(R.string.log_action_delete)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { longPressedIndex = null }) { Text(stringResource(R.string.log_action_cancel)) }
                 },
             )
         } else {
@@ -155,7 +151,6 @@ fun AssetLogHeader(
                 startIndex = idx,
                 onDismiss = { viewerStartIndex = null },
                 onDeletePhoto = onDeletePhoto,
-                onSetCoverPhoto = onSetCoverPhoto,
             )
         }
     }

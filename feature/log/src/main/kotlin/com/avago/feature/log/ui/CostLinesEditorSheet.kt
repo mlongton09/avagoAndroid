@@ -36,6 +36,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.avago.feature.log.model.LogCostLineDraft
+import com.avago.feature.log.model.LogPersonOption
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import com.avago.feature.log.R
@@ -51,11 +56,10 @@ import androidx.compose.material3.HorizontalDivider
  *  - kind (part / labor) via chip toggle
  *  - description / name
  *  - quantity and unit cost
- *  - optional tax amount and GL code
+ *  - optional tax amount
  *
- * Parts can optionally have an inventory reference (inventory picker is surfaced as
- * a text field for the inventory name, since a dedicated picker sheet is a separate
- * feature outside this compose tree).
+ * Parts may reference a catalog product (added by scanning its barcode); labor lines pick the
+ * technician from [technicians].
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,6 +69,7 @@ fun CostLinesEditorSheet(
     onUpdate: (LogCostLineDraft) -> Unit,
     onRemove: (lineId: String) -> Unit,
     onDismiss: () -> Unit,
+    technicians: List<LogPersonOption> = emptyList(),
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
 ) {
     ModalBottomSheet(
@@ -93,6 +98,7 @@ fun CostLinesEditorSheet(
                 items(costLines, key = { it.lineId }) { draft ->
                     CostLineDraftRow(
                         draft = draft,
+                        technicians = technicians,
                         onUpdate = onUpdate,
                         onRemove = { onRemove(draft.lineId) },
                     )
@@ -150,6 +156,7 @@ fun CostLinesEditorSheet(
 @Composable
 private fun CostLineDraftRow(
     draft: LogCostLineDraft,
+    technicians: List<LogPersonOption>,
     onUpdate: (LogCostLineDraft) -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
@@ -164,13 +171,13 @@ private fun CostLineDraftRow(
         ) {
             FilterChip(
                 selected = draft.kind == "part",
-                onClick = { onUpdate(draft.copy(kind = "part", userId = null, userName = null)) },
+                onClick = { onUpdate(draft.copy(kind = "part", performerUserId = null)) },
                 label = { Text(stringResource(R.string.log_cost_line_part)) },
             )
             Spacer(Modifier.width(8.dp))
             FilterChip(
                 selected = draft.kind == "labor",
-                onClick = { onUpdate(draft.copy(kind = "labor", inventoryId = null, inventoryName = null)) },
+                onClick = { onUpdate(draft.copy(kind = "labor", productId = null, productName = null)) },
                 label = { Text(stringResource(R.string.log_cost_line_labor)) },
             )
             Spacer(Modifier.weight(1f))
@@ -181,26 +188,20 @@ private fun CostLineDraftRow(
 
         Spacer(Modifier.height(6.dp))
 
-        // Part: show inventory name field (free text for now)
-        if (draft.kind == "part") {
-            OutlinedTextField(
-                value = draft.inventoryName ?: "",
-                onValueChange = { onUpdate(draft.copy(inventoryName = it.ifBlank { null })) },
-                label = { Text(stringResource(R.string.log_cost_lines_part_name)) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
+        if (draft.kind == "part" && draft.productId != null) {
+            Text(
+                text = draft.productName ?: draft.productId,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
             )
             Spacer(Modifier.height(6.dp))
         }
 
-        // Labor: show user name field
         if (draft.kind == "labor") {
-            OutlinedTextField(
-                value = draft.userName ?: "",
-                onValueChange = { onUpdate(draft.copy(userName = it.ifBlank { null })) },
-                label = { Text(stringResource(R.string.log_cost_lines_technician)) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
+            TechnicianField(
+                selectedUserId = draft.performerUserId,
+                technicians = technicians,
+                onSelect = { onUpdate(draft.copy(performerUserId = it)) },
             )
             Spacer(Modifier.height(6.dp))
         }
@@ -242,23 +243,47 @@ private fun CostLineDraftRow(
         }
 
         if (showAdvanced) {
-            Row(
+            DecimalField(
+                key = draft.lineId + ":tax",
+                value = draft.taxAmount,
+                onValue = { onUpdate(draft.copy(taxAmount = it)) },
+                label = stringResource(R.string.log_cost_lines_tax),
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                DecimalField(
-                    key = draft.lineId + ":tax",
-                    value = draft.taxAmount,
-                    onValue = { onUpdate(draft.copy(taxAmount = it)) },
-                    label = stringResource(R.string.log_cost_lines_tax),
-                    modifier = Modifier.weight(1f),
-                )
-                OutlinedTextField(
-                    value = draft.glCode ?: "",
-                    onValueChange = { onUpdate(draft.copy(glCode = it.ifBlank { null })) },
-                    label = { Text(stringResource(R.string.log_cost_lines_gl_code)) },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TechnicianField(
+    selectedUserId: String?,
+    technicians: List<LogPersonOption>,
+    onSelect: (String?) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selected = technicians.firstOrNull { it.userId == selectedUserId }?.name ?: selectedUserId.orEmpty()
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+        OutlinedTextField(
+            value = selected,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(stringResource(R.string.log_cost_lines_technician)) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+            singleLine = true,
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.log_cost_lines_no_technician)) },
+                onClick = { onSelect(null); expanded = false },
+            )
+            technicians.forEach { person ->
+                DropdownMenuItem(
+                    text = { Text(person.name) },
+                    onClick = { onSelect(person.userId); expanded = false },
                 )
             }
         }
