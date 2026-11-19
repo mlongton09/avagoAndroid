@@ -4,8 +4,8 @@ import android.content.Context
 import com.avago.core.auth.IdentityManager
 import com.avago.core.auth.PermissionStore
 import com.avago.core.data.DatabaseFactory
-import com.avago.core.data.v2.LocationBinReads
-import com.avago.core.data.db.entity.LocationEntity
+import com.avago.core.data.domain.Location
+import com.avago.core.data.domain.LocationRepository
 import com.avago.core.data.db.entity.SyncQueueEntity
 import com.avago.feature.rentalsops.domain.DeliveryStateMachine
 import com.avago.feature.rentalsops.domain.DeliveryTask
@@ -94,7 +94,7 @@ class RentalOpsRepository @Inject constructor(
     private val identity: IdentityManager,
     private val permissions: PermissionStore,
     private val dbFactory: DatabaseFactory,
-    private val locationReads: LocationBinReads,
+    private val locationRepository: LocationRepository,
     private val opsDb: RentalOpsDatabaseFactory,
     private val api: RentalOpsApi,
     private val scheduler: RentalOpsSyncScheduler,
@@ -253,7 +253,8 @@ class RentalOpsRepository @Inject constructor(
 
     // ---- Fleet (P1's shared store) -------------------------------------------------------
 
-    /** asset_id → display name from P1's ental_fleet cache. */
+    /** asset_id → display name from P1's 
+ental_fleet cache. */
     fun observeAssetNames(): Flow<Map<String, String>> = shared(listOf(LocalFleet.ENTITY_FLEET)).map { rows ->
         rows.mapNotNull(LocalFleet::unitOf).associate { it.assetId to it.name.ifBlank { it.assetId.take(8) } }
     }
@@ -348,7 +349,7 @@ class RentalOpsRepository @Inject constructor(
         }.sortedWith(compareBy<TransferView> { it.localStatus == TransferStatus.RECEIVED || it.localStatus == TransferStatus.CANCELLED }.thenByDescending { it.transfer.shipAt ?: Instant.EPOCH })
     }
 
-    fun observeLocations(): Flow<List<LocationEntity>> = perAccount({ a -> locationReads.observeLocations(a) }, emptyList())
+    fun observeLocations(): Flow<List<Location>> = locationRepository.observeLocations()
 
     data class ScannedAsset(val assetId: String, val name: String, val locationId: String?)
 

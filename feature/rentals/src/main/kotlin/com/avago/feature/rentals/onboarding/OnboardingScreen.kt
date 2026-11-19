@@ -227,7 +227,7 @@ fun OnboardingScreen(onBack: () -> Unit, vm: OnboardingViewModel = hiltViewModel
                         }
                         var locationOpen by remember { mutableStateOf(false) }
                         OutlinedButton(onClick = { locationOpen = true }, enabled = !ui.busy) {
-                            Text(ui.locations.find { it.locationId == draft.location_id }?.name
+                            Text(ui.locations.find { it.id == draft.location_id }?.name
                                 ?: draft.location_id ?: stringResource(R.string.onb_location))
                         }
                         if (locationOpen) AlertDialog(
@@ -240,9 +240,9 @@ fun OnboardingScreen(onBack: () -> Unit, vm: OnboardingViewModel = hiltViewModel
                                             vm.editStore { it.copy(location_id = null) }; locationOpen = false
                                         }) { Text(stringResource(R.string.onb_no_location)) }
                                     }
-                                    items(ui.locations, key = { it.locationId }) { location ->
+                                    items(ui.locations, key = { it.id }) { location ->
                                         TextButton(onClick = {
-                                            vm.editStore { it.copy(location_id = location.locationId) }
+                                            vm.editStore { it.copy(location_id = location.id) }
                                             locationOpen = false
                                         }) { Text(location.name) }
                                     }

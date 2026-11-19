@@ -1,4 +1,4 @@
-﻿package com.avago.feature.settings
+package com.avago.feature.settings
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -42,14 +42,14 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
-import com.avago.core.data.v2.LocationBinReads
-import com.avago.core.data.db.entity.TechProfileEntity
+import com.avago.core.data.domain.LocationRepository
+import com.avago.core.data.domain.WorkerDraft
+import com.avago.core.data.domain.WorkerRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
@@ -60,15 +60,12 @@ import javax.inject.Inject
 
 @HiltViewModel
 class MyTechProfileViewModel @Inject constructor(
-    private val identityManager: IdentityManager,
-    private val databaseFactory: DatabaseFactory,
-    private val locationReads: LocationBinReads,
+    private val workers: WorkerRepository,
+    private val locations: LocationRepository,
 ) : ViewModel() {
 
     val displayName = MutableStateFlow("")
     val skills = MutableStateFlow("")
-    val certifications = MutableStateFlow("")
-    val hourlyRate = MutableStateFlow("")
     val isAvailable = MutableStateFlow(true)
     val maxActiveWos = MutableStateFlow("")
     val homeLocationId = MutableStateFlow<String?>(null)
@@ -80,34 +77,30 @@ class MyTechProfileViewModel @Inject constructor(
     private val _saveResult = MutableStateFlow<String?>(null)
     val saveResult: StateFlow<String?> = _saveResult.asStateFlow()
 
-    private var existingEntity: TechProfileEntity? = null
+    /** False when the signed-in user has no worker record in this account. */
+    private val _hasProfile = MutableStateFlow(true)
+    val hasProfile: StateFlow<Boolean> = _hasProfile.asStateFlow()
+
+    private var workerId: String? = null
 
     init {
         loadProfile()
     }
 
     private fun loadProfile() {
-        val accountId = identityManager.getActiveAccountId() ?: return
-        val userId = identityManager.getActiveUserId() ?: return
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                val dao = databaseFactory.get(accountId).techProfileDao()
-                val entity = dao.getByUserId(accountId, userId)
-                existingEntity = entity
-                if (entity != null) {
-                    displayName.value = entity.displayName ?: ""
-                    skills.value = entity.skills ?: ""
-                    certifications.value = entity.certifications ?: ""
-                    hourlyRate.value = entity.hourlyRate?.toString() ?: ""
-                    isAvailable.value = entity.isAvailable
-                    maxActiveWos.value = entity.maxActiveWos?.toString() ?: ""
-                    val entityHomeLocationId = entity.homeLocationId
-                    homeLocationId.value = entityHomeLocationId
-                    if (entityHomeLocationId != null) {
-                        val loc = locationReads.location(accountId, entityHomeLocationId)
-                        homeLocationName.value = loc?.name
-                    }
+                val me = workers.observeMe().first()
+                workerId = me?.id
+                _hasProfile.value = me != null
+                if (me != null) {
+                    displayName.value = me.displayName
+                    skills.value = me.skills.joinToString(", ")
+                    isAvailable.value = me.available
+                    maxActiveWos.value = me.maxActiveWorkOrders?.toString().orEmpty()
+                    homeLocationId.value = me.homeLocationId
+                    homeLocationName.value = me.homeLocationId?.let { locations.location(it)?.name }
                 }
             } catch (e: Exception) {
                 Timber.e(e, "MyTechProfileViewModel: loadProfile failed")
@@ -119,51 +112,20 @@ class MyTechProfileViewModel @Inject constructor(
     }
 
     fun save() {
-        val accountId = identityManager.getActiveAccountId() ?: return
-        val userId = identityManager.getActiveUserId() ?: return
-        val now = System.currentTimeMillis()
+        val id = workerId ?: return
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                val dao = databaseFactory.get(accountId).techProfileDao()
-                val base = existingEntity
-                val updated = if (base != null) {
-                    base.copy(
-                        displayName = displayName.value.trim().takeIf { it.isNotBlank() },
-                        skills = skills.value.trim().takeIf { it.isNotBlank() },
-                        certifications = certifications.value.trim().takeIf { it.isNotBlank() },
-                        hourlyRate = hourlyRate.value.trim().toDoubleOrNull(),
-                        isAvailable = isAvailable.value,
-                        maxActiveWos = maxActiveWos.value.trim().toIntOrNull(),
+                workers.update(
+                    id,
+                    WorkerDraft(
+                        displayName = displayName.value.trim().ifBlank { null },
+                        skills = parseSkills(skills.value),
+                        maxActiveWorkOrders = maxActiveWos.value.trim().toIntOrNull()?.takeIf { it > 0 },
+                        available = isAvailable.value,
                         homeLocationId = homeLocationId.value,
-                        updatedAt = now,
-                    )
-                } else {
-                    TechProfileEntity(
-                        techId = java.util.UUID.randomUUID().toString(),
-                        accountId = accountId,
-                        userId = userId,
-                        displayName = displayName.value.trim().takeIf { it.isNotBlank() },
-                        skills = skills.value.trim().takeIf { it.isNotBlank() },
-                        certifications = certifications.value.trim().takeIf { it.isNotBlank() },
-                        hourlyRate = hourlyRate.value.trim().toDoubleOrNull(),
-                        currency = null,
-                        availability = null,
-                        speedFactor = null,
-                        isAvailable = isAvailable.value,
-                        maxActiveWos = maxActiveWos.value.trim().toIntOrNull(),
-                        homeLocationId = homeLocationId.value,
-                        currentLocationLat = null,
-                        currentLocationLng = null,
-                        createdAt = now,
-                        updatedAt = now,
-                        deletedAt = null,
-                        serverVersion = 0,
-                        seq = null,
-                    )
-                }
-                dao.upsert(updated)
-                existingEntity = updated
+                    ),
+                )
                 _saveResult.value = "Profile saved"
             } catch (e: Exception) {
                 Timber.e(e, "MyTechProfileViewModel: save failed")
@@ -184,6 +146,10 @@ class MyTechProfileViewModel @Inject constructor(
     }
 }
 
+/** "Hydraulics, welding,, hydraulics" -> ["Hydraulics", "welding"] (case-insensitive de-dupe). */
+internal fun parseSkills(text: String): List<String> =
+    text.split(',', ';', '\n').map { it.trim() }.filter { it.isNotEmpty() }.distinctBy { it.lowercase() }
+
 // ---------------------------------------------------------------------------
 // Screen
 // ---------------------------------------------------------------------------
@@ -200,8 +166,7 @@ fun MyTechProfileScreen(
 ) {
     val displayName by viewModel.displayName.collectAsStateWithLifecycle()
     val skills by viewModel.skills.collectAsStateWithLifecycle()
-    val certifications by viewModel.certifications.collectAsStateWithLifecycle()
-    val hourlyRate by viewModel.hourlyRate.collectAsStateWithLifecycle()
+    val hasProfile by viewModel.hasProfile.collectAsStateWithLifecycle()
     val isAvailable by viewModel.isAvailable.collectAsStateWithLifecycle()
     val maxActiveWos by viewModel.maxActiveWos.collectAsStateWithLifecycle()
     val homeLocationName by viewModel.homeLocationName.collectAsStateWithLifecycle()
@@ -264,15 +229,6 @@ fun MyTechProfileScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
             )
 
-            OutlinedTextField(
-                value = certifications,
-                onValueChange = { viewModel.certifications.value = it },
-                label = { Text(stringResource(R.string.tech_profile_certifications)) },
-                placeholder = { Text(stringResource(R.string.tech_profile_certifications_hint)) },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-            )
-
             // Home Location — side-by-side layout matching iOS TechProfileViewController (section 0, row 3):
             // label left (onSurfaceVariant) · value right (onSurface if set, onSurfaceVariant if not) · chevron
             val homeLocationId by viewModel.homeLocationId.collectAsStateWithLifecycle()
@@ -314,15 +270,6 @@ fun MyTechProfileScreen(
             }
 
             OutlinedTextField(
-                value = hourlyRate,
-                onValueChange = { viewModel.hourlyRate.value = it },
-                label = { Text(stringResource(R.string.tech_profile_hourly_rate)) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            )
-
-            OutlinedTextField(
                 value = maxActiveWos,
                 onValueChange = { viewModel.maxActiveWos.value = it },
                 label = { Text(stringResource(R.string.tech_profile_max_active_wos)) },
@@ -346,9 +293,17 @@ fun MyTechProfileScreen(
                 )
             }
 
+            if (!hasProfile) {
+                Text(
+                    text = stringResource(R.string.tech_profile_no_worker),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+
             Button(
                 onClick = viewModel::save,
-                enabled = !isLoading,
+                enabled = !isLoading && hasProfile,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(if (isLoading) stringResource(R.string.loading) else stringResource(R.string.save))

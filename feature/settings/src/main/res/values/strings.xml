@@ -120,4 +120,5 @@
     <string name="sample_workspaces_account_missing">The workspace was created but is not in your account list yet. Try again.</string>
     <string name="sample_workspaces_load_failed">Could not load sample workspaces: %1$s</string>
     <string name="sample_workspaces_empty">No sample profiles available</string>
+    <string name="tech_profile_no_worker">You are not set up as a technician in this account yet. Ask an administrator to add you.</string>
 </resources>

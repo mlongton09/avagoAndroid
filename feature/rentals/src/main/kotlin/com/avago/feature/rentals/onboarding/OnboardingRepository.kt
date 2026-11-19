@@ -10,8 +10,8 @@ import kotlinx.serialization.json.long
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import javax.inject.Inject
-import com.avago.core.data.DatabaseFactory
-import com.avago.core.data.v2.LocationBinReads
+import com.avago.core.data.domain.Location
+import com.avago.core.data.domain.LocationRepository
 import kotlinx.coroutines.flow.first
 
 /** No asset/class/rate create chains and deliberately no shop-import commit method. */
@@ -23,13 +23,12 @@ interface OnboardingService {
 
 class OnboardingRepository @Inject constructor(
     private val api: JsonApi,
-    private val databases: DatabaseFactory,
-    private val locationReads: LocationBinReads,
+    private val locationRepository: LocationRepository,
 ) : OnboardingService {
     private fun path(account: String) = "/accounts/$account/rentals/onboarding"
     override suspend fun get(account: String) = api.get(path(account))
-    suspend fun locations(account: String) =
-        locationReads.observeLocations(account).first().filterNot { it.archived }
+    /** Active locations of the signed-in account (from the v2 store). */
+    suspend fun locations(): List<Location> = locationRepository.observeLocations().first()
     override suspend fun save(account: String, revision: Long, draft: OnboardingDraft) =
         api.put(path(account), saveBody(revision, draft))
     override suspend fun publish(account: String, revision: Long) =

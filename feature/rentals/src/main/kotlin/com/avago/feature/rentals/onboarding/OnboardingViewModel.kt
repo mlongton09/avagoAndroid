@@ -35,7 +35,7 @@ import kotlinx.serialization.json.long
 import kotlinx.serialization.json.put
 import javax.inject.Inject
 import com.avago.core.sync.SyncEngine
-import com.avago.core.data.db.entity.LocationEntity
+import com.avago.core.data.domain.Location
 
 data class OnboardingUi(
     val session: DraftSession = DraftSession(),
@@ -47,7 +47,7 @@ data class OnboardingUi(
     val permitted: Boolean = false,
     val parsed: JsonObject? = null,
     val notice: String? = null,
-    val locations: List<LocationEntity> = emptyList(),
+    val locations: List<Location> = emptyList(),
 )
 
 private const val EDIT_DEBOUNCE_MS = 700L
@@ -213,7 +213,7 @@ class OnboardingViewModel @Inject constructor(
         if (current(id)) {
             _ui.value = _ui.value.copy(catalog = catalog)
             if (catalog.entries.isEmpty()) error("asset_type_configuration_unavailable")
-            val locations = repository.locations(id)
+            val locations = repository.locations()
             if (current(id)) _ui.value = _ui.value.copy(locations = locations)
         }
     }

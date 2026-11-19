@@ -83,7 +83,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.data.db.entity.LocationEntity
+import com.avago.core.data.domain.Location
 import com.avago.core.design.theme.AvagoSpacing
 import com.avago.core.ui.components.BottomActionBar
 import com.avago.core.ui.components.CardDivider
@@ -107,7 +107,7 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class TransfersViewModel @Inject constructor(private val repo: RentalOpsRepository) : ViewModel() {
     val transfers: StateFlow<List<TransferView>?> = repo.observeTransfers().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-    val locations: StateFlow<List<LocationEntity>> = repo.observeLocations().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val locations: StateFlow<List<Location>> = repo.observeLocations().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     suspend fun lookup(code: String) = repo.lookupAsset(code)
 
@@ -135,7 +135,7 @@ fun TransfersScreen(onBack: () -> Unit, vm: TransfersViewModel = hiltViewModel()
         CreateTransfer(vm, locations, onClose = { creating = false })
         return
     }
-    val names = locations.associate { it.locationId to it.name }
+    val names = locations.associate { it.id to it.name }
     val listState = rememberLazyListState()
     val expanded by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
     Scaffold(
@@ -259,7 +259,7 @@ internal fun transferStatusLabel(s: TransferStatus): String = stringResource(
 private val ARRIVE_PRESETS = listOf(4L, 24L, 48L)
 
 @Composable
-private fun CreateTransfer(vm: TransfersViewModel, locations: List<LocationEntity>, onClose: () -> Unit) {
+private fun CreateTransfer(vm: TransfersViewModel, locations: List<Location>, onClose: () -> Unit) {
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     val haptics = rememberHaptics()
@@ -363,7 +363,7 @@ private fun CreateTransfer(vm: TransfersViewModel, locations: List<LocationEntit
                 return@Column
             }
 
-            val from = locations.firstOrNull { it.locationId == a.locationId }?.name
+            val from = locations.firstOrNull { it.id == a.locationId }?.name
             SectionCard {
                 ListItem(
                     colors = cardListItemColors(),
@@ -377,7 +377,7 @@ private fun CreateTransfer(vm: TransfersViewModel, locations: List<LocationEntit
                     },
                 )
             }
-            val options = locations.filter { it.locationId != a.locationId }
+            val options = locations.filter { it.id != a.locationId }
             SectionCard(title = stringResource(R.string.rentalops_transfer_to), modifier = Modifier.selectableGroup()) {
                 if (options.isEmpty()) {
                     Text(
@@ -393,11 +393,11 @@ private fun CreateTransfer(vm: TransfersViewModel, locations: List<LocationEntit
                         Modifier
                             .fillMaxWidth()
                             .heightIn(min = 56.dp)
-                            .selectable(selected = dest == loc.locationId, role = Role.RadioButton, onClick = { dest = loc.locationId })
+                            .selectable(selected = dest == loc.id, role = Role.RadioButton, onClick = { dest = loc.id })
                             .padding(horizontal = AvagoSpacing.lg),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        RadioButton(selected = dest == loc.locationId, onClick = null)
+                        RadioButton(selected = dest == loc.id, onClick = null)
                         Text(loc.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = AvagoSpacing.lg))
                     }
                 }
