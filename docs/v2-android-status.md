@@ -1,4 +1,4 @@
-# Android schema-v2 status (P3-12)
+# Android schema-v2 status (P3-12, P3-12b)
 
 This doc covers what the Android v2 local store, sync engine and command outbox do today, which
 reads use v2, and what is left. The iOS equivalent is `avago/docs/v2-ios-status.md` (P3-11).
@@ -10,7 +10,8 @@ reads use v2, and what is left. The iOS equivalent is `avago/docs/v2-ios-status.
 
 Everything below runs only while `V2Flag.isEnabled()` is true **and** the legacy reset marker is
 complete (`V2StoreGate`). `V2Flag.BUILD_SUPPORTS_V2` stays `false`, so v2 is enabled only by the
-debug override (Settings → debug v2 toggle, M-02) until cutover.
+debug override (Settings → debug v2 toggle, M-02) until cutover, or by building with
+`-Pv2Default=true` (§3).
 
 ## 1. Done
 
@@ -104,12 +105,101 @@ Callers:
 | `LocationDao` observe/get | `locations` (places_parties) | `code` → `shortCode`, `address_line1` → `address`, `locality/region/country_code` → `city/state/country`, decimal lat/lng → `Double`, `version` → `serverVersion`, `archived_at` → `archived`/`active` |
 | `BinDao` observe/get | `bins` (stock) | `capacity_qty_micros / 1e6` → `capacity`, `bin_kind` → `binType`, `name` falls back to `code`. Aisle/shelf/slot and the current count are null (stock is in `stock_positions`). |
 
-Location and bin **writes** still go to the legacy tables. They need `location.*` and `bin.*`
-commands through the outbox, with overlays.
+Location and bin **writes** still go to the legacy tables. The P3-12b bridge (§3) sends them to the
+server's REST routes. Native `location.*` and `bin.*` outbox commands with overlays are still to do.
 
-## 3. Remaining DAOs and repositories
+## 3. P3-12b: the feature layer on v2 (legacy bridge)
 
-These still read the emptied legacy tables when v2 is on. Most have v2 projections in the
+Rewriting the ~700 Room DAO call sites behind every screen onto v2 projections and outbox
+commands was not feasible for the cutover. P3-12b instead keeps the screens on Room and bridges
+Room to the v2 server. **This deviates from the plan** ("reads from v2 projections, writes as
+outbox commands"). It is an interim layer: the per-feature rewrites below can replace it one
+entity at a time.
+
+- **Read mirror.**
+  - `V2LegacyProjector` (core:data) projects the v2 store into the legacy `/sync/pull` JSON, one
+    SQL `Spec` per entity type. The SQL ports the server's legacy read-compat mappings: WO status
+    `pending_approval`/`open` → `pending_review`/`reviewed`; asset status → `ONLINE`/`OFFLINE`/
+    `IGNORE`/`CUSTOM`; assignment roles; micros → units; log costs summed from
+    `activity_cost_lines`; PM trigger type and next due date; ISO timestamps.
+  - After every successful v2 sync, `SyncEngine.runV2IfActive()` →
+    `V2LegacyBridge.mirror()` applies the rows through the existing pull upsert
+    (`upsertPulledItem(mirrored = true)`).
+  - In mirrored mode the version compare is skipped, but a row with a queued local change is
+    never overwritten.
+  - Only rows whose JSON changed since the last mirror are re-applied (an in-memory hash per
+    row).
+  - Room rows that v2 no longer has, and that have no queued change, are pruned.
+  - Mirrored types: location, bin, category, user, tech_profile, asset, wo_template, work_order,
+    work_order_asset, wo_assignment, wo_checklist_item, wo_comment, log, log_cost_line, part,
+    inventory, stocking_level, pm_plan, meter_reading.
+- **Write bridge.**
+  - The legacy `/sync/push` answers 426 on v2. `V2LegacyBridge.push()` drains the legacy
+    `sync_queue` instead, through the REST routes the v2 server keeps for these entities
+    (`AvagoServiceClient.sendJson`).
+  - `V2LegacyWritePlanner` turns a queue row into calls. Creates POST with the client id.
+    Updates send only the fields that differ from the projected v2 row. Deletes use DELETE (part
+    deletes set `status: inactive`).
+  - A work order status change becomes `POST …/transition`. An assignment status change becomes
+    `accept`/`decline`. Completing a checklist item becomes `PUT …/checklist/{id}`.
+  - Legacy JSON text fields are parsed into JSON, comma lists become arrays, and date-only dates
+    get `T12:00:00Z`.
+  - Errors:
+    - Network errors, 408, 429, 5xx and 401 stop the drain and keep the row pending.
+    - Other 4xx mark the row `error` (retried up to `QueueRetryPolicy.MAX_ATTEMPTS`).
+    - Unsupported types are marked `error` with `v2_unsupported: …`.
+  - After a drain that sent anything, the v2 pull runs again so the mirror sees the server
+    result.
+- **SyncGate.** It now opens after a successful v2 sync. Before this, screens waiting on the
+  first sync stayed blocked in v2 mode.
+- **Background jobs.**
+  - `RentalSyncWorker` and `RentalSyncScheduler` are no-ops while v2 is on, and the periodic job
+    is cancelled; the server answers the rentals feeds with 426.
+  - Chat (`BackgroundSyncCoordinator`, realtime WS, `chat/sync`) keeps running. The v2 server
+    still serves the legacy chat REST/WS endpoints, and the v2 chat store is not read by any
+    screen yet.
+  - The legacy `SyncWorker` already forwards to v2 through `SyncEngine`.
+- **Internal v2-on build.**
+
+  ```
+  gradlew :app:assembleDebug -Pv2Default=true --no-daemon --max-workers=3 "-Dorg.gradle.jvmargs=-Xmx2g"
+  ```
+
+  The flag is `BuildConfig.V2_DEFAULT` → `V2Flag(defaultEnabled = true)`. The debug override can
+  still switch v2 off. Without the property the default stays off.
+
+| Feature | Reads (mirror) | Writes on v2 |
+|---|---|---|
+| Assets | ✅ assets (make/model/status/location) | ✅ create/update/delete (`/assets`) |
+| Work orders | ✅ WOs, WO assets, assignments, checklist, comments, templates | ✅ create/patch/transition/delete; assignments create/patch/accept/decline; checklist create/complete/delete; comments create/delete |
+| Logs + cost lines | ✅ | ✅ (`/log`, `/log/{id}/cost-lines`) |
+| Locations / bins | ✅ (and `LocationBinReads` reads v2 directly) | ✅ create/update/delete |
+| Parts / inventory / stocking levels | ✅ | parts ✅; receive/use already call REST directly |
+| Tech profiles | ✅ | ✅ `PUT /tech-profiles/{user}` |
+| PM plans | ✅ mirror; the PM screen lists via REST `listPmPlans` | via REST (unchanged) |
+| Meter readings, categories, users | ✅ | — (not queued by the app) |
+| Chat | legacy chat REST/WS (server keeps them) | legacy REST |
+| Notifications, settings/preferences | REST (unchanged) | REST |
+| Rentals | ❌ feeds return 426; background sync off | ❌ |
+
+Not converted (writes stay queued as `v2_unsupported`, reads empty):
+- docs/photos (needs E12 uploads)
+- vendors, purchase orders, GRNs, cycle counts, part issues/transfers
+- permits, RCA, defects register, schedules/services/jobs/events
+- templates (write)
+- assignment delete
+- checklist un-complete and responses
+- rentals and marketplace
+
+Tests: `V2LegacyProjectorTest` (2: every spec runs against the contract DDL, plus the
+asset/WO/WO-asset mappings), `V2LegacyWritePlannerTest` (7), `core/sync V2LegacyBridgeTest` (4:
+send+success, unsupported + offline stop, 4xx continues, prune keeps queued rows).
+
+## 4. Remaining DAOs and repositories (per-feature v2 rewrites)
+
+With the bridge above the main flows work on v2. The table below is the remaining work to
+replace the bridge with native v2 reads and outbox commands. The legacy tables are now filled by
+the mirror (§3) rather than empty. Most have v2 projections in the
 generated schema, but the models differ (ids, micros, enums, split tables). Each needs an adapter
 or a model rewrite, plus outbox commands for its writes.
 
@@ -141,10 +231,10 @@ Also remaining:
 - UI for `V2CommandOutbox.failures()` and `sync_conflicts`.
 - The command catalogue for each feature: each screen's writes as `V2NewCommand`s with overlays,
   using `V2SyncCoordinator.outbox()`.
-- Other legacy workers that still run while v2 is on: the rentals pull, chat background sync and
-  realtime, and the photo cache sweeper.
+- Legacy workers still running while v2 is on: chat background sync and realtime (intentional,
+  see §3) and the photo cache sweeper. The rentals pull is off.
 
-## 4. Tests
+## 5. Tests
 
 Mock transport (`V2TestSupport.kt`: `MockTransport`, `ScriptedServer`, fixtures) with an
 in-memory xerial SQLite via `JdbcV2Connection`.
@@ -180,7 +270,7 @@ refusing a store built from another contract DDL.
 
 The existing `LegacyStoreResetTest` and `V2FlagTest` still pass.
 
-## 5. Open questions
+## 6. Open questions
 
 1. Chat projections arrive on the account stream and are applied to the chat store in their own
    transaction, before the business page. Plan §12 describes a separate chat stream. Confirm.
@@ -200,6 +290,16 @@ The existing `LegacyStoreResetTest` and `V2FlagTest` still pass.
    reuses the legacy id when it is a UUID instead.
 9. The legacy account and user ids are used as-is for the v2 store paths and identity; they are
    assumed to be the v2 UUIDs.
+10. Bridge (P3-12b):
+    - A queue row in `error` keeps its Room row protected from the mirror until it succeeds or is
+      discarded. A permanently rejected edit therefore hides server changes to that entity;
+      discard it from the sync-errors UI.
+    - Entities the server creates with its own id (locations, comments, checklist items) leave
+      the local temp row until the next mirror prunes it and the server row appears.
+    - Updates never send a field cleared to null (the diff drops nulls).
+    - WO priority and status use the legacy vocabulary the server's REST compat layer accepts;
+      the transition rules are the server's.
+    - Each `pushIfNeeded()` runs a full v2 pull + mirror (unchanged rows are skipped by hash).
 
 Deviations from sync-wire.md: none. The iOS port stages the whole bootstrap and skips
 constraint-violating rows; Android applies each page atomically and fails the batch.
