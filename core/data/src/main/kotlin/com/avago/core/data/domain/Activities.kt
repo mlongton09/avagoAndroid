@@ -10,6 +10,20 @@ enum class ActivityType(val wire: String) {
 
     companion object {
         fun fromWire(raw: String?): ActivityType = entries.firstOrNull { it.wire == raw } ?: OTHER
+
+        /** Kind for a log category key (`oil_change`, `inspection`, `fuel`...); categories default to service. */
+        fun forCategory(category: String?): ActivityType {
+            val key = category?.trim()?.lowercase().orEmpty()
+            return when {
+                key.isEmpty() -> SERVICE
+                key == "inspection" || key.endsWith("_inspection") || key.startsWith("inspection_") -> INSPECTION
+                key == "fuel" || key.startsWith("fuel_") -> FUEL
+                key == "repair" || key.endsWith("_repair") -> REPAIR
+                key == "note" || key == "notes" -> NOTE
+                key == "handover" -> HANDOVER
+                else -> SERVICE
+            }
+        }
     }
 }
 

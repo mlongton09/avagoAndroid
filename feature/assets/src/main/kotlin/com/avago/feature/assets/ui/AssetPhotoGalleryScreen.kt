@@ -1,4 +1,4 @@
-﻿package com.avago.feature.assets.ui
+package com.avago.feature.assets.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -41,18 +41,16 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil3.compose.AsyncImage
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
-import com.avago.core.data.db.entity.PhotoEntity
+import com.avago.core.data.domain.AssetRepository
+import com.avago.core.data.domain.Attachment
+import com.avago.core.data.domain.AttachmentTarget
+import com.avago.core.ui.components.StoredFileImage
 import com.avago.feature.assets.R
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import timber.log.Timber
 import javax.inject.Inject
@@ -64,47 +62,20 @@ import javax.inject.Inject
 @HiltViewModel
 class AssetPhotoGalleryViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val dbFactory: DatabaseFactory,
-    private val identityManager: IdentityManager,
+    assets: AssetRepository,
 ) : ViewModel() {
 
     private val assetId: String = checkNotNull(savedStateHandle["assetId"]) {
         "assetId is required in SavedStateHandle for AssetPhotoGalleryViewModel"
     }
 
-    private val accountId: StateFlow<String?> = identityManager.activeAccountId
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.Eagerly,
-            initialValue = identityManager.getActiveAccountId(),
-        )
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val photos: StateFlow<List<PhotoEntity>> = accountId
-        .flatMapLatest { acctId ->
-            if (acctId == null) flowOf(emptyList())
-            else {
-                try {
-                    dbFactory.get(acctId).photoDao().observeByEntity(assetId, "asset")
-                        .catch { e ->
-                            Timber.e(e, "[AssetPhotoGalleryViewModel] Error loading photos for $assetId")
-                            emit(emptyList())
-                        }
-                } catch (e: Exception) {
-                    Timber.e(e, "[AssetPhotoGalleryViewModel] Could not get photoDao for $acctId")
-                    flowOf(emptyList())
-                }
-            }
-        }
+    val photos: StateFlow<List<Attachment>> = assets.observeAttachments(AttachmentTarget.ToAsset(assetId))
+        .map { list -> list.filter { it.file?.isImage == true } }
         .catch { e ->
             Timber.e(e, "[AssetPhotoGalleryViewModel] Photo flow error")
             emit(emptyList())
         }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = emptyList(),
-        )
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 }
 
 // ---------------------------------------------------------------------------
@@ -118,8 +89,7 @@ fun AssetPhotoGalleryScreen(
     onBack: () -> Unit,
     viewModel: AssetPhotoGalleryViewModel = hiltViewModel(),
 ) {
-    val photos by viewModel.photos.collectAsStateWithLifecycle()
-    val photoUrls = photos.mapNotNull { it.downloadUrl }
+    val photoUrls by viewModel.photos.collectAsStateWithLifecycle()
 
     var chromeVisible by remember { mutableStateOf(true) }
 
@@ -153,8 +123,8 @@ fun AssetPhotoGalleryScreen(
                         indication = null,
                     ) { chromeVisible = !chromeVisible },
             ) { page ->
-                AsyncImage(
-                    model = photoUrls[page],
+                StoredFileImage(
+                    file = photoUrls[page].file,
                     contentDescription = stringResource(R.string.gallery_photo_content_description, page + 1, photoUrls.size),
                     contentScale = ContentScale.Fit,
                     modifier = Modifier.fillMaxSize(),

@@ -1,4 +1,4 @@
-﻿package com.avago.feature.assets.ui
+package com.avago.feature.assets.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -53,8 +53,11 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
+import com.avago.core.data.domain.Activity
+import com.avago.core.data.domain.ActivityFilter
+import com.avago.core.data.domain.ActivityRepository
+import com.avago.core.data.domain.AssetFilter
+import com.avago.core.data.domain.AssetRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -119,8 +122,8 @@ data class GlobalCategoryReportState(
 
 @HiltViewModel
 class GlobalCategoryReportViewModel @Inject constructor(
-    private val dbFactory: DatabaseFactory,
-    private val identity: IdentityManager,
+    private val assets: AssetRepository,
+    private val activities: ActivityRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(GlobalCategoryReportState())
@@ -129,23 +132,21 @@ class GlobalCategoryReportViewModel @Inject constructor(
     init { loadInitial() }
 
     private fun loadInitial(isRefresh: Boolean = false) {
-        val accountId = identity.getActiveAccountId() ?: return
         _state.update {
             it.copy(isLoading = !isRefresh, isRefreshing = isRefresh, error = null)
         }
         viewModelScope.launch {
             try {
-                val db = dbFactory.get(accountId)
-                val allLogs = db.logDao().observeAll(accountId).first()
+                val allLogs = allLogs()
 
                 val defaultCat = allLogs
-                    .filter { !it.category.isNullOrBlank() }
-                    .groupBy { it.category!! }
+                    .filter { !it.categoryLabel.isNullOrBlank() }
+                    .groupBy { it.categoryLabel!! }
                     .maxByOrNull { it.value.size }?.key ?: "service"
 
                 val cats = allLogs
-                    .filter { !it.category.isNullOrBlank() }
-                    .groupBy { it.category!! }
+                    .filter { !it.categoryLabel.isNullOrBlank() }
+                    .groupBy { it.categoryLabel!! }
                     .map { (id, entries) -> GlobalCatInfo(id, catDisplayName(id), entries.size) }
                     .sortedByDescending { it.count }
 
@@ -158,7 +159,7 @@ class GlobalCategoryReportViewModel @Inject constructor(
                         sortOrder = sort,
                     )
                 }
-                buildRows(accountId, _state.value.selectedCategory, mode, sort)
+                buildRows(_state.value.selectedCategory, mode, sort)
             } catch (e: Exception) {
                 Timber.e(e, "[GlobalCategoryReport] loadInitial failed")
                 _state.update { it.copy(isLoading = false, isRefreshing = false, error = e.message ?: "Load failed") }
@@ -168,37 +169,38 @@ class GlobalCategoryReportViewModel @Inject constructor(
 
     fun refresh() = loadInitial(isRefresh = true)
 
+    private suspend fun allLogs(): List<Activity> =
+        activities.observeActivities(ActivityFilter()).first()
+
     private suspend fun buildRows(
-        accountId: String,
         category: String,
         mode: GlobalCatFilterMode,
         sort: GlobalCatSortOrder,
     ) {
-        val db = dbFactory.get(accountId)
-        val allLogs = db.logDao().observeAll(accountId).first()
-        val catLogs = allLogs.filter { it.category == category }
+        val catLogs = allLogs().filter { it.categoryLabel == category }
+        val assetsById = assets.observeAssets(AssetFilter()).first().associateBy { it.id }
 
         // Latest entry per asset: by date for BY_DATE, by meter for BY_METER
         val latestPerAsset = if (mode == GlobalCatFilterMode.BY_METER) {
-            catLogs.filter { (it.odometerValue ?: 0.0) > 0.0 }
+            catLogs.filter { (it.meterValue?.signum() ?: 0) > 0 }
                 .groupBy { it.assetId }
-                .mapValues { (_, entries) -> entries.maxByOrNull { it.odometerValue ?: 0.0 }!! }
+                .mapValues { (_, entries) -> entries.maxBy { it.meterValue!! } }
         } else {
             catLogs.groupBy { it.assetId }
-                .mapValues { (_, entries) -> entries.maxByOrNull { it.entryDate }!! }
+                .mapValues { (_, entries) -> entries.maxBy { it.occurredAt } }
         }
 
         val rows = latestPerAsset.values.mapNotNull { log ->
             val assetId = log.assetId ?: return@mapNotNull null
-            val asset = db.assetDao().getById(assetId) ?: return@mapNotNull null
+            val asset = assetsById[assetId] ?: return@mapNotNull null
             GlobalCatRow(
-                assetId = asset.assetId,
+                assetId = asset.id,
                 assetName = asset.name,
                 avatarColor = asset.avatarColor ?: "#2563EB",
-                entryTitle = log.title,
-                entryDate = log.entryDate,
-                entryCost = log.cost ?: 0.0,
-                entryOdometer = log.odometerValue ?: 0.0,
+                entryTitle = log.displayTitle,
+                entryDate = log.occurredAt,
+                entryCost = log.totalCost.toDouble(),
+                entryOdometer = log.meterValue?.toDouble() ?: 0.0,
             )
         }
 
@@ -208,13 +210,12 @@ class GlobalCategoryReportViewModel @Inject constructor(
     }
 
     fun setCategory(categoryId: String) {
-        val accountId = identity.getActiveAccountId() ?: return
         val mode = _state.value.filterMode
         val sort = GlobalCatSortOrder.NEWEST
         _state.update { it.copy(selectedCategory = categoryId, sortOrder = sort, isPickerOpen = false, isLoading = true) }
         viewModelScope.launch {
             try {
-                buildRows(accountId, categoryId, mode, sort)
+                buildRows(categoryId, mode, sort)
             } catch (e: Exception) {
                 _state.update { it.copy(isLoading = false, error = e.message) }
             }
@@ -222,13 +223,12 @@ class GlobalCategoryReportViewModel @Inject constructor(
     }
 
     fun setFilterMode(mode: GlobalCatFilterMode) {
-        val accountId = identity.getActiveAccountId() ?: return
         val category = _state.value.selectedCategory
         val sort = GlobalCatSortOrder.NEWEST
         _state.update { it.copy(filterMode = mode, sortOrder = sort, isLoading = true) }
         viewModelScope.launch {
             try {
-                buildRows(accountId, category, mode, sort)
+                buildRows(category, mode, sort)
             } catch (e: Exception) {
                 _state.update { it.copy(isLoading = false, error = e.message) }
             }

@@ -4,7 +4,6 @@
     <string name="common_edit">Edit</string>
 
     <!-- Asset List -->
-    <string name="assets_title">Assets</string>
     <string name="assets_search_placeholder">Search</string>
     <string name="assets_filter_all">All Types</string>
     <string name="assets_filter_reset">Reset</string>
@@ -14,15 +13,10 @@
     <!-- Asset Detail -->
     <string name="asset_detail_title">Asset</string>
     <string name="asset_detail_last_service">Last Service</string>
-    <string name="asset_detail_meter_reading">Meter Reading</string>
     <string name="asset_detail_log_entries">ENTRIES</string>
     <string name="asset_detail_since_service">SINCE SERVICE</string>
-    <string name="asset_detail_open_wos">OPEN WOs</string>
-    <string name="asset_detail_section_details">DETAILS</string>
-    <string name="asset_detail_inspection_title">INSPECTION</string>
     <string name="asset_detail_no_logs">No service records yet.\nTap + to log…</string>
     <string name="asset_detail_share_pdf">Generate PDF Report</string>
-    <string name="asset_detail_pdf_generate">Generate PDF Report</string>
     <string name="asset_detail_open_chat">Open team chat</string>
     <string name="asset_detail_rental">Rental</string>
     <string name="asset_detail_add_log">Add Log Entry</string>
@@ -30,8 +24,6 @@
     <string name="asset_detail_action_clone">Clone</string>
     <string name="asset_detail_back">Back</string>
     <string name="asset_detail_edit">Edit</string>
-    <string name="asset_detail_filter_all">All</string>
-    <string name="asset_detail_na">N/A</string>
 
     <!-- Add / Edit Asset -->
     <string name="asset_add_title">Add Asset</string>
@@ -43,7 +35,6 @@
     <string name="asset_field_make">Make</string>
     <string name="asset_field_model">Model</string>
     <string name="asset_field_year">Year</string>
-    <string name="asset_field_color">Color</string>
     <string name="asset_field_license_plate">License Plate</string>
     <string name="asset_field_vin">VIN</string>
     <string name="asset_field_scan_vin">Scan VIN</string>
@@ -52,7 +43,6 @@
     <string name="asset_geocode_lookup">Look up coordinates from address</string>
     <string name="asset_add_photo">Add Photo</string>
     <string name="asset_photo_library">Photo Library</string>
-    <string name="gallery_title">Gallery</string>
     <string name="gallery_empty">No photos yet.\nAdd photos to your assets\nand they’ll appear here.</string>
     <string name="gallery_item_count">%1$d of %2$d</string>
     <string name="asset_add_address_btn">Add address</string>
@@ -60,15 +50,11 @@
     <string name="asset_add_units_btn">Add units</string>
     <string name="asset_add_bays_btn">Add bays</string>
     <string name="asset_add_suites_btn">Add suites</string>
-    <string name="asset_geocode_error_location">Unable to determine location.</string>
-    <string name="asset_geocode_error_not_found">Address not found.</string>
-    <string name="performed_by_me">Me \u2014 %1$s</string>
     <string name="asset_field_purchase_date">Purchase Date</string>
     <string name="asset_field_purchase_price">Purchase Price</string>
     <string name="asset_field_location">Location</string>
     <string name="asset_field_notes">Notes</string>
     <string name="asset_save">Save</string>
-    <string name="asset_saving">Saving\u2026</string>
     <string name="asset_cancel">Cancel</string>
 
     <!-- Asset Type Picker -->
@@ -118,9 +104,7 @@
 
     <!-- Barcode Scanner -->
     <string name="barcode_scanner_title">Scan Barcode</string>
-    <string name="barcode_scanner_action_description">Scan barcode</string>
     <string name="barcode_scanner_hint">Align barcode within the frame</string>
-    <string name="barcode_hint">Point your camera at a barcode to scan it.</string>
     <string name="barcode_scanner_permission_rationale">Camera access is required to scan barcodes</string>
     <string name="barcode_scanner_grant_permission">Grant Camera Permission</string>
     <string name="barcode_scanner_not_found">No asset found for this barcode</string>
@@ -201,7 +185,6 @@
     <string name="rental_rate_unit_daily">Daily</string>
     <string name="rental_rate_unit_weekly">Weekly</string>
     <string name="rental_rate_unit_monthly">Monthly</string>
-    <string name="rental_currency_label">Currency</string>
     <string name="rental_notes_label">Notes</string>
     <string name="rental_start_date_label">Start Date</string>
     <string name="rental_status_active">Active</string>
@@ -209,10 +192,7 @@
     <string name="rental_end_button">End Rental</string>
     <string name="rental_total_label">Total</string>
     <string name="rental_create_button">Create Rental</string>
-    <string name="rental_ending">Ending\u2026</string>
-    <string name="rental_creating">Creating\u2026</string>
     <string name="rental_end_confirm_title">End Rental</string>
-    <string name="rental_end_confirm_body">Mark this rental as ended now?</string>
 
     <!-- Onboarding / FRE -->
     <string name="onboarding_welcome_title">Welcome to Avago</string>
@@ -251,22 +231,18 @@
     <string name="rental_customer_delete_confirm">Delete</string>
 
     <!-- Rental Booking -->
-    <string name="rental_booking_title">New Booking</string>
     <string name="rental_booking_step_customer">Customer</string>
     <string name="rental_booking_step_dates">Dates</string>
     <string name="rental_booking_step_confirm">Confirm</string>
     <string name="rental_booking_new_customer">+ New Customer</string>
     <string name="rental_booking_end_date_label">End Date (Optional)</string>
     <string name="rental_booking_duration_label">Duration</string>
-    <string name="rental_booking_rate_label">Rate</string>
-    <string name="rental_booking_estimated_cost">Estimated Cost</string>
     <string name="rental_booking_no_customer">No customer (internal)</string>
     <string name="rental_booking_confirm">Confirm Booking</string>
     <string name="rental_booking_next">Next</string>
     <string name="rental_booking_back">Back</string>
     <string name="rental_booking_summary_customer">Customer</string>
     <string name="rental_booking_summary_dates">Dates</string>
-    <string name="rental_booking_summary_rate">Rate</string>
 
     <!-- Rental Reservations -->
     <string name="rental_reservations_section">Reservations</string>
@@ -291,7 +267,6 @@
     <string name="rental_invoice_tax">Tax (%1$.1f%%)</string>
     <string name="rental_invoice_total">Total</string>
     <string name="rental_invoice_line_items">Line Items</string>
-    <string name="rental_invoice_paid_on">Paid on %1$s via %2$s</string>
     <string name="rental_invoice_due_date">Due %1$s</string>
     <string name="rental_invoice_create">Create Invoice</string>
     <string name="rental_invoiced_chip">Invoiced</string>
@@ -308,10 +283,6 @@
     <string name="rental_search_customers_clear">Clear search</string>
 
     <!-- Report parity -->
-    <string name="sort_newest">Newest first</string>
-    <string name="sort_oldest">Oldest first</string>
-    <string name="sort_highest">Highest first</string>
-    <string name="sort_lowest">Lowest first</string>
     <string name="reports_empty_state">No results</string>
     <!-- Legacy rental screens: labels, hints, errors -->
     <string name="rental_condition_label">Condition *</string>
@@ -367,8 +338,6 @@
     <string name="asset_scope_tool_title">Tool details</string>
     <string name="asset_scope_vehicle_title">Vehicle details</string>
     <string name="asset_scope_recalls_title">Safety recalls</string>
-    <string name="asset_scope_save">Save</string>
-    <string name="asset_scope_saved">Saved</string>
     <string name="asset_scope_retry">Retry</string>
     <string name="asset_scope_refresh">Refresh</string>
     <string name="asset_scope_err_offline">You\'re offline. Check your connection and try again.</string>
@@ -376,31 +345,20 @@
     <string name="asset_scope_err_vin_unavailable">VIN lookup is unavailable right now.</string>
     <string name="asset_scope_err_forbidden">You don\'t have permission to change this asset.</string>
     <string name="asset_scope_err_not_found">Not found. It may have been removed.</string>
-    <string name="asset_scope_err_date">Use the format YYYY-MM-DD</string>
-    <string name="asset_scope_err_interval">Enter 1 to 3650 days</string>
-    <string name="asset_scope_err_number">Enter a valid number</string>
-    <string name="asset_scope_err_currency">Use a 3-letter currency code</string>
-    <string name="asset_scope_err_length">Too long</string>
-    <string name="asset_scope_err_tag_in_use">This tracker tag is already used by another asset</string>
     <string name="asset_scope_overdue">Overdue</string>
     <string name="asset_scope_due_soon">Due soon</string>
     <string name="asset_scope_valid">Valid</string>
     <string name="asset_scope_not_set">Not set</string>
     <string name="asset_scope_due_on">Due %1$s</string>
-    <string name="asset_scope_date_hint">YYYY-MM-DD</string>
     <string name="asset_scope_calibration">Calibration</string>
     <string name="asset_scope_calibrated_on">Last calibrated</string>
     <string name="asset_scope_interval_days">Interval (days)</string>
-    <string name="asset_scope_due_date">Next due</string>
-    <string name="asset_scope_due_hint">Leave blank to calculate from the interval</string>
     <string name="asset_scope_usage">Usage</string>
     <string name="asset_scope_usage_days">Days</string>
     <string name="asset_scope_usage_cycles">Cycles</string>
     <string name="asset_scope_usage_value">Usage count</string>
     <string name="asset_scope_value">Value</string>
     <string name="asset_scope_replacement_value">Replacement value</string>
-    <string name="asset_scope_currency">Currency</string>
-    <string name="asset_scope_verified_renter_required">Only verified renters can book this tool.</string>
     <string name="asset_scope_tracker">Tracker</string>
     <string name="asset_scope_tracker_tag">Tracker tag ID</string>
     <string name="asset_scope_tracker_gps">GPS</string>
@@ -427,8 +385,8 @@
     <string name="asset_scope_park_outside">Park outside, away from buildings</string>
     <string name="asset_scope_consequence">Risk: %1$s</string>
     <string name="asset_scope_remedy">Remedy: %1$s</string>
-    <string name="asset_scope_mark_remedied">Mark remedied</string>
-    <string name="asset_scope_remedy_note">Note (optional)</string>
     <string name="asset_scope_remedied_on">Remedied %1$s</string>
-    <string name="asset_scope_reopen">Mark as open</string>
+    <string name="asset_detail_document_untitled">Untitled document</string>
+    <string name="asset_scope_vehicle_none">No vehicle details are recorded for this asset.</string>
+    <string name="asset_scope_tool_none">No tool details are recorded for this asset.</string>
 </resources>

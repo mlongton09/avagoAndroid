@@ -53,6 +53,7 @@ object MaintCommands {
             conditionScore = draft.conditionScore,
             avatarColor = draft.avatarColor.clean(),
             avatarInitial = draft.avatarInitial.clean(),
+            attributes = draft.attributes.jsonObjectOrNull(),
             rentable = draft.rentable,
         )
         val row = mapOf(
@@ -71,7 +72,7 @@ object MaintCommands {
             "rentable" to draft.rentable,
             "status_code" to AssetStatusCode.ONLINE.wire,
             "status_since" to nowMillis,
-            "attributes" to "{}",
+            "attributes" to (payload.attributes?.toString() ?: "{}"),
         ) + created(nowMillis, userId)
         return payload.toNewCommand(overlay = V2OverlayPatch.of(V2RowOp.upsert("assets", id, row)))
     }
@@ -93,16 +94,21 @@ object MaintCommands {
         val initial = d.text("avatar_initial", stored.avatarInitial, draft.avatarInitial)
         val rentable = d.field("rentable", stored.rentable, draft.rentable)
         d.check()
-        if (d.isEmpty) return null
+        // Attributes are NOT NULL on the server: null in the draft means "unchanged", and the client
+        // sends the whole merged object (merge semantics are a catalog request).
+        val attributes = draft.attributes?.let { (it.jsonObjectOrNull() ?: JsonObject(emptyMap())) }
+            ?.takeIf { it != (stored.attributes.jsonObjectOrNull() ?: JsonObject(emptyMap())) }
+        if (d.isEmpty && attributes == null) return null
         val payload = MaintAssetsUpdate(
             id = stored.id, name = name, assetTypeCode = type, makeOverride = make, modelOverride = model,
             modelYear = year, serialNumber = serial, vin = vin, tags = tags, locationId = location,
-            conditionScore = condition, avatarColor = color, avatarInitial = initial, rentable = rentable,
-            clear = d.clear,
+            conditionScore = condition, avatarColor = color, avatarInitial = initial, attributes = attributes,
+            rentable = rentable, clear = d.clear,
         )
+        val overlay = d.overlay + listOfNotNull(attributes?.let { "attributes" to it.toString() }) + updated(nowMillis)
         return payload.toNewCommand(
             baseVersion = stored.version,
-            overlay = V2OverlayPatch.of(V2RowOp.upsert("assets", stored.id, d.overlay + updated(nowMillis))),
+            overlay = V2OverlayPatch.of(V2RowOp.upsert("assets", stored.id, overlay)),
         )
     }
 

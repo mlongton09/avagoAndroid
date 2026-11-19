@@ -47,56 +47,45 @@ import androidx.compose.ui.window.Dialog
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import coil3.compose.AsyncImage
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
-import com.avago.core.data.db.entity.PhotoEntity
+import com.avago.core.data.domain.AssetFilter
+import com.avago.core.data.domain.AssetRepository
+import com.avago.core.data.domain.StoredFile
+import com.avago.core.ui.components.StoredFileImage
 import com.avago.feature.assets.R
 import dagger.hilt.android.lifecycle.HiltViewModel
-import java.io.File
 import java.text.DateFormat
 import java.util.Date
 import javax.inject.Inject
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 data class GalleryPhotoUi(
     val id: String,
     val assetName: String,
     val createdAt: Long,
-    val imageModel: Any?,
+    val file: StoredFile?,
 )
 
 @HiltViewModel
 class GalleryViewModel @Inject constructor(
-    private val identityManager: IdentityManager,
-    private val dbFactory: DatabaseFactory,
+    assets: AssetRepository,
 ) : ViewModel() {
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val photos = identityManager.activeAccountId
-        .flatMapLatest { accountId ->
-            if (accountId == null) {
-                flowOf(emptyList())
-            } else {
-                val db = dbFactory.get(accountId)
-                combine(
-                    db.photoDao().observeAll(accountId),
-                    db.assetDao().observeAll(accountId),
-                ) { photos, assets ->
-                    val assetNames = assets.associate { it.assetId to it.name }
-                    photos
-                        .filter { it.entityType.equals("asset", ignoreCase = true) }
-                        .sortedByDescending { it.createdAt }
-                        .mapNotNull { photo -> photo.toGalleryUi(assetNames[photo.entityId]) }
-                }
-            }
+    val photos = combine(
+        assets.observeImages(),
+        assets.observeAssets(AssetFilter()),
+    ) { images, all ->
+        val names = all.associate { it.id to it.name }
+        images.filter { it.assetId != null }.map { a ->
+            GalleryPhotoUi(
+                id = a.id,
+                assetName = names[a.assetId].orEmpty().ifBlank { a.file?.name.orEmpty() },
+                createdAt = a.createdAt,
+                file = a.file,
+            )
         }
+    }
         .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 }
@@ -161,8 +150,8 @@ private fun GalleryPhotoCard(
             .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
     ) {
-        AsyncImage(
-            model = photo.imageModel,
+        StoredFileImage(
+            file = photo.file,
             contentDescription = photo.assetName,
             modifier = Modifier
                 .fillMaxWidth()
@@ -238,8 +227,8 @@ private fun GalleryPhotoDialog(
                         .background(Color.Black),
                     contentAlignment = Alignment.Center,
                 ) {
-                    AsyncImage(
-                        model = photo.imageModel,
+                    StoredFileImage(
+                        file = photo.file,
                         contentDescription = photo.assetName,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Fit,
@@ -270,23 +259,6 @@ private fun GalleryPhotoDialog(
             }
         }
     }
-}
-
-private fun PhotoEntity.toGalleryUi(assetName: String?): GalleryPhotoUi? {
-    val path = localPath?.takeIf { it.isNotBlank() }
-    val url = downloadUrl?.takeIf { it.isNotBlank() }
-    val model: Any = when {
-        path != null && File(path).exists() -> File(path)
-        path != null -> path
-        url != null -> url
-        else -> return null
-    }
-    return GalleryPhotoUi(
-        id = photoId,
-        assetName = assetName.orEmpty().ifBlank { "Untitled" },
-        createdAt = createdAt,
-        imageModel = model,
-    )
 }
 
 private fun formatGalleryDate(timestamp: Long): String =

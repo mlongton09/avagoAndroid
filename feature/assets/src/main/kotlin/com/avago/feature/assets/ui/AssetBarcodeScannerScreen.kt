@@ -1,9 +1,7 @@
-﻿package com.avago.feature.assets.ui
+package com.avago.feature.assets.ui
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.content.pm.PackageManager
-import android.os.Looper
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
@@ -56,24 +54,14 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
-import com.avago.core.network.AvagoServiceClient
-import com.avago.core.network.model.RecordQrScanRequest
+import com.avago.core.data.domain.AssetRepository
 import com.avago.feature.assets.R
-import com.google.android.gms.location.LocationCallback
-import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationResult
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.common.InputImage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
 import timber.log.Timber
 import javax.inject.Inject
-import kotlin.coroutines.resume
 
 // ---------------------------------------------------------------------------
 // ViewModel
@@ -81,59 +69,25 @@ import kotlin.coroutines.resume
 
 @HiltViewModel
 class AssetBarcodeScannerViewModel @Inject constructor(
-    private val dbFactory: DatabaseFactory,
-    private val identityManager: IdentityManager,
-    private val serviceClient: AvagoServiceClient,
+    private val assets: AssetRepository,
 ) : ViewModel() {
 
     /**
-     * Looks up an asset by the scanned barcode value: the asset ID first, then a VIN
-     * (`attributes.vin`) or serial number match. Returns the assetId if found, null otherwise.
+     * Looks up an asset by the scanned value: QR global id, asset id, serial number or VIN (as scanned,
+     * then normalised). Returns the asset id, or null when nothing matches.
      */
-    suspend fun lookupByBarcode(barcode: String): String? {
-        val accountId = identityManager.getActiveAccountId() ?: return null
-        return try {
-            val dao = dbFactory.get(accountId).assetDao()
-            dao.getByBarcode(barcode)?.assetId ?: run {
-                val code = normalizeVin(barcode) ?: return@run null
-                dao.findByIdentifierCandidates(accountId, code).firstOrNull { asset ->
-                    asset.serialNumber?.trim()?.uppercase() == code ||
-                        VIN_ATTR.find(asset.attributes.orEmpty())?.groupValues?.get(1)?.trim()?.uppercase() == code
-                }?.assetId
-            }
-        } catch (e: Exception) {
-            Timber.e(e, "[AssetBarcodeScannerViewModel] Error looking up barcode: $barcode")
-            null
-        }
+    suspend fun lookupByBarcode(barcode: String): String? = try {
+        assets.findByCode(barcode)?.id ?: normalizeVin(barcode)?.let { assets.findByCode(it)?.id }
+    } catch (e: Exception) {
+        Timber.e(e, "[AssetBarcodeScannerViewModel] Error looking up barcode: $barcode")
+        null
     }
 
-    private companion object {
-        val VIN_ATTR = Regex("\"vin\"\\s*:\\s*\"([^\"]*)\"")
-
+    internal companion object {
         /** Upper-cased code; drops the Code 39 "I" import prefix that 18-char VIN labels carry. */
         fun normalizeVin(raw: String): String? {
             val code = raw.trim().uppercase().takeIf { it.length >= 4 } ?: return null
             return if (code.length == 18 && code.startsWith("I")) code.substring(1) else code
-        }
-    }
-
-    /**
-     * Change 132/135: record the QR scan with optional GPS coordinates.
-     * Fires-and-forgets; failures are logged but do not block navigation.
-     */
-    suspend fun recordScan(assetId: String, latitude: Double?, longitude: Double?) {
-        val accountId = identityManager.getActiveAccountId() ?: return
-        try {
-            serviceClient.recordQrScan(
-                accountId = accountId,
-                request = RecordQrScanRequest(
-                    asset_id = assetId,
-                    latitude = latitude,
-                    longitude = longitude,
-                ),
-            )
-        } catch (e: Exception) {
-            Timber.w(e, "[AssetBarcodeScannerViewModel] recordScan failed (non-fatal)")
         }
     }
 }
@@ -169,19 +123,6 @@ fun AssetBarcodeScannerScreen(
         contract = ActivityResultContracts.RequestPermission(),
     ) { granted ->
         hasPermission = granted
-    }
-
-    // Change 132/135: location permission for GPS tagging of QR scans.
-    var hasLocationPermission by remember {
-        mutableStateOf(
-            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
-                == PackageManager.PERMISSION_GRANTED,
-        )
-    }
-    val locationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        hasLocationPermission = granted
     }
 
     Scaffold(
@@ -238,17 +179,9 @@ fun AssetBarcodeScannerScreen(
                         if (!scanningActive) return@CameraPreview
                         scanningActive = false // pause scanning immediately
 
-                        // Request location permission if not yet granted (Change 132/135)
-                        if (!hasLocationPermission) {
-                            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                        }
-
                         scope.launch {
                             val assetId = viewModel.lookupByBarcode(barcode)
                             if (assetId != null) {
-                                // Attempt to capture last-known location for the scan record
-                                val (lat, lng) = getLastKnownLocation(context, hasLocationPermission)
-                                viewModel.recordScan(assetId, lat, lng)
                                 onAssetFound(assetId)
                             } else {
                                 snackbarHostState.showSnackbar(
@@ -278,53 +211,6 @@ fun AssetBarcodeScannerScreen(
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// GPS helper — Change 132/135
-// ---------------------------------------------------------------------------
-
-/**
- * Returns the last known fine-location as a Pair(latitude, longitude), or (null, null)
- * if permission is missing or location is unavailable.
- */
-@SuppressLint("MissingPermission")
-private suspend fun getLastKnownLocation(
-    context: android.content.Context,
-    hasPermission: Boolean,
-): Pair<Double?, Double?> {
-    if (!hasPermission) return Pair(null, null)
-    return suspendCancellableCoroutine { cont ->
-        val fusedClient = LocationServices.getFusedLocationProviderClient(context)
-        fusedClient.lastLocation
-            .addOnSuccessListener { location ->
-                if (location != null) {
-                    cont.resume(Pair(location.latitude, location.longitude))
-                } else {
-                    // Request a single fresh fix if last known is null
-                    val req = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 0)
-                        .setMaxUpdates(1)
-                        .build()
-                    val cb = object : LocationCallback() {
-                        override fun onLocationResult(result: LocationResult) {
-                            fusedClient.removeLocationUpdates(this)
-                            val loc = result.lastLocation
-                            cont.resume(if (loc != null) Pair(loc.latitude, loc.longitude) else Pair(null, null))
-                        }
-                    }
-                    fusedClient.requestLocationUpdates(req, cb, Looper.getMainLooper())
-                    cont.invokeOnCancellation { fusedClient.removeLocationUpdates(cb) }
-                }
-            }
-            .addOnFailureListener {
-                Timber.w(it, "[AssetBarcodeScanner] getLastKnownLocation failed")
-                cont.resume(Pair(null, null))
-            }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// CameraX preview + ML Kit analysis
-// ---------------------------------------------------------------------------
 
 @Composable
 private fun CameraPreview(

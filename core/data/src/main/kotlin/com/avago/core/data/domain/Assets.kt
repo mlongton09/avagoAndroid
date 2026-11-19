@@ -73,13 +73,15 @@ data class AssetDraft(
     val rentable: Boolean = false,
     val avatarColor: String? = null,
     val avatarInitial: String? = null,
+    /** Whole account-defined attributes object (JSON text); null leaves the stored object unchanged. */
+    val attributes: String? = null,
 ) {
     companion object {
         fun of(a: Asset) = AssetDraft(
             name = a.name, assetTypeCode = a.assetTypeCode, make = a.make, model = a.model, modelYear = a.modelYear,
             serialNumber = a.serialNumber, vin = a.vin, tags = a.tags, locationId = a.locationId,
             conditionScore = a.conditionScore, rentable = a.rentable, avatarColor = a.avatarColor,
-            avatarInitial = a.avatarInitial,
+            avatarInitial = a.avatarInitial, attributes = a.attributes,
         )
     }
 }
@@ -105,6 +107,37 @@ data class MeterReading(
     val activityId: String?,
     val correctionReason: String?,
     val version: Long,
+)
+
+/** Road-vehicle subtype of an asset (`asset_vehicle_details`); expiry dates are ISO `yyyy-MM-dd`. */
+data class AssetVehicleDetails(
+    val assetId: String,
+    val bodyClass: String?,
+    val fuelType: String?,
+    val gvwr: String?,
+    val registrationNumber: String?,
+    val registrationExpiresOn: String?,
+    val registrationFileId: String?,
+    val insurancePolicyNumber: String?,
+    val insuranceExpiresOn: String?,
+    val insuranceFileId: String?,
+)
+
+/** Tool subtype of an asset (`asset_tool_details`); dates are ISO `yyyy-MM-dd`. */
+data class AssetToolDetails(
+    val assetId: String,
+    val calibrationFileId: String?,
+    val calibratedOn: String?,
+    val calibrationIntervalDays: Int?,
+    val calibrationDueOn: String?,
+    /** `days` or `cycles`. */
+    val usageUnit: String?,
+    val usageValue: BigDecimal?,
+    val replacementValue: BigDecimal?,
+    val currency: String?,
+    val trackerTagId: String?,
+    /** `gps`, `bluetooth`, `uwb` or `other`. */
+    val trackerKind: String?,
 )
 
 /** One stretch of an asset's status history (`asset_status_intervals`). */
@@ -183,6 +216,12 @@ interface AssetRepository {
     fun observeReadings(assetId: String, limit: Int = 50): Flow<List<MeterReading>>
 
     fun observeStatusHistory(assetId: String): Flow<List<AssetStatusInterval>>
+
+    /** Vehicle registration/insurance details; null when the asset has none. Read-only in catalog v1. */
+    fun observeVehicleDetails(assetId: String): Flow<AssetVehicleDetails?>
+
+    /** Tool calibration / usage / tracker details; null when the asset has none. Read-only in catalog v1. */
+    fun observeToolDetails(assetId: String): Flow<AssetToolDetails?>
 
     fun observeAttachments(target: AttachmentTarget): Flow<List<Attachment>>
 

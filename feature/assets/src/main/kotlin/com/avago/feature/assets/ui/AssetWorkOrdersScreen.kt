@@ -1,4 +1,4 @@
-﻿package com.avago.feature.assets.ui
+package com.avago.feature.assets.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -36,7 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.res.stringResource
-import com.avago.core.data.db.entity.WorkOrderEntity
+import com.avago.core.data.domain.WorkOrder
 import com.avago.core.ui.EmptyState
 import com.avago.feature.assets.R
 import com.avago.feature.assets.viewmodel.AssetWorkOrdersViewModel
@@ -85,8 +85,8 @@ fun AssetWorkOrdersScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                items(workOrders, key = { it.woId }) { wo ->
-                    AssetWoRow(wo = wo, onClick = { onOpenWorkOrder(wo.woId) })
+                items(workOrders, key = { it.id }) { wo ->
+                    AssetWoRow(wo = wo, onClick = { onOpenWorkOrder(wo.id) })
                 }
             }
         }
@@ -95,7 +95,7 @@ fun AssetWorkOrdersScreen(
 
 @Composable
 private fun AssetWoRow(
-    wo: WorkOrderEntity,
+    wo: WorkOrder,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -119,7 +119,7 @@ private fun AssetWoRow(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                WoStatusLabel(status = wo.status)
+                WoStatusLabel(status = wo.status.wire)
             }
 
             wo.description?.takeIf { it.isNotBlank() }?.let { description ->
@@ -135,7 +135,7 @@ private fun AssetWoRow(
 
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = wo.dueDate?.let { stringResource(R.string.asset_wo_due_format, formatWoDate(it)) }
+                text = wo.dueAt?.let { stringResource(R.string.asset_wo_due_format, formatWoDate(it)) }
                     ?: stringResource(R.string.asset_wo_no_due_date),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

@@ -8,6 +8,8 @@ import com.avago.core.data.domain.AssetMeter
 import com.avago.core.data.domain.AssetRepository
 import com.avago.core.data.domain.AssetStatusCode
 import com.avago.core.data.domain.AssetStatusInterval
+import com.avago.core.data.domain.AssetToolDetails
+import com.avago.core.data.domain.AssetVehicleDetails
 import com.avago.core.data.domain.Attachment
 import com.avago.core.data.domain.AttachmentTarget
 import com.avago.core.data.domain.DowntimeKind
@@ -17,6 +19,7 @@ import com.avago.core.data.domain.RecordNotFoundException
 import com.avago.core.data.v2.V2CommandService
 import com.avago.core.data.v2.V2Connection
 import com.avago.core.data.v2.V2FileStager
+import com.avago.core.data.v2.V2Money
 import com.avago.core.data.v2.V2OverlayMerge
 import com.avago.core.data.v2.V2Row
 import com.avago.core.data.v2.V2StoreAccess
@@ -82,6 +85,44 @@ class V2AssetRepository @Inject constructor(
                     )
                 }
                 .sortedByDescending { it.start }
+        }
+
+    override fun observeVehicleDetails(assetId: String): Flow<AssetVehicleDetails?> =
+        store.observe(setOf("asset_vehicle_details"), null) { conn ->
+            conn.query("SELECT * FROM asset_vehicle_details WHERE asset_id = ?", listOf(assetId)).firstOrNull()?.let { r ->
+                AssetVehicleDetails(
+                    assetId = r.str("asset_id"),
+                    bodyClass = r.strOrNull("body_class"),
+                    fuelType = r.strOrNull("fuel_type"),
+                    gvwr = r.strOrNull("gvwr"),
+                    registrationNumber = r.strOrNull("registration_number"),
+                    registrationExpiresOn = r.strOrNull("registration_expires_on"),
+                    registrationFileId = r.strOrNull("registration_file_id"),
+                    insurancePolicyNumber = r.strOrNull("insurance_policy_number"),
+                    insuranceExpiresOn = r.strOrNull("insurance_expires_on"),
+                    insuranceFileId = r.strOrNull("insurance_file_id"),
+                )
+            }
+        }
+
+    override fun observeToolDetails(assetId: String): Flow<AssetToolDetails?> =
+        store.observe(setOf("asset_tool_details"), null) { conn ->
+            conn.query("SELECT * FROM asset_tool_details WHERE asset_id = ?", listOf(assetId)).firstOrNull()?.let { r ->
+                val currency = r.strOrNull("currency")
+                AssetToolDetails(
+                    assetId = r.str("asset_id"),
+                    calibrationFileId = r.strOrNull("calibration_file_id"),
+                    calibratedOn = r.strOrNull("calibrated_on"),
+                    calibrationIntervalDays = r.longOrNull("calibration_interval_days")?.toInt(),
+                    calibrationDueOn = r.strOrNull("calibration_due_on"),
+                    usageUnit = r.strOrNull("usage_unit"),
+                    usageValue = r.longOrNull("usage_value_micros")?.let { BigDecimal.valueOf(it, 6).stripTrailingZeros() },
+                    replacementValue = r.longOrNull("replacement_value_minor")?.let { V2Money.toMajor(it, currency) },
+                    currency = currency,
+                    trackerTagId = r.strOrNull("tracker_tag_id"),
+                    trackerKind = r.strOrNull("tracker_kind"),
+                )
+            }
         }
 
     override fun observeAttachments(target: AttachmentTarget): Flow<List<Attachment>> {

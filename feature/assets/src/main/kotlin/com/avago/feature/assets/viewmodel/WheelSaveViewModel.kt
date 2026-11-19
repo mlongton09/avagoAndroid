@@ -3,21 +3,19 @@ package com.avago.feature.assets.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
-import com.avago.core.data.db.entity.LogEntity
-import com.avago.core.data.db.entity.SyncQueueEntity
+import com.avago.core.data.domain.ActivityDraft
+import com.avago.core.data.domain.ActivityRepository
+import com.avago.core.data.domain.ActivityType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import org.json.JSONObject
-import java.util.UUID
+import timber.log.Timber
 import javax.inject.Inject
 
 @HiltViewModel
 class WheelSaveViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val dbFactory: DatabaseFactory,
-    private val identityManager: IdentityManager,
+    private val activities: ActivityRepository,
 ) : ViewModel() {
     private val assetId: String = checkNotNull(savedStateHandle["assetId"])
 
@@ -77,57 +75,17 @@ class WheelSaveViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             try {
-                val accountId = identityManager.getActiveAccountId() ?: return@launch
-                val now = System.currentTimeMillis()
-                val db = dbFactory.get(accountId)
-                val entry = LogEntity(
-                    entryId = UUID.randomUUID().toString(),
-                    assetId = assetId,
-                    accountId = accountId,
-                    title = title,
-                    entryDate = now,
-                    odometerValue = null,
-                    category = category,
-                    cost = null,
-                    performedBy = null,
-                    performedByUserId = null,
-                    notes = null,
-                    data = data,
-                    attributes = null,
-                    costMode = null,
-                    costItems = null,
-                    costLabor = null,
-                    costTax = null,
-                    currency = null,
-                    baseAmount = null,
-                    exchangeRateUsed = null,
-                    configId = null,
-                    configVersion = null,
-                    serviceId = null,
-                    costMisc = null,
-                    parentId = null,
-                    createdAt = now,
-                    updatedAt = now,
-                    deletedAt = null,
-                    serverVersion = 0L,
-                    seq = null,
-                )
-                db.logDao().upsert(entry)
-                db.syncQueueDao().enqueueWithDedup(
-                    SyncQueueEntity(
-                        queueId = "log_${entry.entryId}",
-                        entityType = "log",
-                        entityId = entry.entryId,
-                        operation = "insert",
-                        serverVersion = 0L,
-                        payload = null,
-                        syncStatus = "pending",
-                        attempts = 0L,
-                        lastError = null,
-                        createdAt = now,
-                        updatedAt = now,
+                activities.create(
+                    ActivityDraft(
+                        assetId = assetId,
+                        type = ActivityType.forCategory(category),
+                        categoryLabel = category,
+                        title = title,
+                        payload = data,
                     ),
                 )
+            } catch (e: Exception) {
+                Timber.e(e, "[WheelSaveViewModel] save failed")
             } finally {
                 onComplete()
             }

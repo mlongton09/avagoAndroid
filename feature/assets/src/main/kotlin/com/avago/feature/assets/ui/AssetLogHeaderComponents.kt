@@ -48,13 +48,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.compose.AsyncImage
-import com.avago.core.data.db.entity.AssetEntity
-import com.avago.core.data.db.entity.PhotoEntity
+import com.avago.core.data.domain.Asset
+import com.avago.core.data.domain.Attachment
+import com.avago.core.ui.components.StoredFileImage
 import com.avago.feature.assets.R
 import com.avago.feature.assets.model.AssetTypes
 import org.json.JSONObject
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -80,8 +79,8 @@ import java.util.Locale
  */
 @Composable
 fun AssetDetailHeader(
-    asset: AssetEntity,
-    photos: List<PhotoEntity>,
+    asset: Asset,
+    photos: List<Attachment>,
     modifier: Modifier = Modifier,
     onAddPhoto: () -> Unit = {},
     onPhotoTap: (Int) -> Unit = {},
@@ -107,8 +106,6 @@ fun AssetDetailHeader(
                     modifier = Modifier.fillMaxSize(),
                 ) { page ->
                     val photo = photos[page]
-                    val model: Any? = photo.localPath?.takeIf { it.isNotBlank() }?.let { File(it) }
-                        ?: photo.downloadUrl?.takeIf { it.isNotBlank() }
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -125,14 +122,11 @@ fun AssetDetailHeader(
                                 )
                             },
                     ) {
-                        if (model != null) {
-                            AsyncImage(
-                                model = model,
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                        }
+                        StoredFileImage(
+                            file = photo.file,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
                     }
                 }
                 // Page dots — iOS UIPageControl defaults: 7 pt diameter,
@@ -165,7 +159,7 @@ fun AssetDetailHeader(
                 // `bannerGradient.isHidden = true` and hides the overlay
                 // name/subtitle labels: the info row below the banner owns
                 // both lines of text in both modes.
-                val bgColor = rememberParsedColor(AssetTypes.colorHexFor(asset.assetType))
+                val bgColor = rememberParsedColor(AssetTypes.colorHexFor(asset.assetTypeCode))
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -177,7 +171,7 @@ fun AssetDetailHeader(
                 // both axes so the icon extends past the corners and the
                 // banner's clipToBounds crops the overhang.
                 Icon(
-                    painter = painterResource(AssetTypes.iconResFor(asset.assetType)),
+                    painter = painterResource(AssetTypes.iconResFor(asset.assetTypeCode)),
                     contentDescription = null,
                     tint = Color.White.copy(alpha = 0.40f),
                     modifier = Modifier
@@ -212,7 +206,7 @@ fun AssetDetailHeader(
         // Info row — name + subtitle + tags on plain bg0, shown in BOTH modes.
         // iOS `infoRow.isHidden = false` unconditionally.
         // Change 106: row height expands if tags are present.
-        val tags = remember(asset.tagsJson) { parseAssetTags(asset.tagsJson) }
+        val tags = asset.tags
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -263,15 +257,6 @@ fun AssetDetailHeader(
         }
     }
     HorizontalDivider()
-}
-
-/** Change 106: parse a JSON array string like [\"hvac\",\"electrical\"] into a List<String>. */
-private fun parseAssetTags(json: String?): List<String> {
-    if (json.isNullOrBlank()) return emptyList()
-    return try {
-        val arr = org.json.JSONArray(json)
-        (0 until arr.length()).map { arr.getString(it) }
-    } catch (_: Exception) { emptyList() }
 }
 
 /**
@@ -410,11 +395,11 @@ fun rememberParsedColor(hex: String): Color = try {
  * iOS parity for Asset.displaySubtitle: for real-estate types show the street_address from
  * the attributes JSON; otherwise show "Make · Model" joined by a middle dot.
  */
-fun assetDisplaySubtitle(asset: AssetEntity): String {
+fun assetDisplaySubtitle(asset: Asset): String {
     val realEstateTypes = setOf(
         "residential", "multifamily", "office", "industrial", "healthcare", "restaurant",
     )
-    if (asset.assetType in realEstateTypes) {
+    if (asset.assetTypeCode in realEstateTypes) {
         streetAddressFromAttributes(asset.attributes)?.let { return it }
     }
     val make = asset.make.orEmpty()

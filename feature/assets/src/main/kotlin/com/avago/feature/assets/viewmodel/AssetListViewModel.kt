@@ -4,13 +4,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
-import com.avago.core.data.db.entity.AssetEntity
+import com.avago.core.data.domain.Asset
+import com.avago.core.data.domain.AssetRepository
 import com.avago.core.data.rental.FleetStatus
 import com.avago.core.data.rental.LocalFleet
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flow
 import java.time.Instant
-import com.avago.core.data.repository.AssetRepository
 import com.avago.core.permissions.Permissions
 import com.avago.core.permissions.PermissionsManager
 import com.avago.core.sync.SyncEngine
@@ -68,36 +68,22 @@ class AssetListViewModel @Inject constructor(
     private val _filterType = MutableStateFlow<String?>(null)
     val filterType: StateFlow<String?> = _filterType.asStateFlow()
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private val _allAssets: StateFlow<List<AssetEntity>> =
-        identityManager.activeAccountId
-            .flatMapLatest { accountId ->
-                if (accountId == null) {
-                    flowOf(emptyList())
-                } else {
-                    try {
-                        repository.observeAssets(accountId)
-                    } catch (e: Exception) {
-                        Timber.e(e, "[AssetListViewModel] Failed to observe assets for $accountId")
-                        flowOf(emptyList())
-                    }
-                }
-            }
-            .catch { e ->
-                Timber.e(e, "[AssetListViewModel] Asset flow error")
-                emit(emptyList())
-            }
-            .stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(5_000),
-                initialValue = emptyList(),
-            )
+    private val _allAssets: StateFlow<List<Asset>> = repository.observeAssets()
+        .catch { e ->
+            Timber.e(e, "[AssetListViewModel] Asset flow error")
+            emit(emptyList())
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList(),
+        )
 
     /** Distinct asset type keys present in the account's assets, ordered by AssetTypes.all. */
     val presentTypes: StateFlow<List<String>> = _allAssets
         .map { all ->
             val typeOrder = AssetTypes.all.map { it.key }
-            val present = all.mapNotNull { it.assetType }.toHashSet()
+            val present = all.mapNotNull { it.assetTypeCode }.toHashSet()
             typeOrder.filter { it in present } + (present - typeOrder.toHashSet())
         }
         .stateIn(
@@ -146,7 +132,7 @@ class AssetListViewModel @Inject constructor(
             initialValue = emptyMap(),
         )
 
-    val assets: StateFlow<List<AssetEntity>> = combine(
+    val assets: StateFlow<List<Asset>> = combine(
         _allAssets,
         _searchQuery,
         _filterType,
@@ -154,14 +140,15 @@ class AssetListViewModel @Inject constructor(
         rentalStatuses,
     ) { all, query, type, rental, statuses ->
         all
-            .filter { asset -> type == null || asset.assetType == type }
-            .filter { asset -> rental == null || statuses[asset.assetId] == rental }
+            .filter { asset -> type == null || asset.assetTypeCode == type }
+            .filter { asset -> rental == null || statuses[asset.id] == rental }
             .filter { asset ->
                 if (query.isBlank()) true
                 else asset.name.contains(query, ignoreCase = true) ||
                     asset.make?.contains(query, ignoreCase = true) == true ||
                     asset.model?.contains(query, ignoreCase = true) == true ||
-                    asset.assetType?.contains(query, ignoreCase = true) == true
+                    asset.assetTypeCode?.contains(query, ignoreCase = true) == true ||
+                    asset.serialNumber?.contains(query, ignoreCase = true) == true
             }
     }
         .stateIn(
@@ -176,31 +163,8 @@ class AssetListViewModel @Inject constructor(
      * zero open WOs. Mirrors the `openWOCountsByAsset` dictionary in iOS
      * AssetsListViewController that drives the pill badge on each asset cell.
      */
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val openWoCounts: StateFlow<Map<String, Int>> = identityManager.activeAccountId
-        .flatMapLatest { accountId ->
-            if (accountId == null) {
-                flowOf(emptyMap())
-            } else {
-                try {
-                    dbFactory.get(accountId).workOrderDao().observeOpenCountsByAccount(accountId)
-                        .map { counts ->
-                            counts.associate { it.assetId to it.count }
-                        }
-                        .catch { e ->
-                            Timber.e(e, "[AssetListViewModel] openWoCounts flow error")
-                            emit(emptyMap())
-                        }
-                } catch (e: Exception) {
-                    Timber.e(e, "[AssetListViewModel] Could not get workOrderDao for $accountId")
-                    flowOf(emptyMap())
-                }
-            }
-        }
-        .catch { e ->
-            Timber.e(e, "[AssetListViewModel] openWoCounts outer flow error")
-            emit(emptyMap())
-        }
+    val openWoCounts: StateFlow<Map<String, Int>> = _allAssets
+        .map { all -> all.filter { it.openWorkOrders > 0 }.associate { it.id to it.openWorkOrders } }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),

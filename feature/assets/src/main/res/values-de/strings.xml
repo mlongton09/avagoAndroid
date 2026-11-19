@@ -14,7 +14,6 @@
     <string name="rental_rate_unit_daily">Täglich</string>
     <string name="rental_rate_unit_weekly">Wöchentlich</string>
     <string name="rental_rate_unit_monthly">Monatlich</string>
-    <string name="rental_currency_label">Währung</string>
     <string name="rental_notes_label">Notizen</string>
     <string name="rental_start_date_label">Startdatum</string>
     <string name="rental_status_active">Aktiv</string>
@@ -22,10 +21,7 @@
     <string name="rental_end_button">Vermietung beenden</string>
     <string name="rental_total_label">Gesamtbetrag</string>
     <string name="rental_create_button">Vermietung erstellen</string>
-    <string name="rental_ending">Wird beendet&#8230;</string>
-    <string name="rental_creating">Wird erstellt&#8230;</string>
     <string name="rental_end_confirm_title">Vermietung beenden?</string>
-    <string name="rental_end_confirm_body">Sind Sie sicher, dass Sie diese Vermietung beenden möchten?</string>
 
     <!-- Rental Customers -->
     <string name="rental_customers_title">Mieter</string>
@@ -44,22 +40,18 @@
     <string name="rental_customer_delete_confirm">Löschen</string>
 
     <!-- Rental Booking -->
-    <string name="rental_booking_title">Vermietung buchen</string>
     <string name="rental_booking_step_customer">Kunde</string>
     <string name="rental_booking_step_dates">Daten</string>
     <string name="rental_booking_step_confirm">Bestätigen</string>
     <string name="rental_booking_new_customer">+ Neuer Kunde</string>
     <string name="rental_booking_end_date_label">Enddatum</string>
     <string name="rental_booking_duration_label">Dauer</string>
-    <string name="rental_booking_rate_label">Preis</string>
-    <string name="rental_booking_estimated_cost">Geschätzte Kosten</string>
     <string name="rental_booking_no_customer">Kein Kunde (Laufkunde)</string>
     <string name="rental_booking_confirm">Bestätigen</string>
     <string name="rental_booking_next">Weiter &#8594;</string>
     <string name="rental_booking_back">&#8592; Zurück</string>
     <string name="rental_booking_summary_customer">Kunde</string>
     <string name="rental_booking_summary_dates">Zeitraum</string>
-    <string name="rental_booking_summary_rate">Preis</string>
 
     <!-- Rental Reservations -->
     <string name="rental_reservations_section">Reservierungen</string>
@@ -156,8 +148,6 @@
     <string name="asset_scope_tool_title">Werkzeugdetails</string>
     <string name="asset_scope_vehicle_title">Fahrzeugdetails</string>
     <string name="asset_scope_recalls_title">Rückrufe</string>
-    <string name="asset_scope_save">Speichern</string>
-    <string name="asset_scope_saved">Gespeichert</string>
     <string name="asset_scope_retry">Erneut versuchen</string>
     <string name="asset_scope_refresh">Aktualisieren</string>
     <string name="asset_scope_err_offline">Sie sind offline. Prüfen Sie die Verbindung und versuchen Sie es erneut.</string>
@@ -165,31 +155,20 @@
     <string name="asset_scope_err_vin_unavailable">Die FIN-Abfrage ist gerade nicht verfügbar.</string>
     <string name="asset_scope_err_forbidden">Sie dürfen diese Anlage nicht ändern.</string>
     <string name="asset_scope_err_not_found">Nicht gefunden. Es wurde eventuell entfernt.</string>
-    <string name="asset_scope_err_date">Format JJJJ-MM-TT verwenden</string>
-    <string name="asset_scope_err_interval">1 bis 3650 Tage eingeben</string>
-    <string name="asset_scope_err_number">Geben Sie eine gültige Zahl ein</string>
-    <string name="asset_scope_err_currency">Dreistelligen Währungscode verwenden</string>
-    <string name="asset_scope_err_length">Zu lang</string>
-    <string name="asset_scope_err_tag_in_use">Dieser Tracker wird bereits für ein anderes Asset verwendet</string>
     <string name="asset_scope_overdue">Überfällig</string>
     <string name="asset_scope_due_soon">Bald fällig</string>
     <string name="asset_scope_valid">Gültig</string>
     <string name="asset_scope_not_set">Nicht gesetzt</string>
     <string name="asset_scope_due_on">Fällig am %1$s</string>
-    <string name="asset_scope_date_hint">JJJJ-MM-TT</string>
     <string name="asset_scope_calibration">Kalibrierung</string>
     <string name="asset_scope_calibrated_on">Zuletzt kalibriert</string>
     <string name="asset_scope_interval_days">Intervall (Tage)</string>
-    <string name="asset_scope_due_date">Nächste Fälligkeit</string>
-    <string name="asset_scope_due_hint">Leer lassen, um aus dem Intervall zu berechnen</string>
     <string name="asset_scope_usage">Nutzung</string>
     <string name="asset_scope_usage_days">Tage</string>
     <string name="asset_scope_usage_cycles">Zyklen</string>
     <string name="asset_scope_usage_value">Nutzungszähler</string>
     <string name="asset_scope_value">Wert</string>
     <string name="asset_scope_replacement_value">Wiederbeschaffungswert</string>
-    <string name="asset_scope_currency">Währung</string>
-    <string name="asset_scope_verified_renter_required">Nur verifizierte Mieter können dieses Werkzeug buchen.</string>
     <string name="asset_scope_tracker">Tracker</string>
     <string name="asset_scope_tracker_tag">Tracker-ID</string>
     <string name="asset_scope_tracker_gps">GPS</string>
@@ -216,8 +195,5 @@
     <string name="asset_scope_park_outside">Im Freien und fern von Gebäuden abstellen</string>
     <string name="asset_scope_consequence">Risiko: %1$s</string>
     <string name="asset_scope_remedy">Abhilfe: %1$s</string>
-    <string name="asset_scope_mark_remedied">Als behoben markieren</string>
-    <string name="asset_scope_remedy_note">Notiz (optional)</string>
     <string name="asset_scope_remedied_on">Behoben am %1$s</string>
-    <string name="asset_scope_reopen">Wieder öffnen</string>
 </resources>

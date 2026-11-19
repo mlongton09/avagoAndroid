@@ -1,4 +1,4 @@
-﻿package com.avago.feature.assets.ui
+package com.avago.feature.assets.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -44,9 +44,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
-import com.avago.core.network.AvagoServiceClient
+import com.avago.core.data.domain.ActivityFilter
+import com.avago.core.data.domain.ActivityRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -55,6 +54,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.math.BigDecimal
 import javax.inject.Inject
 import kotlin.math.roundToInt
 
@@ -85,69 +85,37 @@ data class CostReportState(
 
 @HiltViewModel
 class CostReportViewModel @Inject constructor(
-    private val dbFactory: DatabaseFactory,
-    private val identity: IdentityManager,
-    @Suppress("UnusedPrivateMember")
-    private val serviceClient: AvagoServiceClient,
+    private val activities: ActivityRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(CostReportState())
     val state: StateFlow<CostReportState> = _state.asStateFlow()
 
     fun loadReport(period: CostPeriod = _state.value.selectedPeriod, isRefresh: Boolean = false) {
-        val accountId = identity.getActiveAccountId() ?: return
         _state.update {
-            it.copy(
-                isLoading = !isRefresh,
-                isRefreshing = isRefresh,
-                selectedPeriod = period,
-                error = null,
-            )
+            it.copy(isLoading = !isRefresh, isRefreshing = isRefresh, selectedPeriod = period, error = null)
         }
         viewModelScope.launch {
             try {
-                val db = dbFactory.get(accountId)
-                // No dedicated cost-report endpoint exists in AvagoServiceClient yet.
-                // We derive cost totals from local log entries grouped by asset.
-                // TODO: replace with a real API call (e.g. serviceClient.getCostReport(accountId, period.months))
-                //       once the endpoint is available on the back-end.
-                val now = System.currentTimeMillis()
-                val cutoff = now - period.months.toLong() * 30L * 24L * 60L * 60L * 1000L
-
-                val logs = db.logDao().observeAll(accountId)
-                    .first()
-                    .filter { it.entryDate >= cutoff }
-
-                // Group by asset and sum costs
-                val assetIds = logs.map { it.assetId }.distinct()
-                val entries = assetIds.mapNotNull { assetId ->
-                    val asset = db.assetDao().getById(assetId) ?: return@mapNotNull null
-                    val totalCost = logs
-                        .filter { it.assetId == assetId }
-                        .sumOf { it.cost ?: 0.0 }
-                    if (totalCost == 0.0) return@mapNotNull null
-                    CostEntry(
-                        label = asset.name,
-                        totalCost = totalCost,
-                        periodLabel = period.label,
-                    )
-                }.sortedByDescending { it.totalCost }
-
-                _state.update {
-                    it.copy(
-                        isLoading = false,
-                        isRefreshing = false,
-                        entries = entries,
-                    )
-                }
+                val cutoff = System.currentTimeMillis() - period.months.toLong() * 30L * 24L * 60L * 60L * 1000L
+                val entries = activities.observeActivities(ActivityFilter(from = cutoff)).first()
+                    .filter { it.assetId != null }
+                    .groupBy { it.assetId }
+                    .mapNotNull { (_, logs) ->
+                        val total = logs.fold(BigDecimal.ZERO) { acc, a -> acc + a.totalCost }
+                        if (total.signum() == 0) return@mapNotNull null
+                        CostEntry(
+                            label = logs.first().assetName.orEmpty(),
+                            totalCost = total.toDouble(),
+                            periodLabel = period.label,
+                        )
+                    }
+                    .sortedByDescending { it.totalCost }
+                _state.update { it.copy(isLoading = false, isRefreshing = false, entries = entries) }
             } catch (e: Exception) {
                 Timber.e(e, "[CostReportViewModel] loadReport failed")
                 _state.update {
-                    it.copy(
-                        isLoading = false,
-                        isRefreshing = false,
-                        error = e.message ?: "Failed to load cost report",
-                    )
+                    it.copy(isLoading = false, isRefreshing = false, error = e.message ?: "Failed to load cost report")
                 }
             }
         }

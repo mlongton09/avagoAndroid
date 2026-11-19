@@ -106,10 +106,11 @@ import org.json.JSONObject
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
-import com.avago.core.data.db.entity.AssetEntity
-import com.avago.core.data.db.entity.DocEntity
-import com.avago.core.data.db.entity.LogEntity
-import com.avago.core.data.db.entity.PhotoEntity
+import com.avago.core.data.domain.Activity
+import com.avago.core.data.domain.Asset
+import com.avago.core.data.domain.AssetMeter
+import com.avago.core.data.domain.Attachment
+import com.avago.core.ui.components.StoredFileImage
 import com.avago.core.ui.CategoryBadge
 import com.avago.core.ui.CategoryItem
 import com.avago.core.ui.GlobalCategoryPickerScreen
@@ -165,6 +166,7 @@ fun AssetDetailScreen(
     val documents by viewModel.documents.collectAsStateWithLifecycle()
     val currencyCode by viewModel.currencyCode.collectAsStateWithLifecycle()
     val latestMeterReading by viewModel.latestMeterReading.collectAsStateWithLifecycle()
+    val meter by viewModel.meter.collectAsStateWithLifecycle()
     val showMeterDialog by viewModel.showMeterDialog.collectAsStateWithLifecycle()
     val isSavingMeter by viewModel.isSavingMeter.collectAsStateWithLifecycle()
     val canEditAsset by viewModel.canEditAsset.collectAsStateWithLifecycle()
@@ -296,7 +298,7 @@ fun AssetDetailScreen(
                                 )
                                 HorizontalDivider()
                             }
-                            val extrasType = asset?.assetType
+                            val extrasType = asset?.assetTypeCode
                             if (onOpenToolDetails != null && com.avago.feature.assets.model.AssetScope.isTool(extrasType)) {
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.asset_scope_tool_title)) },
@@ -465,6 +467,7 @@ fun AssetDetailScreen(
                     0 -> LogTab(
                         asset = safeAsset,
                         logsByYear = logsByYear,
+                        meter = meter,
                         latestMeterReading = latestMeterReading,
                         showMeterDialog = showMeterDialog,
                         isSavingMeter = isSavingMeter,
@@ -485,13 +488,12 @@ fun AssetDetailScreen(
     }
 
     if (showAddLogCategoryPicker) {
-        val currentAsset = asset
         GlobalCategoryPickerScreen(
             categories = availableCategories.map { it.toAssetCategoryItem(context) },
             recents = recentCategories.map { it.toAssetCategoryItem(context) },
             enableMultiple = true,
-            showMeterInput = currentAsset?.meterType.isNumericMeterType(),
-            meterUnitLabel = meterUnitLabelFor(currentAsset?.meterType),
+            showMeterInput = meter != null,
+            meterUnitLabel = meter?.unit?.takeIf { it.isNotBlank() }?.uppercase(Locale.getDefault()),
             onMultipleCreate = { items, meterValue ->
                 showAddLogCategoryPicker = false
                 viewModel.addBatchLogEntries(items.map { it.key }, meterValue)
@@ -518,19 +520,6 @@ private fun String.toAssetCategoryItem(context: Context): CategoryItem {
 }
 
 
-private fun String?.isNumericMeterType(): Boolean {
-    val normalized = this?.trim()?.lowercase(Locale.getDefault()) ?: return false
-    return normalized.isNotEmpty() && normalized != "date"
-}
-
-private fun meterUnitLabelFor(meterType: String?): String? = when (meterType?.lowercase(Locale.getDefault())) {
-    null, "", "date" -> null
-    "odometer", "miles", "mi" -> "MI"
-    "km", "kilometers" -> "KM"
-    "hours", "hour", "hr", "hrs" -> "HRS"
-    else -> meterType.uppercase(Locale.getDefault())
-}
-
 private fun categoryDisplayName(context: Context, id: String): String {
     val resName = "log_cat_${id.replace("-", "_")}"
     val resId = context.resources.getIdentifier(resName, "string", context.packageName)
@@ -547,8 +536,9 @@ private fun categoryDisplayName(context: Context, id: String): String {
 
 @Composable
 private fun LogTab(
-    asset: AssetEntity,
+    asset: Asset,
     logsByYear: List<LogsByYear>,
+    meter: AssetMeter?,
     latestMeterReading: Double?,
     showMeterDialog: Boolean,
     isSavingMeter: Boolean,
@@ -558,7 +548,7 @@ private fun LogTab(
     onOpenWheelConfig: () -> Unit,
     onOpenWheelDataInput: () -> Unit,
     onLogEntryClick: (entryId: String) -> Unit,
-    onCloneLogEntry: (LogEntity) -> Unit,
+    onCloneLogEntry: (Activity) -> Unit,
     header: (@Composable () -> Unit)? = null,
 ) {
     LazyColumn(
@@ -568,10 +558,10 @@ private fun LogTab(
         if (header != null) {
             item(key = "log_header") { header() }
         }
-        if (!asset.meterType.isNullOrBlank()) {
+        if (meter != null) {
             item(key = "meter_card") {
                 MeterCard(
-                    meterType = asset.meterType,
+                    meter = meter,
                     latestMeterReading = latestMeterReading,
                     onAddReading = onAddMeterReading,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -603,11 +593,11 @@ private fun LogTab(
                         )
                     }
                 }
-                items(items = group.entries, key = { it.entryId }) { entry ->
+                items(items = group.entries, key = { it.id }) { entry ->
                     LogEntryRow(
                         entry = entry,
-                        meterType = asset.meterType,
-                        onClick = { onLogEntryClick(entry.entryId) },
+                        meterUnit = meter?.unit,
+                        onClick = { onLogEntryClick(entry.id) },
                         onClone = { onCloneLogEntry(entry) },
                     )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
@@ -619,7 +609,7 @@ private fun LogTab(
 
     if (showMeterDialog) {
         MeterReadingDialog(
-            meterType = asset.meterType,
+            meter = meter,
             isSaving = isSavingMeter,
             onDismiss = onDismissMeterDialog,
             onConfirm = onSaveMeterReading,
@@ -629,8 +619,8 @@ private fun LogTab(
 
 @Composable
 private fun InfoTab(
-    asset: AssetEntity,
-    photos: List<PhotoEntity>,
+    asset: Asset,
+    photos: List<Attachment>,
     onOpenPhotoGallery: (Int) -> Unit,
     onOpenNotes: (String) -> Unit,
     onOpenWheelConfig: () -> Unit,
@@ -686,14 +676,12 @@ private fun InfoTab(
 
         item(key = "qr_code_card") {
             QrCodeCard(
-                assetId = asset.assetId,
+                assetId = asset.id,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
         }
 
-        val notesText = asset.attributes
-            ?.let { attrs -> Regex("\"notes\"\\s*:\\s*\"([^\"]*)\"").find(attrs)?.groupValues?.getOrNull(1) }
-            ?: ""
+        val notesText = parseAttributes(asset.attributes)["notes"].orEmpty()
         item(key = "notes_card") {
             NotesCard(
                 notesPreview = notesText,
@@ -705,7 +693,7 @@ private fun InfoTab(
 }
 
 @Composable
-private fun DocumentsTab(documents: List<DocEntity>) {
+private fun DocumentsTab(documents: List<Attachment>) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
@@ -720,7 +708,7 @@ private fun DocumentsTab(documents: List<DocEntity>) {
                 )
             }
         } else {
-            items(documents, key = { it.docId }) { doc ->
+            items(documents, key = { it.id }) { doc ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -729,10 +717,10 @@ private fun DocumentsTab(documents: List<DocEntity>) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(doc.name, style = MaterialTheme.typography.bodyMedium)
-                        doc.docType?.takeIf { it.isNotBlank() }?.let { type ->
+                        Text(doc.file?.name ?: stringResource(R.string.asset_detail_document_untitled), style = MaterialTheme.typography.bodyMedium)
+                        doc.file?.mimeType?.takeIf { it.isNotBlank() }?.let { type ->
                             Text(
-                                text = type.replace("_", " ").replaceFirstChar { it.uppercase() },
+                                text = type.substringAfter('/').uppercase(Locale.getDefault()),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -776,8 +764,8 @@ private fun CategoryFilterRow(
 
 @Composable
 private fun LogEntryRow(
-    entry: LogEntity,
-    meterType: String?,
+    entry: Activity,
+    meterUnit: String?,
     onClick: () -> Unit,
     onClone: () -> Unit,
     modifier: Modifier = Modifier,
@@ -799,9 +787,9 @@ private fun LogEntryRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        CategoryBadge(categoryId = entry.category)
+        CategoryBadge(categoryId = entry.categoryLabel ?: entry.type.wire)
         Text(
-            text = entry.title,
+            text = entry.displayTitle,
             style = MaterialTheme.typography.bodyLarge,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
@@ -809,13 +797,13 @@ private fun LogEntryRow(
         )
         Column(horizontalAlignment = Alignment.End) {
             Text(
-                text = "${formatShortDate(entry.entryDate)} \u2002|\u2002 ${agoLabel(entry.entryDate)}",
+                text = "${formatShortDate(entry.occurredAt)} \u2002|\u2002 ${agoLabel(entry.occurredAt)}",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            entry.odometerValue?.takeIf { it > 0.0 }?.let { odo ->
+            entry.meterValue?.toDouble()?.takeIf { it > 0.0 }?.let { odo ->
                 Text(
-                    text = formatOdometerValue(odo, meterType),
+                    text = formatOdometerValue(odo, meterUnit),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                 )
@@ -844,19 +832,14 @@ private fun LogEntryRow(
     }
 }
 
-private fun formatOdometerValue(value: Double, meterType: String?): String {
-    val unit = when (meterType?.lowercase()) {
-        "km", "kilometers" -> "km"
-        "hours", "hrs"     -> "hrs"
-        else               -> "mi"
-    }
+private fun formatOdometerValue(value: Double, unit: String?): String {
     val n = java.text.NumberFormat.getIntegerInstance().format(value.toLong())
-    return "$n\u202F$unit"
+    return if (unit.isNullOrBlank()) n else "$n\u202F$unit"
 }
 
 @Composable
 private fun AssetPhotoStrip(
-    photos: List<PhotoEntity>,
+    photos: List<Attachment>,
     onPhotoClick: (index: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -866,7 +849,6 @@ private fun AssetPhotoStrip(
         modifier = modifier,
     ) {
         itemsIndexed(photos) { index, photo ->
-            val url = photo.downloadUrl
             Box(
                 modifier = Modifier
                     .size(100.dp)
@@ -875,14 +857,7 @@ private fun AssetPhotoStrip(
                     .clickable { onPhotoClick(index) },
                 contentAlignment = Alignment.Center,
             ) {
-                if (url != null) {
-                    AsyncImage(
-                        model = url,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
+                StoredFileImage(file = photo.file, modifier = Modifier.fillMaxSize())
             }
         }
     }
@@ -973,7 +948,7 @@ private fun NotesCard(
 
 @Composable
 private fun MeterCard(
-    meterType: String?,
+    meter: AssetMeter?,
     latestMeterReading: Double?,
     onAddReading: () -> Unit,
     modifier: Modifier = Modifier,
@@ -994,12 +969,12 @@ private fun MeterCard(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(
-                    text = meterLabelFor(meterType),
+                    text = meterLabelFor(meter?.kind),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = formatMeterReading(latestMeterReading, meterType),
+                    text = formatMeterReading(latestMeterReading, meter?.unit),
                     style = MaterialTheme.typography.bodyLarge,
                 )
             }
@@ -1012,7 +987,7 @@ private fun MeterCard(
 
 @Composable
 private fun MeterReadingDialog(
-    meterType: String?,
+    meter: AssetMeter?,
     isSaving: Boolean,
     onDismiss: () -> Unit,
     onConfirm: (Double) -> Unit,
@@ -1021,7 +996,7 @@ private fun MeterReadingDialog(
     val parsedValue = value.toDoubleOrNull()
     AlertDialog(
         onDismissRequest = { if (!isSaving) onDismiss() },
-        title = { Text(meterLabelFor(meterType)) },
+        title = { Text(meterLabelFor(meter?.kind)) },
         text = {
             OutlinedTextField(
                 value = value,
@@ -1079,7 +1054,7 @@ private fun parseAttributes(json: String?): Map<String, String> {
 
 @Composable
 private fun HierarchyCard(
-    asset: AssetEntity,
+    asset: Asset,
     onOpenAsset: (assetId: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -1134,13 +1109,13 @@ private fun HierarchyCard(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onOpenAsset(asset.assetId) }
+                        .clickable { onOpenAsset(asset.id) }
                         .padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(
-                        text = "${asset.childCount} child asset${if (asset.childCount != 1L) "s" else ""}",
+                        text = "${asset.childCount} child asset${if (asset.childCount != 1) "s" else ""}",
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.weight(1f),
                     )
@@ -1157,21 +1132,21 @@ private fun HierarchyCard(
 
 @Composable
 private fun LocationCard(
-    asset: AssetEntity,
+    asset: Asset,
     modifier: Modifier = Modifier,
 ) {
     val attributes = parseAttributes(asset.attributes)
-    val street = asset.addressLine1 ?: attributes["street_address"]
+    val street = attributes["street_address"]
     val latitude = attributes["latitude"]?.toDoubleOrNull()
     val longitude = attributes["longitude"]?.toDoubleOrNull()
-    if (street == null && (latitude == null || longitude == null)) return
+    val site = asset.locationName?.takeIf { it.isNotBlank() }
+    if (site == null && street == null && (latitude == null || longitude == null)) return
     val context = LocalContext.current
 
-    val line2 = asset.addressLine2
-    val city = asset.city ?: attributes["city"]
-    val state = asset.state ?: attributes["state"]
-    val zip = asset.postalCode ?: attributes["zip_code"]
-    val country = asset.country ?: attributes["country"]
+    val city = attributes["city"]
+    val state = attributes["state"]
+    val zip = attributes["zip_code"]
+    val country = attributes["country"]
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -1194,15 +1169,16 @@ private fun LocationCard(
                     fontWeight = FontWeight.SemiBold,
                 )
             }
-            street?.let {
+            site?.let {
                 Text(
                     text = it,
                     style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
                 )
             }
-            if (!line2.isNullOrBlank()) {
+            street?.let {
                 Text(
-                    text = line2,
+                    text = it,
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
@@ -1277,7 +1253,7 @@ private fun MapCard(
 
 @Composable
 private fun DetailsCard(
-    asset: AssetEntity,
+    asset: Asset,
     modifier: Modifier = Modifier,
 ) {
     val customAttrs = parseAttributes(asset.attributes)
@@ -1324,21 +1300,17 @@ private fun DetailsCard(
 // ---------------------------------------------------------------------------
 
 /**
- * Formats a meter reading with the appropriate unit suffix based on [meterType].
+ * Formats a meter reading with the appropriate unit suffix [unit].
  * Returns "—" when [value] is null.
  */
-fun formatMeterReading(value: Double?, meterType: String?): String {
-    if (value == null) return "—"
+fun formatMeterReading(value: Double?, unit: String?): String {
+    if (value == null) return "\u2014"
     val formatted = NumberFormat.getNumberInstance().format(value)
-    return when (meterType) {
-        "odometer" -> "$formatted mi"
-        "hours" -> "$formatted hrs"
-        else -> formatted
-    }
+    return if (unit.isNullOrBlank()) formatted else "$formatted $unit"
 }
 
-private fun meterLabelFor(meterType: String?): String {
-    val normalized = meterType
+private fun meterLabelFor(meterKind: String?): String {
+    val normalized = meterKind
         ?.replace("_", " ")
         ?.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
         ?: "Meter"

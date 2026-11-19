@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -63,7 +64,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.avago.core.data.db.entity.AssetEntity
+import com.avago.core.data.domain.Asset
 import com.avago.core.data.rental.FleetStatus
 import com.avago.core.ui.AvagoSearchBar
 import com.avago.core.ui.EmptyState
@@ -71,9 +72,6 @@ import com.avago.core.ui.rememberScrollAwareHeaderState
 import com.avago.feature.assets.R
 import com.avago.feature.assets.model.AssetTypes
 import com.avago.feature.assets.viewmodel.AssetListViewModel
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -138,7 +136,7 @@ fun AssetListScreen(
         ) {
             // Build type-grouped sectioned list matching iOS section order
             val typeOrder = AssetTypes.all.map { it.key }
-            val grouped = assets.groupBy { it.assetType ?: "other" }
+            val grouped = assets.groupBy { it.assetTypeCode ?: "other" }
             val sectionedItems: List<Any> = buildList {
                 for (typeKey in typeOrder) {
                     val items = grouped[typeKey] ?: continue
@@ -207,21 +205,21 @@ fun AssetListScreen(
                             key = { item ->
                                 when (item) {
                                     is String -> "header_$item"
-                                    is AssetEntity -> item.assetId
+                                    is Asset -> item.id
                                     else -> item.hashCode()
                                 }
                             },
                         ) { item ->
                             when (item) {
                                 is String -> AssetSectionHeader(typeKey = item)
-                                is AssetEntity -> {
+                                is Asset -> {
                                     // Swipe-left to edit — mirrors iOS AssetsListViewController
                                     // trailing swipe action that reveals Edit.
                                     SwipeToDismissBox(
                                         state = rememberSwipeToDismissBoxState(
                                             confirmValueChange = { value ->
                                                 if (value == SwipeToDismissBoxValue.EndToStart) {
-                                                    onAssetLongPress(item.assetId)
+                                                    onAssetLongPress(item.id)
                                                 }
                                                 false // keep the row in place
                                             },
@@ -257,10 +255,10 @@ fun AssetListScreen(
                                     ) {
                                         AssetRow(
                                             asset = item,
-                                            openWoCount = openWoCounts[item.assetId] ?: 0,
-                                            rentalStatus = rentalStatuses[item.assetId],
-                                            onClick = { onAssetClick(item.assetId) },
-                                            onLongClick = { onAssetLongPress(item.assetId) },
+                                            openWoCount = openWoCounts[item.id] ?: 0,
+                                            rentalStatus = rentalStatuses[item.id],
+                                            onClick = { onAssetClick(item.id) },
+                                            onLongClick = { onAssetLongPress(item.id) },
                                         )
                                     }
                                     HorizontalDivider(
@@ -486,7 +484,7 @@ private fun AssetSectionHeader(typeKey: String) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AssetRow(
-    asset: AssetEntity,
+    asset: Asset,
     openWoCount: Int = 0,
     rentalStatus: FleetStatus? = null,
     onClick: () -> Unit,
@@ -503,8 +501,8 @@ private fun AssetRow(
     ) {
         Box {
             AssetAvatar(
-                initial = asset.avatarInitial ?: asset.name.firstOrNull()?.uppercaseChar()?.toString() ?: "A",
-                assetType = asset.assetType,
+                initial = asset.initial.ifBlank { "A" },
+                assetType = asset.assetTypeCode,
                 size = 40,
             )
             if (openWoCount > 0) {
@@ -536,8 +534,7 @@ private fun AssetRow(
                 overflow = TextOverflow.Ellipsis,
                 color = MaterialTheme.colorScheme.onSurface,
             )
-            val subtitle = listOfNotNull(asset.year?.toString(), asset.make, asset.model)
-                .joinToString(" ")
+            val subtitle = asset.makeModel.orEmpty()
             if (subtitle.isNotBlank()) {
                 Text(
                     text = subtitle,
@@ -553,11 +550,16 @@ private fun AssetRow(
             RentalStatusPill(rentalStatus, modifier = Modifier.padding(end = 8.dp))
         }
 
-        Text(
-            text = formatDate(asset.updatedAt),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        asset.locationName?.let { location ->
+            Text(
+                text = location,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 120.dp),
+            )
+        }
     }
 }
 
@@ -600,6 +602,3 @@ internal fun AssetAvatar(
 private fun rememberParsedColorLocal(hex: String): Color {
     return rememberParsedColor(hex)
 }
-
-private fun formatDate(epochMs: Long): String =
-    SimpleDateFormat("MMM d", Locale.getDefault()).format(Date(epochMs))

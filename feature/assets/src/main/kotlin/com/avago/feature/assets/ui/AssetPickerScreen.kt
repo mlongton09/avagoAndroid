@@ -40,7 +40,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.avago.core.data.db.entity.AssetEntity
+import com.avago.core.data.domain.Asset
 import com.avago.core.ui.EmptyState
 import com.avago.feature.assets.R
 import com.avago.feature.assets.model.AssetTypes
@@ -72,8 +72,8 @@ fun AssetPickerScreen(
 
     // Group and sort: follow AssetTypes.all order, then unknown types, alpha within.
     val grouped = remember(assets) {
-        val byType = assets.groupBy { it.assetType?.lowercase()?.trim() ?: "other" }
-        val result = mutableListOf<Pair<String, List<AssetEntity>>>()
+        val byType = assets.groupBy { it.assetTypeCode?.lowercase()?.trim() ?: "other" }
+        val result = mutableListOf<Pair<String, List<Asset>>>()
         for (key in orderedTypeKeys) {
             byType[key]?.let { list ->
                 result.add(key to list.sortedBy { it.name.lowercase() })
@@ -151,10 +151,10 @@ fun AssetPickerScreen(
                             SectionHeader(typeKey = typeKey, fallbackLabel = label)
                         }
 
-                        items(typeAssets, key = { it.assetId }) { asset ->
+                        items(typeAssets, key = { it.id }) { asset ->
                             AssetPickerRow(
                                 asset = asset,
-                                onClick = { onAssetSelected(asset.assetId) },
+                                onClick = { onAssetSelected(asset.id) },
                             )
                             HorizontalDivider(
                                 modifier = Modifier.padding(start = 72.dp),
@@ -196,7 +196,7 @@ private fun SectionHeader(typeKey: String, fallbackLabel: String?) {
 
 @Composable
 private fun AssetPickerRow(
-    asset: AssetEntity,
+    asset: Asset,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -210,7 +210,7 @@ private fun AssetPickerRow(
     ) {
         AssetAvatar(
             initial = asset.avatarInitial ?: asset.name.firstOrNull()?.uppercaseChar()?.toString() ?: "A",
-            assetType = asset.assetType,
+            assetType = asset.assetTypeCode,
             size = 40,
         )
         Spacer(modifier = Modifier.width(0.dp))

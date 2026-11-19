@@ -9,29 +9,31 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
-import com.avago.core.data.db.entity.AssetEntity
-import com.avago.core.data.db.entity.DocEntity
-import com.avago.core.data.db.entity.LogEntity
-import com.avago.core.data.db.entity.PhotoEntity
-import com.avago.core.data.db.entity.SyncQueueEntity
-import com.avago.core.data.repository.AssetRepository
+import com.avago.core.data.domain.Activity
+import com.avago.core.data.domain.ActivityDraft
+import com.avago.core.data.domain.ActivityFilter
+import com.avago.core.data.domain.ActivityRepository
+import com.avago.core.data.domain.ActivityType
+import com.avago.core.data.domain.Asset
+import com.avago.core.data.domain.AssetMeter
+import com.avago.core.data.domain.AssetRepository
+import com.avago.core.data.domain.Attachment
+import com.avago.core.data.domain.AttachmentTarget
 import com.avago.core.data.repository.UserPreferencesRepository
 import com.avago.core.permissions.Permissions
 import com.avago.core.permissions.PermissionsManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -39,31 +41,43 @@ import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.io.File
 import java.io.FileOutputStream
+import java.math.BigDecimal
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
-import java.util.UUID
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
-/**
- * Log entries grouped by year for the sticky-header list on AssetDetailScreen.
- */
+/** Log entries grouped by year for the sticky-header list on AssetDetailScreen. */
 data class LogsByYear(
     val year: Int,
-    val entries: List<LogEntity>,
+    val entries: List<Activity>,
 )
+
+/** Groups activities by calendar year of [Activity.occurredAt], newest first. */
+internal fun groupLogsByYear(logs: List<Activity>, category: String?): List<LogsByYear> {
+    val filtered = if (category == null) logs else logs.filter { it.categoryLabel == category }
+    val cal = Calendar.getInstance()
+    return filtered.sortedByDescending { it.occurredAt }
+        .groupBy { cal.timeInMillis = it.occurredAt; cal.get(Calendar.YEAR) }
+        .entries
+        .sortedByDescending { it.key }
+        .map { (year, entries) -> LogsByYear(year, entries) }
+}
+
+/** Recently used category keys on [logs], most recent first. */
+internal fun recentLogCategories(logs: List<Activity>, limit: Int = 8): List<String> =
+    logs.sortedByDescending { it.occurredAt }.mapNotNull { it.categoryLabel?.takeIf(String::isNotBlank) }.distinct().take(limit)
 
 @HiltViewModel
 class AssetDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     @ApplicationContext private val appContext: Context,
-    private val repository: AssetRepository,
-    private val dbFactory: DatabaseFactory,
-    private val identityManager: IdentityManager,
-    private val userPrefsRepository: UserPreferencesRepository,
-    private val permissionsManager: PermissionsManager,
+    private val assets: AssetRepository,
+    private val activities: ActivityRepository,
+    userPrefsRepository: UserPreferencesRepository,
+    permissionsManager: PermissionsManager,
 ) : ViewModel() {
 
     private val assetId: String = checkNotNull(savedStateHandle["assetId"]) {
@@ -73,214 +87,63 @@ class AssetDetailViewModel @Inject constructor(
     private val _categoryFilter = MutableStateFlow<String?>(null)
     val categoryFilter: StateFlow<String?> = _categoryFilter.asStateFlow()
 
+    private val _errors = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val errors: SharedFlow<String> = _errors.asSharedFlow()
+
     val canEditAsset: StateFlow<Boolean> = permissionsManager.observeCan(Permissions.ASSETS_EDIT)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), permissionsManager.can(Permissions.ASSETS_EDIT))
 
     val currencyCode: StateFlow<String> = userPrefsRepository.currencyFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "USD")
 
-    private val accountId: StateFlow<String?> = identityManager.activeAccountId
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.Eagerly,
-            initialValue = identityManager.getActiveAccountId(),
-        )
+    val asset: StateFlow<Asset?> = assets.observeAsset(assetId)
+        .catch { e -> Timber.e(e, "[AssetDetailViewModel] asset flow error"); emit(null) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    /**
-     * The asset entity for this screen.
-     */
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val asset: StateFlow<AssetEntity?> = accountId
-        .flatMapLatest { acctId ->
-            if (acctId == null) flowOf(null)
-            else {
-                try {
-                    repository.observeAssets(acctId).map { list ->
-                        list.firstOrNull { it.assetId == assetId }
-                    }
-                } catch (e: Exception) {
-                    Timber.e(e, "[AssetDetailViewModel] Error observing asset $assetId")
-                    flowOf(null)
-                }
-            }
-        }
-        .catch { e ->
-            Timber.e(e, "[AssetDetailViewModel] Asset flow error")
-            emit(null)
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = null,
-        )
+    private val allLogs: StateFlow<List<Activity>> = activities.observeActivities(ActivityFilter(assetId = assetId))
+        .catch { e -> Timber.e(e, "[AssetDetailViewModel] log flow error"); emit(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /**
-     * All log entries for this asset, reactive to the active account.
-     */
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private val _allLogs: StateFlow<List<LogEntity>> = accountId
-        .flatMapLatest { acctId ->
-            if (acctId == null) flowOf(emptyList())
-            else {
-                try {
-                    repository.observeLogsForAsset(acctId, assetId)
-                } catch (e: Exception) {
-                    Timber.e(e, "[AssetDetailViewModel] Error observing logs for $assetId")
-                    flowOf(emptyList())
-                }
-            }
-        }
-        .catch { e ->
-            Timber.e(e, "[AssetDetailViewModel] Log flow error")
-            emit(emptyList())
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = emptyList(),
-        )
+    val availableCategories: StateFlow<List<String>> = allLogs
+        .map { logs -> logs.mapNotNull { it.categoryLabel?.takeIf(String::isNotBlank) }.distinct().sorted() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /**
-     * Available category filter options derived from the loaded log entries.
-     */
-    val availableCategories: StateFlow<List<String>> = _allLogs
-        .map { logs -> logs.mapNotNull { it.category }.distinct().sorted() }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = emptyList(),
-        )
+    val recentCategories: StateFlow<List<String>> = allLogs
+        .map { recentLogCategories(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val recentCategories: StateFlow<List<String>> = accountId
-        .flatMapLatest { acctId ->
-            if (acctId == null) flowOf(emptyList())
-            else dbFactory.get(acctId).logDao().observeRecentCategories(acctId, assetId)
-                .catch { e ->
-                    Timber.e(e, "[AssetDetailViewModel] recent category flow error")
-                    emit(emptyList())
-                }
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = emptyList(),
-        )
+    val logsByYear: StateFlow<List<LogsByYear>> = combine(allLogs, _categoryFilter, ::groupLogsByYear)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /**
-     * Filtered and year-grouped log entries for the detail screen.
-     */
-    val logsByYear: StateFlow<List<LogsByYear>> = combine(
-        _allLogs,
-        _categoryFilter,
-    ) { logs, category ->
-        val filtered = if (category == null) logs
-        else logs.filter { it.category == category }
+    val totalCost: StateFlow<BigDecimal> = allLogs
+        .map { logs -> logs.fold(BigDecimal.ZERO) { acc, a -> acc + a.totalCost } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BigDecimal.ZERO)
 
-        // Sort descending by entryDate so newest entries appear first within each year
-        val sorted = filtered.sortedByDescending { it.entryDate }
+    val lastServiceDate: StateFlow<Long?> = allLogs
+        .map { logs -> logs.maxOfOrNull { it.occurredAt } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-        // Group by calendar year of entryDate
-        sorted
-            .groupBy { entry ->
-                val cal = Calendar.getInstance()
-                cal.timeInMillis = entry.entryDate
-                cal.get(Calendar.YEAR)
-            }
-            .entries
-            .sortedByDescending { it.key }
-            .map { (year, entries) -> LogsByYear(year = year, entries = entries) }
-    }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = emptyList(),
-        )
+    val entryCount: StateFlow<Int> = allLogs
+        .map { it.size }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
-    /**
-     * Total cost across all log entries for this asset.
-     */
-    val totalCost: StateFlow<Double> = _allLogs
-        .map { logs -> logs.sumOf { it.cost ?: 0.0 } }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = 0.0,
-        )
+    val openWorkOrderCount: StateFlow<Int> = asset
+        .map { it?.openWorkOrders ?: 0 }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
-    /**
-     * Most recent log entryDate, or null if no entries exist.
-     */
-    val lastServiceDate: StateFlow<Long?> = _allLogs
-        .map { logs -> logs.maxOfOrNull { it.entryDate } }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = null,
-        )
+    val daysSinceLastService: StateFlow<Int?> = lastServiceDate
+        .map { latest -> latest?.let { TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis() - it).toInt() } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    /**
-     * Total number of log entries for this asset.
-     * Mirrors the "entries" column in the iOS AssetDetailHeaderView stats strip.
-     */
-    val entryCount: StateFlow<Int> = _allLogs
-        .map { logs -> logs.size }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = 0,
-        )
+    /** The asset's default meter (or its only one); null when the asset tracks no meter. */
+    val meter: StateFlow<AssetMeter?> = assets.observeMeters(assetId)
+        .map { meters -> meters.firstOrNull { it.isDefault } ?: meters.firstOrNull() }
+        .catch { e -> Timber.e(e, "[AssetDetailViewModel] meter flow error"); emit(null) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val openWorkOrderCount: StateFlow<Int> = accountId
-        .flatMapLatest { acctId ->
-            if (acctId == null) flowOf(0)
-            else dbFactory.get(acctId).workOrderDao().observeByAsset(assetId)
-                .map { workOrders ->
-                    workOrders.count { it.status !in setOf("complete", "cancelled") }
-                }
-                .catch { e ->
-                    Timber.e(e, "[AssetDetailViewModel] open work order count error")
-                    emit(0)
-                }
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = 0,
-        )
-
-    /**
-     * Number of days elapsed since the most recent log entry, or null if there are no entries.
-     * Mirrors the "since service" column in the iOS stats strip (sinceString(forDate:)).
-     */
-    val daysSinceLastService: StateFlow<Int?> = _allLogs
-        .map { logs ->
-            val latest = logs.maxOfOrNull { it.entryDate } ?: return@map null
-            val elapsed = System.currentTimeMillis() - latest
-            TimeUnit.MILLISECONDS.toDays(elapsed).toInt()
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = null,
-        )
-
-    /**
-     * Most recent odometer reading from logs, if the asset tracks meters.
-     */
-    val latestMeterReading: StateFlow<Double?> = _allLogs
-        .map { logs ->
-            logs
-                .filter { it.odometerValue != null }
-                .maxByOrNull { it.entryDate }
-                ?.odometerValue
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = null,
-        )
+    val latestMeterReading: StateFlow<Double?> = meter
+        .map { it?.lastValue?.toDouble() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _showMeterDialog = MutableStateFlow(false)
     val showMeterDialog: StateFlow<Boolean> = _showMeterDialog.asStateFlow()
@@ -288,67 +151,19 @@ class AssetDetailViewModel @Inject constructor(
     private val _isSavingMeter = MutableStateFlow(false)
     val isSavingMeter: StateFlow<Boolean> = _isSavingMeter.asStateFlow()
 
-    /**
-     * Photos attached to this asset, ordered by sort_order ascending.
-     */
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val photos: StateFlow<List<PhotoEntity>> = accountId
-        .flatMapLatest { acctId ->
-            if (acctId == null) flowOf(emptyList())
-            else {
-                try {
-                    dbFactory.get(acctId).photoDao().observeByEntity(assetId, "asset")
-                        .catch { e ->
-                            Timber.e(e, "[AssetDetailViewModel] Error loading photos for $assetId")
-                            emit(emptyList())
-                        }
-                } catch (e: Exception) {
-                    Timber.e(e, "[AssetDetailViewModel] Could not get photoDao for $acctId")
-                    flowOf(emptyList())
-                }
-            }
-        }
-        .catch { e ->
-            Timber.e(e, "[AssetDetailViewModel] Photos flow error")
-            emit(emptyList())
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = emptyList(),
-        )
+    private val attachments: StateFlow<List<Attachment>> = assets.observeAttachments(AttachmentTarget.ToAsset(assetId))
+        .catch { e -> Timber.e(e, "[AssetDetailViewModel] attachment flow error"); emit(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /**
-     * Documents attached to this asset, filtered by asset_id.
-     * Uses observeAll and filters client-side since DocDao doesn't expose a per-asset query.
-     */
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val documents: StateFlow<List<DocEntity>> = accountId
-        .flatMapLatest { acctId ->
-            if (acctId == null) flowOf(emptyList())
-            else {
-                try {
-                    dbFactory.get(acctId).docDao().observeAll(acctId)
-                        .map { docs -> docs.filter { it.assetId == assetId } }
-                        .catch { e ->
-                            Timber.e(e, "[AssetDetailViewModel] Error loading docs for $assetId")
-                            emit(emptyList())
-                        }
-                } catch (e: Exception) {
-                    Timber.e(e, "[AssetDetailViewModel] Could not get docDao for $acctId")
-                    flowOf(emptyList())
-                }
-            }
-        }
-        .catch { e ->
-            Timber.e(e, "[AssetDetailViewModel] Documents flow error")
-            emit(emptyList())
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = emptyList(),
-        )
+    /** Image attachments, in sort order. */
+    val photos: StateFlow<List<Attachment>> = attachments
+        .map { list -> list.filter { it.file?.isImage == true } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Non-image attachments (manuals, invoices, PDFs). */
+    val documents: StateFlow<List<Attachment>> = attachments
+        .map { list -> list.filter { it.file?.isImage != true } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun onAddMeterReadingTapped() {
         _showMeterDialog.value = true
@@ -360,125 +175,41 @@ class AssetDetailViewModel @Inject constructor(
 
     fun saveMeterReading(value: Double) {
         viewModelScope.launch {
-            val acctId = accountId.value ?: return@launch
             _isSavingMeter.value = true
             try {
-                val now = System.currentTimeMillis()
-                val db = dbFactory.get(acctId)
-                val entry = LogEntity(
-                    entryId = UUID.randomUUID().toString(),
-                    assetId = assetId,
-                    accountId = acctId,
-                    title = "Meter Reading",
-                    entryDate = now,
-                    odometerValue = value,
-                    category = "meter",
-                    cost = null,
-                    performedBy = null,
-                    performedByUserId = null,
-                    notes = null,
-                    data = null,
-                    attributes = null,
-                    costMode = null,
-                    costItems = null,
-                    costLabor = null,
-                    costTax = null,
-                    currency = null,
-                    baseAmount = null,
-                    exchangeRateUsed = null,
-                    configId = null,
-                    configVersion = null,
-                    serviceId = null,
-                    costMisc = null,
-                    parentId = null,
-                    createdAt = now,
-                    updatedAt = now,
-                    deletedAt = null,
-                    serverVersion = 0L,
-                    seq = null,
-                )
-                db.logDao().upsert(entry)
-                db.syncQueueDao().enqueueWithDedup(
-                    SyncQueueEntity(
-                        queueId = "log_${entry.entryId}",
-                        entityType = "log",
-                        entityId = entry.entryId,
-                        operation = "insert",
-                        serverVersion = 0L,
-                        payload = null,
-                        syncStatus = "pending",
-                        attempts = 0L,
-                        lastError = null,
-                        createdAt = now,
-                        updatedAt = now,
-                    ),
-                )
+                assets.recordReading(assetId, BigDecimal.valueOf(value))
                 _showMeterDialog.value = false
+            } catch (e: Exception) {
+                Timber.e(e, "[AssetDetailViewModel] meter reading failed")
+                _errors.tryEmit(e.message ?: "Could not save the reading")
             } finally {
                 _isSavingMeter.value = false
             }
         }
     }
 
-
     fun addBatchLogEntries(categoryIds: List<String>, odometerValue: Double?) {
         val distinctIds = categoryIds.distinct().filter { it.isNotBlank() && it != "service" }
         if (distinctIds.isEmpty()) return
         viewModelScope.launch {
-            val acctId = accountId.value ?: return@launch
             val now = System.currentTimeMillis()
-            val db = dbFactory.get(acctId)
-            val entries = distinctIds.map { categoryId ->
-                LogEntity(
-                    entryId = UUID.randomUUID().toString(),
-                    assetId = assetId,
-                    accountId = acctId,
-                    title = localizedCategoryName(categoryId),
-                    entryDate = now,
-                    odometerValue = odometerValue ?: 0.0,
-                    category = categoryId,
-                    cost = null,
-                    performedBy = null,
-                    performedByUserId = null,
-                    notes = null,
-                    data = null,
-                    attributes = null,
-                    costMode = null,
-                    costItems = null,
-                    costLabor = null,
-                    costTax = null,
-                    currency = null,
-                    baseAmount = null,
-                    exchangeRateUsed = null,
-                    configId = null,
-                    configVersion = null,
-                    serviceId = null,
-                    costMisc = null,
-                    parentId = null,
-                    createdAt = now,
-                    updatedAt = now,
-                    deletedAt = null,
-                    serverVersion = 0L,
-                    seq = null,
-                )
-            }
-            db.logDao().upsertAll(entries)
-            entries.forEach { entry ->
-                db.syncQueueDao().enqueueWithDedup(
-                    SyncQueueEntity(
-                        queueId = "log_${entry.entryId}",
-                        entityType = "log",
-                        entityId = entry.entryId,
-                        operation = "insert",
-                        serverVersion = 0L,
-                        payload = null,
-                        syncStatus = "pending",
-                        attempts = 0L,
-                        lastError = null,
-                        createdAt = now,
-                        updatedAt = now,
-                    ),
-                )
+            val meterValue = odometerValue?.takeIf { it > 0.0 }?.let(BigDecimal::valueOf)
+            try {
+                distinctIds.forEach { categoryId ->
+                    activities.create(
+                        ActivityDraft(
+                            assetId = assetId,
+                            type = ActivityType.forCategory(categoryId),
+                            categoryLabel = categoryId,
+                            title = localizedCategoryName(categoryId),
+                            occurredAt = now,
+                            meterValue = meterValue,
+                        ),
+                    )
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "[AssetDetailViewModel] batch log failed")
+                _errors.tryEmit(e.message ?: "Could not add the log entries")
             }
         }
     }
@@ -495,45 +226,36 @@ class AssetDetailViewModel @Inject constructor(
             }
     }
 
-    fun cloneLogEntry(entry: LogEntity) {
-                viewModelScope.launch {
-                    val acctId = accountId.value ?: return@launch
-                    val now = System.currentTimeMillis()
-                    val clone = entry.copy(
-                        entryId = UUID.randomUUID().toString(),
-                        accountId = acctId,
+    /** Copies an entry's descriptive fields to a new entry dated now (no meter, no costs, no files). */
+    fun cloneLogEntry(entry: Activity) {
+        viewModelScope.launch {
+            try {
+                activities.create(
+                    ActivityDraft(
                         assetId = assetId,
-                        entryDate = now,
-                        odometerValue = null,
-                        createdAt = now,
-                        updatedAt = now,
-                        deletedAt = null,
-                        serverVersion = 0L,
-                        seq = null,
-                    )
-                    val db = dbFactory.get(acctId)
-                    db.logDao().upsert(clone)
-                    db.syncQueueDao().enqueueWithDedup(
-                        SyncQueueEntity(
-                            queueId = "log_${clone.entryId}",
-                            entityType = "log",
-                            entityId = clone.entryId,
-                            operation = "insert",
-                            serverVersion = 0L,
-                            payload = null,
-                            syncStatus = "pending",
-                            attempts = 0L,
-                            lastError = null,
-                            createdAt = now,
-                            updatedAt = now,
-                        ),
-                    )
-                }
+                        type = entry.type,
+                        categoryLabel = entry.categoryLabel,
+                        title = entry.title,
+                        occurredAt = System.currentTimeMillis(),
+                        performedByUserId = entry.performedByUserId,
+                        performedByName = entry.performedByName,
+                        providerName = entry.providerName,
+                        currency = entry.currency,
+                        notes = entry.notes,
+                        payload = entry.payload,
+                        attributes = entry.attributes,
+                    ),
+                )
+            } catch (e: Exception) {
+                Timber.e(e, "[AssetDetailViewModel] clone failed")
+                _errors.tryEmit(e.message ?: "Could not clone the entry")
             }
+        }
+    }
 
     suspend fun generatePdf(context: Context): Uri? = withContext(Dispatchers.IO) {
         val currentAsset = asset.value ?: return@withContext null
-        val logs = _allLogs.value
+        val logs = allLogs.value
         val document = PdfDocument()
         return@withContext try {
             val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create()
@@ -556,7 +278,7 @@ class AssetDetailViewModel @Inject constructor(
             canvas.drawText("Maintenance Report: ${currentAsset.name}", 40f, y, titlePaint)
             y += 30f
             val makeModelYear = listOfNotNull(
-                currentAsset.year?.toString(),
+                currentAsset.modelYear?.toString(),
                 currentAsset.make,
                 currentAsset.model,
             ).joinToString(" ")
@@ -570,19 +292,19 @@ class AssetDetailViewModel @Inject constructor(
             canvas.drawText("Service History (${logs.size} entries)", 40f, y, sectionPaint)
             y += 20f
             val dateFormatter = SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
-            logs.sortedByDescending { it.entryDate }.forEach { log ->
+            logs.sortedByDescending { it.occurredAt }.forEach { log ->
                 if (y > 780f) return@forEach
-                canvas.drawText("• ${log.title} — ${dateFormatter.format(Date(log.entryDate))}", 40f, y, bodyPaint)
+                canvas.drawText("• ${log.displayTitle} — ${dateFormatter.format(Date(log.occurredAt))}", 40f, y, bodyPaint)
                 y += 16f
-                val cost = log.cost
-                if (cost != null && cost > 0) {
-                    canvas.drawText("  Cost: $${"%.2f".format(cost)}", 40f, y, smallPaint)
+                val cost = log.totalCost
+                if (cost.signum() > 0) {
+                    canvas.drawText("  Cost: $${cost.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString()}", 40f, y, smallPaint)
                     y += 14f
                 }
             }
             document.finishPage(page)
             val dir = File(context.filesDir, "pdf_reports").also { it.mkdirs() }
-            val file = File(dir, "maintenance_report_${currentAsset.assetId}.pdf")
+            val file = File(dir, "maintenance_report_${currentAsset.id}.pdf")
             FileOutputStream(file).use { document.writeTo(it) }
             FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
         } catch (e: Exception) {

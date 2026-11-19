@@ -1,4 +1,4 @@
-﻿package com.avago.feature.assets.ui
+package com.avago.feature.assets.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,9 +40,9 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
-import com.avago.core.network.AvagoServiceClient
+import com.avago.core.data.domain.ActivityFilter
+import com.avago.core.data.domain.ActivityRepository
+import com.avago.core.data.domain.AssetRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -106,10 +106,8 @@ data class CategoryReportState(
 
 @HiltViewModel
 class CategoryReportViewModel @Inject constructor(
-    private val dbFactory: DatabaseFactory,
-    private val identity: IdentityManager,
-    @Suppress("UnusedPrivateMember")
-    private val serviceClient: AvagoServiceClient,
+    private val assets: AssetRepository,
+    private val activities: ActivityRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(CategoryReportState())
@@ -118,41 +116,23 @@ class CategoryReportViewModel @Inject constructor(
     private var currentAssetId: String? = null
 
     fun loadForAsset(assetId: String, isRefresh: Boolean = false) {
-        val accountId = identity.getActiveAccountId() ?: return
         currentAssetId = assetId
-        _state.update {
-            it.copy(
-                isLoading = !isRefresh,
-                isRefreshing = isRefresh,
-                error = null,
-            )
-        }
+        _state.update { it.copy(isLoading = !isRefresh, isRefreshing = isRefresh, error = null) }
         viewModelScope.launch {
             try {
-                val db = dbFactory.get(accountId)
-
-                // Load asset name
-                val asset = db.assetDao().getById(assetId)
-
-                // Load all log entries for this asset that have a cost
-                // No dedicated category-report API endpoint exists yet in AvagoServiceClient.
-                // TODO: replace with serviceClient.getCategoryReport(accountId, assetId)
-                //       once the endpoint is available.
-                val logs = db.logDao().observeAll(accountId)
-                    .first()
-                    .filter { it.assetId == assetId && (it.cost ?: 0.0) > 0.0 }
-
-                val entries = logs.map { log ->
-                    CategoryCostEntry(
-                        entryId = log.entryId,
-                        category = log.category ?: "other",
-                        label = log.title,
-                        cost = log.cost ?: 0.0,
-                        date = log.entryDate,
-                        meterReading = log.odometerValue,
-                    )
-                }
-
+                val asset = assets.asset(assetId)
+                val entries = activities.observeActivities(ActivityFilter(assetId = assetId)).first()
+                    .filter { it.totalCost.signum() > 0 }
+                    .map { log ->
+                        CategoryCostEntry(
+                            entryId = log.id,
+                            category = log.categoryLabel ?: "other",
+                            label = log.displayTitle,
+                            cost = log.totalCost.toDouble(),
+                            date = log.occurredAt,
+                            meterReading = log.meterValue?.toDouble(),
+                        )
+                    }
                 _state.update {
                     it.copy(
                         isLoading = false,
@@ -164,11 +144,7 @@ class CategoryReportViewModel @Inject constructor(
             } catch (e: Exception) {
                 Timber.e(e, "[CategoryReportViewModel] loadForAsset failed")
                 _state.update {
-                    it.copy(
-                        isLoading = false,
-                        isRefreshing = false,
-                        error = e.message ?: "Failed to load report",
-                    )
+                    it.copy(isLoading = false, isRefreshing = false, error = e.message ?: "Failed to load report")
                 }
             }
         }
