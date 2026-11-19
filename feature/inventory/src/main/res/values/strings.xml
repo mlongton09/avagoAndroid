@@ -98,7 +98,7 @@
     <string name="vendor_deactivate">Deactivate vendor</string>
     <string name="vendor_activate">Reactivate vendor</string>
     <string name="vendor_inactive">Inactive</string>
-    <string name="vendor_preferred_badge">? Preferred</string>
+    <string name="vendor_preferred_badge">\u2605 Preferred</string>
     <string name="vendor_name_required">Vendor name is required</string>
 
     <!-- Vendor parts (SKU catalog) -->
