@@ -2,37 +2,42 @@ package com.avago.feature.workorders.viewmodel
 
 import android.app.Activity
 import android.content.Context
-import androidx.annotation.StringRes
-import com.avago.feature.workorders.R
-import dagger.hilt.android.qualifiers.ApplicationContext
 import android.content.Intent
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
+import androidx.annotation.StringRes
+import androidx.core.content.FileProvider
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.core.content.FileProvider
-import com.avago.core.data.Formatters
+import com.avago.core.ai.ScreenContextStore
 import com.avago.core.auth.IdentityManager
-import com.avago.core.data.db.entity.WoAssignmentEntity
-import com.avago.core.data.db.entity.WoChecklistItemEntity
-import com.avago.core.data.db.entity.WoCommentEntity
-import com.avago.core.data.db.entity.WoTemplateEntity
-import com.avago.core.data.db.entity.WorkOrderEntity
+import com.avago.core.data.FormFillRouter
+import com.avago.core.data.Formatters
+import com.avago.core.data.domain.ChecklistItem
+import com.avago.core.data.domain.Location
+import com.avago.core.data.domain.LocationRepository
+import com.avago.core.data.domain.PmFilter
+import com.avago.core.data.domain.PmOccurrence
+import com.avago.core.data.domain.PmRepository
+import com.avago.core.data.domain.Worker
+import com.avago.core.data.domain.WorkerRepository
+import com.avago.core.data.domain.WorkOrder
+import com.avago.core.data.domain.WorkOrderAssignment
+import com.avago.core.data.domain.WorkOrderComment
+import com.avago.core.data.domain.WorkOrderDetail
+import com.avago.core.data.domain.WorkOrderRepository
+import com.avago.core.data.domain.WorkOrderStatus
+import com.avago.core.data.domain.WorkOrderTemplateDraft
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
-import com.avago.core.network.model.BudgetPillResponse
-import com.avago.core.network.model.GeocodeRequest
-import com.avago.core.network.model.WorkOrderPatch
-import com.avago.core.ai.ScreenContextStore
-import com.avago.core.data.FormFillRouter
 import com.avago.core.permissions.Permissions
 import com.avago.core.permissions.PermissionsManager
 import com.avago.core.sync.SyncEngine
+import com.avago.feature.workorders.R
 import com.avago.feature.workorders.model.ChecklistRowState
 import com.avago.feature.workorders.model.DEFAULT_SLA_POLICY
-import com.avago.feature.workorders.model.DEFAULT_WO_CODES
 import com.avago.feature.workorders.model.SlaWindow
 import com.avago.feature.workorders.model.WO_KEY_HOLD
 import com.avago.feature.workorders.model.WO_KEY_VENDOR
@@ -46,16 +51,17 @@ import com.avago.feature.workorders.model.WoVendor
 import com.avago.feature.workorders.model.isChecklistRowRequired
 import com.avago.feature.workorders.model.parseWoAttributes
 import com.avago.feature.workorders.model.validateCloseout
-import com.avago.feature.workorders.repository.WoV3Service
-import com.avago.feature.workorders.repository.WorkOrderRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -65,11 +71,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.io.File
-import java.util.UUID
+import java.math.BigDecimal
 import javax.inject.Inject
-import org.json.JSONObject
- 
-data class AuditEntry(val description: String, val createdAt: String)
 
 data class WorkOrderMapPreview(
     val address: String,
@@ -77,17 +80,30 @@ data class WorkOrderMapPreview(
     val longitude: Double?,
 )
 
+/** Map preview of the work order's location; coordinates come from the location row (no geocoding). */
+fun Location.toMapPreview(): WorkOrderMapPreview? {
+    val address = listOfNotNull(addressLine1, addressLine2, locality, region, postalCode, countryCode)
+        .filter { it.isNotBlank() }
+        .joinToString(", ")
+    if (address.isBlank() && (latitude == null || longitude == null)) return null
+    return WorkOrderMapPreview(address = address.ifBlank { "$latitude, $longitude" }, latitude = latitude, longitude = longitude)
+}
+
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class WorkOrderDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: WorkOrderRepository,
+    private val pm: PmRepository,
+    workers: WorkerRepository,
+    locations: LocationRepository,
     private val identityManager: IdentityManager,
     private val syncEngine: SyncEngine,
     private val serviceClient: AvagoServiceClient,
     private val permissionsManager: PermissionsManager,
     private val screenContextStore: ScreenContextStore,
     private val formFillRouter: FormFillRouter,
-    private val woV3: WoV3Service,
+    private val closeoutSupport: WoCloseoutSupport,
     @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
@@ -108,54 +124,56 @@ class WorkOrderDetailViewModel @Inject constructor(
         "WorkOrderDetailViewModel requires woId in SavedStateHandle"
     }
 
-    private val _accountId: StateFlow<String?> = identityManager.activeAccountId
-        .stateIn(viewModelScope, SharingStarted.Eagerly, identityManager.getActiveAccountId())
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val workOrder: StateFlow<WorkOrderEntity?> = _accountId
-        .flatMapLatest { accountId ->
-            if (accountId == null) flowOf(null)
-            else repository.observeAll(accountId)
-                .map { list -> list.firstOrNull { it.woId == woId } }
-                .catch { e -> Timber.e(e, "[WoDetailVM] wo flow error"); emit(null) }
-        }
+    val detail: StateFlow<WorkOrderDetail?> = repository.observeDetail(woId)
+        .catch { e -> Timber.e(e, "[WoDetailVM] detail flow error"); emit(null) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val assetName: StateFlow<String?> = workOrder
-        .flatMapLatest { wo ->
-            val accountId = _accountId.value
-            val assetId = wo?.assetId
-            if (accountId == null || assetId.isNullOrBlank()) flowOf<String?>(null)
-            else flow<String?> { emit(repository.getAssetById(accountId, assetId)?.name) }
-        }
+    val workOrder: StateFlow<WorkOrder?> = detail.map { it?.workOrder }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    @OptIn(ExperimentalCoroutinesApi::class)
+    val assetName: StateFlow<String?> = workOrder.map { it?.primaryAssetName }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val assignments: StateFlow<List<WorkOrderAssignment>> = detail.map { it?.assignments.orEmpty() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val checklistItems: StateFlow<List<ChecklistItem>> = detail.map { it?.checklist.orEmpty() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val comments: StateFlow<List<WorkOrderComment>> = detail.map { it?.comments.orEmpty() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val me: StateFlow<Worker?> = workers.observeMe()
+        .catch { emit(null) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
     val mapPreview: StateFlow<WorkOrderMapPreview?> = workOrder
-        .flatMapLatest { wo ->
-            if (wo == null) flowOf<WorkOrderMapPreview?>(null)
-            else flow<WorkOrderMapPreview?> { emit(buildMapPreview(wo)) }
+        .map { it?.locationId }
+        .distinctUntilChanged()
+        .flatMapLatest { locationId ->
+            if (locationId == null) flowOf<WorkOrderMapPreview?>(null)
+            else flow { emit(locations.location(locationId)?.toMapPreview()) }
         }
+        .catch { emit(null) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** The open PM occurrence this work order was generated for, if any. */
+    val pmOccurrence: StateFlow<PmOccurrence?> = pm.observeOccurrences(PmFilter())
+        .map { list -> list.firstOrNull { it.workOrderId == woId } }
+        .catch { emit(null) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val canEdit: StateFlow<Boolean> = permissionsManager.observeCan(Permissions.WO_ASSIGN)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), permissionsManager.can(Permissions.WO_ASSIGN))
 
     /**
-     * True when the WO should show the merged log screen instead of the
-     * regular detail view — mirrors iOS routeToLogItemViewIfNeeded():
-     * in_progress and completed always qualify; assigned qualifies when
-     * the current user is the assigned technician.
+     * True when the WO should show the merged log screen instead of the regular detail view:
+     * in progress and completed always qualify; assigned qualifies for the assigned technician.
      */
-    val shouldShowLogView: StateFlow<Boolean> = workOrder.map { wo ->
-        if (wo == null) false
-        else when (wo.status) {
-            "in_progress", "completed" -> true
-            "assigned" -> {
-                val userId = identityManager.getActiveUserId()
-                userId != null && wo.assignedTo == userId
-            }
+    val shouldShowLogView: StateFlow<Boolean> = combine(workOrder, me) { wo, me ->
+        when (wo?.status) {
+            WorkOrderStatus.IN_PROGRESS, WorkOrderStatus.COMPLETED -> true
+            WorkOrderStatus.ASSIGNED -> me != null && wo.assignedWorkerId == me.id
             else -> false
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
@@ -166,33 +184,6 @@ class WorkOrderDetailViewModel @Inject constructor(
     val canDelete: StateFlow<Boolean> = permissionsManager.observeCan(Permissions.WO_DELETE)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), permissionsManager.can(Permissions.WO_DELETE))
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val assignments: StateFlow<List<WoAssignmentEntity>> = _accountId
-        .flatMapLatest { accountId ->
-            if (accountId == null) flowOf(emptyList())
-            else repository.observeAssignmentsForWo(accountId, woId)
-                .catch { emit(emptyList()) }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val checklistItems: StateFlow<List<WoChecklistItemEntity>> = _accountId
-        .flatMapLatest { accountId ->
-            if (accountId == null) flowOf(emptyList())
-            else repository.observeChecklistForWo(accountId, woId)
-                .catch { emit(emptyList()) }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val comments: StateFlow<List<WoCommentEntity>> = _accountId
-        .flatMapLatest { accountId ->
-            if (accountId == null) flowOf(emptyList())
-            else repository.observeCommentsForWo(accountId, woId)
-                .catch { emit(emptyList()) }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
     private val _isSaving = MutableStateFlow(false)
     val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
 
@@ -200,56 +191,38 @@ class WorkOrderDetailViewModel @Inject constructor(
     val error: StateFlow<String?> = _error.asStateFlow()
 
     // ---------------------------------------------------------------------------
-    // v3: close-out gate, codes, SLA, hold, vendor (contract §2)
+    // Close-out gate, codes, SLA, hold, vendor
     // ---------------------------------------------------------------------------
 
-    private val _codes = MutableStateFlow(DEFAULT_WO_CODES)
-    val codes: StateFlow<Map<WoCodeKind, List<WoCode>>> = _codes.asStateFlow()
+    val codes: StateFlow<Map<WoCodeKind, List<WoCode>>> = closeoutSupport.codes
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WoCloseoutSupport.DEFAULT_CODES)
 
-    private val _slaPolicy = MutableStateFlow(DEFAULT_SLA_POLICY)
-    val slaPolicy: StateFlow<Map<String, SlaWindow>> = _slaPolicy.asStateFlow()
+    /** Default SLA windows; per-work-order overrides live in `attributes.sla`. */
+    val slaPolicy: StateFlow<Map<String, SlaWindow>> = MutableStateFlow(DEFAULT_SLA_POLICY).asStateFlow()
 
-    /** Close-out opt-ins from account features (default false until loaded). */
-    private val _closeoutOptions = MutableStateFlow(WoCloseoutOptions())
-    val closeoutOptions: StateFlow<WoCloseoutOptions> = _closeoutOptions.asStateFlow()
+    val closeoutOptions: StateFlow<WoCloseoutOptions> = closeoutSupport.options
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WoCloseoutOptions())
 
     private val _showCloseout = MutableStateFlow(false)
     val showCloseout: StateFlow<Boolean> = _showCloseout.asStateFlow()
 
-    init {
-        viewModelScope.launch {
-            val accountId = identityManager.getActiveAccountId() ?: return@launch
-            _codes.value = woV3.codes(accountId)
-            _slaPolicy.value = woV3.slaPolicy(accountId)
-            _closeoutOptions.value = woV3.closeoutOptions(accountId)
-        }
-    }
-
     fun checklistStates(): List<ChecklistRowState> = checklistItems.value.map {
-        ChecklistRowState(required = isChecklistRowRequired(it.rowType), completed = it.isCompleted)
+        ChecklistRowState(required = isChecklistRowRequired(it.rowType, it.required), completed = it.completed)
     }
 
     fun dismissCloseout() { _showCloseout.value = false }
 
     fun completeWithCloseout(closeout: WoCloseout) {
-        val accountId = _accountId.value ?: return
         val wo = workOrder.value ?: return
-        val check = validateCloseout(closeout, !wo.assetId.isNullOrBlank(), checklistStates(), closeoutOptions.value)
+        val assetId = wo.primaryAssetId
+        val check = validateCloseout(closeout, assetId != null, checklistStates(), closeoutOptions.value)
         if (!check.ok) {
             _error.value = str(R.string.wo_closeout_missing, check.missing.joinToString(", ") { str(closeoutMissingRes(it)) })
             return
         }
-        viewModelScope.launch {
-            _isSaving.value = true
-            try {
-                woV3.complete(accountId, wo, closeout)
-                _showCloseout.value = false
-            } catch (e: Exception) {
-                Timber.e(e, "[WoDetailVM] completeWithCloseout failed")
-                _error.value = e.message
-            } finally {
-                _isSaving.value = false
-            }
+        launchSaving("completeWithCloseout") {
+            closeoutSupport.complete(wo, closeout)
+            _showCloseout.value = false
         }
     }
 
@@ -264,18 +237,8 @@ class WorkOrderDetailViewModel @Inject constructor(
     fun saveVendor(vendor: WoVendor) =
         patchAttributes(mapOf(WO_KEY_VENDOR to if (vendor.isEmpty && vendor.extra.isEmpty()) null else vendor.toJson()))
 
-    private fun patchAttributes(patch: Map<String, kotlinx.serialization.json.JsonElement?>) {
-        val accountId = _accountId.value ?: return
-        val wo = workOrder.value ?: return
-        viewModelScope.launch {
-            try {
-                woV3.patchAttributes(accountId, wo, patch)
-            } catch (e: Exception) {
-                Timber.e(e, "[WoDetailVM] patchAttributes failed")
-                _error.value = e.message
-            }
-        }
-    }
+    private fun patchAttributes(patch: Map<String, kotlinx.serialization.json.JsonElement?>) =
+        launchAction("patchAttributes") { repository.patchAttributes(woId, patch) }
 
     // ---------------------------------------------------------------------------
     // Pull-to-refresh
@@ -295,39 +258,15 @@ class WorkOrderDetailViewModel @Inject constructor(
     }
 
     // ---------------------------------------------------------------------------
-    // Approval workflow
+    // Approval workflow: pending_approval -> open (approve) or cancelled (reject)
     // ---------------------------------------------------------------------------
 
-    fun approveWorkOrder() {
-        val accountId = _accountId.value ?: return
-        val wo = workOrder.value ?: return
-        viewModelScope.launch {
-            try {
-                repository.upsert(accountId, wo.copy(
-                    approvalState = "approved",
-                    updatedAt = System.currentTimeMillis(),
-                ))
-            } catch (e: Exception) {
-                Timber.e(e, "approveWorkOrder failed")
-                _error.value = str(R.string.wo_error_approve_failed)
-            }
-        }
+    fun approveWorkOrder() = launchAction("approve", R.string.wo_error_approve_failed) {
+        repository.transition(woId, WorkOrderStatus.OPEN)
     }
 
-    fun rejectWorkOrder() {
-        val accountId = _accountId.value ?: return
-        val wo = workOrder.value ?: return
-        viewModelScope.launch {
-            try {
-                repository.upsert(accountId, wo.copy(
-                    approvalState = "rejected",
-                    updatedAt = System.currentTimeMillis(),
-                ))
-            } catch (e: Exception) {
-                Timber.e(e, "rejectWorkOrder failed")
-                _error.value = str(R.string.wo_error_reject_failed)
-            }
-        }
+    fun rejectWorkOrder() = launchAction("reject", R.string.wo_error_reject_failed) {
+        repository.transition(woId, WorkOrderStatus.CANCELLED)
     }
 
     // ---------------------------------------------------------------------------
@@ -336,16 +275,6 @@ class WorkOrderDetailViewModel @Inject constructor(
 
     private val _isEditingHeader = MutableStateFlow(false)
     val isEditingHeader: StateFlow<Boolean> = _isEditingHeader.asStateFlow()
-
-    /** Non-null while Scout has provided an RRULE for HITL review — drives the RepeatsSheet. */
-    private val _scoutRrule = MutableStateFlow<String?>(null)
-    val scoutRrule: StateFlow<String?> = _scoutRrule.asStateFlow()
-    fun clearScoutRrule() { _scoutRrule.value = null }
-
-    /** Called from the ScoutPaletteSheet onNavigate callback when target = "set_recurrence". */
-    fun onScoutRecurrence(fields: Map<String, String?>) {
-        formFillRouter.dispatch("set_recurrence", fields)
-    }
 
     private val _editTitle = MutableStateFlow("")
     val editTitle: StateFlow<String> = _editTitle.asStateFlow()
@@ -362,34 +291,12 @@ class WorkOrderDetailViewModel @Inject constructor(
     fun cancelEditingHeader() { _isEditingHeader.value = false }
 
     fun saveHeader() {
-        val accountId = _accountId.value ?: return
-        val wo = workOrder.value ?: return
-        viewModelScope.launch {
-            val title = _editTitle.value.trim()
-            if (title.isBlank()) return@launch
-            try {
-                val newDescription = _editDescription.value.trim().ifBlank { null }
-                // Change 3: send only the changed fields via PATCH instead of a full entity push.
-                serviceClient.patchWorkOrder(
-                    accountId,
-                    woId,
-                    WorkOrderPatch(
-                        title = title,
-                        description = newDescription,
-                    ),
-                )
-                repository.upsert(accountId, wo.copy(
-                    title = title,
-                    description = newDescription,
-                    updatedAt = System.currentTimeMillis(),
-                ))
-                _isEditingHeader.value = false
-                runCatching { syncEngine.sync() }
-                    .onFailure { Timber.w(it, "[WoDetailVM] sync after saveHeader failed") }
-            } catch (e: Exception) {
-                Timber.e(e, "[WoDetailVM] saveHeader failed")
-                _error.value = str(R.string.wo_error_save_failed)
-            }
+        val title = _editTitle.value.trim()
+        if (title.isBlank()) return
+        val description = _editDescription.value.trim().ifBlank { null }
+        launchAction("saveHeader", R.string.wo_error_save_failed) {
+            repository.edit(woId) { it.copy(title = title, description = description) }
+            _isEditingHeader.value = false
         }
     }
 
@@ -397,37 +304,7 @@ class WorkOrderDetailViewModel @Inject constructor(
     fun onEditDescriptionChanged(v: String) { _editDescription.value = v }
 
     // ---------------------------------------------------------------------------
-    // Audit history
-    // ---------------------------------------------------------------------------
-
-    private val _auditHistory = MutableStateFlow<List<AuditEntry>>(emptyList())
-    val auditHistory: StateFlow<List<AuditEntry>> = _auditHistory.asStateFlow()
-
-    private fun loadAuditHistory() {
-        viewModelScope.launch {
-            val accountId = _accountId.value ?: return@launch
-            try {
-                when (val result = serviceClient.getWorkOrderAudit(accountId, woId)) {
-                    is NetworkResult.Success -> {
-                        _auditHistory.value = result.data.map { event ->
-                            AuditEntry(
-                                description = event.event_type,
-                                createdAt = java.time.Instant.ofEpochMilli(event.occurred_at)
-                                    .atZone(java.time.ZoneId.systemDefault())
-                                    .format(java.time.format.DateTimeFormatter.ofPattern("MMM d, yyyy HH:mm")),
-                            )
-                        }
-                    }
-                    else -> { /* leave empty */ }
-                }
-            } catch (e: Exception) {
-                Timber.e(e, "[WoDetailVM] loadAuditHistory failed")
-            }
-        }
-    }
-
-    // ---------------------------------------------------------------------------
-    // Team chat thread
+    // Team chat thread (chat stays on REST)
     // ---------------------------------------------------------------------------
 
     private val _chatThreadId = MutableStateFlow<String?>(null)
@@ -435,442 +312,113 @@ class WorkOrderDetailViewModel @Inject constructor(
 
     private fun resolveWorkOrderThread() {
         viewModelScope.launch {
-            val accountId = _accountId.value ?: return@launch
+            val accountId = identityManager.getActiveAccountId() ?: return@launch
             try {
                 when (val result = serviceClient.resolveWoThread(accountId, woId)) {
                     is NetworkResult.Success -> _chatThreadId.value = result.data.thread_id
-                    else -> { /* leave null */ }
+                    else -> Unit
                 }
-
             } catch (e: Exception) {
                 Timber.e(e, "[WoDetailVM] resolveWorkOrderThread failed")
             }
         }
     }
 
-    private suspend fun buildMapPreview(wo: WorkOrderEntity): WorkOrderMapPreview? {
-        val accountId = _accountId.value ?: return null
-        val attrs = parseAttributes(wo.attributes)
-        val location = wo.locationId?.let { repository.getLocationById(accountId, it) }
-
-        val addressLine = firstNonBlank(
-            location?.address,
-            attrs["address_line1"],
-            attrs["street_address"],
-            attrs["address"],
-            attrs["formatted_address"],
-        )
-        val city = firstNonBlank(location?.city, attrs["city"])
-        val state = firstNonBlank(location?.state, attrs["state"])
-        val postalCode = firstNonBlank(location?.postalCode, attrs["postal_code"], attrs["zip_code"], attrs["zip"])
-        val country = firstNonBlank(location?.country, attrs["country"])
-        val address = listOfNotNull(addressLine, city, state, postalCode, country)
-            .filter { it.isNotBlank() }
-            .joinToString(", ")
-
-        var lat = location?.latitude ?: firstNonBlank(attrs["lat"], attrs["latitude"])?.toDoubleOrNull()
-        var lon = location?.longitude ?: firstNonBlank(attrs["lon"], attrs["lng"], attrs["longitude"])?.toDoubleOrNull()
-
-        if ((lat == null || lon == null) && address.isNotBlank()) {
-            when (val result = serviceClient.geocodeAddress(
-                accountId = accountId,
-                request = GeocodeRequest(
-                    address_line1 = addressLine ?: address,
-                    city = city,
-                    state = state,
-                    postal_code = postalCode,
-                    country = country,
-                ),
-            )) {
-                is NetworkResult.Success -> {
-                    lat = result.data.lat
-                    lon = result.data.lon
-                }
-                else -> Unit
-            }
-        }
-
-        return if (address.isBlank() && (lat == null || lon == null)) null
-        else WorkOrderMapPreview(address = address.ifBlank { "$lat, $lon" }, latitude = lat, longitude = lon)
-    }
-
-    private fun parseAttributes(raw: String?): Map<String, String> {
-        if (raw.isNullOrBlank()) return emptyMap()
-        return runCatching {
-            val obj = JSONObject(raw)
-            obj.keys().asSequence().associateWith { key -> obj.optString(key) }
-        }.getOrDefault(emptyMap())
-    }
-
-    private fun firstNonBlank(vararg values: String?): String? =
-        values.firstOrNull { !it.isNullOrBlank() }?.trim()
-
     // ---------------------------------------------------------------------------
-    // Status transition
+    // Status, assignment and edits
     // ---------------------------------------------------------------------------
 
     fun transitionStatus(targetStatus: WoStatus) {
-        val accountId = _accountId.value ?: return
-        val wo = workOrder.value ?: return
-        // Completion gate: completing always goes through the close-out sheet.
+        // Completion always goes through the close-out sheet.
         if (targetStatus == WoStatus.COMPLETE) {
             _showCloseout.value = true
             return
         }
-        viewModelScope.launch {
-            _isSaving.value = true
-            try {
-                val now = System.currentTimeMillis()
-                val updated = wo.copy(
-                    status = targetStatus.key,
-                    updatedAt = now,
-                    startedAt = if (targetStatus == WoStatus.IN_PROGRESS && wo.startedAt == null) now else wo.startedAt,
-                    completedAt = if (targetStatus == WoStatus.COMPLETE) now else wo.completedAt,
-                )
-                repository.upsert(accountId, updated)
-                // Mirror iOS: also push the status change to the server so it doesn't
-                // wait for the next full sync cycle (especially important for CANCELLED,
-                // which iOS posts immediately via transitionWorkOrderStatus).
-                try {
-                    serviceClient.transitionWorkOrderStatus(accountId, woId, targetStatus.key)
-                } catch (e: Exception) {
-                    Timber.w(e, "[WoDetailVM] status server call failed — will retry via sync")
-                }
-            } catch (e: Exception) {
-                Timber.e(e, "[WoDetailVM] transitionStatus failed")
-                _error.value = e.message
-            } finally {
-                _isSaving.value = false
-            }
-        }
+        launchSaving("transitionStatus") { repository.transition(woId, targetStatus.domain) }
     }
 
-    // ---------------------------------------------------------------------------
-    // Self-claim (tech claims unassigned WO from the detail screen)
-    // ---------------------------------------------------------------------------
-
-    /**
-     * Mirrors iOS WorkOrderDetailViewController.claimTapped().
-     * Optimistically marks the WO as assigned to the current user, then fires the
-     * server claim endpoint.  On 409 (already claimed) the optimistic local update is
-     * reverted and [error] is surfaced so the UI can show an appropriate message.
-     */
-    fun claimWorkOrder(onConflict: () -> Unit = {}) {
-        val accountId = _accountId.value ?: return
-        val wo = workOrder.value ?: return
-        viewModelScope.launch {
-            _isSaving.value = true
-            try {
-                val userId = identityManager.getActiveUserId() ?: identityManager.getActiveAccountId() ?: return@launch
-                val now = System.currentTimeMillis()
-                // Optimistic local update
-                repository.upsert(accountId, wo.copy(
-                    assignedTo = userId,
-                    status = WoStatus.ASSIGNED.key,
-                    updatedAt = now,
-                ))
-                when (val result = serviceClient.claimWorkOrder(accountId, woId)) {
-                    is NetworkResult.Success -> syncEngine.sync()
-                    is NetworkResult.Error -> {
-                        // Revert optimistic update and surface the conflict
-                        repository.upsert(accountId, wo)
-                        if (result.code == 409) {
-                            onConflict()
-                            _error.value = str(R.string.wo_error_claimed_by_other)
-                        } else {
-                            _error.value = str(R.string.wo_error_claim_failed)
-                        }
-                    }
-                    else -> {
-                        repository.upsert(accountId, wo)
-                        _error.value = str(R.string.wo_error_claim_failed)
-                    }
-                }
-            } catch (e: Exception) {
-                Timber.e(e, "[WoDetailVM] claimWorkOrder failed")
-                _error.value = e.message
-            } finally {
-                _isSaving.value = false
-            }
-        }
+    /** Assigns the work order to the signed-in user as lead; the server rejects the claim if someone else got it first. */
+    fun claimWorkOrder() {
+        val userId = identityManager.getActiveUserId() ?: return
+        launchSaving("claim", R.string.wo_error_claim_failed) { repository.assign(woId, userId, lead = true) }
     }
 
-    // ---------------------------------------------------------------------------
-    // Assign tech (dispatcher assigns a specific technician)
-    // ---------------------------------------------------------------------------
+    /** Assigns the technician with user id [techUserId]. */
+    fun assignTech(techUserId: String, lead: Boolean = true) =
+        launchSaving("assignTech") { repository.assign(woId, techUserId, lead = lead) }
 
-    /**
-     * Mirrors iOS WorkOrderDetailViewController.presentTechPicker / TechPickerViewController.
-     * Writes the assignment locally then pushes to the server via patchWorkOrder.
-     * [techId] is the userId of the technician to assign.
-     */
-    fun assignTech(techId: String) {
-        val accountId = _accountId.value ?: return
-        val wo = workOrder.value ?: return
-        viewModelScope.launch {
-            _isSaving.value = true
-            try {
-                val now = System.currentTimeMillis()
-                repository.upsert(accountId, wo.copy(
-                    assignedTo = techId,
-                    status = WoStatus.ASSIGNED.key,
-                    updatedAt = now,
-                ))
-                // Persist assignment record
-                val assignment = WoAssignmentEntity(
-                    assignmentId = UUID.randomUUID().toString(),
-                    woId = woId,
-                    accountId = accountId,
-                    technicianId = techId,
-                    assignedBy = identityManager.getActiveUserId(),
-                    assignedAt = now,
-                    unassignedAt = null,
-                    scheduledStart = null,
-                    scheduledEnd = null,
-                    status = "pending",
-                    notes = null,
-                    ekEventIdentifier = null,
-                    serverVersion = 0L,
-                    seq = null,
-                )
-                repository.upsertAssignment(accountId, assignment)
-                // Change 3: push only the assignment field via PATCH instead of a full entity sync.
-                serviceClient.patchWorkOrder(
-                    accountId,
-                    woId,
-                    WorkOrderPatch(assigned_to = techId),
-                )
-            } catch (e: Exception) {
-                Timber.e(e, "[WoDetailVM] assignTech failed")
-                _error.value = e.message
-            } finally {
-                _isSaving.value = false
-            }
-        }
-    }
+    fun acceptAssignment(assignmentId: String) =
+        launchAction("acceptAssignment") { repository.respondToAssignment(assignmentId, accept = true) }
 
-    // ---------------------------------------------------------------------------
-    // Accept / Decline assignment (pending-assignment response by assignee)
-    // ---------------------------------------------------------------------------
+    fun declineAssignment(assignmentId: String) =
+        launchAction("declineAssignment") { repository.respondToAssignment(assignmentId, accept = false) }
 
-    /**
-     * Mirrors iOS WorkOrderDetailViewController.handleAssignmentResponse(accepted: true).
-     * Calls the server accept endpoint; local assignment status is updated via the
-     * next sync pull (server is the source of truth for assignment status).
-     */
-    fun acceptAssignment(assignmentId: String) {
-        val accountId = _accountId.value ?: return
-        viewModelScope.launch {
-            try {
-                serviceClient.acceptAssignment(accountId, woId, assignmentId)
-                syncEngine.sync()
-            } catch (e: Exception) {
-                Timber.e(e, "[WoDetailVM] acceptAssignment failed")
-                _error.value = e.message
-            }
-        }
-    }
+    fun saveDispatcherNotes(notes: String) =
+        launchAction("saveDispatcherNotes") { repository.edit(woId) { it.copy(dispatcherNotes = notes.trim().ifBlank { null }) } }
 
-    /**
-     * Mirrors iOS WorkOrderDetailViewController.handleAssignmentResponse(accepted: false).
-     */
-    fun declineAssignment(assignmentId: String) {
-        val accountId = _accountId.value ?: return
-        viewModelScope.launch {
-            try {
-                serviceClient.declineAssignment(accountId, woId, assignmentId)
-                syncEngine.sync()
-            } catch (e: Exception) {
-                Timber.e(e, "[WoDetailVM] declineAssignment failed")
-                _error.value = e.message
-            }
-        }
-    }
-
-    // ---------------------------------------------------------------------------
-    // Budget pill
-    // ---------------------------------------------------------------------------
-
-    /**
-     * Mirrors iOS WorkOrderDetailViewController.loadRelatedData() → fetchBudgetPill.
-     * Shows remaining / total budget for the WO's linked budget if any.
-     */
-    private val _budgetPill = MutableStateFlow<BudgetPillResponse?>(null)
-    val budgetPill: StateFlow<BudgetPillResponse?> = _budgetPill.asStateFlow()
-
-    private fun loadBudgetPill() {
-        viewModelScope.launch {
-            val accountId = _accountId.value ?: return@launch
-            try {
-                when (val result = serviceClient.getWorkOrderBudgetPill(accountId, woId)) {
-                    is NetworkResult.Success -> _budgetPill.value = result.data
-                    else -> { /* no budget configured for this WO — leave null */ }
-                }
-            } catch (e: Exception) {
-                Timber.d(e, "[WoDetailVM] loadBudgetPill failed (non-critical)")
-            }
-        }
-    }
-
-    // ---------------------------------------------------------------------------
-    // Dispatcher notes auto-save
-    // ---------------------------------------------------------------------------
-
-    fun saveDispatcherNotes(notes: String) {
-        val accountId = _accountId.value ?: return
-        val wo = workOrder.value ?: return
-        viewModelScope.launch {
-            try {
-                repository.upsert(accountId, wo.copy(
-                    dispatcherNotes = notes.ifBlank { null },
-                    updatedAt = System.currentTimeMillis(),
-                ))
-            } catch (e: Exception) {
-                Timber.e(e, "[WoDetailVM] saveDispatcherNotes failed")
-            }
-        }
-    }
-
-    // ---------------------------------------------------------------------------
-    // Checklist toggle
-    // ---------------------------------------------------------------------------
-
-    fun toggleChecklistItem(item: WoChecklistItemEntity) {
-        val accountId = _accountId.value ?: return
-        val now = System.currentTimeMillis()
-        viewModelScope.launch {
-            val updated = item.copy(
-                isCompleted = !item.isCompleted,
-                completedAt = if (!item.isCompleted) now else null,
-            )
-            repository.upsertChecklistItem(accountId, updated)
-        }
-    }
+    fun toggleChecklistItem(item: ChecklistItem) =
+        launchAction("toggleChecklistItem") { repository.setChecklistCompleted(item.id, !item.completed) }
 
     fun addChecklistItem(title: String) {
-        val accountId = _accountId.value ?: return
         if (title.isBlank()) return
-        val now = System.currentTimeMillis()
-        val existingCount = checklistItems.value.size.toLong()
-        viewModelScope.launch {
-            val item = WoChecklistItemEntity(
-                itemId = UUID.randomUUID().toString(),
-                woId = woId,
-                title = title.trim(),
-                isCompleted = false,
-                completedAt = null,
-                displayOrder = existingCount,
-                serverVersion = 0L,
-                seq = null,
-            )
-            repository.upsertChecklistItem(accountId, item)
-        }
+        launchAction("addChecklistItem") { repository.addChecklistItem(woId, title.trim()) }
     }
-
-    // ---------------------------------------------------------------------------
-    // Comments
-    // ---------------------------------------------------------------------------
 
     fun addComment(body: String) {
-        val accountId = _accountId.value ?: return
-        val authorId = identityManager.getActiveAccountId() ?: return
         if (body.isBlank()) return
-        viewModelScope.launch {
-            val now = System.currentTimeMillis()
-            val comment = WoCommentEntity(
-                commentId = UUID.randomUUID().toString(),
-                woId = woId,
-                authorId = authorId,
-                body = body.trim(),
-                createdAt = now,
-                updatedAt = now,
-                deletedAt = null,
-                serverVersion = 0L,
-                seq = null,
-            )
-            repository.upsertComment(accountId, comment)
-        }
+        launchAction("addComment") { repository.addComment(woId, body.trim()) }
     }
 
-    // ---------------------------------------------------------------------------
-    // Delete WO
-    // ---------------------------------------------------------------------------
-
+    /** Skips the PM occurrence this work order belongs to. */
     fun skipOccurrence(reason: String, onSkipped: () -> Unit) {
-        val accountId = _accountId.value ?: return
-        viewModelScope.launch {
-            try {
-                serviceClient.skipOccurrence(accountId, woId, reason)
-                onSkipped()
-            } catch (e: Exception) {
-                Timber.e(e, "[WoDetailVM] skipOccurrence failed")
-                _error.value = str(R.string.wo_error_skip_failed)
-            }
+        val occurrence = pmOccurrence.value ?: return
+        launchAction("skipOccurrence", R.string.wo_error_skip_failed) {
+            pm.skip(occurrence.id, reason)
+            onSkipped()
         }
     }
 
-    fun deleteWorkOrder(onDeleted: () -> Unit) {
-        val accountId = _accountId.value ?: return
-        viewModelScope.launch {
-            try {
-                repository.softDelete(accountId, woId)
-                onDeleted()
-            } catch (e: Exception) {
-                Timber.e(e, "[WoDetailVM] deleteWorkOrder failed")
-                _error.value = str(R.string.wo_error_delete_failed)
-            }
-        }
+    fun deleteWorkOrder(onDeleted: () -> Unit) = launchAction("delete", R.string.wo_error_delete_failed) {
+        repository.delete(woId)
+        onDeleted()
     }
 
     fun saveAsTemplate(name: String) {
-        val accountId = _accountId.value ?: return
         val wo = workOrder.value ?: return
         if (name.isBlank()) return
-        val now = System.currentTimeMillis()
-        viewModelScope.launch {
-            val template = WoTemplateEntity(
-                templateId = UUID.randomUUID().toString(),
-                accountId = accountId,
-                title = name.trim(),
-                description = wo.description,
-                category = wo.category,
-                checklistItems = null,
-                estimatedEffortMinutes = wo.estimatedEffortMinutes,
-                createdAt = now,
-                updatedAt = now,
-                deletedAt = null,
-                serverVersion = 0L,
+        launchAction("saveAsTemplate", R.string.wo_error_save_failed) {
+            repository.createTemplate(
+                WorkOrderTemplateDraft(
+                    title = name.trim(),
+                    descriptionTemplate = wo.description,
+                    category = wo.categoryName,
+                    priority = wo.priority,
+                    estimatedEffortMinutes = wo.estimatedEffortMinutes,
+                    requiredSkills = wo.requiredSkills,
+                ),
             )
-            try {
-                repository.upsertTemplate(accountId, template)
-            } catch (e: Exception) {
-                Timber.e(e, "[WoDetailVM] saveAsTemplate failed")
-            }
         }
     }
 
+    fun reschedule(newDate: java.time.LocalDate) {
+        val dueMs = newDate.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        launchSaving("reschedule") { repository.edit(woId) { it.copy(dueAt = dueMs) } }
+    }
+
     fun exportPdf(context: Context) {
-        val currentWo = workOrder.value ?: return
-        val currentAssignments = assignments.value
+        val current = detail.value ?: return
         viewModelScope.launch {
             try {
-                val file = withContext(Dispatchers.IO) {
-                    createWorkOrderPdf(context, currentWo, currentAssignments)
-                }
+                val file = withContext(Dispatchers.IO) { createWorkOrderPdf(context, current) }
                 val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
                     type = "application/pdf"
                     putExtra(Intent.EXTRA_STREAM, uri)
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
-                val chooser = Intent.createChooser(
-                    shareIntent,
-                    context.getString(com.avago.feature.workorders.R.string.wo_pdf_share_chooser),
-                ).apply {
+                val chooser = Intent.createChooser(shareIntent, context.getString(R.string.wo_pdf_share_chooser)).apply {
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    if (context !is Activity) {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
+                    if (context !is Activity) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 context.startActivity(chooser)
             } catch (e: Exception) {
@@ -880,85 +428,32 @@ class WorkOrderDetailViewModel @Inject constructor(
         }
     }
 
-    // ---------------------------------------------------------------------------
-    // Recurrence
-    // ---------------------------------------------------------------------------
-
-    fun reschedule(newDate: java.time.LocalDate) {
-        val accountId = _accountId.value ?: return
-        val wo = workOrder.value ?: return
-        viewModelScope.launch {
-            _isSaving.value = true
-            try {
-                val newDueMs = newDate.atStartOfDay(java.time.ZoneId.systemDefault())
-                    .toInstant()
-                    .toEpochMilli()
-                repository.upsert(accountId, wo.copy(
-                    dueDate = newDueMs,
-                    updatedAt = System.currentTimeMillis(),
-                ))
-            } catch (e: Exception) {
-                Timber.e(e, "[WoDetailVM] reschedule failed")
-                _error.value = e.message
-            } finally {
-                _isSaving.value = false
-            }
-        }
-    }
-
-    /**
-     * Save recurrence rule + end-type metadata.
-     *
-     * Mirrors iOS persistRepeats() which writes rrule, endType, endCount, endDate,
-     * and woKind together so the detail screen can reconstruct the full RepeatsConfig.
-     * Passing a blank/null rrule clears the rule (one-off).
-     *
-     * @param rrule     RRULE string, e.g. "FREQ=WEEKLY;INTERVAL=1". Pass "" to clear.
-     * @param endType   "never" | "count" | "date" | null (null → "never")
-     * @param endCount  Occurrence limit when endType == "count", else null.
-     * @param endDate   Epoch-millis cutoff when endType == "date", else null.
-     */
-    fun saveRecurrence(
-        rrule: String,
-        endType: String? = null,
-        endCount: Long? = null,
-        endDate: Long? = null,
-    ) {
-        val accountId = _accountId.value ?: return
-        val wo = workOrder.value ?: return
-        viewModelScope.launch {
-            _isSaving.value = true
-            try {
-                val isClearing = rrule.isBlank()
-                val updated = wo.copy(
-                    rrule = if (isClearing) null else rrule,
-                    woKind = if (isClearing) "one_off" else "recurring_parent",
-                    endType = if (isClearing) null else (endType ?: "never"),
-                    endCount = if (endType == "count") endCount else null,
-                    endDate = if (endType == "date") endDate else null,
-                    updatedAt = System.currentTimeMillis(),
-                )
-                repository.upsert(accountId, updated)
-                // POST to server asynchronously
-                try {
-                    serviceClient.updateWorkOrderRecurrence(accountId, woId, rrule)
-                } catch (e: Exception) {
-                    Timber.w(e, "[WoDetailVM] recurrence server POST failed — will retry via sync")
-                }
-            } catch (e: Exception) {
-                Timber.e(e, "[WoDetailVM] saveRecurrence failed")
-                _error.value = e.message
-            } finally {
-                _isSaving.value = false
-            }
-        }
-    }
-
     fun clearError() { _error.value = null }
 
-    // ---------------------------------------------------------------------------
-    // Init
-    // ---------------------------------------------------------------------------
+    private fun launchAction(name: String, @StringRes fallback: Int? = null, block: suspend () -> Unit) {
+        viewModelScope.launch {
+            try {
+                block()
+            } catch (e: Exception) {
+                Timber.e(e, "[WoDetailVM] $name failed")
+                _error.value = e.message ?: fallback?.let { str(it) }
+            }
+        }
+    }
+
+    private fun launchSaving(name: String, @StringRes fallback: Int? = null, block: suspend () -> Unit) {
+        viewModelScope.launch {
+            _isSaving.value = true
+            try {
+                block()
+            } catch (e: Exception) {
+                Timber.e(e, "[WoDetailVM] $name failed")
+                _error.value = e.message ?: fallback?.let { str(it) }
+            } finally {
+                _isSaving.value = false
+            }
+        }
+    }
 
     init {
         screenContextStore.setWorkOrderScope(woId)
@@ -974,30 +469,17 @@ class WorkOrderDetailViewModel @Inject constructor(
             }
             changed
         }
-        formFillRouter.register("set_recurrence") { fields ->
-            val rrule = fields["rrule"]?.ifBlank { null }
-            if (rrule != null) {
-                _scoutRrule.value = rrule
-                listOf("rrule")
-            } else emptyList()
-        }
-        loadAuditHistory()
         resolveWorkOrderThread()
-        loadBudgetPill()
     }
 
     override fun onCleared() {
         formFillRouter.unregister("wo_detail")
-        formFillRouter.unregister("set_recurrence")
         super.onCleared()
     }
 }
 
-private fun createWorkOrderPdf(
-    context: Context,
-    workOrder: WorkOrderEntity,
-    assignments: List<WoAssignmentEntity>,
-): File {
+private fun createWorkOrderPdf(context: Context, detail: WorkOrderDetail): File {
+    val workOrder = detail.workOrder
     val document = PdfDocument()
     val pageInfo = PdfDocument.PageInfo.Builder(612, 792, 1).create()
     val page = document.startPage(pageInfo)
@@ -1014,9 +496,7 @@ private fun createWorkOrderPdf(
         textSize = 14f
         typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     }
-    val bodyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        textSize = 12f
-    }
+    val bodyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 12f }
     val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textSize = 12f
         typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
@@ -1028,11 +508,17 @@ private fun createWorkOrderPdf(
         y = drawWrappedPdfText(canvas, description, margin, y, contentWidth, bodyPaint) + 18f
     }
 
+    val totalCost = detail.costLines.fold(BigDecimal.ZERO) { acc, l -> acc + l.total }
     val detailRows = listOf(
-        "Status" to (workOrder.status?.replace('_', ' ')?.replaceFirstChar { it.uppercase() } ?: "—"),
-        "Priority" to (workOrder.priority?.replaceFirstChar { it.uppercase() } ?: "—"),
-        "Due Date" to (workOrder.dueDate?.let { java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault()).toLocalDate().toString() } ?: "—"),
-        "Total Cost" to (workOrder.totalCost?.let { Formatters.formatCurrency(it, workOrder.currency) } ?: "—"),
+        context.getString(R.string.wo_pdf_status) to workOrder.status.wire.replace('_', ' ').replaceFirstChar { it.uppercase() },
+        context.getString(R.string.wo_pdf_priority) to workOrder.priority.wire.replaceFirstChar { it.uppercase() },
+        context.getString(R.string.wo_pdf_due_date) to (
+            workOrder.dueAt?.let { java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault()).toLocalDate().toString() }
+                ?: "\u2014"
+            ),
+        context.getString(R.string.wo_pdf_total_cost) to (
+            if (detail.costLines.isEmpty()) "\u2014" else Formatters.formatCurrency(totalCost.toDouble(), workOrder.currency)
+            ),
     )
     detailRows.forEach { (label, value) ->
         canvas.drawText("$label:", margin, y, labelPaint)
@@ -1040,15 +526,15 @@ private fun createWorkOrderPdf(
         y += 16f
     }
 
-    canvas.drawText("Assignments", margin, y, sectionPaint)
+    canvas.drawText(context.getString(R.string.wo_pdf_assignments), margin, y, sectionPaint)
     y += 18f
-    if (assignments.isEmpty()) {
-        y = drawWrappedPdfText(canvas, "Unassigned", margin, y, contentWidth, bodyPaint) + 8f
+    if (detail.assignments.isEmpty()) {
+        y = drawWrappedPdfText(canvas, context.getString(R.string.wo_pdf_unassigned), margin, y, contentWidth, bodyPaint) + 8f
     } else {
-        assignments.forEach { assignment ->
+        detail.assignments.forEach { assignment ->
             y = drawWrappedPdfText(
                 canvas,
-                "• ${assignment.technicianId}",
+                "\u2022 ${assignment.workerName ?: assignment.workerId}",
                 margin,
                 y,
                 contentWidth,
@@ -1058,7 +544,7 @@ private fun createWorkOrderPdf(
     }
 
     document.finishPage(page)
-    val file = File(context.cacheDir, "wo_${workOrder.woId}.pdf")
+    val file = File(context.cacheDir, "wo_${workOrder.id}.pdf")
     file.outputStream().use(document::writeTo)
     document.close()
     return file

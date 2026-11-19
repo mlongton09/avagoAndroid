@@ -2,10 +2,11 @@ package com.avago.nav
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
 import com.avago.core.data.FeatureFlags
 import com.avago.feature.chat.data.ChatRepository
-import com.avago.feature.workorders.repository.WorkOrderRepository
+import com.avago.core.data.domain.WorkOrderFilter
+import com.avago.core.data.domain.WorkOrderRepository
+import com.avago.core.data.domain.WorkerRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.delay
 import java.time.Duration
@@ -25,7 +27,7 @@ class NavFlagsViewModel @Inject constructor(
     private val featureFlags: FeatureFlags,
     chatRepository: ChatRepository,
     workOrderRepository: WorkOrderRepository,
-    identityManager: IdentityManager,
+    workers: WorkerRepository,
 ) : ViewModel() {
 
     val chatEnabled: StateFlow<Boolean> = featureFlags.observeChatEnabled()
@@ -58,12 +60,12 @@ class NavFlagsViewModel @Inject constructor(
      */
     @OptIn(ExperimentalCoroutinesApi::class)
     val upcomingMineWorkOrderCount: StateFlow<Int> =
-        combine(identityManager.activeAccountId, identityManager.activeUserId, ticker(Duration.ofSeconds(60))) {
-            account, user, upper -> Triple(account, user, upper)
-        }.flatMapLatest { (account, user, upper) ->
-            if (account.isNullOrEmpty() || user.isNullOrEmpty()) flowOf(0)
-            else workOrderRepository.observeUpcomingMineCount(account, user, upper)
-        }
+        combine(workers.observeMe(), ticker(Duration.ofSeconds(60))) { me, upper -> me?.id to upper }
+            .flatMapLatest { (workerId, upper) ->
+                if (workerId == null) flowOf(0)
+                else workOrderRepository.observeWorkOrders(WorkOrderFilter(assignedWorkerId = workerId, dueTo = upper))
+                    .map { list -> list.count { !it.status.isTerminal } }
+            }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 }
 

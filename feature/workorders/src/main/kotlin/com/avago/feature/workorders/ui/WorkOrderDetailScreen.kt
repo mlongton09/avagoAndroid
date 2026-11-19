@@ -77,7 +77,6 @@ import com.avago.feature.workorders.model.WoPriority
 import com.avago.feature.workorders.model.WoStatus
 import com.avago.feature.workorders.model.WoTransition
 import com.avago.feature.workorders.model.availableTransitions
-import com.avago.feature.workorders.model.summariseRrule
 import com.avago.feature.workorders.model.ChecklistRowState
 import com.avago.feature.workorders.model.WoCloseout
 import com.avago.feature.workorders.model.WoHold
@@ -93,11 +92,11 @@ import com.avago.feature.workorders.ui.components.woStatusLabel
 import com.avago.feature.workorders.ui.sheets.WoCloseoutSheet
 import com.avago.feature.workorders.ui.components.AssigneeAvatar
 import com.avago.feature.workorders.ui.components.priorityBarColor
-import com.avago.feature.workorders.ui.sheets.RepeatsSheet
 import com.avago.feature.workorders.ui.sheets.RescheduleSheet
 import com.avago.feature.workorders.ui.sheets.TechPickerSheet
-import com.avago.core.network.model.BudgetPillResponse
-import com.avago.feature.workorders.viewmodel.AuditEntry
+import com.avago.core.data.Formatters
+import com.avago.core.data.domain.CostLineType
+import com.avago.core.data.domain.WorkOrderStatus
 import com.avago.feature.workorders.viewmodel.WorkOrderDetailViewModel
 import com.avago.feature.workorders.viewmodel.WorkOrderMapPreview
 import java.time.Instant
@@ -126,10 +125,11 @@ fun WorkOrderDetailScreen(
     val assignments by viewModel.assignments.collectAsStateWithLifecycle()
     val checklistItems by viewModel.checklistItems.collectAsStateWithLifecycle()
     val comments by viewModel.comments.collectAsStateWithLifecycle()
-    val budgetPill by viewModel.budgetPill.collectAsStateWithLifecycle()
+    val detail by viewModel.detail.collectAsStateWithLifecycle()
+    val me by viewModel.me.collectAsStateWithLifecycle()
+    val pmOccurrence by viewModel.pmOccurrence.collectAsStateWithLifecycle()
     val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
-    val auditHistory by viewModel.auditHistory.collectAsStateWithLifecycle()
     val chatThreadId by viewModel.chatThreadId.collectAsStateWithLifecycle()
     val isEditingHeader by viewModel.isEditingHeader.collectAsStateWithLifecycle()
     val editTitle by viewModel.editTitle.collectAsStateWithLifecycle()
@@ -138,18 +138,11 @@ fun WorkOrderDetailScreen(
     val canApprove by viewModel.canApprove.collectAsStateWithLifecycle()
     val canDelete by viewModel.canDelete.collectAsStateWithLifecycle()
     val mapPreview by viewModel.mapPreview.collectAsStateWithLifecycle()
-    val scoutRrule by viewModel.scoutRrule.collectAsStateWithLifecycle()
 
     var showScoutSheet by remember { mutableStateOf(false) }
     var showOverflowMenu by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showTechPicker by remember { mutableStateOf(false) }
-    var showRepeatsSheet by remember { mutableStateOf(false) }
-
-    // When Scout provides an RRULE (HITL-on), open the repeats sheet pre-filled.
-    LaunchedEffect(scoutRrule) {
-        if (scoutRrule != null) showRepeatsSheet = true
-    }
     var showRescheduleSheet by remember { mutableStateOf(false) }
     var showSkipDialog by remember { mutableStateOf(false) }
     var skipReason by remember { mutableStateOf("") }
@@ -168,9 +161,9 @@ fun WorkOrderDetailScreen(
             WoCloseoutSheet(
                 initial = WoCloseout.from(parseWoAttributes(current.attributes)),
                 codes = woCodes,
-                hasAsset = !current.assetId.isNullOrBlank(),
+                hasAsset = current.primaryAssetId != null,
                 checklist = checklistItems.map {
-                    ChecklistRowState(isChecklistRowRequired(it.rowType), it.isCompleted)
+                    ChecklistRowState(isChecklistRowRequired(it.rowType, it.required), it.completed)
                 },
                 options = closeoutOptions,
                 defaultMeter = null,
@@ -187,7 +180,7 @@ fun WorkOrderDetailScreen(
         if (shouldShowLogView) onNavigateToLogScreen?.invoke()
     }
 
-    LaunchedEffect(wo?.woId) {
+    LaunchedEffect(wo?.id) {
         if (!dispatcherNotesInitialized && wo != null) {
             dispatcherNotesDraft = wo?.dispatcherNotes ?: ""
             dispatcherNotesInitialized = true
@@ -220,9 +213,13 @@ fun WorkOrderDetailScreen(
 
     if (showTechPicker) {
         TechPickerSheet(
-            selectedTechIds = assignments.map { it.technicianId },
+            selectedTechIds = assignments.mapNotNull { it.workerUserId },
             onDismiss = { showTechPicker = false },
-            onConfirm = {
+            onConfirm = { userIds ->
+                val assigned = assignments.mapNotNull { it.workerUserId }.toSet()
+                userIds.filter { it !in assigned }.forEachIndexed { index, userId ->
+                    viewModel.assignTech(userId, lead = assignments.isEmpty() && index == 0)
+                }
                 showTechPicker = false
             },
             woId = woId,
@@ -230,7 +227,7 @@ fun WorkOrderDetailScreen(
     }
 
     if (showRescheduleSheet) {
-        val currentDueDate = wo?.dueDate?.let { ms ->
+        val currentDueDate = wo?.dueAt?.let { ms ->
             Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).toLocalDate()
         }
         RescheduleSheet(
@@ -239,24 +236,6 @@ fun WorkOrderDetailScreen(
             onConfirm = { newDate ->
                 viewModel.reschedule(newDate)
                 showRescheduleSheet = false
-            },
-        )
-    }
-
-    if (showRepeatsSheet) {
-        RepeatsSheet(
-            currentRrule = scoutRrule ?: wo?.rrule,
-            currentEndType = wo?.endType,
-            currentEndCount = wo?.endCount?.toInt(),
-            currentEndDateMs = wo?.endDate,
-            onDismiss = {
-                showRepeatsSheet = false
-                viewModel.clearScoutRrule()
-            },
-            onSave = { rrule ->
-                viewModel.saveRecurrence(rrule)
-                showRepeatsSheet = false
-                viewModel.clearScoutRrule()
             },
         )
     }
@@ -274,7 +253,7 @@ fun WorkOrderDetailScreen(
                 }
                 if (onLogWork != null) {
                     FloatingActionButton(
-                        onClick = { onLogWork(wo?.assetId) },
+                        onClick = { onLogWork(wo?.primaryAssetId) },
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = Color.White,
                     ) {
@@ -323,7 +302,7 @@ fun WorkOrderDetailScreen(
                                     showRescheduleSheet = true
                                 },
                             )
-                            if (!wo?.rrule.isNullOrBlank()) {
+                            if (pmOccurrence != null) {
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.wo_skip_title)) },
                                     leadingIcon = {
@@ -407,12 +386,9 @@ fun WorkOrderDetailScreen(
             ScoutPaletteSheet(
                 visible = true,
                 onDismiss = { showScoutSheet = false },
-                onNavigate = { targetScreen, fields ->
+                onNavigate = { targetScreen, _ ->
                     when (targetScreen) {
-                        "log_entry" -> onLogWork?.invoke(wo?.assetId)
-                        "set_recurrence" -> {
-                            viewModel.onScoutRecurrence(fields)
-                        }
+                        "log_entry" -> onLogWork?.invoke(wo?.primaryAssetId)
                         else -> Unit
                     }
                     showScoutSheet = false
@@ -433,11 +409,15 @@ fun WorkOrderDetailScreen(
         }
 
         val currentWo = wo ?: return@Scaffold
-        val transitionStatus = transitionStatusFor(currentWo.status)
-        val transitions = transitionStatus.availableTransitions()
-        val primaryAssignee = assignments.firstOrNull()?.technicianId
-            ?: currentWo.assignedTo
+        val transitions = WoStatus.fromDomain(currentWo.status).availableTransitions()
+        val primaryAssignee = currentWo.assignedWorkerName
+            ?: assignments.firstOrNull()?.workerName
             ?: stringResource(R.string.wo_detail_no_technicians)
+        val costLines = detail?.costLines.orEmpty()
+        val laborTotal = costLines.filter { it.kind == CostLineType.LABOR }.sumOf { it.total }
+        val partsTotal = costLines.filter { it.kind == CostLineType.PART }.sumOf { it.total }
+        val costTotal = costLines.sumOf { it.total }
+        val myPendingAssignment = assignments.firstOrNull { it.workerId == me?.id && it.acceptanceStatus == "pending" }
 
         PullToRefreshBox(
             isRefreshing = isRefreshing,
@@ -454,7 +434,7 @@ fun WorkOrderDetailScreen(
             ) {
                 if (canApprove) {
                     ApprovalBanner(
-                        approvalState = currentWo.approvalState,
+                        pending = currentWo.status == WorkOrderStatus.PENDING_APPROVAL || currentWo.approvalState == "pending",
                         onApprove = viewModel::approveWorkOrder,
                         onReject = viewModel::rejectWorkOrder,
                     )
@@ -466,9 +446,9 @@ fun WorkOrderDetailScreen(
                     HeaderCard(
                         title = currentWo.title,
                         description = currentWo.description,
-                        priority = currentWo.priority,
-                        category = currentWo.category,
-                        statusKey = currentWo.status,
+                        priority = currentWo.priority.wire,
+                        category = currentWo.categoryName,
+                        statusKey = currentWo.status.wire,
                         isEditing = isEditingHeader,
                         editTitle = editTitle,
                         editDescription = editDescription,
@@ -484,7 +464,10 @@ fun WorkOrderDetailScreen(
                         Spacer(modifier = Modifier.height(12.dp))
                         TransitionsCard(
                             transitions = transitions,
-                            onTransition = { viewModel.transitionStatus(it.targetStatus) },
+                            onTransition = {
+                                if (it == WoTransition.Assign) showTechPicker = true
+                                else viewModel.transitionStatus(it.targetStatus)
+                            },
                         )
                     }
 
@@ -492,7 +475,7 @@ fun WorkOrderDetailScreen(
                     WoSlaChip(wo = currentWo, policy = slaPolicy)
 
                     val v3Attrs = remember(currentWo.attributes) { parseWoAttributes(currentWo.attributes) }
-                    if (currentWo.status?.lowercase() in setOf("assigned", "in_progress", "on_hold")) {
+                    if (currentWo.status in setOf(WorkOrderStatus.ASSIGNED, WorkOrderStatus.IN_PROGRESS, WorkOrderStatus.ON_HOLD)) {
                         Spacer(modifier = Modifier.height(12.dp))
                         WoHoldEditor(
                             hold = WoHold.from(v3Attrs),
@@ -505,11 +488,11 @@ fun WorkOrderDetailScreen(
                     val vendorInfo = remember(v3Attrs) { WoVendor.from(v3Attrs) }
                     if (vendorInfo.estimateTotal != null || vendorInfo.invoiceTotal != null) {
                         Spacer(modifier = Modifier.height(12.dp))
-                        val linesTotal = (currentWo.laborCost ?: 0.0) + (currentWo.partsCost ?: 0.0)
+                        val linesTotal = costTotal.toDouble().takeIf { it > 0 }
                         WoEstimateVsActual(
                             vendor = vendorInfo,
-                            linesTotal = linesTotal.takeIf { it > 0 },
-                            woTotal = currentWo.totalCost,
+                            linesTotal = linesTotal,
+                            woTotal = linesTotal,
                             currency = currentWo.currency,
                         )
                     }
@@ -526,11 +509,6 @@ fun WorkOrderDetailScreen(
                         )
                     }
 
-                    budgetPill?.let { pill ->
-                        Spacer(modifier = Modifier.height(12.dp))
-                        BudgetPillCard(pill = pill)
-                    }
-
                     Spacer(modifier = Modifier.height(12.dp))
 
                     CollapsibleDetailSection(
@@ -539,7 +517,7 @@ fun WorkOrderDetailScreen(
                     ) {
                         LabeledRow(
                             label = stringResource(R.string.wo_detail_asset_label),
-                            value = assetName ?: currentWo.assetId ?: stringResource(R.string.wo_detail_no_asset),
+                            value = assetName ?: currentWo.primaryAssetId ?: stringResource(R.string.wo_detail_no_asset),
                         )
                         currentWo.estimatedEffortMinutes?.let { minutes ->
                             LabeledRow(
@@ -549,21 +527,15 @@ fun WorkOrderDetailScreen(
                         }
                         LabeledRow(
                             label = stringResource(R.string.wo_detail_due_label),
-                            value = currentWo.dueDate?.let(::formatDate) ?: stringResource(R.string.wo_detail_no_due_date),
+                            value = currentWo.dueAt?.let(::formatDate) ?: stringResource(R.string.wo_detail_no_due_date),
                             onClick = { showRescheduleSheet = true },
-                            enabled = canEdit,
-                        )
-                        LabeledRow(
-                            label = stringResource(R.string.wo_field_repeats),
-                            value = summariseRrule(currentWo.rrule),
-                            onClick = { showRepeatsSheet = true },
                             enabled = canEdit,
                         )
                         LabeledRow(
                             label = stringResource(R.string.wo_detail_created_label),
                             value = formatDate(currentWo.createdAt),
                         )
-                        if (!currentWo.logId.isNullOrBlank()) {
+                        if (currentWo.completionActivityId != null) {
                             LabeledRow(
                                 label = stringResource(R.string.wo_detail_log_entry_label),
                                 value = stringResource(R.string.wo_detail_view),
@@ -608,9 +580,9 @@ fun WorkOrderDetailScreen(
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 assignments.forEach { assignment ->
                                     AssigneeAvatar(
-                                        initials = assignment.technicianId.take(2).uppercase(),
+                                        initials = (assignment.workerName ?: assignment.workerId).take(2).uppercase(),
                                         modifier = Modifier.clickable {
-                                            onTechClick(assignment.technicianId)
+                                            onTechClick(assignment.workerId)
                                         },
                                     )
                                 }
@@ -637,6 +609,21 @@ fun WorkOrderDetailScreen(
                             if (assignments.isEmpty()) {
                                 TextButton(onClick = { viewModel.claimWorkOrder() }) {
                                     Text(stringResource(R.string.wo_detail_claim))
+                                }
+                            }
+                        }
+                        myPendingAssignment?.let { pending ->
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = stringResource(R.string.wo_detail_assignment_pending),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = { viewModel.declineAssignment(pending.id) }) {
+                                    Text(stringResource(R.string.wo_detail_assignment_decline))
+                                }
+                                Button(onClick = { viewModel.acceptAssignment(pending.id) }) {
+                                    Text(stringResource(R.string.wo_detail_assignment_accept))
                                 }
                             }
                         }
@@ -675,21 +662,21 @@ fun WorkOrderDetailScreen(
                             initiallyExpanded = true,
                         ) {
                             checklistItems.forEach { item ->
-                                val required = isChecklistRowRequired(item.rowType)
+                                val required = isChecklistRowRequired(item.rowType, item.required)
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Checkbox(
-                                        checked = item.isCompleted,
+                                        checked = item.completed,
                                         onCheckedChange = { viewModel.toggleChecklistItem(item) },
                                     )
                                     Text(
-                                        text = item.title,
+                                        text = item.label,
                                         style = MaterialTheme.typography.bodyMedium,
                                         modifier = Modifier.weight(1f),
                                     )
-                                    if (required && !item.isCompleted) {
+                                    if (required && !item.completed) {
                                         Text(
                                             text = stringResource(R.string.wo_checklist_required),
                                             style = MaterialTheme.typography.labelSmall,
@@ -707,34 +694,32 @@ fun WorkOrderDetailScreen(
                         title = stringResource(R.string.wo_detail_section_costs),
                         initiallyExpanded = false,
                     ) {
-                        budgetPill?.let { pill ->
+                        if (costLines.isEmpty()) {
+                            Text(
+                                text = stringResource(R.string.wo_detail_costs_empty),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        } else {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                             ) {
                                 Column {
                                     Text(stringResource(R.string.wo_detail_labor_cost), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text("${pill.currency} ${"%.2f".format(pill.labor_cost)}", style = MaterialTheme.typography.bodyMedium)
+                                    Text(Formatters.formatCurrency(laborTotal.toDouble(), currentWo.currency), style = MaterialTheme.typography.bodyMedium)
                                 }
                                 Column {
                                     Text(stringResource(R.string.wo_detail_parts_cost), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text("${pill.currency} ${"%.2f".format(pill.parts_cost)}", style = MaterialTheme.typography.bodyMedium)
+                                    Text(Formatters.formatCurrency(partsTotal.toDouble(), currentWo.currency), style = MaterialTheme.typography.bodyMedium)
                                 }
                                 Column {
                                     Text(stringResource(R.string.wo_detail_total_cost), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text("${pill.currency} ${"%.2f".format(pill.total_cost)}", style = MaterialTheme.typography.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                                    Text(Formatters.formatCurrency(costTotal.toDouble(), currentWo.currency), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                                 }
                             }
-                            Spacer(modifier = Modifier.height(8.dp))
                         }
-                        if (budgetPill == null) {
-                            Text(
-                                text = stringResource(R.string.wo_detail_costs_empty),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
+                        Spacer(modifier = Modifier.height(8.dp))
                         TextButton(onClick = onManageCostLines) {
                             Text(stringResource(R.string.wo_detail_costs_manage))
                         }
@@ -742,14 +727,7 @@ fun WorkOrderDetailScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    CollapsibleDetailSection(
-                        title = stringResource(R.string.wo_detail_section_history),
-                        initiallyExpanded = false,
-                    ) {
-                        HistoryContent(auditHistory = auditHistory)
-                    }
-
-                    if (currentWo.status?.lowercase() == "completed" || currentWo.status?.lowercase() == "complete") {
+                    if (currentWo.status == WorkOrderStatus.COMPLETED || currentWo.status == WorkOrderStatus.CLOSED) {
                         val closeout = WoCloseout.from(parseWoAttributes(currentWo.attributes))
                         Spacer(modifier = Modifier.height(12.dp))
                         CollapsibleDetailSection(
@@ -823,12 +801,12 @@ fun WorkOrderDetailScreen(
                             comments.take(20).forEach { comment ->
                                 Column(modifier = Modifier.padding(vertical = 4.dp)) {
                                     Text(
-                                        text = comment.authorId.take(8),
+                                        text = comment.authorName ?: comment.authorUserId?.take(8).orEmpty(),
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.primary,
                                     )
                                     Text(
-                                        text = comment.body,
+                                        text = comment.body.orEmpty(),
                                         style = MaterialTheme.typography.bodySmall,
                                     )
                                     HorizontalDivider(modifier = Modifier.padding(top = 4.dp))
@@ -921,11 +899,11 @@ private fun WorkOrderMapCard(
 
 @Composable
 private fun ApprovalBanner(
-    approvalState: String?,
+    pending: Boolean,
     onApprove: () -> Unit,
     onReject: () -> Unit,
 ) {
-    if (approvalState != "pending" && approvalState != "required") return
+    if (!pending) return
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
         modifier = Modifier
@@ -1161,37 +1139,6 @@ private fun CollapsibleDetailSection(
 }
 
 @Composable
-private fun HistoryContent(auditHistory: List<AuditEntry>) {
-    if (auditHistory.isEmpty()) {
-        Text(
-            text = stringResource(R.string.wo_detail_history_empty),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    } else {
-        auditHistory.forEach { entry ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 2.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(
-                    text = "• ${entry.description}",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    text = entry.createdAt,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun LabeledRow(
     label: String,
     value: String,
@@ -1268,60 +1215,10 @@ private fun TeamChatCard(
     }
 }
 
-@Composable
-private fun BudgetPillCard(pill: BudgetPillResponse) {
-    val used = pill.total_cost
-    val laborPct = if (pill.total_cost > 0) pill.labor_cost / pill.total_cost else 0.0
-    val partsPct = if (pill.total_cost > 0) pill.parts_cost / pill.total_cost else 0.0
-    androidx.compose.material3.Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = androidx.compose.material3.CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-        ),
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                text = stringResource(R.string.wo_budget_pill_title),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(stringResource(R.string.wo_budget_labor), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("${pill.currency} ${"%.0f".format(pill.labor_cost)}", style = MaterialTheme.typography.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(stringResource(R.string.wo_budget_parts), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("${pill.currency} ${"%.0f".format(pill.parts_cost)}", style = MaterialTheme.typography.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(stringResource(R.string.wo_budget_total), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("${pill.currency} ${"%.0f".format(pill.total_cost)}", style = MaterialTheme.typography.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
-                }
-            }
-        }
-    }
-}
-
 private fun formatDate(ms: Long): String {
     val zone = ZoneId.systemDefault()
     val date = Instant.ofEpochMilli(ms).atZone(zone).toLocalDate()
     return date.format(DateTimeFormatter.ofPattern("MMM d, yyyy"))
-}
-
-private fun transitionStatusFor(status: String): WoStatus = when (status.lowercase()) {
-    "draft" -> WoStatus.DRAFT
-    "pending_review", "reviewed", "open" -> WoStatus.OPEN
-    "assigned" -> WoStatus.ASSIGNED
-    "in_progress" -> WoStatus.IN_PROGRESS
-    "on_hold" -> WoStatus.ON_HOLD
-    "completed", "complete" -> WoStatus.COMPLETE
-    "cancelled" -> WoStatus.CANCELLED
-    else -> WoStatus.OPEN
 }
 
 @Composable
@@ -1336,11 +1233,10 @@ private fun transitionLabel(t: WoTransition): String = when (t) {
 
 private fun woStatusColor(status: String): Color = when (status.lowercase()) {
     "draft" -> Color(0xFF9CA3AF)
-    "pending_review" -> Color(0xFFFBBF24)
-    "reviewed" -> Color(0xFF14B8A6)
-    "assigned", "open" -> Color(0xFF3B82F6)
+    "pending_approval" -> Color(0xFFFBBF24)
+    "assigned", "open", "scheduled" -> Color(0xFF3B82F6)
     "in_progress", "on_hold" -> Color(0xFFF97316)
-    "completed", "complete" -> Color(0xFF22C55E)
+    "completed", "closed" -> Color(0xFF22C55E)
     "cancelled" -> Color(0xFFEF4444)
     else -> Color(0xFF9CA3AF)
 }

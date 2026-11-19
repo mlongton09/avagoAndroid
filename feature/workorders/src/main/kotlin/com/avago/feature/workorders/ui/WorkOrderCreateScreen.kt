@@ -58,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -69,9 +70,7 @@ import com.avago.core.ui.CategoryItem
 import com.avago.core.ui.GlobalCategoryPickerScreen
 import com.avago.feature.workorders.R
 import com.avago.feature.workorders.model.WoPriority
-import com.avago.feature.workorders.model.summariseRrule
 import com.avago.feature.workorders.ui.components.priorityBarColor
-import com.avago.feature.workorders.ui.sheets.RepeatsSheet
 import com.avago.feature.workorders.ui.sheets.TechPickerSheet
 import com.avago.feature.workorders.viewmodel.WorkOrderCreateViewModel
 import java.time.Instant
@@ -88,8 +87,8 @@ fun WorkOrderCreateScreen(
     onPickAsset: () -> Unit,
     onPickLocation: () -> Unit = {},
     onPickAssetGroup: () -> Unit = {},
-    onPickJob: () -> Unit = {},
-    selectedJobId: String? = null,
+    selectedAssetGroup: String? = null,
+    onAssetGroupConsumed: () -> Unit = {},
     selectedLocationId: String? = null,
     selectedLocationName: String? = null,
     selectedAssetId: String? = null,
@@ -112,11 +111,12 @@ fun WorkOrderCreateScreen(
     val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
     val titleError by viewModel.titleError.collectAsStateWithLifecycle()
     val savedSuccessfully by viewModel.savedSuccessfully.collectAsStateWithLifecycle()
-    val jobId by viewModel.jobId.collectAsStateWithLifecycle()
-    val jobTitle by viewModel.jobTitle.collectAsStateWithLifecycle()
-    val timezone by viewModel.timezone.collectAsStateWithLifecycle()
-    val effortHint by viewModel.effortHint.collectAsStateWithLifecycle()
-    val repeatsRrule by viewModel.repeatsRrule.collectAsStateWithLifecycle()
+    val extraAssetIds by viewModel.extraAssetIds.collectAsStateWithLifecycle()
+    val workerNames by viewModel.workerNames.collectAsStateWithLifecycle()
+    val checklistDrafts by viewModel.checklistDrafts.collectAsStateWithLifecycle()
+    val templates by viewModel.templates.collectAsStateWithLifecycle()
+    val selectedTemplateId by viewModel.selectedTemplateId.collectAsStateWithLifecycle()
+    val saveError by viewModel.saveError.collectAsStateWithLifecycle()
 
     // iOS parity: UnifiedWorkOrdersViewController.addWorkOrderTapped() immediately presents
     // the asset picker as Stage 1 of the creation flow. Mirror that here for new WOs.
@@ -126,9 +126,10 @@ fun WorkOrderCreateScreen(
         }
     }
 
-    LaunchedEffect(selectedJobId) {
-        if (selectedJobId != null) {
-            viewModel.onJobSelected(selectedJobId, selectedJobId)
+    LaunchedEffect(selectedAssetGroup) {
+        if (selectedAssetGroup != null) {
+            viewModel.onAssetGroupSelected(selectedAssetGroup)
+            onAssetGroupConsumed()
         }
     }
 
@@ -143,7 +144,7 @@ fun WorkOrderCreateScreen(
     }
 
     var showTechPicker by remember { mutableStateOf(false) }
-    var showRepeatsSheet by remember { mutableStateOf(false) }
+    var showTemplateMenu by remember { mutableStateOf(false) }
     var showCategoryPicker by remember { mutableStateOf(false) }
     var showDatePickerDialog by remember { mutableStateOf(false) }
 
@@ -168,20 +169,6 @@ fun WorkOrderCreateScreen(
         }
     }
 
-    if (showRepeatsSheet) {
-        RepeatsSheet(
-            currentRrule = repeatsRrule,
-            currentEndType = null,
-            currentEndCount = null,
-            currentEndDateMs = null,
-            onDismiss = { showRepeatsSheet = false },
-            onSave = { rrule ->
-                viewModel.repeatsRrule.value = rrule.ifBlank { null }
-                showRepeatsSheet = false
-            },
-        )
-    }
-
     if (showTechPicker) {
         TechPickerSheet(
             selectedTechIds = assignedTechIds,
@@ -201,7 +188,6 @@ fun WorkOrderCreateScreen(
             recents = com.avago.core.ui.buildCategoryItems(keys = recentCategoryKeys),
             onSelect = { item ->
                 viewModel.category.value = item.key
-                viewModel.fetchEffortHint(item.key)
                 showCategoryPicker = false
             },
             onDismiss = { showCategoryPicker = false },
@@ -275,6 +261,41 @@ fun WorkOrderCreateScreen(
                 )
             }
 
+            if (woId == null && templates.isNotEmpty()) {
+                FormSection(title = stringResource(R.string.wo_create_from_template)) {
+                    Box {
+                        ListItem(
+                            headlineContent = {
+                                Text(
+                                    templates.firstOrNull { it.id == selectedTemplateId }?.title
+                                        ?: stringResource(R.string.wo_create_no_template),
+                                )
+                            },
+                            modifier = Modifier.clickable { showTemplateMenu = true },
+                        )
+                        DropdownMenu(expanded = showTemplateMenu, onDismissRequest = { showTemplateMenu = false }) {
+                            templates.forEach { template ->
+                                DropdownMenuItem(
+                                    text = { Text(template.title) },
+                                    onClick = {
+                                        viewModel.applyTemplate(template)
+                                        showTemplateMenu = false
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            saveError?.let { message ->
+                Text(
+                    text = stringResource(R.string.wo_create_save_failed, message),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+
             FormSection {
                 OutlinedTextField(
                     value = title,
@@ -337,14 +358,6 @@ fun WorkOrderCreateScreen(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
                 )
-                effortHint?.let { hint ->
-                    Text(
-                        text = stringResource(R.string.wo_create_effort_hint, hint.typicalMinutes, hint.fastMinutes, hint.slowMinutes, hint.sampleCount),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
-                        modifier = Modifier.padding(start = 4.dp, top = 8.dp),
-                    )
-                }
             }
 
             FormSection(title = stringResource(R.string.wo_create_section_notes)) {
@@ -358,12 +371,28 @@ fun WorkOrderCreateScreen(
                 )
             }
 
-            FormSection(title = stringResource(R.string.wo_field_repeats)) {
-                ListItem(
-                    headlineContent = { Text(summariseRrule(repeatsRrule)) },
-                    supportingContent = { Text(stringResource(R.string.wo_field_repeats)) },
-                    modifier = Modifier.clickable { showRepeatsSheet = true },
-                )
+            FormSection(title = stringResource(R.string.wo_create_section_checklist)) {
+                checklistDrafts.forEach { item ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        OutlinedTextField(
+                            value = item.title,
+                            onValueChange = { viewModel.updateChecklistItem(item.key, it) },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            readOnly = item.existingId != null,
+                        )
+                        IconButton(onClick = { viewModel.removeChecklistItem(item.key) }) {
+                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.wo_create_remove_checklist_item))
+                        }
+                    }
+                }
+                TextButton(onClick = viewModel::addChecklistItem, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Text(stringResource(R.string.wo_create_add_checklist_item))
+                }
             }
 
             FormSection(title = stringResource(R.string.wo_field_assignees)) {
@@ -380,7 +409,7 @@ fun WorkOrderCreateScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
-                            Text(techId, style = MaterialTheme.typography.bodyMedium)
+                            Text(workerNames[techId] ?: techId, style = MaterialTheme.typography.bodyMedium)
                             IconButton(onClick = {
                                 viewModel.assignedTechIds.value = viewModel.assignedTechIds.value - techId
                             }) {
@@ -399,27 +428,21 @@ fun WorkOrderCreateScreen(
             }
 
             FormSection(title = stringResource(R.string.wo_create_select_asset_group)) {
+                if (extraAssetIds.isNotEmpty()) {
+                    Text(
+                        text = pluralStringResource(R.plurals.wo_create_extra_assets, extraAssetIds.size, extraAssetIds.size),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    TextButton(onClick = { extraAssetIds.forEach(viewModel::removeExtraAsset) }) {
+                        Text(stringResource(R.string.wo_create_clear_extra_assets))
+                    }
+                }
                 OutlinedButton(
                     onClick = onPickAssetGroup,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(stringResource(R.string.wo_create_select_asset_group))
                 }
-            }
-
-            FormSection(title = stringResource(R.string.wo_job_label)) {
-                ListItem(
-                    headlineContent = { Text(jobTitle ?: jobId ?: stringResource(R.string.wo_no_job_assigned)) },
-                    supportingContent = { Text(stringResource(R.string.wo_job_label)) },
-                    trailingContent = {
-                        if (jobId != null) {
-                            IconButton(onClick = viewModel::clearJob) {
-                                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.wo_create_remove_job))
-                            }
-                        }
-                    },
-                    modifier = Modifier.clickable { onPickJob() },
-                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))

@@ -46,6 +46,7 @@ import com.avago.core.data.v2.str
 import com.avago.core.data.v2.strOrNull
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -74,16 +75,23 @@ class V2WorkOrderRepository @Inject constructor(
     override fun observeTemplates(): Flow<List<WorkOrderTemplate>> =
         store.observe(setOf("work_order_templates", "categories"), emptyList()) { conn -> templates(conn) }
 
-    override suspend fun create(draft: WorkOrderDraft): String {
+    override suspend fun create(draft: WorkOrderDraft, attributes: Map<String, JsonElement>): String {
         val now = System.currentTimeMillis()
         val id = V2Uuid.v7(now)
         val lookups = store.read(WorkOrderLookups()) { conn -> lookups(conn) }
-        commands.submit(WorkOrderCommands.create(id, draft, lookups, now, commands.currentUserId()))
+        commands.submit(WorkOrderCommands.create(id, draft, lookups, now, commands.currentUserId(), attributes))
         return id
     }
 
     override suspend fun update(id: String, draft: WorkOrderDraft) {
         val ctx = context(id)
+        WorkOrderCommands.update(ctx.stored, draft, ctx.lookups, System.currentTimeMillis(), commands.currentUserId(), ctx.assignedUserId)
+            ?.let { commands.submit(it) }
+    }
+
+    override suspend fun edit(id: String, change: (WorkOrderDraft) -> WorkOrderDraft) {
+        val ctx = context(id)
+        val draft = change(WorkOrderDraft.of(ctx.stored, ctx.assignedUserId))
         WorkOrderCommands.update(ctx.stored, draft, ctx.lookups, System.currentTimeMillis(), commands.currentUserId(), ctx.assignedUserId)
             ?.let { commands.submit(it) }
     }
@@ -97,6 +105,11 @@ class V2WorkOrderRepository @Inject constructor(
     override suspend fun transition(id: String, status: WorkOrderStatus, completion: WorkOrderCompletion) {
         val ctx = context(id)
         commands.submit(WorkOrderCommands.transition(ctx.stored, status, completion, ctx.lookups, ctx.attributes, System.currentTimeMillis()))
+    }
+
+    override suspend fun patchAttributes(id: String, patch: Map<String, JsonElement?>) {
+        val ctx = context(id)
+        WorkOrderCommands.patchAttributes(ctx.stored, patch, System.currentTimeMillis())?.let { commands.submit(it) }
     }
 
     override suspend fun timer(id: String, action: TimerAction) {
@@ -401,6 +414,7 @@ class V2WorkOrderRepository @Inject constructor(
                     estimatedEffortMinutes = r.intOrNull("estimated_effort_minutes"),
                     currency = r.strOrNull("currency"),
                     dispatcherNotes = r.strOrNull("dispatcher_notes"),
+                    attributes = r.strOrNull("attributes") ?: "{}",
                     createdBy = r.strOrNull("created_by"),
                     createdAt = r.longOrNull("created_at") ?: 0L,
                     updatedAt = r.longOrNull("updated_at") ?: 0L,

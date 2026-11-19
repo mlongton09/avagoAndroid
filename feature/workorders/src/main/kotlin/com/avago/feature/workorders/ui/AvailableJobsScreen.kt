@@ -85,7 +85,7 @@ fun AvailableJobsScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    items(jobs, key = { it.woId }) { wo ->
+                    items(jobs, key = { it.id }) { wo ->
                         Card(
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -115,25 +115,25 @@ fun AvailableJobsScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     DueDateBadge(
-                                        dueDateMs = wo.dueDate,
-                                        status = WoStatus.fromKey(wo.status),
+                                        dueDateMs = wo.dueAt,
+                                        status = WoStatus.fromDomain(wo.status),
                                     )
-                                    wo.priority?.let { PriorityBadge(priority = it) }
+                                    PriorityBadge(priority = wo.priority.wire)
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Button(
                                     onClick = { viewModel.claimJob(wo) },
-                                    enabled = wo.woId !in claimingIds,
+                                    enabled = wo.id !in claimingIds,
                                     modifier = Modifier.fillMaxWidth(),
                                 ) {
-                                    if (wo.woId in claimingIds) {
+                                    if (wo.id in claimingIds) {
                                         CircularProgressIndicator(
                                             modifier = Modifier.padding(end = 8.dp),
                                             color = MaterialTheme.colorScheme.onPrimary,
                                         )
                                     }
                                     Text(
-                                        if (wo.woId in claimingIds)
+                                        if (wo.id in claimingIds)
                                             stringResource(R.string.available_jobs_claiming)
                                         else
                                             stringResource(R.string.available_jobs_self_assign)

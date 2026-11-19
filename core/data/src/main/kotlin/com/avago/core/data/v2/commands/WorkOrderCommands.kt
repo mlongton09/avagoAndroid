@@ -20,6 +20,8 @@ import com.avago.core.data.v2.V2RowOp
 import com.avago.core.data.v2.V2StagedFile
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import java.math.BigDecimal
@@ -40,7 +42,15 @@ object WorkOrderCommands {
 
     // ------------------------------------------------------------------ work orders
 
-    fun create(id: String, draft: WorkOrderDraft, lookups: WorkOrderLookups, nowMillis: Long, userId: String?): V2NewCommand {
+    fun create(
+        id: String,
+        draft: WorkOrderDraft,
+        lookups: WorkOrderLookups,
+        nowMillis: Long,
+        userId: String?,
+        attributes: Map<String, JsonElement> = emptyMap(),
+    ): V2NewCommand {
+        val attrs = attributes.takeIf { it.isNotEmpty() }?.let(::JsonObject)
         val title = requireNotNull(draft.title.clean()) { "a work order needs a title" }
         val category = draft.category.clean()
         val payload = MaintWorkOrdersCreate(
@@ -56,6 +66,7 @@ object WorkOrderCommands {
             requiredSkills = draft.requiredSkills.cleanList(),
             estimatedEffortMinutes = draft.estimatedEffortMinutes,
             dueAt = draft.dueAt?.let(Instant::ofEpochMilli),
+            attributes = attrs,
         )
         val row = mapOf(
             "title" to title,
@@ -72,7 +83,7 @@ object WorkOrderCommands {
             "required_skills" to payload.requiredSkills?.let(::jsonList),
             "estimated_effort_minutes" to draft.estimatedEffortMinutes,
             "exclude_from_estimates" to 0L,
-            "attributes" to "{}",
+            "attributes" to (attrs?.toString() ?: "{}"),
         ) + created(nowMillis, userId)
         val ops = listOf(V2RowOp.upsert("work_orders", id, row)) + assetLinks(id, draft.assetIds, nowMillis, userId)
         return payload.toNewCommand(overlay = V2OverlayPatch(ops))
@@ -207,6 +218,19 @@ object WorkOrderCommands {
         }
         return MaintWorkOrdersTimer(id = stored.id, action = action.wire, at = Instant.ofEpochMilli(nowMillis))
             .toNewCommand(overlay = V2OverlayPatch(ops))
+    }
+
+    /** Merges [patch] into the stored attributes (null removes a key); null when nothing changed. */
+    fun patchAttributes(stored: WorkOrder, patch: Map<String, JsonElement?>, nowMillis: Long): V2NewCommand? {
+        val current = runCatching { Json.parseToJsonElement(stored.attributes) as? JsonObject }.getOrNull() ?: JsonObject(emptyMap())
+        val merged = LinkedHashMap<String, JsonElement>(current)
+        for ((k, v) in patch) if (v == null || v is JsonNull) merged.remove(k) else merged[k] = v
+        val next = JsonObject(merged)
+        if (next == current) return null
+        return MaintWorkOrdersUpdate(id = stored.id, attributes = next).toNewCommand(
+            baseVersion = stored.version,
+            overlay = V2OverlayPatch.of(V2RowOp.upsert("work_orders", stored.id, mapOf("attributes" to next.toString()) + updated(nowMillis))),
+        )
     }
 
     fun delete(stored: WorkOrder): V2NewCommand =

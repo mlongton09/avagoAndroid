@@ -1,5 +1,7 @@
 package com.avago.feature.workorders.model
 
+import com.avago.core.data.domain.ReferenceValue
+import com.avago.core.data.domain.TimeEntry
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -325,6 +327,21 @@ val DEFAULT_WO_CODES: Map<WoCodeKind, List<WoCode>> = mapOf(
 )
 
 /** Parses `{codes:[...]}`; returns defaults for [kind] when empty or unparseable. */
+/** Codes from the account's `reference_values`; a kind without account values uses [DEFAULT_WO_CODES]. */
+fun woCodesFrom(
+    failure: List<ReferenceValue>,
+    cause: List<ReferenceValue>,
+    remedy: List<ReferenceValue>,
+): Map<WoCodeKind, List<WoCode>> = mapOf(
+    WoCodeKind.FAILURE to failure,
+    WoCodeKind.CAUSE to cause,
+    WoCodeKind.REMEDY to remedy,
+).mapValues { (kind, values) ->
+    values.map { WoCode(it.id, kind, it.code, it.label, it.sortOrder) }
+        .sortedBy { it.sortOrder }
+        .ifEmpty { DEFAULT_WO_CODES[kind].orEmpty() }
+}
+
 fun parseWoCodes(body: JsonElement?, kind: WoCodeKind): List<WoCode> {
     val arr = ((body as? JsonObject)?.get("codes") as? JsonArray)
         ?: (body as? JsonArray)
@@ -414,33 +431,26 @@ fun slaState(
 
 // ── Timer ───────────────────────────────────────────────────────────────────
 
+/** The signed-in worker's labour clock on one work order, from their `time_entries`. */
 data class WoTimerState(
     val running: Boolean,
     val startedAtMs: Long?,
+    /** Seconds of finished entries. */
     val totalSeconds: Long,
-    val serverBacked: Boolean,
 ) {
     fun elapsedSeconds(nowMs: Long): Long =
         totalSeconds + if (running && startedAtMs != null) ((nowMs - startedAtMs) / 1000).coerceAtLeast(0) else 0
 
-    /** Local fallback transitions; start while running / stop while stopped are no-ops. */
-    fun start(nowMs: Long): WoTimerState = if (running) this else copy(running = true, startedAtMs = nowMs)
-
-    fun stop(nowMs: Long): WoTimerState =
-        if (!running) this else WoTimerState(false, null, elapsedSeconds(nowMs), serverBacked)
-
     companion object {
-        val IDLE = WoTimerState(false, null, 0, false)
+        val IDLE = WoTimerState(false, null, 0)
 
-        fun fromJson(body: JsonElement?): WoTimerState? {
-            val o = body as? JsonObject ?: return null
-            val running = o.bool("running") ?: return null
-            return WoTimerState(
-                running = running,
-                startedAtMs = parseIsoMs(o.str("started_at")),
-                totalSeconds = o.num("total_seconds")?.toLong() ?: 0,
-                serverBacked = true,
-            )
+        /** Timer state from [mine], the signed-in worker's entries on the work order. */
+        fun of(mine: List<TimeEntry>): WoTimerState {
+            val open = mine.filter { it.isRunning }.maxByOrNull { it.start }
+            val total = mine.filter { !it.isRunning }.sumOf { e ->
+                (((e.end ?: e.start) - e.start) / 1000 - e.breakMinutes * 60L).coerceAtLeast(0)
+            }
+            return WoTimerState(open != null, open?.start, total)
         }
     }
 }

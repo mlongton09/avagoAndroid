@@ -41,24 +41,21 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
-import com.avago.core.data.db.entity.UserEntity
-import com.avago.core.data.db.entity.WorkOrderEntity
-import com.avago.feature.workorders.model.WoStatus
-import com.avago.feature.workorders.repository.WorkOrderRepository
+import com.avago.core.data.domain.WorkOrder
+import com.avago.core.data.domain.WorkOrderFilter
+import com.avago.core.data.domain.WorkOrderRepository
+import com.avago.core.data.domain.WorkOrderStatus
+import com.avago.core.data.domain.Worker
+import com.avago.core.data.domain.WorkerRepository
 import com.avago.feature.workorders.ui.components.WoCard
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 // ---------------------------------------------------------------------------
@@ -67,38 +64,25 @@ import javax.inject.Inject
 
 @HiltViewModel
 class TechProfileViewModel @Inject constructor(
-    private val dbFactory: DatabaseFactory,
-    private val repository: WorkOrderRepository,
-    private val identityManager: IdentityManager,
+    workers: WorkerRepository,
+    repository: WorkOrderRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
+    /** A worker id or a user id. */
     private val techId: String = requireNotNull(savedStateHandle["techId"])
 
-    private val _tech = MutableStateFlow<UserEntity?>(null)
-    val tech: StateFlow<UserEntity?> = _tech.asStateFlow()
+    val tech: StateFlow<Worker?> = workers.observeWorkers()
+        .map { list -> list.firstOrNull { it.id == techId || it.userId == techId } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val assignedWos: StateFlow<List<WorkOrderEntity>> =
-        identityManager.activeAccountId
-            .flatMapLatest { accountId ->
-                if (accountId == null) flowOf(emptyList())
-                else repository.observeAll(accountId).map { wos ->
-                    wos.filter { it.assignedTo == techId }
-                }
-            }
-            .stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(5_000),
-                initialValue = emptyList(),
-            )
-
-    init {
-        viewModelScope.launch {
-            val accountId = identityManager.getActiveAccountId() ?: return@launch
-            _tech.value = dbFactory.get(accountId).userDao().getById(techId)
+    val assignedWos: StateFlow<List<WorkOrder>> = tech
+        .flatMapLatest { worker ->
+            if (worker == null) flowOf(emptyList())
+            else repository.observeWorkOrders(WorkOrderFilter(assignedWorkerId = worker.id))
         }
-    }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 }
 
 // ---------------------------------------------------------------------------
@@ -145,11 +129,11 @@ fun TechProfileScreen(
             }
             return@Scaffold
         }
-        val openWos = assignedWos.count { it.status == WoStatus.OPEN.key || it.status == WoStatus.ASSIGNED.key }
-        val inProgressWos = assignedWos.count { it.status == WoStatus.IN_PROGRESS.key }
+        val openWos = assignedWos.count { it.status == WorkOrderStatus.OPEN || it.status == WorkOrderStatus.ASSIGNED }
+        val inProgressWos = assignedWos.count { it.status == WorkOrderStatus.IN_PROGRESS }
         val thirtyDaysAgo = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000)
         val completedWos = assignedWos.count {
-            it.status == WoStatus.COMPLETE.key &&
+            it.status == WorkOrderStatus.COMPLETED &&
                 (it.completedAt ?: 0L) >= thirtyDaysAgo
         }
 
@@ -176,7 +160,7 @@ fun TechProfileScreen(
                     ) {
                         // Avatar circle with initials
                         val initials = currentTech.displayName
-                            ?.firstOrNull()
+                            .firstOrNull()
                             ?.uppercaseChar()
                             ?.toString()
                             ?: "?"
@@ -200,15 +184,14 @@ fun TechProfileScreen(
 
                         // Display name
                         Text(
-                            text = currentTech.displayName ?: stringResource(R.string.tech_profile_unknown_name),
+                            text = currentTech.displayName.ifBlank { stringResource(R.string.tech_profile_unknown_name) },
                             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                         )
 
-                        // Email
-                        currentTech.email?.takeIf { it.isNotBlank() }?.let { email ->
+                        currentTech.skills.takeIf { it.isNotEmpty() }?.let { skills ->
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = email,
+                                text = skills.joinToString(", "),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -283,10 +266,10 @@ fun TechProfileScreen(
                     }
                 }
             } else {
-                items(assignedWos, key = { it.woId }) { wo ->
+                items(assignedWos, key = { it.id }) { wo ->
                     WoCard(
                         wo = wo,
-                        onClick = { onWoClick(wo.woId) },
+                        onClick = { onWoClick(wo.id) },
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }

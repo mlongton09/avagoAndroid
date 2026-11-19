@@ -31,7 +31,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import com.avago.core.data.db.entity.WorkOrderEntity
+import com.avago.core.data.domain.WorkOrder
 import com.avago.feature.workorders.R
 import com.avago.feature.workorders.model.SlaLevel
 import com.avago.feature.workorders.model.SlaPhase
@@ -56,6 +56,10 @@ import androidx.compose.ui.text.input.ImeAction
 fun woStatusLabel(status: String?): String = when (status?.lowercase()) {
     "draft" -> stringResource(R.string.wo_status_draft)
     "open" -> stringResource(R.string.wo_status_open)
+    "pending_approval" -> stringResource(R.string.wo_status_pending_approval)
+    "scheduled" -> stringResource(R.string.wo_status_scheduled)
+    "closed" -> stringResource(R.string.wo_status_closed)
+    "skipped" -> stringResource(R.string.wo_status_skipped)
     "pending_review" -> stringResource(R.string.wo_status_pending_review)
     "reviewed" -> stringResource(R.string.wo_status_reviewed)
     "assigned" -> stringResource(R.string.wo_status_assigned)
@@ -81,16 +85,16 @@ private fun formatDuration(ms: Long): String {
 
 /** SLA chip (contract §2): respond / resolve countdown, warn at 75 %, breach when overdue. */
 @Composable
-fun WoSlaChip(wo: WorkOrderEntity, policy: Map<String, SlaWindow>, modifier: Modifier = Modifier) {
+fun WoSlaChip(wo: WorkOrder, policy: Map<String, SlaWindow>, modifier: Modifier = Modifier) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(wo.woId) {
+    LaunchedEffect(wo.id) {
         while (true) {
             delay(60_000)
             now = System.currentTimeMillis()
         }
     }
     val state = remember(wo.status, wo.priority, wo.createdAt, wo.completedAt, wo.attributes, policy, now) {
-        slaState(wo.status, wo.priority, wo.createdAt, wo.completedAt, parseWoAttributes(wo.attributes), policy, now)
+        slaState(wo.status.wire, wo.priority.wire, wo.createdAt, wo.completedAt, parseWoAttributes(wo.attributes), policy, now)
     }
     if (state.phase == SlaPhase.NONE) return
     val color = when (state.level) {

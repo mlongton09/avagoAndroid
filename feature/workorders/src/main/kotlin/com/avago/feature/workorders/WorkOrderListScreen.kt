@@ -254,14 +254,14 @@ fun WorkOrderListScreen(
                                     count = bucket.items.size,
                                 )
                             }
-                            items(bucket.items, key = { it.woId }) { wo ->
+                            items(bucket.items, key = { it.id }) { wo ->
                                 var rescheduleTarget by remember { mutableStateOf<String?>(null) }
                                 SwipeToDismissBox(
                                     state = rememberSwipeToDismissBoxState(
                                         confirmValueChange = { value ->
                                             if (value == SwipeToDismissBoxValue.EndToStart) {
                                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                rescheduleTarget = wo.woId
+                                                rescheduleTarget = wo.id
                                             }
                                             false // don't actually dismiss — just reveal the action
                                         },
@@ -300,13 +300,13 @@ fun WorkOrderListScreen(
                                     val rescheduleLabel = stringResource(R.string.reschedule_title)
                                     WoCard(
                                         wo = wo,
-                                        onClick = { onWoClick(wo.woId) },
-                                        assetLabel = assetLabels[wo.assetId],
+                                        onClick = { onWoClick(wo.id) },
+                                        assetLabel = wo.primaryAssetId?.let { assetLabels[it] },
                                         // TalkBack can't swipe ? expose reschedule as a custom action.
                                         modifier = Modifier.semantics {
                                             customActions = listOf(
                                                 CustomAccessibilityAction(rescheduleLabel) {
-                                                    rescheduleTarget = wo.woId
+                                                    rescheduleTarget = wo.id
                                                     true
                                                 },
                                             )
@@ -315,8 +315,8 @@ fun WorkOrderListScreen(
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))
 
-                                if (rescheduleTarget == wo.woId) {
-                                    val currentDue = wo.dueDate?.let {
+                                if (rescheduleTarget == wo.id) {
+                                    val currentDue = wo.dueAt?.let {
                                         java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
                                     }
                                     RescheduleSheet(
@@ -324,7 +324,7 @@ fun WorkOrderListScreen(
                                         onDismiss = { rescheduleTarget = null },
                                         onConfirm = { newDate ->
                                             val ms = newDate.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-                                            viewModel.rescheduleWo(wo.woId, ms)
+                                            viewModel.rescheduleWo(wo.id, ms)
                                             rescheduleTarget = null
                                         },
                                     )

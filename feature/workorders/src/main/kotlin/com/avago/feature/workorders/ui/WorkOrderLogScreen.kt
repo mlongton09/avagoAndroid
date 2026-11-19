@@ -72,6 +72,7 @@ import com.avago.core.ui.GlobalCategoryPickerScreen
 import com.avago.core.ui.buildCategoryItems
 import com.avago.feature.workorders.R
 import com.avago.feature.workorders.model.WoPriority
+import com.avago.core.data.domain.WorkOrderStatus
 import com.avago.feature.workorders.model.WoCloseout
 import com.avago.feature.workorders.model.parseWoAttributes
 import com.avago.feature.workorders.ui.sheets.WoCloseoutSheet
@@ -124,12 +125,11 @@ fun WorkOrderLogScreen(
     val savedSuccessfully by viewModel.savedSuccessfully.collectAsStateWithLifecycle()
     val completedSuccessfully by viewModel.completedSuccessfully.collectAsStateWithLifecycle()
     val comments by viewModel.comments.collectAsStateWithLifecycle()
-    val auditEntries by viewModel.auditEntries.collectAsStateWithLifecycle()
+    val costEditable by viewModel.costEditable.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     var showScoutSheet by remember { mutableStateOf(false) }
     var showCategoryPicker by remember { mutableStateOf(false) }
-    var historyExpanded by remember { mutableStateOf(false) }   // starts collapsed — matches iOS
     var commentsExpanded by remember { mutableStateOf(true) }   // starts expanded — matches iOS
     var commentDraft by rememberSaveable { mutableStateOf("") }
 
@@ -157,7 +157,7 @@ fun WorkOrderLogScreen(
             WoCloseoutSheet(
                 initial = WoCloseout.from(parseWoAttributes(current.attributes)),
                 codes = woCodes,
-                hasAsset = !current.assetId.isNullOrBlank(),
+                hasAsset = current.primaryAssetId != null,
                 checklist = closeoutChecklist,
                 options = closeoutOptions,
                 defaultMeter = logMeterReading.takeIf { it.isNotBlank() },
@@ -343,6 +343,7 @@ fun WorkOrderLogScreen(
                     OutlinedTextField(
                         value = logCost,
                         onValueChange = { viewModel.logCost.value = it },
+                        enabled = costEditable,
                         modifier = Modifier.weight(1f),
                         label = { Text(stringResource(R.string.log_entry_label_cost)) },
                         prefix = { Text("$") },
@@ -395,7 +396,7 @@ fun WorkOrderLogScreen(
                             isRunning -> OutlinedButton(onClick = { viewModel.pauseTimer() }) {
                                 Text(stringResource(R.string.wo_log_timer_pause))
                             }
-                            currentWo.status == "in_progress" -> OutlinedButton(onClick = { viewModel.resumeTimer() }) {
+                            currentWo.status == WorkOrderStatus.IN_PROGRESS -> OutlinedButton(onClick = { viewModel.resumeTimer() }) {
                                 Text(stringResource(R.string.wo_log_timer_resume))
                             }
                             else -> Button(
@@ -407,7 +408,7 @@ fun WorkOrderLogScreen(
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
                     // Priority
-                    val priority = WoPriority.entries.firstOrNull { it.key == currentWo.priority }
+                    val priority = WoPriority.fromKey(currentWo.priority.wire)
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(stringResource(R.string.wo_field_priority), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (priority != null) {
@@ -419,7 +420,7 @@ fun WorkOrderLogScreen(
                         }
                     }
 
-                    currentWo.dueDate?.let { dueMs ->
+                    currentWo.dueAt?.let { dueMs ->
                         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(stringResource(R.string.wo_field_due_date), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -434,30 +435,6 @@ fun WorkOrderLogScreen(
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(stringResource(R.string.wo_field_estimated_hours), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(effortLabel, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                        }
-                    }
-                }
-            }
-
-            // ── Audit history (collapsible, starts collapsed — matches iOS) ───
-            if (auditEntries.isNotEmpty()) {
-                WoLogSection {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().clickable { historyExpanded = !historyExpanded },
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(stringResource(R.string.wo_log_section_history), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold))
-                        Icon(if (historyExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown, contentDescription = null)
-                    }
-                    if (historyExpanded) {
-                        HorizontalDivider(modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
-                        auditEntries.forEachIndexed { idx, entry ->
-                            Column(modifier = Modifier.padding(vertical = 6.dp)) {
-                                Text(entry.description, style = MaterialTheme.typography.bodyMedium)
-                                Text(entry.createdAt, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            if (idx < auditEntries.lastIndex) HorizontalDivider()
                         }
                     }
                 }
@@ -485,8 +462,8 @@ fun WorkOrderLogScreen(
                     } else {
                         comments.forEachIndexed { idx, comment ->
                             Column(modifier = Modifier.padding(vertical = 6.dp)) {
-                                Text(comment.authorId, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-                                Text(comment.body, style = MaterialTheme.typography.bodyMedium)
+                                Text(comment.authorName ?: comment.authorUserId?.take(8).orEmpty(), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                                Text(comment.body.orEmpty(), style = MaterialTheme.typography.bodyMedium)
                             }
                             if (idx < comments.lastIndex) HorizontalDivider()
                         }

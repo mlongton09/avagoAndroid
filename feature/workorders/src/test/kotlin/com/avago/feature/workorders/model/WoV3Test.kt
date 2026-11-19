@@ -1,5 +1,6 @@
 package com.avago.feature.workorders.model
 
+import com.avago.core.data.domain.TimeEntry
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -143,15 +144,18 @@ class WoV3Test {
     }
 
     @Test
-    fun `local timer accumulates segments`() {
-        val t = WoTimerState.IDLE.start(0).stop(60_000).start(120_000)
-        assertEquals(60L, t.totalSeconds)
-        assertEquals(90L, t.elapsedSeconds(150_000))
-        assertEquals(t, t.start(200_000))
-        val parsed = WoTimerState.fromJson(
-            JsonObject(mapOf("running" to JsonPrimitive(false), "total_seconds" to JsonPrimitive(30))),
-        )
-        assertEquals(30L, parsed!!.totalSeconds)
-        assertTrue(parsed.serverBacked)
+    fun `timer state sums finished entries and runs from the open one`() {
+        fun entry(start: Long, end: Long?, breakMin: Int = 0) =
+            TimeEntry(id = "t$start", workerId = "w", workOrderId = "wo", start = start, end = end, breakMinutes = breakMin, status = "open")
+        val idle = WoTimerState.of(listOf(entry(0, 120_000, breakMin = 1), entry(200_000, 230_000)))
+        assertFalse(idle.running)
+        assertEquals(90L, idle.totalSeconds)
+        assertEquals(90L, idle.elapsedSeconds(999_999))
+
+        val running = WoTimerState.of(listOf(entry(0, 60_000), entry(100_000, null)))
+        assertTrue(running.running)
+        assertEquals(100_000L, running.startedAtMs)
+        assertEquals(60L + 50L, running.elapsedSeconds(150_000))
+        assertEquals(WoTimerState.IDLE, WoTimerState.of(emptyList()))
     }
 }

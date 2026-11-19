@@ -2,20 +2,19 @@ package com.avago.feature.workorders.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.db.entity.WorkOrderEntity
-import com.avago.core.network.AvagoServiceClient
+import com.avago.core.data.domain.WorkOrder
+import com.avago.core.data.domain.WorkOrderFilter
+import com.avago.core.data.domain.WorkOrderRepository
+import com.avago.core.data.domain.WorkOrderStatus
+import com.avago.core.data.domain.WorkerRepository
 import com.avago.core.sync.SyncEngine
-import com.avago.feature.workorders.repository.WorkOrderRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -25,67 +24,44 @@ import javax.inject.Inject
 @HiltViewModel
 class AvailableJobsViewModel @Inject constructor(
     private val repository: WorkOrderRepository,
-    private val identityManager: IdentityManager,
+    private val workers: WorkerRepository,
     private val syncEngine: SyncEngine,
-    private val serviceClient: AvagoServiceClient,
 ) : ViewModel() {
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
-    /** Set of WO IDs currently being claimed. */
+    /** Work orders being claimed. */
     private val _claimingIds = MutableStateFlow<Set<String>>(emptySet())
     val claimingIds: StateFlow<Set<String>> = _claimingIds.asStateFlow()
 
-    /**
-     * Unassigned, open work orders visible for self-assignment.
-     * Requires dispatch_mode == hybrid or self_assign (checked at the nav layer;
-     * screen is not shown in central mode).
-     */
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val availableJobs: StateFlow<List<WorkOrderEntity>> =
-        identityManager.activeAccountId
-            .flatMapLatest { accountId ->
-                if (accountId == null) flowOf(emptyList())
-                else repository.observeAll(accountId)
-                    .map { wos ->
-                        wos.filter { wo ->
-                            wo.status == "open" && wo.assignedTo.isNullOrBlank()
-                        }.sortedByDescending { it.priority?.let { p -> priorityWeight(p) } ?: 0 }
-                    }
-                    .catch { e -> Timber.e(e, "[AvailableJobsVM] flow error"); emit(emptyList()) }
-            }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
 
-    fun claimJob(wo: WorkOrderEntity) {
-        val accountId = identityManager.getActiveAccountId() ?: return
-        val userId = accountId // on Android the accountId is used as the userId placeholder
+    /** Unassigned open work orders, most urgent first. */
+    val availableJobs: StateFlow<List<WorkOrder>> = repository
+        .observeWorkOrders(WorkOrderFilter(statuses = setOf(WorkOrderStatus.OPEN), unassignedOnly = true))
+        .map { wos -> wos.sortedBy { it.priority.ordinal } }
+        .catch { e -> Timber.e(e, "[AvailableJobsVM] flow error"); emit(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Assigns [wo] to the signed-in user as lead; the server rejects a job someone else claimed first. */
+    fun claimJob(wo: WorkOrder) {
         viewModelScope.launch {
-            _claimingIds.value = _claimingIds.value + wo.woId
+            _claimingIds.value = _claimingIds.value + wo.id
             try {
-                // Optimistic local update
-                val now = System.currentTimeMillis()
-                repository.upsert(
-                    accountId,
-                    wo.copy(
-                        assignedTo = userId,
-                        status = "assigned",
-                        updatedAt = now,
-                    )
-                )
-                // Fire-and-forget to server — sync will reconcile
-                try {
-                    serviceClient.selfAssignWorkOrder(accountId, wo.woId, userId)
-                } catch (e: Exception) {
-                    Timber.w(e, "[AvailableJobsVM] selfAssign server call failed — local already updated")
-                }
+                val me = workers.observeMe().first()?.userId ?: error("no worker profile for the signed-in user")
+                repository.assign(wo.id, me, lead = true)
             } catch (e: Exception) {
-                Timber.e(e, "[AvailableJobsVM] claimJob failed for ${wo.woId}")
+                Timber.e(e, "[AvailableJobsVM] claimJob failed for ${wo.id}")
+                _error.value = e.message
             } finally {
-                _claimingIds.value = _claimingIds.value - wo.woId
+                _claimingIds.value = _claimingIds.value - wo.id
             }
         }
     }
+
+    fun clearError() { _error.value = null }
 
     fun refresh() {
         viewModelScope.launch {
@@ -96,13 +72,5 @@ class AvailableJobsViewModel @Inject constructor(
                 _isRefreshing.value = false
             }
         }
-    }
-
-    private fun priorityWeight(priority: String): Int = when (priority) {
-        "critical" -> 4
-        "high" -> 3
-        "medium" -> 2
-        "low" -> 1
-        else -> 0
     }
 }

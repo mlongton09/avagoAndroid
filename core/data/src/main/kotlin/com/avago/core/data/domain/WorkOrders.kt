@@ -72,6 +72,8 @@ data class WorkOrder(
     val estimatedEffortMinutes: Int?,
     val currency: String?,
     val dispatcherNotes: String?,
+    /** Account-defined and app fields (`attributes`, JSON object text), e.g. hold, vendor, close-out. */
+    val attributes: String,
     val createdBy: String?,
     val createdAt: Long,
     val updatedAt: Long,
@@ -98,7 +100,17 @@ data class WorkOrderDraft(
     val estimatedEffortMinutes: Int? = null,
     val dueAt: Long? = null,
     val dispatcherNotes: String? = null,
-)
+) {
+    companion object {
+        /** The stored values of [wo]; [assignedUserId] is the assignee's user id. */
+        fun of(wo: WorkOrder, assignedUserId: String?) = WorkOrderDraft(
+            title = wo.title, description = wo.description, assetIds = wo.assetIds, locationId = wo.locationId,
+            category = wo.categoryName, priority = wo.priority, complexity = wo.complexity, assignedUserId = assignedUserId,
+            requiredSkills = wo.requiredSkills, estimatedEffortMinutes = wo.estimatedEffortMinutes, dueAt = wo.dueAt,
+            dispatcherNotes = wo.dispatcherNotes,
+        )
+    }
+}
 
 /** Completion details saved with (or before) a status change. Null leaves a field as is. */
 data class WorkOrderCompletion(
@@ -319,14 +331,24 @@ interface WorkOrderRepository {
 
     fun observeTemplates(): Flow<List<WorkOrderTemplate>>
 
-    suspend fun create(draft: WorkOrderDraft): String
+    /** Creates a work order; [attributes] seeds `attributes` (e.g. `source` provenance). */
+    suspend fun create(draft: WorkOrderDraft, attributes: Map<String, kotlinx.serialization.json.JsonElement> = emptyMap()): String
 
     suspend fun update(id: String, draft: WorkOrderDraft)
+
+    /** Applies [change] to the stored values and saves only what changed. */
+    suspend fun edit(id: String, change: (WorkOrderDraft) -> WorkOrderDraft)
 
     /** Saves completion codes and notes without a status change (clearing allowed). */
     suspend fun updateCompletion(id: String, completion: WorkOrderCompletion)
 
     suspend fun transition(id: String, status: WorkOrderStatus, completion: WorkOrderCompletion = WorkOrderCompletion())
+
+    /**
+     * Shallow-merges [patch] into `attributes` (a null value removes the key) and saves the whole
+     * object, so keys other clients wrote are kept.
+     */
+    suspend fun patchAttributes(id: String, patch: Map<String, kotlinx.serialization.json.JsonElement?>)
 
     suspend fun timer(id: String, action: TimerAction)
 

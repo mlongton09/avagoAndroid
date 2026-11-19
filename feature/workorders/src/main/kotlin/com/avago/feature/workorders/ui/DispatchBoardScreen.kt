@@ -43,6 +43,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -66,7 +67,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.avago.core.data.db.entity.WorkOrderEntity
+import com.avago.core.data.domain.WorkOrder
 import com.avago.core.ui.EmptyState
 import com.avago.feature.workorders.R
 import com.avago.feature.workorders.model.WoStatus
@@ -76,6 +77,8 @@ import com.avago.feature.workorders.ui.components.WoRebalanceBanner
 import com.avago.feature.workorders.ui.components.woStatusLabel
 import com.avago.feature.workorders.viewmodel.DISPATCH_COLUMNS
 import com.avago.feature.workorders.viewmodel.DispatchBoardViewModel
+import com.avago.feature.workorders.viewmodel.boardMoveTargets
+import com.avago.feature.workorders.viewmodel.canUndoMove
 import kotlinx.coroutines.launch
 
 /**
@@ -96,6 +99,7 @@ fun DispatchBoardScreen(
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val showRebalanceBanner by viewModel.showRebalanceBanner.collectAsStateWithLifecycle()
     val query by viewModel.searchQuery.collectAsStateWithLifecycle()
+    val error by viewModel.error.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -103,13 +107,20 @@ fun DispatchBoardScreen(
     val focusManager = LocalFocusManager.current
 
     var showSearch by remember { mutableStateOf(false) }
-    var moveTarget by remember { mutableStateOf<WorkOrderEntity?>(null) }
+    var moveTarget by remember { mutableStateOf<WorkOrder?>(null) }
     // Resolved in composition so they follow configuration (locale) changes.
     val movedMessages = DISPATCH_COLUMNS.associateWith {
         stringResource(R.string.dispatch_moved_to, woStatusLabel(it.key))
     }
     val undoLabel = stringResource(R.string.dispatch_undo)
     val rebalanceSoon = stringResource(R.string.dispatch_rebalance_coming_soon)
+
+    LaunchedEffect(error) {
+        error?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearError()
+        }
+    }
 
     Scaffold(
         modifier = modifier,
@@ -218,14 +229,15 @@ fun DispatchBoardScreen(
                 moveTarget = null
                 if (target == WoStatus.COMPLETE) {
                     // Completion needs close-out data — hand off to the detail screen.
-                    onWoClick(wo.woId)
+                    onWoClick(wo.id)
                 } else {
                     viewModel.moveToStatus(wo, target)
                     val message = movedMessages.getValue(target)
+                    val undoable = canUndoMove(WoStatus.fromDomain(wo.status), target)
                     scope.launch {
                         val result = snackbarHostState.showSnackbar(
                             message = message,
-                            actionLabel = undoLabel,
+                            actionLabel = if (undoable) undoLabel else null,
                             withDismissAction = true,
                         )
                         if (result == SnackbarResult.ActionPerformed) viewModel.restore(wo)
@@ -239,11 +251,11 @@ fun DispatchBoardScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MoveToSheet(
-    wo: WorkOrderEntity,
+    wo: WorkOrder,
     onDismiss: () -> Unit,
     onMove: (WoStatus) -> Unit,
 ) {
-    val current = WoStatus.fromKey(wo.status)
+    val current = WoStatus.fromDomain(wo.status)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -258,7 +270,7 @@ private fun MoveToSheet(
                     .padding(horizontal = 24.dp, vertical = 8.dp)
                     .semantics { heading() },
             )
-            DISPATCH_COLUMNS.filter { it != current }.forEach { status ->
+            (boardMoveTargets(current) + listOfNotNull(WoStatus.COMPLETE.takeIf { current != it && !current.domain.isTerminal })).distinct().forEach { status ->
                 val color = status.statusColor()
                 ListItem(
                     headlineContent = { Text(woStatusLabel(status.key)) },
@@ -285,9 +297,9 @@ private fun MoveToSheet(
 @Composable
 private fun DispatchColumn(
     status: WoStatus,
-    workOrders: List<WorkOrderEntity>,
+    workOrders: List<WorkOrder>,
     onWoClick: (woId: String) -> Unit,
-    onRequestMove: (WorkOrderEntity) -> Unit,
+    onRequestMove: (WorkOrder) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val statusColor = status.statusColor()
@@ -335,11 +347,11 @@ private fun DispatchColumn(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
-            items(workOrders, key = { it.woId }) { wo ->
+            items(workOrders, key = { it.id }) { wo ->
                 val moveLabel = stringResource(R.string.dispatch_move_action)
                 WoCard(
                     wo = wo,
-                    onClick = { onWoClick(wo.woId) },
+                    onClick = { onWoClick(wo.id) },
                     onLongClick = { onRequestMove(wo) },
                     onLongClickLabel = moveLabel,
                     modifier = Modifier

@@ -32,7 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import com.avago.core.data.db.entity.WorkOrderEntity
+import com.avago.core.data.domain.WorkOrder
 import com.avago.core.ui.CategoryBadge
 import com.avago.feature.workorders.R
 import com.avago.feature.workorders.model.WoStatus
@@ -53,14 +53,14 @@ import java.time.format.DateTimeFormatter
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun WoCard(
-    wo: WorkOrderEntity,
+    wo: WorkOrder,
     onClick: () -> Unit,
     assetLabel: String? = null,
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
     onLongClickLabel: String? = null,
 ) {
-    val priorityBarColor = priorityBarColor(wo.priority)
+    val priorityBarColor = priorityBarColor(wo.priority.wire)
 
     Surface(
         modifier = modifier
@@ -97,7 +97,7 @@ fun WoCard(
                     .clip(CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
-                CategoryBadge(categoryId = wo.category)
+                CategoryBadge(categoryId = wo.categoryName)
             }
 
             // ── Card content ──────────────────────────────────────────────
@@ -120,7 +120,7 @@ fun WoCard(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
-                    wo.dueDate?.let { ms ->
+                    wo.dueAt?.let { ms ->
                         Spacer(modifier = Modifier.width(8.dp))
                         val date = Instant.ofEpochMilli(ms)
                             .atZone(ZoneId.systemDefault())
@@ -139,7 +139,7 @@ fun WoCard(
                 WoSubtitleLine(wo = wo, assetLabel = assetLabel)
 
                 // Row 3 (conditional): "⏳ Awaiting approval" — mirrors iOS orange pending badge
-                if (wo.approvalState == "pending") {
+                if (wo.status == com.avago.core.data.domain.WorkOrderStatus.PENDING_APPROVAL || wo.approvalState == "pending") {
                     Spacer(modifier = Modifier.height(4.dp))
                     Box(
                         modifier = Modifier
@@ -162,12 +162,10 @@ fun WoCard(
 }
 
 @Composable
-private fun WoSubtitleLine(wo: WorkOrderEntity, assetLabel: String? = null) {
+private fun WoSubtitleLine(wo: WorkOrder, assetLabel: String? = null) {
     val mutedColor = MaterialTheme.colorScheme.onSurfaceVariant
     val sepColor = mutedColor.copy(alpha = 0.5f)
-    val priorityTextColor = priorityTextColor(wo.priority)
-    val repeatsColor = Color(0xFF7C3AED)
-    val repeatsLabel = stringResource(R.string.wo_field_repeats)
+    val priorityTextColor = priorityTextColor(wo.priority.wire)
 
     val dot  = "  ·  "   // "  ·  "
     val pipe = "  |  "
@@ -182,7 +180,7 @@ private fun WoSubtitleLine(wo: WorkOrderEntity, assetLabel: String? = null) {
         // 1. Priority code P1/P2/P3/P4 (always present, colored)
         sep(dot)
         withStyle(SpanStyle(color = priorityTextColor, fontWeight = FontWeight.Bold)) {
-            append(priorityCode(wo.priority))
+            append(priorityCode(wo.priority.wire))
         }
 
         // 2. Asset subtitle — resolved label (year/make/model or address), never the raw GUID
@@ -193,10 +191,10 @@ private fun WoSubtitleLine(wo: WorkOrderEntity, assetLabel: String? = null) {
 
         // 3. Estimated effort (pipe separator — visual split between "what" and "how much")
         val mins = wo.estimatedEffortMinutes
-        if (mins != null && mins > 0L) {
+        if (mins != null && mins > 0) {
             sep(pipe)
-            val h = (mins / 60).toInt()
-            val m = (mins % 60).toInt()
+            val h = mins / 60
+            val m = mins % 60
             val effortStr = when {
                 h > 0 && m > 0 -> "${h}h ${m}m"
                 h > 0           -> "${h}h"
@@ -206,17 +204,9 @@ private fun WoSubtitleLine(wo: WorkOrderEntity, assetLabel: String? = null) {
         }
 
         // 4. Assignee (dot separator)
-        if (!wo.assignedTo.isNullOrBlank()) {
+        wo.assignedWorkerName?.takeIf { it.isNotBlank() }?.let { name ->
             sep(dot)
-            withStyle(SpanStyle(color = mutedColor)) { append(wo.assignedTo!!) }
-        }
-
-        // 5. Repeats badge (purple, bold) — present when rrule is set
-        if (!wo.rrule.isNullOrBlank()) {
-            sep(dot)
-            withStyle(SpanStyle(color = repeatsColor, fontWeight = FontWeight.Bold)) {
-                append(repeatsLabel)
-            }
+            withStyle(SpanStyle(color = mutedColor)) { append(name) }
         }
     }
 
@@ -261,9 +251,7 @@ fun DueDateBadge(dueDateMs: Long?, status: WoStatus, modifier: Modifier = Modifi
     val zone = ZoneId.systemDefault()
     val dueDate = Instant.ofEpochMilli(dueDateMs).atZone(zone).toLocalDate()
     val today = LocalDate.now(zone)
-    val isOverdue = dueDate.isBefore(today) &&
-        status != WoStatus.COMPLETE &&
-        status != WoStatus.CANCELLED
+    val isOverdue = dueDate.isBefore(today) && !status.domain.isTerminal
     val formatter = DateTimeFormatter.ofPattern("MMM d")
     val label = if (isOverdue)
         stringResource(R.string.wo_card_overdue_format, dueDate.format(formatter))

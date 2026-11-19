@@ -1,22 +1,31 @@
 package com.avago.feature.workorders.viewmodel
 
+import android.content.Context
+import androidx.annotation.StringRes
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
-import com.avago.core.data.db.entity.AssetEntity
-import com.avago.core.data.db.entity.LogEntity
-import com.avago.core.data.db.entity.WoCommentEntity
 import com.avago.core.ai.ScreenContextStore
 import com.avago.core.data.FormFillRouter
-import com.avago.core.data.db.entity.WorkOrderEntity
-import com.avago.feature.workorders.viewmodel.AuditEntry
-import com.avago.core.network.AvagoServiceClient
-import com.avago.core.network.NetworkResult
-import com.avago.core.sync.SyncEngine
+import com.avago.core.data.domain.Activity
+import com.avago.core.data.domain.ActivityDraft
+import com.avago.core.data.domain.ActivityFilter
+import com.avago.core.data.domain.ActivityRepository
+import com.avago.core.data.domain.ActivityType
+import com.avago.core.data.domain.AssetRepository
+import com.avago.core.data.domain.CostLine
+import com.avago.core.data.domain.CostLineDraft
+import com.avago.core.data.domain.CostLineType
+import com.avago.core.data.domain.ReferenceRepository
+import com.avago.core.data.domain.WorkOrder
+import com.avago.core.data.domain.WorkOrderComment
+import com.avago.core.data.domain.WorkOrderDetail
+import com.avago.core.data.domain.WorkOrderFilter
+import com.avago.core.data.domain.WorkOrderRepository
+import com.avago.core.data.domain.WorkerRepository
+import com.avago.core.data.domain.TimerAction
+import com.avago.feature.workorders.R
 import com.avago.feature.workorders.model.ChecklistRowState
-import com.avago.feature.workorders.model.DEFAULT_WO_CODES
 import com.avago.feature.workorders.model.WoCloseout
 import com.avago.feature.workorders.model.WoCloseoutOptions
 import com.avago.feature.workorders.model.WoCode
@@ -24,69 +33,86 @@ import com.avago.feature.workorders.model.WoCodeKind
 import com.avago.feature.workorders.model.WoTimerState
 import com.avago.feature.workorders.model.isChecklistRowRequired
 import com.avago.feature.workorders.model.validateCloseout
-import com.avago.feature.workorders.repository.WoV3Service
-import com.avago.feature.workorders.repository.WorkOrderRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.UUID
+import java.math.BigDecimal
 import javax.inject.Inject
 
 /**
- * ViewModel for the merged Work Order + Log Entry screen.
- *
- * Mirrors iOS AddLogItemViewController with workOrderContext set:
- * - Pre-fills the log form from WO data (title, notes, category, asset)
- * - saveDraft(): persists the log entry and links it to the WO
- * - completeAndClose(): saves log + transitions WO → "completed"
+ * The merged work order + log entry screen: the technician logs the work as an activity record
+ * linked to the work order (`activity_records.work_order_id`), runs the labour timer and closes
+ * the work order out.
  */
 @HiltViewModel
 class WorkOrderLogViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: WorkOrderRepository,
-    private val identityManager: IdentityManager,
-    private val dbFactory: DatabaseFactory,
-    private val syncEngine: SyncEngine,
-    private val serviceClient: AvagoServiceClient,
+    private val activities: ActivityRepository,
+    private val assets: AssetRepository,
+    workers: WorkerRepository,
+    references: ReferenceRepository,
+    private val closeoutSupport: WoCloseoutSupport,
     private val screenContextStore: ScreenContextStore,
     private val formFillRouter: FormFillRouter,
-    private val woV3: WoV3Service,
+    @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
     val woId: String = requireNotNull(savedStateHandle["woId"])
 
-    // ── v3: close-out gate + server timer (contract §2/§3) ────────────────────
-    private val _codes = MutableStateFlow(DEFAULT_WO_CODES)
-    val codes: StateFlow<Map<WoCodeKind, List<WoCode>>> = _codes.asStateFlow()
-    private val _closeoutOptions = MutableStateFlow(WoCloseoutOptions())
-    val closeoutOptions: StateFlow<WoCloseoutOptions> = _closeoutOptions.asStateFlow()
+    private fun str(@StringRes id: Int, vararg args: Any): String = appContext.getString(id, *args)
+
+    private val detail: StateFlow<WorkOrderDetail?> = repository.observeDetail(woId)
+        .catch { e -> Timber.e(e, "[WoLogVM] detail flow error"); emit(null) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    val wo: StateFlow<WorkOrder?> = detail.map { it?.workOrder }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val comments: StateFlow<List<WorkOrderComment>> = detail.map { it?.comments.orEmpty() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    // ---------------------------------------------------------------- close-out and timer
+
+    val codes: StateFlow<Map<WoCodeKind, List<WoCode>>> = closeoutSupport.codes
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WoCloseoutSupport.DEFAULT_CODES)
+
+    val closeoutOptions: StateFlow<WoCloseoutOptions> = closeoutSupport.options
+        .stateIn(viewModelScope, SharingStarted.Eagerly, WoCloseoutOptions())
+
+    val checklist: StateFlow<List<ChecklistRowState>> = detail.map { d ->
+        d?.checklist.orEmpty().map { ChecklistRowState(isChecklistRowRequired(it.rowType, it.required), it.completed) }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     private val _showCloseout = MutableStateFlow(false)
     val showCloseout: StateFlow<Boolean> = _showCloseout.asStateFlow()
-    private val _checklist = MutableStateFlow<List<ChecklistRowState>>(emptyList())
-    val checklist: StateFlow<List<ChecklistRowState>> = _checklist.asStateFlow()
 
-    /** Timer state; server-backed when `/timer` is available, else derived from local timerStartedAt. */
-    private val _timer = MutableStateFlow(WoTimerState.IDLE)
-    val timer: StateFlow<WoTimerState> = _timer.asStateFlow()
+    /** The signed-in worker's labour clock on this work order. */
+    val timer: StateFlow<WoTimerState> = combine(detail, workers.observeMe()) { d, me ->
+        if (d == null || me == null) WoTimerState.IDLE
+        else WoTimerState.of(d.timeEntries.filter { it.workerId == me.id })
+    }.catch { emit(WoTimerState.IDLE) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WoTimerState.IDLE)
 
-    // ── WO context (read-only display) ────────────────────────────────────────
-    private val _wo = MutableStateFlow<WorkOrderEntity?>(null)
-    val wo: StateFlow<WorkOrderEntity?> = _wo.asStateFlow()
+    // ---------------------------------------------------------------- header
 
     val assetName = MutableStateFlow<String?>(null)
     val assetSubtitle = MutableStateFlow<String?>(null)
     val assetType = MutableStateFlow<String?>(null)
 
-    // ── Log entry form fields (editable) ──────────────────────────────────────
+    // ---------------------------------------------------------------- log entry form
+
     val logTitle = MutableStateFlow("")
     val logNotes = MutableStateFlow("")
     val logCategory = MutableStateFlow<String?>(null)
@@ -94,21 +120,27 @@ class WorkOrderLogViewModel @Inject constructor(
     val logMeterReading = MutableStateFlow("")
     val logPerformedBy = MutableStateFlow("")
 
-    // ── Category picker support ───────────────────────────────────────────────
-    private val _availableCategories = MutableStateFlow<List<String>>(emptyList())
-    val availableCategories: StateFlow<List<String>> = _availableCategories.asStateFlow()
+    /** False when the linked activity has several cost lines (edit them in the cost editor). */
+    private val _costEditable = MutableStateFlow(true)
+    val costEditable: StateFlow<Boolean> = _costEditable.asStateFlow()
+
+    val availableCategories: StateFlow<List<String>> = references.observeCategories("work_order")
+        .map { list -> list.map { it.name }.distinct() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     private val _recentCategoryKeys = MutableStateFlow<List<String>>(emptyList())
     val recentCategoryKeys: StateFlow<List<String>> = _recentCategoryKeys.asStateFlow()
 
-    // ── Comments (live from local DB) ─────────────────────────────────────────
-    private val _comments = MutableStateFlow<List<WoCommentEntity>>(emptyList())
-    val comments: StateFlow<List<WoCommentEntity>> = _comments.asStateFlow()
+    /** The activity this screen saved or found for the work order. */
+    private var activity: Activity? = null
+    private var activityLines: List<CostLine> = emptyList()
+    /** Performer user id while [logPerformedBy] still shows that worker's name. */
+    private var performer: Pair<String, String>? = null
+    /** Meter value shown on open; only a changed value is saved as a new reading. */
+    private var initialMeter: String = ""
 
-    // ── Audit history (from server) ───────────────────────────────────────────
-    private val _auditEntries = MutableStateFlow<List<AuditEntry>>(emptyList())
-    val auditEntries: StateFlow<List<AuditEntry>> = _auditEntries.asStateFlow()
+    // ---------------------------------------------------------------- UI state
 
-    // ── UI state ──────────────────────────────────────────────────────────────
     private val _isSaving = MutableStateFlow(false)
     val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
     private val _isCompleting = MutableStateFlow(false)
@@ -119,158 +151,96 @@ class WorkOrderLogViewModel @Inject constructor(
     val completedSuccessfully = MutableStateFlow(false)
 
     init {
-        formFillRouter.register("log_entry") { fields ->
+        formFillRouter.register(SCREEN_ID) { fields ->
             val changed = mutableListOf<String>()
             fields["title"]?.let { logTitle.value = it; changed += "title" }
             fields["category"]?.let { logCategory.value = it; changed += "category" }
             fields["notes"]?.let { logNotes.value = it; changed += "notes" }
-            fields["cost"]?.let { logCost.value = it; changed += "cost" }
+            fields["cost"]?.let { if (_costEditable.value) { logCost.value = it; changed += "cost" } }
             (fields["meter_reading"] ?: fields["odometer"])?.let { logMeterReading.value = it; changed += "odometer" }
             fields["performed_by"]?.let { logPerformedBy.value = it; changed += "performed_by" }
             changed
         }
         viewModelScope.launch { load() }
-        viewModelScope.launch { observeComments() }
-        viewModelScope.launch { loadAuditHistory() }
-        viewModelScope.launch { loadV3() }
     }
 
-    private suspend fun loadV3() {
-        val accountId = identityManager.getActiveAccountId() ?: return
-        try {
-            _codes.value = woV3.codes(accountId)
-            _closeoutOptions.value = woV3.closeoutOptions(accountId)
-            woV3.timer(accountId, woId)?.let { _timer.value = it }
-            repository.observeChecklistForWo(accountId, woId).collect { items ->
-                _checklist.value = items.map {
-                    ChecklistRowState(isChecklistRowRequired(it.rowType), it.isCompleted)
-                }
-            }
-        } catch (e: Exception) {
-            Timber.e(e, "[WoLogVM] loadV3 failed")
-        }
+    override fun onCleared() {
+        formFillRouter.unregister(SCREEN_ID)
+        super.onCleared()
     }
-
-    private fun localTimer(wo: WorkOrderEntity?): WoTimerState =
-        WoTimerState(wo?.timerStartedAt != null, wo?.timerStartedAt, 0, false)
-
-    // ── Data loading ──────────────────────────────────────────────────────────
 
     private suspend fun load() {
         try {
-            val accountId = identityManager.getActiveAccountId() ?: return
-            val db = dbFactory.get(accountId)
-            val wo = db.workOrderDao().getById(woId) ?: return
-            _wo.value = wo
-            if (!_timer.value.serverBacked) _timer.value = localTimer(wo)
-
-            // Pre-fill form from WO
+            val d = detail.filterNotNull().first()
+            val wo = d.workOrder
             logTitle.value = wo.title
-            val noteParts = listOfNotNull(wo.description, wo.dispatcherNotes).filter { it.isNotBlank() }
-            logNotes.value = noteParts.joinToString("\n\n")
-            logCategory.value = wo.category
-
-            // Asset info
-            wo.assetId?.let { assetId ->
-                val asset = repository.getAssetById(accountId, assetId)
-                assetName.value = asset?.name
-                assetType.value = asset?.assetType
-                assetSubtitle.value = buildSubtitle(asset)
-                screenContextStore.setLogEntryScope(assetId, asset?.name)
-
-                val typeKey = asset?.assetType?.takeIf { it.isNotBlank() } ?: "light_vehicle"
-                loadCategories(typeKey, assetId, accountId, db)
-                loadRecentCategories(assetId, accountId, db)
-
-                // Pre-fill meter from latest log for this asset
-                db.logDao().observeAll(accountId)
-                    .map { logs ->
-                        logs.filter { it.assetId == assetId && it.odometerValue != null }
-                            .maxByOrNull { it.entryDate }
-                    }
-                    .first()
-                    ?.odometerValue
-                    ?.let { logMeterReading.value = "%.1f".format(it) }
-            }
-
-            // Pre-fill performer from WO assignment (use tech ID as fallback display)
-            wo.assignedTo?.takeIf { it.isNotBlank() }?.let { techId ->
-                logPerformedBy.value = techId
-            }
-
-            // If WO already has a linked log entry, load it for continuation
-            wo.logId?.takeIf { it.isNotBlank() }?.let { existingLogId ->
-                db.logDao().getById(existingLogId)?.let { log ->
-                    logTitle.value = log.title
-                    log.notes?.takeIf { it.isNotBlank() }?.let { logNotes.value = it }
-                    log.category?.let { logCategory.value = it }
-                    log.cost?.let { logCost.value = it.toString() }
-                    log.odometerValue?.let { logMeterReading.value = "%.1f".format(it) }
-                    log.performedBy?.takeIf { it.isNotBlank() }?.let { logPerformedBy.value = it }
+            logNotes.value = listOfNotNull(wo.description, wo.dispatcherNotes).filter { it.isNotBlank() }.joinToString("\n\n")
+            logCategory.value = wo.categoryName
+            d.assignments.firstOrNull { it.workerId == wo.assignedWorkerId }?.let { lead ->
+                val name = lead.workerName ?: wo.assignedWorkerName
+                if (name != null) {
+                    logPerformedBy.value = name
+                    performer = lead.workerUserId?.let { it to name }
                 }
+            }
+
+            wo.primaryAssetId?.let { assetId ->
+                val asset = assets.asset(assetId)
+                assetName.value = asset?.name
+                assetType.value = asset?.assetTypeCode
+                assetSubtitle.value = asset?.makeModel ?: asset?.locationName
+                screenContextStore.setLogEntryScope(assetId, asset?.name)
+                assets.observeMeters(assetId).first().firstOrNull { it.isDefault }?.lastValue
+                    ?.let { initialMeter = it.stripTrailingZeros().toPlainString(); logMeterReading.value = initialMeter }
+                _recentCategoryKeys.value = recentCategories(
+                    repository.observeWorkOrders(WorkOrderFilter(assetId = assetId)).first().map { it.createdAt to it.categoryName },
+                )
+            }
+
+            // Continue the work order's existing log entry, if there is one.
+            val existing = wo.completionActivityId?.let { activities.activity(it) }
+                ?: activities.observeActivities(ActivityFilter(workOrderId = woId)).first().maxByOrNull { it.occurredAt }
+            existing?.let { a ->
+                activity = a
+                activityLines = activities.observeCostLines(a.id).first()
+                a.title?.takeIf { it.isNotBlank() }?.let { logTitle.value = it }
+                a.notes?.takeIf { it.isNotBlank() }?.let { logNotes.value = it }
+                a.categoryLabel?.let { logCategory.value = it }
+                a.meterValue?.let { initialMeter = it.stripTrailingZeros().toPlainString(); logMeterReading.value = initialMeter }
+                a.performedByName?.takeIf { it.isNotBlank() }?.let { name ->
+                    logPerformedBy.value = name
+                    performer = a.performedByUserId?.let { it to name }
+                }
+                _costEditable.value = activityLines.size <= 1
+                activityLines.singleOrNull()?.let { logCost.value = it.total.stripTrailingZeros().toPlainString() }
             }
         } catch (e: Exception) {
             Timber.e(e, "[WoLogVM] load failed woId=$woId")
         }
     }
 
-    private suspend fun loadCategories(
-        assetType: String,
-        assetId: String,
-        accountId: String,
-        db: com.avago.core.data.db.AvagoDatabase,
-    ) {
-        try {
-            val cats = db.configDao().getByKey("ItemCategory", assetType)
-                ?.let { parseCategoryIds(it.value) }?.takeIf { it.isNotEmpty() }
-                ?: db.configDao().getByKey("system", "log_categories")
-                    ?.let { parseCategoryIdsSeeded(it.value, assetType) }
-                ?: return
-            if (cats.isNotEmpty()) _availableCategories.value = cats
-        } catch (e: Exception) {
-            Timber.e(e, "[WoLogVM] loadCategories failed")
-        }
-    }
+    // ---------------------------------------------------------------- actions
 
-    private suspend fun loadRecentCategories(
-        assetId: String,
-        accountId: String,
-        db: com.avago.core.data.db.AvagoDatabase,
-    ) {
-        try {
-            _recentCategoryKeys.value = db.logDao().observeAll(accountId)
-                .map { logs ->
-                    logs.filter { it.assetId == assetId && !it.category.isNullOrBlank() }
-                        .sortedByDescending { it.entryDate }
-                        .map { it.category!! }.distinct().take(4)
-                }.first()
-        } catch (e: Exception) {
-            Timber.e(e, "[WoLogVM] loadRecentCategories failed")
-        }
-    }
-
-    // ── Actions ───────────────────────────────────────────────────────────────
-
-    /** Saves the log entry and links it to the WO without completing. */
+    /** Saves the log entry (activity linked to the work order) without completing. */
     fun saveDraft(onSuccess: () -> Unit = {}) {
+        if (_isSaving.value) return
         viewModelScope.launch {
             _isSaving.value = true
             _errorMessage.value = null
             try {
-                val logId = persistLogEntry()
-                linkLogToWo(logId)
+                persistActivity()
                 savedSuccessfully.value = true
                 onSuccess()
             } catch (e: Exception) {
                 Timber.e(e, "[WoLogVM] saveDraft failed")
-                _errorMessage.value = e.message ?: "Save failed"
+                _errorMessage.value = e.message ?: str(R.string.wo_error_save_failed)
             } finally {
                 _isSaving.value = false
             }
         }
     }
 
-    /** Completion gate: completing always goes through the close-out sheet first. */
+    /** Completing always goes through the close-out sheet first. */
     fun requestComplete() {
         _errorMessage.value = null
         _showCloseout.value = true
@@ -278,37 +248,28 @@ class WorkOrderLogViewModel @Inject constructor(
 
     fun dismissCloseout() { _showCloseout.value = false }
 
-    /**
-     * Saves the log entry, stores the close-out and transitions the WO to "completed".
-     * Mirrors iOS completeWorkOrderTapped() which chains status transitions
-     * and saves the log atomically.
-     */
+    /** Saves the log entry, stops my timer and completes the work order with [closeout]. */
     fun completeAndClose(closeout: WoCloseout, onSuccess: () -> Unit) {
-        val current = _wo.value ?: return
-        val check = validateCloseout(closeout, !current.assetId.isNullOrBlank(), _checklist.value, closeoutOptions.value)
+        val current = wo.value ?: return
+        val check = validateCloseout(closeout, current.primaryAssetId != null, checklist.value, closeoutOptions.value)
         if (!check.ok) {
-            _errorMessage.value = "Missing: ${check.missing.joinToString()}"
+            _errorMessage.value = str(R.string.wo_closeout_missing, check.missing.joinToString())
             return
         }
         viewModelScope.launch {
             _isCompleting.value = true
             _errorMessage.value = null
             try {
-                val logId = persistLogEntry()
-                val accountId = identityManager.getActiveAccountId() ?: error("no account")
-                val wo = dbFactory.get(accountId).workOrderDao().getById(woId) ?: current
-                if (_timer.value.running && _timer.value.serverBacked) {
-                    woV3.timerAction(accountId, woId, "stop")?.let { _timer.value = it }
-                }
-                val updated = woV3.complete(accountId, wo, closeout) { it.copy(logId = logId) }
-                _wo.value = updated
-                if (!_timer.value.serverBacked) _timer.value = _timer.value.stop(System.currentTimeMillis())
+                // The close-out records its own meter reading; the log keeps the same value.
+                persistActivity(recordMeter = closeout.meterReading == null)
+                if (timer.value.running) repository.timer(woId, TimerAction.STOP)
+                closeoutSupport.complete(current, closeout)
                 _showCloseout.value = false
                 completedSuccessfully.value = true
                 onSuccess()
             } catch (e: Exception) {
                 Timber.e(e, "[WoLogVM] completeAndClose failed")
-                _errorMessage.value = e.message ?: "Complete failed"
+                _errorMessage.value = e.message ?: str(R.string.wo_error_save_failed)
             } finally {
                 _isCompleting.value = false
             }
@@ -318,224 +279,85 @@ class WorkOrderLogViewModel @Inject constructor(
     fun onCategorySelected(key: String) { logCategory.value = key }
     fun clearError() { _errorMessage.value = null }
 
-    override fun onCleared() {
-        formFillRouter.unregister("log_entry")
-        super.onCleared()
-    }
+    fun startTimer() = timerAction(TimerAction.START)
+    fun pauseTimer() = timerAction(TimerAction.PAUSE)
+    fun resumeTimer() = timerAction(TimerAction.RESUME)
 
-    // ── Timer (mirrors iOS WOTimerView delegate) ──────────────────────────────
-
-    /**
-     * Start timer: server `/timer start` when available (contract §3), else local timerStartedAt.
-     * Auto-advances assigned → in_progress either way.
-     */
-    fun startTimer() {
+    private fun timerAction(action: TimerAction) {
         viewModelScope.launch {
-            val accountId = identityManager.getActiveAccountId() ?: return@launch
-            val wo = _wo.value ?: return@launch
-            val now = System.currentTimeMillis()
-            val server = woV3.timerAction(accountId, woId, "start")
-            _timer.value = server ?: _timer.value.start(now)
-            val updated = wo.copy(
-                timerStartedAt = if (server == null) now else wo.timerStartedAt,
-                status = if (wo.status == "assigned") "in_progress" else wo.status,
-                updatedAt = now,
-            )
-            repository.upsert(accountId, updated)
-            _wo.value = updated
+            runCatching { repository.timer(woId, action) }
+                .onFailure { e ->
+                    Timber.e(e, "[WoLogVM] timer $action failed")
+                    _errorMessage.value = e.message ?: str(R.string.wo_error_save_failed)
+                }
         }
     }
 
-    /** Pause timer: server `/timer stop` when available, else clear timerStartedAt. Status stays in_progress. */
-    fun pauseTimer() {
-        viewModelScope.launch {
-            val accountId = identityManager.getActiveAccountId() ?: return@launch
-            val wo = _wo.value ?: return@launch
-            val now = System.currentTimeMillis()
-            val server = woV3.timerAction(accountId, woId, "stop")
-            _timer.value = server ?: _timer.value.stop(now)
-            if (server == null || wo.timerStartedAt != null) {
-                val updated = wo.copy(timerStartedAt = null, updatedAt = now)
-                repository.upsert(accountId, updated)
-                _wo.value = updated
-            }
-        }
-    }
-
-    /** Resume timer: set a fresh timerStartedAt. */
-    fun resumeTimer() = startTimer()
-
-    // ── Comments ──────────────────────────────────────────────────────────────
-
-    /** Send a new comment, save locally and enqueue sync. */
     fun sendComment(text: String) {
         val trimmed = text.trim()
         if (trimmed.isBlank()) return
         viewModelScope.launch {
-            try {
-                val accountId = identityManager.getActiveAccountId() ?: return@launch
-                val userId = identityManager.getActiveUserId() ?: accountId
-                val db = dbFactory.get(accountId)
-                val now = System.currentTimeMillis()
-                db.woCommentDao().upsert(
-                    WoCommentEntity(
-                        commentId = UUID.randomUUID().toString(),
-                        woId = woId,
-                        authorId = userId,
-                        body = trimmed,
-                        createdAt = now,
-                        updatedAt = now,
-                        deletedAt = null,
-                        serverVersion = 0L,
-                        seq = null,
-                    ),
-                )
-                syncEngine.sync()
-            } catch (e: Exception) {
-                Timber.e(e, "[WoLogVM] sendComment failed")
-            }
-        }
-    }
-
-    private suspend fun observeComments() {
-        val accountId = identityManager.getActiveAccountId() ?: return
-        try {
-            dbFactory.get(accountId).woCommentDao().observeAll(accountId)
-                .map { list -> list.filter { it.woId == woId }.sortedBy { it.createdAt } }
-                .collect { _comments.value = it }
-        } catch (e: Exception) {
-            Timber.e(e, "[WoLogVM] observeComments failed")
-        }
-    }
-
-    private suspend fun loadAuditHistory() {
-        val accountId = identityManager.getActiveAccountId() ?: return
-        try {
-            val fmt = DateTimeFormatter.ofPattern("MMM d, yyyy HH:mm")
-            when (val result = serviceClient.getWorkOrderAudit(accountId, woId)) {
-                is NetworkResult.Success -> _auditEntries.value = result.data.map { event ->
-                    AuditEntry(
-                        description = event.event_type,
-                        createdAt = Instant.ofEpochMilli(event.occurred_at)
-                            .atZone(ZoneId.systemDefault()).format(fmt),
-                    )
+            runCatching { repository.addComment(woId, trimmed) }
+                .onFailure { e ->
+                    Timber.e(e, "[WoLogVM] sendComment failed")
+                    _errorMessage.value = e.message ?: str(R.string.wo_error_save_failed)
                 }
-                else -> Unit
-            }
-        } catch (e: Exception) {
-            Timber.e(e, "[WoLogVM] loadAuditHistory failed")
         }
     }
 
-    // ── Private helpers ───────────────────────────────────────────────────────
+    // ---------------------------------------------------------------- persistence
 
-    private suspend fun persistLogEntry(): String {
-        val accountId = identityManager.getActiveAccountId() ?: error("no account")
-        val db = dbFactory.get(accountId)
-        val wo = _wo.value ?: error("WO not loaded")
-        val now = System.currentTimeMillis()
-
-        val existingId = wo.logId?.takeIf { it.isNotBlank() }
-        val logId = existingId ?: UUID.randomUUID().toString()
-        val existing = existingId?.let { db.logDao().getById(it) }
-        val title = logTitle.value.trim().ifBlank { wo.title }
-        val cost = logCost.value.toDoubleOrNull()
-        val performedBy = logPerformedBy.value.trim().takeIf { it.isNotBlank() }
-        val notes = logNotes.value.trim().takeIf { it.isNotBlank() }
-
-        // Existing log: update only the fields this screen edits, so attributes/data/cost
-        // breakdown written elsewhere (incl. unknown attribute keys) are preserved.
-        val entity = existing?.copy(
-            title = title,
-            odometerValue = logMeterReading.value.toDoubleOrNull(),
-            category = logCategory.value,
-            cost = cost,
-            performedBy = performedBy,
-            notes = notes,
-            baseAmount = if (existing.costMode == "total" || existing.costMode == null) cost else existing.baseAmount,
-            woId = woId,
-            updatedAt = now,
-        ) ?: LogEntity(
-                entryId = logId,
-                assetId = wo.assetId ?: error("WO has no asset"),
-                accountId = accountId,
-                title = title,
-                entryDate = now,
-                odometerValue = logMeterReading.value.toDoubleOrNull(),
-                category = logCategory.value,
-                cost = cost,
-                performedBy = performedBy,
-                performedByUserId = null,
-                notes = notes,
-                data = null,
-                attributes = null,
-                costMode = "total",
-                costItems = null,
-                costLabor = null,
-                costTax = null,
-                currency = "USD",
-                baseAmount = cost,
-                exchangeRateUsed = 1.0,
-                configId = null,
-                configVersion = null,
-                serviceId = null,
-                costMisc = null,
-                parentId = null,
-                createdAt = now,
-                updatedAt = now,
-                deletedAt = null,
-                serverVersion = 0L,
-                seq = null,
-                woId = woId,
-            )
-        db.logDao().upsert(entity)
-        syncEngine.sync()
-        return logId
-    }
-
-    private suspend fun linkLogToWo(logId: String) {
-        val accountId = identityManager.getActiveAccountId() ?: return
-        // Always read the LATEST WO from DB — _wo.value was captured on screen-open.
-        // If the title was edited on another screen since then, _wo.value.title is stale;
-        // pushing it would revert or blank the WO title on iOS.
-        val db = dbFactory.get(accountId)
-        val freshWo = db.workOrderDao().getById(woId) ?: return
-        if (freshWo.logId != logId) {
-            val updated = freshWo.copy(logId = logId, updatedAt = System.currentTimeMillis())
-            repository.upsert(accountId, updated)
-            _wo.value = updated
+    private suspend fun persistActivity(recordMeter: Boolean = true) {
+        val current = wo.value ?: error("work order not loaded")
+        val name = logPerformedBy.value.trim().ifBlank { null }
+        val meterText = logMeterReading.value.trim()
+        val meter = meterText.replace(',', '.').toBigDecimalOrNull()
+            ?.takeIf { recordMeter && meterText != initialMeter }
+        val cost = logCost.value.trim().replace(',', '.').toBigDecimalOrNull()?.takeIf { it.signum() >= 0 }
+        val existing = activity
+        val draft = ActivityDraft(
+            assetId = current.primaryAssetId,
+            workOrderId = woId,
+            type = existing?.type ?: ActivityType.REPAIR,
+            categoryLabel = logCategory.value,
+            title = logTitle.value.trim().ifBlank { current.title },
+            occurredAt = existing?.occurredAt ?: System.currentTimeMillis(),
+            meterValue = meter ?: existing?.meterValue,
+            performedByUserId = performer?.takeIf { it.second == name }?.first,
+            performedByName = name,
+            providerName = existing?.providerName,
+            currency = existing?.currency ?: current.currency,
+            overtimeMultiplier = existing?.overtimeMultiplier,
+            notes = logNotes.value.trim().ifBlank { null },
+            payload = existing?.payload,
+            attributes = existing?.attributes,
+        )
+        if (existing == null) {
+            val id = activities.create(draft, lines = listOfNotNull(cost?.let(::costLine)))
+            activity = activities.activity(id)
+            activityLines = activities.observeCostLines(id).first()
+        } else {
+            activities.update(existing.id, draft)
+            if (_costEditable.value) saveSingleCost(existing.id, cost)
         }
+        if (meter != null) initialMeter = meterText
     }
 
-    private fun buildSubtitle(asset: AssetEntity?): String? {
-        if (asset == null) return null
-        val realEstate = setOf("residential", "multifamily", "office", "industrial", "healthcare", "restaurant")
-        if (asset.assetType in realEstate) return asset.addressLine1?.takeIf { it.isNotBlank() }
-        return listOfNotNull(asset.year?.takeIf { it > 0 }?.toString(), asset.make, asset.model)
-            .joinToString(" ").takeIf { it.isNotBlank() }
-    }
-
-    private fun parseCategoryIds(json: String): List<String> {
-        val arrStart = json.indexOf("\"categories\"").let { if (it >= 0) json.indexOf('[', it) else json.indexOf('[') }
-        if (arrStart < 0) return emptyList()
-        var depth = 0; var end = arrStart
-        for (i in arrStart until json.length) when (json[i]) {
-            '[' -> depth++; ']' -> { depth--; if (depth == 0) { end = i; break } }
+    private suspend fun saveSingleCost(activityId: String, cost: BigDecimal?) {
+        val line = activityLines.singleOrNull()
+        when {
+            line == null && cost != null -> activities.addCostLine(activityId, costLine(cost))
+            line != null && cost == null -> activities.deleteCostLine(line.id)
+            line != null && cost != null && line.total.compareTo(cost) != 0 ->
+                activities.updateCostLine(line.id, costLine(cost).copy(kind = line.kind, description = line.description))
         }
-        return Regex("\"id\"\\s*:\\s*\"([^\"]+)\"")
-            .findAll(json.substring(arrStart, end + 1)).map { it.groupValues[1] }.toList()
+        activityLines = activities.observeCostLines(activityId).first()
     }
 
-    private fun parseCategoryIdsSeeded(json: String, assetType: String): List<String> {
-        val blockStart = json.indexOf("\"asset_type\":\"$assetType\"").takeIf { it >= 0 }
-            ?: return parseCategoryIds(json)
-        val catStart = json.indexOf("\"categories\"", blockStart)
-            .let { if (it >= 0) json.indexOf('[', it) else return emptyList() }
-        var depth = 0; var end = catStart
-        for (i in catStart until json.length) when (json[i]) {
-            '[' -> depth++; ']' -> { depth--; if (depth == 0) { end = i; break } }
-        }
-        return Regex("\"id\"\\s*:\\s*\"([^\"]+)\"")
-            .findAll(json.substring(catStart, end + 1)).map { it.groupValues[1] }.toList()
+    private fun costLine(amount: BigDecimal) =
+        CostLineDraft(kind = CostLineType.MISC, description = str(R.string.wo_log_cost_line), quantity = BigDecimal.ONE, unitCost = amount)
+
+    private companion object {
+        const val SCREEN_ID = "log_entry"
     }
 }

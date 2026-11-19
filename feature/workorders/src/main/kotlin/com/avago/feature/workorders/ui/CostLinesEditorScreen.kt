@@ -1,4 +1,4 @@
-﻿package com.avago.feature.workorders.ui
+package com.avago.feature.workorders.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,6 +29,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -53,58 +55,51 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.feature.workorders.R
-import com.avago.core.data.db.entity.LogCostLineEntity
+import com.avago.core.data.Formatters
+import com.avago.core.data.domain.CostLine
+import com.avago.core.data.domain.CostLineDraft
+import com.avago.core.data.domain.CostLineType
 import com.avago.feature.workorders.ui.sheets.TechPickerSheet
 import com.avago.feature.workorders.viewmodel.CostLinesEditorViewModel
-
-private val costLineKinds = listOf("Labor", "Material", "Subcontractor", "Equipment")
+import java.math.BigDecimal
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CostLinesEditorScreen(
     woId: String,
     onBack: () -> Unit,
-    onNavigateToGlPicker: () -> Unit,
-    pendingGlAccount: String?,
-    onGlAccountConsumed: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: CostLinesEditorViewModel = hiltViewModel(),
 ) {
     val costLines by viewModel.costLines.collectAsStateWithLifecycle()
     val total by viewModel.total.collectAsStateWithLifecycle()
+    val workerNames by viewModel.workerNames.collectAsStateWithLifecycle()
+    val workerUserIds by viewModel.workerUserIds.collectAsStateWithLifecycle()
+    val error by viewModel.error.collectAsStateWithLifecycle()
+    val snackbar = remember { SnackbarHostState() }
 
-    var showAddDialog by rememberSaveable { mutableStateOf(false) }
-    var editingLine by remember { mutableStateOf<LogCostLineEntity?>(null) }
-
-    var dialogGlCode by rememberSaveable { mutableStateOf("") }
-
-    LaunchedEffect(pendingGlAccount) {
-        if (pendingGlAccount != null) {
-            dialogGlCode = pendingGlAccount
-            onGlAccountConsumed()
+    LaunchedEffect(error) {
+        error?.let {
+            snackbar.showSnackbar(it)
+            viewModel.clearError()
         }
     }
+
+    var showAddDialog by rememberSaveable { mutableStateOf(false) }
+    var editingLine by remember { mutableStateOf<CostLine?>(null) }
 
     if (showAddDialog || editingLine != null) {
         CostLineDialog(
             initial = editingLine,
-            externalGlCode = dialogGlCode,
-            onPickGlAccount = {
-                onNavigateToGlPicker()
-            },
-            onConfirm = { description, kind, qty, unitCost, glCode, techId ->
+            initialPerformerUserId = editingLine?.performerWorkerId?.let(workerUserIds::get),
+            workerNameByUserId = workerUserIds.entries.associate { (workerId, userId) -> userId to (workerNames[workerId] ?: userId) },
+            onConfirm = { draft ->
                 val existing = editingLine
-                if (existing == null) {
-                    viewModel.addLine(description, kind, qty, unitCost, glCode, techId)
-                } else {
-                    viewModel.updateLine(existing, description, kind, qty, unitCost, glCode, techId)
-                }
-                dialogGlCode = ""
+                if (existing == null) viewModel.addLine(draft) else viewModel.updateLine(existing.id, draft)
                 showAddDialog = false
                 editingLine = null
             },
             onDismiss = {
-                dialogGlCode = ""
                 showAddDialog = false
                 editingLine = null
             },
@@ -113,6 +108,7 @@ fun CostLinesEditorScreen(
 
     Scaffold(
         modifier = modifier,
+        snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             CenterAlignedTopAppBar(
                 navigationIcon = {
@@ -123,7 +119,7 @@ fun CostLinesEditorScreen(
                 title = { Text(stringResource(R.string.cost_lines_title)) },
                 actions = {
                     Text(
-                        text = formatCostAmount(total),
+                        text = Formatters.formatCurrency(total.toDouble(), null),
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                         modifier = Modifier.padding(end = 16.dp),
                     )
@@ -162,16 +158,16 @@ fun CostLinesEditorScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 item { Spacer(modifier = Modifier.height(8.dp)) }
-                items(costLines, key = { it.lineId }) { line ->
+                items(costLines, key = { it.id }) { line ->
                     val dismissState = rememberSwipeToDismissBoxState(
                         confirmValueChange = { value ->
                             if (value == SwipeToDismissBoxValue.EndToStart) {
-                                viewModel.removeLine(line.lineId)
+                                viewModel.removeLine(line.id)
                                 true
                             } else false
                         },
                     )
-                    LaunchedEffect(line.lineId) {
+                    LaunchedEffect(line.id) {
                         if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart) {
                             dismissState.reset()
                         }
@@ -196,10 +192,8 @@ fun CostLinesEditorScreen(
                     ) {
                         CostLineCard(
                             line = line,
-                            onClick = {
-                                dialogGlCode = line.glCode ?: ""
-                                editingLine = line
-                            },
+                            performerName = line.performerWorkerId?.let(workerNames::get),
+                            onClick = { editingLine = line },
                         )
                     }
                 }
@@ -210,8 +204,16 @@ fun CostLinesEditorScreen(
 }
 
 @Composable
+private fun costLineTypeLabel(type: CostLineType): String = when (type) {
+    CostLineType.LABOR -> stringResource(R.string.cost_lines_kind_labor)
+    CostLineType.PART -> stringResource(R.string.cost_lines_kind_part)
+    CostLineType.MISC -> stringResource(R.string.cost_lines_kind_misc)
+}
+
+@Composable
 private fun CostLineCard(
-    line: LogCostLineEntity,
+    line: CostLine,
+    performerName: String?,
     onClick: () -> Unit,
 ) {
     Card(
@@ -226,12 +228,12 @@ private fun CostLineCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = line.description ?: line.kind,
+                    text = line.description ?: costLineTypeLabel(line.kind),
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                     modifier = Modifier.weight(1f),
                 )
                 Text(
-                    text = formatCostAmount(line.quantity * line.unitCost),
+                    text = Formatters.formatCurrency(line.total.toDouble(), null),
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                 )
             }
@@ -240,25 +242,17 @@ private fun CostLineCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                SuggestionChip(onClick = {}, label = { Text(line.kind) })
+                SuggestionChip(onClick = {}, label = { Text(costLineTypeLabel(line.kind)) })
                 Text(
-                    text = "${line.quantity} × ${"%.2f".format(line.unitCost)}",
+                    text = "${line.quantity.stripTrailingZeros().toPlainString()} \u00d7 ${line.unitCost?.let { "%.2f".format(it) } ?: "\u2014"}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            line.glCode?.takeIf { it.isNotBlank() }?.let { glCode ->
+            if (line.kind == CostLineType.LABOR && performerName != null) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = glCode,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (line.kind == "Labor" && line.userId != null) {
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "${stringResource(R.string.cost_lines_field_technician)}: ${line.userId}",
+                    text = "${stringResource(R.string.cost_lines_field_technician)}: $performerName",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -270,33 +264,29 @@ private fun CostLineCard(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CostLineDialog(
-    initial: LogCostLineEntity?,
-    externalGlCode: String,
-    onPickGlAccount: () -> Unit,
-    onConfirm: (description: String, kind: String, quantity: Double, unitCost: Double, glCode: String, techId: String?) -> Unit,
+    initial: CostLine?,
+    initialPerformerUserId: String?,
+    workerNameByUserId: Map<String, String>,
+    onConfirm: (CostLineDraft) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var description by rememberSaveable { mutableStateOf(initial?.description ?: "") }
-    var kind by rememberSaveable { mutableStateOf(initial?.kind ?: costLineKinds.first()) }
-    var quantityText by rememberSaveable { mutableStateOf(initial?.quantity?.toString() ?: "1") }
-    var unitCostText by rememberSaveable { mutableStateOf(initial?.unitCost?.toString() ?: "0") }
-    var glCode by rememberSaveable { mutableStateOf(initial?.glCode ?: "") }
-    var techId by rememberSaveable { mutableStateOf(initial?.userId) }
+    var kind by rememberSaveable { mutableStateOf(initial?.kind ?: CostLineType.LABOR) }
+    var quantityText by rememberSaveable { mutableStateOf(initial?.quantity?.stripTrailingZeros()?.toPlainString() ?: "1") }
+    var unitCostText by rememberSaveable { mutableStateOf(initial?.unitCost?.toPlainString() ?: "") }
+    var performerUserId by rememberSaveable { mutableStateOf(initialPerformerUserId) }
     var kindMenuExpanded by remember { mutableStateOf(false) }
     var showTechPicker by remember { mutableStateOf(false) }
-
-    LaunchedEffect(externalGlCode) {
-        if (externalGlCode.isNotBlank()) {
-            glCode = externalGlCode
-        }
-    }
+    val quantity = quantityText.trim().replace(',', '.').toBigDecimalOrNull()
+    val unitCost = unitCostText.trim().replace(',', '.').takeIf { it.isNotEmpty() }?.toBigDecimalOrNull()
+    val unitCostInvalid = unitCostText.isNotBlank() && unitCost == null
 
     if (showTechPicker) {
         TechPickerSheet(
-            selectedTechIds = techId?.let { listOf(it) } ?: emptyList(),
+            selectedTechIds = performerUserId?.let { listOf(it) } ?: emptyList(),
             onDismiss = { showTechPicker = false },
             onConfirm = { ids ->
-                techId = ids.firstOrNull()
+                performerUserId = ids.firstOrNull()
                 showTechPicker = false
             },
             woId = null,
@@ -316,13 +306,14 @@ private fun CostLineDialog(
                     singleLine = true,
                 )
                 ExposedDropdownMenuBox(
-                    expanded = kindMenuExpanded,
+                    expanded = kindMenuExpanded && initial == null,
                     onExpandedChange = { kindMenuExpanded = it },
                 ) {
                     OutlinedTextField(
-                        value = kind,
+                        value = costLineTypeLabel(kind),
                         onValueChange = {},
                         readOnly = true,
+                        enabled = initial == null,
                         label = { Text(stringResource(R.string.cost_lines_field_type)) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(kindMenuExpanded) },
                         modifier = Modifier
@@ -330,12 +321,12 @@ private fun CostLineDialog(
                             .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
                     )
                     ExposedDropdownMenu(
-                        expanded = kindMenuExpanded,
+                        expanded = kindMenuExpanded && initial == null,
                         onDismissRequest = { kindMenuExpanded = false },
                     ) {
-                        costLineKinds.forEach { k ->
+                        CostLineType.entries.forEach { k ->
                             DropdownMenuItem(
-                                text = { Text(k) },
+                                text = { Text(costLineTypeLabel(k)) },
                                 onClick = {
                                     kind = k
                                     kindMenuExpanded = false
@@ -349,6 +340,7 @@ private fun CostLineDialog(
                         value = quantityText,
                         onValueChange = { quantityText = it },
                         label = { Text(stringResource(R.string.cost_lines_field_qty)) },
+                        isError = quantity == null || quantity.signum() <= 0,
                         modifier = Modifier.weight(1f),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
@@ -357,32 +349,41 @@ private fun CostLineDialog(
                         value = unitCostText,
                         onValueChange = { unitCostText = it },
                         label = { Text(stringResource(R.string.cost_lines_field_unit_cost)) },
+                        isError = unitCostInvalid,
                         modifier = Modifier.weight(1f),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
                     )
                 }
-                OutlinedTextField(
-                    value = glCode,
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text(stringResource(R.string.cost_lines_field_gl_account)) },
-                    placeholder = { Text(stringResource(R.string.cost_lines_gl_account_placeholder)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    trailingIcon = {
-                        TextButton(onClick = onPickGlAccount) {
-                            Text(stringResource(R.string.cost_lines_pick_gl_account))
-                        }
-                    },
-                )
+                if (kind == CostLineType.LABOR) {
+                    OutlinedTextField(
+                        value = performerUserId?.let { workerNameByUserId[it] ?: it }.orEmpty(),
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text(stringResource(R.string.cost_lines_field_technician)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        trailingIcon = {
+                            TextButton(onClick = { showTechPicker = true }) {
+                                Text(stringResource(R.string.cost_lines_pick_technician))
+                            }
+                        },
+                    )
+                }
             }
         },
         confirmButton = {
             TextButton(
+                enabled = quantity != null && quantity.signum() > 0 && !unitCostInvalid,
                 onClick = {
-                    val qty = quantityText.toDoubleOrNull() ?: 1.0
-                    val cost = unitCostText.toDoubleOrNull() ?: 0.0
-                    onConfirm(description, kind, qty, cost, glCode, techId)
+                    onConfirm(
+                        CostLineDraft(
+                            kind = kind,
+                            description = description.trim().ifBlank { null },
+                            performerUserId = performerUserId.takeIf { kind == CostLineType.LABOR },
+                            quantity = quantity ?: BigDecimal.ONE,
+                            unitCost = unitCost,
+                        ),
+                    )
                 },
             ) {
                 Text(stringResource(R.string.cost_lines_save))
@@ -393,5 +394,3 @@ private fun CostLineDialog(
         },
     )
 }
-
-private fun formatCostAmount(amount: Double): String = "${"%.2f".format(amount)}"

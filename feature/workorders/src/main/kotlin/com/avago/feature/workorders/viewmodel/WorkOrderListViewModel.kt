@@ -3,26 +3,23 @@ package com.avago.feature.workorders.viewmodel
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.db.entity.WorkOrderEntity
+import com.avago.core.data.domain.WorkOrder
+import com.avago.core.data.domain.WorkOrderRepository
+import com.avago.core.data.domain.WorkerRepository
 import com.avago.core.permissions.Permissions
 import com.avago.core.permissions.PermissionsManager
 import com.avago.core.sync.SyncEngine
 import com.avago.feature.workorders.R
 import com.avago.feature.workorders.model.WoSearch
-import com.avago.feature.workorders.repository.WorkOrderRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -40,12 +37,12 @@ enum class WoHorizon { NOW, NEXT, LATER }
 /** Due-date bucket ? the UI maps each key to a localized `wo_bucket_*` string. */
 enum class WoBucketKey { OVERDUE, DUE_TODAY, THIS_WEEK, THIS_MONTH, LATER, COMPLETED }
 
-data class WoBucket(val key: WoBucketKey, val items: List<WorkOrderEntity>)
+data class WoBucket(val key: WoBucketKey, val items: List<WorkOrder>)
 
 @HiltViewModel
 class WorkOrderListViewModel @Inject constructor(
     private val repository: WorkOrderRepository,
-    private val identityManager: IdentityManager,
+    workers: WorkerRepository,
     private val syncEngine: SyncEngine,
     private val permissionsManager: PermissionsManager,
     @ApplicationContext private val appContext: Context,
@@ -84,62 +81,35 @@ class WorkOrderListViewModel @Inject constructor(
     val canOpenDispatch: StateFlow<Boolean> = permissionsManager.observeCan(Permissions.DISPATCH_MANAGE_ASSIGNMENTS)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), permissionsManager.can(Permissions.DISPATCH_MANAGE_ASSIGNMENTS))
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private val _allWos: StateFlow<List<WorkOrderEntity>> =
-        identityManager.activeAccountId
-            .flatMapLatest { accountId ->
-                if (accountId == null) {
-                    flowOf(emptyList())
-                } else {
-                    try {
-                        repository.observeAll(accountId)
-                    } catch (e: Exception) {
-                        Timber.e(e, "[WoListVM] Failed to observe WOs for $accountId")
-                        flowOf(emptyList())
-                    }
-                }
-            }
-            .catch { e ->
-                Timber.e(e, "[WoListVM] WO flow error")
-                emit(emptyList())
-            }
-            .stateIn(
-                scope = viewModelScope,
-                // Lazily keeps the Room Flow alive as long as the ViewModel lives — ensures
-                // edits made while the list screen is off-screen (navigated away) are always
-                // reflected the moment the user returns, with no stale-data flash.
-                started = SharingStarted.Lazily,
-                initialValue = emptyList(),
-            )
-
-    // Asset subtitle labels keyed by assetId — populated from local DB whenever
-    // the WO list changes. Mirrors iOS UnifiedWorkOrderCell.assetSubtitle().
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val assetLabels: StateFlow<Map<String, String?>> = _allWos
-        .flatMapLatest { wos ->
-            val accountId = identityManager.getActiveAccountId()
-                ?: return@flatMapLatest flowOf(emptyMap())
-            flow {
-                val uniqueIds = wos.mapNotNull { it.assetId }.distinct()
-                emit(uniqueIds.associateWith { id -> repository.assetLabelFor(id, accountId) })
-            }
+    private val _allWos: StateFlow<List<WorkOrder>> = repository.observeWorkOrders()
+        .catch { e ->
+            Timber.e(e, "[WoListVM] WO flow error")
+            emit(emptyList())
         }
-        .catch { emit(emptyMap()) }
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    private val myWorkerId: StateFlow<String?> = workers.observeMe()
+        .map { it?.id }
+        .catch { emit(null) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /** Asset subtitle labels keyed by asset id. */
+    val assetLabels: StateFlow<Map<String, String?>> = _allWos
+        .map { wos -> wos.mapNotNull { wo -> wo.primaryAssetId?.let { it to wo.primaryAssetName } }.toMap() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     val buckets: StateFlow<List<WoBucket>> = combine(
         combine(_allWos, _searchQuery, _scopeFilter, _horizon) { a, b, c, d -> Quad(a, b, c, d) },
         _statusFilter,
-        assetLabels,
-    ) { (all, query, scope, horizon), statusFilter, labels ->
-        val myUserId = identityManager.getActiveUserId() ?: identityManager.getActiveAccountId()
+        myWorkerId,
+    ) { (all, query, scope, horizon), statusFilter, myWorker ->
         val zone = ZoneId.systemDefault()
         val today = LocalDate.now(zone)
 
         // 1. Horizon filter (matches iOS Now / Next / Later semantics)
         val horizonFiltered = when (horizon) {
             WoHorizon.NOW -> all.filter { wo ->
-                val due = wo.dueDate
+                val due = wo.dueAt
                 if (due == null) true
                 else {
                     val dueDate = Instant.ofEpochMilli(due).atZone(zone).toLocalDate()
@@ -148,7 +118,7 @@ class WorkOrderListViewModel @Inject constructor(
                 }
             }
             WoHorizon.NEXT -> all.filter { wo ->
-                val due = wo.dueDate
+                val due = wo.dueAt
                 if (due == null) true
                 else {
                     val dueDate = Instant.ofEpochMilli(due).atZone(zone).toLocalDate()
@@ -162,38 +132,36 @@ class WorkOrderListViewModel @Inject constructor(
         // 2. Scope filter (matches iOS Mine / All toggle)
         val scopeFiltered = horizonFiltered.filter { wo ->
             when (scope) {
-                WoListFilter.MINE -> myUserId != null && wo.assignedTo == myUserId
+                WoListFilter.MINE -> myWorker != null && wo.assignedWorkerId == myWorker
                 WoListFilter.ALL -> true
             }
         }
 
         // 3. Status filter — mirrors iOS selectedStatuses multi-select. Empty means "all".
         val statusFiltered = if (statusFilter.isEmpty()) scopeFiltered
-        else scopeFiltered.filter { wo -> wo.status in statusFilter }
+        else scopeFiltered.filter { wo -> wo.status.wire in statusFilter }
 
         // 4. Search filter ? web woSearch parity: every term must match title, id,
         //    description, asset label, assignee or category (case/diacritic-insensitive).
         val searched = WoSearch.filter(statusFiltered, query) { wo ->
-            listOf(wo.title, wo.woId, wo.description, wo.assetId?.let { labels[it] }, wo.assignedTo, wo.category)
+            listOf(wo.title, wo.id, wo.description, wo.primaryAssetName, wo.assignedWorkerName, wo.categoryName, wo.locationName)
         }
 
         // 5. Group into buckets
-        val completedStatuses = listOf("completed", "complete", "cancelled")
-
-        val overdue = mutableListOf<WorkOrderEntity>()
-        val dueToday = mutableListOf<WorkOrderEntity>()
-        val thisWeek = mutableListOf<WorkOrderEntity>()
-        val thisMonth = mutableListOf<WorkOrderEntity>()
-        val later = mutableListOf<WorkOrderEntity>()
-        val noDueDate = mutableListOf<WorkOrderEntity>()
-        val completed = mutableListOf<WorkOrderEntity>()
+        val overdue = mutableListOf<WorkOrder>()
+        val dueToday = mutableListOf<WorkOrder>()
+        val thisWeek = mutableListOf<WorkOrder>()
+        val thisMonth = mutableListOf<WorkOrder>()
+        val later = mutableListOf<WorkOrder>()
+        val noDueDate = mutableListOf<WorkOrder>()
+        val completed = mutableListOf<WorkOrder>()
 
         for (wo in searched) {
-            if (wo.status in completedStatuses) {
+            if (wo.status.isTerminal) {
                 completed.add(wo)
                 continue
             }
-            val due = wo.dueDate
+            val due = wo.dueAt
             if (due == null) {
                 noDueDate.add(wo)
                 continue
@@ -209,8 +177,8 @@ class WorkOrderListViewModel @Inject constructor(
         }
 
         // Sort each bucket
-        fun List<WorkOrderEntity>.byDueAsc() = sortedBy { it.dueDate }
-        fun List<WorkOrderEntity>.byDueDesc() = sortedByDescending { it.dueDate }
+        fun List<WorkOrder>.byDueAsc() = sortedBy { it.dueAt }
+        fun List<WorkOrder>.byDueDesc() = sortedByDescending { it.dueAt }
 
         val result = mutableListOf<WoBucket>()
         if (overdue.isNotEmpty()) result.add(WoBucket(WoBucketKey.OVERDUE, overdue.byDueAsc()))
@@ -277,17 +245,12 @@ class WorkOrderListViewModel @Inject constructor(
 
     fun rescheduleWo(woId: String, newDueDateMs: Long) {
         viewModelScope.launch {
-            val accountId = identityManager.getActiveAccountId() ?: return@launch
-            val existing = repository.getById(accountId, woId) ?: run {
-                Timber.w("[WoListVM] rescheduleWo: WO $woId not found in local DB")
-                return@launch
+            try {
+                repository.edit(woId) { it.copy(dueAt = newDueDateMs) }
+            } catch (e: Exception) {
+                Timber.e(e, "[WoListVM] reschedule failed")
+                _syncError.value = appContext.getString(R.string.wo_error_save_failed)
             }
-            val updated = existing.copy(
-                dueDate = newDueDateMs,
-                updatedAt = System.currentTimeMillis(),
-            )
-            repository.upsert(accountId, updated)
-            Timber.d("[WoListVM] rescheduled $woId to $newDueDateMs")
         }
     }
 }

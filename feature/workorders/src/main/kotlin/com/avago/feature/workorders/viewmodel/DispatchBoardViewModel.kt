@@ -2,30 +2,26 @@ package com.avago.feature.workorders.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
 import com.avago.core.data.FeatureFlags
-import com.avago.core.data.db.entity.WorkOrderEntity
+import com.avago.core.data.domain.WorkOrder
+import com.avago.core.data.domain.WorkOrderRepository
 import com.avago.core.sync.SyncEngine
 import com.avago.feature.workorders.model.WoSearch
 import com.avago.feature.workorders.model.WoStatus
-import com.avago.feature.workorders.repository.WorkOrderRepository
+import com.avago.feature.workorders.model.availableTransitions
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
 
-/** Ordered status columns shown on the dispatch board (excludes CANCELLED). */
+/** Ordered status columns shown on the dispatch board (terminal statuses other than completed are hidden). */
 val DISPATCH_COLUMNS = listOf(
     WoStatus.DRAFT,
     WoStatus.OPEN,
@@ -35,12 +31,20 @@ val DISPATCH_COLUMNS = listOf(
     WoStatus.COMPLETE,
 )
 
+/** Statuses a card may be moved to from the board; assignment needs a technician and happens on the detail screen. */
+fun boardMoveTargets(current: WoStatus): List<WoStatus> =
+    current.availableTransitions().map { it.targetStatus }
+        .filter { it != WoStatus.ASSIGNED && it in DISPATCH_COLUMNS }
+        .distinct()
+
+/** True when a board move from [from] to [to] can be undone by the reverse transition. */
+fun canUndoMove(from: WoStatus, to: WoStatus): Boolean = from in to.availableTransitions().map { it.targetStatus }
+
 @HiltViewModel
 class DispatchBoardViewModel @Inject constructor(
     private val repository: WorkOrderRepository,
-    private val identityManager: IdentityManager,
     private val syncEngine: SyncEngine,
-    private val featureFlags: FeatureFlags,
+    featureFlags: FeatureFlags,
 ) : ViewModel() {
 
     /** Reflects [FeatureFlags.dispatchEnabled]; observed reactively via the config DB. */
@@ -57,35 +61,24 @@ class DispatchBoardViewModel @Inject constructor(
 
     private val _bannerDismissed = MutableStateFlow(false)
 
-    /** Live search query for the dispatch board — matches iOS UISearchController inline search. */
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+
+    /** Live search query for the dispatch board. */
     val searchQuery = MutableStateFlow("")
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private val allWos: StateFlow<List<WorkOrderEntity>> =
-        identityManager.activeAccountId
-            .flatMapLatest { accountId ->
-                if (accountId == null) flowOf(emptyList())
-                else repository.observeAll(accountId)
-                    .catch { e -> Timber.e(e, "[DispatchBoardVM] flow error"); emit(emptyList()) }
-            }
-            .stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(5_000),
-                initialValue = emptyList(),
-            )
+    private val allWos: StateFlow<List<WorkOrder>> = repository.observeWorkOrders()
+        .catch { e -> Timber.e(e, "[DispatchBoardVM] flow error"); emit(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val columns: StateFlow<Map<WoStatus, List<WorkOrderEntity>>> =
+    val columns: StateFlow<Map<WoStatus, List<WorkOrder>>> =
         combine(allWos, searchQuery) { wos, query ->
-            // Only active WOs on the board — exclude cancelled, then apply search filter
-            val active = wos
-                .filter { it.status != WoStatus.CANCELLED.key }
-                .let { list ->
-                    WoSearch.filter(list, query) { listOf(it.title, it.woId, it.description, it.assignedTo, it.category) }
-                }
+            val visible = WoSearch.filter(wos, query) {
+                listOf(it.title, it.description, it.assignedWorkerName, it.categoryName)
+            }
+            val byStatus = visible.groupBy { WoStatus.fromDomain(it.status) }
             DISPATCH_COLUMNS.associateWith { status ->
-                // fromKey maps the legacy "complete" alias into the COMPLETE column.
-                active.filter { it.status == status.key || (status == WoStatus.COMPLETE && it.status == "complete") }
-                    .sortedBy { it.dueDate ?: Long.MAX_VALUE }
+                byStatus[status].orEmpty().sortedBy { it.dueAt ?: Long.MAX_VALUE }
             }
         }
         .stateIn(
@@ -96,76 +89,55 @@ class DispatchBoardViewModel @Inject constructor(
 
     /**
      * True when work is unevenly distributed: the technician with the most assigned
-     * open WOs has more than 2x the average load, and the banner has not been dismissed.
+     * active WOs has more than 2x the average load, and the banner has not been dismissed.
      */
     val showRebalanceBanner: StateFlow<Boolean> =
         combine(allWos, _bannerDismissed) { wos, dismissed ->
             if (dismissed) return@combine false
-            val activeWos = wos.filter {
-                it.status != WoStatus.CANCELLED.key &&
-                    it.status != WoStatus.COMPLETE.key &&
-                    !it.assignedTo.isNullOrBlank()
-            }
-            if (activeWos.size < 2) return@combine false
-            val countsByTech = activeWos.groupBy { it.assignedTo }.mapValues { it.value.size }
-            if (countsByTech.size < 2) return@combine false
-            val maxCount = countsByTech.values.max()
-            val avgCount = countsByTech.values.average()
-            maxCount > avgCount * 2.0
+            val countsByTech = wos
+                .filter { !it.status.isTerminal && it.assignedWorkerId != null }
+                .groupingBy { it.assignedWorkerId }
+                .eachCount()
+            if (countsByTech.size < 2 || countsByTech.values.sum() < 2) return@combine false
+            countsByTech.values.max() > countsByTech.values.average() * 2.0
         }
-            .stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(5_000),
-                initialValue = false,
-            )
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     fun dismissBanner() {
         _bannerDismissed.value = true
     }
 
-    /**
-     * Stub: auto-rebalance is coming in a future release.
-     * Currently just dismisses the banner; a snackbar is shown from the UI.
-     */
+    /** Automatic rebalancing is not offered on mobile yet; acknowledging the banner dismisses it. */
     fun rebalance() {
         _bannerDismissed.value = true
     }
 
-    /**
-     * Called when a card is dragged to a new column.
-     * RBAC is checked in the UI before calling this.
-     */
-    fun moveToStatus(wo: WorkOrderEntity, targetStatus: WoStatus) {
-        val accountId = identityManager.getActiveAccountId() ?: return
-        if (WoStatus.fromKey(wo.status) == targetStatus) return
+    /** Called when a card is moved to a new column; the server enforces the status machine. */
+    fun moveToStatus(wo: WorkOrder, targetStatus: WoStatus) {
+        if (wo.status == targetStatus.domain) return
         viewModelScope.launch {
             try {
-                val now = System.currentTimeMillis()
-                val updated = wo.copy(
-                    status = targetStatus.key,
-                    updatedAt = now,
-                    startedAt = if (targetStatus == WoStatus.IN_PROGRESS && wo.startedAt == null)
-                        now else wo.startedAt,
-                    completedAt = if (targetStatus == WoStatus.COMPLETE) now else wo.completedAt,
-                )
-                repository.upsert(accountId, updated)
+                repository.transition(wo.id, targetStatus.domain)
             } catch (e: Exception) {
-                Timber.e(e, "[DispatchBoardVM] moveToStatus failed for ${wo.woId}")
+                Timber.e(e, "[DispatchBoardVM] moveToStatus failed for ${wo.id}")
+                _error.value = e.message
             }
         }
     }
 
-    /** Undo for a board move: restores the snapshot taken before [moveToStatus]. */
-    fun restore(original: WorkOrderEntity) {
-        val accountId = identityManager.getActiveAccountId() ?: return
+    /** Undo for a board move: transitions back to the status before [moveToStatus]. */
+    fun restore(original: WorkOrder) {
         viewModelScope.launch {
             try {
-                repository.upsert(accountId, original.copy(updatedAt = System.currentTimeMillis()))
+                repository.transition(original.id, original.status)
             } catch (e: Exception) {
-                Timber.e(e, "[DispatchBoardVM] restore failed for ${original.woId}")
+                Timber.e(e, "[DispatchBoardVM] restore failed for ${original.id}")
+                _error.value = e.message
             }
         }
     }
+
+    fun clearError() { _error.value = null }
 
     fun refresh() {
         viewModelScope.launch {

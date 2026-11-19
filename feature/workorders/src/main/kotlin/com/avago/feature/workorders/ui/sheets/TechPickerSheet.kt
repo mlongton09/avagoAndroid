@@ -35,7 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.avago.core.data.db.entity.TechProfileEntity
+import com.avago.core.data.domain.Worker
 import com.avago.feature.workorders.R
 import com.avago.feature.workorders.ui.components.AssigneeAvatar
 import com.avago.feature.workorders.viewmodel.TechPickerViewModel
@@ -98,16 +98,13 @@ fun TechPickerSheet(
                         )
                     }
                 } else {
-                    items(techProfiles, key = { it.techId }) { tech ->
+                    items(techProfiles, key = { it.id }) { tech ->
+                        val userId = tech.userId.orEmpty()
                         TechRow(
                             tech = tech,
-                            isSelected = tech.techId in localSelection,
+                            isSelected = userId in localSelection,
                             onToggle = {
-                                localSelection = if (tech.techId in localSelection) {
-                                    localSelection - tech.techId
-                                } else {
-                                    localSelection + tech.techId
-                                }
+                                localSelection = if (userId in localSelection) localSelection - userId else localSelection + userId
                             },
                         )
                     }
@@ -132,7 +129,7 @@ fun TechPickerSheet(
 
 @Composable
 private fun TechRow(
-    tech: TechProfileEntity,
+    tech: Worker,
     isSelected: Boolean,
     onToggle: () -> Unit,
 ) {
@@ -143,16 +140,16 @@ private fun TechRow(
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AssigneeAvatar(initials = tech.userId.take(2).uppercase())
+        AssigneeAvatar(initials = tech.displayName.take(2).uppercase())
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = tech.userId,
+                text = tech.displayName,
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
             )
-            tech.skills?.takeIf { it.isNotBlank() }?.let { skills ->
+            tech.skills.takeIf { it.isNotEmpty() }?.let { skills ->
                 Text(
-                    text = skills,
+                    text = skills.joinToString(", "),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,

@@ -46,7 +46,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.avago.core.data.db.entity.WorkOrderEntity
+import com.avago.core.data.domain.WorkOrder
+import com.avago.core.data.domain.WorkOrderStatus
 import com.avago.core.ui.EmptyState
 import com.avago.feature.workorders.R
 import com.avago.feature.workorders.ui.components.WoCard
@@ -255,8 +256,8 @@ fun WorkOrderCalendarScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    items(selectedDayWos, key = { it.woId }) { wo ->
-                        WoCard(wo = wo, onClick = { onWoClick(wo.woId) }, assetLabel = assetLabels[wo.assetId])
+                    items(selectedDayWos, key = { it.id }) { wo ->
+                        WoCard(wo = wo, onClick = { onWoClick(wo.id) }, assetLabel = wo.primaryAssetId?.let { assetLabels[it] })
                     }
                 }
             }
@@ -266,18 +267,18 @@ fun WorkOrderCalendarScreen(
 
 /** Picks the dot color based on the worst-case status among WOs on a day. */
 @Composable
-private fun wosStatusDotColor(wos: List<WorkOrderEntity>, date: LocalDate): Color {
+private fun wosStatusDotColor(wos: List<WorkOrder>, date: LocalDate): Color {
     val nowMs = System.currentTimeMillis()
     val zone = ZoneId.systemDefault()
     val dateMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
     val isOverdue = wos.any { wo ->
-        val due = wo.dueDate
-        due != null && due < nowMs && wo.status !in listOf("completed", "complete", "cancelled")
+        val due = wo.dueAt
+        due != null && due < nowMs && !wo.status.isTerminal
     }
     return when {
         isOverdue -> MaterialTheme.colorScheme.error
-        wos.any { it.status == "in_progress" } -> MaterialTheme.colorScheme.secondary
-        wos.isNotEmpty() && wos.all { it.status == "completed" || it.status == "complete" } ->
+        wos.any { it.status == WorkOrderStatus.IN_PROGRESS } -> MaterialTheme.colorScheme.secondary
+        wos.isNotEmpty() && wos.all { it.status == WorkOrderStatus.COMPLETED || it.status == WorkOrderStatus.CLOSED } ->
             MaterialTheme.colorScheme.outline
         else -> MaterialTheme.colorScheme.primary
     }

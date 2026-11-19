@@ -2,23 +2,19 @@ package com.avago.feature.workorders.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.db.entity.WorkOrderEntity
+import com.avago.core.data.domain.WorkOrder
+import com.avago.core.data.domain.WorkOrderRepository
+import com.avago.core.data.domain.WorkOrderStatus
+import com.avago.core.data.domain.WorkerRepository
 import com.avago.core.permissions.Permissions
 import com.avago.core.permissions.PermissionsManager
-import com.avago.core.sync.SyncEngine
-import com.avago.feature.workorders.repository.WorkOrderRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -31,9 +27,8 @@ import javax.inject.Inject
 @HiltViewModel
 class WorkOrderCalendarViewModel @Inject constructor(
     private val repository: WorkOrderRepository,
-    private val identityManager: IdentityManager,
-    private val syncEngine: SyncEngine,
-    private val permissionsManager: PermissionsManager,
+    workers: WorkerRepository,
+    permissionsManager: PermissionsManager,
 ) : ViewModel() {
 
     val selectedDate = MutableStateFlow<LocalDate>(LocalDate.now())
@@ -45,55 +40,31 @@ class WorkOrderCalendarViewModel @Inject constructor(
     private val _showAll = MutableStateFlow(false)
     val showAll: StateFlow<Boolean> = _showAll.asStateFlow()
 
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+
     fun toggleScope() { _showAll.value = !_showAll.value }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val wosByDate: StateFlow<Map<LocalDate, List<WorkOrderEntity>>> =
-        identityManager.activeAccountId
-            .flatMapLatest { accountId ->
-                if (accountId == null) flowOf(emptyList())
-                else repository.observeAll(accountId)
-                    .catch { e -> Timber.e(e, "[CalendarVM] flow error"); emit(emptyList()) }
-            }
-            .combine(_showAll) { wos, showAll ->
-                val myUserId = identityManager.getActiveUserId()
-                val zone = ZoneId.systemDefault()
-                wos.filter { wo ->
-                    wo.dueDate != null &&
-                        wo.status !in listOf("cancelled") &&
-                        (showAll || myUserId == null ||
-                            wo.assignedTo == myUserId || wo.createdBy == myUserId)
-                }.groupBy { wo ->
-                    Instant.ofEpochMilli(wo.dueDate ?: error("unreachable")).atZone(zone).toLocalDate()
-                }
-            }
-            .stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(5_000),
-                initialValue = emptyMap(),
-            )
+    val wosByDate: StateFlow<Map<LocalDate, List<WorkOrder>>> =
+        combine(
+            repository.observeWorkOrders().catch { e -> Timber.e(e, "[CalendarVM] flow error"); emit(emptyList()) },
+            workers.observeMe().catch { emit(null) },
+            _showAll,
+        ) { wos, me, showAll ->
+            val zone = ZoneId.systemDefault()
+            wos.filter { wo ->
+                wo.dueAt != null && wo.status != WorkOrderStatus.CANCELLED &&
+                    (showAll || me == null || wo.assignedWorkerId == me.id || (me.userId != null && wo.createdBy == me.userId))
+            }.groupBy { wo -> Instant.ofEpochMilli(requireNotNull(wo.dueAt)).atZone(zone).toLocalDate() }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
-    val selectedDayWos: StateFlow<List<WorkOrderEntity>> =
-        combine(wosByDate, selectedDate) { map, date ->
-            map[date] ?: emptyList()
-        }
-            .stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(5_000),
-                initialValue = emptyList(),
-            )
+    val selectedDayWos: StateFlow<List<WorkOrder>> =
+        combine(wosByDate, selectedDate) { map, date -> map[date] ?: emptyList() }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    @OptIn(ExperimentalCoroutinesApi::class)
+    /** Asset subtitle labels keyed by asset id. */
     val assetLabels: StateFlow<Map<String, String?>> = wosByDate
-        .flatMapLatest { dateMap ->
-            val accountId = identityManager.getActiveAccountId()
-                ?: return@flatMapLatest flowOf(emptyMap())
-            flow {
-                val ids = dateMap.values.flatten().mapNotNull { it.assetId }.distinct()
-                emit(ids.associateWith { id -> repository.assetLabelFor(id, accountId) })
-            }
-        }
-        .catch { emit(emptyMap()) }
+        .map { byDate -> byDate.values.flatten().mapNotNull { wo -> wo.primaryAssetId?.let { it to wo.primaryAssetName } }.toMap() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     fun selectDate(date: LocalDate) {
@@ -110,22 +81,15 @@ class WorkOrderCalendarViewModel @Inject constructor(
         selectedDate.value = today
     }
 
-    /**
-     * Reschedule a WO by dragging it to a new day.
-     */
-    fun rescheduleWo(wo: WorkOrderEntity, newDate: LocalDate) {
-        val accountId = identityManager.getActiveAccountId() ?: return
+    /** Moves [wo] to [newDate] (start of day, local time). */
+    fun rescheduleWo(wo: WorkOrder, newDate: LocalDate) {
+        val due = newDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
         viewModelScope.launch {
             try {
-                val zone = ZoneId.systemDefault()
-                val newDueMs = newDate.atStartOfDay(zone).toInstant().toEpochMilli()
-                val updated = wo.copy(
-                    dueDate = newDueMs,
-                    updatedAt = System.currentTimeMillis(),
-                )
-                repository.upsert(accountId, updated)
+                repository.edit(wo.id) { it.copy(dueAt = due) }
             } catch (e: Exception) {
                 Timber.e(e, "[CalendarVM] rescheduleWo failed")
+                _error.value = e.message
             }
         }
     }

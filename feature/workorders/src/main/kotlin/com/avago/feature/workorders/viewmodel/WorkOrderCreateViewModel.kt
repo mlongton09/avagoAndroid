@@ -3,127 +3,109 @@ package com.avago.feature.workorders.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.FormFillRouter
-import com.avago.core.data.db.entity.WoChecklistItemEntity
-import com.avago.core.data.db.entity.WoTemplateEntity
-import com.avago.core.data.db.entity.WorkOrderEntity
-import com.avago.core.network.AvagoServiceClient
-import com.avago.core.sync.SyncEngine
-import com.avago.core.network.NetworkResult
-import com.avago.core.network.model.VinDecodeResponse
-import com.avago.feature.workorders.model.WoPriority
+import com.avago.core.data.domain.Asset
+import com.avago.core.data.domain.AssetRepository
+import com.avago.core.data.domain.LocationRepository
+import com.avago.core.data.domain.ReferenceRepository
+import com.avago.core.data.domain.Worker
+import com.avago.core.data.domain.WorkerRepository
+import com.avago.core.data.domain.WorkOrderDraft
+import com.avago.core.data.domain.WorkOrderFilter
+import com.avago.core.data.domain.WorkOrderPriority
+import com.avago.core.data.domain.WorkOrderRepository
+import com.avago.core.data.domain.WorkOrderTemplate
 import com.avago.feature.workorders.model.WO_KEY_SOURCE
-import com.avago.feature.workorders.model.mergeWoAttributesJson
+import com.avago.feature.workorders.model.WoPriority
 import com.avago.feature.workorders.model.woSourceJson
-import com.avago.feature.workorders.repository.WorkOrderRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import timber.log.Timber
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
-import java.util.UUID
 import javax.inject.Inject
 
+/** A checklist row typed on the form; [existingId] is set for rows already on the work order. */
 data class ChecklistDraft(
-    val id: String = UUID.randomUUID().toString(),
+    val key: Long,
     val title: String = "",
+    val existingId: String? = null,
 )
 
-data class EffortHint(
-    val typicalMinutes: Int,
-    val fastMinutes: Int,
-    val slowMinutes: Int,
-    val sampleCount: Int,
-)
-
+/** Create / edit form for a work order, saved as `maint.work_orders.*` commands. */
 @HiltViewModel
 class WorkOrderCreateViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: WorkOrderRepository,
-    private val identityManager: IdentityManager,
-    private val serviceClient: AvagoServiceClient,
+    private val assets: AssetRepository,
+    private val locations: LocationRepository,
+    private val workers: WorkerRepository,
+    references: ReferenceRepository,
     private val formFillRouter: FormFillRouter,
-    private val dbFactory: DatabaseFactory,
-    private val syncEngine: SyncEngine,
 ) : ViewModel() {
 
-    /** null = create mode; non-null = edit mode */
+    /** null = create mode; non-null = edit mode. */
     private val editingWoId: String? = savedStateHandle.get<String>("woId")?.takeIf { it.isNotBlank() }
 
-    /** Client-generated id for a new WO, stable across save retries so Svc create stays idempotent. */
-    private val newWoId: String = UUID.randomUUID().toString()
-
-    /**
-     * Provenance written to `attributes.source` on create (contract §2). Set from
-     * create-from-defect nav args, or by [applyTemplate] (kind=template).
-     */
+    /** Provenance written to `attributes.source` on create (create-from-defect or template). */
     private var pendingSource: JsonObject? = null
     private val defectIds: List<String> = savedStateHandle.get<String>("defectIds")
         ?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
     private val inspectionLogId: String? = savedStateHandle.get<String>("inspectionLogId")?.takeIf { it.isNotBlank() }
 
-    // ---------------------------------------------------------------------------
-    // Form state
-    // ---------------------------------------------------------------------------
+    /** Stored values in edit mode, used to save only what changed. */
+    private var storedChecklistIds: Set<String> = emptySet()
+    private var storedAssigneeIds: List<String> = emptyList()
+    private var assignmentIdByUserId: Map<String, String> = emptyMap()
+    private var nextChecklistKey = 0L
+
+    // ---------------------------------------------------------------- form state
 
     val title = MutableStateFlow("")
-    val vin = MutableStateFlow("")
     val description = MutableStateFlow("")
     val category = MutableStateFlow<String?>(null)
     val assetId = MutableStateFlow<String?>(null)
     val assetName = MutableStateFlow<String?>(null)
-    /** Asset type key (e.g. "light_vehicle") — drives avatar colour in the form header. */
     val assetType = MutableStateFlow<String?>(null)
-    /** Short subtitle for the asset header (year make·model, or address for real estate). */
     val assetSubtitle = MutableStateFlow<String?>(null)
+    /** Further covered assets (e.g. from an asset group), after the primary [assetId]. */
+    val extraAssetIds = MutableStateFlow<List<String>>(emptyList())
     val locationId = MutableStateFlow<String?>(null)
     val locationName = MutableStateFlow<String?>(null)
     val dueDateMs = MutableStateFlow<Long?>(null)
     val priority = MutableStateFlow(WoPriority.MEDIUM)
     val estimatedHours = MutableStateFlow("")
-    val repeatsRrule = MutableStateFlow<String?>(null)
+    val requiredSkills = MutableStateFlow<List<String>>(emptyList())
+    /** Assignee user ids; the first is the lead. */
     val assignedTechIds = MutableStateFlow<List<String>>(emptyList())
     val checklistDrafts = MutableStateFlow<List<ChecklistDraft>>(emptyList())
     val selectedTemplateId = MutableStateFlow<String?>(null)
-    private val _availableCategories = MutableStateFlow<List<String>>(emptyList())
-    val availableCategories: StateFlow<List<String>> = _availableCategories.asStateFlow()
 
-    /** Up to 4 most-recently-used category keys for the selected asset (mirrors iOS LIMIT 4). */
+    val availableCategories: StateFlow<List<String>> = references.observeCategories("work_order")
+        .map { list -> list.map { it.name }.distinct() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Up to 4 most recently used categories on the selected asset. */
     private val _recentCategoryKeys = MutableStateFlow<List<String>>(emptyList())
     val recentCategoryKeys: StateFlow<List<String>> = _recentCategoryKeys.asStateFlow()
 
-    // Job picker
-    val jobId = MutableStateFlow<String?>(null)
-    val jobTitle = MutableStateFlow<String?>(null)
+    val templates: StateFlow<List<WorkOrderTemplate>> = repository.observeTemplates()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    // Timezone (defaults to device timezone)
-    val timezone = MutableStateFlow<String>(TimeZone.getDefault().id)
-
-    // Effort hint (populated from server when category is known)
-    private val _effortHint = MutableStateFlow<EffortHint?>(null)
-    val effortHint: StateFlow<EffortHint?> = _effortHint.asStateFlow()
+    val workerNames: StateFlow<Map<String, String>> = workers.observeWorkers()
+        .map { list -> list.mapNotNull { w -> w.userId?.let { it to w.displayName } }.toMap() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     private val _isSaving = MutableStateFlow(false)
     val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
@@ -131,36 +113,16 @@ class WorkOrderCreateViewModel @Inject constructor(
     private val _titleError = MutableStateFlow<String?>(null)
     val titleError: StateFlow<String?> = _titleError.asStateFlow()
 
+    private val _saveError = MutableStateFlow<String?>(null)
+    val saveError: StateFlow<String?> = _saveError.asStateFlow()
+
     private val _savedSuccessfully = MutableStateFlow(false)
     val savedSuccessfully: StateFlow<Boolean> = _savedSuccessfully.asStateFlow()
 
-    private val _vinDecodeResult = MutableStateFlow<VinDecodeResponse?>(null)
-    val vinDecodeResult: StateFlow<VinDecodeResponse?> = _vinDecodeResult.asStateFlow()
-
-    private val _isDecodingVin = MutableStateFlow(false)
-    val isDecodingVin: StateFlow<Boolean> = _isDecodingVin.asStateFlow()
-
-    // ---------------------------------------------------------------------------
-    // Templates
-    // ---------------------------------------------------------------------------
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val templates: StateFlow<List<WoTemplateEntity>> =
-        identityManager.activeAccountId
-            .flatMapLatest { accountId ->
-                if (accountId == null) flowOf(emptyList())
-                else repository.observeTemplates(accountId)
-            }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    // ---------------------------------------------------------------------------
-    // Load existing WO for edit mode
-    // ---------------------------------------------------------------------------
+    private val screenId = if (editingWoId == null) "add_wo" else "edit_wo"
 
     init {
-        loadAvailableCategories()
-        if (editingWoId.isNullOrBlank()) {
-            // Create-from-defect prefill (contract §5): asset/title/notes + source.kind = defect.
+        if (editingWoId == null) {
             if (defectIds.isNotEmpty() || inspectionLogId != null) {
                 pendingSource = woSourceJson("defect", defectIds = defectIds, inspectionLogId = inspectionLogId)
             }
@@ -168,376 +130,149 @@ class WorkOrderCreateViewModel @Inject constructor(
             savedStateHandle.get<String>("description")?.takeIf { it.isNotBlank() }?.let { description.value = it }
             savedStateHandle.get<String>("priority")?.takeIf { it.isNotBlank() }?.let { priority.value = WoPriority.fromKey(it) }
             savedStateHandle.get<String>("assetId")?.takeIf { it.isNotBlank() }?.let { onAssetSelected(it) }
+        } else {
+            viewModelScope.launch { loadForEdit(editingWoId) }
         }
-        if (editingWoId != null) {
-            viewModelScope.launch {
-                val accountId = identityManager.getActiveAccountId() ?: return@launch
-                val wo = repository.getById(accountId, editingWoId) ?: return@launch
-                title.value = wo.title
-                description.value = wo.description ?: ""
-                category.value = wo.category
-                assetId.value = wo.assetId
-                val editAsset = wo.assetId?.let { repository.getAssetById(accountId, it) }
-                assetName.value = editAsset?.name
-                assetType.value = editAsset?.assetType
-                assetSubtitle.value = buildAssetSubtitle(editAsset)
-                locationId.value = wo.locationId
-                locationName.value = wo.locationId?.let { repository.getLocationById(accountId, it)?.name }
-                dueDateMs.value = wo.dueDate
-                priority.value = WoPriority.fromKey(wo.priority)
-                estimatedHours.value = wo.estimatedEffortMinutes
-                    ?.toString() ?: ""
-                repeatsRrule.value = wo.rrule
-                assignedTechIds.value = if (!wo.assignedTo.isNullOrBlank())
-                    listOf(wo.assignedTo ?: error("unreachable")) else emptyList()
-                jobId.value = wo.jobId
-                // jobTitle is not stored on entity — leave null; UI will show jobId as fallback
-                wo.timezone?.let { timezone.value = it }
-
-                // Load checklist items (one-shot snapshot)
-                repository.observeChecklistForWo(accountId, editingWoId)
-                    .firstOrNull()
-                    ?.also { items ->
-                        if (checklistDrafts.value.isEmpty()) {
-                            checklistDrafts.value = items.map {
-                                ChecklistDraft(id = it.itemId, title = it.title)
-                            }
-                        }
-                    }
-            }
-        }
-    }
-
-    // ---------------------------------------------------------------------------
-    // Scout form-fill (HITL-on path)
-    // ---------------------------------------------------------------------------
-
-    init {
-        // Register with FormFillRouter so Scout can pre-fill this form when the
-        // user's HITL setting is ON.  Create mode uses "add_wo"; edit mode "edit_wo".
-        val screenId = if (editingWoId == null) "add_wo" else "edit_wo"
+        // Scout can pre-fill this form when the user's HITL setting is on.
         formFillRouter.register(screenId) { fields -> applyScoutFields(fields) }
     }
 
     override fun onCleared() {
-        val screenId = if (editingWoId == null) "add_wo" else "edit_wo"
         formFillRouter.unregister(screenId)
         super.onCleared()
     }
 
+    private suspend fun loadForEdit(id: String) {
+        val detail = repository.observeDetail(id).first() ?: return
+        val wo = detail.workOrder
+        title.value = wo.title
+        description.value = wo.description.orEmpty()
+        category.value = wo.categoryName
+        wo.primaryAssetId?.let { showAsset(assets.asset(it)) }
+        assetId.value = wo.primaryAssetId
+        extraAssetIds.value = wo.assetIds.drop(1)
+        locationId.value = wo.locationId
+        locationName.value = wo.locationName
+        dueDateMs.value = wo.dueAt
+        priority.value = WoPriority.fromKey(wo.priority.wire)
+        estimatedHours.value = wo.estimatedEffortMinutes?.let(::minutesToHoursText).orEmpty()
+        requiredSkills.value = wo.requiredSkills
+        val active = detail.assignments.filter { it.acceptanceStatus != "declined" }
+        assignmentIdByUserId = active.mapNotNull { a -> a.workerUserId?.let { it to a.id } }.toMap()
+        val leadUserId = active.firstOrNull { it.workerId == wo.assignedWorkerId }?.workerUserId
+        storedAssigneeIds = listOfNotNull(leadUserId) + active.mapNotNull { it.workerUserId }.filter { it != leadUserId }
+        assignedTechIds.value = storedAssigneeIds
+        storedChecklistIds = detail.checklist.map { it.id }.toSet()
+        checklistDrafts.value = detail.checklist.sortedBy { it.sortOrder }
+            .map { ChecklistDraft(key = nextChecklistKey++, title = it.label, existingId = it.id) }
+    }
+
+    // ---------------------------------------------------------------- Scout form-fill
+
     fun applyScoutFields(fields: Map<String, String?>): List<String> {
         val touched = mutableListOf<String>()
-        fields["title"]?.trim()?.takeIf { it.isNotEmpty() }?.let {
-            title.value = it; touched.add("title")
+        fields["title"]?.trim()?.takeIf { it.isNotEmpty() }?.let { title.value = it; touched.add("title") }
+        fields["description"]?.trim()?.let { description.value = it; touched.add("description") }
+        fields["asset_id"]?.takeIf { it.isNotBlank() }?.let { onAssetSelected(it); touched.add("asset") }
+        fields["due_date"]?.let { ds -> parseDateMs(ds)?.let { dueDateMs.value = it; touched.add("due date") } }
+        fields["priority"]?.lowercase()?.let { priority.value = WoPriority.fromKey(it); touched.add("priority") }
+        fields["estimated_effort_minutes"]?.toDoubleOrNull()?.let {
+            estimatedHours.value = minutesToHoursText(it.toInt()); touched.add("estimated effort")
         }
-        fields["description"]?.trim()?.let {
-            description.value = it; touched.add("description")
-        }
-        fields["asset_id"]?.let {
-            assetId.value = it; touched.add("asset")
-        }
-        fields["due_date"]?.let { ds ->
-            parseDateMs(ds)?.let { ms -> dueDateMs.value = ms; touched.add("due date") }
-        }
-        fields["priority"]?.lowercase()?.let { p ->
-            priority.value = WoPriority.fromKey(p); touched.add("priority")
-        }
-        fields["estimated_effort_minutes"]?.toDoubleOrNull()?.let { mins ->
-            estimatedHours.value = mins.toLong().toString(); touched.add("estimated effort")
-        }
-        fields["assigned_to"]?.takeIf { it.isNotBlank() }?.let { name ->
-            assignedTechIds.value = listOf(name); touched.add("assigned to")
+        fields["assigned_to"]?.takeIf { it.isNotBlank() }?.let { who ->
+            viewModelScope.launch {
+                val match = matchWorker(workers.observeWorkers().first(), who)
+                if (match != null) assignedTechIds.value = listOf(match)
+            }
+            touched.add("assigned to")
         }
         return touched
     }
 
-    private val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
-    private val ymdFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+    // ---------------------------------------------------------------- templates
 
-    private fun parseDateMs(v: String): Long? = try {
-        isoFormat.parse(v)?.time
-    } catch (_: Exception) {
-        try { ymdFormat.parse(v)?.time } catch (_: Exception) { null }
-    }
-
-    // ---------------------------------------------------------------------------
-    // Template application
-    // ---------------------------------------------------------------------------
-
-    fun applyTemplate(template: WoTemplateEntity) {
-        selectedTemplateId.value = template.templateId
-        pendingSource = if (pendingSource?.get("kind")?.let { (it as? JsonPrimitive)?.contentOrNull } == "defect") {
-            woSourceJson("defect", defectIds = defectIds, inspectionLogId = inspectionLogId, templateId = template.templateId)
+    fun applyTemplate(template: WorkOrderTemplate) {
+        selectedTemplateId.value = template.id
+        pendingSource = if (defectIds.isNotEmpty() || inspectionLogId != null) {
+            woSourceJson("defect", defectIds = defectIds, inspectionLogId = inspectionLogId, templateId = template.id)
         } else {
-            woSourceJson("template", templateId = template.templateId)
+            woSourceJson("template", templateId = template.id)
         }
-        if (title.value.isBlank()) title.value = template.title
-        if (description.value.isBlank()) description.value = template.description ?: ""
+        if (title.value.isBlank()) title.value = template.titleTemplate?.takeIf { it.isNotBlank() } ?: template.title
+        if (description.value.isBlank()) description.value = template.descriptionTemplate.orEmpty()
+        if (category.value == null) category.value = template.categoryName
+        template.priority?.let { priority.value = WoPriority.fromKey(it.wire) }
         if (estimatedHours.value.isBlank()) {
-            estimatedHours.value = template.estimatedEffortMinutes
-                ?.toString() ?: ""
+            estimatedHours.value = template.estimatedEffortMinutes?.let(::minutesToHoursText).orEmpty()
         }
-        // Parse checklist JSON from template if present
-        val jsonItems = template.checklistItems
-        if (!jsonItems.isNullOrBlank() && checklistDrafts.value.isEmpty()) {
-            // Simple parse: try to extract "title" fields from JSON array
-            val titlePattern = Regex(""""title"\s*:\s*"([^"]+)"""")
-            checklistDrafts.value = titlePattern.findAll(jsonItems)
-                .map { ChecklistDraft(title = it.groupValues[1]) }
-                .toList()
-        }
+        if (requiredSkills.value.isEmpty()) requiredSkills.value = template.requiredSkills
     }
 
-    // ---------------------------------------------------------------------------
-    // Checklist mutations
-    // ---------------------------------------------------------------------------
+    // ---------------------------------------------------------------- checklist
 
     fun addChecklistItem() {
-        checklistDrafts.value = checklistDrafts.value + ChecklistDraft()
+        checklistDrafts.value = checklistDrafts.value + ChecklistDraft(key = nextChecklistKey++)
     }
 
-    fun updateChecklistItem(id: String, newTitle: String) {
-        checklistDrafts.value = checklistDrafts.value.map {
-            if (it.id == id) it.copy(title = newTitle) else it
-        }
+    fun updateChecklistItem(key: Long, newTitle: String) {
+        checklistDrafts.value = checklistDrafts.value.map { if (it.key == key) it.copy(title = newTitle) else it }
     }
 
-    fun removeChecklistItem(id: String) {
-        checklistDrafts.value = checklistDrafts.value.filter { it.id != id }
+    fun removeChecklistItem(key: Long) {
+        checklistDrafts.value = checklistDrafts.value.filter { it.key != key }
     }
 
-    // ---------------------------------------------------------------------------
-    // Asset picker
-    // ---------------------------------------------------------------------------
+    // ---------------------------------------------------------------- pickers
 
-    fun onAssetSelected(assetId: String) {
-        this.assetId.value = assetId
+    fun onAssetSelected(id: String) {
+        assetId.value = id
+        extraAssetIds.value = extraAssetIds.value - id
         _recentCategoryKeys.value = emptyList()
         viewModelScope.launch {
-            val accountId = identityManager.getActiveAccountId() ?: return@launch
-            val asset = repository.getAssetById(accountId, assetId)
-            assetName.value = asset?.name
-            assetType.value = asset?.assetType
-            assetSubtitle.value = buildAssetSubtitle(asset)
-            val type = asset?.assetType?.takeIf { it.isNotBlank() } ?: "light_vehicle"
-            loadCategoriesForAssetType(type, accountId)
-            loadRecentCategories(assetId, accountId)
-        }
-    }
-
-    private fun buildAssetSubtitle(asset: com.avago.core.data.db.entity.AssetEntity?): String? {
-        if (asset == null) return null
-        val realEstate = setOf("residential", "multifamily", "office", "industrial", "healthcare", "restaurant")
-        if (asset.assetType in realEstate) return asset.addressLine1?.takeIf { it.isNotBlank() }
-        return listOfNotNull(asset.year?.takeIf { it > 0 }?.toString(), asset.make, asset.model)
-            .joinToString(" ").takeIf { it.isNotBlank() }
-    }
-
-    /** Loads categories for the given asset type — same two-pass lookup as AddEditLogViewModel. */
-    private suspend fun loadCategoriesForAssetType(assetType: String, accountId: String) {
-        try {
-            val db = dbFactory.get(accountId)
-            val categories =
-                db.configDao().getByKey("ItemCategory", assetType)
-                    ?.let { parseCategoriesFromItemCategoryConfig(it.value) }
-                    ?.takeIf { it.isNotEmpty() }
-                    ?: db.configDao().getByKey("system", "log_categories")
-                        ?.let { parseCategoriesFromSeededConfig(it.value, assetType) }
-            if (!categories.isNullOrEmpty()) {
-                _availableCategories.value = categories
+            val asset = assets.asset(id)
+            showAsset(asset)
+            if (locationId.value == null && asset?.locationId != null) {
+                locationId.value = asset.locationId
+                locationName.value = asset.locationName
             }
-        } catch (e: Exception) {
-            Timber.e(e, "[WoCreateVM] loadCategoriesForAssetType failed for $assetType")
+            _recentCategoryKeys.value = recentCategories(
+                repository.observeWorkOrders(WorkOrderFilter(assetId = id)).first().map { it.createdAt to it.categoryName },
+            )
         }
     }
 
-    /** Queries the log table for the 4 most-recently-used distinct categories on this asset. */
-    private suspend fun loadRecentCategories(assetId: String, accountId: String) {
-        try {
-            val db = dbFactory.get(accountId)
-            val recents = db.logDao()
-                .observeAll(accountId)
-                .map { logs ->
-                    logs.filter { it.assetId == assetId && !it.category.isNullOrBlank() }
-                        .sortedByDescending { it.entryDate }
-                        .map { it.category!! }
-                        .distinct()
-                        .take(4)
-                }
-                .first()
-            _recentCategoryKeys.value = recents
-        } catch (e: Exception) {
-            Timber.e(e, "[WoCreateVM] loadRecentCategories failed for assetId=$assetId")
+    /** Covers every asset of [typeCode] besides the primary asset. */
+    fun onAssetGroupSelected(typeCode: String) {
+        viewModelScope.launch {
+            val ids = assets.observeAssets().first().filter { it.assetTypeCode == typeCode }.map { it.id }
+            val primary = assetId.value ?: ids.firstOrNull()?.also { onAssetSelected(it) }
+            extraAssetIds.value = (extraAssetIds.value + ids).distinct().filter { it != primary }
         }
     }
 
-    /** {"categories":[{"id":"oil_change",...},...]} — mirrors AddEditLogViewModel.parseCategoriesFromConfig */
-    private fun parseCategoriesFromItemCategoryConfig(json: String): List<String> {
-        val catStart = json.indexOf("\"categories\"")
-        val arrStart = if (catStart >= 0) json.indexOf('[', catStart) else json.indexOf('[')
-        if (arrStart < 0) return emptyList()
-        var depth = 0; var arrEnd = arrStart
-        for (i in arrStart until json.length) when (json[i]) {
-            '[' -> depth++; ']' -> { depth--; if (depth == 0) { arrEnd = i; break } }
-        }
-        return Regex("\"id\"\\s*:\\s*\"([^\"]+)\"")
-            .findAll(json.substring(arrStart, arrEnd + 1))
-            .map { it.groupValues[1] }.toList()
+    fun removeExtraAsset(id: String) {
+        extraAssetIds.value = extraAssetIds.value - id
     }
 
-    /** [{"asset_type":"light_vehicle","categories":[...]}] — mirrors AddEditLogViewModel.parseCategoriesFromSeeded */
-    private fun parseCategoriesFromSeededConfig(json: String, assetType: String): List<String> {
-        val assetKey = "\"asset_type\":\"$assetType\""
-        val blockStart = json.indexOf(assetKey).takeIf { it >= 0 }
-            ?: return parseCategoriesFromItemCategoryConfig(json)
-        val catStart = json.indexOf("\"categories\"", blockStart)
-        val arrStart = if (catStart >= 0) json.indexOf('[', catStart) else return emptyList()
-        var depth = 0; var arrEnd = arrStart
-        for (i in arrStart until json.length) when (json[i]) {
-            '[' -> depth++; ']' -> { depth--; if (depth == 0) { arrEnd = i; break } }
-        }
-        return Regex("\"id\"\\s*:\\s*\"([^\"]+)\"")
-            .findAll(json.substring(arrStart, arrEnd + 1))
-            .map { it.groupValues[1] }.toList()
-    }
-
-    // ---------------------------------------------------------------------------
-    // Job picker
-    // ---------------------------------------------------------------------------
-
-    fun onJobSelected(jobId: String, jobTitle: String) {
-        this.jobId.value = jobId
-        this.jobTitle.value = jobTitle
-    }
-
-    fun clearJob() {
-        jobId.value = null
-        jobTitle.value = null
+    private fun showAsset(asset: Asset?) {
+        assetName.value = asset?.name
+        assetType.value = asset?.assetTypeCode
+        assetSubtitle.value = asset?.makeModel ?: asset?.locationName
     }
 
     fun onLocationSelected(id: String?, name: String?) {
         locationId.value = id
         locationName.value = name
-    }
-
-    // ---------------------------------------------------------------------------
-    // Timezone
-    // ---------------------------------------------------------------------------
-
-    fun onTimezoneChanged(tz: String) {
-        timezone.value = tz
-    }
-
-    // ---------------------------------------------------------------------------
-    // Effort hint
-    // ---------------------------------------------------------------------------
-
-    fun fetchEffortHint(categoryKey: String) {
-        viewModelScope.launch {
-            try {
-                val accountId = identityManager.getActiveAccountId() ?: return@launch
-                val result = serviceClient.getEffortStats(accountId, categoryKey)
-                if (result is NetworkResult.Success) {
-                    val stats = result.data
-                    _effortHint.value = EffortHint(
-                        typicalMinutes = (stats.p50_hours * 60).toInt(),
-                        fastMinutes = (stats.p10_hours * 60).toInt(),
-                        slowMinutes = (stats.p90_hours * 60).toInt(),
-                        sampleCount = stats.sample_size,
-                    )
-                }
-            } catch (e: Exception) {
-                // Effort hint is not critical — silently ignore failures
-                Timber.d(e, "[WoCreateVM] fetchEffortHint failed, ignoring")
-            }
+        if (id != null && name == null) {
+            viewModelScope.launch { locationName.value = locations.location(id)?.name }
         }
     }
 
-    private fun loadAvailableCategories() {
-        viewModelScope.launch {
-            val accountId = identityManager.getActiveAccountId() ?: return@launch
-            val categories = runCatching {
-                val db = dbFactory.get(accountId)
-                val raw = db.configDao().getByKey("system", "wo_categories")?.value
-                    ?: db.configDao().getByKey("system", "work_order_categories")?.value
-                    ?: db.configDao().getByKey("system", "log_categories")?.value
-                parseCategoryKeys(raw)
-            }.getOrDefault(emptyList())
-            _availableCategories.value = categories
-        }
-    }
+    // ---------------------------------------------------------------- save
 
-    // Parses category KEY strings (e.g. "oil_change") from the config JSON.
-    // Mirrors AddEditLogViewModel.parseCategoriesFromConfig — must extract "id"/"key",
-    // NOT "label", so that categoryIconName / categoryBadgeColor / categoryGroup
-    // can resolve icons, colors, and groups correctly.
-    private fun parseCategoryKeys(raw: String?): List<String> {
-        if (raw.isNullOrBlank()) return emptyList()
-        return runCatching {
-            val root = Json.parseToJsonElement(raw)
-            val buckets = when (root) {
-                is JsonObject -> listOf(root)
-                else -> root.jsonArray.mapNotNull { it as? JsonObject }
-            }
-            val grouped = buckets.flatMap { group ->
-                val items = group["items"]?.jsonArray
-                    ?: group["categories"]?.jsonArray
-                    ?: return@flatMap emptyList()
-                items.mapNotNull { item ->
-                    val obj = item as? JsonObject ?: return@mapNotNull item.jsonPrimitive.contentOrNull
-                    // Priority: "id" (server format) → "key" → "label" (last resort)
-                    obj["id"]?.jsonPrimitive?.contentOrNull
-                        ?: obj["key"]?.jsonPrimitive?.contentOrNull
-                        ?: obj["label"]?.jsonPrimitive?.contentOrNull
-                }
-            }.distinct()
-            grouped.ifEmpty {
-                when (root) {
-                    is JsonArray -> root.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
-                    else -> emptyList()
-                }
-            }
-        }.onFailure { Timber.w(it, "parseCategoryKeys: failed to parse config value") }
-            .getOrDefault(emptyList())
+    fun clearSaveError() {
+        _saveError.value = null
     }
-
-    fun decodeVin() {
-        val vinValue = vin.value.trim()
-        if (vinValue.isBlank()) return
-        val accountId = identityManager.getActiveAccountId() ?: return
-        viewModelScope.launch {
-            _isDecodingVin.value = true
-            try {
-                when (val result = serviceClient.decodeVin(accountId, vinValue)) {
-                    is NetworkResult.Success -> {
-                        _vinDecodeResult.value = result.data
-                        if (title.value.isBlank()) {
-                            val generatedTitle = listOfNotNull(
-                                result.data.year?.toString(),
-                                result.data.make?.takeIf { it.isNotBlank() },
-                                result.data.model?.takeIf { it.isNotBlank() },
-                            ).joinToString(" ")
-                            if (generatedTitle.isNotBlank()) {
-                                title.value = generatedTitle
-                            }
-                        }
-                    }
-                    else -> {
-                        _vinDecodeResult.value = null
-                    }
-                }
-            } catch (e: Exception) {
-                _vinDecodeResult.value = null
-                Timber.d(e, "[WoCreateVM] decodeVin failed")
-            } finally {
-                _isDecodingVin.value = false
-            }
-        }
-    }
-
-    // ---------------------------------------------------------------------------
-    // Save
-    // ---------------------------------------------------------------------------
 
     fun save() {
         val titleVal = title.value.trim()
@@ -546,106 +281,71 @@ class WorkOrderCreateViewModel @Inject constructor(
             return
         }
         _titleError.value = null
-
-        val accountId = identityManager.getActiveAccountId() ?: return
+        if (_isSaving.value) return
         viewModelScope.launch {
             _isSaving.value = true
             try {
-                val now = System.currentTimeMillis()
-                val woId = editingWoId ?: newWoId
-                val existing = if (editingWoId != null)
-                    repository.getById(accountId, editingWoId) else null
-
-                val estimatedMinutes = estimatedHours.value.toDoubleOrNull()
-                    ?.toLong()
-
-                val entity = WorkOrderEntity(
-                    woId = woId,
-                    accountId = accountId,
-                    assetId = assetId.value,
-                    locationId = locationId.value ?: existing?.locationId,
+                val assignees = assignedTechIds.value.distinct()
+                val draft = WorkOrderDraft(
                     title = titleVal,
-                    description = description.value.ifBlank { null },
-                    category = category.value ?: existing?.category,
-                    priority = priority.value.key,
-                    // New WOs are submitted as "pending_review" — mirrors iOS:
-                    //   wo.status = "pending_review" (draft is no longer a creatable state).
-                    // Edit mode preserves the existing status.
-                    status = existing?.status ?: "pending_review",
-                    requesterId = existing?.requesterId,
-                    assignedTo = assignedTechIds.value.firstOrNull() ?: existing?.assignedTo,
-                    dispatcherNotes = existing?.dispatcherNotes,
-                    requiredSkills = existing?.requiredSkills,
-                    estimatedEffortMinutes = estimatedMinutes ?: existing?.estimatedEffortMinutes,
-                    actualEffortMinutes = existing?.actualEffortMinutes,
-                    failureCode = existing?.failureCode,
-                    completionNotes = existing?.completionNotes,
-                    partsNeeded = existing?.partsNeeded,
-                    logId = existing?.logId,
-                    dueDate = dueDateMs.value,
-                    startedAt = existing?.startedAt,
-                    completedAt = existing?.completedAt,
-                    timerStartedAt = existing?.timerStartedAt,
-                    laborCost = existing?.laborCost,
-                    partsCost = existing?.partsCost,
-                    totalCost = existing?.totalCost,
-                    currency = existing?.currency,
-                    baseAmount = existing?.baseAmount,
-                    exchangeRateUsed = existing?.exchangeRateUsed,
-                    attributes = pendingSource?.takeIf { existing == null }
-                        ?.let { mergeWoAttributesJson(null, mapOf(WO_KEY_SOURCE to it)) }
-                        ?: existing?.attributes,
-                    createdBy = existing?.createdBy ?: accountId,
-                    approvalState = existing?.approvalState,
-                    jobId = jobId.value ?: existing?.jobId,
-                    woKind = if (repeatsRrule.value.isNullOrBlank()) "one_off" else "recurring_parent",
-                    rrule = repeatsRrule.value?.ifBlank { null },
-                    endType = if (repeatsRrule.value.isNullOrBlank()) null else existing?.endType,
-                    endCount = if (repeatsRrule.value.isNullOrBlank()) null else existing?.endCount,
-                    endDate = if (repeatsRrule.value.isNullOrBlank()) null else existing?.endDate,
-                    meterType = existing?.meterType,
-                    meterDue = existing?.meterDue,
-                    meterInterval = existing?.meterInterval,
-                    parentWoId = existing?.parentWoId,
-                    occurrenceDate = existing?.occurrenceDate,
-                    scheduleId = existing?.scheduleId,
-                    lastCompletedAt = existing?.lastCompletedAt,
-                    timezone = timezone.value.takeIf { dueDateMs.value != null } ?: existing?.timezone,
-                    createdAt = existing?.createdAt ?: now,
-                    updatedAt = now,
-                    deletedAt = null,
-                    serverVersion = existing?.serverVersion ?: 0L,
-                    seq = existing?.seq,
+                    description = description.value.trim().ifBlank { null },
+                    assetIds = listOfNotNull(assetId.value) + extraAssetIds.value.filter { it != assetId.value },
+                    locationId = locationId.value,
+                    category = category.value,
+                    priority = WorkOrderPriority.fromWire(priority.value.key),
+                    assignedUserId = assignees.firstOrNull(),
+                    requiredSkills = requiredSkills.value,
+                    estimatedEffortMinutes = hoursTextToMinutes(estimatedHours.value),
+                    dueAt = dueDateMs.value,
                 )
-                repository.upsert(accountId, entity)
+                val woId = editingWoId?.also { id ->
+                    repository.edit(id) { stored -> draft.copy(complexity = stored.complexity, dispatcherNotes = stored.dispatcherNotes) }
+                } ?: repository.create(draft, pendingSource?.let { mapOf(WO_KEY_SOURCE to it) }.orEmpty())
 
-                // Upsert checklist items
-                checklistDrafts.value.forEachIndexed { idx, draft ->
-                    if (draft.title.isNotBlank()) {
-                        repository.upsertChecklistItem(
-                            accountId,
-                            WoChecklistItemEntity(
-                                itemId = draft.id,
-                                woId = woId,
-                                title = draft.title,
-                                isCompleted = false,
-                                completedAt = null,
-                                displayOrder = idx.toLong(),
-                                serverVersion = 0L,
-                                seq = null,
-                            )
-                        )
-                    }
+                // Further assignees (the lead goes with the work order itself).
+                val previous = storedAssigneeIds.toSet()
+                assignees.drop(1).filter { it !in previous }.forEach { repository.assign(woId, it, lead = false) }
+                (previous - assignees.toSet()).forEach { userId ->
+                    assignmentIdByUserId[userId]?.let { repository.unassign(it) }
                 }
 
+                val kept = checklistDrafts.value.filter { it.title.isNotBlank() }
+                (storedChecklistIds - kept.mapNotNull { it.existingId }.toSet()).forEach { repository.deleteChecklistItem(it) }
+                kept.filter { it.existingId == null }.forEach { repository.addChecklistItem(woId, it.title.trim()) }
+
                 _savedSuccessfully.value = true
-                runCatching { syncEngine.sync() }
-                    .onFailure { Timber.w(it, "[WoCreateVM] sync after save failed") }
             } catch (e: Exception) {
                 Timber.e(e, "[WoCreateVM] save failed")
+                _saveError.value = e.message ?: e.javaClass.simpleName
             } finally {
                 _isSaving.value = false
             }
         }
     }
+
+    private fun parseDateMs(v: String): Long? {
+        val utc = TimeZone.getTimeZone("UTC")
+        val iso = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply { timeZone = utc }
+        val ymd = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        return runCatching { iso.parse(v)?.time }.getOrNull() ?: runCatching { ymd.parse(v)?.time }.getOrNull()
+    }
 }
+
+/** "1.5" hours ? 90 minutes; blank or invalid ? null. */
+internal fun hoursTextToMinutes(text: String): Int? =
+    text.trim().replace(',', '.').toBigDecimalOrNull()
+        ?.takeIf { it.signum() > 0 }
+        ?.multiply(BigDecimal(60))?.setScale(0, RoundingMode.HALF_UP)?.toInt()
+
+/** 90 minutes ? "1.5". */
+internal fun minutesToHoursText(minutes: Int): String =
+    BigDecimal(minutes).divide(BigDecimal(60), 2, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString()
+
+/** The 4 most recently used distinct categories from (createdAt, category) pairs. */
+internal fun recentCategories(history: List<Pair<Long, String?>>): List<String> =
+    history.sortedByDescending { it.first }.mapNotNull { it.second?.takeIf(String::isNotBlank) }.distinct().take(4)
+
+/** The user id of the worker named (or with user id) [who], if exactly identifiable. */
+internal fun matchWorker(all: List<Worker>, who: String): String? =
+    all.firstOrNull { it.userId == who }?.userId
+        ?: all.filter { it.displayName.equals(who.trim(), ignoreCase = true) }.singleOrNull()?.userId

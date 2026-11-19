@@ -158,18 +158,18 @@ fun WoTemplateListScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     item { Spacer(modifier = Modifier.height(8.dp)) }
-                    items(templates, key = { it.templateId }) { template ->
+                    items(templates, key = { it.id }) { template ->
                         val dismissState = rememberSwipeToDismissBoxState(
                             confirmValueChange = { value ->
                                 if (value == SwipeToDismissBoxValue.EndToStart) {
-                                    viewModel.deleteTemplate(template.templateId)
+                                    viewModel.deleteTemplate(template.id)
                                     true
                                 } else {
                                     false
                                 }
                             },
                         )
-                        LaunchedEffect(template.templateId) {
+                        LaunchedEffect(template.id) {
                             if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart) {
                                 dismissState.reset()
                             }
@@ -204,7 +204,7 @@ fun WoTemplateListScreen(
                                         text = template.title,
                                         style = MaterialTheme.typography.titleSmall,
                                     )
-                                    template.description?.takeIf { it.isNotBlank() }?.let {
+                                    template.descriptionTemplate?.takeIf { it.isNotBlank() }?.let {
                                         Text(
                                             text = it,
                                             style = MaterialTheme.typography.bodySmall,

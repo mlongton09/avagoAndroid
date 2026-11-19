@@ -13,8 +13,6 @@ import com.avago.feature.workorders.ui.AssetGroupPickerScreen
 import com.avago.feature.workorders.ui.AvailableJobsScreen
 import com.avago.feature.workorders.ui.CostLinesEditorScreen
 import com.avago.feature.workorders.ui.DispatchBoardScreen
-import com.avago.feature.workorders.ui.GLAccountPickerScreen
-import com.avago.feature.workorders.ui.JobPickerScreen
 import com.avago.feature.workorders.ui.TechProfileScreen
 import com.avago.feature.workorders.ui.WoTemplateListScreen
 import com.avago.feature.workorders.ui.WorkOrderCalendarScreen
@@ -35,10 +33,8 @@ object WorkOrderRoute {
     const val CALENDAR = "workorders/calendar"
     const val AVAILABLE_JOBS = "workorders/available_jobs"
     const val TECH_PROFILE = "workorders/tech/{techId}"
-    const val JOB_PICKER = "workorders/job_picker"
     const val TEMPLATE_LIST = "workorders/templates"
     const val COST_LINES_EDITOR = "workorders/cost_lines/{woId}"
-    const val GL_ACCOUNT_PICKER = "workorders/gl_account_picker"
     const val ASSET_GROUP_PICKER = "workorders/asset_group_picker"
     const val LOCATION_PICKER = "workorders/location_picker"
     const val LOG_WORK = "workorders/log/{woId}"
@@ -171,9 +167,8 @@ fun NavGraphBuilder.workOrderNavGraph(
             val selectedAssetId = backStackEntry.savedStateHandle
                 .get<String>("selected_asset_id")
 
-            // Observe job selection returned from JobPickerScreen
-            val selectedJobId = backStackEntry.savedStateHandle
-                .get<String>("selected_job_id")
+            val selectedAssetGroup = backStackEntry.savedStateHandle
+                .get<String>("selected_asset_group")
             val selectedLocationId = backStackEntry.savedStateHandle
                 .get<String>("selected_location_id")
             val selectedLocationName = backStackEntry.savedStateHandle
@@ -192,10 +187,10 @@ fun NavGraphBuilder.workOrderNavGraph(
                 onPickAssetGroup = {
                     navController.navigate(WorkOrderRoute.ASSET_GROUP_PICKER)
                 },
-                onPickJob = {
-                    navController.navigate(WorkOrderRoute.JOB_PICKER)
+                selectedAssetGroup = selectedAssetGroup,
+                onAssetGroupConsumed = {
+                    backStackEntry.savedStateHandle.remove<String>("selected_asset_group")
                 },
-                selectedJobId = selectedJobId,
                 selectedLocationId = selectedLocationId,
                 selectedLocationName = selectedLocationName,
                 selectedAssetId = selectedAssetId,
@@ -257,19 +252,6 @@ fun NavGraphBuilder.workOrderNavGraph(
             )
         }
 
-        // ── Job Picker ────────────────────────────────────────────────────────────
-        composable(WorkOrderRoute.JOB_PICKER) {
-            JobPickerScreen(
-                onBack = { navController.popBackStack() },
-                onJobSelected = { jobId ->
-                    navController.previousBackStackEntry
-                        ?.savedStateHandle
-                        ?.set("selected_job_id", jobId)
-                    navController.popBackStack()
-                },
-            )
-        }
-
         composable(WorkOrderRoute.TEMPLATE_LIST) {
             WoTemplateListScreen(
                 onBack = { navController.popBackStack() },
@@ -282,30 +264,8 @@ fun NavGraphBuilder.workOrderNavGraph(
             arguments = listOf(navArgument("woId") { type = NavType.StringType }),
         ) { backStackEntry ->
             val woId = requireNotNull(backStackEntry.arguments?.getString("woId"))
-            val pendingGlAccount = backStackEntry.savedStateHandle
-                .get<String>("selected_gl_account")
             CostLinesEditorScreen(
                 woId = woId,
-                onBack = { navController.popBackStack() },
-                onNavigateToGlPicker = {
-                    navController.navigate(WorkOrderRoute.GL_ACCOUNT_PICKER)
-                },
-                pendingGlAccount = pendingGlAccount,
-                onGlAccountConsumed = {
-                    backStackEntry.savedStateHandle.remove<String>("selected_gl_account")
-                },
-            )
-        }
-
-        // ── GL Account Picker ─────────────────────────────────────────────────────
-        composable(WorkOrderRoute.GL_ACCOUNT_PICKER) {
-            GLAccountPickerScreen(
-                onSelected = { account ->
-                    navController.previousBackStackEntry
-                        ?.savedStateHandle
-                        ?.set("selected_gl_account", account)
-                    navController.popBackStack()
-                },
                 onBack = { navController.popBackStack() },
             )
         }
