@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
+import com.avago.core.data.v2.LocationBinReads
 import com.avago.core.data.db.entity.LocationEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -22,6 +23,7 @@ import javax.inject.Inject
 @HiltViewModel
 class LocationPickerViewModel @Inject constructor(
     private val dbFactory: DatabaseFactory,
+    private val locationReads: LocationBinReads,
     private val identityManager: IdentityManager,
 ) : ViewModel() {
 
@@ -36,7 +38,7 @@ class LocationPickerViewModel @Inject constructor(
                     flowOf(emptyList())
                 } else {
                     try {
-                        dbFactory.get(accountId).locationDao().observeAll(accountId)
+                        locationReads.observeLocations(accountId)
                     } catch (e: Exception) {
                         Timber.e(e, "[LocationPickerViewModel] Failed to observe locations")
                         flowOf(emptyList())

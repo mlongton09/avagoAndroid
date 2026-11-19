@@ -44,6 +44,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
+import com.avago.core.data.v2.LocationBinReads
 import com.avago.core.data.db.entity.TechProfileEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -61,6 +62,7 @@ import javax.inject.Inject
 class MyTechProfileViewModel @Inject constructor(
     private val identityManager: IdentityManager,
     private val databaseFactory: DatabaseFactory,
+    private val locationReads: LocationBinReads,
 ) : ViewModel() {
 
     val displayName = MutableStateFlow("")
@@ -103,7 +105,7 @@ class MyTechProfileViewModel @Inject constructor(
                     val entityHomeLocationId = entity.homeLocationId
                     homeLocationId.value = entityHomeLocationId
                     if (entityHomeLocationId != null) {
-                        val loc = databaseFactory.get(accountId).locationDao().getById(entityHomeLocationId)
+                        val loc = locationReads.location(accountId, entityHomeLocationId)
                         homeLocationName.value = loc?.name
                     }
                 }

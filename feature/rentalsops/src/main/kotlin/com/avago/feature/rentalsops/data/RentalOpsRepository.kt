@@ -4,6 +4,7 @@ import android.content.Context
 import com.avago.core.auth.IdentityManager
 import com.avago.core.auth.PermissionStore
 import com.avago.core.data.DatabaseFactory
+import com.avago.core.data.v2.LocationBinReads
 import com.avago.core.data.db.entity.LocationEntity
 import com.avago.core.data.db.entity.SyncQueueEntity
 import com.avago.feature.rentalsops.domain.DeliveryStateMachine
@@ -93,6 +94,7 @@ class RentalOpsRepository @Inject constructor(
     private val identity: IdentityManager,
     private val permissions: PermissionStore,
     private val dbFactory: DatabaseFactory,
+    private val locationReads: LocationBinReads,
     private val opsDb: RentalOpsDatabaseFactory,
     private val api: RentalOpsApi,
     private val scheduler: RentalOpsSyncScheduler,
@@ -346,7 +348,7 @@ class RentalOpsRepository @Inject constructor(
         }.sortedWith(compareBy<TransferView> { it.localStatus == TransferStatus.RECEIVED || it.localStatus == TransferStatus.CANCELLED }.thenByDescending { it.transfer.shipAt ?: Instant.EPOCH })
     }
 
-    fun observeLocations(): Flow<List<LocationEntity>> = perAccount({ a -> dbFactory.get(a).locationDao().observeAll(a) }, emptyList())
+    fun observeLocations(): Flow<List<LocationEntity>> = perAccount({ a -> locationReads.observeLocations(a) }, emptyList())
 
     data class ScannedAsset(val assetId: String, val name: String, val locationId: String?)
 

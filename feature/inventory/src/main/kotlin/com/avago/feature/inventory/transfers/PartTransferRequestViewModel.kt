@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
+import com.avago.core.data.v2.LocationBinReads
 import com.avago.core.data.db.entity.LocationEntity
 import com.avago.core.data.db.entity.PartEntity
 import com.avago.core.data.db.entity.PartTransferRequestEntity
@@ -83,6 +84,7 @@ data class CreateTransferRequestUiState(
 @HiltViewModel
 class CreateTransferRequestViewModel @Inject constructor(
     private val dbFactory: DatabaseFactory,
+    private val locationReads: LocationBinReads,
     private val serviceClient: AvagoServiceClient,
     private val identityManager: IdentityManager,
 ) : ViewModel() {
@@ -100,7 +102,7 @@ class CreateTransferRequestViewModel @Inject constructor(
         viewModelScope.launch {
             identityManager.activeAccountId
                 .filterNotNull()
-                .flatMapLatest { accountId -> dbFactory.get(accountId).locationDao().observeAll(accountId) }
+                .flatMapLatest { accountId -> locationReads.observeLocations(accountId) }
                 .collect { locs -> _state.value = _state.value.copy(locations = locs) }
         }
     }

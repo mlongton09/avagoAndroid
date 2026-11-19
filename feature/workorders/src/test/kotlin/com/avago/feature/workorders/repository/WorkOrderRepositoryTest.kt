@@ -63,7 +63,7 @@ class WorkOrderRepositoryTest {
         coEvery { mockChecklistDao.softDelete(any()) } just Runs
         coEvery { mockCommentDao.upsert(any()) } just Runs
 
-        repository = WorkOrderRepository(mockDbFactory)
+        repository = WorkOrderRepository(mockDbFactory, mockk(relaxed = true))
     }
 
     // ─── Work Order: insert vs update routing ─────────────────────────────────

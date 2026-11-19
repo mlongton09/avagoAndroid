@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
+import com.avago.core.data.v2.LocationBinReads
 import com.avago.core.data.db.entity.CycleCountEntity
 import com.avago.core.data.db.entity.CycleCountLineEntity
 import com.avago.core.data.db.entity.LocationEntity
@@ -99,6 +100,7 @@ data class CycleCountLineWithPart(
 class CycleCountDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val dbFactory: DatabaseFactory,
+    private val locationReads: LocationBinReads,
     private val serviceClient: AvagoServiceClient,
     private val identityManager: IdentityManager,
 ) : ViewModel() {
@@ -117,7 +119,7 @@ class CycleCountDetailViewModel @Inject constructor(
                 combine(
                     db.cycleCountDao().observeAll(accountId),
                     db.cycleCountLineDao().observeAll(accountId),
-                    db.locationDao().observeAll(accountId),
+                    locationReads.observeLocations(accountId),
                     db.partDao().observeAll(accountId),
                     _isActioning,
                 ) { counts, lines, locations, parts, actioning ->

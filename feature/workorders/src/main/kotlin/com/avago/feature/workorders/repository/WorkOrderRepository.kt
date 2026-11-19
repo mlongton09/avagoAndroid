@@ -1,6 +1,7 @@
 package com.avago.feature.workorders.repository
 
 import com.avago.core.data.DatabaseFactory
+import com.avago.core.data.v2.LocationBinReads
 import com.avago.core.data.db.entity.AssetEntity
 import com.avago.core.data.db.entity.LogCostLineEntity
 import com.avago.core.data.db.entity.LocationEntity
@@ -20,6 +21,7 @@ import javax.inject.Singleton
 @Singleton
 class WorkOrderRepository @Inject constructor(
     private val dbFactory: DatabaseFactory,
+    private val locationReads: LocationBinReads,
 ) {
 
     // ---------------------------------------------------------------------------
@@ -53,7 +55,7 @@ class WorkOrderRepository @Inject constructor(
     }
 
     suspend fun getLocationById(accountId: String, locationId: String): LocationEntity? {
-        return dbFactory.get(accountId).locationDao().getById(locationId)
+        return locationReads.location(accountId, locationId)
     }
 
     suspend fun upsert(accountId: String, entity: WorkOrderEntity) {

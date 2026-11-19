@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
+import com.avago.core.data.v2.LocationBinReads
 import com.avago.core.data.db.entity.BinEntity
 import com.avago.core.data.db.entity.LocationEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -31,6 +32,7 @@ data class BinListUiState(
 @HiltViewModel
 class BinListViewModel @Inject constructor(
     private val dbFactory: DatabaseFactory,
+    private val locationReads: LocationBinReads,
     private val identityManager: IdentityManager,
 ) : ViewModel() {
 
@@ -41,7 +43,7 @@ class BinListViewModel @Inject constructor(
         viewModelScope.launch {
             identityManager.activeAccountId
                 .filterNotNull()
-                .flatMapLatest { accountId -> dbFactory.get(accountId).binDao().observeAll(accountId) }
+                .flatMapLatest { accountId -> locationReads.observeBins(accountId) }
                 .collect { bins ->
                     _state.value = _state.value.copy(bins = bins, isLoading = false)
                 }
@@ -49,7 +51,7 @@ class BinListViewModel @Inject constructor(
         viewModelScope.launch {
             identityManager.activeAccountId
                 .filterNotNull()
-                .flatMapLatest { accountId -> dbFactory.get(accountId).locationDao().observeAll(accountId) }
+                .flatMapLatest { accountId -> locationReads.observeLocations(accountId) }
                 .collect { locs -> _state.value = _state.value.copy(locations = locs) }
         }
     }
@@ -81,6 +83,7 @@ data class BinDetailUiState(
 @HiltViewModel
 class BinDetailViewModel @Inject constructor(
     private val dbFactory: DatabaseFactory,
+    private val locationReads: LocationBinReads,
     private val identityManager: IdentityManager,
 ) : ViewModel() {
 
@@ -90,10 +93,9 @@ class BinDetailViewModel @Inject constructor(
     fun load(binId: String) {
         viewModelScope.launch {
             val accountId = identityManager.getActiveAccountId() ?: return@launch
-            val db = dbFactory.get(accountId)
-            val bin = db.binDao().getById(binId)
+            val bin = locationReads.bin(accountId, binId)
             val locationName = bin?.let { b ->
-                db.locationDao().getById(b.locationId)?.name ?: b.locationId
+                locationReads.location(accountId, b.locationId)?.name ?: b.locationId
             } ?: ""
             _state.value = BinDetailUiState(bin = bin, locationName = locationName, isLoading = false)
         }

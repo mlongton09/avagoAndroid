@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
+import com.avago.core.data.v2.LocationBinReads
 import com.avago.core.data.FormFillRouter
 import com.avago.core.data.db.entity.InventoryEntity
 import com.avago.core.data.db.entity.PartEntity
@@ -53,6 +54,7 @@ data class AddEditPartUiState(
 class AddEditPartViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val dbFactory: DatabaseFactory,
+    private val locationReads: LocationBinReads,
     private val identityManager: IdentityManager,
     private val formFillRouter: FormFillRouter,
 ) : ViewModel() {
@@ -121,7 +123,7 @@ class AddEditPartViewModel @Inject constructor(
                 val primaryInventory = db.inventoryDao().getByPartId(id).firstOrNull()
                 val locId = primaryInventory?.locationId ?: ""
                 val locName = if (locId.isNotBlank()) {
-                    db.locationDao().getById(locId)?.name ?: ""
+                    locationReads.location(accountId, locId)?.name ?: ""
                 } else ""
                 _state.value = _state.value.copy(
                     name = part.name,

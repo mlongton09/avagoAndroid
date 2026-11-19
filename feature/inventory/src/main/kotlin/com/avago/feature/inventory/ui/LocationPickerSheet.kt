@@ -27,6 +27,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
+import com.avago.core.data.v2.LocationBinReads
 import com.avago.core.data.db.entity.LocationEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -43,13 +44,14 @@ import javax.inject.Inject
 @HiltViewModel
 class LocationPickerViewModel @Inject constructor(
     private val dbFactory: DatabaseFactory,
+    private val locationReads: LocationBinReads,
     private val identity: IdentityManager,
 ) : ViewModel() {
 
     val locations: StateFlow<List<LocationEntity>> = identity.activeAccountId
         .flatMapLatest { accountId ->
             if (accountId == null) flowOf(emptyList())
-            else flow { emitAll(dbFactory.get(accountId).locationDao().observeAll(accountId)) }
+            else locationReads.observeLocations(accountId)
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 }

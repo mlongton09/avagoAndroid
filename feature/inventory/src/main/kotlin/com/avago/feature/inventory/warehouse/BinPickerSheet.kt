@@ -27,6 +27,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
+import com.avago.core.data.v2.LocationBinReads
 import com.avago.core.data.db.entity.BinEntity
 import com.avago.feature.inventory.R
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -43,13 +44,14 @@ import javax.inject.Inject
 @HiltViewModel
 class BinPickerViewModel @Inject constructor(
     private val dbFactory: DatabaseFactory,
+    private val locationReads: LocationBinReads,
     private val identityManager: IdentityManager,
 ) : ViewModel() {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val bins: StateFlow<List<BinEntity>> = identityManager.activeAccountId.flatMapLatest { accountId ->
         if (accountId == null) flowOf(emptyList())
-        else flow { emitAll(dbFactory.get(accountId).binDao().observeAll(accountId)) }
+        else locationReads.observeBins(accountId)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),

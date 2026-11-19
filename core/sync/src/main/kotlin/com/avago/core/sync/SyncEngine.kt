@@ -108,6 +108,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Provider
+import com.avago.core.data.v2.V2SyncResult
+import com.avago.core.sync.v2.V2SyncHook
 import javax.inject.Singleton
 import kotlin.math.roundToLong
 import kotlin.random.Random
@@ -135,6 +137,8 @@ class SyncEngine @Inject constructor(
     private val defectRegister: Provider<DefectRegisterSync>,
     // Feature-owned outboxes (rentals, …) drained after /sync/push — see ExternalOutbox.
     private val externalOutboxes: Provider<Set<@JvmSuppressWildcards ExternalOutbox>> = Provider { emptySet() },
+    // Schema v2: while the v2 gate is open, cycles go to the v2 engine instead (inert by default).
+    private val v2Sync: Provider<V2SyncHook> = Provider { V2SyncHook.Inactive },
 ) {
     private val mutex = Mutex()
 
@@ -315,6 +319,7 @@ class SyncEngine @Inject constructor(
      * Mirrors iOS SyncEngine.sync().
      */
     suspend fun sync(): SyncResult {
+        runV2IfActive()?.let { return it }
         if (!mutex.tryLock()) {
             resyncRequested.set(true)
             Timber.d("[SyncEngine] sync() queued — already in progress")
@@ -340,6 +345,7 @@ class SyncEngine @Inject constructor(
      * Mirrors iOS SyncEngine.pushIfNeeded().
      */
     suspend fun pushIfNeeded(): SyncResult {
+        runV2IfActive()?.let { return it }
         if (!mutex.tryLock()) {
             resyncRequested.set(true)
             Timber.d("[SyncEngine] pushIfNeeded() queued — already in progress")
@@ -352,6 +358,20 @@ class SyncEngine @Inject constructor(
         } finally {
             mutex.unlock()
         }
+    }
+
+    /**
+     * Schema v2 (Q11): legacy push/pull must not run against a v2 store, so while v2 is active the
+     * cycle is a v2 pull + outbox flush. Retryable outcomes map to [SyncResult.Failed] so the
+     * worker backs off; terminal ones (426, 403, revoked) to [SyncResult.Partial] so it does not.
+     */
+    private suspend fun runV2IfActive(): SyncResult? = when (val result = v2Sync.get().runIfActive()) {
+        null -> null
+        is V2SyncResult.Synced -> SyncResult.Success
+        is V2SyncResult.Offline -> SyncResult.Failed(java.io.IOException(result.message))
+        is V2SyncResult.RetryLater -> SyncResult.Failed(IllegalStateException("v2 retry later: ${result.reason}"))
+        is V2SyncResult.Failed -> SyncResult.Failed(result.error)
+        else -> SyncResult.Partial(0, 0)
     }
 
     /** Reset in-flight items on connectivity loss. Mirrors iOS SyncEngine.handleConnectivityLost(). */

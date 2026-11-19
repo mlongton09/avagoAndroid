@@ -80,9 +80,9 @@ finishes the reset. The app runs in one process, so this process-local gate is t
 | 4 | Device runtime flags (`force_offline`) | `shared_prefs/avago_runtime_flags.xml` | Device setting, not business data. |
 | 5 | Route-tracking UI one-shot flag | `shared_prefs/rentalops_route_tracking_ui.xml` | Device UI state. |
 | 6 | User settings (theme, language, units, currency, notifications, FRE state, and so on) | `files/datastore/user_prefs.preferences_pb` | Device settings. Only drafts are removed (cleared item 19). |
-| 7 | v2 flag state | `shared_prefs/avago_v2_flags.xml` | Holds the debug override and the last server capability. |
+| 7 | v2 flag state | `shared_prefs/avago_v2_flags.xml` | Holds the debug override, the last server capability and the v2 device id (`v2_device_id`). |
 | 8 | v2 reset marker | `no_backup/avago_v2_reset.marker` | Makes the reset idempotent. |
-| 9 | v2 stores | `files/accounts/<account>/<user>/v2/` (`avago_v2.db`; `chat_v2.db` reserved) | Generation directory; never touched. |
+| 9 | v2 stores | `files/accounts/<account>/<user>/v2/` (`avago_v2.db` business store, `chat_v2.db` chat store) | Generation directory; never touched. |
 | 10 | Third-party SDK state (Firebase, Google Play services, WorkManager's own DB) | various | Not app business data. |
 | 11 | Unknown files | anywhere | The reset deletes only the enumerated items above. |
 
@@ -94,12 +94,15 @@ finishes the reset. The app runs in one process, so this process-local gate is t
   the stale name `encrypted_prefs.xml`.
 - If the server reset invalidates a kept refresh token, the existing refresh-failure handling
   (`RefreshFailedHandler`) sends the user to sign-in. No v2-specific code is needed for this.
-- Follow-ups, outside this scaffold:
-  - Cancel legacy WorkManager jobs before the v2 sync exists.
+- Follow-ups:
+  - Done in P3-12: the v2 stores use the bundled SQLite driver (STRICT DDL) and are built from
+    the generated contract DDL (`scripts/gen_v2_contract.py`); the Room scaffold
+    (`AvagoV2Database`) is gone. After the reset, `AvagoApplication` starts
+    `V2SyncCoordinator`, and the legacy `SyncEngine.sync()`/`pushIfNeeded()` forward to it, so
+    no legacy push/pull runs while v2 is on. See `docs/v2-android-status.md`.
+  - Still open: other legacy WorkManager jobs (rentals pull, chat background sync) still run
+    against the emptied legacy stores while v2 is on; cancel or forward them.
   - Migrate the `RentalFleetWidget` from the legacy DB.
-  - Switch to the bundled SQLite driver, which the contract's STRICT DDL requires.
-  - Import the generated contract output (`schema/contract/out/sqlite/business.sql`,
-    `out/kotlin/*.kt`) into `AvagoV2Database`. `V2Contract` documents this hook.
 - An incompatible API version (`426`, or the client contract version is outside the range
   reported by `GET /v2/capabilities`) shows `ServiceUnavailableUpdateScreen` instead of the app
   (plan §11). This happens only while v2 is enabled.

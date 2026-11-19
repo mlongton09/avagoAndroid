@@ -39,15 +39,19 @@ import com.avago.core.sync.SyncEngine
 import com.avago.core.sync.SyncGate
 import com.avago.core.sync.SyncWorker
 import com.avago.core.sync.TechLocationService
+import com.avago.core.sync.v2.V2SyncCoordinator
 import com.avago.feature.chat.realtime.BackgroundSyncCoordinator
 import com.avago.feature.chat.realtime.ChatRealtimeClient
 import com.avago.feature.chat.realtime.OutboxRetryCoordinator
 import dagger.Lazy
 import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.launch
@@ -132,6 +136,7 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
     @Inject lateinit var v2FlagLazy: Lazy<V2Flag>
     @Inject lateinit var legacyStoreResetLazy: Lazy<LegacyStoreReset>
     @Inject lateinit var v2CapabilitiesClientLazy: Lazy<V2CapabilitiesClient>
+    @Inject lateinit var v2SyncCoordinatorLazy: Lazy<V2SyncCoordinator>
     private val identityManager get() = identityManagerLazy.get()
     private val crashDiagnostics get() = crashDiagnosticsLazy.get()
     private val serviceClient get() = serviceClientLazy.get()
@@ -237,8 +242,28 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
             } finally {
                 Trace.endSection()
             }
+            appScope.launch { observeIdentityForV2Sync() }
         }
         if (flag.shouldProbeServer()) appScope.launch { refreshV2Capability(flag) }
+    }
+
+    /**
+     * Opens (and publishes to the v2 reads) the active user/account's v2 stores and runs a first
+     * v2 pull + outbox flush on launch, sign-in and account switch. Later cycles come through the
+     * existing triggers via SyncEngine's v2 hook. No-op unless the reset completed (V2StoreGate).
+     */
+    private suspend fun observeIdentityForV2Sync() {
+        combine(identityManager.activeAccountId, identityManager.activeUserId) { account, user -> account to user }
+            .distinctUntilChanged()
+            .collectLatest {
+                try {
+                    v2SyncCoordinatorLazy.get().runOnce()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Timber.e(e, "AvagoApplication: v2 sync failed")
+                }
+            }
     }
 
     private suspend fun refreshV2Capability(flag: V2Flag) {
