@@ -148,6 +148,10 @@ class V2RentalDispatchRepository @Inject constructor(
                 val taskId = r.str("id")
                 val order = r.strOrNull("order_id")?.let(orders::get)
                 val destination = r.strOrNull("destination_location_id")?.let(locations::get)
+                val snapshot = snapshot(r.strOrNull("destination_snapshot"))
+                val snapLat = snapshot?.let { coordinate(it, "lat") }
+                val snapLng = snapshot?.let { coordinate(it, "lng") }
+                val hasSnapPoint = snapLat != null && snapLng != null
                 RentalDeliveryTask(
                     id = taskId,
                     version = r.longOrNull("version") ?: 0L,
@@ -158,8 +162,10 @@ class V2RentalDispatchRepository @Inject constructor(
                     customerName = order?.let { o -> o.strOrNull("customer_party_id")?.let(names::get) ?: o.strOrNull("walk_in_name") },
                     transferId = r.strOrNull("transfer_id"),
                     destinationLocationId = r.strOrNull("destination_location_id"),
-                    destinationLabel = snapshotAddress(r.strOrNull("destination_snapshot"))
-                        ?: destination?.let { it.addressSummary ?: it.name },
+                    destinationLabel = snapshot?.let(::address) ?: destination?.let { it.addressSummary ?: it.name },
+                    destinationName = destination?.name,
+                    latitude = if (hasSnapPoint) snapLat else destination?.latitude,
+                    longitude = if (hasSnapPoint) snapLng else destination?.longitude,
                     contactName = r.strOrNull("contact_name"),
                     contactPhone = r.strOrNull("contact_phone"),
                     windowStart = r.instant("time_window_start"),
@@ -182,8 +188,15 @@ class V2RentalDispatchRepository @Inject constructor(
         }
 
         /** The explicit address of a task (`destination_snapshot.address`: text or `{line1, line2, city, ...}`). */
-        fun snapshotAddress(text: String?): String? {
-            val snapshot = text?.let { runCatching { json.parseToJsonElement(it) as? JsonObject }.getOrNull() } ?: return null
+        fun snapshotAddress(text: String?): String? = snapshot(text)?.let(::address)
+
+        private fun snapshot(text: String?): JsonObject? =
+            text?.let { runCatching { json.parseToJsonElement(it) as? JsonObject }.getOrNull() }
+
+        private fun coordinate(snapshot: JsonObject, key: String): Double? =
+            (snapshot[key] as? JsonPrimitive)?.contentOrNull?.toDoubleOrNull()?.takeIf { it.isFinite() }
+
+        private fun address(snapshot: JsonObject): String? {
             return when (val address = snapshot["address"]) {
                 is JsonPrimitive -> address.contentOrNull?.trim()?.ifEmpty { null }
                 is JsonObject -> listOf("line1", "line2", "city", "region", "postal_code", "country")

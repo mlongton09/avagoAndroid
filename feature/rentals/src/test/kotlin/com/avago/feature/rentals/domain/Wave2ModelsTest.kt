@@ -1,9 +1,9 @@
 package com.avago.feature.rentals.domain
 
+import com.avago.core.data.domain.RentalBulkReturn
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
@@ -57,7 +57,11 @@ class Wave2ModelsTest {
 
     @Test
     fun `bulk outstanding and count checks mirror the server`() {
-        val returns = listOf(obj("""{"returned_qty":"3","damaged_qty":"1"}"""), obj("""{"lost_qty":"0.5"}"""))
+        fun ret(r: String, d: String, l: String) = RentalBulkReturn(
+            id = "b", orderId = "o", orderLineId = "l", productId = "p", returned = BigDecimal(r), damaged = BigDecimal(d),
+            lost = BigDecimal(l), chargeMinor = 0, notes = null, at = Instant.EPOCH,
+        )
+        val returns = listOf(ret("3", "1", "0"), ret("0", "0", "0.5"))
         assertEquals(BigDecimal("5.5"), Bulk.outstanding(BigDecimal("10"), returns))
         assertEquals(BigDecimal.ZERO, Bulk.outstanding(BigDecimal("2"), returns))
         fun c(r: String, d: String = "0", l: String = "0") = Bulk.Counts(BigDecimal(r), BigDecimal(d), BigDecimal(l))
@@ -68,14 +72,6 @@ class Wave2ModelsTest {
         assertEquals(BigDecimal("1.5"), Bulk.parseQty(" 1,5 "))
         assertEquals(BigDecimal("0"), Bulk.parseQty(""))
         assertNull(Bulk.parseQty("abc"))
-        val body = Bulk.returnBody(c("2.0"), 0, "  ", Instant.parse("2026-06-10T08:00:00Z"), null)
-        assertEquals("2", body["returned"]!!.jsonPrimitive.content)
-        assertNull(body["damage_charge_minor"])
-        assertNull(body["notes"])
-        assertNull(body["location_id"])
-        assertTrue(Bulk.isBulk(null, "bulk_rental", "l1", emptySet()))
-        assertTrue(Bulk.isBulk("accessory", null, "l1", setOf("l1")))
-        assertFalse(Bulk.isBulk("accessory", null, "l1", setOf("l2")))
     }
 
     @Test
@@ -103,7 +99,7 @@ class Wave2ModelsTest {
         assertFalse(OnlinePayments.enabled(obj("""{}""")))
         assertTrue(OnlinePayments.enabled(obj("""{"online_payments_enabled":true}""")))
         val off = OnlinePayments.parseOrder(obj("""{"online_payments_enabled":false,"can":{"request":true}}"""), "EUR")!!
-        assertFalse(off.canRequest)
+        assertFalse(off.enabled)
         val on = OnlinePayments.parseOrder(
             obj(
                 """{"online_payments_enabled":true,"payment_requests":[
@@ -113,7 +109,7 @@ class Wave2ModelsTest {
             ),
             "EUR",
         )!!
-        assertTrue(on.canRequest)
+        assertTrue(on.enabled)
         assertEquals(listOf("r1", "r2"), on.requests.map { it.id })
         assertTrue(on.requests[0].shareable)
         assertEquals(500L, on.requests[0].amount!!.minor)
@@ -141,17 +137,5 @@ class Wave2ModelsTest {
         val open = CreditCheck.parse(obj("{}"))!!
         assertTrue(open.allowed)
         assertFalse(open.canOverride)
-    }
-
-    @Test
-    fun `contracts and sub-rent flags`() {
-        val c = ContractView.of(obj("""{"id":"c1","kind":"rent_to_own","monthly_rate_minor":9900,"currency":"EUR"}"""))!!
-        assertTrue(c.isRentToOwn)
-        assertEquals("active", c.status)
-        assertEquals(9900L, c.monthlyRate!!.minor)
-        assertNull(ContractView.of(obj("""{"kind":"long_term"}""")))
-        assertTrue(SubRent.isSubrented(obj("""{"ownership":"subrented"}""")))
-        assertFalse(SubRent.isSubrented(obj("""{"ownership":"owned"}""")))
-        assertFalse(SubRent.isSubrented(null))
     }
 }

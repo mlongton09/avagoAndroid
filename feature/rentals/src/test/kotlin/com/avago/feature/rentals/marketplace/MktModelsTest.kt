@@ -1,26 +1,17 @@
 package com.avago.feature.rentals.marketplace
 
 import com.avago.feature.rentals.domain.parseObj
-import com.avago.feature.rentals.marketplace.domain.MktBodies
-import com.avago.feature.rentals.marketplace.domain.MktListing
 import com.avago.feature.rentals.marketplace.domain.MktCancelMode
+import com.avago.feature.rentals.marketplace.domain.MktListing
 import com.avago.feature.rentals.marketplace.domain.MktMyRequests
-import com.avago.feature.rentals.marketplace.domain.MktOwnerListing
-import com.avago.feature.rentals.marketplace.domain.MktOwnerMarketplace
-import com.avago.feature.rentals.marketplace.domain.MktOwnerMeetupPage
 import com.avago.feature.rentals.marketplace.domain.MktReservation
 import com.avago.feature.rentals.marketplace.domain.MktSearchPage
-import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.time.Instant
-import java.time.LocalDate
 import java.util.Locale
 
 class MktModelsTest {
@@ -132,59 +123,5 @@ class MktModelsTest {
         assertTrue(q.isQuote)
         assertTrue(q.onlinePayments)
         assertFalse(MktReservation.of(json("""{"order":{"id":"o2","number":"R-1","status":"reserved"}}""")).isQuote)
-    }
-
-    @Test
-    fun `owner inbox and settings parse with readiness`() {
-        val page = MktOwnerMeetupPage.of(
-            json(
-                """{"items":[{"id":"m1","status":"pending","class_name":"Trailer","renter":{"id":"r1","name":"Ann","email_verified":true},
-                "proposed_slots":[{"start_at":"2026-11-20T17:00:00Z","end_at":"2026-11-20T17:30:00Z"}],"server_version":4}],
-                "next_cursor":null,"pending_count":3}""",
-            ),
-        )
-        assertEquals(3, page.pendingCount)
-        assertNull(page.nextCursor)
-        assertEquals(4L, page.items[0].serverVersion)
-        assertEquals("Ann", page.items[0].renter.name)
-
-        val m = MktOwnerMarketplace.of(
-            json(
-                """{"settings":{"enabled":false,"offer_meetup":true,"meet_availability":{"mon":[["09:00","12:00"]],"xyz":[]},
-                "meet_blackouts":[{"from":"2026-12-24","to":"2026-12-26"}],"server_version":2},
-                "readiness":{"storefront_enabled":true,"locations":[{"id":"loc1","name":"Yard","offered":true,"latitude":51.6,"longitude":-121.3}]}}""",
-            ),
-        )
-        assertEquals(mapOf("mon" to listOf("09:00" to "12:00")), m.settings.meetAvailability)
-        assertEquals(LocalDate.of(2026, 12, 24) to LocalDate.of(2026, 12, 26), m.settings.meetBlackouts[0])
-        assertTrue(m.readiness.canEnable)
-        assertEquals(12, m.settings.leadHours)
-        assertTrue(m.categories.isNotEmpty())
-
-        val bodies = MktBodies.settings(m.settings.copy(enabled = true))
-        assertEquals(2L, bodies["server_version"]!!.jsonPrimitive.content.toLong())
-        assertEquals("09:00", bodies["meet_availability"]!!.jsonObject["mon"]!!.jsonArray[0].jsonArray[0].jsonPrimitive.content)
-        assertEquals("2026-12-24", bodies["meet_blackouts"]!!.jsonArray[0].jsonObject["from"]!!.jsonPrimitive.content)
-    }
-
-    @Test
-    fun `listing body clears overrides only when every flag inherits`() {
-        val l = MktOwnerListing.of(json("""{"class_id":"c1","name":"Trailer","eligible":true,"listed":true,"offer_meetup":true}"""))!!
-        val b = MktBodies.listing(l, " Tow it ", "")
-        assertEquals(false, b["clear_overrides"]!!.jsonPrimitive.content.toBoolean())
-        assertEquals(JsonNull, b["offer_pickup"])
-        assertEquals("Tow it", b["summary_i18n"]!!.jsonObject["en-US"]!!.jsonPrimitive.content)
-        assertNull(b["summary_i18n"]!!.jsonObject["de-DE"])
-        val inherit = MktBodies.listing(l.copy(offerMeetup = null), "", "")
-        assertEquals(true, inherit["clear_overrides"]!!.jsonPrimitive.content.toBoolean())
-    }
-
-    @Test
-    fun `owner actions carry server_version`() {
-        val a = MktBodies.accept(1, " see you ", true, 5)
-        assertEquals("1", a["slot_index"]!!.jsonPrimitive.content)
-        assertEquals("see you", a["message"]!!.jsonPrimitive.content)
-        assertEquals("5", a["server_version"]!!.jsonPrimitive.content)
-        assertNull(MktBodies.decline("  ", null)["message"])
     }
 }

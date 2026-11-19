@@ -121,7 +121,6 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
     @Inject lateinit var chatBackgroundSyncLazy: Lazy<BackgroundSyncCoordinator>
     @Inject lateinit var chatRealtimeLazy: Lazy<ChatRealtimeClient>
     @Inject lateinit var scoutRepositoryLazy: Lazy<ScoutRepository>
-    @Inject lateinit var rentalSyncSchedulerLazy: Lazy<com.avago.feature.rentals.data.RentalSyncScheduler>
     @Inject lateinit var v2FlagLazy: Lazy<V2Flag>
     @Inject lateinit var legacyStoreResetLazy: Lazy<LegacyStoreReset>
     @Inject lateinit var v2CapabilitiesClientLazy: Lazy<V2CapabilitiesClient>
@@ -259,10 +258,8 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
             request,
         )
         Timber.d("AvagoApplication: periodic sync scheduled")
-        // Rentals pull (updated_since + tombstones) runs in its own worker (feature/rentals);
-        // it no-ops for accounts without the rentals module.
-        runCatching { rentalSyncSchedulerLazy.get().schedulePeriodic() }
-            .onFailure { Timber.e(it, "AvagoApplication: rental sync schedule failed") }
+        // Rentals sync through the v2 engine; drop the retired rental worker on upgraded dev installs.
+        WorkManager.getInstance(this).cancelUniqueWork("avago_rental_sync")
     }
 
     private fun observeConnectivityForSync() {

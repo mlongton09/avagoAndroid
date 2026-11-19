@@ -31,7 +31,6 @@
     <string name="rentals_cancel">Avbryt</string>
     <string name="rentals_card_brand">Kortmärke</string>
     <string name="rentals_card_last4">Sista 4 siffrorna</string>
-    <string name="rentals_class">Klass</string>
     <string name="rentals_class_codes">Körkortsbehörigheter</string>
     <string name="rentals_company">Företag</string>
     <string name="rentals_complete_checkin">Slutför återlämning</string>
@@ -71,7 +70,6 @@
     <string name="rentals_documents">Dokument</string>
     <string name="rentals_done">Klar</string>
     <string name="rentals_draft_explainer">Sparat offline som utkast. Bekräftas när du är online igen.</string>
-    <string name="rentals_draft_generic">Utkast väntar på bekräftelse</string>
     <string name="rentals_draft_order">Orderutkast</string>
     <string name="rentals_due">Förfaller</string>
     <string name="rentals_due_back">Åter %1$s</string>
@@ -87,7 +85,6 @@
     <string name="rentals_event_pickup">Upphämtning</string>
     <string name="rentals_event_return">Återlämning</string>
     <string name="rentals_expires">Går ut</string>
-    <string name="rentals_expires_on">Går ut %1$s</string>
     <string name="rentals_extend_explainer">Välj nytt slut. Servern räknar om priset.</string>
     <string name="rentals_filter_active">Aktiva</string>
     <string name="rentals_filter_all">Alla (%1$d)</string>
@@ -105,7 +102,6 @@
     <string name="rentals_hand_to_customer">Lämna till kunden för underskrift</string>
     <string name="rentals_handover_no_unit">Ingen enhet är kopplad till ordern ännu.</string>
     <string name="rentals_handover_offline_note">Offline: överlämningen behåller enhetens tid och laddas upp i ordning (foton, inspektion, underskrift, överlämning, betalningar).</string>
-    <string name="rentals_handovers">Överlämningar</string>
     <string name="rentals_hold_expires">Preliminär bokning går ut</string>
     <string name="rentals_increase">Öka</string>
     <string name="rentals_inspection">Inspektion</string>
@@ -121,8 +117,6 @@
     <string name="rentals_kind_other">Övrigt</string>
     <string name="rentals_kind_payment">Betalning</string>
     <string name="rentals_kind_refund">Återbetalning</string>
-    <string name="rentals_last_synced">Senast synkad %1$s</string>
-    <string name="rentals_legacy_rentals">Uthyrningshistorik</string>
     <string name="rentals_licence_hint">Skanna streckkoden på körkortets baksida.</string>
     <string name="rentals_licence_read">Körkort läst. Skapa en kund av det?</string>
     <string name="rentals_lines">Rader</string>
@@ -142,7 +136,6 @@
     <string name="rentals_method_other">Annat</string>
     <string name="rentals_method_voucher">Värdebevis</string>
     <string name="rentals_name">Namn</string>
-    <string name="rentals_never_synced">Inte synkad ännu</string>
     <string name="rentals_new_customer">Ny kund</string>
     <string name="rentals_new_damage_count">%1$d nya skador</string>
     <string name="rentals_new_end">Nytt slut</string>
@@ -174,11 +167,9 @@
     <string name="rentals_orders">Ordrar</string>
     <string name="rentals_orders_empty">Inga ordrar ännu</string>
     <string name="rentals_paid">Betalt</string>
-    <string name="rentals_payer_email">Betalarens e-post</string>
     <string name="rentals_payer_name">Betalarens namn</string>
     <string name="rentals_payment_manual_note">Registrera en betalning som tagits emot utanför appen. Inget kort debiteras.</string>
     <string name="rentals_payments">Betalningar</string>
-    <string name="rentals_payments_empty">Inga betalningar registrerade</string>
     <string name="rentals_pending_count">%1$d väntar</string>
     <string name="rentals_phone">Telefon</string>
     <string name="rentals_price_confirmed">Pris bekräftat av servern</string>
@@ -227,8 +218,6 @@
     <string name="rentals_status_on_rent">Uthyrd</string>
     <string name="rentals_status_overdue">Försenad</string>
     <string name="rentals_status_reserved">Reserverad</string>
-    <string name="rentals_sync_conflict">Konflikt</string>
-    <string name="rentals_sync_draft">Utkast</string>
     <string name="rentals_sync_now">Synka nu</string>
     <string name="rentals_sync_pending">Väntar på synk</string>
     <string name="rentals_tax">Moms</string>
@@ -249,12 +238,6 @@
     <string name="rentals_date_placeholder">ÅÅÅÅ-MM-DD</string>
     <string name="rentals_sync_failed">Synkroniseringen misslyckades: %1$s. Försök igen efter serveruppdateringen eller släng.</string>
     <string name="rentals_sync_failed_badge">Synk misslyckades</string>
-    <string name="rentals_server_warnings">Sparad med varningar: %1$s</string>
-    <string name="rentals_field_conflict">Ändrat här och av någon annan: %1$s. Försök igen behåller dina värden; Ta bort behåller deras.</string>
-    <string name="rentals_field_status">Status</string>
-    <string name="rentals_field_return_date">Returdatum</string>
-    <string name="rentals_field_language">Språk</string>
-    <string name="rentals_confirmed_with_conflict">Bekräftad, men en enhet överlappar en annan bokning. Kontrollera tilldelningen.</string>
     <string name="rentals_damage_decision_charge">Debitera</string>
     <string name="rentals_damage_decision_waive">Efterskänk</string>
     <string name="rentals_damage_charge">Skadeavgift (%1$s)</string>
@@ -268,7 +251,6 @@
     <string name="rentals_readiness_item_cleaned">Rengjord</string>
     <string name="rentals_readiness_item_refuelled">Tankad / laddad</string>
     <string name="rentals_readiness_item_accessories">Tillbehör kompletta</string>
-    <string name="rentals_readiness_status">Status: %1$s</string>
     <string name="rentals_readiness_status_pending">Väntande</string>
     <string name="rentals_readiness_status_passed">Godkänd</string>
     <string name="rentals_readiness_status_failed">Underkänd</string>
@@ -286,8 +268,6 @@
     <string name="rentals_readiness_error_not_allowed">Du har inte behörighet att efterskänka klarkontroller.</string>
     <string name="rentals_readiness_error_closed">Den här kontrollen är redan stängd.</string>
     <string name="rentals_readiness_waive_needs_permission">Efterskänkning kräver behörigheten att åsidosätta klarstatus.</string>
-    <string name="rentals_readiness_add_photo_for">Lägg till foto för %1$s</string>
-    <string name="rentals_readiness_photo_count">Foton: %1$d</string>
     <string name="rentals_readiness_new_check">Starta en ny kontroll</string>
     <string name="rentals_readiness_camera_denied">Kameraåtkomst krävs för att ta foton.</string>
     <string name="rentals_line_status_open">Öppen</string>
@@ -304,7 +284,6 @@
     <string name="rentals_swap_returning">Enhet som återlämnas</string>
     <string name="rentals_swap_outgoing">Ersättare som går ut</string>
     <string name="rentals_swap_confirm">Byt</string>
-    <string name="rentals_new_booking">Ny bokning</string>
     <string name="rentals_scan_checkout">Skanna enhet / Utlämning</string>
     <string name="rentals_check_in">Återlämning</string>
     <string name="rentals_available_now">%1$d tillgängliga nu</string>
@@ -315,11 +294,8 @@
     <string name="rentals_find_free_sub">Se vad som är ledigt för dina datum och boka</string>
     <string name="rentals_bookings_customers">Bokningar och kunder</string>
     <string name="rentals_today_overdue">Försenade</string>
-    <string name="rentals_today_overdue_empty">Inget är försenat.</string>
     <string name="rentals_today_going_out">Lämnas ut i dag</string>
-    <string name="rentals_today_going_out_empty">Inga upphämtningar i dag. Använd Ny bokning för att reservera en enhet.</string>
     <string name="rentals_today_due_back">Ska tillbaka i dag</string>
-    <string name="rentals_today_due_back_empty">Inga återlämningar i dag. Använd Återlämning när en enhet kommer tillbaka.</string>
     <string name="rentals_today_maintenance">Underhåll i dag</string>
     <string name="rentals_offline_hint">Du är offline. Ändringar sparas på den här enheten och synkas automatiskt.</string>
     <string name="rentals_scan_title_out">Skanna enhet för utlämning</string>
@@ -331,5 +307,4 @@
     <string name="rentals_reason_open_work_order">Öppen arbetsorder</string>
     <string name="rentals_reason_readiness_checklist">Klarkontroll öppen</string>
     <string name="rentals_reason_maintenance_open">Under underhåll</string>
-    <string name="rentals_invoice_void_confirm">Fakturan makuleras. Det går inte att ångra.</string>
 </resources>

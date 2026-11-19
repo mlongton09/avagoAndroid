@@ -47,6 +47,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.design.theme.AvagoSpacing
+import com.avago.core.ui.components.ErrorBanner
 import com.avago.core.ui.components.LeadingBadge
 import com.avago.core.ui.components.rememberHaptics
 import com.avago.core.ui.components.SectionCard
@@ -102,25 +103,20 @@ private fun LineRow(v: LineView, modifier: Modifier = Modifier, onClick: () -> U
         modifier = modifier.fillMaxWidth().padding(horizontal = AvagoSpacing.lg, vertical = AvagoSpacing.xs),
     ) {
         Row(Modifier.padding(AvagoSpacing.md), horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.md)) {
-            LeadingBadge(Icons.Filled.Inventory2, if (v.pendingAssetName != null) StatusTone.Info else StatusTone.Warning)
+            LeadingBadge(Icons.Filled.Inventory2, if (v.rejected != null) StatusTone.Danger else StatusTone.Warning)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AvagoSpacing.xs)) {
                 v.line.customerName?.let {
                     Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Text(v.line.title ?: stringResource(R.string.rentalops_class_line), style = MaterialTheme.typography.titleMedium)
                 LineMeta(v)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm), verticalArrangement = Arrangement.spacedBy(AvagoSpacing.xs)) {
-                    v.pendingAssetName?.let {
-                        StatusPill(stringResource(R.string.rentalops_assign_pending, it), StatusTone.Info, icon = Icons.Filled.Sync)
-                    }
-                    PendingChip(listOfNotNull(v.pending))
-                }
+                PendingChip(listOfNotNull(v.rejected))
             }
         }
     }
 }
 
-/** Order number · quantity, the window and the class's free-unit headroom. */
+/** Order number · quantity and the rental window. */
 @Composable
 private fun LineMeta(v: LineView) {
     val l = v.line
@@ -134,13 +130,6 @@ private fun LineMeta(v: LineView) {
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    l.classFreeUnits?.let { free ->
-        StatusPill(
-            if (free <= 0) stringResource(R.string.rentalops_class_full) else stringResource(R.string.rentalops_class_free, free),
-            if (free <= 0) StatusTone.Danger else StatusTone.Success,
-            icon = if (free <= 0) Icons.Filled.Block else Icons.Filled.CheckCircle,
-        )
-    }
 }
 
 data class AssignLineState(
@@ -149,6 +138,8 @@ data class AssignLineState(
     val candidates: List<UnitAssignment.Candidate> = emptyList(),
     val confirmed: Boolean = false,
     val error: String? = null,
+    /** The assignment could not be queued on this device. */
+    val saveFailed: Boolean = false,
 )
 
 @HiltViewModel
@@ -173,10 +164,15 @@ class AssignLineViewModel @Inject constructor(
         _state.value = AssignLineState(v, false, r.candidates, r.confirmed, r.error)
     }
 
+    fun dismiss(commandId: String) = viewModelScope.launch { repo.dismiss(commandId) }
+
     fun assign(c: UnitAssignment.Candidate, done: () -> Unit) = viewModelScope.launch {
         val v = _state.value.view ?: return@launch
-        repo.assign(v.line, c.unit)
-        done()
+        if (repo.assign(v.line, c.unit)) {
+            done()
+        } else {
+            _state.value = _state.value.copy(saveFailed = true)
+        }
     }
 }
 
@@ -199,6 +195,12 @@ fun AssignLineScreen(onBack: () -> Unit, vm: AssignLineViewModel = hiltViewModel
                         }
                     }
                 }
+            }
+            s.view?.rejected?.let { rej ->
+                item(key = "rejected", contentType = "banner") { RejectedCard(rej, onDismiss = { rej.commandId?.let(vm::dismiss) }) }
+            }
+            if (s.saveFailed) {
+                item(key = "save-failed", contentType = "banner") { ErrorBanner(stringResource(R.string.rentalops_not_saved)) }
             }
             if (!s.loading && s.view != null && !s.confirmed) {
                 item(key = "offline", contentType = "banner") { OfflineBanner(stringResource(R.string.rentalops_assign_offline)) }
@@ -227,7 +229,7 @@ fun AssignLineScreen(onBack: () -> Unit, vm: AssignLineViewModel = hiltViewModel
             title = { Text(stringResource(R.string.rentalops_assign_unit)) },
             text = { Text(stringResource(R.string.rentalops_assign_confirm, c.unit.name)) },
             confirmButton = {
-                TextButton(onClick = { vm.assign(c) { haptics.success(); confirm = null; onBack() } }, modifier = Modifier.heightIn(min = MinTouch)) {
+                TextButton(onClick = { confirm = null; vm.assign(c) { haptics.success(); onBack() } }, modifier = Modifier.heightIn(min = MinTouch)) {
                     Text(stringResource(R.string.rentalops_assign_action))
                 }
             },

@@ -2,42 +2,38 @@ package com.avago.feature.rentals.data
 
 import android.content.Context
 import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
-import com.avago.core.data.db.rental.RentalRecordEntity
 import com.avago.core.network.rentals.RentalsApi
 import com.avago.core.network.rentals.RentalsApiException
-import com.avago.feature.rentals.domain.Esign
-import com.avago.feature.rentals.domain.RentalEntity
-import com.avago.feature.rentals.domain.RentalJson
-import com.avago.feature.rentals.domain.obj
-import com.avago.feature.rentals.domain.parseObj
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import timber.log.Timber
 import java.io.File
-import java.util.UUID
+import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Online-only reads of wave 2 (signature status, meter, scan resolve, KPI, online payments,
- * buy-out quote, credit check). These are not sync feeds, so the last good answer of each is
- * kept as a `rental_meta` record `w2:<key>` = `{at, data}`: screens render it offline (with its
- * age) and a refresh replaces it. A failed refresh never clears the last good copy.
+ * Server-computed, read-only answers that are not account data and so are not part of the v2
+ * sync feed: e-signature request status, meter rules, scan resolve, the KPI card, online payment
+ * status, and the checkout credit dry run. Every call is a GET; nothing here writes (writes are v2
+ * commands). The last good answer of each is held in memory per account, so a screen re-opened
+ * offline still shows it with its age, and a failed refresh never clears it.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @Singleton
 class RentalsOnline @Inject constructor(
-    private val dbFactory: DatabaseFactory,
     private val identity: IdentityManager,
     private val api: RentalsApi,
     @ApplicationContext private val context: Context,
@@ -53,41 +49,21 @@ class RentalsOnline @Inject constructor(
         data class Offline(val message: String?) : Result<Nothing>
     }
 
+    private val cache = MutableStateFlow<Map<Pair<String, String>, Cached>>(emptyMap())
+
     private fun acc(): String? = identity.getActiveAccountId()
 
+    /** The last good answer under [key] for the active account (never another account's). */
     fun observe(key: String): Flow<Cached?> = identity.activeAccountId.flatMapLatest { acc ->
-        if (acc == null) flowOf(null)
-        else kotlinx.coroutines.flow.flow<RentalRecordEntity?> {
-            emit(null) // Payment gates and cached read models must not cross an account switch.
-            emitAll(dbFactory.get(acc).rentalDao().observe(RentalEntity.META, PREFIX + key))
-        }.map { r: RentalRecordEntity? -> r?.let { parseObj(it.json) }?.let { o -> o.obj("data")?.let { Cached(o.longAt(), it) } } }
-    }
-
-    private fun JsonObject.longAt(): Long = (this["at"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toLongOrNull() ?: 0L
-
-    private suspend fun store(acc: String, key: String, data: JsonObject) {
-        val now = System.currentTimeMillis()
-        dbFactory.get(acc).rentalDao().upsert(
-            RentalRecordEntity(
-                entity = RentalEntity.META,
-                id = PREFIX + key,
-                json = RentalJson.encodeToString(JsonObject.serializer(), buildJsonObject { put("at", now); put("data", data) }),
-                updatedAt = now,
-            ),
-        )
+        if (acc == null) flowOf(null) else cache.map { it[acc to key] }.distinctUntilChanged()
     }
 
     /** Runs [fetch]; on success caches the answer under [key] (when given). */
     private suspend fun run(key: String?, fetch: suspend (acc: String) -> JsonObject): Result<JsonObject> {
         val acc = acc() ?: return Result.Offline("no account")
-        return runAs(acc, key, fetch)
-    }
-
-    /** Like [run] for an explicit account; the cache write goes to that account's store only. */
-    private suspend fun runAs(acc: String, key: String?, fetch: suspend (acc: String) -> JsonObject): Result<JsonObject> {
         return try {
             val data = fetch(acc)
-            key?.let { store(acc, it, data) }
+            key?.let { k -> cache.update { it + ((acc to k) to Cached(System.currentTimeMillis(), data)) } }
             Result.Ok(data)
         } catch (e: CancellationException) {
             throw e
@@ -99,45 +75,18 @@ class RentalsOnline @Inject constructor(
         }
     }
 
-    /**
-     * Money-moving call bound to the account the user acted in: nothing is sent when the active
-     * account changed in between ([ACCOUNT_CHANGED], status 0, a definitive "not sent").
-     */
-    private suspend fun runFor(accountId: String, fetch: suspend (acc: String) -> JsonObject): Result<JsonObject> {
-        if (acc() != accountId) return Result.Refused(0, ACCOUNT_CHANGED, null)
-        return runAs(accountId, null, fetch)
-    }
-
-    fun activeAccountId(): String? = acc()
-
-    // ── keys ─────────────────────────────────────────────────────────────────────────
+    // ── keys ──
 
     fun signaturesKey(orderId: String) = "esign:$orderId"
     fun meterKey(assetId: String) = "meter:$assetId"
     fun creditKey(orderId: String) = "credit:$orderId"
     fun orderPaymentsKey(orderId: String) = "pay:$orderId"
-    fun buyoutKey(contractId: String) = "buyout:$contractId"
     val kpiKey = "kpi"
     val paymentsStatusKey = "payments_status"
 
-    // ── refreshes ────────────────────────────────────────────────────────────────────
+    // ── refreshes ──
 
     suspend fun refreshSignatures(orderId: String) = run(signaturesKey(orderId)) { api.signatureRequests(it, orderId) }
-
-    /** From the outbox (account known). Failures are ignored: the screen refreshes on open. */
-    suspend fun refreshSignatures(accountId: String, orderId: String) {
-        try {
-            store(accountId, signaturesKey(orderId), api.signatureRequests(accountId, orderId))
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Timber.d(e, "[RentalsOnline] signature refresh after capture failed")
-        }
-    }
-
-    suspend fun createInPersonRequest(orderId: String, customerName: String, locale: String?): Result<JsonObject> =
-        run(null) { api.createSignatureRequest(it, orderId, Esign.createInPersonBody(customerName, locale), UUID.randomUUID().toString()) }
-            .also { if (it is Result.Ok) refreshSignatures(orderId) }
 
     suspend fun refreshMeter(assetId: String) = run(meterKey(assetId)) { api.meterReadings(it, assetId) }
 
@@ -149,36 +98,17 @@ class RentalsOnline @Inject constructor(
 
     suspend fun refreshOrderPayments(orderId: String) = run(orderPaymentsKey(orderId)) { api.orderPayments(it, orderId) }
 
-    suspend fun createPaymentRequest(body: JsonObject, clientUuid: String) = run(null) { api.createPaymentRequest(it, body, clientUuid) }
-
-    suspend fun sendPaymentRequest(requestId: String, to: String?) = run(null) { api.sendPaymentRequest(it, requestId, to) }
-
-    /** Refreshes the order's payments in [accountId]'s store (after a gateway action in that account). */
-    suspend fun refreshOrderPayments(accountId: String, orderId: String) =
-        runAs(accountId, orderPaymentsKey(orderId)) { api.orderPayments(it, orderId) }
-
-    // G6 gateway actions: the gateway is off by default; these are only offered while the server
-    // reports online_payments_enabled. [key] stays stable across uncertain retries.
-
-    suspend fun chargeSavedCard(accountId: String, orderId: String, body: JsonObject, key: String) =
-        runFor(accountId) { api.chargeSavedCard(it, orderId, body, key) }
-
-    suspend fun captureAuthorization(accountId: String, entryId: String, body: JsonObject, key: String) =
-        runFor(accountId) { api.captureAuthorization(it, entryId, body, key) }
-
-    suspend fun releaseAuthorization(accountId: String, entryId: String, key: String) =
-        runFor(accountId) { api.releaseAuthorization(it, entryId, key) }
-
-    suspend fun refundGatewayPayment(accountId: String, entryId: String, body: JsonObject, key: String) =
-        runFor(accountId) { api.refundGatewayPayment(it, entryId, body, key) }
-
-    suspend fun refreshBuyout(contractId: String) = run(buyoutKey(contractId)) { api.buyoutQuote(it, contractId) }
-
     suspend fun refreshCreditCheck(orderId: String, lineIds: List<String>) =
         run(creditKey(orderId)) { api.creditCheck(it, orderId, "checkout", lineIds) }
 
+    /** Authoritative price of a prospective booking (`POST /rentals/pricing/preview`, read-only). */
+    suspend fun pricingPreview(q: BookingQuery) = run(null) { api.pricingPreview(it, q.pricingBody()) }
+
+    /** Whether a renter booking [q] online would be confirmed instantly (read-only evaluation). */
+    suspend fun instantBookEvaluate(q: BookingQuery) = run(null) { api.instantBookEvaluate(it, q.instantBody()) }
+
     /** Downloads a PDF into the app cache (shared through the FileProvider). */
-    suspend fun pdf(name: String, fetch: suspend (acc: String) -> ByteArray): Result<File> {
+    private suspend fun pdf(name: String, fetch: suspend (acc: String) -> ByteArray): Result<File> {
         val acc = acc() ?: return Result.Offline("no account")
         return try {
             val bytes = fetch(acc)
@@ -196,27 +126,45 @@ class RentalsOnline @Inject constructor(
     }
 
     suspend fun signaturePdf(requestId: String) = pdf("signature_$requestId") { api.signatureRequestPdf(it, requestId) }
+}
 
-    suspend fun equityStatementPdf(contractId: String) = pdf("equity_$contractId") { api.equityStatementPdf(it, contractId) }
-
-    // ── Avago Marketplace meet-up inbox (owner; display cache only, actions are online) ──
-
-    fun meetupInboxKey(status: String) = "mkt:meetups:$status"
-
-    /** First page of the owner meet-up inbox; the last good page stays readable offline. */
-    suspend fun refreshMeetupInbox(status: String) = run(meetupInboxKey(status)) { api.meetups(it, status, null) }
-
-    /** Drops cached inbox pages after a 403 (permission revoked) so stale requests are not shown. */
-    suspend fun clearMeetupInbox(status: String) {
-        val acc = acc() ?: return
-        runCatching { dbFactory.get(acc).rentalDao().delete(RentalEntity.META, PREFIX + meetupInboxKey(status)) }
-            .onFailure { Timber.d(it, "[RentalsOnline] inbox cache clear failed") }
+/** A prospective booking, for the read-only pricing preview and instant-book evaluation. */
+data class BookingQuery(
+    val classId: String?,
+    val assetId: String?,
+    val customerId: String?,
+    val locationId: String?,
+    val currency: String,
+    val start: Instant,
+    val end: Instant,
+) {
+    /** `PreviewBody` (pricing.rs). */
+    fun pricingBody(): JsonObject = buildJsonObject {
+        put("currency", currency)
+        customerId?.let { put("customer_id", it) }
+        locationId?.let { put("location_id", it) }
+        put("start_at", start.toString())
+        put("end_at", end.toString())
+        put(
+            "lines",
+            JsonArray(
+                listOf(
+                    buildJsonObject {
+                        put("kind", "rental")
+                        classId?.let { put("class_id", it) }
+                        assetId?.let { put("asset_id", it) }
+                        put("qty", 1)
+                    },
+                ),
+            ),
+        )
     }
 
-    companion object {
-        const val PREFIX = "w2:"
-
-        /** [Result.Refused.code] when a money action was not sent because the account changed. */
-        const val ACCOUNT_CHANGED = "account_changed"
+    fun instantBody(): JsonObject = buildJsonObject {
+        classId?.let { put("class_id", it) }
+        assetId?.let { put("asset_id", it) }
+        customerId?.let { put("customer_id", it) }
+        put("start_at", start.toString())
+        put("end_at", end.toString())
     }
 }

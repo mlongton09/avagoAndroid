@@ -14,7 +14,7 @@ package com.avago.feature.rentalsops.domain
  * signer's printed name was captured (the server accepts a bare signature).
  */
 enum class TaskStatus(val wire: String) {
-    PENDING("pending"),
+    PLANNED("planned"),
     ASSIGNED("assigned"),
     EN_ROUTE("en_route"),
     ARRIVED("arrived"),
@@ -32,7 +32,8 @@ enum class TaskStatus(val wire: String) {
 enum class TaskKind(val wire: String) {
     DELIVERY("delivery"),
     PICKUP("pickup"),
-    TRANSFER("transfer");
+    TRANSFER("transfer"),
+    SWAP("swap");
 
     companion object {
         fun parse(s: String?): TaskKind? = entries.firstOrNull { it.wire == s }
@@ -85,7 +86,7 @@ object DeliveryStateMachine {
     ): TransitionResult {
         val to = when {
             action == TaskAction.START && from == TaskStatus.ASSIGNED -> TaskStatus.EN_ROUTE
-            action == TaskAction.START && from == TaskStatus.PENDING -> {
+            action == TaskAction.START && from == TaskStatus.PLANNED -> {
                 if (!hasDriver) return TransitionResult.Rejected(TransitionError.DriverRequired)
                 TaskStatus.EN_ROUTE
             }
@@ -108,7 +109,7 @@ object DeliveryStateMachine {
 
     /** Driver actions offered from [status] (UI buttons); FAIL is listed last. */
     fun availableActions(status: TaskStatus, hasDriver: Boolean): List<TaskAction> = when (status) {
-        TaskStatus.PENDING -> if (hasDriver) listOf(TaskAction.START) else emptyList()
+        TaskStatus.PLANNED -> if (hasDriver) listOf(TaskAction.START) else emptyList()
         TaskStatus.ASSIGNED -> listOf(TaskAction.START, TaskAction.FAIL)
         TaskStatus.EN_ROUTE -> listOf(TaskAction.ARRIVE, TaskAction.COMPLETE, TaskAction.FAIL)
         TaskStatus.ARRIVED -> listOf(TaskAction.COMPLETE, TaskAction.FAIL)

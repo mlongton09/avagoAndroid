@@ -4,44 +4,40 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import com.avago.core.design.theme.AvagoSpacing
-import java.time.ZoneId
-import javax.inject.Inject
 import androidx.annotation.StringRes
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.EventAvailable
-import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DocumentScanner
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.EventAvailable
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.SearchOff
-import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
@@ -58,73 +54,78 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.avago.core.data.domain.CustomerDocumentDraft
+import com.avago.core.data.domain.LocalFileRef
+import com.avago.core.data.domain.RentalCustomer
+import com.avago.core.data.domain.RentalCustomerDraft
+import com.avago.core.data.domain.RentalRepository
+import com.avago.core.design.theme.AvagoSpacing
 import com.avago.core.ui.components.BottomActionBar
 import com.avago.core.ui.components.CardDivider
-import com.avago.core.ui.components.cardListItemColors
 import com.avago.core.ui.components.ErrorBanner
 import com.avago.core.ui.components.LeadingBadge
-import com.avago.core.ui.components.rememberHaptics
 import com.avago.core.ui.components.SectionCard
 import com.avago.core.ui.components.StatusPill
 import com.avago.core.ui.components.StatusTone
 import com.avago.core.ui.components.StickyDayHeader
+import com.avago.core.ui.components.cardListItemColors
+import com.avago.core.ui.components.rememberHaptics
 import com.avago.core.ui.components.toneColors
-import com.avago.feature.rentals.data.RentalRepository
-import com.avago.feature.rentals.data.RentalRequests
+import com.avago.feature.rentals.R
 import com.avago.feature.rentals.domain.Aamva
 import com.avago.feature.rentals.domain.CustomerView
-import com.avago.feature.rentals.domain.obj
 import com.avago.feature.rentals.domain.OrderView
-import com.avago.feature.rentals.domain.RentalEntity
-import com.avago.feature.rentals.domain.str
-import com.avago.feature.rentals.R
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.io.File
+import java.time.LocalDate
+import java.time.ZoneId
+import javax.inject.Inject
 
 // ── List ─────────────────────────────────────────────────────────────────────────────
 
 @HiltViewModel
 class RentalCustomersViewModel @Inject constructor(repo: RentalRepository) : ViewModel() {
     val query = MutableStateFlow("")
-    val customers: StateFlow<List<CustomerView>> = combine(repo.records(RentalEntity.CUSTOMER), query) { rows, q ->
-        rows.map(CustomerView::of)
+    val customers: StateFlow<List<CustomerView>> = combine(repo.observeCustomers(), query) { rows, q ->
+        rows.filterNot { it.archived }.map(CustomerView::of)
             .filter { q.isBlank() || it.name.contains(q, true) || it.company?.contains(q, true) == true || it.email?.contains(q, true) == true || it.phone?.contains(q) == true }
             .sortedBy { it.name.lowercase() }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -219,7 +220,7 @@ fun RentalCustomersScreen(
                                 trailingContent = {
                                     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(AvagoSpacing.xs)) {
                                         if (c.doNotRent) StatusPill(stringResource(R.string.rentals_do_not_rent), StatusTone.Danger, icon = Icons.Default.Block)
-                                        SyncStateBadge(c.localState)
+                                        SyncStateBadge(c.sync)
                                     }
                                 },
                             )
@@ -270,8 +271,6 @@ data class CustomerFormState(
     val notes: String = "",
 )
 
-data class DocumentRow(val id: String, val kind: String, val number: String?, val expiresOn: String?, val localState: String)
-
 @HiltViewModel
 class RentalCustomerViewModel @Inject constructor(
     private val repo: RentalRepository,
@@ -279,15 +278,15 @@ class RentalCustomerViewModel @Inject constructor(
 ) : ViewModel() {
     val customerId: String? = savedState.get<String>("customerId")?.takeIf { it.isNotBlank() && it != "new" }
     val form = MutableStateFlow(CustomerFormState())
-    val view: StateFlow<CustomerView?> = (customerId?.let { repo.record(RentalEntity.CUSTOMER, it) } ?: flowOf(null))
+    val view: StateFlow<CustomerView?> = (customerId?.let { repo.observeCustomer(it) } ?: flowOf(null))
         .map { it?.let(CustomerView::of) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-    val documents: StateFlow<List<DocumentRow>> = (customerId?.let { repo.byCustomer(RentalEntity.CUSTOMER_DOCUMENT, it) } ?: flowOf(emptyList()))
-        .map { rows -> rows.map { r -> val o = r.obj; DocumentRow(r.id, o.str("kind") ?: "other", o.str("number"), o.str("expires_on"), r.localState) } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-    val orders: StateFlow<List<OrderView>> = (customerId?.let { repo.byCustomer(RentalEntity.ORDER, it) } ?: flowOf(emptyList()))
+    val orders: StateFlow<List<OrderView>> = (customerId?.let { repo.observeOrders(it) } ?: flowOf(emptyList()))
         .map { rows -> rows.map(OrderView::of).sortedByDescending { it.startAt } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** The stored customer; fields this form does not edit are carried over unchanged. */
+    private var loaded: RentalCustomer? = null
 
     private val _saved = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val saved: SharedFlow<String> = _saved
@@ -297,16 +296,15 @@ class RentalCustomerViewModel @Inject constructor(
     init {
         customerId?.let { id ->
             viewModelScope.launch {
-                val r = repo.record(RentalEntity.CUSTOMER, id).first() ?: return@launch
-                val o = r.obj
+                val c = repo.observeCustomer(id).first() ?: return@launch
+                loaded = c
                 form.value = CustomerFormState(
-                    name = o.str("name") ?: "",
-                    company = o.str("company") ?: "",
-                    email = o.str("email") ?: "",
-                    phone = o.str("phone") ?: "",
-                    address = o.str("address") ?: "",
-                    dateOfBirth = o.str("date_of_birth") ?: "",
-                    notes = o.str("notes") ?: "",
+                    name = c.name,
+                    company = c.company ?: "",
+                    email = c.email ?: "",
+                    phone = c.phone ?: "",
+                    address = c.address ?: "",
+                    notes = c.notes ?: "",
                 )
             }
         }
@@ -327,9 +325,17 @@ class RentalCustomerViewModel @Inject constructor(
         try {
             val id = repo.saveCustomer(
                 customerId,
-                RentalRepository.CustomerInput(
-                    name = f.name, company = f.company, email = f.email, phone = f.phone,
-                    address = f.address, dateOfBirth = f.dateOfBirth.takeIf { DATE.matches(it) }, notes = f.notes,
+                RentalCustomerDraft(
+                    name = f.name.trim(),
+                    kind = loaded?.kind ?: "person",
+                    preferredLocale = loaded?.locale,
+                    preferredCurrency = loaded?.currency,
+                    company = f.company.trim().ifBlank { null },
+                    email = f.email.trim().ifBlank { null },
+                    phone = f.phone.trim().ifBlank { null },
+                    address = f.address.trim().ifBlank { null },
+                    dateOfBirth = f.dateOfBirth.takeIf { DATE.matches(it) }?.let(LocalDate::parse),
+                    notes = f.notes.trim().ifBlank { null },
                 ),
             )
             _saved.emit(id)
@@ -358,7 +364,6 @@ fun RentalCustomerScreen(
 ) {
     val form by viewModel.form.collectAsStateWithLifecycle()
     val view by viewModel.view.collectAsStateWithLifecycle()
-    val docs by viewModel.documents.collectAsStateWithLifecycle()
     val orders by viewModel.orders.collectAsStateWithLifecycle()
     var showAllOrders by rememberSaveable { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
@@ -433,9 +438,7 @@ fun RentalCustomerScreen(
                         icon = Icons.Default.Block,
                     )
                 }
-                if (v.localState != com.avago.core.data.db.rental.RentalRecordEntity.STATE_SYNCED) {
-                    SyncStateBadge(v.localState, Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
-                }
+                SyncStateBadge(v.sync, Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
             }
             if (viewModel.customerId == null) {
                 OutlinedButton(
@@ -495,19 +498,7 @@ fun RentalCustomerScreen(
                         }
                     },
                 ) {
-                    if (docs.isEmpty()) CardNote(stringResource(R.string.rentals_documents_none))
-                    docs.forEachIndexed { i, d ->
-                        if (i > 0) CardDivider()
-                        ListItem(
-                            colors = cardListItemColors(),
-                            leadingContent = { LeadingBadge(Icons.Default.Badge, StatusTone.Info) },
-                            headlineContent = { Text(stringResource(documentKindLabel(d.kind))) },
-                            supportingContent = {
-                                Text(listOfNotNull(d.number, d.expiresOn?.let { stringResource(R.string.rentals_expires_on, it) }).joinToString(" · "))
-                            },
-                            trailingContent = { SyncStateBadge(d.localState) },
-                        )
-                    }
+                    CardNote(stringResource(R.string.rentals_documents_hint))
                 }
                 if (orders.isNotEmpty()) {
                     SectionCard(title = stringResource(R.string.rentals_orders)) {
@@ -563,14 +554,13 @@ private fun Field(
     )
 }
 
-internal val DOCUMENT_KINDS = listOf("licence", "id", "coi", "business_licence", "tax_exempt", "operator_cert", "credit_app", "other")
+internal val DOCUMENT_KINDS = listOf("driver_licence", "identity", "coi", "tax_exempt", "operator_cert", "credit_app", "other")
 
 @StringRes
 internal fun documentKindLabel(kind: String): Int = when (kind) {
-    "licence" -> R.string.rentals_doc_licence
-    "id" -> R.string.rentals_doc_id
+    "driver_licence" -> R.string.rentals_doc_licence
+    "identity" -> R.string.rentals_doc_id
     "coi" -> R.string.rentals_doc_coi
-    "business_licence" -> R.string.rentals_doc_business_licence
     "tax_exempt" -> R.string.rentals_doc_tax_exempt
     "operator_cert" -> R.string.rentals_doc_operator_cert
     "credit_app" -> R.string.rentals_doc_credit_app
@@ -586,7 +576,7 @@ class DocumentCaptureViewModel @Inject constructor(
 ) : ViewModel() {
     /** null → "prefill" mode: the licence is handed back to the customer form. */
     val customerId: String? = savedState.get<String>("customerId")?.takeIf { it.isNotBlank() && it != "new" }
-    val kind = MutableStateFlow("licence")
+    val kind = MutableStateFlow("driver_licence")
     val number = MutableStateFlow("")
     val country = MutableStateFlow("")
     val region = MutableStateFlow("")
@@ -594,7 +584,7 @@ class DocumentCaptureViewModel @Inject constructor(
     val issued = MutableStateFlow("")
     val expires = MutableStateFlow("")
     val scanned = MutableStateFlow<Aamva.License?>(null)
-    /** Wave 2 / G2: photo of the document (ID / insurance), uploaded by the outbox. */
+    /** Photo of the document (ID / insurance), uploaded with the add-document command. */
     val photoPath = MutableStateFlow<String?>(null)
     private val _done = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val done: SharedFlow<Unit> = _done
@@ -603,9 +593,9 @@ class DocumentCaptureViewModel @Inject constructor(
         val l = Aamva.parse(raw) ?: return
         if (scanned.value != null) return
         scanned.value = l
-        kind.value = "licence"
+        kind.value = "driver_licence"
         number.value = l.number ?: ""
-        country.value = RentalRequests.countryAlpha2(l.country) ?: ""
+        country.value = Aamva.countryAlpha2(l.country) ?: ""
         region.value = l.region ?: ""
         classes.value = l.classCodes ?: ""
         issued.value = l.issuedOn?.toString() ?: ""
@@ -621,15 +611,15 @@ class DocumentCaptureViewModel @Inject constructor(
         try {
             repo.addCustomerDocument(
                 id,
-                RentalRepository.DocumentInput(
+                CustomerDocumentDraft(
                     kind = kind.value,
-                    number = number.value,
-                    issuingCountry = country.value,
-                    issuingRegion = region.value,
-                    classCodes = classes.value,
-                    issuedOn = issued.value.takeIf { RentalCustomerViewModel.DATE.matches(it) },
-                    expiresOn = expires.value.takeIf { RentalCustomerViewModel.DATE.matches(it) },
-                    photoPath = photoPath.value,
+                    number = number.value.trim().ifBlank { null },
+                    issuingCountry = Aamva.countryAlpha2(country.value),
+                    issuingRegion = region.value.trim().ifBlank { null },
+                    classCodes = classes.value.trim().ifBlank { null },
+                    issuedOn = issued.value.takeIf { RentalCustomerViewModel.DATE.matches(it) }?.let(LocalDate::parse),
+                    expiresOn = expires.value.takeIf { RentalCustomerViewModel.DATE.matches(it) }?.let(LocalDate::parse),
+                    scans = listOfNotNull(photoPath.value?.let { LocalFileRef(Uri.fromFile(File(it)).toString(), "image/jpeg") }),
                 ),
             )
             _done.emit(Unit)

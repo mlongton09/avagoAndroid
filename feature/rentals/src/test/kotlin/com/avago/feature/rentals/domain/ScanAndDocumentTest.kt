@@ -1,6 +1,5 @@
 package com.avago.feature.rentals.domain
 
-import com.avago.core.data.db.rental.RentalRecordEntity
 import com.avago.core.data.rental.LocalFleet
 import com.avago.core.data.rental.Money
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -64,38 +63,37 @@ class ScanAndDocumentTest {
         assertNull(AssetProfit.compute("EUR", emptyList(), emptyList()).marginPct)
     }
 
-    private fun rec(entity: String, id: String, json: String) = RentalRecordEntity(entity = entity, id = id, json = json)
+    private fun unit(id: String, name: String) = LocalFleet.FleetUnit(
+        assetId = id, name = name, assetType = null, classId = null, className = null, locationId = null,
+        timeZone = null, maintenanceOpen = false, readiness = emptyList(),
+    )
+
+    private fun alloc(id: String, asset: String, kind: String, order: String?, start: String, end: String) = LocalFleet.Alloc(
+        id = id, assetId = asset, kind = kind, blocking = true, startAt = Instant.parse(start), endAt = Instant.parse(end),
+        orderId = order, orderLineId = null, expiresAt = null,
+    )
 
     @Test
     fun `local agenda lists pickups, returns and overdue returns on today`() {
         val now = Instant.parse("2026-05-01T10:00:00Z")
         val from = Instant.parse("2026-05-01T00:00:00Z")
         val to = Instant.parse("2026-05-02T00:00:00Z")
-        val records = listOf(
-            rec(LocalFleet.ENTITY_FLEET, "A", """{"asset_id":"A","name":"Alpha","rental_status":"available"}"""),
-            rec(LocalFleet.ENTITY_FLEET, "B", """{"asset_id":"B","name":"Bravo","rental_status":"on_rent"}"""),
-            rec(LocalFleet.ENTITY_ORDER, "O1", """{"id":"O1","number":"RO-1","customer":{"name":"Ada"}}"""),
-            rec(
-                LocalFleet.ENTITY_ALLOCATION, "1",
-                """{"asset_id":"A","kind":"reserved","order_id":"O1","start_at":"2026-05-01T14:00:00Z","end_at":"2026-05-03T08:00:00Z"}""",
-            ),
-            rec(
-                LocalFleet.ENTITY_ALLOCATION, "2",
-                """{"asset_id":"B","kind":"on_rent","start_at":"2026-04-28T08:00:00Z","end_at":"2026-04-30T08:00:00Z"}""",
-            ),
-            rec(
-                LocalFleet.ENTITY_ALLOCATION, "3",
-                """{"asset_id":"B","kind":"on_rent","active":false,"start_at":"2026-04-28T08:00:00Z","end_at":"2026-05-01T12:00:00Z"}""",
+        val inputs = LocalFleet.Inputs(
+            units = listOf(unit("A", "Alpha"), unit("B", "Bravo")),
+            allocations = listOf(
+                alloc("1", "A", "reserved", "O1", "2026-05-01T14:00:00Z", "2026-05-03T08:00:00Z"),
+                alloc("2", "B", "on_rent", null, "2026-04-28T08:00:00Z", "2026-04-30T08:00:00Z"),
             ),
         )
-        val ev = LocalSchedule.events(records, from, to, now)
+        val orders = mapOf("O1" to LocalSchedule.OrderRef("RO-1", "Ada"))
+        val ev = LocalSchedule.events(inputs, orders, from, to, now)
         assertEquals(listOf("return" to "B", "pickup" to "A"), ev.map { it.type to it.assetId })
         assertTrue(ev[0].overdue)
         assertEquals("RO-1", ev[1].orderNumber)
         assertEquals("Ada", ev[1].customerName)
 
-        val busy = LocalSchedule.busy(records)
-        assertEquals(2, busy.size, "inactive allocations are not busy")
+        val busy = LocalSchedule.busy(inputs)
+        assertEquals(2, busy.size)
         val free = Availability.unit("B", busy, now, now.plusSeconds(3600), now)
         assertTrue(!free.available, "an overdue unit stays busy")
     }

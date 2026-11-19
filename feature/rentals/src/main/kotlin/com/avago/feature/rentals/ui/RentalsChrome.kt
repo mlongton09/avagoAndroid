@@ -38,7 +38,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -51,8 +51,7 @@ import androidx.compose.ui.unit.dp
 import com.avago.core.ui.components.EmptyStateView
 import com.avago.feature.rentals.R
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -133,50 +132,46 @@ internal fun EmptyState(
 @Composable
 internal fun isWide(): Boolean = currentWindowAdaptiveInfo().windowSizeClass.minWidthDp >= 600
 
-/**
- * Pull-to-refresh state for screens backed by the background sync: [onSync] only enqueues work,
- * so the indicator stays up until [lastSyncedAt] changes or 8 s pass — never spins forever.
- */
+/** Pull-to-refresh state: [SyncRefresh.refreshing] while a sync cycle runs, [SyncRefresh.failed] after one that could not complete. */
 internal class SyncRefresh(val refreshing: Boolean, val onRefresh: () -> Unit, val failed: Boolean = false)
 
 /**
- * [SyncRefresh.failed] turns true when a user-started refresh times out without a new sync
- * stamp, and clears as soon as a sync lands or the user retries — so a failed pull is never
- * silent ([RefreshFailedBanner]).
+ * Runs [sync] (one v2 sync cycle) on pull; a cycle that could not complete sets
+ * [SyncRefresh.failed] until the next pull, so a failed refresh is never silent ([RefreshFailedBanner]).
  */
 @Composable
-internal fun rememberSyncRefresh(lastSyncedAt: Long?, onSync: () -> Unit): SyncRefresh {
+internal fun rememberSyncRefresh(sync: suspend () -> Boolean): SyncRefresh {
     var refreshing by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
-    val latest by rememberUpdatedState(lastSyncedAt)
-    val sync by rememberUpdatedState(onSync)
-    LaunchedEffect(lastSyncedAt) { failed = false }
-    LaunchedEffect(refreshing) {
-        if (!refreshing) return@LaunchedEffect
-        val start = latest
-        val landed = withTimeoutOrNull(8_000) { snapshotFlow { latest }.first { it != start }; true }
-        failed = landed == null
-        refreshing = false
-    }
+    val latest by rememberUpdatedState(sync)
+    val scope = rememberCoroutineScope()
     return SyncRefresh(refreshing, {
-        failed = false
-        refreshing = true
-        sync()
+        if (!refreshing) {
+            failed = false
+            refreshing = true
+            scope.launch {
+                failed = try {
+                    !latest()
+                } finally {
+                    refreshing = false
+                }
+            }
+        }
     }, failed)
 }
 
 /**
- * True while the very first sync is plausibly in flight (no data, never synced) — bounded to
- * [timeoutMs] so an empty account falls through to its empty state instead of a skeleton.
+ * True while a first download may still be filling an empty store, bounded to [timeoutMs] so an
+ * empty account falls through to its empty state instead of a skeleton.
  */
 @Composable
-internal fun rememberFirstLoad(empty: Boolean, lastSyncedAt: Long?, timeoutMs: Long = 6_000): Boolean {
+internal fun rememberFirstLoad(empty: Boolean, timeoutMs: Long = 6_000): Boolean {
     var timedOut by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         delay(timeoutMs)
         timedOut = true
     }
-    return empty && lastSyncedAt == null && !timedOut
+    return empty && !timedOut
 }
 
 /**

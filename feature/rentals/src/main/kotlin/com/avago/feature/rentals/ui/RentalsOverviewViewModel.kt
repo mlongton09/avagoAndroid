@@ -2,38 +2,30 @@ package com.avago.feature.rentals.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.data.db.entity.SyncQueueEntity
-import com.avago.core.data.db.rental.RentalRecordEntity
+import com.avago.core.auth.IdentityManager
+import com.avago.core.data.domain.ChangeQueueRepository
+import com.avago.core.data.domain.RentalFailure
+import com.avago.core.data.domain.RentalRepository
+import com.avago.core.data.domain.SyncRepository
 import com.avago.core.data.rental.FleetStatus
 import com.avago.core.data.rental.LocalFleet
 import com.avago.core.network.rentals.RentalsApi
 import com.avago.core.network.rentals.RentalsApiException
 import com.avago.core.sync.ConnectivityMonitor
-import com.avago.feature.rentals.domain.TodayAgenda
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.flowOn
-import com.avago.feature.rentals.data.RentalRepository
 import com.avago.feature.rentals.domain.Availability
 import com.avago.feature.rentals.domain.ClassView
 import com.avago.feature.rentals.domain.LocalSchedule
-import com.avago.feature.rentals.domain.OutboxPlanner
-import com.avago.feature.rentals.domain.ServerAvailability
-import com.avago.feature.rentals.domain.RentalEntity
 import com.avago.feature.rentals.domain.ScheduleEvent
-import com.avago.feature.rentals.domain.objs
-import com.avago.feature.rentals.domain.str
-import com.avago.feature.rentals.domain.long
-import com.avago.feature.rentals.domain.bool
-import com.avago.feature.rentals.domain.instant
+import com.avago.feature.rentals.domain.ServerAvailability
+import com.avago.feature.rentals.domain.TodayAgenda
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -43,22 +35,21 @@ import java.time.LocalDate
 import java.time.ZoneId
 import javax.inject.Inject
 
-/** Snapshot of the offline fleet (spec §11.1) recomputed every minute. */
+/** Snapshot of the offline fleet (spec §11.1), recomputed whenever the store changes and every minute. */
 data class FleetSnapshot(
     val now: Instant = Instant.now(),
     val units: List<LocalFleet.Result> = emptyList(),
     val counts: Map<FleetStatus, Int> = FleetStatus.entries.associateWith { 0 },
     val dueToday: Int = 0,
     val today: List<ScheduleEvent> = emptyList(),
-    val records: List<RentalRecordEntity> = emptyList(),
+    val inputs: LocalFleet.Inputs? = null,
     val agenda: TodayAgenda = TodayAgenda(),
+    /** Number and customer of every order, for schedule rows. */
+    val orderRefs: Map<String, LocalSchedule.OrderRef> = emptyMap(),
 ) {
     val isEmpty: Boolean get() = units.isEmpty()
     val availableNow: Int get() = counts[FleetStatus.AVAILABLE] ?: 0
 }
-
-/** A record needing attention plus the queue row that drives its Retry / Discard actions. */
-data class RentalNotice(val record: RentalRecordEntity, val queueId: String?)
 
 data class AvailabilityQuery(
     val from: Instant,
@@ -81,62 +72,49 @@ data class AvailabilityState(
 @HiltViewModel
 class RentalsOverviewViewModel @Inject constructor(
     private val repo: RentalRepository,
+    changes: ChangeQueueRepository,
+    private val sync: SyncRepository,
+    private val identity: IdentityManager,
     private val api: RentalsApi,
     connectivity: ConnectivityMonitor,
 ) : ViewModel() {
 
-    private val ticker = flow {
-        while (true) {
-            emit(Instant.now())
-            delay(60_000)
-        }
-    }
-
-    val fleet: StateFlow<FleetSnapshot> = combine(repo.fleetInputs(), ticker) { records, now ->
-        val results = LocalFleet.compute(records, now).values.sortedWith(
+    val fleet: StateFlow<FleetSnapshot> = combine(repo.observeFleet(), repo.observeOrders()) { inputs, orders ->
+        val now = Instant.now()
+        val results = LocalFleet.compute(inputs, now).values.sortedWith(
             compareBy<LocalFleet.Result> { it.status.ordinal }.thenBy(String.CASE_INSENSITIVE_ORDER) { it.unit.name },
         )
         val (counts, due) = LocalFleet.counts(results)
         val zone = ZoneId.systemDefault()
         val day = LocalDate.now(zone)
+        val refs = orders.associate { it.id to LocalSchedule.OrderRef(it.number, it.customerName) }
         val today = LocalSchedule.events(
-            records,
+            inputs,
+            refs,
             day.atStartOfDay(zone).toInstant(),
             day.plusDays(1).atStartOfDay(zone).toInstant(),
             now,
         )
-        FleetSnapshot(now, results, counts, due, today, records, TodayAgenda.of(today))
+        FleetSnapshot(now, results, counts, due, today, inputs, TodayAgenda.of(today), refs)
     }
         // Status / agenda computation walks every rental row: keep it off the main thread.
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), FleetSnapshot())
 
-    /** Device connectivity, for the offline hint next to "last synced". */
+    /** Device connectivity, for the offline hint next to the sync row. */
     val online: StateFlow<Boolean> = connectivity.networkStatus
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
 
-    val classes: StateFlow<List<ClassView>> = repo.records(RentalEntity.CLASS)
-        .map { rows -> rows.map(ClassView::of).sortedBy { it.name } }
+    val classes: StateFlow<List<ClassView>> = repo.observeClasses()
+        .map { rows -> rows.map(ClassView::of) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val lastSyncedAt: StateFlow<Long?> = repo.lastSyncedAt()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    val pendingCount: StateFlow<Int> = changes.observePendingCount()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
-    val queue: StateFlow<List<SyncQueueEntity>> = repo.queue()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    /**
-     * Records needing attention (conflicts first, then drafts), each paired with its queue row.
-     * Matching parses every queue payload, so it runs once per change off the main thread
-     * instead of per row on every recomposition.
-     */
-    val notices: StateFlow<List<RentalNotice>> = combine(repo.unsynced(), repo.queue()) { rows, queue ->
-        val parsed = queue.map { it to com.avago.feature.rentals.domain.parseObj(it.payload) }
-        rows.filter { it.localState == RentalRecordEntity.STATE_CONFLICT || it.notice != null }
-            .sortedBy { if (it.localState == RentalRecordEntity.STATE_CONFLICT) 0 else 1 }
-            .map { rec -> RentalNotice(rec, queueFor(rec, parsed)?.queueId) }
-    }
-        .flowOn(Dispatchers.Default)
+    /** Rental changes the server refused, newest first (a hand-over gate offers its fix on the order). */
+    val failures: StateFlow<List<RentalFailure>> = repo.observeFailures()
+        .map { list -> list.sortedByDescending { it.createdAt } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _statusFilter = MutableStateFlow<FleetStatus?>(null)
@@ -153,19 +131,14 @@ class RentalsOverviewViewModel @Inject constructor(
 
     fun setStatusFilter(s: FleetStatus?) { _statusFilter.value = s }
     fun setQuery(q: String) { _query.value = q }
-    fun syncNow() = repo.requestSync()
 
-    fun retry(queueId: String) = viewModelScope.launch { runCatching { repo.retry(queueId) }.onFailure { Timber.w(it) } }
-    fun discard(queueId: String) = viewModelScope.launch { runCatching { repo.discard(queueId) }.onFailure { Timber.w(it) } }
+    suspend fun syncNow(): Boolean = sync.syncNow()
 
-    /** Queue row for a record (by `local_id` / order id in the payload) to drive Retry / Discard. */
-    private fun queueFor(record: RentalRecordEntity, queue: List<Pair<SyncQueueEntity, kotlinx.serialization.json.JsonObject?>>): SyncQueueEntity? =
-        queue.filter { (q, p) ->
-            p?.str("local_id") == record.id || p?.str("order_id") == record.id || q.entityId == record.clientUuid
-        }.map { it.first }
-            .minByOrNull { if (it.syncStatus == "conflict" || it.syncStatus == OutboxPlanner.STATUS_FAILED) 0 else 1 }
+    fun dismiss(commandId: String) = viewModelScope.launch {
+        runCatching { repo.dismissFailure(commandId) }.onFailure { Timber.w(it, "dismiss failed") }
+    }
 
-    // ── Availability search (§11.1) ───────────────────────────────────────────────
+    // ── Availability search (§11.1) ──
 
     private val _availability = MutableStateFlow(AvailabilityState())
     val availability: StateFlow<AvailabilityState> = _availability.asStateFlow()
@@ -173,7 +146,7 @@ class RentalsOverviewViewModel @Inject constructor(
     fun searchAvailability(q: AvailabilityQuery) {
         val snap = fleet.value
         val now = Instant.now()
-        val busy = LocalSchedule.busy(snap.records)
+        val busy = snap.inputs?.let(LocalSchedule::busy).orEmpty()
         val byClass = snap.units.groupBy { it.unit.classId }
             .filterKeys { q.classId == null || it == q.classId }
         val local = byClass.map { (cid, units) ->
@@ -181,7 +154,10 @@ class RentalsOverviewViewModel @Inject constructor(
         }
         _availability.value = AvailabilityState(query = q, local = local, loading = true)
         viewModelScope.launch {
-            val acc = repo.accountId.first() ?: return@launch
+            val acc = identity.getActiveAccountId() ?: run {
+                _availability.value = _availability.value.copy(loading = false, offline = true)
+                return@launch
+            }
             try {
                 val res = api.availabilitySearch(acc, q.from.toString(), q.to.toString(), classId = q.classId, qty = q.qty)
                 val parsed = ServerAvailability.parse(res)

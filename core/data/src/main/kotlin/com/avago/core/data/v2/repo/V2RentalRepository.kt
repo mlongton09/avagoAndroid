@@ -354,22 +354,29 @@ class V2RentalRepository @Inject constructor(
         return id
     }
 
-    override suspend fun signAgreement(
-        orderId: String,
-        signerName: String,
-        signaturePng: ByteArray,
-        consentTextVersion: String,
-        locale: String?,
-    ): String {
+    override suspend fun requestAgreementSignature(orderId: String, signerName: String, locale: String?): String {
         order(orderId) ?: throw RecordNotFoundException("rental order", orderId)
+        val requestId = V2Uuid.v7(System.currentTimeMillis())
+        commands.submit(RentalCommands.requestAgreementSignature(orderId, requestId, signerName, locale))
+        return requestId
+    }
+
+    override suspend fun signRequest(
+        orderId: String,
+        requestId: String,
+        signerId: String?,
+        signerName: String,
+        signaturePng: ByteArray?,
+        typedName: String?,
+        consentTextVersion: String,
+    ): String {
+        require(signaturePng != null || !typedName.isNullOrBlank()) { "a signature needs a drawn image or a typed name" }
         val now = System.currentTimeMillis()
-        val requestId = V2Uuid.v7(now)
-        val png = stager.stage(signaturePng, PNG, "agreement-signature.png")
-        val request = commands.submit(RentalCommands.requestAgreementSignature(orderId, requestId, signerName, locale))
+        val png = signaturePng?.let { stager.stage(it, PNG, "signature.png") }
         val id = V2Uuid.v7(now)
         commands.submit(
             RentalCommands.signRequest(
-                id, orderId, requestId, signerName, png, consentTextVersion, Instant.ofEpochMilli(now), request, now,
+                id, orderId, requestId, signerId, signerName, png, typedName, consentTextVersion, Instant.ofEpochMilli(now), null, now,
                 commands.currentUserId(),
             ),
         )
@@ -399,7 +406,7 @@ class V2RentalRepository @Inject constructor(
         commands.submit(RentalCommands.disableRental(assetId, System.currentTimeMillis()))
     }
 
-    override suspend fun retryHandover(commandId: String, fix: HandoverOverride) {
+    override suspend fun retryHandover(commandId: String, fix: HandoverOverride?) {
         val refused = commands.rejected(commandId) ?: throw RecordNotFoundException("refused hand-over", commandId)
         val checkout = when (refused.failure.operation) {
             RentalFailure.OP_CHECKOUT -> true
@@ -408,7 +415,7 @@ class V2RentalRepository @Inject constructor(
         }
         val lineId = requireNotNull(refused.payload.text("line_id")) { "the refused hand-over has no line" }
         val ctx = lineContext(lineId)
-        val payload = RentalCommands.withOverride(refused.payload, checkout, fix)
+        val payload = fix?.let { RentalCommands.withOverride(refused.payload, checkout, it) } ?: refused.payload
         val now = System.currentTimeMillis()
         val overlay = RentalCommands.handoverOverlay(
             payload, checkout, ctx, V2Uuid.v7(now), { V2Uuid.v7(now) }, now, commands.currentUserId(),

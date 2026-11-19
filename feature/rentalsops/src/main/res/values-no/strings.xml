@@ -43,7 +43,6 @@
     <string name="rentalops_assign_empty">Alle klassebestillinger har en enhet</string>
     <string name="rentalops_assign_no_units">Ingen ledig enhet i denne klassen for disse datoene</string>
     <string name="rentalops_assign_offline">Frakoblet: tilgjengelighet fra denne enheten, kontrolleres ved synkronisering</string>
-    <string name="rentalops_assign_pending">Tildeler %1$s …</string>
     <string name="rentalops_assign_sub">Klassebestillinger som venter på en enhet</string>
     <string name="rentalops_assign_title">Tildel enheter</string>
     <string name="rentalops_assign_unit">Tildel enhet</string>
@@ -69,23 +68,19 @@
     <string name="rentalops_channel_return_due_desc">Leier over returdatoen</string>
     <string name="rentalops_channel_transfer">Filialoverføringer</string>
     <string name="rentalops_channel_transfer_desc">Overføringsoppgaver tildelt, fullført eller mislyktes</string>
-    <string name="rentalops_class_free">Ledige enheter: %1$d</string>
-    <string name="rentalops_class_full">Ingen ledige enheter i denne perioden</string>
     <string name="rentalops_class_line">Klassebestilling</string>
     <string name="rentalops_clear">Tøm</string>
     <string name="rentalops_complete_confirm">Fullføre oppgaven med %1$d bilde(r) og %2$d signatur(er)?</string>
-    <string name="rentalops_counts_a11y">%1$d utleid, %2$d skal tilbake i dag, %3$d forfalt</string>
     <string name="rentalops_counts_due_today">Tilbake i dag</string>
     <string name="rentalops_counts_out">Utleid</string>
     <string name="rentalops_counts_overdue">Forfalt</string>
     <string name="rentalops_credit">Kundekreditt: %1$s</string>
     <string name="rentalops_customer">Kunde</string>
     <string name="rentalops_customers">Kunder</string>
-    <string name="rentalops_discard">Forkast</string>
+    <string name="rentalops_discard">Lukk</string>
     <string name="rentalops_err_driver">Tildel en sjåfør før start</string>
     <string name="rentalops_err_forbidden">Du har ikke tillatelse til å se dette</string>
     <string name="rentalops_err_invalid">Det steget er ikke mulig fra nåværende status</string>
-    <string name="rentalops_err_media_missing">Et bevisbilde mangler på denne enheten</string>
     <string name="rentalops_err_offline">Kunne ikke laste. Sjekk tilkoblingen og prøv igjen.</string>
     <string name="rentalops_err_proof">Legg til et bilde eller en signatur med navnet til den som signerer</string>
     <string name="rentalops_err_reason">Oppgi en årsak</string>
@@ -113,11 +108,8 @@
     <string name="rentalops_invoice_dates">Utstedt %1$s · forfall %2$s</string>
     <string name="rentalops_invoices">Fakturaer</string>
     <string name="rentalops_job_site">Arbeidssted: %1$s</string>
-    <string name="rentalops_kind_assignment">Enhetstildeling</string>
     <string name="rentalops_kind_delivery">Levering</string>
     <string name="rentalops_kind_pickup">Henting</string>
-    <string name="rentalops_kind_task_update">Oppgaveoppdatering</string>
-    <string name="rentalops_kind_transfer">Filialoverføring</string>
     <string name="rentalops_kind_transfer_task">Overføringstur</string>
     <string name="rentalops_navigate">Naviger</string>
     <string name="rentalops_no_access">Du har ikke tilgang til utleiedrift.</string>
@@ -137,7 +129,6 @@
     <string name="rentalops_photo_failed">Bildet kunne ikke lagres</string>
     <string name="rentalops_photo_n">Bilde %1$d</string>
     <string name="rentalops_prefs_device_only">Disse innstillingene gjelder bare på denne enheten</string>
-    <string name="rentalops_prefs_offline">Frakoblet: viser innstillingene lagret på denne enheten</string>
     <string name="rentalops_proof_none">Ingen bilder eller signatur ennå</string>
     <string name="rentalops_proof_optional">Bevis (valgfritt)</string>
     <string name="rentalops_proof_required">Leveringsbevis (bilde eller signatur med navn kreves)</string>
@@ -153,7 +144,7 @@
     <string name="rentalops_reassigned_title">Oppgave tildelt på nytt</string>
     <string name="rentalops_refresh">Oppdater</string>
     <string name="rentalops_rejected">Avvist</string>
-    <string name="rentalops_rejected_body">Serveren godtok ikke denne endringen. Prøv igjen eller forkast den.</string>
+    <string name="rentalops_rejected_body">Serveren godtok ikke denne endringen, så den ble angret.</string>
     <string name="rentalops_rejected_title">%1$s ble avvist</string>
     <string name="rentalops_remove_item">Fjern %1$s</string>
     <string name="rentalops_retry">Prøv igjen</string>
@@ -167,7 +158,6 @@
     <string name="rentalops_scan_not_found">Ingen enhet samsvarer med koden</string>
     <string name="rentalops_scan_permission">Kameratilgang trengs for å skanne koder. Du kan også skrive koden nedenfor.</string>
     <string name="rentalops_scheduled">Planlagt %1$s</string>
-    <string name="rentalops_send">Send</string>
     <string name="rentalops_settings_sub">Velg hvilke utleiehendelser som varsler deg</string>
     <string name="rentalops_settings_title">Utleievarsler</string>
     <string name="rentalops_show_table">Vis datatabell</string>
@@ -177,13 +167,7 @@
     <string name="rentalops_signature_hint">Be kunden signere over</string>
     <string name="rentalops_signature_pad">Signaturfelt. Tegn med én finger.</string>
     <string name="rentalops_signed_name">Navn på den som signerer</string>
-    <string name="rentalops_statement_email">Send kontoutskrift på e-post</string>
-    <string name="rentalops_statement_email_hint">La stå tomt for å bruke kundens fakturaadresse.</string>
-    <string name="rentalops_statement_emailed">Kontoutskrift sendt til %1$s</string>
-    <string name="rentalops_statement_emailed_default">Kontoutskrift sendt</string>
-    <string name="rentalops_statement_no_recipient">Denne kunden har ingen fakturaadresse. Oppgi en mottaker.</string>
     <string name="rentalops_statement_pdf">Del PDF</string>
-    <string name="rentalops_statement_recipient">Mottakers e-post (valgfritt)</string>
     <string name="rentalops_statement_send_failed">Kunne ikke sende kontoutskriften. Prøv igjen når du er tilkoblet.</string>
     <string name="rentalops_statement_share">Del kontoutskrift</string>
     <string name="rentalops_statement_sub">Fakturaer og åpen saldo per kunde</string>
@@ -225,4 +209,7 @@
     <string name="rentalops_operations_sub">Utsending, overføringer, fakturering, kontoutskrifter og utnyttelse</string>
     <string name="rentalops_my_deliveries">Mine leveringer</string>
     <string name="rentalops_my_deliveries_sub">Leveringer og hentinger tildelt deg</string>
+    <string name="rentalops_not_saved">Endringen kunne ikke lagres på enheten. Prøv igjen.</string>
+    <string name="rentalops_transfer_cancel">Avbryt overføring</string>
+    <string name="rentalops_kind_swap">Bytte</string>
 </resources>

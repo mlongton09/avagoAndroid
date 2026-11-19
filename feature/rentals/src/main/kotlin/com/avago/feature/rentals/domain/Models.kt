@@ -1,86 +1,26 @@
 package com.avago.feature.rentals.domain
 
-import com.avago.core.data.db.rental.RentalRecordEntity
+import com.avago.core.data.domain.RecordSyncState
+import com.avago.core.data.domain.RentalClass
+import com.avago.core.data.domain.RentalCustomer
+import com.avago.core.data.domain.RentalOrder
+import com.avago.core.data.domain.RentalOrderLine
+import com.avago.core.data.domain.RentalOrderStatus
 import com.avago.core.data.rental.Money
+import java.math.BigDecimal
 import java.time.Instant
-
-/** Sync feed / local entity names (spec §15). */
-object RentalEntity {
-    const val SETTINGS = "rental_settings"
-    const val LOCATION_SETTING = "rental_location_setting"
-    const val CLASS = "rental_class"
-    const val RATE_CARD = "rental_rate_card"
-    const val FEE = "rental_fee"
-    const val TAX_RATE = "rental_tax_rate"
-    const val TAX_PROFILE = "rental_tax_profile"
-    const val CUSTOMER = "rental_customer"
-    const val CUSTOMER_CONTACT = "rental_customer_contact"
-    const val CUSTOMER_DOCUMENT = "rental_customer_document"
-    const val JOB_SITE = "rental_job_site"
-    const val ORDER = "rental_order"
-    const val ORDER_LINE = "rental_order_line"
-    const val ALLOCATION = "rental_allocation"
-    const val BULK_ALLOCATION = "rental_bulk_allocation"
-    const val ASSET = "rental_asset"
-    const val FLEET = "rental_fleet"
-
-    // Stage B feeds (sync.rs FEEDS / rentals-api-stage-b.md §9; 400 unknown_entity on stage A servers).
-    const val HANDOVER = "rental_handover"
-    const val LEDGER = "rental_ledger_entry"
-    const val SIGNATURE = "rental_signature"
-    const val INVOICE = "rental_invoice"
-    const val PAYMENT_REQUEST = "rental_payment_request"
-    const val DOCUMENT = "rental_document"
-    const val TERMS_TEMPLATE = "rental_terms_template"
-    const val READINESS_CHECK = "rental_readiness_check"
-    // Wave 2 / G3 feeds (docs/rentals-api-wave2-kits-subrent-longterm.md).
-    const val BULK_RETURN = "rental_bulk_return"
-    const val SUBRENTAL = "rental_subrental"
-    const val CONTRACT = "rental_contract"
-    const val META = "rental_meta"
-    const val ID_MAP = "rental_id_map"
-
-    /** Server feeds pulled by the sync worker, parents before children. */
-    val FEEDS = listOf(
-        SETTINGS, LOCATION_SETTING, TAX_RATE, TAX_PROFILE, CLASS, RATE_CARD, FEE,
-        CUSTOMER, CUSTOMER_CONTACT, CUSTOMER_DOCUMENT, JOB_SITE,
-        ORDER, ORDER_LINE, ALLOCATION, BULK_ALLOCATION, ASSET,
-        // Stage B — skipped while the server answers 400 unknown_entity.
-        TERMS_TEMPLATE, READINESS_CHECK, DOCUMENT, SIGNATURE, HANDOVER, PAYMENT_REQUEST, LEDGER, INVOICE,
-        // Wave 2 — skipped (404 / unknown_entity) on servers without G3.
-        BULK_RETURN, SUBRENTAL, CONTRACT,
-    )
-
-    /** Wave 2 / G3 feeds (absent on older servers; skipped on 404 / unknown_entity). */
-    val WAVE2_FEEDS = setOf(BULK_RETURN, SUBRENTAL, CONTRACT)
-
-    /** Feeds not served by stage A servers (all eight stage B feeds). */
-    val STAGE_B_FEEDS = setOf(
-        TERMS_TEMPLATE, READINESS_CHECK, DOCUMENT, SIGNATURE, HANDOVER, PAYMENT_REQUEST, LEDGER, INVOICE,
-    )
-
-    /** Primary-key field of each feed (tombstones carry `id` and this key). */
-    fun pkOf(entity: String): String = when (entity) {
-        SETTINGS -> "account_id"
-        LOCATION_SETTING -> "location_id"
-        CUSTOMER -> "rental_customer_id"
-        INVOICE -> "rental_invoice_id"
-        ASSET, FLEET -> "asset_id"
-        else -> "id"
-    }
-}
 
 /** Order lifecycle (server `rental_orders.status`). */
 object OrderStatus {
-    const val DRAFT = "draft"
-    const val QUOTED = "quoted"
-    const val HELD = "held"
-    const val RESERVED = "reserved"
-    const val ON_RENT = "on_rent"
-    const val OFF_RENT_REQUESTED = "off_rent_requested"
-    const val RETURNED = "returned"
-    const val CLOSED = "closed"
-    const val CANCELLED = "cancelled"
+    const val DRAFT = RentalOrderStatus.DRAFT
+    const val QUOTED = RentalOrderStatus.QUOTED
+    const val HELD = RentalOrderStatus.HELD
+    const val RESERVED = RentalOrderStatus.RESERVED
+    const val ON_RENT = RentalOrderStatus.ON_RENT
+    const val OFF_RENT_REQUESTED = RentalOrderStatus.OFF_RENT_REQUESTED
+    const val RETURNED = RentalOrderStatus.RETURNED
+    const val CLOSED = RentalOrderStatus.CLOSED
+    const val CANCELLED = RentalOrderStatus.CANCELLED
 
     fun permission(action: String): String = when (action) {
         "quote" -> "rental.quote"
@@ -116,42 +56,40 @@ data class OrderView(
     val endAt: Instant?,
     val holdExpiresAt: Instant?,
     val total: Money?,
+    /** Paid on the order's invoices (null before the first invoice). */
     val paid: Money?,
+    /** Invoiced and not yet paid (null before the first invoice). */
     val balance: Money?,
     val depositRequired: Money?,
-    val version: Int?,
-    val localState: String,
-    val notice: String?,
+    val version: Long,
+    val sync: RecordSyncState,
     val source: String? = null,
 ) {
     val isLegacy: Boolean get() = source == "legacy"
     val actions: List<String> get() = if (isLegacy) emptyList() else OrderStatus.actions(status)
-    val isDraft: Boolean get() = localState == RentalRecordEntity.STATE_DRAFT
-    val isPending: Boolean get() = localState != RentalRecordEntity.STATE_SYNCED
+    val isPending: Boolean get() = sync != RecordSyncState.SAVED
 
     companion object {
-        fun of(r: RentalRecordEntity): OrderView {
-            val o = r.obj
-            val cur = o.str("currency")?.trim() ?: "USD"
+        fun of(o: RentalOrder): OrderView {
+            val cur = o.currency
             return OrderView(
-                id = r.id,
-                number = o.str("number"),
-                status = o.str("status") ?: r.status ?: OrderStatus.DRAFT,
+                id = o.id,
+                number = o.number,
+                status = o.status,
                 currency = cur,
-                customerId = o.str("customer_id") ?: r.customerId,
-                customerName = o.obj("customer")?.str("name") ?: o.str("customer_name") ?: r.name,
-                locationId = o.str("location_id") ?: r.locationId,
-                startAt = o.instant("start_at"),
-                endAt = o.instant("end_at"),
-                holdExpiresAt = o.instant("hold_expires_at"),
-                total = o.money("total_minor", cur),
-                paid = o.money("paid_minor", cur),
-                balance = o.money("balance_minor", cur),
-                depositRequired = o.money("deposit_required_minor", cur),
-                version = o.long("version")?.toInt(),
-                localState = r.localState,
-                notice = r.notice,
-                source = o.str("source"),
+                customerId = o.customerPartyId,
+                customerName = o.customerName,
+                locationId = o.locationId,
+                startAt = o.startAt,
+                endAt = o.endAt,
+                holdExpiresAt = o.holdExpiresAt,
+                total = Money.of(o.totalMinor, cur),
+                paid = Money.of(o.invoicePaidMinor, cur),
+                balance = o.invoicedMinor?.let { Money.of(it - (o.invoicePaidMinor ?: 0L), cur) },
+                depositRequired = Money.of(o.depositRequiredMinor.takeIf { it > 0 }, cur),
+                version = o.version,
+                sync = o.sync,
+                source = o.source,
             )
         }
     }
@@ -164,46 +102,40 @@ data class LineView(
     val classId: String?,
     val assetId: String?,
     val description: String?,
-    val qty: Double,
+    val qty: BigDecimal,
     val startAt: Instant?,
     val endAt: Instant?,
     val amount: Money?,
     val tax: Money?,
-    /** Line status (open | out | returned | swapped | cancelled); null on old rows. */
+    /** Line status (open | out | returned | swapped | cancelled). */
     val status: String? = null,
-    val localState: String = RentalRecordEntity.STATE_SYNCED,
-    /** G3: kit grouping (`kind: "kit"` is the header) and the part of bulk / accessory lines. */
+    val sync: RecordSyncState = RecordSyncState.SAVED,
+    /** Kit grouping (`kind: "kit"` is the header) and the product of bulk lines. */
     val kitInstanceId: String? = null,
-    val partId: String? = null,
-    val rentalKind: String? = null,
-    /** G4: rule adjustments applied to the line price. */
-    val adjustments: List<PriceAdjustment> = emptyList(),
+    val productId: String? = null,
+    val isBulk: Boolean = false,
 ) {
     val isKitHeader: Boolean get() = kind == "kit"
 
     companion object {
-        fun of(r: RentalRecordEntity, currency: String): LineView {
-            val o = r.obj
-            return LineView(
-                id = r.id,
-                orderId = o.str("order_id") ?: r.orderId,
-                kind = o.str("kind") ?: "rental",
-                classId = o.str("class_id") ?: r.classId,
-                assetId = o.str("asset_id") ?: r.assetId,
-                description = o.str("description"),
-                qty = o.double("qty") ?: 1.0,
-                startAt = o.instant("start_at"),
-                endAt = o.instant("end_at"),
-                amount = o.money("amount_minor", currency),
-                tax = o.money("tax_minor", currency),
-                status = o.str("status"),
-                localState = r.localState,
-                kitInstanceId = o.str("kit_instance_id"),
-                partId = o.str("part_id"),
-                rentalKind = o.str("rental_kind") ?: o.str("part_rental_kind"),
-                adjustments = PriceAdjustment.of(o, currency),
-            )
-        }
+        fun of(l: RentalOrderLine, currency: String): LineView = LineView(
+            id = l.id,
+            orderId = l.orderId,
+            kind = l.kind,
+            classId = l.classId,
+            assetId = l.assetId,
+            description = l.description,
+            qty = l.qty,
+            startAt = l.startAt,
+            endAt = l.endAt,
+            amount = Money.of(l.amountMinor, currency),
+            tax = Money.of(l.taxMinor, currency),
+            status = l.status,
+            sync = l.sync,
+            kitInstanceId = l.kitInstanceId,
+            productId = l.productId,
+            isBulk = l.isBulk,
+        )
     }
 }
 
@@ -215,35 +147,29 @@ data class CustomerView(
     val phone: String?,
     val doNotRent: Boolean,
     val doNotRentReason: String?,
-    val localState: String,
+    val sync: RecordSyncState,
 ) {
     companion object {
-        fun of(r: RentalRecordEntity): CustomerView {
-            val o = r.obj
-            return CustomerView(
-                id = r.id,
-                name = o.str("name") ?: r.name ?: "",
-                company = o.str("company"),
-                email = o.str("email"),
-                phone = o.str("phone"),
-                doNotRent = o.bool("do_not_rent") ?: false,
-                doNotRentReason = o.str("do_not_rent_reason"),
-                localState = r.localState,
-            )
-        }
+        fun of(c: RentalCustomer): CustomerView = CustomerView(
+            id = c.partyId,
+            name = c.name,
+            company = c.company,
+            email = c.email,
+            phone = c.phone,
+            doNotRent = c.doNotRent,
+            doNotRentReason = c.doNotRentReason,
+            sync = c.sync,
+        )
     }
 }
 
 data class ClassView(val id: String, val name: String, val currency: String?) {
     companion object {
-        fun of(r: RentalRecordEntity): ClassView {
-            val o = r.obj
-            return ClassView(r.id, o.str("name") ?: r.name ?: r.id.take(8), o.str("currency"))
-        }
+        fun of(c: RentalClass): ClassView = ClassView(c.id, c.name, c.depositCurrency)
     }
 }
 
-/** One agenda row (`GET /rentals/schedule` event or the same derived from local rows). */
+/** One agenda row (`GET /rentals/schedule` event or the same derived from the local store). */
 data class ScheduleEvent(
     /** pickup | hold | return | maintenance */
     val type: String,

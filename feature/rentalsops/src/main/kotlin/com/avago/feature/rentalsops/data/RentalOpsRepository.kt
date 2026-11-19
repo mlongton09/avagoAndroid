@@ -1,80 +1,84 @@
 package com.avago.feature.rentalsops.data
 
 import android.content.Context
+import android.net.Uri
 import com.avago.core.auth.IdentityManager
 import com.avago.core.auth.PermissionStore
-import com.avago.core.data.DatabaseFactory
+import com.avago.core.data.domain.AssetRepository
+import com.avago.core.data.domain.ChangeQueueRepository
+import com.avago.core.data.domain.FailedChange
+import com.avago.core.data.domain.LocalFileRef
 import com.avago.core.data.domain.Location
 import com.avago.core.data.domain.LocationRepository
-import com.avago.core.data.db.entity.SyncQueueEntity
+import com.avago.core.data.domain.RecordSyncState
+import com.avago.core.data.domain.RentalDispatchRepository
+import com.avago.core.data.domain.RentalRepository
+import com.avago.core.data.rental.LocalFleet
 import com.avago.feature.rentalsops.domain.DeliveryStateMachine
 import com.avago.feature.rentalsops.domain.DeliveryTask
-import com.avago.core.data.db.rental.RentalRecordEntity
-import com.avago.core.data.rental.LocalFleet
 import com.avago.feature.rentalsops.domain.OpsCounts
 import com.avago.feature.rentalsops.domain.Proof
 import com.avago.feature.rentalsops.domain.TaskAction
 import com.avago.feature.rentalsops.domain.TaskStatus
 import com.avago.feature.rentalsops.domain.Transfer
 import com.avago.feature.rentalsops.domain.TransferStatus
+import com.avago.feature.rentalsops.domain.TransitionError
 import com.avago.feature.rentalsops.domain.TransitionResult
 import com.avago.feature.rentalsops.domain.UnassignedLine
 import com.avago.feature.rentalsops.domain.UnitAssignment
 import com.avago.feature.rentalsops.domain.parseInstant
+import com.avago.feature.rentalsops.domain.str
 import com.avago.feature.rentalsops.domain.toAssignmentAllocation
 import com.avago.feature.rentalsops.domain.toAssignmentUnit
-import com.avago.feature.rentalsops.domain.obj
-import com.avago.feature.rentalsops.domain.str
-import com.avago.feature.rentalsops.sync.AssignPayload
-import com.avago.feature.rentalsops.sync.RentalOpsQueueTypes
 import com.avago.feature.rentalsops.sync.RentalOpsSyncScheduler
-import com.avago.feature.rentalsops.sync.TaskEventPayload
-import com.avago.feature.rentalsops.sync.TransferPayload
-import com.avago.feature.rentalsops.sync.outboxJson
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.contentOrNull
+import timber.log.Timber
 import java.io.File
+import java.math.BigDecimal
+import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** A queued (not yet acknowledged) local action, for "waiting to sync" / "rejected" badges. */
+/**
+ * Local write state of one task / transfer / line: queued commands not yet acknowledged
+ * ([rejected] false) or a command the server refused and the store rolled back ([rejected] true,
+ * dismissable via [commandId]).
+ */
 data class PendingAction(
-    val queueId: String,
-    val status: String,
-    val lastError: String?,
-    val attempts: Long,
-) {
-    val rejected: Boolean get() = status == "conflict"
-    val parked: Boolean get() = status == "error" && attempts >= com.avago.feature.rentalsops.sync.DrainOutcome.MAX_ATTEMPTS
-}
+    val commandId: String?,
+    val rejected: Boolean,
+    val message: String?,
+)
 
 data class TaskView(
     val task: DeliveryTask,
-    /** Status after replaying queued driver events over the server status. */
+    /** Status with this device's queued commands applied (the v2 store overlay). */
     val localStatus: TaskStatus,
     val pending: List<PendingAction>,
 ) {
-    val rejected: PendingAction? get() = pending.firstOrNull { it.rejected || it.parked }
+    val rejected: PendingAction? get() = pending.firstOrNull { it.rejected }
 }
 
 data class LineView(
     val line: UnassignedLine,
-    val pendingAssetName: String?,
-    val pending: PendingAction?,
+    /** A refused assignment (rolled back, so the line needs a unit again). */
+    val rejected: PendingAction?,
 )
 
 data class TransferView(
@@ -82,20 +86,37 @@ data class TransferView(
     val assetName: String?,
     val localStatus: TransferStatus,
     val pending: List<PendingAction>,
+    /** Created on this device and not yet acknowledged by the server. */
     val localOnly: Boolean,
-)
+) {
+    val rejected: PendingAction? get() = pending.firstOrNull { it.rejected }
+}
+
+/** Queued (waiting) and refused (rejected) changes for the hub banner. */
+data class QueueSummary(val waiting: Int, val rejected: Int)
+
+/** A proof photo or signature captured for a task, kept on the device until Complete stages it. */
+data class ProofDraft(val id: String, val kind: String, val localPath: String)
 
 data class CachedJson(val body: JsonObject, val fetchedAt: Long, val fresh: Boolean)
 
+/**
+ * Rentals operations (dispatch, drivers, transfers, class → unit assignment, statements) on the
+ * schema v2 store. Reads are flows over core/data repositories; every write is a rental catalog
+ * command (optimistic overlay, rolled back when the server refuses it). Only reports and the
+ * driver route are fetched over REST (read-only), with the last good answer cached on disk.
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 @Singleton
 class RentalOpsRepository @Inject constructor(
     @ApplicationContext private val ctx: Context,
     private val identity: IdentityManager,
     private val permissions: PermissionStore,
-    private val dbFactory: DatabaseFactory,
+    private val dispatch: RentalDispatchRepository,
+    private val rentals: RentalRepository,
+    private val changes: ChangeQueueRepository,
+    private val assets: AssetRepository,
     private val locationRepository: LocationRepository,
-    private val opsDb: RentalOpsDatabaseFactory,
     private val api: RentalOpsApi,
     private val scheduler: RentalOpsSyncScheduler,
 ) {
@@ -106,80 +127,89 @@ class RentalOpsRepository @Inject constructor(
     val access: Flow<RentalOpsAccess> =
         combine(permissions.permissions, permissions.isRoot) { p, root -> RentalOpsAccess.from(p, root) }
 
+    /** Runs a sync cycle (send queued commands, pull changes) as soon as the device is online. */
     fun requestSync() = scheduler.requestPush()
 
-    /** Queue rows of this module that are not yet acknowledged (badge counts on the hub). */
-    fun observeQueue(): Flow<List<PendingAction>> = queue(RentalOpsQueueTypes.ALL).map { rows -> rows.map { it.toPending() } }
+    fun observeQueue(): Flow<QueueSummary> = combine(changes.observePendingCount(), opsFailures()) { waiting, failed ->
+        QueueSummary(waiting, failed.size)
+    }
 
-    private fun <T> perAccount(block: suspend (String) -> Flow<T>, empty: T): Flow<T> =
-        identity.activeAccountId.flatMapLatest { a -> if (a == null) flowOf(empty) else flow { emitAll(block(a)) } }
+    /** Removes a refused change from view (its effect was already rolled back). */
+    suspend fun dismiss(commandId: String) = changes.dismiss(commandId)
 
-    private fun records(entity: String): Flow<List<JsonObject>> = perAccount({ a ->
-        opsDb.dao(a).observe(entity).map { rows -> rows.mapNotNull { parse(it.json) } }
-    }, emptyList())
+    private fun opsFailures(): Flow<List<FailedChange>> =
+        changes.observeFailures().map { all -> all.filter { it.entityType in OPS_ENTITIES } }
 
-    /** Rows of P1's shared rental store (fleet, allocations, orders, lines, customers). */
-    private fun shared(entities: List<String>): Flow<List<RentalRecordEntity>> = perAccount({ a ->
-        dbFactory.get(a).rentalDao().observeEntities(entities)
-    }, emptyList())
-
-    private fun queue(types: Set<String>): Flow<List<SyncQueueEntity>> = perAccount({ a ->
-        // P1's rental DAO owns the typed sync_queue query.
-        dbFactory.get(a).rentalDao().observeQueueItemsOfTypes(types.toList())
-    }, emptyList())
-
-    private fun parse(s: String): JsonObject? = runCatching { outboxJson.parseToJsonElement(s) as JsonObject }.getOrNull()
-
-    private fun SyncQueueEntity.toPending() = PendingAction(queueId, syncStatus, lastError, attempts)
+    private fun pending(sync: RecordSyncState, failures: List<FailedChange>): List<PendingAction> = buildList {
+        if (sync == RecordSyncState.PENDING) add(PendingAction(null, rejected = false, message = null))
+        failures.forEach { add(PendingAction(it.commandId, rejected = true, message = it.message ?: it.code)) }
+    }
 
     // ---- Driver tasks --------------------------------------------------------------------
 
-    fun observeTasks(): Flow<List<TaskView>> =
-        combine(records(RentalOpsEntities.TASK), queue(setOf(RentalOpsQueueTypes.TASK_EVENT))) { rows, q ->
-            val byTask = q.groupBy { it.entityId }
-            rows.mapNotNull { DeliveryTask.from(it) }.map { t -> view(t, byTask[t.id].orEmpty()) }
+    fun observeTasks(): Flow<List<TaskView>> = combine(dispatch.observeTasks(), opsFailures()) { tasks, failures ->
+        val byTask = failures.filter { it.entityType == TASKS }.groupBy { it.entityKey }
+        tasks.map { t ->
+            val task = DeliveryTask.of(t)
+            TaskView(task, task.status, pending(t.sync, byTask[t.id].orEmpty()))
         }
+    }
 
     fun observeTask(id: String): Flow<TaskView?> = observeTasks().map { list -> list.firstOrNull { it.task.id == id } }
 
-    private fun view(t: DeliveryTask, q: List<SyncQueueEntity>): TaskView {
-        val live = q.filter { it.syncStatus != "conflict" }
-        val events = live.mapNotNull { row ->
-            val p = row.payload?.let { runCatching { outboxJson.decodeFromString(TaskEventPayload.serializer(), it) }.getOrNull() }
-            val action = TaskAction.parse(p?.action) ?: return@mapNotNull null
-            DeliveryStateMachine.QueuedEvent(row.queueId, action, Proof(photos = 1, signature = true, signedName = "queued"), p?.reason)
+    /** Units on the task: the transfer's unit, else the units assigned on the order's lines. */
+    fun observeTaskUnits(task: DeliveryTask): Flow<List<String>> = when {
+        task.transferId != null -> dispatch.observeTransfers().map { list ->
+            list.filter { it.id == task.transferId }.map { it.assetName ?: it.assetId.take(8) }
         }
-        val fold = DeliveryStateMachine.fold(t.status, t.kind, t.driverUserId != null, events)
-        return TaskView(t, fold.status, q.map { it.toPending() })
+        task.orderId != null -> combine(rentals.observeLines(task.orderId), observeAssetNames()) { lines, names ->
+            lines.filter { it.assetId != null && it.status != "cancelled" }
+                .map { l -> names[l.assetId] ?: l.description.ifBlank { l.assetId!!.take(8) } }
+                .distinct()
+        }
+        else -> kotlinx.coroutines.flow.flowOf(emptyList())
     }
 
-    fun observeMedia(taskId: String): Flow<List<MediaEntity>> = perAccount({ a -> opsDb.dao(a).observeMedia(taskId) }, emptyList())
+    private val draftsChanged = MutableStateFlow(0L)
 
-    /** New draft media file path for [taskId] (caller writes the bytes, then [addMedia]). */
-    suspend fun newMediaFile(kind: String): Pair<String, File>? {
+    fun observeDrafts(taskId: String): Flow<List<ProofDraft>> = draftsChanged.map { drafts(taskId) }
+
+    private suspend fun draftDir(taskId: String): File? {
         val a = identity.getActiveAccountId() ?: return null
-        val id = UUID.randomUUID().toString()
-        // Always JPEG: the shared upload helper sends image/jpeg (signatures are flattened on white).
-        return id to File(opsDb.mediaDir(a), "$id-$kind.jpg")
+        return File(ctx.filesDir, "accounts/$a/rentalops_media/${taskId.filter { it.isLetterOrDigit() || it == '-' }}")
     }
 
-    suspend fun addMedia(taskId: String, id: String, kind: String, file: File) {
-        val a = identity.getActiveAccountId() ?: return
-        opsDb.dao(a).insertMedia(MediaEntity(id, taskId, null, kind, file.path, createdAt = System.currentTimeMillis()))
+    private suspend fun drafts(taskId: String): List<ProofDraft> = withContext(Dispatchers.IO) {
+        draftDir(taskId)?.listFiles().orEmpty()
+            .filter { it.isFile && it.length() > 0 }
+            .sortedBy { it.lastModified() }
+            .mapNotNull { f ->
+                val name = f.nameWithoutExtension
+                val kind = name.substringAfterLast('-', "")
+                if (kind != KIND_PHOTO && kind != KIND_SIGNATURE) null else ProofDraft(name.substringBeforeLast('-'), kind, f.path)
+            }
     }
 
-    suspend fun removeDraftMedia(id: String) {
-        val a = identity.getActiveAccountId() ?: return
-        val dao = opsDb.dao(a)
-        val m = dao.media(id) ?: return
-        if (m.eventQueueId != null) return // already part of a queued event
-        File(m.localPath).delete()
-        dao.deleteMedia(id)
+    /** New draft file for [taskId] (the caller writes the bytes, then calls [draftsUpdated]). */
+    suspend fun newDraftFile(taskId: String, kind: String): File? = withContext(Dispatchers.IO) {
+        val dir = draftDir(taskId)?.apply { mkdirs() } ?: return@withContext null
+        val ext = if (kind == KIND_SIGNATURE) "png" else "jpg"
+        File(dir, "${UUID.randomUUID()}-$kind.$ext")
+    }
+
+    fun draftsUpdated() {
+        draftsChanged.value = System.nanoTime()
+    }
+
+    suspend fun removeDraft(taskId: String, id: String) {
+        withContext(Dispatchers.IO) { drafts(taskId).filter { it.id == id }.forEach { File(it.localPath).delete() } }
+        draftsUpdated()
     }
 
     /**
-     * Validates [action] against the optimistic local status and queues it. Proof media drafts
-     * of the task are attached to the COMPLETE event.
+     * Validates [action] against the task's current (overlaid) status and queues the matching
+     * dispatch command. Complete carries the task's proof drafts: photos and the PNG signature
+     * are staged for upload with the command, then the drafts are removed.
      */
     suspend fun submit(
         view: TaskView,
@@ -189,95 +219,68 @@ class RentalOpsRepository @Inject constructor(
         notes: String?,
         lat: Double?,
         lng: Double?,
-        accuracyM: Float? = null,
     ): TransitionResult {
-        val a = identity.getActiveAccountId() ?: return TransitionResult.Rejected(com.avago.feature.rentalsops.domain.TransitionError.Invalid(view.localStatus, action))
-        val dao = opsDb.dao(a)
-        val drafts = if (action == TaskAction.COMPLETE) dao.draftMedia(view.task.id) else emptyList()
-        val proof = Proof(
-            photos = drafts.count { it.kind == "photo" },
-            signature = drafts.any { it.kind == "signature" },
-            signedName = signedName,
-            notes = notes,
-        )
-        val result = DeliveryStateMachine.transition(view.localStatus, action, view.task.kind, view.task.driverUserId != null, proof, reason)
+        val taskId = view.task.id
+        val drafts = if (action == TaskAction.COMPLETE) drafts(taskId) else emptyList()
+        val photos = drafts.filter { it.kind == KIND_PHOTO }
+        val signature = drafts.firstOrNull { it.kind == KIND_SIGNATURE }
+        val name = signedName?.trim()?.takeIf { it.isNotEmpty() }
+        val note = notes?.trim()?.takeIf { it.isNotEmpty() }
+        val proof = Proof(photos = photos.size, signature = signature != null, signedName = name, notes = note)
+        val hasDriver = view.task.driverUserId != null
+        val result = DeliveryStateMachine.transition(view.localStatus, action, view.task.kind, hasDriver, proof, reason)
         if (result !is TransitionResult.Ok) return result
-        val queueId = UUID.randomUUID().toString()
-        val payload = TaskEventPayload(
-            taskId = view.task.id,
-            action = action.wire,
-            at = Instant.now().toString(),
-            lat = lat,
-            lng = lng,
-            accuracyM = accuracyM?.takeIf { lat != null && lng != null },
-            reason = reason?.trim()?.takeIf { it.isNotEmpty() },
-            signedName = signedName?.trim()?.takeIf { it.isNotEmpty() },
-            notes = notes?.trim()?.takeIf { it.isNotEmpty() },
-        )
-        if (action == TaskAction.COMPLETE) dao.attachDrafts(view.task.id, queueId)
-        enqueue(a, queueId, RentalOpsQueueTypes.TASK_EVENT, view.task.id, outboxJson.encodeToString(TaskEventPayload.serializer(), payload))
+        val at = Instant.now()
+        val la = lat?.let(BigDecimal::valueOf)
+        val ln = lng?.let(BigDecimal::valueOf)
+        try {
+            when (action) {
+                TaskAction.START -> dispatch.start(taskId, at, la, ln)
+                TaskAction.ARRIVE -> dispatch.arrive(taskId, at, la, ln)
+                TaskAction.FAIL -> dispatch.fail(taskId, reason!!.trim(), at, note, la, ln)
+                TaskAction.COMPLETE -> {
+                    val png = signature?.let { withContext(Dispatchers.IO) { File(it.localPath).readBytes() } }
+                    dispatch.complete(
+                        taskId, at,
+                        photos.map { LocalFileRef(Uri.fromFile(File(it.localPath)).toString(), "image/jpeg") },
+                        png, name, note, la, ln,
+                    )
+                    withContext(Dispatchers.IO) { draftDir(taskId)?.deleteRecursively() }
+                    draftsUpdated()
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w(e, "[RentalOps] %s on task %s not queued", action.wire, taskId)
+            return TransitionResult.Rejected(TransitionError.Invalid(view.localStatus, action))
+        }
         return result
     }
 
-    // ---- Queue management ----------------------------------------------------------------
+    // ---- Fleet ----------------------------------------------------------------------------
 
-    suspend fun retry(queueId: String) {
-        val a = identity.getActiveAccountId() ?: return
-        dbFactory.get(a).syncQueueDao().resetConflictToPending(queueId)
-        scheduler.requestPush()
+    /** asset_id → display name for the rental fleet. */
+    fun observeAssetNames(): Flow<Map<String, String>> = rentals.observeFleet().map { f ->
+        f.units.associate { it.assetId to it.name.ifBlank { it.assetId.take(8) } }
     }
 
-    /** Drops a rejected action (and its proof media) — the server state stands. */
-    suspend fun discard(queueId: String) {
-        val a = identity.getActiveAccountId() ?: return
-        val dao = opsDb.dao(a)
-        dao.mediaForEvent(queueId).forEach { File(it.localPath).delete(); dao.deleteMedia(it.id) }
-        val q = dbFactory.get(a).syncQueueDao()
-        val row = q.getById(queueId)
-        q.softDelete(queueId)
-        // A discarded transfer create leaves no local-only row behind.
-        if (row?.entityType == RentalOpsQueueTypes.TRANSFER) {
-            val rec = dao.get(RentalOpsEntities.TRANSFER, row.entityId)?.let { parse(it.json) }
-            if (rec?.get("_pending")?.let { (it as? JsonPrimitive)?.booleanOrNull } == true) dao.deleteRecord(RentalOpsEntities.TRANSFER, row.entityId)
-        }
-    }
-
-    private suspend fun enqueue(accountId: String, queueId: String, type: String, entityId: String, payload: String) {
-        val now = System.currentTimeMillis()
-        // Plain upsert (not enqueueWithDedup): each driver event is its own idempotent action.
-        dbFactory.get(accountId).syncQueueDao().upsert(
-            SyncQueueEntity(queueId, type, entityId, "update", null, payload, "pending", 0, null, now, now),
-        )
-        scheduler.requestPush()
-    }
-
-    // ---- Fleet (P1's shared store) -------------------------------------------------------
-
-    /** asset_id → display name from P1's 
-ental_fleet cache. */
-    fun observeAssetNames(): Flow<Map<String, String>> = shared(listOf(LocalFleet.ENTITY_FLEET)).map { rows ->
-        rows.mapNotNull(LocalFleet::unitOf).associate { it.assetId to it.name.ifBlank { it.assetId.take(8) } }
-    }
-
-    /** Out / due today / overdue — the same LocalFleet computation as P1's home-screen widget. */
+    /** Out / due today / overdue — the same LocalFleet computation as the home-screen widget. */
     fun observeCounts(): Flow<OpsCounts> =
-        shared(LocalFleet.INPUT_ENTITIES).map { OpsCounts.of(LocalFleet.compute(it, Instant.now()).values) }
+        rentals.observeFleet().map { OpsCounts.of(LocalFleet.compute(it, Instant.now()).values) }
 
     // ---- Class → unit assignment ---------------------------------------------------------
 
-    /** Stage C unassigned-lines work queue (cached by the outbox pull) + local pending assigns. */
+    /** Class-booked lines of live orders still waiting for a unit, with refused assignments. */
     fun observeLinesNeedingUnit(): Flow<List<LineView>> = combine(
-        records(RentalOpsEntities.UNASSIGNED_LINE),
-        observeAssetNames(),
-        queue(setOf(RentalOpsQueueTypes.ASSIGN)),
-    ) { lines, names, q ->
-        val pendingByLine = q.groupBy { it.entityId }.mapValues { it.value.last() }
-        lines.mapNotNull { UnassignedLine.from(it) }
-            .map { l ->
-                val p = pendingByLine[l.lineId]
-                val payload = p?.payload?.let { runCatching { outboxJson.decodeFromString(AssignPayload.serializer(), it) }.getOrNull() }
-                LineView(l, payload?.let { it.assetName ?: names[it.assetId] ?: it.assetId }, p?.toPending())
-            }
+        rentals.observeOrders(),
+        rentals.observeLines(),
+        rentals.observeClasses(),
+        opsFailures(),
+    ) { orders, lines, classes, failures ->
+        val refused = failures.filter { it.entityType == LINES }.associateBy { it.entityKey }
+        UnassignedLine.of(orders, lines, classes.associate { it.id to it.name })
+            .map { l -> LineView(l, refused[l.lineId]?.let { PendingAction(it.commandId, true, it.message ?: it.code) }) }
             .sortedWith(compareBy<LineView> { it.line.start ?: Instant.MAX }.thenBy { it.line.orderNumber })
     }
 
@@ -285,15 +288,15 @@ ental_fleet cache. */
 
     data class CandidateResult(val candidates: List<UnitAssignment.Candidate>, val confirmed: Boolean, val error: String?)
 
-    /** Local candidates (P1 fleet + allocation cache), upgraded with the server's availability search when reachable. */
+    /** Local candidates (fleet + allocations in the store), upgraded with the server's availability search when reachable. */
     suspend fun candidates(line: UnassignedLine): CandidateResult {
         val a = identity.getActiveAccountId() ?: return CandidateResult(emptyList(), false, null)
-        val rental = dbFactory.get(a).rentalDao()
         val start = line.start ?: Instant.now()
         val end = line.end ?: start.plusSeconds(86_400)
         val classId = line.classId ?: return CandidateResult(emptyList(), false, null)
-        val units = rental.all(LocalFleet.ENTITY_FLEET).mapNotNull(LocalFleet::unitOf).map { it.toAssignmentUnit() }
-        val allocs = rental.all(LocalFleet.ENTITY_ALLOCATION).mapNotNull(LocalFleet::allocOf).map { it.toAssignmentAllocation() }
+        val fleet = rentals.observeFleet().first()
+        val units = fleet.units.map { it.toAssignmentUnit() }
+        val allocs = fleet.allocations.map { it.toAssignmentAllocation() }
         val ul = UnitAssignment.Line(line.lineId, line.orderId, classId, line.locationId, start, end)
         val local = UnitAssignment.candidates(ul, units, allocs)
         return when (val r = api.availability(a, start.toString(), end.toString(), classId, ul.locationId)) {
@@ -314,103 +317,82 @@ ental_fleet cache. */
         }
     }
 
-    suspend fun assign(line: UnassignedLine, unit: UnitAssignment.Unit) {
-        val a = identity.getActiveAccountId() ?: return
-        val payload = AssignPayload(line.orderId, line.lineId, unit.assetId, unit.name, line.orderVersion)
-        enqueue(a, UUID.randomUUID().toString(), RentalOpsQueueTypes.ASSIGN, line.lineId, outboxJson.encodeToString(AssignPayload.serializer(), payload))
+    /** Queues `assign_unit` for [line]; false when it could not be queued. */
+    suspend fun assign(line: UnassignedLine, unit: UnitAssignment.Unit): Boolean = guarded("assign unit") {
+        rentals.assignUnit(line.lineId, unit.assetId)
     }
 
     // ---- Transfers -----------------------------------------------------------------------
 
-    fun observeTransfers(): Flow<List<TransferView>> = combine(
-        records(RentalOpsEntities.TRANSFER),
-        observeAssetNames(),
-        queue(setOf(RentalOpsQueueTypes.TRANSFER)),
-    ) { rows, names, q ->
-        val byId = q.groupBy { it.entityId }
-        rows.mapNotNull { o -> Transfer.from(o)?.let { it to o } }.map { (t, o) ->
-            val pend = byId[t.id].orEmpty()
-            var status = t.status
-            pend.filter { it.syncStatus != "conflict" }.forEach { row ->
-                val p = row.payload?.let { runCatching { outboxJson.decodeFromString(TransferPayload.serializer(), it) }.getOrNull() }
-                status = when (p?.op) {
-                    "ship" -> TransferStatus.IN_TRANSIT
-                    "receive" -> TransferStatus.RECEIVED
-                    else -> status
-                }
-            }
+    fun observeTransfers(): Flow<List<TransferView>> = combine(dispatch.observeTransfers(), opsFailures()) { rows, failures ->
+        val byId = failures.filter { it.entityType == TRANSFERS }.groupBy { it.entityKey }
+        rows.map { t ->
+            val transfer = Transfer.of(t)
             TransferView(
-                t,
-                o.str("_asset_name") ?: t.assetId?.let { names[it] },
-                status,
-                pend.map { it.toPending() },
-                localOnly = (o["_pending"] as? JsonPrimitive)?.booleanOrNull == true,
+                transfer,
+                t.assetName,
+                transfer.status,
+                pending(t.sync, byId[t.id].orEmpty()),
+                localOnly = t.sync == RecordSyncState.PENDING && t.version == 0L,
             )
-        }.sortedWith(compareBy<TransferView> { it.localStatus == TransferStatus.RECEIVED || it.localStatus == TransferStatus.CANCELLED }.thenByDescending { it.transfer.shipAt ?: Instant.EPOCH })
+        }.sortedWith(
+            compareBy<TransferView> { it.localStatus == TransferStatus.RECEIVED || it.localStatus == TransferStatus.CANCELLED }
+                .thenByDescending { it.transfer.shipAt ?: Instant.EPOCH },
+        )
     }
 
     fun observeLocations(): Flow<List<Location>> = locationRepository.observeLocations()
 
     data class ScannedAsset(val assetId: String, val name: String, val locationId: String?)
 
-    /** Resolves a scanned tag/barcode/VIN to a unit using the shared asset cache. */
+    /** Resolves a scanned tag/barcode/VIN/link to a unit in the store. */
     suspend fun lookupAsset(code: String): ScannedAsset? {
-        val a = identity.getActiveAccountId() ?: return null
         val raw = code.trim()
         if (raw.isEmpty()) return null
-        val candidates = AssetCode.candidates(raw)
-        val db = dbFactory.get(a)
-        for (c in candidates) {
-            val hit = db.assetDao().findByIdentifierCandidates(a, c).firstOrNull() ?: db.assetDao().getById(c)
-            if (hit != null) return ScannedAsset(hit.assetId, hit.name, hit.locationId)
+        for (c in AssetCode.candidates(raw)) {
+            val hit = assets.findByCode(c) ?: assets.asset(c)
+            if (hit != null) return ScannedAsset(hit.id, hit.name, hit.locationId)
         }
         return null
     }
 
     /** Creates a transfer for [asset] to [toLocationId]; optionally ships it straight away. */
-    suspend fun createTransfer(asset: ScannedAsset, toLocationId: String, arriveBy: Instant?, reason: String?, shipNow: Boolean): String? {
-        val a = identity.getActiveAccountId() ?: return null
-        val id = UUID.randomUUID().toString()
-        val now = Instant.now().toString()
-        val arrive = (arriveBy ?: Instant.now().plus(com.avago.feature.rentalsops.sync.RentalOpsOutbox.DEFAULT_TRANSIT)).toString()
-        val local = JsonObject(
-            buildMap {
-                put("id", JsonPrimitive(id))
-                put("asset_id", JsonPrimitive(asset.assetId))
-                put("_asset_name", JsonPrimitive(asset.name))
-                asset.locationId?.let { put("from_location_id", JsonPrimitive(it)) }
-                put("to_location_id", JsonPrimitive(toLocationId))
-                put("status", JsonPrimitive("requested"))
-                put("ship_at", JsonPrimitive(now))
-                put("arrive_by", JsonPrimitive(arrive))
-                reason?.let { put("reason", JsonPrimitive(it)) }
-                put("_pending", JsonPrimitive(true))
-            },
-        )
-        opsDb.dao(a).upsertAll(listOf(RecordEntity(RentalOpsEntities.TRANSFER, id, local.toString(), null, false, System.currentTimeMillis())))
-        val create = TransferPayload("create", id, asset.assetId, asset.name, asset.locationId, toLocationId, arrive, reason, now)
-        enqueue(a, UUID.randomUUID().toString(), RentalOpsQueueTypes.TRANSFER, id, outboxJson.encodeToString(TransferPayload.serializer(), create))
-        if (shipNow) transferStep(id, asset.assetId, "ship")
-        return id
+    suspend fun createTransfer(asset: ScannedAsset, toLocationId: String, arriveBy: Instant?, reason: String?, shipNow: Boolean): String? = try {
+        val id = dispatch.createTransfer(asset.assetId, toLocationId, arriveBy ?: Instant.now().plus(DEFAULT_TRANSIT), reason, null)
+        if (shipNow) dispatch.shipTransfer(id, Instant.now())
+        id
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Timber.w(e, "[RentalOps] transfer not queued")
+        null
     }
 
-    suspend fun transferStep(transferId: String, assetId: String, op: String) {
-        val a = identity.getActiveAccountId() ?: return
-        val p = TransferPayload(op, transferId, assetId, at = Instant.now().toString())
-        enqueue(a, UUID.randomUUID().toString(), RentalOpsQueueTypes.TRANSFER, transferId, outboxJson.encodeToString(TransferPayload.serializer(), p))
+    suspend fun shipTransfer(id: String): Boolean = guarded("ship transfer") { dispatch.shipTransfer(id, Instant.now()) }
+
+    suspend fun receiveTransfer(id: String): Boolean = guarded("receive transfer") { dispatch.receiveTransfer(id, Instant.now()) }
+
+    suspend fun cancelTransfer(id: String): Boolean = guarded("cancel transfer") { dispatch.cancelTransfer(id, null) }
+
+    private suspend fun guarded(what: String, block: suspend () -> Unit): Boolean = try {
+        block()
+        true
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Timber.w(e, "[RentalOps] %s not queued", what)
+        false
     }
 
     // ---- Statements & AR aging (read-only; last good response cached) --------------------
 
     data class Customer(val id: String, val name: String)
 
-    /** Server-known customers from P1's shared store (local drafts have no statement yet). */
-    fun observeCustomers(): Flow<List<Customer>> = shared(listOf(CUSTOMER_ENTITY)).map { rows ->
-        rows.filter { it.localState == RentalRecordEntity.STATE_SYNCED }.mapNotNull { r ->
-            val o = parse(r.json) ?: return@mapNotNull null
-            if ((o["_deleted"] as? JsonPrimitive)?.booleanOrNull == true) return@mapNotNull null
-            Customer(r.id, o.str("company_name") ?: o.str("name") ?: o.str("display_name") ?: r.name ?: r.id.take(8))
-        }.sortedBy { it.name.lowercase() }
+    /** Customers known to the store (statements are per customer party). */
+    fun observeCustomers(): Flow<List<Customer>> = rentals.observeCustomers().map { rows ->
+        rows.filter { !it.archived && it.sync != RecordSyncState.PENDING }
+            .map { Customer(it.partyId, it.company ?: it.name) }
+            .sortedBy { it.name.lowercase() }
     }
 
     sealed class Fetch {
@@ -422,80 +404,70 @@ ental_fleet cache. */
 
     suspend fun arAging(): Fetch = fetchCached(AGING_CACHE, "latest") { a -> api.arAging(a) }
 
-    /** G5 `routing/my-route` for today (server day in the routing timezone), cached for offline. */
+    /** `routing/my-route` for today (server day in the routing timezone), cached for offline. */
     suspend fun myRoute(): Fetch = fetchCached(ROUTE_CACHE, "today") { a -> api.myRoute(a, null) }
 
-
-    sealed class SendResult {
-        data class Pdf(val file: File) : SendResult()
-        data class Emailed(val to: String?, val replayed: Boolean) : SendResult()
-        /** 400 `invalid_value`: neither the request nor the customer has an e-mail address. */
-        data object NoRecipient : SendResult()
-        data class Failed(val status: Int?, val message: String) : SendResult()
+    sealed class PdfResult {
+        data class Pdf(val file: File) : PdfResult()
+        data class Failed(val status: Int?, val message: String) : PdfResult()
     }
 
-    /** Stage C `GET …/statement/pdf` (`rental.reports`) into the app cache, ready to share. */
-    suspend fun statementPdf(customerId: String): SendResult {
-        val a = identity.getActiveAccountId() ?: return SendResult.Failed(null, "signed out")
+    /** `GET …/statement/pdf` (`rental.reports`) into the app cache, ready to share. */
+    suspend fun statementPdf(customerId: String): PdfResult {
+        val a = identity.getActiveAccountId() ?: return PdfResult.Failed(null, "signed out")
         val dir = File(ctx.cacheDir, "rentalops_statements").apply { mkdirs() }
         // One file per customer; overwritten on every share so the cache never grows.
-        val safe = customerId.filter { it.isLetterOrDigit() || it == '-' }.take(40)
-        val dest = File(dir, "statement-$safe.pdf")
+        val dest = File(dir, "statement-${safe(customerId)}.pdf")
         return when (val r = api.statementPdf(a, customerId, dest)) {
-            is ApiResult.Ok -> SendResult.Pdf(dest)
-            is ApiResult.Http -> { dest.delete(); SendResult.Failed(r.status, r.message) }
-            is ApiResult.Transport -> { dest.delete(); SendResult.Failed(null, r.message) }
-        }
-    }
-
-    /**
-     * Stage C `POST …/statement/email`. [clientUuid] must be stable for one user intent
-     * (the ViewModel keeps it across a retry) so a re-sent request replays instead of
-     * mailing twice.
-     */
-    suspend fun emailStatement(customerId: String, clientUuid: String, recipient: String?): SendResult {
-        val a = identity.getActiveAccountId() ?: return SendResult.Failed(null, "signed out")
-        val to = recipient?.trim()?.takeIf { it.isNotEmpty() }?.let { listOf(it) }.orEmpty()
-        return when (val r = api.statementEmail(a, customerId, clientUuid, to, null)) {
-            is ApiResult.Ok -> emailed(r.body)
-            is ApiResult.Http ->
-                if (r.status == 400 && r.code == "invalid_value") SendResult.NoRecipient else SendResult.Failed(r.status, r.message)
-            is ApiResult.Transport -> SendResult.Failed(null, r.message)
+            is ApiResult.Ok -> PdfResult.Pdf(dest)
+            is ApiResult.Http -> { dest.delete(); PdfResult.Failed(r.status, r.message) }
+            is ApiResult.Transport -> { dest.delete(); PdfResult.Failed(null, r.message) }
         }
     }
 
     private suspend fun fetchCached(entity: String, key: String, call: suspend (String) -> ApiResult): Fetch {
         val a = identity.getActiveAccountId() ?: return Fetch.Failed(null, "signed out", null)
-        val dao = opsDb.dao(a)
-        val cached = dao.get(entity, key)?.let { r -> parse(r.json)?.let { CachedJson(it, r.updatedAt, fresh = false) } }
+        val file = File(ctx.filesDir, "accounts/$a/rentalops_cache/$entity-${safe(key)}.json")
+        val cached = withContext(Dispatchers.IO) {
+            file.takeIf { it.isFile }?.let { f ->
+                runCatching { json.parseToJsonElement(f.readText()) as? JsonObject }.getOrNull()?.let { CachedJson(it, f.lastModified(), fresh = false) }
+            }
+        }
         return when (val r = call(a)) {
             is ApiResult.Ok -> {
-                val now = System.currentTimeMillis()
-                dao.upsertAll(listOf(RecordEntity(entity, key, r.body.toString(), null, false, now)))
-                Fetch.Ok(CachedJson(r.body, now, fresh = true))
+                withContext(Dispatchers.IO) {
+                    file.parentFile?.mkdirs()
+                    runCatching { file.writeText(r.body.toString()) }.onFailure { Timber.w(it, "[RentalOps] cache write failed") }
+                }
+                Fetch.Ok(CachedJson(r.body, System.currentTimeMillis(), fresh = true))
             }
             is ApiResult.Http -> {
                 // No access → never show a cached copy.
-                if (r.status == 403) dao.deleteRecord(entity, key)
+                if (r.status == 403) withContext(Dispatchers.IO) { file.delete() }
                 Fetch.Failed(r.status, r.message, cached.takeIf { r.status != 403 })
             }
             is ApiResult.Transport -> Fetch.Failed(null, r.message, cached)
         }
     }
 
-    companion object {
-        /** Statement e-mail response `{document_id, number, email: {to_addrs, …}, replayed}`. */
-        fun emailed(body: JsonObject): SendResult.Emailed {
-            val to = (body.obj("email")?.get("to_addrs") as? JsonArray).orEmpty()
-                .mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank) }
-            return SendResult.Emailed(to.joinToString(", ").ifEmpty { null }, (body["replayed"] as? JsonPrimitive)?.booleanOrNull == true)
-        }
+    private fun safe(id: String) = id.filter { it.isLetterOrDigit() || it == '-' }.take(64)
 
-        /** P1 feed name (feature/rentals RentalEntity.CUSTOMER; not a dependency of this module). */
-        const val CUSTOMER_ENTITY = "rental_customer"
-        const val STATEMENT_CACHE = "rentalops_statement"
-        const val AGING_CACHE = "rentalops_ar_aging"
-        const val ROUTE_CACHE = "rentalops_my_route"
+    companion object {
+        const val KIND_PHOTO = "photo"
+        const val KIND_SIGNATURE = "signature"
+        const val STATEMENT_CACHE = "statement"
+        const val AGING_CACHE = "ar_aging"
+        const val ROUTE_CACHE = "my_route"
+
+        /** Default planned transit when the dispatcher gives no arrive-by time. */
+        val DEFAULT_TRANSIT: Duration = Duration.ofHours(24)
+
+        private const val TASKS = "rental_delivery_tasks"
+        private const val TRANSFERS = "rental_transfers"
+        private const val LINES = "rental_order_lines"
+        private val OPS_ENTITIES = setOf(TASKS, TRANSFERS, LINES)
+
+        private val json = Json { ignoreUnknownKeys = true }
     }
 }
 

@@ -31,7 +31,6 @@
     <string name="rentals_cancel">Cancelar</string>
     <string name="rentals_card_brand">Marca do cartão</string>
     <string name="rentals_card_last4">Últimos 4 dígitos</string>
-    <string name="rentals_class">Classe</string>
     <string name="rentals_class_codes">Categorias da carta</string>
     <string name="rentals_company">Empresa</string>
     <string name="rentals_complete_checkin">Concluir devolução</string>
@@ -71,7 +70,6 @@
     <string name="rentals_documents">Documentos</string>
     <string name="rentals_done">Concluído</string>
     <string name="rentals_draft_explainer">Guardado offline como rascunho. Será confirmado ao voltar a ficar online.</string>
-    <string name="rentals_draft_generic">Rascunho a aguardar confirmação</string>
     <string name="rentals_draft_order">Pedido em rascunho</string>
     <string name="rentals_due">Vencimento</string>
     <string name="rentals_due_back">Devolução %1$s</string>
@@ -87,7 +85,6 @@
     <string name="rentals_event_pickup">Levantamento</string>
     <string name="rentals_event_return">Devolução</string>
     <string name="rentals_expires">Expira</string>
-    <string name="rentals_expires_on">Expira a %1$s</string>
     <string name="rentals_extend_explainer">Escolha o novo fim. O servidor recalcula o preço.</string>
     <string name="rentals_filter_active">Ativos</string>
     <string name="rentals_filter_all">Todos (%1$d)</string>
@@ -105,7 +102,6 @@
     <string name="rentals_hand_to_customer">Entregar ao cliente para assinar</string>
     <string name="rentals_handover_no_unit">Nenhuma unidade atribuída a este pedido.</string>
     <string name="rentals_handover_offline_note">Offline: a entrega mantém a hora do dispositivo e é enviada por ordem (fotos, inspeção, assinatura, entrega, pagamentos).</string>
-    <string name="rentals_handovers">Entregas</string>
     <string name="rentals_hold_expires">A retenção expira</string>
     <string name="rentals_increase">Aumentar</string>
     <string name="rentals_inspection">Inspeção</string>
@@ -121,8 +117,6 @@
     <string name="rentals_kind_other">Outro</string>
     <string name="rentals_kind_payment">Pagamento</string>
     <string name="rentals_kind_refund">Reembolso</string>
-    <string name="rentals_last_synced">Última sincronização %1$s</string>
-    <string name="rentals_legacy_rentals">Histórico de aluguer</string>
     <string name="rentals_licence_hint">Leia o código de barras no verso da carta.</string>
     <string name="rentals_licence_read">Carta lida. Criar um cliente a partir dela?</string>
     <string name="rentals_lines">Linhas</string>
@@ -142,7 +136,6 @@
     <string name="rentals_method_other">Outro</string>
     <string name="rentals_method_voucher">Vale</string>
     <string name="rentals_name">Nome</string>
-    <string name="rentals_never_synced">Ainda não sincronizado</string>
     <string name="rentals_new_customer">Novo cliente</string>
     <string name="rentals_new_damage_count">%1$d novos danos</string>
     <string name="rentals_new_end">Novo fim</string>
@@ -174,11 +167,9 @@
     <string name="rentals_orders">Pedidos</string>
     <string name="rentals_orders_empty">Ainda sem pedidos</string>
     <string name="rentals_paid">Pago</string>
-    <string name="rentals_payer_email">E-mail do pagador</string>
     <string name="rentals_payer_name">Nome do pagador</string>
     <string name="rentals_payment_manual_note">Registe um pagamento recebido fora da app. Nenhum cartão é cobrado.</string>
     <string name="rentals_payments">Pagamentos</string>
-    <string name="rentals_payments_empty">Sem pagamentos registados</string>
     <string name="rentals_pending_count">%1$d pendentes</string>
     <string name="rentals_phone">Telefone</string>
     <string name="rentals_price_confirmed">Preço confirmado pelo servidor</string>
@@ -227,8 +218,6 @@
     <string name="rentals_status_on_rent">Alugado</string>
     <string name="rentals_status_overdue">Em atraso</string>
     <string name="rentals_status_reserved">Reservado</string>
-    <string name="rentals_sync_conflict">Conflito</string>
-    <string name="rentals_sync_draft">Rascunho</string>
     <string name="rentals_sync_now">Sincronizar agora</string>
     <string name="rentals_sync_pending">A aguardar sincronização</string>
     <string name="rentals_tax">Imposto</string>
@@ -249,12 +238,6 @@
     <string name="rentals_date_placeholder">AAAA-MM-DD</string>
     <string name="rentals_sync_failed">Falha na sincronização: %1$s. Tente novamente após a atualização do servidor ou descarte.</string>
     <string name="rentals_sync_failed_badge">Falha de sync</string>
-    <string name="rentals_server_warnings">Guardado com avisos: %1$s</string>
-    <string name="rentals_field_conflict">Alterado aqui e por outra pessoa: %1$s. Tentar novamente mantém os seus valores; Descartar mantém os da outra pessoa.</string>
-    <string name="rentals_field_status">Estado</string>
-    <string name="rentals_field_return_date">Data de devolução</string>
-    <string name="rentals_field_language">Idioma</string>
-    <string name="rentals_confirmed_with_conflict">Confirmada, mas uma unidade sobrepõe-se a outra reserva. Verifique a atribuição.</string>
     <string name="rentals_damage_decision_charge">Cobrar</string>
     <string name="rentals_damage_decision_waive">Dispensar</string>
     <string name="rentals_damage_charge">Custo de danos (%1$s)</string>
@@ -268,7 +251,6 @@
     <string name="rentals_readiness_item_cleaned">Limpa</string>
     <string name="rentals_readiness_item_refuelled">Abastecida / carregada</string>
     <string name="rentals_readiness_item_accessories">Acessórios completos</string>
-    <string name="rentals_readiness_status">Estado: %1$s</string>
     <string name="rentals_readiness_status_pending">Pendente</string>
     <string name="rentals_readiness_status_passed">Aprovada</string>
     <string name="rentals_readiness_status_failed">Reprovada</string>
@@ -286,8 +268,6 @@
     <string name="rentals_readiness_error_not_allowed">Não tem permissão para dispensar verificações de prontidão.</string>
     <string name="rentals_readiness_error_closed">Esta verificação já está fechada.</string>
     <string name="rentals_readiness_waive_needs_permission">Dispensar requer a permissão de substituir a prontidão.</string>
-    <string name="rentals_readiness_add_photo_for">Adicionar foto de %1$s</string>
-    <string name="rentals_readiness_photo_count">Fotos: %1$d</string>
     <string name="rentals_readiness_new_check">Iniciar nova verificação</string>
     <string name="rentals_readiness_camera_denied">É necessário acesso à câmara para tirar fotos.</string>
     <string name="rentals_line_status_open">Aberta</string>
@@ -304,7 +284,6 @@
     <string name="rentals_swap_returning">Unidade que regressa</string>
     <string name="rentals_swap_outgoing">Substituta que sai</string>
     <string name="rentals_swap_confirm">Trocar</string>
-    <string name="rentals_new_booking">Nova reserva</string>
     <string name="rentals_scan_checkout">Ler unidade / Entrega</string>
     <string name="rentals_check_in">Devolução</string>
     <string name="rentals_available_now">%1$d disponíveis agora</string>
@@ -315,11 +294,8 @@
     <string name="rentals_find_free_sub">Veja o que está livre nas suas datas e reserve</string>
     <string name="rentals_bookings_customers">Reservas e clientes</string>
     <string name="rentals_today_overdue">Em atraso</string>
-    <string name="rentals_today_overdue_empty">Nada em atraso.</string>
     <string name="rentals_today_going_out">Saem hoje</string>
-    <string name="rentals_today_going_out_empty">Nenhuma retirada hoje. Use Nova reserva para reservar uma unidade.</string>
     <string name="rentals_today_due_back">Devolução hoje</string>
-    <string name="rentals_today_due_back_empty">Nenhuma devolução hoje. Use Devolução quando uma unidade voltar.</string>
     <string name="rentals_today_maintenance">Manutenção hoje</string>
     <string name="rentals_offline_hint">Você está offline. As alterações são salvas neste dispositivo e sincronizadas automaticamente.</string>
     <string name="rentals_scan_title_out">Ler unidade para entrega</string>
@@ -331,5 +307,4 @@
     <string name="rentals_reason_open_work_order">Ordem de serviço aberta</string>
     <string name="rentals_reason_readiness_checklist">Verificação de prontidão pendente</string>
     <string name="rentals_reason_maintenance_open">Em manutenção</string>
-    <string name="rentals_invoice_void_confirm">Esta fatura será anulada. Isso não pode ser desfeito.</string>
 </resources>

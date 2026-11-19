@@ -1,52 +1,45 @@
 package com.avago.feature.rentals.ui
 
+import com.avago.core.data.domain.Attachment
+import com.avago.core.data.domain.StoredFile
 import java.io.File
-import com.avago.core.data.db.entity.PhotoEntity
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 
 class RentalsKitTest {
-    private fun photo(
+    private fun image(
         id: String,
-        entityId: String = "a1",
-        type: String = "asset",
-        sort: Long = 0,
-        primary: Boolean = false,
-        local: String? = null,
-        url: String? = "https://x/$id.jpg",
-        deleted: Long? = null,
-    ) = PhotoEntity(
-        photoId = id, entityId = entityId, entityType = type, accountId = "acc", storageKey = null, downloadUrl = url,
-        sortOrder = sort, isPrimary = primary, createdAt = 0, updatedAt = 0, deletedAt = deleted, serverVersion = 0, localPath = local,
+        assetId: String? = "a1",
+        sort: Int = 0,
+        local: String? = "/data/$id.jpg",
+        mime: String = "image/jpeg",
+    ) = Attachment(
+        id = id,
+        file = StoredFile("f$id", "$id.jpg", mime, 10, "uploaded", local?.let(::File)),
+        fileId = "f$id", documentId = null, assetId = assetId, activityId = null, workOrderId = null,
+        sortOrder = sort, createdAt = 0,
     )
 
     @Test
-    fun `primary photo wins over sort order`() {
-        val map = assetThumbnails(listOf(photo("p1", sort = 0), photo("p2", sort = 5, primary = true)))
-        assertEquals("https://x/p2.jpg", map["a1"])
+    fun `lowest sort order with a local copy wins per asset`() {
+        val map = assetThumbnails(
+            listOf(image("p3", sort = 3), image("p1", sort = 1), image("p0", sort = 0, local = null)),
+        ) { true }
+        assertEquals(File("/data/p1.jpg"), map["a1"])
     }
 
     @Test
-    fun `lowest sort order when none is primary, ignoring deleted and other entity types`() {
+    fun `non images, unlinked and missing files are ignored`() {
         val map = assetThumbnails(
             listOf(
-                photo("p0", sort = 0, deleted = 1),
-                photo("p3", sort = 3),
-                photo("p1", sort = 1),
-                photo("log", entityId = "a2", type = "log"),
+                image("pdf", mime = "application/pdf"),
+                image("log", assetId = null),
+                image("gone", assetId = "a2"),
             ),
-        )
-        assertEquals("https://x/p1.jpg", map["a1"])
+        ) { it.path.endsWith("pdf.jpg") || it.path.endsWith("log.jpg") }
+        assertNull(map["a1"])
         assertNull(map["a2"])
-    }
-
-    @Test
-    fun `existing local file preferred, missing file falls back to url`() {
-        val local = photo("p1", local = "/data/p1.jpg")
-        assertEquals(File("/data/p1.jpg"), photoModel(local) { true })
-        assertEquals("https://x/p1.jpg", photoModel(local) { false })
-        assertNull(photoModel(photo("p2", url = null, local = "/gone.jpg")) { false })
     }
 
     @Test

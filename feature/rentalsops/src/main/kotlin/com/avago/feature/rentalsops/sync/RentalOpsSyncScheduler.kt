@@ -16,8 +16,8 @@ import javax.inject.Singleton
 
 /**
  * Schedules the shared [SyncWorker] once the device has a network. Unique + KEEP so bursts of
- * driver taps collapse into one run. The sync cycle is schema v2 only; [RentalOpsOutbox] (legacy
- * rentals P2 REST) is not drained by it (docs/v2-android-status.md, rentals).
+ * driver taps collapse into one run: it sends the queued rental commands and pulls the
+ * resulting changes.
  */
 @Singleton
 class RentalOpsSyncScheduler @Inject constructor(

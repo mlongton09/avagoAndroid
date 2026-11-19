@@ -1,28 +1,26 @@
 package com.avago.feature.rentals.ui
 
-import java.time.Instant
-import java.time.ZoneId
-import javax.inject.Inject
+import androidx.compose.runtime.getValue
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -33,7 +31,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -45,33 +42,35 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.avago.core.data.domain.RentalRepository
+import com.avago.core.data.domain.SwapDraft
 import com.avago.core.data.rental.LocalFleet
 import com.avago.core.ui.components.BottomActionBar
 import com.avago.core.ui.components.CardDivider
-import com.avago.core.ui.components.rememberHaptics
 import com.avago.core.ui.components.SectionCard
-import com.avago.feature.rentals.data.RentalRepository
-import com.avago.feature.rentals.domain.instant
+import com.avago.core.ui.components.rememberHaptics
+import com.avago.feature.rentals.R
 import com.avago.feature.rentals.domain.LineSwap
 import com.avago.feature.rentals.domain.LocalSchedule
-import com.avago.feature.rentals.domain.obj
-import com.avago.feature.rentals.domain.RentalEntity
-import com.avago.feature.rentals.domain.str
-import com.avago.feature.rentals.R
+import com.avago.feature.rentals.domain.MeterInfo
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.math.BigDecimal
+import java.time.Instant
+import java.time.ZoneId
+import javax.inject.Inject
 
 /** A checked-out line that can be swapped. */
 data class SwapLine(val id: String, val assetId: String, val assetName: String, val classId: String?, val endAt: Instant?)
@@ -83,19 +82,18 @@ class SwapViewModel @Inject constructor(
 ) : ViewModel() {
     val orderId: String = requireNotNull(savedState["orderId"])
 
-    private val fleetRows = repo.fleetInputs()
+    private val fleet = repo.observeFleet()
 
     val lines: StateFlow<List<SwapLine>> = combine(
-        repo.record(RentalEntity.ORDER, orderId),
-        repo.byOrder(RentalEntity.ORDER_LINE, orderId),
-        repo.records(RentalEntity.FLEET),
-    ) { order, ls, fleet ->
-        if (order?.obj?.str("source") == "legacy") return@combine emptyList()
-        val names = fleet.mapNotNull(LocalFleet::unitOf).associate { it.assetId to it.name }
-        val status = order?.obj?.str("status")
-        ls.filter { LineSwap.swappable(it.obj, status) }.mapNotNull { l ->
-            val asset = l.obj.str("asset_id") ?: l.assetId ?: return@mapNotNull null
-            SwapLine(l.id, asset, names[asset] ?: asset, l.obj.str("class_id") ?: l.classId, l.obj.instant("end_at"))
+        repo.observeOrder(orderId),
+        repo.observeLines(orderId),
+        fleet,
+    ) { order, ls, inputs ->
+        if (order == null || order.source == "legacy") return@combine emptyList()
+        val names = inputs.units.associate { it.assetId to it.name }
+        ls.filter(LineSwap::swappable).mapNotNull { l ->
+            val asset = l.assetId ?: return@mapNotNull null
+            SwapLine(l.id, asset, names[asset] ?: asset, l.classId, l.endAt)
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -112,11 +110,11 @@ class SwapViewModel @Inject constructor(
     val currentLine: StateFlow<SwapLine?> get() = line
 
     /** Free units of the same class from local availability (offline answer). */
-    val candidates: StateFlow<List<LocalFleet.FleetUnit>> = combine(fleetRows, line) { rows, l ->
+    val candidates: StateFlow<List<LocalFleet.FleetUnit>> = combine(fleet, line) { inputs, l ->
         if (l == null) return@combine emptyList()
         val now = Instant.now()
         LineSwap.candidates(
-            LocalFleet.compute(rows, now).values, LocalSchedule.busy(rows),
+            LocalFleet.compute(inputs, now).values, LocalSchedule.busy(inputs),
             l.classId, l.assetId, now, l.endAt, now,
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -130,8 +128,8 @@ class SwapViewModel @Inject constructor(
         val l = line.value ?: return@launch
         val asset = selectedAsset.value?.takeIf { a -> candidates.value.any { it.assetId == a } } ?: return@launch
         try {
-            repo.swapLine(
-                RentalRepository.SwapInput(
+            repo.swap(
+                SwapDraft(
                     orderId = orderId,
                     lineId = l.id,
                     newAssetId = asset,
@@ -153,7 +151,7 @@ class SwapViewModel @Inject constructor(
     }
 
     companion object {
-        fun parseMeter(s: String): Double? = s.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it >= 0 }
+        fun parseMeter(s: String): BigDecimal? = MeterInfo.parseReading(s)
         fun parseFuel(s: String): Int? = s.trim().toIntOrNull()?.takeIf { it in 0..100 }
         fun validMeter(s: String): Boolean = s.isBlank() || parseMeter(s) != null
         fun validFuel(s: String): Boolean = s.isBlank() || parseFuel(s) != null
@@ -162,9 +160,8 @@ class SwapViewModel @Inject constructor(
 
 /**
  * Line swap (stage B §2): the checked-out unit comes back and a free unit of the same class goes
- * out. Applied locally at once (old line swapped, allocation released, tentative line and
- * allocation for the replacement) and synced in order; a refusal (`line_not_out`,
- * `allocation_conflict`) shows as a conflict on the order. [onSwapped] gets the returned unit
+ * out. Sent as one `rental.swap_line` command with an optimistic local apply; a refusal
+ * (`line_not_out`, `allocation_conflict`) is rolled back and shows as a failure on the order. [onSwapped] gets the returned unit
  * (its readiness checklist is opened next).
  */
 @Composable

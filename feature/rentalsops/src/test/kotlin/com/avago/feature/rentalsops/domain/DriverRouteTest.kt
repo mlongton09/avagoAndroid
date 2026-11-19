@@ -64,13 +64,12 @@ class DriverRouteTest {
         assertEquals(TaskStatus.EN_ROUTE, o.stops.single().status)
     }
 
-    private fun task(id: String, driver: String?, at: String?, seq: Int? = null, status: String = "assigned") =
-        DeliveryTask.from(
-            obj(
-                """{"id":"$id","kind":"delivery","status":"$status","driver_user_id":${driver?.let { "\"$it\"" } ?: "null"},
-                   "scheduled_at":${at?.let { "\"$it\"" } ?: "null"},"route_seq":${seq ?: "null"},"lat":1.0,"lng":2.0}""",
-            ),
-        )!!
+    private fun task(id: String, driver: String?, at: String?, seq: Int? = null) = DeliveryTask(
+        id = id, kind = TaskKind.DELIVERY, status = TaskStatus.ASSIGNED, orderId = null, transferId = null, address = null,
+        lat = 1.0, lng = 2.0, contactName = null, contactPhone = null, scheduledAt = at?.let(Instant::parse), windowEnd = null,
+        driverUserId = driver, routeSeq = seq, notes = null, failedReason = null, orderNumber = null, customerName = null,
+        jobSiteName = null,
+    )
 
     @Test
     fun `offline route keeps my tasks for today and in-progress ones`() {
@@ -99,7 +98,7 @@ class DriverRouteTest {
         assertEquals(RouteStep.ON_MY_WAY, RouteStep.of(TaskStatus.ASSIGNED))
         assertEquals(RouteStep.ARRIVED, RouteStep.of(TaskStatus.EN_ROUTE))
         assertEquals(RouteStep.COMPLETE, RouteStep.of(TaskStatus.ARRIVED))
-        assertEquals(RouteStep.NONE, RouteStep.of(TaskStatus.PENDING))
+        assertEquals(RouteStep.NONE, RouteStep.of(TaskStatus.PLANNED))
         assertEquals(RouteStep.NONE, RouteStep.of(TaskStatus.COMPLETED))
         assertEquals(RouteStep.NONE, RouteStep.of(TaskStatus.FAILED))
     }

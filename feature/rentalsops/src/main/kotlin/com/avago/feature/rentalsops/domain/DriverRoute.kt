@@ -45,7 +45,7 @@ data class RouteStop(
                 taskId = id,
                 seq = o.int("route_seq"),
                 kind = TaskKind.parse(o.str("kind")) ?: TaskKind.DELIVERY,
-                status = TaskStatus.parse(o.str("status")) ?: TaskStatus.PENDING,
+                status = TaskStatus.parse(o.str("status")) ?: TaskStatus.PLANNED,
                 etaAt = o.instant("eta_at"),
                 scheduledAt = o.instant("scheduled_at"),
                 windowEnd = o.instant("window_end"),

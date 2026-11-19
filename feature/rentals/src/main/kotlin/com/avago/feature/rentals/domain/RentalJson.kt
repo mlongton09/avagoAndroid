@@ -1,6 +1,5 @@
 package com.avago.feature.rentals.domain
 
-import com.avago.core.data.db.rental.RentalRecordEntity
 import com.avago.core.data.rental.Money
 import com.avago.core.data.rental.RentalTime
 import kotlinx.serialization.json.Json
@@ -53,5 +52,3 @@ fun JsonObject.strings(key: String): List<String> =
 
 fun JsonObject.money(minorKey: String, currency: String?): Money? = Money.of(long(minorKey), currency)
 
-/** The record's JSON (empty object when unreadable — never throws in UI code). */
-val RentalRecordEntity.obj: JsonObject get() = parseObj(json) ?: JsonObject(emptyMap())

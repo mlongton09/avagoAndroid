@@ -185,6 +185,10 @@ class RentalCommandBuildersTest {
         val h = meter["handover"]!!.jsonObject
         assertTrue(h["meter_override"]!!.jsonPrimitive.boolean)
         assertEquals("12.5", h["meter_value"]!!.jsonPrimitive.content)
+        val reading = RentalCommands.withOverride(payload, checkout = true, HandoverOverride.Reading(BigDecimal("40")))
+            .getValue("handover").jsonObject
+        assertEquals("40", reading["meter_value"]!!.jsonPrimitive.content)
+        assertEquals(null, reading["meter_override"])
         assertThrows(IllegalArgumentException::class.java) {
             RentalCommands.withOverride(payload, checkout = false, HandoverOverride.Signature)
         }

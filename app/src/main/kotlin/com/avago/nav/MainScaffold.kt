@@ -616,12 +616,6 @@ fun SideMenuContent(
                 onNavigate = onNavigate,
                 modifier = Modifier.padding(horizontal = 8.dp),
             )
-            // Marketplace owner side (meet-up inbox, marketplace settings); permission-gated.
-            com.avago.feature.rentals.marketplace.nav.MarketplaceOwnerDrawerItems(
-                currentRoute = currentRoute,
-                onNavigate = onNavigate,
-                modifier = Modifier.padding(horizontal = 8.dp),
-            )
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
         }
 

@@ -43,7 +43,6 @@
     <string name="rentalops_assign_empty">Alla klassbokningar har en enhet</string>
     <string name="rentalops_assign_no_units">Ingen ledig enhet i klassen för dessa datum</string>
     <string name="rentalops_assign_offline">Offline: tillgänglighet från den här enheten, kontrolleras vid synkronisering</string>
-    <string name="rentalops_assign_pending">Tilldelar %1$s …</string>
     <string name="rentalops_assign_sub">Klassbokningar som väntar på en enhet</string>
     <string name="rentalops_assign_title">Tilldela enheter</string>
     <string name="rentalops_assign_unit">Tilldela enhet</string>
@@ -69,23 +68,19 @@
     <string name="rentalops_channel_return_due_desc">Hyror efter återlämningsdatum</string>
     <string name="rentalops_channel_transfer">Filialöverföringar</string>
     <string name="rentalops_channel_transfer_desc">Överföringsuppgifter tilldelade, slutförda eller misslyckade</string>
-    <string name="rentalops_class_free">Lediga enheter: %1$d</string>
-    <string name="rentalops_class_full">Inga lediga enheter under perioden</string>
     <string name="rentalops_class_line">Klassbokning</string>
     <string name="rentalops_clear">Rensa</string>
     <string name="rentalops_complete_confirm">Slutföra uppgiften med %1$d foto(n) och %2$d signatur(er)?</string>
-    <string name="rentalops_counts_a11y">%1$d uthyrda, %2$d åter i dag, %3$d försenade</string>
     <string name="rentalops_counts_due_today">Åter i dag</string>
     <string name="rentalops_counts_out">Uthyrda</string>
     <string name="rentalops_counts_overdue">Försenade</string>
     <string name="rentalops_credit">Kundkredit: %1$s</string>
     <string name="rentalops_customer">Kund</string>
     <string name="rentalops_customers">Kunder</string>
-    <string name="rentalops_discard">Släng</string>
+    <string name="rentalops_discard">Stäng</string>
     <string name="rentalops_err_driver">Tilldela en förare innan start</string>
     <string name="rentalops_err_forbidden">Du har inte behörighet att se detta</string>
     <string name="rentalops_err_invalid">Det steget går inte från nuvarande status</string>
-    <string name="rentalops_err_media_missing">Ett bevisfoto saknas på den här enheten</string>
     <string name="rentalops_err_offline">Kunde inte läsa in. Kontrollera anslutningen och försök igen.</string>
     <string name="rentalops_err_proof">Lägg till ett foto eller en signatur med undertecknarens namn</string>
     <string name="rentalops_err_reason">Ange en orsak</string>
@@ -113,11 +108,8 @@
     <string name="rentalops_invoice_dates">Utfärdad %1$s · förfaller %2$s</string>
     <string name="rentalops_invoices">Fakturor</string>
     <string name="rentalops_job_site">Arbetsplats: %1$s</string>
-    <string name="rentalops_kind_assignment">Enhetstilldelning</string>
     <string name="rentalops_kind_delivery">Leverans</string>
     <string name="rentalops_kind_pickup">Upphämtning</string>
-    <string name="rentalops_kind_task_update">Uppgiftsuppdatering</string>
-    <string name="rentalops_kind_transfer">Filialöverföring</string>
     <string name="rentalops_kind_transfer_task">Överföringskörning</string>
     <string name="rentalops_navigate">Navigera</string>
     <string name="rentalops_no_access">Du har inte åtkomst till uthyrningsdrift.</string>
@@ -137,7 +129,6 @@
     <string name="rentalops_photo_failed">Fotot kunde inte sparas</string>
     <string name="rentalops_photo_n">Foto %1$d</string>
     <string name="rentalops_prefs_device_only">Inställningarna gäller bara på den här enheten</string>
-    <string name="rentalops_prefs_offline">Offline: visar inställningarna som sparats på den här enheten</string>
     <string name="rentalops_proof_none">Inga foton eller signatur ännu</string>
     <string name="rentalops_proof_optional">Bevis (valfritt)</string>
     <string name="rentalops_proof_required">Leveransbevis (foto eller signatur med namn krävs)</string>
@@ -153,7 +144,7 @@
     <string name="rentalops_reassigned_title">Uppgift omfördelad</string>
     <string name="rentalops_refresh">Uppdatera</string>
     <string name="rentalops_rejected">Avvisad</string>
-    <string name="rentalops_rejected_body">Servern godtog inte ändringen. Försök igen eller släng den.</string>
+    <string name="rentalops_rejected_body">Servern godtog inte ändringen, så den har ångrats.</string>
     <string name="rentalops_rejected_title">%1$s avvisades</string>
     <string name="rentalops_remove_item">Ta bort %1$s</string>
     <string name="rentalops_retry">Försök igen</string>
@@ -167,7 +158,6 @@
     <string name="rentalops_scan_not_found">Ingen enhet matchar koden</string>
     <string name="rentalops_scan_permission">Kameraåtkomst krävs för att skanna koder. Du kan också skriva koden nedan.</string>
     <string name="rentalops_scheduled">Planerad %1$s</string>
-    <string name="rentalops_send">Skicka</string>
     <string name="rentalops_settings_sub">Välj vilka uthyrningshändelser som aviserar dig</string>
     <string name="rentalops_settings_title">Uthyrningsaviseringar</string>
     <string name="rentalops_show_table">Visa datatabell</string>
@@ -177,13 +167,7 @@
     <string name="rentalops_signature_hint">Be kunden skriva under ovan</string>
     <string name="rentalops_signature_pad">Signaturfält. Rita med ett finger.</string>
     <string name="rentalops_signed_name">Undertecknarens namn</string>
-    <string name="rentalops_statement_email">Skicka kontoutdrag via e-post</string>
-    <string name="rentalops_statement_email_hint">Lämna tomt för att använda kundens faktureringsadress.</string>
-    <string name="rentalops_statement_emailed">Kontoutdrag skickat till %1$s</string>
-    <string name="rentalops_statement_emailed_default">Kontoutdrag skickat</string>
-    <string name="rentalops_statement_no_recipient">Kunden saknar faktureringsadress. Ange en mottagare.</string>
     <string name="rentalops_statement_pdf">Dela PDF</string>
-    <string name="rentalops_statement_recipient">Mottagarens e-post (valfritt)</string>
     <string name="rentalops_statement_send_failed">Det gick inte att skicka kontoutdraget. Försök igen när du är online.</string>
     <string name="rentalops_statement_share">Dela kontoutdrag</string>
     <string name="rentalops_statement_sub">Fakturor och öppet saldo per kund</string>
@@ -225,4 +209,7 @@
     <string name="rentalops_operations_sub">Utskick, överföringar, fakturering, kontoutdrag och beläggning</string>
     <string name="rentalops_my_deliveries">Mina leveranser</string>
     <string name="rentalops_my_deliveries_sub">Leveranser och upphämtningar som tilldelats dig</string>
+    <string name="rentalops_not_saved">Ändringen kunde inte sparas på enheten. Försök igen.</string>
+    <string name="rentalops_transfer_cancel">Avbryt överföring</string>
+    <string name="rentalops_kind_swap">Byte</string>
 </resources>

@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
@@ -20,7 +19,6 @@ import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.AssignmentInd
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Block
-import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.EventAvailable
 import androidx.compose.material.icons.filled.Handshake
@@ -30,7 +28,6 @@ import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material.icons.Icons
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -43,7 +40,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -55,29 +51,22 @@ import com.avago.core.ui.components.CardDivider
 import com.avago.core.ui.components.ErrorBanner
 import com.avago.core.ui.components.LeadingBadge
 import com.avago.core.ui.components.SectionCard
-import com.avago.core.ui.components.SkeletonList
 import com.avago.core.ui.components.StatusTone
 import com.avago.feature.rentalsops.push.RentalOpsPushPrefs
 import com.avago.feature.rentalsops.push.RentalPushRouter
 import com.avago.feature.rentalsops.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-enum class PrefsMode { LOADING, SERVER, DEVICE_ONLY, OFFLINE }
-
 data class PrefsState(
-    val mode: PrefsMode = PrefsMode.LOADING,
-    /** Events shown: the server's list (permission-filtered) or every event for device-only. */
-    val events: List<String> = emptyList(),
+    val events: List<String> = RentalPushRouter.EVENTS,
     val enabled: Map<String, Boolean> = emptyMap(),
-    val busy: Set<String> = emptySet(),
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -86,53 +75,14 @@ class RentalOpsSettingsViewModel @Inject constructor(
     private val prefs: RentalOpsPushPrefs,
     identity: IdentityManager,
 ) : ViewModel() {
-    private val mode = MutableStateFlow(PrefsMode.LOADING)
-    private val events = MutableStateFlow<List<String>>(emptyList())
-    private val busy = MutableStateFlow<Set<String>>(emptySet())
-
-    val state: StateFlow<PrefsState> = combine(
-        mode, events, busy, identity.activeAccountId.flatMapLatest { prefs.local(it) },
-    ) { m, e, b, local -> PrefsState(m, e, local, b) }
+    val state: StateFlow<PrefsState> = identity.activeAccountId.flatMapLatest { prefs.local(it) }
+        .map { PrefsState(enabled = it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PrefsState())
 
-    init { load() }
-
-    fun load() = viewModelScope.launch {
-        mode.value = PrefsMode.LOADING
-        apply(prefs.load())
-    }
-
-    fun set(event: String, on: Boolean) = viewModelScope.launch {
-        busy.value = busy.value + event
-        apply(prefs.set(event, on, server = mode.value == PrefsMode.SERVER))
-        busy.value = busy.value - event
-    }
-
-    private fun apply(r: RentalOpsPushPrefs.Load) {
-        when (r) {
-            is RentalOpsPushPrefs.Load.Server -> {
-                mode.value = PrefsMode.SERVER
-                events.value = r.items.map { it.event }
-            }
-            RentalOpsPushPrefs.Load.DeviceOnly -> {
-                mode.value = PrefsMode.DEVICE_ONLY
-                if (events.value.isEmpty()) events.value = RentalPushRouter.EVENTS
-            }
-            is RentalOpsPushPrefs.Load.Offline -> {
-                // Keep a previously loaded server list; otherwise show the cached switches read-only.
-                if (mode.value != PrefsMode.SERVER) {
-                    mode.value = PrefsMode.OFFLINE
-                    if (events.value.isEmpty()) events.value = RentalPushRouter.EVENTS
-                }
-            }
-        }
-    }
+    fun set(event: String, on: Boolean) = viewModelScope.launch { prefs.set(event, on) }
 }
 
-/**
- * Push preferences per rental event. Saved on the server (`notification-prefs`) so it stops
- * sending muted events to every device; drive-only users get device-local switches.
- */
+/** Push switches per rental event; they apply on this device only. */
 @Composable
 fun RentalOpsSettingsScreen(onBack: () -> Unit, vm: RentalOpsSettingsViewModel = hiltViewModel()) {
     val s by vm.state.collectAsStateWithLifecycle()
@@ -159,54 +109,34 @@ fun RentalOpsSettingsScreen(onBack: () -> Unit, vm: RentalOpsSettingsViewModel =
                     },
                 )
             }
-            when (s.mode) {
-                PrefsMode.OFFLINE -> ErrorBanner(
-                    stringResource(R.string.rentalops_prefs_offline),
-                    tone = StatusTone.Neutral,
-                    icon = Icons.Filled.CloudOff,
-                    retryLabel = stringResource(R.string.rentalops_retry),
-                    onRetry = { vm.load() },
-                )
-                PrefsMode.DEVICE_ONLY -> OfflineBanner(stringResource(R.string.rentalops_prefs_device_only), icon = Icons.Filled.PhoneAndroid)
-                else -> Unit
-            }
+            OfflineBanner(stringResource(R.string.rentalops_prefs_device_only), icon = Icons.Filled.PhoneAndroid)
             Text(
                 stringResource(R.string.rentalops_push_intro),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = AvagoSpacing.lg),
             )
-            if (s.mode == PrefsMode.LOADING && s.events.isEmpty()) {
-                SkeletonList(rows = 5)
-            } else if (s.events.isNotEmpty()) {
-                val editable = s.mode == PrefsMode.SERVER || s.mode == PrefsMode.DEVICE_ONLY
-                SectionCard(title = stringResource(R.string.rentalops_settings_title)) {
-                    s.events.forEachIndexed { idx, e ->
-                        if (idx > 0) CardDivider()
-                        val on = s.enabled[e] ?: true
-                        val busy = e in s.busy
-                        val canToggle = editable && !busy
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = MinTouch)
-                                .toggleable(value = on, enabled = canToggle, role = Role.Switch, onValueChange = { vm.set(e, it) })
-                                .padding(horizontal = AvagoSpacing.lg, vertical = AvagoSpacing.md),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.md),
-                        ) {
-                            LeadingBadge(eventIcon(e), eventTone(e))
-                            Column(Modifier.weight(1f)) {
-                                Text(eventTitle(e)?.let { stringResource(it) } ?: e, style = MaterialTheme.typography.bodyLarge)
-                                eventDesc(e)?.let {
-                                    Text(stringResource(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
+            SectionCard(title = stringResource(R.string.rentalops_settings_title)) {
+                s.events.forEachIndexed { idx, e ->
+                    if (idx > 0) CardDivider()
+                    val on = s.enabled[e] ?: true
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = MinTouch)
+                            .toggleable(value = on, role = Role.Switch, onValueChange = { vm.set(e, it) })
+                            .padding(horizontal = AvagoSpacing.lg, vertical = AvagoSpacing.md),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.md),
+                    ) {
+                        LeadingBadge(eventIcon(e), eventTone(e))
+                        Column(Modifier.weight(1f)) {
+                            Text(eventTitle(e)?.let { stringResource(it) } ?: e, style = MaterialTheme.typography.bodyLarge)
+                            eventDesc(e)?.let {
+                                Text(stringResource(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            if (busy) {
-                                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                            }
-                            Switch(checked = on, onCheckedChange = null, enabled = canToggle)
                         }
+                        Switch(checked = on, onCheckedChange = null)
                     }
                 }
             }

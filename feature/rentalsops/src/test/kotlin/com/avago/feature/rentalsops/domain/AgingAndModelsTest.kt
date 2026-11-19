@@ -1,5 +1,10 @@
 package com.avago.feature.rentalsops.domain
 
+import com.avago.core.data.domain.RecordSyncState
+import com.avago.core.data.domain.RentalDeliveryTask
+import com.avago.core.data.domain.RentalOrder
+import com.avago.core.data.domain.RentalOrderLine
+import com.avago.core.data.domain.RentalOrderStatus
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
@@ -7,6 +12,7 @@ import kotlinx.serialization.json.jsonObject
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
+import java.math.BigDecimal
 import java.time.Instant
 
 class AgingAndModelsTest {
@@ -47,47 +53,65 @@ class AgingAndModelsTest {
         assertEquals(1234.0, MinorMoney.toMajor(1234, "JPY"), 1e-9)
     }
 
-    @Test
-    fun `delivery task parses stage C row`() {
-        val o = Json.parseToJsonElement(
-            """{"id":"t1","kind":"pickup","status":"en_route","asset_ids":["a","b"],
-               "address":{"line1":"1 Main St","city":"Springfield","country":"US"},
-               "lat":40.1,"lng":-75.2,"proof_photo_file_ids":["f1"],"proof_signature_file_id":null,
-               "scheduled_at":"2026-06-10T08:00:00+02:00","route_seq":3}""",
-        ).jsonObject
-        val t = DeliveryTask.from(o)!!
-        assertEquals(TaskKind.PICKUP, t.kind)
-        assertEquals(TaskStatus.EN_ROUTE, t.status)
-        assertEquals(listOf("a", "b"), t.assetIds)
-        assertEquals("1 Main St, Springfield, US", t.address)
-        assertEquals(1, t.proofPhotoCount)
-        assertEquals(false, t.hasProofSignature)
-        assertEquals(Instant.parse("2026-06-10T06:00:00Z"), t.scheduledAt)
-        assertEquals(3, t.routeSeq)
-    }
+    private fun task(label: String?, name: String?) = RentalDeliveryTask(
+        id = "t1", version = 1, kind = "swap", status = "planned", orderId = "o1", orderNumber = "R-1",
+        customerName = "ACME", transferId = null, destinationLocationId = "loc1", destinationLabel = label,
+        destinationName = name, latitude = 40.1, longitude = -75.2, contactName = "Kim", contactPhone = "+1 555",
+        windowStart = Instant.parse("2026-06-10T06:00:00Z"), windowEnd = null, driverUserId = null, routeSeq = 3,
+        notes = null, startedAt = null, arrivedAt = null, completedAt = null, failedReason = null, etaAt = null,
+        sync = RecordSyncState.SAVED,
+    )
 
     @Test
-    fun `unassigned line requires line and order ids`() {
-        assertNull(UnassignedLine.from(Json.parseToJsonElement("""{"order_id":"o1"}""").jsonObject))
-        assertNull(UnassignedLine.from(Json.parseToJsonElement("""{"line_id":"l1"}""").jsonObject))
-        val l = UnassignedLine.from(Json.parseToJsonElement("""{"line_id":"l1","order_id":"o1","description":"Lift","order_version":null}""").jsonObject)!!
-        assertEquals("Lift", l.title)
-        assertNull(l.orderVersion)
-    }
-
-    @Test
-    fun `task detail fields - assets, job site and phone fallback`() {
-        val o = Json.parseToJsonElement(
-            """{"id":"t1","kind":"delivery","status":"scheduled","order_status":"reserved",
-               "customer_display_name":"ACME Ltd","customer_name":"acme","customer_phone":"+1 555",
-               "contact_phone":null,"job_site_name":"North yard",
-               "assets":[{"asset_id":"a1","name":"Lift 1","serial_number":"SN1"},{"asset_id":"a2"}]}""",
-        ).jsonObject
-        val t = DeliveryTask.from(o)!!
-        assertEquals("ACME Ltd", t.customerName)
-        assertEquals("+1 555", t.phone)
+    fun `delivery task maps the store row`() {
+        val t = DeliveryTask.of(task("1 Main St, Springfield", "North yard"))
+        assertEquals(TaskKind.SWAP, t.kind)
+        assertEquals(TaskStatus.PLANNED, t.status)
+        assertEquals("1 Main St, Springfield", t.address)
         assertEquals("North yard", t.jobSiteName)
-        assertEquals("reserved", t.orderStatus)
-        assertEquals(listOf(TaskAsset("a1", "Lift 1", "SN1"), TaskAsset("a2", null, null)), t.assets)
+        assertEquals("+1 555", t.phone)
+        assertEquals(40.1, t.lat)
+        assertEquals(Instant.parse("2026-06-10T06:00:00Z"), t.scheduledAt)
+        // The label falls back to the location name: no duplicate job-site line.
+        assertNull(DeliveryTask.of(task("North yard", "North yard")).jobSiteName)
+    }
+
+    private fun order(id: String, status: String) = RentalOrder(
+        id = id, version = 1, number = "R-$id", quoteNumber = null, status = status, source = "counter", kind = "rental",
+        currency = "EUR", locale = null, customerPartyId = "c1", customerName = "ACME", walkInName = null, contactId = null,
+        siteLocationId = null, locationId = "loc1", startAt = Instant.parse("2026-06-01T08:00:00Z"),
+        endAt = Instant.parse("2026-06-05T17:00:00Z"), offRentAt = null, holdExpiresAt = null, quoteExpiresAt = null,
+        fulfilment = "delivery", poNumber = null, reference = null, notes = null, internalNotes = null,
+        subtotalMinor = 0, discountMinor = 0, taxMinor = 0, totalMinor = 0, depositRequiredMinor = 0,
+        invoicedMinor = null, invoicePaidMinor = null, cancelReason = null, needsReview = false, sync = RecordSyncState.SAVED,
+    )
+
+    private fun line(id: String, orderId: String, classId: String? = "cls", assetId: String? = null, kind: String = "rental", status: String = "open") =
+        RentalOrderLine(
+            id = id, version = 1, orderId = orderId, lineNo = 1, kind = kind, classId = classId, assetId = assetId,
+            productId = null, parentLineId = null, description = "", qty = BigDecimal.ONE, startAt = null, endAt = null,
+            actualOutAt = null, actualInAt = null, unitPriceMinor = null, amountMinor = 0, discountMinor = 0, taxMinor = 0,
+            status = status, kitInstanceId = null, assignUnitLater = false, sync = RecordSyncState.SAVED,
+        )
+
+    @Test
+    fun `unassigned lines are open class lines without a unit on live orders`() {
+        val orders = listOf(order("o1", RentalOrderStatus.RESERVED), order("o2", "draft"))
+        val lines = listOf(
+            line("l1", "o1"),
+            line("l2", "o1", assetId = "a1"),
+            line("l3", "o1", classId = null),
+            line("l4", "o1", kind = "accessory"),
+            line("l5", "o1", status = "cancelled"),
+            line("l6", "o2"),
+        )
+        val out = UnassignedLine.of(orders, lines, mapOf("cls" to "Mini excavator"))
+        assertEquals(listOf("l1"), out.map { it.lineId })
+        val l = out.single()
+        assertEquals("Mini excavator", l.title)
+        assertEquals("R-o1", l.orderNumber)
+        assertEquals(1, l.qty)
+        // The line has no own window: the order's applies.
+        assertEquals(Instant.parse("2026-06-01T08:00:00Z"), l.start)
     }
 }

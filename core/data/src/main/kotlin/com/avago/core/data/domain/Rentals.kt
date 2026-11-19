@@ -260,6 +260,11 @@ data class RentalDeliveryTask(
     val transferId: String?,
     val destinationLocationId: String?,
     val destinationLabel: String?,
+    /** The destination location's name (job site / branch), when the task targets one. */
+    val destinationName: String?,
+    /** Navigation target: the snapshot coordinates, else the destination location's. */
+    val latitude: Double?,
+    val longitude: Double?,
     val contactName: String?,
     val contactPhone: String?,
     val windowStart: Instant?,
@@ -455,6 +460,8 @@ sealed interface HandoverOverride {
     data object Signature : HandoverOverride
     data class Credit(val reason: String) : HandoverOverride
     data class Meter(val reason: String, val value: BigDecimal? = null) : HandoverOverride
+    /** `meter_required`: the missing reading is supplied, no override. */
+    data class Reading(val value: BigDecimal) : HandoverOverride
     data class Ready(val reason: String) : HandoverOverride
 }
 
@@ -516,8 +523,26 @@ interface RentalRepository {
 
     suspend fun createInvoiceDraft(orderId: String): String
 
-    /** Opens an in-person agreement signature request and signs it on this device. */
-    suspend fun signAgreement(orderId: String, signerName: String, signaturePng: ByteArray, consentTextVersion: String, locale: String?): String
+    /**
+     * Opens an in-person agreement signature request for [signerName]; the server renders the
+     * agreement and returns its consent text, after which the signer signs with [signRequest].
+     * Returns the request id.
+     */
+    suspend fun requestAgreementSignature(orderId: String, signerName: String, locale: String?): String
+
+    /**
+     * Signs an existing signature request on this device as [signerId] (null = the active
+     * in-person signer), with a drawn [signaturePng] and/or a [typedName] (one is required).
+     */
+    suspend fun signRequest(
+        orderId: String,
+        requestId: String,
+        signerId: String?,
+        signerName: String,
+        signaturePng: ByteArray?,
+        typedName: String?,
+        consentTextVersion: String,
+    ): String
 
     suspend fun startReadinessCheck(assetId: String, items: List<ReadinessCheckItem>, notes: String?): String
 
@@ -527,8 +552,11 @@ interface RentalRepository {
 
     suspend fun disableRental(assetId: String)
 
-    /** Resends a refused hand-over with [fix]; the refused entry is dismissed. */
-    suspend fun retryHandover(commandId: String, fix: HandoverOverride)
+    /**
+     * Resends a refused hand-over with [fix] (null resends it unchanged, after the cause was
+     * fixed by another change such as signing the agreement); the refused entry is dismissed.
+     */
+    suspend fun retryHandover(commandId: String, fix: HandoverOverride?)
 
     suspend fun dismissFailure(commandId: String)
 }

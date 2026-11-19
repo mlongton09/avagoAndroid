@@ -1,5 +1,6 @@
 package com.avago.feature.rentals.ui
 
+import androidx.compose.runtime.getValue
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -32,8 +33,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,6 +48,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.avago.core.data.domain.RentalRepository
+import com.avago.core.data.domain.SyncRepository
 import com.avago.core.design.theme.AvagoSpacing
 import com.avago.core.permissions.PermissionsManager
 import com.avago.core.ui.components.BottomActionBar
@@ -58,12 +59,8 @@ import com.avago.core.ui.components.StatusPill
 import com.avago.core.ui.components.StatusTone
 import com.avago.feature.log.ui.SignaturePad
 import com.avago.feature.rentals.R
-import com.avago.feature.rentals.data.RentalRepository
 import com.avago.feature.rentals.data.RentalsOnline
 import com.avago.feature.rentals.domain.Esign
-import com.avago.feature.rentals.domain.RentalEntity
-import com.avago.feature.rentals.domain.obj
-import com.avago.feature.rentals.domain.str
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -76,35 +73,36 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.io.File
-import java.time.Instant
 import java.util.Locale
 import javax.inject.Inject
 
 /**
  * In-person agreement signing (docs/rentals-api-wave2-esign-scan-meter.md §1, mobile scope):
  * shows the agreement PDF and consent text, captures a drawn signature (or a typed name) with
- * explicit consent and queues `POST /signature-requests/{id}/sign` in the outbox with a stable
- * `client_uuid` — offline captures replay later; a 409/410 replay is dropped with a notice.
+ * explicit consent and queues the `rental.signatures.sign_request` command (the PNG goes through
+ * the upload endpoints first). Offline captures are sent later; a refusal is rolled back and
+ * shown as a failure on the order.
  */
 @HiltViewModel
 class SignAgreementViewModel @Inject constructor(
     private val repo: RentalRepository,
     private val online: RentalsOnline,
+    private val sync: SyncRepository,
     permissions: PermissionsManager,
     savedState: SavedStateHandle,
 ) : ViewModel() {
     val orderId: String = requireNotNull(savedState["orderId"])
     val canCreateRequest: Boolean = permissions.can(Esign.PERMISSION_REQUEST)
 
-    /** Server status merged with captures still waiting in the outbox. */
+    /** Server status merged with the signatures captured on this device. */
     val status: StateFlow<Esign.Status?> = combine(
         online.observe(online.signaturesKey(orderId)).map { Esign.parse(it?.data) },
-        repo.pendingSignatureCaptures(),
-    ) { s, pending -> s?.let { Esign.withLocalCaptures(it, pending) } }
+        repo.observeSignatures(orderId),
+    ) { s, local -> s?.let { Esign.withLocal(it, local) } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    val customerName: StateFlow<String> = repo.record(RentalEntity.ORDER, orderId)
-        .map { r -> r?.obj?.obj("customer")?.str("name") ?: r?.obj?.str("customer_name") ?: "" }
+    val customerName: StateFlow<String> = repo.observeOrder(orderId)
+        .map { it?.customerName.orEmpty() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
     val loading = MutableStateFlow(true)
@@ -145,17 +143,27 @@ class SignAgreementViewModel @Inject constructor(
         loading.value = false
     }
 
-    /** No open in-person request: create one for the order's customer (online only). */
+    /**
+     * No open in-person request: queue `rental.rental_orders.request_signatures` for the order's
+     * customer, send it and reload the status (the server renders the agreement and its consent
+     * text). Offline, the request is sent with the next sync.
+     */
     fun createRequest() = viewModelScope.launch {
         val name = customerName.value.ifBlank { signerName.value }.trim()
         if (name.isEmpty()) return@launch
         busy.value = true
-        problem.value = when (val r = online.createInPersonRequest(orderId, name, Locale.getDefault().language)) {
-            is RentalsOnline.Result.Ok -> null
-            is RentalsOnline.Result.Offline -> Problem.Offline
-            is RentalsOnline.Result.Refused -> Problem.Refused(r.message)
+        try {
+            repo.requestAgreementSignature(orderId, name, Locale.getDefault().language)
+            problem.value = if (sync.syncNow()) null else Problem.Offline
+            if (problem.value == null) refresh().join()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w(e, "signature request failed")
+            problem.value = Problem.Refused(e.message)
+        } finally {
+            busy.value = false
         }
-        busy.value = false
     }
 
     fun openPdf(requestId: String) = viewModelScope.launch {
@@ -177,9 +185,14 @@ class SignAgreementViewModel @Inject constructor(
         }
         busy.value = true
         try {
-            repo.queueSignatureCapture(
-                orderId, request.id, signer.id,
-                Esign.signBody(signer.id, png, name, request.consentVersion, Instant.now(), null),
+            repo.signRequest(
+                orderId = orderId,
+                requestId = request.id,
+                signerId = signer.id,
+                signerName = signer.name,
+                signaturePng = png?.let { requireNotNull(Esign.pngBytes(it)) { "unreadable signature image" } },
+                typedName = name,
+                consentTextVersion = requireNotNull(request.consentVersion) { "the request has no consent text" },
             )
             val more = request.capturable.count { it.id != signer.id } > 0
             drawn.value = null

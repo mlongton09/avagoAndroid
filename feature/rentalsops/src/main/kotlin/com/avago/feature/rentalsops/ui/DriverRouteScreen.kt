@@ -202,14 +202,14 @@ class DriverRouteViewModel @Inject constructor(
         // A stop not yet on the device (route fresher than the task feed): open it, which syncs.
         val view: TaskView = repo.observeTask(stop.taskId).first() ?: run { _events.tryEmit(open); return@launch }
         val loc = LastLocation.get(ctx)
-        val r = repo.submit(view, action, null, null, null, loc?.latitude, loc?.longitude, loc?.takeIf { it.hasAccuracy() }?.accuracy)
+        val r = repo.submit(view, action, null, null, null, loc?.latitude, loc?.longitude)
         _events.tryEmit(if (r is TransitionResult.Rejected) RouteEvent.Error(r.error) else RouteEvent.Queued)
     }
 
     companion object {
         /**
          * Server route when fetched (or cached today), with queued check-ins overlaid; otherwise
-         * the driver's cached tasks for [today] (stage C `my-tasks` fallback, §7).
+         * the driver's tasks in the v2 store for [today].
          */
         fun build(f: Fetch?, tasks: List<TaskView>, busy: Boolean, me: String?, today: LocalDate, zone: ZoneId): RouteState {
             val local = tasks.associate { it.task.id to it.localStatus }

@@ -104,7 +104,7 @@ import com.avago.core.ui.components.rememberHaptics
 import com.avago.core.ui.components.SectionCard
 import com.avago.core.ui.components.SkeletonList
 import com.avago.core.ui.components.StatusTone
-import com.avago.feature.rentalsops.data.MediaEntity
+import com.avago.feature.rentalsops.data.ProofDraft
 import com.avago.feature.rentalsops.data.RentalOpsRepository
 import com.avago.feature.rentalsops.data.TaskView
 import com.avago.feature.rentalsops.domain.DeliveryStateMachine
@@ -116,7 +116,11 @@ import com.avago.feature.rentalsops.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -128,12 +132,11 @@ import kotlinx.coroutines.withContext
 
 data class DeliveryState(
     val view: TaskView? = null,
-    val media: List<MediaEntity> = emptyList(),
+    /** Proof captured on this device, staged with the Complete command. */
+    val drafts: List<ProofDraft> = emptyList(),
     val unitNames: List<String> = emptyList(),
     val loaded: Boolean = false,
-) {
-    val drafts: List<MediaEntity> get() = media.filter { it.eventQueueId == null }
-}
+)
 
 sealed class DeliveryMessage {
     data class Error(val error: TransitionError) : DeliveryMessage()
@@ -141,6 +144,7 @@ sealed class DeliveryMessage {
     data object PhotoFailed : DeliveryMessage()
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class RentalDeliveryViewModel @Inject constructor(
     @ApplicationContext private val ctx: Context,
@@ -149,32 +153,34 @@ class RentalDeliveryViewModel @Inject constructor(
 ) : ViewModel() {
     val taskId: String = checkNotNull(saved["taskId"])
 
-    val state: StateFlow<DeliveryState> = combine(repo.observeTask(taskId), repo.observeMedia(taskId), repo.observeAssetNames()) { v, m, names ->
-        // Task detail carries `assets[{asset_id, name, serial_number}]`; the feed only ids.
-        val t = v?.task
-        val units = t?.assets?.takeIf { it.isNotEmpty() }?.map { a -> listOfNotNull(a.name ?: names[a.assetId] ?: a.assetId.take(8), a.serialNumber).joinToString(" \u00b7 ") }
-            ?: t?.assetIds?.map { names[it] ?: it.take(8) }.orEmpty()
-        DeliveryState(v, m, units, loaded = true)
+    private val task = repo.observeTask(taskId)
+
+    private val units = task.map { it?.task }.distinctUntilChanged().flatMapLatest { t ->
+        if (t == null) flowOf(emptyList()) else repo.observeTaskUnits(t)
+    }
+
+    val state: StateFlow<DeliveryState> = combine(task, repo.observeDrafts(taskId), units) { v, d, u ->
+        DeliveryState(v, d, u, loaded = true)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DeliveryState())
 
     private val _messages = MutableSharedFlow<DeliveryMessage>(extraBufferCapacity = 4)
     val messages: SharedFlow<DeliveryMessage> = _messages
 
-    /** Pending camera target (id, file) between launching the camera and its result. */
-    private var pendingPhoto: Pair<String, File>? = null
+    /** Camera target file between launching the camera and its result. */
+    private var pendingPhoto: File? = null
 
     suspend fun preparePhoto(): Uri? {
-        val (id, file) = repo.newMediaFile("photo") ?: return null
-        pendingPhoto = id to file
+        val file = repo.newDraftFile(taskId, RentalOpsRepository.KIND_PHOTO) ?: return null
+        pendingPhoto = file
         return FileProvider.getUriForFile(ctx, "${ctx.packageName}.provider", file)
     }
 
     fun onPhotoResult(ok: Boolean) {
-        val (id, file) = pendingPhoto ?: return
+        val file = pendingPhoto ?: return
         pendingPhoto = null
         viewModelScope.launch {
             if (ok && Media.normalizePhoto(file)) {
-                repo.addMedia(taskId, id, "photo", file)
+                repo.draftsUpdated()
             } else {
                 withContext(Dispatchers.IO) { file.delete() }
                 if (ok) _messages.tryEmit(DeliveryMessage.PhotoFailed)
@@ -184,17 +190,21 @@ class RentalDeliveryViewModel @Inject constructor(
 
     fun saveSignature(c: SignatureCapture) = viewModelScope.launch {
         // One signature per task: replace an earlier draft.
-        state.value.drafts.filter { it.kind == "signature" }.forEach { repo.removeDraftMedia(it.id) }
-        val (id, file) = repo.newMediaFile("signature") ?: return@launch
-        if (Media.writeSignature(c.strokes, c.width, c.height, c.strokePx, file)) repo.addMedia(taskId, id, "signature", file)
+        state.value.drafts.filter { it.kind == RentalOpsRepository.KIND_SIGNATURE }.forEach { repo.removeDraft(taskId, it.id) }
+        val file = repo.newDraftFile(taskId, RentalOpsRepository.KIND_SIGNATURE) ?: return@launch
+        if (Media.writeSignature(c.strokes, c.width, c.height, c.strokePx, file)) {
+            repo.draftsUpdated()
+        } else {
+            withContext(Dispatchers.IO) { file.delete() }
+        }
     }
 
-    fun removeDraft(id: String) = viewModelScope.launch { repo.removeDraftMedia(id) }
+    fun removeDraft(id: String) = viewModelScope.launch { repo.removeDraft(taskId, id) }
 
     fun submit(action: TaskAction, reason: String?, signedName: String?, notes: String?, onDone: () -> Unit = {}) = viewModelScope.launch {
         val v = state.value.view ?: return@launch
         val loc = LastLocation.get(ctx)
-        when (val r = repo.submit(v, action, reason, signedName, notes, loc?.latitude, loc?.longitude, loc?.takeIf { it.hasAccuracy() }?.accuracy)) {
+        when (val r = repo.submit(v, action, reason, signedName, notes, loc?.latitude, loc?.longitude)) {
             is TransitionResult.Ok -> {
                 _messages.tryEmit(DeliveryMessage.Queued)
                 onDone()
@@ -203,8 +213,7 @@ class RentalDeliveryViewModel @Inject constructor(
         }
     }
 
-    fun retry(queueId: String) = viewModelScope.launch { repo.retry(queueId) }
-    fun discard(queueId: String) = viewModelScope.launch { repo.discard(queueId) }
+    fun dismiss(commandId: String) = viewModelScope.launch { repo.dismiss(commandId) }
 }
 
 @Composable
@@ -331,7 +340,7 @@ fun RentalDeliveryScreen(onBack: () -> Unit, vm: RentalDeliveryViewModel = hiltV
                 }
             }
 
-            view.rejected?.let { rej -> RejectedCard(rej, onRetry = { vm.retry(rej.queueId) }, onDiscard = { vm.discard(rej.queueId) }) }
+            view.rejected?.let { rej -> RejectedCard(rej, onDismiss = { rej.commandId?.let(vm::dismiss) }) }
 
             // Where / who
             SectionCard(title = stringResource(R.string.rentalops_location)) {
@@ -478,7 +487,7 @@ fun RentalDeliveryScreen(onBack: () -> Unit, vm: RentalDeliveryViewModel = hiltV
             onDismissRequest = { showComplete = false },
             icon = { Icon(Icons.Filled.TaskAlt, contentDescription = null) },
             title = { Text(stringResource(R.string.rentalops_action_complete)) },
-            text = { Text(stringResource(R.string.rentalops_complete_confirm, s.drafts.count { it.kind == "photo" }, if (s.drafts.any { it.kind == "signature" }) 1 else 0)) },
+            text = { Text(stringResource(R.string.rentalops_complete_confirm, s.drafts.count { it.kind == RentalOpsRepository.KIND_PHOTO }, if (s.drafts.any { it.kind == RentalOpsRepository.KIND_SIGNATURE }) 1 else 0)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -504,7 +513,7 @@ private fun IconLine(icon: ImageVector, text: String, style: TextStyle = Materia
 /** Photo + signature grid (wraps; 96dp tiles with a 48dp remove target in the corner). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ProofGrid(drafts: List<MediaEntity>, onRemove: (String) -> Unit) {
+private fun ProofGrid(drafts: List<ProofDraft>, onRemove: (String) -> Unit) {
     if (drafts.isEmpty()) {
         Row(
             Modifier.padding(AvagoSpacing.lg),
@@ -521,12 +530,12 @@ private fun ProofGrid(drafts: List<MediaEntity>, onRemove: (String) -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm),
         verticalArrangement = Arrangement.spacedBy(AvagoSpacing.sm),
     ) {
-        val photos = drafts.filter { it.kind == "photo" }
+        val photos = drafts.filter { it.kind == RentalOpsRepository.KIND_PHOTO }
         drafts.forEach { m ->
             key(m.id) {
-                val label = if (m.kind == "signature") stringResource(R.string.rentalops_signature) else stringResource(R.string.rentalops_photo_n, photos.indexOf(m) + 1)
+                val label = if (m.kind == RentalOpsRepository.KIND_SIGNATURE) stringResource(R.string.rentalops_signature) else stringResource(R.string.rentalops_photo_n, photos.indexOf(m) + 1)
                 Box {
-                    Thumb(m.localPath, label, signature = m.kind == "signature")
+                    Thumb(m.localPath, label, signature = m.kind == RentalOpsRepository.KIND_SIGNATURE)
                     IconButton(onClick = { onRemove(m.id) }, modifier = Modifier.align(Alignment.TopEnd).size(MinTouch)) {
                         Box(
                             Modifier.size(28.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)),

@@ -43,7 +43,6 @@
     <string name="rentalops_assign_empty">Alle klasseboekingen hebben een eenheid</string>
     <string name="rentalops_assign_no_units">Geen vrije eenheid van deze klasse voor deze data</string>
     <string name="rentalops_assign_offline">Offline: beschikbaarheid volgens dit apparaat, wordt gecontroleerd bij synchronisatie</string>
-    <string name="rentalops_assign_pending">%1$s wordt toegewezen…</string>
     <string name="rentalops_assign_sub">Klasseboekingen die op een eenheid wachten</string>
     <string name="rentalops_assign_title">Eenheden toewijzen</string>
     <string name="rentalops_assign_unit">Eenheid toewijzen</string>
@@ -69,23 +68,19 @@
     <string name="rentalops_channel_return_due_desc">Verhuur over de retourdatum</string>
     <string name="rentalops_channel_transfer">Filiaaloverplaatsingen</string>
     <string name="rentalops_channel_transfer_desc">Toegewezen, voltooide of mislukte overplaatsingstaken</string>
-    <string name="rentalops_class_free">Vrije eenheden: %1$d</string>
-    <string name="rentalops_class_full">Geen vrije eenheden in deze periode</string>
     <string name="rentalops_class_line">Klasseboeking</string>
     <string name="rentalops_clear">Wissen</string>
     <string name="rentalops_complete_confirm">Taak voltooien met %1$d foto(\'s) en %2$d handtekening(en)?</string>
-    <string name="rentalops_counts_a11y">%1$d verhuurd, %2$d vandaag terug, %3$d te laat</string>
     <string name="rentalops_counts_due_today">Vandaag terug</string>
     <string name="rentalops_counts_out">Verhuurd</string>
     <string name="rentalops_counts_overdue">Te laat</string>
     <string name="rentalops_credit">Klanttegoed: %1$s</string>
     <string name="rentalops_customer">Klant</string>
     <string name="rentalops_customers">Klanten</string>
-    <string name="rentalops_discard">Verwijderen</string>
+    <string name="rentalops_discard">Sluiten</string>
     <string name="rentalops_err_driver">Wijs eerst een chauffeur toe</string>
     <string name="rentalops_err_forbidden">Je hebt geen toestemming om dit te bekijken</string>
     <string name="rentalops_err_invalid">Die stap kan niet vanuit de huidige status</string>
-    <string name="rentalops_err_media_missing">Er ontbreekt een bewijsfoto op dit apparaat</string>
     <string name="rentalops_err_offline">Laden mislukt. Controleer je verbinding en probeer opnieuw.</string>
     <string name="rentalops_err_proof">Voeg een foto of een handtekening met naam van de ondertekenaar toe</string>
     <string name="rentalops_err_reason">Geef een reden op</string>
@@ -113,11 +108,8 @@
     <string name="rentalops_invoice_dates">Uitgegeven %1$s · vervalt %2$s</string>
     <string name="rentalops_invoices">Facturen</string>
     <string name="rentalops_job_site">Werklocatie: %1$s</string>
-    <string name="rentalops_kind_assignment">Eenheidstoewijzing</string>
     <string name="rentalops_kind_delivery">Levering</string>
     <string name="rentalops_kind_pickup">Ophaling</string>
-    <string name="rentalops_kind_task_update">Taakupdate</string>
-    <string name="rentalops_kind_transfer">Filiaaloverplaatsing</string>
     <string name="rentalops_kind_transfer_task">Overplaatsingsrit</string>
     <string name="rentalops_navigate">Navigeren</string>
     <string name="rentalops_no_access">Je hebt geen toegang tot verhuuractiviteiten.</string>
@@ -137,7 +129,6 @@
     <string name="rentalops_photo_failed">De foto kon niet worden opgeslagen</string>
     <string name="rentalops_photo_n">Foto %1$d</string>
     <string name="rentalops_prefs_device_only">Deze instellingen gelden alleen op dit apparaat</string>
-    <string name="rentalops_prefs_offline">Offline: instellingen die op dit apparaat zijn opgeslagen</string>
     <string name="rentalops_proof_none">Nog geen foto\'s of handtekening</string>
     <string name="rentalops_proof_optional">Bewijs (optioneel)</string>
     <string name="rentalops_proof_required">Afleverbewijs (foto of handtekening met naam verplicht)</string>
@@ -153,7 +144,7 @@
     <string name="rentalops_reassigned_title">Taak opnieuw toegewezen</string>
     <string name="rentalops_refresh">Vernieuwen</string>
     <string name="rentalops_rejected">Geweigerd</string>
-    <string name="rentalops_rejected_body">De server heeft deze wijziging niet geaccepteerd. Probeer opnieuw of verwijder hem.</string>
+    <string name="rentalops_rejected_body">De server heeft deze wijziging niet geaccepteerd; ze is ongedaan gemaakt.</string>
     <string name="rentalops_rejected_title">%1$s is geweigerd</string>
     <string name="rentalops_remove_item">%1$s verwijderen</string>
     <string name="rentalops_retry">Opnieuw</string>
@@ -167,7 +158,6 @@
     <string name="rentalops_scan_not_found">Geen eenheid komt overeen met die code</string>
     <string name="rentalops_scan_permission">Cameratoegang is nodig om codes te scannen. Je kunt de code ook hieronder typen.</string>
     <string name="rentalops_scheduled">Gepland %1$s</string>
-    <string name="rentalops_send">Verzenden</string>
     <string name="rentalops_settings_sub">Kies welke verhuurgebeurtenissen je melden</string>
     <string name="rentalops_settings_title">Verhuurmeldingen</string>
     <string name="rentalops_show_table">Gegevenstabel tonen</string>
@@ -177,13 +167,7 @@
     <string name="rentalops_signature_hint">Vraag de klant hierboven te tekenen</string>
     <string name="rentalops_signature_pad">Handtekeningveld. Teken met één vinger.</string>
     <string name="rentalops_signed_name">Naam ondertekenaar</string>
-    <string name="rentalops_statement_email">Rekeningoverzicht e-mailen</string>
-    <string name="rentalops_statement_email_hint">Laat leeg om het factuuradres van de klant te gebruiken.</string>
-    <string name="rentalops_statement_emailed">Rekeningoverzicht verzonden naar %1$s</string>
-    <string name="rentalops_statement_emailed_default">Rekeningoverzicht verzonden</string>
-    <string name="rentalops_statement_no_recipient">Deze klant heeft geen factuuradres. Vul een ontvanger in.</string>
     <string name="rentalops_statement_pdf">PDF delen</string>
-    <string name="rentalops_statement_recipient">E-mailadres ontvanger (optioneel)</string>
     <string name="rentalops_statement_send_failed">Rekeningoverzicht kon niet worden verzonden. Probeer het online opnieuw.</string>
     <string name="rentalops_statement_share">Rekeningoverzicht delen</string>
     <string name="rentalops_statement_sub">Facturen en openstaand saldo per klant</string>
@@ -225,4 +209,7 @@
     <string name="rentalops_operations_sub">Planning, overplaatsingen, facturatie, afschriften en bezetting</string>
     <string name="rentalops_my_deliveries">Mijn leveringen</string>
     <string name="rentalops_my_deliveries_sub">Leveringen en ophalingen die aan u zijn toegewezen</string>
+    <string name="rentalops_not_saved">Deze wijziging kon niet op het apparaat worden opgeslagen. Probeer het opnieuw.</string>
+    <string name="rentalops_transfer_cancel">Overdracht annuleren</string>
+    <string name="rentalops_kind_swap">Omruil</string>
 </resources>

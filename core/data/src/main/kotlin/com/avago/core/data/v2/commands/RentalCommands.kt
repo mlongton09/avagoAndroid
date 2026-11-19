@@ -579,6 +579,12 @@ object RentalCommands {
                 fix.value?.let { h["meter_value"] = V2PayloadJson.value(it) }
                 m["handover"] = JsonObject(h)
             }
+            is HandoverOverride.Reading -> {
+                require(fix.value.signum() >= 0) { "a meter reading cannot be negative" }
+                val h = (m["handover"] as JsonObject).toMutableMap()
+                h["meter_value"] = V2PayloadJson.value(fix.value)
+                m["handover"] = JsonObject(h)
+            }
         }
         return JsonObject(m)
     }
@@ -714,30 +720,40 @@ object RentalCommands {
             signers = listOf(SignerIn(name = requireNotNull(signerName.clean()) { "the signer needs a name" }, role = SignerRole.CUSTOMER.wire, method = SignatureMethod.IN_PERSON)),
         ).toNewCommand()
 
+    /**
+     * An in-person signature on [requestId]: the drawn [png] and/or a [typedName] (one is required).
+     * [signerId] null signs as the request's active in-person signer.
+     */
     fun signRequest(
         id: String,
         orderId: String,
         requestId: String,
+        signerId: String?,
         signerName: String,
-        png: V2StagedFile,
+        png: V2StagedFile?,
+        typedName: String?,
         consentTextVersion: String,
         signedAt: Instant,
-        dependsOn: String,
+        dependsOn: String?,
         nowMillis: Long,
         userId: String?,
-    ): V2NewCommand = RentalSignaturesSignRequest(
-        id = id, requestId = requestId, imageFileObjectId = png.fileId, typedName = signerName.clean(), consent = true,
-        consentTextVersion = consentTextVersion, signedAt = signedAt,
-    ).toNewCommand(
-        overlay = V2OverlayPatch(
-            listOf(
-                MaintCommands.pendingFileRow(png, nowMillis, userId),
-                signatureRow(id, orderId, signerName.trim(), "customer", png.fileId, signedAt, nowMillis, userId, requestId),
+    ): V2NewCommand {
+        val typed = typedName.clean()
+        require(png != null || typed != null) { "a signature needs a drawn image or a typed name" }
+        return RentalSignaturesSignRequest(
+            id = id, requestId = requestId, signerId = signerId, imageFileObjectId = png?.fileId,
+            typedName = typed ?: signerName.clean(), consent = true, consentTextVersion = consentTextVersion, signedAt = signedAt,
+        ).toNewCommand(
+            overlay = V2OverlayPatch(
+                listOfNotNull(
+                    png?.let { MaintCommands.pendingFileRow(it, nowMillis, userId) },
+                    signatureRow(id, orderId, (typed ?: signerName).trim(), "customer", png?.fileId, signedAt, nowMillis, userId, requestId),
+                ),
             ),
-        ),
-        dependsOn = listOf(dependsOn),
-        uploads = listOf(png.toUpload()),
-    )
+            dependsOn = listOfNotNull(dependsOn),
+            uploads = listOfNotNull(png?.toUpload()),
+        )
+    }
 
     // -------------------------------------------------------------------------------- readiness
 

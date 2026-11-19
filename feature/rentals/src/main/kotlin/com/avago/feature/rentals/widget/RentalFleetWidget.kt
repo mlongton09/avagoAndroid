@@ -11,7 +11,6 @@ import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.provideContent
-import androidx.glance.appwidget.updateAll
 import androidx.glance.background
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Column
@@ -26,8 +25,7 @@ import androidx.glance.semantics.semantics
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
+import com.avago.core.data.domain.RentalRepository
 import com.avago.core.data.rental.FleetStatus
 import com.avago.core.data.rental.LocalFleet
 import com.avago.feature.rentals.R
@@ -36,14 +34,14 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import java.time.Instant
-import javax.inject.Inject
-import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
+import timber.log.Timber
 
 @EntryPoint
 @InstallIn(SingletonComponent::class)
 interface RentalWidgetEntryPoint {
-    fun databaseFactory(): DatabaseFactory
-    fun identityManager(): IdentityManager
+    fun rentalRepository(): RentalRepository
 }
 
 /** Home-screen fleet counts (spec §11.1): available / on rent / due today / overdue. */
@@ -62,10 +60,16 @@ class RentalFleetWidget : GlanceAppWidget() {
 
     private suspend fun load(context: Context): Counts? {
         val ep = EntryPointAccessors.fromApplication(context.applicationContext, RentalWidgetEntryPoint::class.java)
-        val accountId = ep.identityManager().getActiveAccountId() ?: return null
-        val dao = ep.databaseFactory().get(accountId).rentalDao()
-        val records = LocalFleet.INPUT_ENTITIES.flatMap { dao.all(it) }
-        val results = LocalFleet.compute(records, Instant.now()).values
+        val inputs = try {
+            ep.rentalRepository().observeFleet().first()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Signed out or the store is not open yet: show the empty state.
+            Timber.d(e, "fleet widget: no fleet")
+            return null
+        }
+        val results = LocalFleet.compute(inputs, Instant.now()).values
         if (results.isEmpty()) return null
         val (m, today) = LocalFleet.counts(results)
         return Counts(
@@ -129,11 +133,3 @@ class RentalFleetWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = RentalFleetWidget()
 }
 
-/** Refreshes every placed fleet widget after a sync. */
-@Singleton
-class RentalFleetWidgetUpdater @Inject constructor() {
-    @Suppress("UNUSED_PARAMETER")
-    suspend fun update(context: Context, accountId: String) {
-        RentalFleetWidget().updateAll(context)
-    }
-}

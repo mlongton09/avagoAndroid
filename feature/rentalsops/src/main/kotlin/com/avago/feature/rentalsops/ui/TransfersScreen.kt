@@ -99,6 +99,8 @@ import com.avago.feature.rentalsops.data.TransferView
 import com.avago.feature.rentalsops.domain.TransferStatus
 import com.avago.feature.rentalsops.R
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -111,18 +113,24 @@ class TransfersViewModel @Inject constructor(private val repo: RentalOpsReposito
 
     suspend fun lookup(code: String) = repo.lookupAsset(code)
 
-    fun create(asset: RentalOpsRepository.ScannedAsset, to: String, arriveBy: Instant, reason: String?, shipNow: Boolean, done: () -> Unit) =
+    /** Emitted when a change could not be queued on this device. */
+    private val _saveFailed = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val saveFailed: SharedFlow<Unit> = _saveFailed
+
+    fun create(asset: RentalOpsRepository.ScannedAsset, to: String, arriveBy: Instant, reason: String?, shipNow: Boolean, done: (Boolean) -> Unit) =
         viewModelScope.launch {
-            repo.createTransfer(asset, to, arriveBy, reason?.takeIf { it.isNotBlank() }, shipNow)
-            done()
+            done(repo.createTransfer(asset, to, arriveBy, reason?.takeIf { it.isNotBlank() }, shipNow) != null)
         }
 
-    fun step(v: TransferView, op: String) = viewModelScope.launch {
-        repo.transferStep(v.transfer.id, v.transfer.assetId ?: return@launch, op)
+    fun ship(v: TransferView) = step { repo.shipTransfer(v.transfer.id) }
+    fun receive(v: TransferView) = step { repo.receiveTransfer(v.transfer.id) }
+    fun cancel(v: TransferView) = step { repo.cancelTransfer(v.transfer.id) }
+
+    private fun step(op: suspend () -> Boolean) = viewModelScope.launch {
+        if (!op()) _saveFailed.tryEmit(Unit)
     }
 
-    fun retry(queueId: String) = viewModelScope.launch { repo.retry(queueId) }
-    fun discard(queueId: String) = viewModelScope.launch { repo.discard(queueId) }
+    fun dismiss(commandId: String) = viewModelScope.launch { repo.dismiss(commandId) }
 }
 
 @Composable
@@ -138,8 +146,12 @@ fun TransfersScreen(onBack: () -> Unit, vm: TransfersViewModel = hiltViewModel()
     val names = locations.associate { it.id to it.name }
     val listState = rememberLazyListState()
     val expanded by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
+    val snackbar = remember { SnackbarHostState() }
+    val notSaved = stringResource(R.string.rentalops_not_saved)
+    LaunchedEffect(vm) { vm.saveFailed.collect { snackbar.showSnackbar(notSaved) } }
     Scaffold(
         topBar = { OpsTopBar(stringResource(R.string.rentalops_transfers_title), onBack) },
+        snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { creating = true },
@@ -171,14 +183,14 @@ fun TransfersScreen(onBack: () -> Unit, vm: TransfersViewModel = hiltViewModel()
 }
 
 internal fun transferTone(s: TransferStatus): StatusTone = when (s) {
-    TransferStatus.REQUESTED -> StatusTone.Warning
+    TransferStatus.PLANNED -> StatusTone.Warning
     TransferStatus.IN_TRANSIT -> StatusTone.Info
     TransferStatus.RECEIVED -> StatusTone.Success
     TransferStatus.CANCELLED -> StatusTone.Neutral
 }
 
 internal fun transferIcon(s: TransferStatus): ImageVector = when (s) {
-    TransferStatus.REQUESTED -> Icons.Filled.Schedule
+    TransferStatus.PLANNED -> Icons.Filled.Schedule
     TransferStatus.IN_TRANSIT -> Icons.Filled.LocalShipping
     TransferStatus.RECEIVED -> Icons.Filled.CheckCircle
     TransferStatus.CANCELLED -> Icons.Filled.Block
@@ -203,7 +215,7 @@ private fun TransferRow(v: TransferView, names: Map<String, String>, vm: Transfe
             ) {
                 LeadingBadge(transferIcon(v.localStatus), transferTone(v.localStatus))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AvagoSpacing.xs)) {
-                    Text(v.assetName ?: t.assetId?.take(8) ?: "\u2014", style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(v.assetName ?: t.assetId.take(8), style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(stringResource(R.string.rentalops_transfer_route, from, to), style = MaterialTheme.typography.bodyMedium)
                     Text(
                         stringResource(R.string.rentalops_arrive_by, Fmt.dateTime(t.arriveBy)),
@@ -216,24 +228,28 @@ private fun TransferRow(v: TransferView, names: Map<String, String>, vm: Transfe
                     }
                 }
             }
-            v.pending.firstOrNull { it.rejected || it.parked }?.let { rej ->
-                RejectedCard(rej, onRetry = { vm.retry(rej.queueId) }, onDiscard = { vm.discard(rej.queueId) }, Modifier.padding(bottom = AvagoSpacing.sm))
+            v.rejected?.let { rej ->
+                RejectedCard(rej, onDismiss = { rej.commandId?.let(vm::dismiss) }, Modifier.padding(bottom = AvagoSpacing.sm))
             }
-            if (v.localStatus == TransferStatus.REQUESTED || v.localStatus == TransferStatus.IN_TRANSIT) {
+            if (v.localStatus == TransferStatus.PLANNED || v.localStatus == TransferStatus.IN_TRANSIT) {
                 CardDivider()
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = AvagoSpacing.md, vertical = AvagoSpacing.sm),
                     horizontalArrangement = Arrangement.End,
                 ) {
-                    if (v.localStatus == TransferStatus.REQUESTED) {
-                        FilledTonalButton(onClick = { vm.step(v, "ship") }, modifier = Modifier.heightIn(min = MinTouch)) {
+                    if (v.localStatus == TransferStatus.PLANNED) {
+                        TextButton(onClick = { vm.cancel(v) }, modifier = Modifier.heightIn(min = MinTouch)) {
+                            Text(stringResource(R.string.rentalops_transfer_cancel))
+                        }
+                        Spacer(Modifier.width(AvagoSpacing.sm))
+                        FilledTonalButton(onClick = { vm.ship(v) }, modifier = Modifier.heightIn(min = MinTouch)) {
                             Icon(Icons.Filled.LocalShipping, null, Modifier.size(18.dp))
                             Spacer(Modifier.width(AvagoSpacing.sm))
                             Text(stringResource(R.string.rentalops_transfer_ship))
                         }
                     }
                     if (v.localStatus == TransferStatus.IN_TRANSIT) {
-                        Button(onClick = { vm.step(v, "receive") }, modifier = Modifier.heightIn(min = MinTouch)) {
+                        Button(onClick = { vm.receive(v) }, modifier = Modifier.heightIn(min = MinTouch)) {
                             Icon(Icons.Filled.MoveToInbox, null, Modifier.size(18.dp))
                             Spacer(Modifier.width(AvagoSpacing.sm))
                             Text(stringResource(R.string.rentalops_transfer_receive))
@@ -248,7 +264,7 @@ private fun TransferRow(v: TransferView, names: Map<String, String>, vm: Transfe
 @Composable
 internal fun transferStatusLabel(s: TransferStatus): String = stringResource(
     when (s) {
-        TransferStatus.REQUESTED -> R.string.rentalops_transfer_requested
+        TransferStatus.PLANNED -> R.string.rentalops_transfer_requested
         TransferStatus.IN_TRANSIT -> R.string.rentalops_transfer_in_transit
         TransferStatus.RECEIVED -> R.string.rentalops_transfer_received
         TransferStatus.CANCELLED -> R.string.rentalops_status_cancelled
@@ -272,6 +288,7 @@ private fun CreateTransfer(vm: TransfersViewModel, locations: List<Location>, on
     var shipNow by rememberSaveable { mutableStateOf(true) }
     var saving by remember { mutableStateOf(false) }
     val notFound = stringResource(R.string.rentalops_scan_not_found)
+    val notSaved = stringResource(R.string.rentalops_not_saved)
     var lastMissed by remember { mutableStateOf<String?>(null) }
 
     fun resolve(code: String) {
@@ -303,7 +320,16 @@ private fun CreateTransfer(vm: TransfersViewModel, locations: List<Location>, on
                         onClick = {
                             dest?.let { d ->
                                 saving = true
-                                vm.create(a, d, Instant.now().plus(Duration.ofHours(hours)), reason, shipNow) { haptics.success(); onClose() }
+                                vm.create(a, d, Instant.now().plus(Duration.ofHours(hours)), reason, shipNow) { ok ->
+                                    saving = false
+                                    if (ok) {
+                                        haptics.success()
+                                        onClose()
+                                    } else {
+                                        haptics.error()
+                                        scope.launch { snackbar.showSnackbar(notSaved) }
+                                    }
+                                }
                             }
                         },
                         enabled = dest != null && !saving,

@@ -71,7 +71,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.avago.core.data.db.rental.RentalRecordEntity
+import com.avago.core.data.domain.RecordSyncState
+import com.avago.core.data.domain.RentalFailure
 import com.avago.core.data.rental.FleetStatus
 import com.avago.core.design.theme.AvagoSpacing
 import com.avago.core.ui.components.CardDivider
@@ -89,7 +90,6 @@ import com.avago.core.ui.components.rememberHaptics
 import com.avago.core.ui.components.toneColors
 import com.avago.feature.rentals.R
 import com.avago.feature.rentals.domain.HandoverTarget
-import com.avago.feature.rentals.domain.RentalEntity
 import com.avago.feature.rentals.domain.ScheduleEvent
 import java.time.ZoneId
 
@@ -125,15 +125,14 @@ fun RentalsHomeScreen(
     viewModel: RentalsOverviewViewModel = hiltViewModel(),
 ) {
     val fleet by viewModel.fleet.collectAsStateWithLifecycle()
-    val lastSynced by viewModel.lastSyncedAt.collectAsStateWithLifecycle()
-    val queue by viewModel.queue.collectAsStateWithLifecycle()
-    val notices by viewModel.notices.collectAsStateWithLifecycle()
+    val pending by viewModel.pendingCount.collectAsStateWithLifecycle()
+    val failures by viewModel.failures.collectAsStateWithLifecycle()
     val online by viewModel.online.collectAsStateWithLifecycle()
     val zone = remember { ZoneId.systemDefault() }
     val listState = rememberLazyListState()
     val fabExpanded by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
-    val refresh = rememberSyncRefresh(lastSynced, viewModel::syncNow)
-    val firstLoad = rememberFirstLoad(fleet.isEmpty, lastSynced)
+    val refresh = rememberSyncRefresh(viewModel::syncNow)
+    val firstLoad = rememberFirstLoad(fleet.isEmpty)
 
     Scaffold(
         topBar = { if (onBack != null) RentalsTopBar(stringResource(R.string.rentals_title), onBack) },
@@ -163,7 +162,7 @@ fun RentalsHomeScreen(
             ) {
                 item(key = "sync", contentType = "sync") {
                     Column {
-                        SyncStatus(online, lastSynced, queue.size, viewModel::syncNow)
+                        SyncStatus(online, pending, refresh)
                         RefreshFailedBanner(refresh)
                     }
                 }
@@ -186,20 +185,18 @@ fun RentalsHomeScreen(
                 // G4: 30-day KPIs for staff with rental.reports (hidden otherwise / while empty).
                 item(key = "kpi30", contentType = "kpi30") { RentalsKpiCard() }
                 item(key = "tasks", contentType = "tasks") { PrimaryTasks(actions) }
-                if (notices.isNotEmpty()) {
+                if (failures.isNotEmpty()) {
                     item(key = "notices", contentType = "header") { SectionHeader(stringResource(R.string.rentals_notices)) }
-                    items(notices, key = { "n:${it.record.entity}:${it.record.id}" }, contentType = { "notice" }) { n ->
-                        val rec = n.record
+                    items(failures, key = { "f:${it.commandId}" }, contentType = { "notice" }) { f ->
                         Surface(
                             shape = MaterialTheme.shapes.large,
                             color = MaterialTheme.colorScheme.surface,
                             modifier = Modifier.fillMaxWidth().padding(horizontal = AvagoSpacing.cardHorizontal, vertical = AvagoSpacing.cardVertical),
                         ) {
-                            NoticeRow(
-                                rec,
-                                onOpen = (rec.orderId ?: rec.id.takeIf { rec.entity == RentalEntity.ORDER })?.let { id -> { actions.onOpenOrder(id) } },
-                                onRetry = n.queueId?.let { q -> { viewModel.retry(q); Unit } },
-                                onDiscard = n.queueId?.let { q -> { viewModel.discard(q); Unit } },
+                            FailureRow(
+                                f,
+                                onOpen = f.orderId?.let { id -> { actions.onOpenOrder(id) } },
+                                onDismiss = { viewModel.dismiss(f.commandId); Unit },
                             )
                         }
                     }
@@ -279,11 +276,11 @@ private fun HomeSkeleton() {
     }
 }
 
-/** "Last synced" + pending count + Sync now, with an offline explanation when disconnected. */
+/** Pending count + Sync now, with an offline explanation when disconnected. */
 @Composable
-private fun SyncStatus(online: Boolean, lastSynced: Long?, pending: Int, onSyncNow: () -> Unit) {
+private fun SyncStatus(online: Boolean, pending: Int, refresh: SyncRefresh) {
     Column {
-        LastSyncedRow(lastSynced, pending, onSyncNow)
+        SyncStatusRow(pending, refresh.onRefresh, syncing = refresh.refreshing)
         if (!online) {
             ErrorBanner(stringResource(R.string.rentals_offline_hint), tone = StatusTone.Warning, icon = Icons.Default.CloudOff)
         }
@@ -465,37 +462,32 @@ internal fun FleetSummaryContent(
     }
 }
 
+/**
+ * A rental change the server refused. A hand-over gate is fixed from its order (sign, enter the
+ * reading or override); any other refusal can only be dismissed, which rolls the change back.
+ */
 @Composable
-internal fun NoticeRow(
-    rec: RentalRecordEntity,
+internal fun FailureRow(
+    failure: RentalFailure,
     onOpen: (() -> Unit)?,
-    onRetry: (() -> Unit)?,
-    onDiscard: (() -> Unit)?,
+    onDismiss: () -> Unit,
 ) {
-    val title = rec.name ?: rec.status ?: rec.entity.removePrefix("rental_").replace('_', ' ')
-    val conflict = rec.localState == RentalRecordEntity.STATE_CONFLICT
-    val failed = isSyncFailed(rec.notice)
+    val title = when (failure.operation) {
+        RentalFailure.OP_CHECKOUT -> stringResource(R.string.rentals_action_checkout)
+        RentalFailure.OP_CHECKIN -> stringResource(R.string.rentals_action_checkin)
+        else -> failure.operation.substringAfterLast('.').replace('_', ' ').replaceFirstChar { it.uppercase() }
+    }
     ListItem(
         modifier = if (onOpen != null) Modifier.clickable(role = Role.Button, onClick = onOpen) else Modifier,
         headlineContent = { Text(title) },
-        leadingContent = {
-            LeadingBadge(Icons.Default.Warning, if (conflict || failed) StatusTone.Danger else StatusTone.Warning)
-        },
+        leadingContent = { LeadingBadge(Icons.Default.Warning, StatusTone.Danger) },
         supportingContent = {
             Column {
-                Text(
-                    noticeText(rec.notice, conflict),
-                    color = if (conflict) toneColors(StatusTone.Danger).content else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                if (onRetry != null || onDiscard != null) {
-                    Row {
-                        onRetry?.let { TextButton(onClick = it, modifier = Modifier.heightIn(min = MinTouch)) { Text(stringResource(R.string.rentals_retry)) } }
-                        onDiscard?.let { TextButton(onClick = it, modifier = Modifier.heightIn(min = MinTouch)) { Text(stringResource(R.string.rentals_discard)) } }
-                    }
-                }
+                Text(failureText(failure), color = toneColors(StatusTone.Danger).content)
+                TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = MinTouch)) { Text(stringResource(R.string.rentals_discard)) }
             }
         },
-        trailingContent = { SyncStateBadge(rec.localState, failed = failed) },
+        trailingContent = { SyncStateBadge(RecordSyncState.FAILED) },
         colors = cardListItemColors(),
     )
 }

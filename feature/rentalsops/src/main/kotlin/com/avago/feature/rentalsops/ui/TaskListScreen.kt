@@ -28,6 +28,7 @@ import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Pending
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Sync
@@ -267,6 +268,7 @@ internal fun kindLabel(k: TaskKind): String = stringResource(
         TaskKind.DELIVERY -> R.string.rentalops_kind_delivery
         TaskKind.PICKUP -> R.string.rentalops_kind_pickup
         TaskKind.TRANSFER -> R.string.rentalops_kind_transfer_task
+        TaskKind.SWAP -> R.string.rentalops_kind_swap
     },
 )
 
@@ -274,12 +276,13 @@ internal fun kindIcon(k: TaskKind) = when (k) {
     TaskKind.DELIVERY -> Icons.Filled.LocalShipping
     TaskKind.PICKUP -> Icons.AutoMirrored.Filled.Undo
     TaskKind.TRANSFER -> Icons.AutoMirrored.Filled.CompareArrows
+    TaskKind.SWAP -> Icons.Filled.SwapHoriz
 }
 
 @Composable
 internal fun statusLabel(s: TaskStatus): String = stringResource(
     when (s) {
-        TaskStatus.PENDING -> R.string.rentalops_status_pending
+        TaskStatus.PLANNED -> R.string.rentalops_status_pending
         TaskStatus.ASSIGNED -> R.string.rentalops_status_assigned
         TaskStatus.EN_ROUTE -> R.string.rentalops_status_en_route
         TaskStatus.ARRIVED -> R.string.rentalops_status_arrived

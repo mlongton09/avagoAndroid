@@ -1,5 +1,7 @@
 package com.avago.feature.rentals.ui
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -45,18 +47,15 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -66,6 +65,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.avago.core.data.domain.RecordSyncState
 import com.avago.core.data.rental.FleetStatus
 import com.avago.core.data.rental.LocalFleet
 import com.avago.core.design.theme.AvagoSpacing
@@ -99,8 +99,7 @@ fun RentalFleetScreen(
     val units by viewModel.visibleUnits.collectAsStateWithLifecycle()
     val filter by viewModel.statusFilter.collectAsStateWithLifecycle()
     val query by viewModel.query.collectAsStateWithLifecycle()
-    val lastSynced by viewModel.lastSyncedAt.collectAsStateWithLifecycle()
-    val queue by viewModel.queue.collectAsStateWithLifecycle()
+    val pending by viewModel.pendingCount.collectAsStateWithLifecycle()
     var showAvailability by rememberSaveable { mutableStateOf(openFindFree) }
     val width = currentWindowAdaptiveInfo().windowSizeClass.minWidthDp
     val columns = when {
@@ -109,8 +108,8 @@ fun RentalFleetScreen(
         else -> 1
     }
     val zone = ZoneId.systemDefault()
-    val refresh = rememberSyncRefresh(lastSynced, viewModel::syncNow)
-    val firstLoad = rememberFirstLoad(fleet.isEmpty, lastSynced)
+    val refresh = rememberSyncRefresh(viewModel::syncNow)
+    val firstLoad = rememberFirstLoad(fleet.isEmpty)
 
     Scaffold(
         topBar = {
@@ -136,7 +135,7 @@ fun RentalFleetScreen(
                     item(key = "refresh-failed", span = { GridItemSpan(maxLineSpan) }, contentType = "banner") { RefreshFailedBanner(refresh) }
                 }
                 item(key = "sync", span = { GridItemSpan(maxLineSpan) }, contentType = "sync") {
-                    LastSyncedRow(lastSynced, queue.size, viewModel::syncNow)
+                    SyncStatusRow(pending, refresh.onRefresh, syncing = refresh.refreshing)
                 }
                 item(key = "search", span = { GridItemSpan(maxLineSpan) }, contentType = "search") {
                     RentalSearchField(query, viewModel::setQuery, stringResource(R.string.rentals_search_fleet))
@@ -269,7 +268,7 @@ private fun FleetUnitCard(
                         verticalArrangement = Arrangement.spacedBy(AvagoSpacing.xs),
                     ) {
                         FleetStatusChip(r.status)
-                        if (r.local || r.readinessPending) SyncStateBadge(com.avago.core.data.db.rental.RentalRecordEntity.STATE_PENDING)
+                        if (r.readinessPending) SyncStateBadge(RecordSyncState.PENDING)
                     }
                 }
             }

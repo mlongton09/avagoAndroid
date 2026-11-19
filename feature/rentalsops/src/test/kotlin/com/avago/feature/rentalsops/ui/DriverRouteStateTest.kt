@@ -4,6 +4,7 @@ import com.avago.feature.rentalsops.data.CachedJson
 import com.avago.feature.rentalsops.data.RentalOpsRepository.Fetch
 import com.avago.feature.rentalsops.data.TaskView
 import com.avago.feature.rentalsops.domain.DeliveryTask
+import com.avago.feature.rentalsops.domain.TaskKind
 import com.avago.feature.rentalsops.domain.TaskStatus
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -25,9 +26,12 @@ class DriverRouteStateTest {
     private fun ms(iso: String) = Instant.parse(iso).toEpochMilli()
     private val serverRoute = obj("""{"date":"2026-06-10","stops":[{"task_id":"srv","status":"assigned","route_seq":1}]}""")
     private val local = TaskView(
-        DeliveryTask.from(
-            obj("""{"id":"srv","kind":"delivery","status":"assigned","driver_user_id":"me","scheduled_at":"2026-06-10T09:00:00Z"}"""),
-        )!!,
+        DeliveryTask(
+            id = "srv", kind = TaskKind.DELIVERY, status = TaskStatus.ASSIGNED, orderId = null, transferId = null, address = null,
+            lat = null, lng = null, contactName = null, contactPhone = null, scheduledAt = Instant.parse("2026-06-10T09:00:00Z"),
+            windowEnd = null, driverUserId = "me", routeSeq = null, notes = null, failedReason = null, orderNumber = null,
+            customerName = null, jobSiteName = null,
+        ),
         TaskStatus.EN_ROUTE,
         emptyList(),
     )

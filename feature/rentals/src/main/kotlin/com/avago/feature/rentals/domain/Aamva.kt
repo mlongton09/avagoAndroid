@@ -37,6 +37,15 @@ object Aamva {
     fun looksLikeAamva(raw: String): Boolean =
         raw.trimStart().startsWith("@") && (raw.contains("ANSI ") || raw.contains("AAMVA"))
 
+    /** ISO 3166-1 alpha-3 → alpha-2 for the AAMVA jurisdictions (`issuing_country` is two letters). */
+    fun countryAlpha2(country: String?): String? = when (val c = country?.trim()?.uppercase()) {
+        null, "" -> null
+        "USA" -> "US"
+        "CAN" -> "CA"
+        "MEX" -> "MX"
+        else -> c.takeIf { it.length == 2 }
+    }
+
     fun parse(raw: String): License? {
         if (!looksLikeAamva(raw)) return null
         val fields = HashMap<String, String>()

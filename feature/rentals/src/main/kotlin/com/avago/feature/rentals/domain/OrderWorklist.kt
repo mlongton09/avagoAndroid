@@ -30,11 +30,12 @@ object OrderWorklist {
 
     /** A quote/draft is not a receivable; a closed order can still have an unpaid balance. */
     fun balanceDue(order: OrderView): Money? = order.balance?.takeIf {
-        it.minor > 0 && !order.isDraft &&
+        it.minor > 0 &&
             order.status !in setOf(OrderStatus.DRAFT, OrderStatus.QUOTED, OrderStatus.CANCELLED)
     }
 
-    fun canRecordPayment(order: OrderView): Boolean = !order.isLegacy && !order.isDraft
+    fun canRecordPayment(order: OrderView): Boolean =
+        !order.isLegacy && order.status !in setOf(OrderStatus.DRAFT, OrderStatus.QUOTED, OrderStatus.CANCELLED)
 
     fun select(orders: List<OrderView>, filter: OrderFilter, query: String, now: Instant): List<OrderView> {
         val search = query.trim()

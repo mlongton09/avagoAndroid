@@ -9,11 +9,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.avago.core.data.rental.FleetStatus
 import com.avago.feature.rentals.domain.HandoverTarget
-import com.avago.feature.rentals.legacy.AssetRentalsScreen
-import com.avago.feature.rentals.legacy.RentalBookingScreen
-import com.avago.feature.rentals.legacy.RentalInvoiceScreen
-import com.avago.feature.rentals.legacy.RentalCustomerFormScreen as LegacyCustomerFormScreen
-import com.avago.feature.rentals.legacy.RentalCustomersScreen as LegacyCustomersScreen
 import com.avago.feature.rentals.ui.AssetRentalScreen
 import com.avago.feature.rentals.ui.DocumentCaptureScreen
 import com.avago.feature.rentals.ui.HandoverScreen
@@ -34,7 +29,6 @@ import java.time.Instant
 
 /** Routes of the rentals feature (§14). All screens own their top bar. */
 object RentalsRoute {
-    const val ONBOARDING = "rentals/onboarding"
     const val PREFIX = "rentals/"
     const val HOME = "rentals/home"
     const val FLEET = "rentals/fleet?status={status}&find={find}"
@@ -52,12 +46,6 @@ object RentalsRoute {
     const val SWAP = "rentals/swap/{orderId}"
     const val SIGN = "rentals/order/{orderId}/sign"
 
-    // Legacy (pre-v2) rental screens kept reachable from the asset Rental tab.
-    const val LEGACY_ASSET = "rentals/legacy/asset/{assetId}"
-    const val LEGACY_BOOKING = "rentals/legacy/booking/{assetId}"
-    const val LEGACY_CUSTOMERS = "rentals/legacy/customers"
-    const val LEGACY_CUSTOMER_FORM = "rentals/legacy/customer_form?customerId={customerId}"
-    const val LEGACY_INVOICE = "rentals/legacy/invoice/{invoiceId}"
 
     fun fleet(status: FleetStatus? = null) = "rentals/fleet?status=${status?.wire.orEmpty()}"
     /** Fleet board with the "find free units" sheet open. */
@@ -75,10 +63,6 @@ object RentalsRoute {
     fun readiness(assetId: String) = "rentals/readiness/${Uri.encode(assetId)}"
     fun swap(orderId: String) = "rentals/swap/${Uri.encode(orderId)}"
     fun sign(orderId: String) = "rentals/order/${Uri.encode(orderId)}/sign"
-    fun legacyAsset(assetId: String) = "rentals/legacy/asset/${Uri.encode(assetId)}"
-    fun legacyBooking(assetId: String) = "rentals/legacy/booking/${Uri.encode(assetId)}"
-    fun legacyCustomerForm(customerId: String?) = "rentals/legacy/customer_form?customerId=${Uri.encode(customerId.orEmpty())}"
-    fun legacyInvoice(invoiceId: String) = "rentals/legacy/invoice/${Uri.encode(invoiceId)}"
 }
 
 private fun optString(name: String) = navArgument(name) { type = NavType.StringType; nullable = true; defaultValue = null }
@@ -99,10 +83,6 @@ fun NavGraphBuilder.rentalsNavGraph(
     val back: () -> Unit = { navController.popBackStack() }
     fun go(route: String) = navController.navigate(route) { launchSingleTop = true }
     val handover: (String, String) -> Unit = { orderId, direction -> go(RentalsRoute.handover(orderId, direction)) }
-    composable(RentalsRoute.ONBOARDING) {
-        com.avago.feature.rentals.onboarding.OnboardingScreen(onBack = back)
-    }
-
     composable(RentalsRoute.HOME) {
         RentalsHomeScreen(
             onBack = null,
@@ -119,7 +99,6 @@ fun NavGraphBuilder.rentalsNavGraph(
                 onHandover = handover,
             ),
             operations = {
-                com.avago.feature.rentals.onboarding.OnboardingEntry(onOpen = { go(RentalsRoute.ONBOARDING) })
                 operationsEntries?.invoke { route -> go(route) }
             },
         )
@@ -154,7 +133,6 @@ fun NavGraphBuilder.rentalsNavGraph(
             onSwap = { go(RentalsRoute.swap(it)) },
             onSign = { go(RentalsRoute.sign(it)) },
             onAddDocument = { go(RentalsRoute.document(it)) },
-            onOpenLegacyAsset = { go(RentalsRoute.legacyAsset(it)) },
         )
     }
     composable(
@@ -237,46 +215,9 @@ fun NavGraphBuilder.rentalsNavGraph(
             onBack = back,
             onBook = { go(RentalsRoute.quickBook(it)) },
             onOpenOrder = { go(RentalsRoute.order(it)) },
-            onOpenLegacy = { go(RentalsRoute.legacyAsset(it)) },
             onReadiness = { go(RentalsRoute.readiness(it)) },
             onHandover = handover,
         )
     }
 
-    // ── Legacy screens ──
-    composable(RentalsRoute.LEGACY_ASSET, arguments = listOf(reqString("assetId"))) { entry ->
-        val assetId = entry.arguments?.getString("assetId").orEmpty()
-        AssetRentalsScreen(
-            assetId = assetId,
-            onBack = back,
-            onOpenBooking = { go(RentalsRoute.legacyBooking(assetId)) },
-            onOpenCustomers = { go(RentalsRoute.LEGACY_CUSTOMERS) },
-            onOpenInvoice = { go(RentalsRoute.legacyInvoice(it)) },
-        )
-    }
-    composable(RentalsRoute.LEGACY_BOOKING, arguments = listOf(reqString("assetId"))) { entry ->
-        RentalBookingScreen(
-            assetId = entry.arguments?.getString("assetId").orEmpty(),
-            onBack = back,
-            onNavigateToNewCustomer = { go(RentalsRoute.legacyCustomerForm(null)) },
-            onBooked = back,
-        )
-    }
-    composable(RentalsRoute.LEGACY_CUSTOMERS) {
-        LegacyCustomersScreen(
-            onBack = back,
-            onAddCustomer = { go(RentalsRoute.legacyCustomerForm(null)) },
-            onEditCustomer = { go(RentalsRoute.legacyCustomerForm(it)) },
-        )
-    }
-    composable(RentalsRoute.LEGACY_CUSTOMER_FORM, arguments = listOf(optString("customerId"))) { entry ->
-        LegacyCustomerFormScreen(
-            customerId = entry.arguments?.getString("customerId")?.takeIf { it.isNotBlank() },
-            onBack = back,
-            onSaved = back,
-        )
-    }
-    composable(RentalsRoute.LEGACY_INVOICE, arguments = listOf(reqString("invoiceId"))) { entry ->
-        RentalInvoiceScreen(invoiceId = entry.arguments?.getString("invoiceId").orEmpty(), onBack = back)
-    }
 }

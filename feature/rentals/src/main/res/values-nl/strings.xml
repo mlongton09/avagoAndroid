@@ -31,7 +31,6 @@
     <string name="rentals_cancel">Annuleren</string>
     <string name="rentals_card_brand">Kaartmerk</string>
     <string name="rentals_card_last4">Laatste 4 cijfers</string>
-    <string name="rentals_class">Klasse</string>
     <string name="rentals_class_codes">Rijbewijscategorieën</string>
     <string name="rentals_company">Bedrijf</string>
     <string name="rentals_complete_checkin">Inchecken voltooien</string>
@@ -71,7 +70,6 @@
     <string name="rentals_documents">Documenten</string>
     <string name="rentals_done">Klaar</string>
     <string name="rentals_draft_explainer">Offline opgeslagen als concept. Wordt bevestigd zodra je online bent.</string>
-    <string name="rentals_draft_generic">Concept wacht op bevestiging</string>
     <string name="rentals_draft_order">Conceptorder</string>
     <string name="rentals_due">Vervalt</string>
     <string name="rentals_due_back">Retour %1$s</string>
@@ -87,7 +85,6 @@
     <string name="rentals_event_pickup">Ophalen</string>
     <string name="rentals_event_return">Retour</string>
     <string name="rentals_expires">Verloopt</string>
-    <string name="rentals_expires_on">Verloopt %1$s</string>
     <string name="rentals_extend_explainer">Kies het nieuwe einde. De server herberekent de prijs.</string>
     <string name="rentals_filter_active">Actief</string>
     <string name="rentals_filter_all">Alle (%1$d)</string>
@@ -105,7 +102,6 @@
     <string name="rentals_hand_to_customer">Aan klant geven om te tekenen</string>
     <string name="rentals_handover_no_unit">Er is nog geen eenheid aan deze order toegewezen.</string>
     <string name="rentals_handover_offline_note">Offline: de overdracht behoudt de apparaattijd en wordt op volgorde geüpload (foto\'s, inspectie, handtekening, overdracht, betalingen).</string>
-    <string name="rentals_handovers">Overdrachten</string>
     <string name="rentals_hold_expires">Optie verloopt</string>
     <string name="rentals_increase">Verhogen</string>
     <string name="rentals_inspection">Inspectie</string>
@@ -121,8 +117,6 @@
     <string name="rentals_kind_other">Overig</string>
     <string name="rentals_kind_payment">Betaling</string>
     <string name="rentals_kind_refund">Terugbetaling</string>
-    <string name="rentals_last_synced">Laatst gesynchroniseerd %1$s</string>
-    <string name="rentals_legacy_rentals">Verhuurgeschiedenis</string>
     <string name="rentals_licence_hint">Scan de barcode op de achterkant van het rijbewijs.</string>
     <string name="rentals_licence_read">Rijbewijs gelezen. Klant aanmaken?</string>
     <string name="rentals_lines">Regels</string>
@@ -142,7 +136,6 @@
     <string name="rentals_method_other">Overig</string>
     <string name="rentals_method_voucher">Waardebon</string>
     <string name="rentals_name">Naam</string>
-    <string name="rentals_never_synced">Nog niet gesynchroniseerd</string>
     <string name="rentals_new_customer">Nieuwe klant</string>
     <string name="rentals_new_damage_count">%1$d nieuwe schades</string>
     <string name="rentals_new_end">Nieuw einde</string>
@@ -174,11 +167,9 @@
     <string name="rentals_orders">Orders</string>
     <string name="rentals_orders_empty">Nog geen orders</string>
     <string name="rentals_paid">Betaald</string>
-    <string name="rentals_payer_email">E-mail betaler</string>
     <string name="rentals_payer_name">Naam betaler</string>
     <string name="rentals_payment_manual_note">Registreer een betaling die buiten de app is ontvangen. Er wordt geen kaart belast.</string>
     <string name="rentals_payments">Betalingen</string>
-    <string name="rentals_payments_empty">Geen betalingen vastgelegd</string>
     <string name="rentals_pending_count">%1$d in behandeling</string>
     <string name="rentals_phone">Telefoon</string>
     <string name="rentals_price_confirmed">Prijs bevestigd door server</string>
@@ -227,8 +218,6 @@
     <string name="rentals_status_on_rent">Verhuurd</string>
     <string name="rentals_status_overdue">Te laat</string>
     <string name="rentals_status_reserved">Gereserveerd</string>
-    <string name="rentals_sync_conflict">Conflict</string>
-    <string name="rentals_sync_draft">Concept</string>
     <string name="rentals_sync_now">Nu synchroniseren</string>
     <string name="rentals_sync_pending">Wacht op synchronisatie</string>
     <string name="rentals_tax">Btw</string>
@@ -249,12 +238,6 @@
     <string name="rentals_date_placeholder">JJJJ-MM-DD</string>
     <string name="rentals_sync_failed">Synchronisatie mislukt: %1$s. Probeer opnieuw na de serverupdate of verwijder.</string>
     <string name="rentals_sync_failed_badge">Sync mislukt</string>
-    <string name="rentals_server_warnings">Opgeslagen met waarschuwingen: %1$s</string>
-    <string name="rentals_field_conflict">Hier en door iemand anders gewijzigd: %1$s. Opnieuw behoudt jouw waarden; Verwijderen behoudt die van de ander.</string>
-    <string name="rentals_field_status">Status</string>
-    <string name="rentals_field_return_date">Retourdatum</string>
-    <string name="rentals_field_language">Taal</string>
-    <string name="rentals_confirmed_with_conflict">Bevestigd, maar een eenheid overlapt met een andere boeking. Controleer de toewijzing.</string>
     <string name="rentals_damage_decision_charge">Doorberekenen</string>
     <string name="rentals_damage_decision_waive">Kwijtschelden</string>
     <string name="rentals_damage_charge">Schadebedrag (%1$s)</string>
@@ -268,7 +251,6 @@
     <string name="rentals_readiness_item_cleaned">Gereinigd</string>
     <string name="rentals_readiness_item_refuelled">Getankt / opgeladen</string>
     <string name="rentals_readiness_item_accessories">Accessoires compleet</string>
-    <string name="rentals_readiness_status">Status: %1$s</string>
     <string name="rentals_readiness_status_pending">In afwachting</string>
     <string name="rentals_readiness_status_passed">Goedgekeurd</string>
     <string name="rentals_readiness_status_failed">Afgekeurd</string>
@@ -286,8 +268,6 @@
     <string name="rentals_readiness_error_not_allowed">U mag gereedheidscontroles niet kwijtschelden.</string>
     <string name="rentals_readiness_error_closed">Deze controle is al afgesloten.</string>
     <string name="rentals_readiness_waive_needs_permission">Kwijtschelden vereist de machtiging om gereedheid te overschrijven.</string>
-    <string name="rentals_readiness_add_photo_for">Foto toevoegen voor %1$s</string>
-    <string name="rentals_readiness_photo_count">Foto’s: %1$d</string>
     <string name="rentals_readiness_new_check">Nieuwe controle starten</string>
     <string name="rentals_readiness_camera_denied">Cameratoegang is nodig om foto’s te maken.</string>
     <string name="rentals_line_status_open">Open</string>
@@ -304,7 +284,6 @@
     <string name="rentals_swap_returning">Terugkomende eenheid</string>
     <string name="rentals_swap_outgoing">Uitgaande vervanger</string>
     <string name="rentals_swap_confirm">Wisselen</string>
-    <string name="rentals_new_booking">Nieuwe boeking</string>
     <string name="rentals_scan_checkout">Eenheid scannen / Uitchecken</string>
     <string name="rentals_check_in">Inchecken</string>
     <string name="rentals_available_now">%1$d nu beschikbaar</string>
@@ -315,11 +294,8 @@
     <string name="rentals_find_free_sub">Zie wat vrij is op uw data en boek het</string>
     <string name="rentals_bookings_customers">Boekingen en klanten</string>
     <string name="rentals_today_overdue">Te laat</string>
-    <string name="rentals_today_overdue_empty">Niets te laat.</string>
     <string name="rentals_today_going_out">Gaat vandaag weg</string>
-    <string name="rentals_today_going_out_empty">Vandaag geen ophalingen. Gebruik Nieuwe boeking om een eenheid te reserveren.</string>
     <string name="rentals_today_due_back">Vandaag terug</string>
-    <string name="rentals_today_due_back_empty">Vandaag geen retouren. Gebruik Inchecken als een eenheid terugkomt.</string>
     <string name="rentals_today_maintenance">Onderhoud vandaag</string>
     <string name="rentals_offline_hint">U bent offline. Wijzigingen worden op dit apparaat bewaard en automatisch gesynchroniseerd.</string>
     <string name="rentals_scan_title_out">Eenheid scannen om uit te checken</string>
@@ -331,5 +307,4 @@
     <string name="rentals_reason_open_work_order">Open werkorder</string>
     <string name="rentals_reason_readiness_checklist">Gereedheidscontrole open</string>
     <string name="rentals_reason_maintenance_open">In onderhoud</string>
-    <string name="rentals_invoice_void_confirm">Deze factuur wordt ongeldig gemaakt. Dit kan niet ongedaan worden gemaakt.</string>
 </resources>

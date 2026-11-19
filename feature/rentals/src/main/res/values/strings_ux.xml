@@ -30,7 +30,7 @@
     <string name="rentals_more_details">More details</string>
     <string name="rentals_name_required">Please enter a name</string>
     <string name="rentals_date_invalid">Use the format %1$s</string>
-    <string name="rentals_documents_none">No documents yet</string>
+    <string name="rentals_documents_hint">Add a licence, ID or insurance document; it is reviewed on the server.</string>
     <string name="rentals_scan_result">Scan result</string>
     <string name="rentals_status">Status</string>
     <string name="rentals_readiness_progress">%1$d of %2$d done</string>

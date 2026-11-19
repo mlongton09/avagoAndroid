@@ -56,7 +56,7 @@ import com.avago.core.ui.components.KpiItem
 import com.avago.core.ui.components.LeadingBadge
 import com.avago.core.ui.components.SectionCard
 import com.avago.core.ui.components.StatusTone
-import com.avago.feature.rentalsops.data.PendingAction
+import com.avago.feature.rentalsops.data.QueueSummary
 import com.avago.feature.rentalsops.data.RentalOpsAccess
 import com.avago.feature.rentalsops.data.RentalOpsRepository
 import com.avago.feature.rentalsops.domain.OpsCounts
@@ -72,10 +72,10 @@ import kotlinx.coroutines.flow.stateIn
 data class HomeState(
     val access: RentalOpsAccess = RentalOpsAccess.NONE,
     val counts: OpsCounts = OpsCounts.EMPTY,
-    val queue: List<PendingAction> = emptyList(),
+    val queue: QueueSummary = QueueSummary(0, 0),
 ) {
-    val waiting: Int get() = queue.count { !it.rejected && !it.parked }
-    val rejected: Int get() = queue.count { it.rejected || it.parked }
+    val waiting: Int get() = queue.waiting
+    val rejected: Int get() = queue.rejected
 }
 
 @HiltViewModel

@@ -64,9 +64,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.data.db.rental.RentalRecordEntity
 import com.avago.core.data.rental.LocalFleet
-import com.avago.core.network.rentals.RentalsApi
 import com.avago.core.ui.components.BottomActionBar
 import com.avago.core.ui.components.CardDivider
 import com.avago.core.ui.components.ErrorBanner
@@ -74,16 +72,16 @@ import com.avago.core.ui.components.rememberHaptics
 import com.avago.core.ui.components.SectionCard
 import com.avago.core.ui.components.StatusPill
 import com.avago.core.ui.components.StatusTone
-import com.avago.feature.rentals.data.RentalRepository
-import com.avago.feature.rentals.data.RentalRequests
+import com.avago.core.data.domain.RentalBookingDraft
+import com.avago.core.data.domain.RentalRepository
+import com.avago.feature.rentals.data.BookingQuery
+import com.avago.feature.rentals.data.RentalsOnline
 import com.avago.feature.rentals.domain.Availability
 import com.avago.feature.rentals.domain.ClassView
 import com.avago.feature.rentals.domain.CustomerView
 import com.avago.feature.rentals.domain.LocalSchedule
-import com.avago.feature.rentals.domain.obj
 import com.avago.feature.rentals.domain.InstantBookCheck
 import com.avago.feature.rentals.domain.PricingDisplay
-import com.avago.feature.rentals.domain.RentalEntity
 import com.avago.feature.rentals.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.asStateFlow
@@ -116,7 +114,7 @@ data class UnitOption(val assetId: String, val name: String, val classId: String
 @HiltViewModel
 class QuickBookViewModel @Inject constructor(
     private val repo: RentalRepository,
-    private val api: RentalsApi,
+    private val online: RentalsOnline,
     savedState: SavedStateHandle,
 ) : ViewModel() {
     private val initialAsset: String? = savedState.get<String>("assetId")?.takeIf { it.isNotBlank() }
@@ -136,20 +134,20 @@ class QuickBookViewModel @Inject constructor(
     )
     val form: StateFlow<QuickBookForm> = _form.asStateFlow()
 
-    val units: StateFlow<List<UnitOption>> = repo.records(RentalEntity.FLEET)
-        .map { rows -> rows.mapNotNull(LocalFleet::unitOf).map { UnitOption(it.assetId, it.name, it.classId, it.timeZone, it.locationId) }.sortedBy { it.name } }
+    private val fleet = repo.observeFleet().stateIn(viewModelScope, SharingStarted.Eagerly, LocalFleet.Inputs.EMPTY)
+
+    val units: StateFlow<List<UnitOption>> = fleet
+        .map { f -> f.units.map { UnitOption(it.assetId, it.name, it.classId, it.timeZone, it.locationId) }.sortedBy { it.name } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-    val classes: StateFlow<List<ClassView>> = repo.records(RentalEntity.CLASS)
-        .map { rows -> rows.map(ClassView::of).sortedBy { it.name } }
+    val classes: StateFlow<List<ClassView>> = repo.observeClasses()
+        .map { rows -> rows.filter { it.active }.map(ClassView::of).sortedBy { it.name } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-    val customers: StateFlow<List<CustomerView>> = repo.records(RentalEntity.CUSTOMER)
-        .map { rows -> rows.map(CustomerView::of).sortedBy { it.name.lowercase() } }
+    val customers: StateFlow<List<CustomerView>> = repo.observeCustomers()
+        .map { rows -> rows.filterNot { it.archived }.map(CustomerView::of).sortedBy { it.name.lowercase() } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-    private val rateCards = repo.records(RentalEntity.RATE_CARD).stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-    private val fleetRecords = repo.fleetInputs().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     init {
-        // Adopt the unit's location time zone (§8) once the fleet is loaded.
+        // Adopt the unit's location time zone (?8) once the fleet is loaded.
         viewModelScope.launch {
             val u = units.first { list -> initialAsset == null || list.any { it.assetId == initialAsset } }
             initialAsset?.let { id -> u.firstOrNull { it.assetId == id }?.let(::selectUnit) }
@@ -163,10 +161,7 @@ class QuickBookViewModel @Inject constructor(
         }
     }
 
-    /** Offline estimate; replaced by the server preview when online. */
-    val preview: StateFlow<PricingDisplay?> = combine(_form, rateCards, units) { f, cards, us -> localPreview(f, cards, us) }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
-
+    /** The server price of the current form; null offline or before a unit / class is picked. */
     private val _serverPreview = MutableStateFlow<PricingDisplay?>(null)
     val serverPreview: StateFlow<PricingDisplay?> = _serverPreview.asStateFlow()
 
@@ -175,10 +170,10 @@ class QuickBookViewModel @Inject constructor(
     val instant: StateFlow<InstantBookCheck?> = _instant.asStateFlow()
 
     /** Offline conflict check against synced allocations. */
-    val conflict: StateFlow<Availability.UnitResult?> = combine(_form, fleetRecords) { f, recs ->
+    val conflict: StateFlow<Availability.UnitResult?> = combine(_form, fleet) { f, inputs ->
         val id = f.assetId ?: return@combine null
         if (!f.end.isAfter(f.start)) return@combine null
-        Availability.unit(id, LocalSchedule.busy(recs), f.start, f.end, Instant.now()).takeIf { !it.available }
+        Availability.unit(id, LocalSchedule.busy(inputs), f.start, f.end, Instant.now()).takeIf { !it.available }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private val _saved = MutableSharedFlow<String>(extraBufferCapacity = 1)
@@ -192,35 +187,12 @@ class QuickBookViewModel @Inject constructor(
                 _serverPreview.value = null
                 _instant.value = null
                 if (!f.end.isAfter(f.start) || (f.assetId == null && f.classId == null)) return@collect
-                val acc = repo.accountId.first() ?: return@collect
-                try {
-                    val res = api.pricingPreview(acc, RentalRequests.pricingPreview(input(f, null)))
-                    _serverPreview.value = PricingDisplay.fromServer(res)
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    Timber.d(e, "pricing preview offline")
-                }
-                try {
-                    _instant.value = InstantBookCheck.from(api.instantBookEvaluate(acc, RentalRequests.instantBookEvaluate(input(f, null))))
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    // Older servers (404) and staff without rental.view simply hide the badge.
-                    Timber.d(e, "instant-book evaluate unavailable")
-                }
+                val q = query(f)
+                (online.pricingPreview(q) as? RentalsOnline.Result.Ok)?.let { _serverPreview.value = PricingDisplay.fromServer(it.value) }
+                // Staff without rental.view (403) and offline simply hide the badge.
+                (online.instantBookEvaluate(q) as? RentalsOnline.Result.Ok)?.let { _instant.value = InstantBookCheck.from(it.value) }
             }
         }
-    }
-
-    private fun cardFor(classId: String?, locationId: String?, cards: List<RentalRecordEntity>): RentalRecordEntity? =
-        cards.filter { it.classId == classId }.sortedBy { if (it.locationId == locationId) 0 else if (it.locationId == null) 1 else 2 }.firstOrNull()
-
-    private fun localPreview(f: QuickBookForm, cards: List<RentalRecordEntity>, us: List<UnitOption>): PricingDisplay? {
-        val unit = us.firstOrNull { it.assetId == f.assetId }
-        val classId = f.classId ?: unit?.classId ?: return null
-        val card = cardFor(classId, unit?.locationId, cards) ?: return null
-        return PricingDisplay.estimate(card.obj, unit?.name ?: classes.value.firstOrNull { it.id == classId }?.name ?: "", f.start, f.end)
     }
 
     fun selectUnit(u: UnitOption?) {
@@ -235,36 +207,47 @@ class QuickBookViewModel @Inject constructor(
     }
     fun setEnd(t: Instant) { _form.value = _form.value.copy(end = t) }
 
+    private fun unitOf(f: QuickBookForm): UnitOption? = units.value.firstOrNull { it.assetId == f.assetId }
+
     private fun currencyFor(f: QuickBookForm): String {
-        val unit = units.value.firstOrNull { it.assetId == f.assetId }
-        val classId = f.classId ?: unit?.classId
-        return preview.value?.currency
+        val classId = f.classId ?: unitOf(f)?.classId
+        return serverPreview.value?.currency
             ?: classes.value.firstOrNull { it.id == classId }?.currency
             ?: runCatching { Currency.getInstance(Locale.getDefault()).currencyCode }.getOrDefault("USD")
     }
 
-    private fun input(f: QuickBookForm, action: String?): RentalRepository.BookingInput {
-        val unit = units.value.firstOrNull { it.assetId == f.assetId }
-        return RentalRepository.BookingInput(
-            customerId = f.customer?.id,
-            customerName = f.customer?.name,
+    private fun query(f: QuickBookForm): BookingQuery {
+        val unit = unitOf(f)
+        return BookingQuery(
             classId = f.classId ?: unit?.classId,
             assetId = f.assetId,
-            assetName = unit?.name,
+            customerId = f.customer?.id,
             locationId = unit?.locationId,
             currency = currencyFor(f),
             start = f.start,
             end = f.end,
-            action = action,
-            estimate = (serverPreview.value ?: preview.value)?.total,
-            zoneId = f.zone.id,
         )
     }
 
     fun book(action: String?) = viewModelScope.launch {
         val f = _form.value
+        val unit = unitOf(f)
         try {
-            _saved.emit(repo.createBooking(input(f, action)))
+            val id = repo.createBooking(
+                RentalBookingDraft(
+                    customerPartyId = f.customer?.id,
+                    walkInName = null,
+                    classId = f.classId ?: unit?.classId,
+                    assetId = f.assetId,
+                    description = unit?.name ?: classes.value.firstOrNull { it.id == f.classId }?.name,
+                    locationId = unit?.locationId,
+                    currency = currencyFor(f),
+                    startAt = f.start,
+                    endAt = f.end,
+                    action = action,
+                ),
+            )
+            _saved.emit(id)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -291,7 +274,6 @@ fun QuickBookScreen(
     val units by viewModel.units.collectAsStateWithLifecycle()
     val classes by viewModel.classes.collectAsStateWithLifecycle()
     val customers by viewModel.customers.collectAsStateWithLifecycle()
-    val local by viewModel.preview.collectAsStateWithLifecycle()
     val server by viewModel.serverPreview.collectAsStateWithLifecycle()
     val instant by viewModel.instant.collectAsStateWithLifecycle()
     val conflict by viewModel.conflict.collectAsStateWithLifecycle()
@@ -428,7 +410,7 @@ fun QuickBookScreen(
                     }
                 }
             }
-            PricePreviewCard(server ?: local)
+            PricePreviewCard(server)
             instant?.let { InstantBookCard(it) }
             Text(
                 stringResource(R.string.rentals_booking_offline_note),

@@ -43,7 +43,6 @@
     <string name="rentalops_assign_empty">Todas as reservas por classe têm unidade</string>
     <string name="rentalops_assign_no_units">Nenhuma unidade livre desta classe nessas datas</string>
     <string name="rentalops_assign_offline">Offline: disponibilidade deste dispositivo, verificada ao sincronizar</string>
-    <string name="rentalops_assign_pending">Atribuindo %1$s…</string>
     <string name="rentalops_assign_sub">Reservas por classe aguardando uma unidade</string>
     <string name="rentalops_assign_title">Atribuir unidades</string>
     <string name="rentalops_assign_unit">Atribuir unidade</string>
@@ -69,23 +68,19 @@
     <string name="rentalops_channel_return_due_desc">Aluguéis após a data de devolução</string>
     <string name="rentalops_channel_transfer">Transferências entre filiais</string>
     <string name="rentalops_channel_transfer_desc">Tarefas de transferência atribuídas, concluídas ou com falha</string>
-    <string name="rentalops_class_free">Unidades livres: %1$d</string>
-    <string name="rentalops_class_full">Nenhuma unidade livre neste período</string>
     <string name="rentalops_class_line">Reserva por classe</string>
     <string name="rentalops_clear">Limpar</string>
     <string name="rentalops_complete_confirm">Concluir a tarefa com %1$d foto(s) e %2$d assinatura(s)?</string>
-    <string name="rentalops_counts_a11y">%1$d alugadas, %2$d com devolução hoje, %3$d atrasadas</string>
     <string name="rentalops_counts_due_today">Vencem hoje</string>
     <string name="rentalops_counts_out">Alugadas</string>
     <string name="rentalops_counts_overdue">Atrasadas</string>
     <string name="rentalops_credit">Crédito do cliente: %1$s</string>
     <string name="rentalops_customer">Cliente</string>
     <string name="rentalops_customers">Clientes</string>
-    <string name="rentalops_discard">Descartar</string>
+    <string name="rentalops_discard">Dispensar</string>
     <string name="rentalops_err_driver">Atribua um motorista antes de iniciar</string>
     <string name="rentalops_err_forbidden">Você não tem permissão para ver isto</string>
     <string name="rentalops_err_invalid">Essa etapa não é possível no status atual</string>
-    <string name="rentalops_err_media_missing">Uma foto de comprovação está faltando neste dispositivo</string>
     <string name="rentalops_err_offline">Não foi possível carregar. Verifique a conexão e tente novamente.</string>
     <string name="rentalops_err_proof">Adicione uma foto ou uma assinatura com o nome de quem assina</string>
     <string name="rentalops_err_reason">Informe um motivo</string>
@@ -113,11 +108,8 @@
     <string name="rentalops_invoice_dates">Emitida %1$s · vence %2$s</string>
     <string name="rentalops_invoices">Faturas</string>
     <string name="rentalops_job_site">Obra: %1$s</string>
-    <string name="rentalops_kind_assignment">Atribuição de unidade</string>
     <string name="rentalops_kind_delivery">Entrega</string>
     <string name="rentalops_kind_pickup">Coleta</string>
-    <string name="rentalops_kind_task_update">Atualização de tarefa</string>
-    <string name="rentalops_kind_transfer">Transferência entre filiais</string>
     <string name="rentalops_kind_transfer_task">Transferência</string>
     <string name="rentalops_navigate">Navegar</string>
     <string name="rentalops_no_access">Você não tem acesso às operações de aluguel.</string>
@@ -137,7 +129,6 @@
     <string name="rentalops_photo_failed">Não foi possível salvar a foto</string>
     <string name="rentalops_photo_n">Foto %1$d</string>
     <string name="rentalops_prefs_device_only">Estas configurações valem apenas neste dispositivo</string>
-    <string name="rentalops_prefs_offline">Offline: mostrando as configurações salvas neste dispositivo</string>
     <string name="rentalops_proof_none">Ainda sem fotos ou assinatura</string>
     <string name="rentalops_proof_optional">Comprovante (opcional)</string>
     <string name="rentalops_proof_required">Comprovante de entrega (foto ou assinatura com nome obrigatória)</string>
@@ -153,7 +144,7 @@
     <string name="rentalops_reassigned_title">Tarefa reatribuída</string>
     <string name="rentalops_refresh">Atualizar</string>
     <string name="rentalops_rejected">Rejeitada</string>
-    <string name="rentalops_rejected_body">O servidor não aceitou esta alteração. Tente novamente ou descarte-a.</string>
+    <string name="rentalops_rejected_body">O servidor não aceitou esta alteração, por isso foi desfeita.</string>
     <string name="rentalops_rejected_title">%1$s foi rejeitada</string>
     <string name="rentalops_remove_item">Remover %1$s</string>
     <string name="rentalops_retry">Tentar novamente</string>
@@ -167,7 +158,6 @@
     <string name="rentalops_scan_not_found">Nenhuma unidade corresponde a esse código</string>
     <string name="rentalops_scan_permission">O acesso à câmera é necessário para escanear. Você também pode digitar o código abaixo.</string>
     <string name="rentalops_scheduled">Agendada %1$s</string>
-    <string name="rentalops_send">Enviar</string>
     <string name="rentalops_settings_sub">Escolha quais eventos de aluguel notificam você</string>
     <string name="rentalops_settings_title">Notificações de aluguel</string>
     <string name="rentalops_show_table">Mostrar tabela de dados</string>
@@ -177,13 +167,7 @@
     <string name="rentalops_signature_hint">Peça ao cliente para assinar acima</string>
     <string name="rentalops_signature_pad">Área de assinatura. Desenhe com um dedo.</string>
     <string name="rentalops_signed_name">Nome de quem assina</string>
-    <string name="rentalops_statement_email">Enviar extrato por e-mail</string>
-    <string name="rentalops_statement_email_hint">Deixe vazio para usar o e-mail de cobrança do cliente.</string>
-    <string name="rentalops_statement_emailed">Extrato enviado para %1$s</string>
-    <string name="rentalops_statement_emailed_default">Extrato enviado</string>
-    <string name="rentalops_statement_no_recipient">Este cliente não tem e-mail de cobrança. Informe um destinatário.</string>
     <string name="rentalops_statement_pdf">Compartilhar PDF</string>
-    <string name="rentalops_statement_recipient">E-mail do destinatário (opcional)</string>
     <string name="rentalops_statement_send_failed">Não foi possível enviar o extrato. Tente novamente quando estiver online.</string>
     <string name="rentalops_statement_share">Compartilhar extrato</string>
     <string name="rentalops_statement_sub">Faturas e saldo em aberto por cliente</string>
@@ -225,4 +209,7 @@
     <string name="rentalops_operations_sub">Despacho, transferências, faturamento, extratos e utilização</string>
     <string name="rentalops_my_deliveries">Minhas entregas</string>
     <string name="rentalops_my_deliveries_sub">Entregas e coletas atribuídas a você</string>
+    <string name="rentalops_not_saved">Não foi possível guardar esta alteração no dispositivo. Tente novamente.</string>
+    <string name="rentalops_transfer_cancel">Cancelar transferência</string>
+    <string name="rentalops_kind_swap">Troca</string>
 </resources>

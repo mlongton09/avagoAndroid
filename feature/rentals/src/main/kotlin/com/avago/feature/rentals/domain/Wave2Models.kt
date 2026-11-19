@@ -1,14 +1,13 @@
 package com.avago.feature.rentals.domain
 
+import com.avago.core.data.domain.RentalBulkReturn
 import com.avago.core.data.rental.Money
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import java.math.BigDecimal
 import java.time.Instant
 
-// Pure read models of rentals wave 2 (G3 kits / bulk / sub-rent / contracts, G4 pricing / KPI,
-// G6 online payments, G2 credit). Every parser is tolerant: fields may be absent on older servers.
+// Pure models of rentals wave 2: G3 kits / bulk counts, and the server-computed read answers
+// (G4 KPI, G6 online payment status, G2 credit dry run). Parsers are tolerant of absent fields.
 
 /** G3 kits: lines grouped by `kit_instance_id`; the `kind: "kit"` line is the header. */
 object Kits {
@@ -46,19 +45,15 @@ object Bulk {
         val total: BigDecimal get() = returned + damaged + lost
     }
 
-    /** Line qty − Σ(returned + damaged + lost) over the line's `rental_bulk_return` rows. */
-    fun outstanding(qty: BigDecimal, returns: List<JsonObject>): BigDecimal {
-        val done = returns.fold(BigDecimal.ZERO) { acc, r ->
-            acc + (r.str("returned_qty")?.toBigDecimalOrNull() ?: BigDecimal.ZERO) +
-                (r.str("damaged_qty")?.toBigDecimalOrNull() ?: BigDecimal.ZERO) +
-                (r.str("lost_qty")?.toBigDecimalOrNull() ?: BigDecimal.ZERO)
-        }
+    /** Line qty − Σ(returned + damaged + lost) over the line's recorded bulk returns. */
+    fun outstanding(qty: BigDecimal, returns: List<RentalBulkReturn>): BigDecimal {
+        val done = returns.fold(BigDecimal.ZERO) { acc, r -> acc + r.returned + r.damaged + r.lost }
         return (qty - done).max(BigDecimal.ZERO)
     }
 
     enum class Check { OK, EMPTY, NEGATIVE, EXCEEDS }
 
-    /** Mirrors the server's 400 codes (`qty_exceeds_outstanding`) so a bad count is never queued. */
+    /** Mirrors the server's 400 codes (`qty_exceeds_outstanding`) so a bad count is never sent. */
     fun check(c: Counts, outstanding: BigDecimal): Check = when {
         c.returned.signum() < 0 || c.damaged.signum() < 0 || c.lost.signum() < 0 -> Check.NEGATIVE
         c.total.signum() == 0 -> Check.EMPTY
@@ -67,38 +62,6 @@ object Bulk {
     }
 
     fun parseQty(s: String): BigDecimal? = s.replace(',', '.').trim().ifEmpty { "0" }.toBigDecimalOrNull()
-
-    /** `POST /orders/{o}/lines/{l}/bulk-return` body (client_uuid added by the queue). */
-    fun returnBody(c: Counts, damageChargeMinor: Long?, notes: String?, at: Instant, locationId: String?): JsonObject = buildJsonObject {
-        put("returned", c.returned.stripTrailingZeros().toPlainString())
-        put("damaged", c.damaged.stripTrailingZeros().toPlainString())
-        put("lost", c.lost.stripTrailingZeros().toPlainString())
-        damageChargeMinor?.takeIf { it > 0 }?.let { put("damage_charge_minor", it) }
-        notes?.trim()?.takeIf { it.isNotEmpty() }?.let { put("notes", it) }
-        put("at", at.toString())
-        locationId?.let { put("location_id", it) }
-    }
-
-    /** A line is bulk when the server says so or a bulk allocation points at it. */
-    fun isBulkLine(line: JsonObject, bulkAllocationLineIds: Set<String>, lineId: String): Boolean =
-        isBulk(line.str("kind"), line.str("rental_kind") ?: line.str("part_rental_kind"), lineId, bulkAllocationLineIds)
-
-    fun isBulk(kind: String?, rentalKind: String?, lineId: String, bulkAllocationLineIds: Set<String>): Boolean =
-        rentalKind == "bulk_rental" || (kind == "accessory" && lineId in bulkAllocationLineIds)
-}
-
-/** G4: rule adjustments stored on a line (`pricing.result.rules.applied[]`). */
-data class PriceAdjustment(val label: String, val amount: Money?, val source: String?) {
-    companion object {
-        fun of(line: JsonObject, currency: String): List<PriceAdjustment> {
-            val rules = line.obj("pricing")?.obj("result")?.obj("rules") ?: line.obj("pricing")?.obj("rules")
-            val applied = rules?.objs("applied").orEmpty().ifEmpty { line.objs("adjustments") }
-            return applied.mapNotNull { a ->
-                val label = a.str("label") ?: a.str("name") ?: return@mapNotNull null
-                PriceAdjustment(label, a.money("amount_minor", currency), a.str("source"))
-            }
-        }
-    }
 }
 
 /** G4 KPI card (`GET /analytics/kpi-summary?days=30`); any value may be null while backfilling. */
@@ -182,10 +145,7 @@ object OnlinePayments {
 
     data class OrderPayments(
         val enabled: Boolean,
-        val canRequest: Boolean,
         val requests: List<PayRequest>,
-        /** Saved card, holds and refundable gateway payments ([GatewayPayments.Gateway.NONE] while off/unknown). */
-        val gateway: GatewayPayments.Gateway = GatewayPayments.Gateway.NONE,
     )
 
     /** `online_payments_enabled` of `/payments/status` (false when unknown — never require Stripe). */
@@ -212,64 +172,9 @@ object OnlinePayments {
         val enabled = o.bool("online_payments_enabled") == true
         return OrderPayments(
             enabled = enabled,
-            canRequest = enabled && o.obj("can")?.bool("request") != false,
             requests = o.objs("payment_requests").mapNotNull { parseRequest(it, currency) },
-            gateway = GatewayPayments.parse(o, currency, enabled),
         )
     }
-
-    /** `POST /payment-requests` for the order balance (amount defaults server-side). */
-    fun requestBody(orderId: String, kind: String = "balance"): JsonObject = buildJsonObject {
-        put("order_id", orderId)
-        put("kind", kind)
-    }
-}
-
-/** G3 long-term / rent-to-own contracts (read-only on mobile). */
-data class ContractView(
-    val id: String,
-    val number: String?,
-    val kind: String,
-    val status: String,
-    val monthlyRate: Money?,
-    val billedThrough: String?,
-    val assetId: String?,
-) {
-    val isRentToOwn: Boolean get() = kind == "rent_to_own"
-
-    companion object {
-        fun of(o: JsonObject): ContractView? = ContractView(
-            id = o.str("id") ?: return null,
-            number = o.str("number"),
-            kind = o.str("kind") ?: "long_term",
-            status = o.str("status") ?: "active",
-            monthlyRate = o.money("monthly_rate_minor", o.str("currency")?.trim()),
-            billedThrough = o.str("billed_through"),
-            assetId = o.str("asset_id"),
-        )
-    }
-}
-
-data class BuyoutQuote(val quote: Money?, val equity: Money?, val paidRent: Money?, val floor: Money?, val asOf: String?) {
-    companion object {
-        fun parse(o: JsonObject?): BuyoutQuote? {
-            o ?: return null
-            val cur = o.str("currency")?.trim()
-            return BuyoutQuote(
-                quote = o.money("quote_minor", cur),
-                equity = o.money("equity_minor", cur),
-                paidRent = o.money("paid_rent_minor", cur),
-                floor = o.money("buyout_floor_minor", cur),
-                asOf = o.str("as_of"),
-            )
-        }
-    }
-}
-
-/** G3 sub-rented units (`ownership` on the fleet row; supplier / due date from `rental_subrental`). */
-object SubRent {
-    fun isSubrented(fleetOrAsset: JsonObject?): Boolean =
-        fleetOrAsset != null && (fleetOrAsset.str("ownership") ?: fleetOrAsset.str("rental_ownership")) == "subrented"
 }
 
 /** G2 credit / documents dry run (`GET /orders/{id}/credit-check?stage=checkout`). */
@@ -313,8 +218,5 @@ data class CreditCheck(
         /** Server warning returned when a queued (offline) checkout skipped the gate. */
         const val WARNING_BYPASSED_OFFLINE = "credit_gate_bypassed_offline"
         const val WARNING_OVERRIDDEN = "credit_gate_overridden"
-
-        /** Customer document kinds accepted for a counter photo (G2 mobile scope). */
-        val PHOTO_KINDS = listOf("id", "licence", "coi", "business_licence", "tax_exempt")
     }
 }

@@ -1,14 +1,13 @@
 package com.avago.feature.rentals.domain
 
+import com.avago.core.data.domain.RentalSignature
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import java.time.Instant
 import java.util.Base64
 
 /**
  * Wave 2 / G1 e-signature (docs/rentals-api-wave2-esign-scan-meter.md §1): the order's signature
- * requests, the in-person signers a device may capture, and the queued `sign` body.
+ * requests and the in-person signers a device may capture.
  */
 object Esign {
 
@@ -108,7 +107,7 @@ object Esign {
         data object ImageTooLarge : Capture
     }
 
-    /** Client-side checks mirroring the server's 400 codes, so a bad capture is never queued. */
+    /** Client-side checks mirroring the server's 400 codes, so a bad capture is never sent. */
     fun validate(pngDataUrl: String?, typedName: String?, consent: Boolean): Capture = when {
         !consent -> Capture.ConsentRequired
         pngDataUrl.isNullOrBlank() && typedName.isNullOrBlank() -> Capture.SignatureRequired
@@ -116,55 +115,23 @@ object Esign {
         else -> Capture.Ok
     }
 
-    /** `POST /signature-requests/{id}/sign` body (in-person; client_uuid added by the outbox queue). */
-    fun signBody(
-        signerId: String,
-        pngDataUrl: String?,
-        typedName: String?,
-        consentVersion: String?,
-        signedAt: Instant,
-        deviceId: String?,
-    ): JsonObject = buildJsonObject {
-        put("signer_id", signerId)
-        pngDataUrl?.takeIf { it.isNotBlank() }?.let { put("image_png_base64", it.substringAfter("base64,", it)) }
-        typedName?.trim()?.takeIf { it.isNotEmpty() }?.let { put("typed_name", it) }
-        put("consent", true)
-        consentVersion?.let { put("consent_text_version", it) }
-        put("signed_at", signedAt.toString())
-        deviceId?.let { put("device_id", it) }
-    }
-
-    /** `POST /orders/{id}/signature-requests` for one in-person customer signer. */
-    fun createInPersonBody(customerName: String, locale: String?): JsonObject = buildJsonObject {
-        put("purpose", "agreement")
-        locale?.let { put("locale", it) }
-        put(
-            "signers",
-            kotlinx.serialization.json.JsonArray(
-                listOf(
-                    buildJsonObject {
-                        put("name", customerName.trim())
-                        put("role", "customer")
-                        put("method", "in_person")
-                        put("order", 1)
-                    },
-                ),
-            ),
-        )
-    }
-
-    /** 409 / 410 on a queued capture: the request moved on (signed elsewhere, voided, expired) — drop it. */
-    fun dropOnConflict(status: Int): Boolean = status == 409 || status == 410
-
-    /** Queued captures not yet confirmed mark their signer as signed locally. */
-    fun withLocalCaptures(status: Status, pending: Set<Pair<String, String>>): Status =
-        if (pending.isEmpty()) status
-        else status.copy(
+    /**
+     * Signatures captured on this device that the server answer does not show yet: their signers
+     * count as signed, and an agreement request opened and signed here signs the agreement.
+     */
+    fun withLocal(status: Status, signatures: List<RentalSignature>): Status {
+        val signed = signatures.mapNotNull { it.requestId }.toSet()
+        if (signed.isEmpty()) return status
+        val known = status.requests.map { it.id }.toSet()
+        return status.copy(
+            agreementSigned = status.agreementSigned || signed.any { it !in known },
             requests = status.requests.map { r ->
-                r.copy(signers = r.signers.map { s -> if ((r.id to s.id) in pending && !s.isDone) s.copy(status = STATUS_SIGNED_LOCAL) else s })
+                if (r.id !in signed) r
+                else r.copy(signers = r.signers.map { s -> if (s.isInPerson && !s.isDone && s.order == r.activeOrder) s.copy(status = STATUS_SIGNED_LOCAL) else s })
             },
         )
+    }
 
-    /** Signer status while a capture waits in the outbox. */
+    /** Signer status while a capture made on this device is not confirmed. */
     const val STATUS_SIGNED_LOCAL = "signed_local"
 }

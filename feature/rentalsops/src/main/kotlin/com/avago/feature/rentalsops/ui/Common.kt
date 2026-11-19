@@ -105,7 +105,7 @@ internal fun EmptyState(
 @Composable
 internal fun PendingChip(pending: List<PendingAction>, modifier: Modifier = Modifier) {
     if (pending.isEmpty()) return
-    val rejected = pending.any { it.rejected || it.parked }
+    val rejected = pending.any { it.rejected }
     StatusPill(
         stringResource(if (rejected) R.string.rentalops_rejected else R.string.rentalops_waiting_sync),
         if (rejected) StatusTone.Danger else StatusTone.Neutral,
@@ -114,9 +114,9 @@ internal fun PendingChip(pending: List<PendingAction>, modifier: Modifier = Modi
     )
 }
 
-/** Card explaining a server rejection with Retry / Discard (the server state stands until resolved). */
+/** Card explaining a server rejection; the optimistic change was already rolled back, so only Dismiss. */
 @Composable
-internal fun RejectedCard(action: PendingAction, onRetry: () -> Unit, onDiscard: () -> Unit, modifier: Modifier = Modifier) {
+internal fun RejectedCard(action: PendingAction, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
     val c = toneColors(StatusTone.Danger)
     Surface(
         color = c.container,
@@ -131,15 +131,12 @@ internal fun RejectedCard(action: PendingAction, onRetry: () -> Unit, onDiscard:
                 Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = c.content)
                 Column(Modifier.weight(1f).padding(end = AvagoSpacing.md), verticalArrangement = Arrangement.spacedBy(AvagoSpacing.xs)) {
                     Text(stringResource(R.string.rentalops_rejected_body), style = MaterialTheme.typography.titleSmall, color = c.content)
-                    action.lastError?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = c.content) }
+                    action.message?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = c.content) }
                 }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onDiscard, modifier = Modifier.heightIn(min = MinTouch)) {
+                TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = MinTouch)) {
                     Text(stringResource(R.string.rentalops_discard), color = c.content)
-                }
-                TextButton(onClick = onRetry, modifier = Modifier.heightIn(min = MinTouch)) {
-                    Text(stringResource(R.string.rentalops_retry), color = c.content)
                 }
             }
         }
@@ -163,7 +160,7 @@ internal fun taskStatusTone(s: TaskStatus): StatusTone = when (s) {
     TaskStatus.COMPLETED -> StatusTone.Success
     TaskStatus.EN_ROUTE, TaskStatus.ARRIVED -> StatusTone.Info
     TaskStatus.CANCELLED -> StatusTone.Neutral
-    TaskStatus.PENDING, TaskStatus.ASSIGNED -> StatusTone.Warning
+    TaskStatus.PLANNED, TaskStatus.ASSIGNED -> StatusTone.Warning
 }
 
 internal fun taskStatusIcon(s: TaskStatus): ImageVector = when (s) {
@@ -172,7 +169,7 @@ internal fun taskStatusIcon(s: TaskStatus): ImageVector = when (s) {
     TaskStatus.EN_ROUTE -> Icons.Filled.LocalShipping
     TaskStatus.ARRIVED -> Icons.Filled.Place
     TaskStatus.CANCELLED -> Icons.Filled.Block
-    TaskStatus.PENDING, TaskStatus.ASSIGNED -> Icons.Filled.Schedule
+    TaskStatus.PLANNED, TaskStatus.ASSIGNED -> Icons.Filled.Schedule
 }
 
 /** Task status as a pill (icon + words, tone from the shared status palette). */

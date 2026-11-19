@@ -1,33 +1,28 @@
 package com.avago.feature.rentals.domain
 
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
+import com.avago.core.data.domain.HandoverOverride
+import com.avago.core.data.domain.RentalFailure
 import java.math.BigDecimal
 
 /**
- * Hand-over gates of wave 2 (docs/rentals-api-wave2-esign-scan-meter.md §1 checkout gate, §3
- * meter rules; docs/rentals-api-wave2-credit-collections-bank.md checkout credit/doc gate). A queued
- * check-out / check-in refused by one of them is parked as a conflict whose notice is
- * `gate:<code>|<override permission>|<server message>`; the order screen explains it and offers
- * the fix (sign now, enter the reading, or an override with a reason when the user holds the
- * permission). [patch] rewrites the queued body before it is retried.
+ * Hand-over gates (signature before check-out, meter rules, credit / documents). A check-out or
+ * check-in refused by one of them comes back as a [RentalFailure] whose code names the gate; the
+ * order screen explains it and offers the fix (sign now, enter the reading, or an override with a
+ * reason when the user holds the permission), resent as a [HandoverOverride].
  */
 object HandoverGates {
-
-    const val NOTICE_PREFIX = "gate:"
 
     const val SIGNATURE_REQUIRED = "signature_required"
     const val METER_REQUIRED = "meter_required"
     const val METER_BELOW_CHECKOUT = "meter_below_checkout"
     const val METER_DELTA_EXCEEDED = "meter_delta_exceeded"
     const val REASON_REQUIRED = "reason_required"
+    const val UNIT_NOT_READY = "unit_not_ready"
 
     const val PERMISSION_METER_OVERRIDE = "rental.meter_override"
 
-    /**
-     * Credit / documents gate (G2, HTTP 409 block codes). Queued replays carrying a `client_uuid`
-     * are never blocked (the server answers `credit_gate_bypassed_offline`), but an online send can be.
-     */
+    /** Credit / documents gate (409 block codes). */
     val CREDIT_CODES = setOf(
         "customer_blocked", "customer_on_hold", "customer_cash_only", "credit_limit_exceeded",
         "required_documents_missing", "required_documents_expired",
@@ -38,71 +33,48 @@ object HandoverGates {
     val METER_CODES = setOf(METER_REQUIRED, METER_BELOW_CHECKOUT, METER_DELTA_EXCEEDED, REASON_REQUIRED)
 
     fun isGate(code: String?): Boolean =
-        code != null && (code == SIGNATURE_REQUIRED || code in METER_CODES || code in CREDIT_CODES)
+        code != null && (code == SIGNATURE_REQUIRED || code == UNIT_NOT_READY || code in METER_CODES || code in CREDIT_CODES)
 
     data class Gate(val code: String, val permission: String?, val message: String?) {
         val isMeter: Boolean get() = code in METER_CODES
         val isCredit: Boolean get() = code in CREDIT_CODES
         /** The user fixes it by entering a value (no override needed). */
         val needsReading: Boolean get() = code == METER_REQUIRED
-        /** Overriding needs a written reason (meter + credit; the signature override does not). */
+        /** Overriding needs a written reason (meter, credit, readiness; the signature override does not). */
         val needsReason: Boolean get() = code != SIGNATURE_REQUIRED && !needsReading
     }
 
-    /** Permission that overrides [code] when the server did not name one. */
+    /** Permission that overrides [code]. */
     fun defaultPermission(code: String): String? = when (code) {
         SIGNATURE_REQUIRED -> Esign.PERMISSION_OVERRIDE
         METER_BELOW_CHECKOUT, METER_DELTA_EXCEEDED, REASON_REQUIRED -> PERMISSION_METER_OVERRIDE
+        UNIT_NOT_READY -> Readiness.PERMISSION_WAIVE
         in CREDIT_CODES -> PERMISSION_CREDIT_OVERRIDE
         else -> null
     }
 
-    /** Notice for a refused hand-over, from the error `code`, `message` and `details`. */
-    fun notice(code: String, message: String?, details: JsonObject?): String {
-        val perm = details?.str("override_permission") ?: defaultPermission(code)
-        val canOverride = details?.bool("can_override")
-        val p = if (canOverride == false) "" else perm.orEmpty()
-        return NOTICE_PREFIX + code + "|" + p + "|" + (message ?: "").replace('\n', ' ').take(300)
-    }
-
-    fun parse(notice: String?): Gate? {
-        if (notice == null || !notice.startsWith(NOTICE_PREFIX)) return null
-        val parts = notice.removePrefix(NOTICE_PREFIX).split('|', limit = 3)
-        val code = parts.getOrNull(0)?.takeIf { it.isNotBlank() } ?: return null
-        return Gate(code, parts.getOrNull(1)?.takeIf { it.isNotBlank() }, parts.getOrNull(2)?.takeIf { it.isNotBlank() })
-    }
+    /** The gate of a refused hand-over (null for any other refusal). */
+    fun of(failure: RentalFailure): Gate? =
+        if (!failure.isHandover || !isGate(failure.code)) null
+        else Gate(failure.code, defaultPermission(failure.code), failure.message)
 
     /**
-     * The queued hand-over body after the user's fix: a meter reading for `meter_required`, else
-     * the override flag of the gate (+ reason). Returns null when the fix is incomplete.
+     * The fix the user chose: a meter reading for `meter_required`, else the override of the gate
+     * (+ reason). Null when the fix is incomplete.
      */
-    fun patch(body: JsonObject, gate: Gate, reason: String?, meterValue: String?): JsonObject? {
-        val extra: Map<String, JsonPrimitive> = when {
+    fun override(gate: Gate, reason: String?, meterValue: String?): HandoverOverride? {
+        val r = reason?.trim()?.takeIf { it.isNotEmpty() }
+        return when {
             gate.needsReading -> {
-                val v = meterValue?.replace(',', '.')?.trim()?.toBigDecimalOrNull() ?: return null
-                if (v.signum() < 0) return null
-                mapOf("meter_value" to JsonPrimitive(v.stripTrailingZeros().toPlainString()))
+                val v = meterValue?.replace(',', '.')?.trim()?.toBigDecimalOrNull()?.takeIf { it.signum() >= 0 } ?: return null
+                HandoverOverride.Reading(v)
             }
-            gate.code == SIGNATURE_REQUIRED -> mapOf("override_signature" to JsonPrimitive(true))
-            gate.isMeter -> {
-                val r = reason?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-                mapOf("meter_override" to JsonPrimitive(true), "meter_override_reason" to JsonPrimitive(r))
-            }
-            gate.isCredit -> {
-                val r = reason?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-                // One approval covers both the credit and the document block, so the retry is not
-                // refused again by the other half of the same gate.
-                mapOf(
-                    "override_credit" to JsonPrimitive(true),
-                    "override_docs" to JsonPrimitive(true),
-                    "override_reason" to JsonPrimitive(r),
-                )
-            }
-            else -> return null
+            gate.code == SIGNATURE_REQUIRED -> HandoverOverride.Signature
+            gate.isMeter -> HandoverOverride.Meter(r ?: return null)
+            gate.isCredit -> HandoverOverride.Credit(r ?: return null)
+            gate.code == UNIT_NOT_READY -> HandoverOverride.Ready(r ?: return null)
+            else -> null
         }
-        // Earlier approvals (signature / meter / credit) already in [body] are kept: a check-out can
-        // be refused by several gates in turn and every retry carries all approved overrides.
-        return JsonObject(body + extra)
     }
 }
 
@@ -133,15 +105,18 @@ data class MeterInfo(
      * a warning (meters can be replaced).
      */
     fun check(input: String, direction: String): Check {
-        val t = input.replace(',', '.').trim()
-        if (t.isEmpty()) return if (required) Check.REQUIRED else Check.OK
-        val v = t.toBigDecimalOrNull()?.takeIf { it.signum() >= 0 } ?: return Check.INVALID
+        if (input.isBlank()) return if (required) Check.REQUIRED else Check.OK
+        val v = parseReading(input) ?: return Check.INVALID
         val last = lastValue ?: return Check.OK
         if (v >= last) return Check.OK
         return if (direction == "in" && lastSource == "checkout") Check.BELOW_CHECKOUT else Check.BELOW_PREVIOUS
     }
 
     companion object {
+        /** A typed reading (decimal comma accepted); null when blank, negative or not a number. */
+        fun parseReading(input: String): BigDecimal? =
+            input.replace(',', '.').trim().toBigDecimalOrNull()?.takeIf { it.signum() >= 0 }
+
         fun parse(o: JsonObject?): MeterInfo? {
             val m = o?.obj("meter") ?: return null
             val last = o.objs("items").firstOrNull()
@@ -167,7 +142,7 @@ data class MeterInfo(
 /**
  * Pre-save checks of the hand-over screen (wave 2). The server stays authoritative: these only
  * stop a hand-over that is known to be refused, using the last *fresh* online answers (an unknown
- * or stale status never blocks an offline hand-over; the queued item then reports any gate).
+ * or stale status never blocks an offline hand-over; the refused command then reports any gate).
  */
 object HandoverChecks {
 

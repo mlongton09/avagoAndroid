@@ -1,8 +1,7 @@
 package com.avago.feature.rentals.domain
 
-import com.avago.core.data.db.rental.RentalRecordEntity
+import com.avago.core.data.domain.RecordSyncState
 import com.avago.core.data.rental.Money
-import java.time.Instant
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,8 +12,10 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import java.math.BigDecimal
+import java.time.Instant
+import org.junit.jupiter.api.Assertions.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class OrderWorklistTest {
@@ -27,18 +28,11 @@ class OrderWorklistTest {
         balance: Long? = 100L,
         currency: String = "EUR",
         source: String? = null,
-    ): OrderView = OrderView.of(
-        RentalRecordEntity(
-            entity = RentalEntity.ORDER, id = id, updatedAt = 0,
-            json = buildJsonObject {
-                put("id", id); put("number", "R-$id"); put("customer_name", "Fleet Customer")
-                put("status", status); put("currency", currency)
-                put("start_at", now.minusSeconds(3600).toString())
-                due?.let { put("end_at", it.toString()) }
-                balance?.let { put("balance_minor", it) }
-                source?.let { put("source", it) }
-            }.toString(),
-        ),
+    ): OrderView = OrderView(
+        id = id, number = "R-$id", status = status, currency = currency, customerId = null,
+        customerName = "Fleet Customer", locationId = null, startAt = now.minusSeconds(3600), endAt = due,
+        holdExpiresAt = null, total = null, paid = null, balance = balance?.let { Money(it, currency) },
+        depositRequired = null, version = 1, sync = RecordSyncState.SAVED, source = source,
     )
 
     @Test
@@ -76,7 +70,7 @@ class OrderWorklistTest {
             order("reserved", OrderStatus.RESERVED), order("quoted", OrderStatus.QUOTED),
             order("draft", OrderStatus.DRAFT), order("cancelled", OrderStatus.CANCELLED),
             order("paid", balance = 0), order("credit", balance = -100), order("missing", balance = null),
-            order("local-draft").copy(localState = RentalRecordEntity.STATE_DRAFT),
+            order("local-draft", OrderStatus.DRAFT).copy(sync = RecordSyncState.PENDING),
         )
         assertEquals(
             setOf("closed", "returned", "reserved"),
@@ -161,29 +155,6 @@ class OrderWorklistTest {
     }
 
     @Test
-    fun `partial returns preserve on-rent or off-rent status until rental and accessory lines are complete`() {
-        fun line(kind: String, status: String) = buildJsonObject { put("kind", kind); put("status", status) }
-        for (status in listOf(OrderStatus.ON_RENT, OrderStatus.OFF_RENT_REQUESTED)) {
-            assertEquals(status, HandoverProgress.status(status, "in", listOf(line("rental", "returned"), line("accessory", "out"))))
-            assertEquals(status, HandoverProgress.status(status, "in", listOf(line("rental", "open"))))
-            assertEquals(status, HandoverProgress.status(status, "in", emptyList()))
-            assertEquals(
-                OrderStatus.RETURNED,
-                HandoverProgress.status(status, "in", listOf(line("rental", "returned"), line("accessory", "cancelled"), line("fee", "open"))),
-            )
-        }
-    }
-
-    @Test
-    fun `a line handover cannot change another lines allocation or an unassociated allocation`() {
-        val selected = buildJsonObject { put("order_line_id", "selected") }
-        val other = buildJsonObject { put("order_line_id", "other") }
-        assertTrue(HandoverProgress.affectsAllocation(selected, "selected"))
-        assertFalse(HandoverProgress.affectsAllocation(other, "selected"))
-        assertFalse(HandoverProgress.affectsAllocation(buildJsonObject {}, "selected"))
-    }
-
-    @Test
     fun `lifecycle permissions match the service action permissions`() {
         assertEquals("rental.quote", OrderStatus.permission("quote"))
         for (action in listOf("hold", "reserve", "cancel", "no-show", "extend")) {
@@ -217,7 +188,7 @@ class OrderWorklistTest {
     fun `handover controls reflect remaining lines rather than offering duplicate checkouts`() {
         fun line(status: String) = LineView(
             id = "l", orderId = "o", kind = "rental", classId = null, assetId = "a", description = null,
-            qty = 1.0, startAt = null, endAt = null, amount = null, tax = null, status = status,
+            qty = BigDecimal.ONE, startAt = null, endAt = null, amount = null, tax = null, status = status,
         )
         val onRent = order("o")
         val out = HandoverProgress.actions(onRent, listOf(line("out")))

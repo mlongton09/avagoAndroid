@@ -1,7 +1,7 @@
 package com.avago.feature.rentals.ui
 
-import java.time.Instant
-import javax.inject.Inject
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import android.app.Activity
 import android.nfc.NdefMessage
 import android.nfc.NdefRecord
@@ -13,19 +13,20 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
@@ -36,9 +37,8 @@ import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SearchOff
-import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material.icons.filled.TextFields
-import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
@@ -52,53 +52,49 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
+import com.avago.core.data.domain.AssetRepository
+import com.avago.core.data.domain.RentalRepository
 import com.avago.core.data.rental.LocalFleet
 import com.avago.core.ui.components.LeadingBadge
-import com.avago.core.ui.components.rememberHaptics
 import com.avago.core.ui.components.SectionCard
 import com.avago.core.ui.components.StatusPill
 import com.avago.core.ui.components.StatusTone
-import com.avago.feature.rentals.data.RentalRepository
+import com.avago.core.ui.components.rememberHaptics
+import com.avago.feature.rentals.R
+import com.avago.feature.rentals.data.RentalsOnline
 import com.avago.feature.rentals.domain.Aamva
 import com.avago.feature.rentals.domain.HandoverTarget
-import com.avago.feature.rentals.domain.obj
-import com.avago.feature.rentals.domain.RentalEntity
 import com.avago.feature.rentals.domain.ScanCode
 import com.avago.feature.rentals.domain.ScanResolution
-import com.avago.feature.rentals.data.RentalsOnline
-import com.avago.feature.rentals.domain.str
-import com.avago.feature.rentals.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
+import java.time.Instant
+import javax.inject.Inject
 
 sealed interface ScanResult {
     /** [handover] is the check-out / check-in the unit is waiting for (offline fleet), if any. */
@@ -127,9 +123,8 @@ object LicenceScanBuffer {
 @HiltViewModel
 class RentalScanViewModel @Inject constructor(
     private val repo: RentalRepository,
+    private val assets: AssetRepository,
     private val online: RentalsOnline,
-    private val dbFactory: DatabaseFactory,
-    private val identity: IdentityManager,
 ) : ViewModel() {
     private val _result = MutableStateFlow<ScanResult?>(null)
     val result: StateFlow<ScanResult?> = _result.asStateFlow()
@@ -148,18 +143,14 @@ class RentalScanViewModel @Inject constructor(
     }
 
     private suspend fun lookup(raw: String): ScanResult {
-        val acc = identity.getActiveAccountId() ?: return ScanResult.NotFound(raw)
-        val db = dbFactory.get(acc)
-        val fleet = repo.records(RentalEntity.FLEET).first().associateBy { it.id }
+        val inputs = repo.observeFleet().first()
+        val fleet = inputs.units.associateBy { it.assetId }
         // Offline fleet status, so the result can offer the pending check-out / check-in directly.
-        suspend fun handoverFor(assetId: String): HandoverTarget? {
-            val inputs = repo.fleetInputs().first()
-            return withContext(Dispatchers.Default) { LocalFleet.compute(inputs, Instant.now())[assetId] }?.let(HandoverTarget::of)
-        }
+        suspend fun handoverFor(assetId: String): HandoverTarget? =
+            withContext(Dispatchers.Default) { LocalFleet.compute(inputs, Instant.now())[assetId] }?.let(HandoverTarget::of)
         suspend fun asset(code: String): ScanResult? {
-            val a = db.assetDao().getById(code)?.takeIf { it.deletedAt == null }
-                ?: db.assetDao().findByIdentifierCandidates(acc, code).firstOrNull()
-            val id = a?.assetId ?: fleet.values.firstOrNull { it.name.equals(code, true) }?.id ?: return null
+            val a = assets.asset(code) ?: assets.findByCode(code)
+            val id = a?.id ?: fleet.values.firstOrNull { it.name.equals(code, true) }?.assetId ?: return null
             val rentable = fleet.containsKey(id)
             val handover = if (rentable) handoverFor(id) else null
             return ScanResult.Asset(id, a?.name ?: fleet[id]?.name ?: code, rentable, handover)
@@ -187,8 +178,8 @@ class RentalScanViewModel @Inject constructor(
         return when (val k = ScanCode.classify(raw)) {
             is ScanCode.Kind.Licence -> Aamva.parse(k.raw)?.let { LicenceScanBuffer.put(it); ScanResult.Licence(it) } ?: ScanResult.NotFound(raw)
             is ScanCode.Kind.AssetId -> asset(k.id) ?: server(k.id)
-            is ScanCode.Kind.OrderNumber -> repo.records(RentalEntity.ORDER).first()
-                .firstOrNull { it.obj.str("number").equals(k.number, true) }
+            is ScanCode.Kind.OrderNumber -> repo.observeOrders().first()
+                .firstOrNull { it.number.equals(k.number, true) }
                 ?.let { ScanResult.Order(it.id, k.number) } ?: asset(k.number) ?: ScanResult.NotFound(raw)
             is ScanCode.Kind.ShortCode -> asset(k.code) ?: server(k.code)
             is ScanCode.Kind.Text -> asset(k.value) ?: server(k.value)

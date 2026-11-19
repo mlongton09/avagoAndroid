@@ -1,52 +1,47 @@
 package com.avago.feature.rentals.ui
 
-import java.time.Instant
-import java.time.ZoneId
-import javax.inject.Inject
+import androidx.compose.runtime.setValue
 import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
-import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Block
-import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.EditCalendar
 import androidx.compose.material.icons.filled.EventAvailable
 import androidx.compose.material.icons.filled.EventBusy
-import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.MoreHoriz
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PauseCircle
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Person
@@ -55,7 +50,6 @@ import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.Icons
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -65,14 +59,10 @@ import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -80,24 +70,24 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -106,22 +96,26 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import com.avago.core.data.db.rental.RentalRecordEntity
+import com.avago.core.auth.IdentityManager
+import com.avago.core.data.domain.PaymentDraft
+import com.avago.core.data.domain.RecordSyncState
+import com.avago.core.data.domain.RentalHandover
+import com.avago.core.data.domain.RentalInvoice
+import com.avago.core.data.domain.RentalOrderAction
+import com.avago.core.data.domain.RentalRepository
+import com.avago.core.data.domain.SyncRepository
 import com.avago.core.data.rental.Money
 import com.avago.core.data.rental.MoneyFormatter
-import com.avago.core.data.rental.RentalTime
 import com.avago.core.design.theme.AvagoSpacing
+import com.avago.core.network.rentals.RentalsApi
 import com.avago.core.permissions.PermissionsManager
 import com.avago.core.ui.components.BottomActionBar
 import com.avago.core.ui.components.CardDivider
-import com.avago.core.ui.components.cardListItemColors
-import com.avago.core.ui.components.ErrorBanner
 import com.avago.core.ui.components.LeadingBadge
-import com.avago.core.ui.components.rememberHaptics
 import com.avago.core.ui.components.SectionCard
 import com.avago.core.ui.components.SkeletonList
 import com.avago.core.ui.components.SkeletonListItem
@@ -129,65 +123,64 @@ import com.avago.core.ui.components.StatusPill
 import com.avago.core.ui.components.StatusTone
 import com.avago.core.ui.components.StickyDayHeader
 import com.avago.core.ui.components.TimelineEntry
+import com.avago.core.ui.components.cardListItemColors
+import com.avago.core.ui.components.rememberHaptics
 import com.avago.core.ui.components.toneColors
 import com.avago.core.ui.invoiceStatusText
-import com.avago.feature.rentals.data.RentalRepository
+import com.avago.feature.rentals.R
 import com.avago.feature.rentals.domain.FeeBreakdown
 import com.avago.feature.rentals.domain.HandoverProgress
 import com.avago.feature.rentals.domain.LineView
-import com.avago.feature.rentals.domain.long
-import com.avago.feature.rentals.domain.obj
-import com.avago.feature.rentals.domain.OrderStatus
-import com.avago.feature.rentals.domain.OrderView
 import com.avago.feature.rentals.domain.OnlinePayments
 import com.avago.feature.rentals.domain.OrderFilter
+import com.avago.feature.rentals.domain.OrderStatus
+import com.avago.feature.rentals.domain.OrderView
 import com.avago.feature.rentals.domain.OrderWorklist
 import com.avago.feature.rentals.domain.OrderWorklistState
 import com.avago.feature.rentals.domain.observeOrderWorklist
-import com.avago.feature.rentals.domain.RentalEntity
-import com.avago.feature.rentals.domain.str
-import com.avago.feature.rentals.R
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import com.avago.core.network.rentals.RentalsApi
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.mapLatest
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.time.Instant
+import java.time.ZoneId
+import javax.inject.Inject
 
-// ── Orders list ──────────────────────────────────────────────────────────────────────
+// â”€â”€ Orders list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @HiltViewModel
 class RentalOrdersViewModel @Inject constructor(
     private val repo: RentalRepository,
+    private val sync: SyncRepository,
     private val permissions: PermissionsManager,
+    identity: IdentityManager,
 ) : ViewModel() {
     /** Gates the "Record payment" swipe (server enforces it too). */
     val canRecordPayment = permissions.observeCan(PERMISSION_PAYMENT_RECORD)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
-    val canRefund = permissions.observeCan("rental.refund")
+    val canRefund = permissions.observeCan(PERMISSION_REFUND)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     private val _paymentResults = MutableSharedFlow<String?>(extraBufferCapacity = 1)
     val paymentResults: SharedFlow<String?> = _paymentResults
 
-    fun recordPayment(input: RentalRepository.PaymentInput) = viewModelScope.launch {
+    fun recordPayment(draft: PaymentDraft) = viewModelScope.launch {
         try {
             require(permissions.can(PERMISSION_PAYMENT_RECORD)) { "Missing rental permission" }
-            require(input.kind !in setOf("refund", "deposit_refunded") || permissions.can("rental.refund")) { "Missing rental refund permission" }
-            repo.recordPayment(input)
+            require(draft.kind !in REFUND_KINDS || permissions.can(PERMISSION_REFUND)) { "Missing rental refund permission" }
+            repo.recordPayment(draft)
             _paymentResults.emit(null)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
@@ -200,8 +193,8 @@ class RentalOrdersViewModel @Inject constructor(
     val filter = MutableStateFlow(OrderFilter.ACTIVE)
     val query = MutableStateFlow("")
     val worklist: StateFlow<OrderWorklistState> = observeOrderWorklist(
-        repo.accountId,
-        repo.records(RentalEntity.ORDER).map { rows -> rows.map(OrderView::of) },
+        identity.activeAccountId,
+        repo.observeOrders().map { rows -> rows.map(OrderView::of) },
         filter,
         query,
         flow {
@@ -212,10 +205,7 @@ class RentalOrdersViewModel @Inject constructor(
         },
     ).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 0), OrderWorklistState())
 
-    /** For pull-to-refresh: the spinner ends when the background sync stamps a new time. */
-    val lastSyncedAt: StateFlow<Long?> = repo.lastSyncedAt().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-
-    fun syncNow() = repo.requestSync()
+    suspend fun syncNow(): Boolean = sync.syncNow()
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -232,9 +222,8 @@ fun RentalOrdersScreen(
     val orders = worklist.orders
     val filter by viewModel.filter.collectAsStateWithLifecycle()
     val query by viewModel.query.collectAsStateWithLifecycle()
-    val lastSynced by viewModel.lastSyncedAt.collectAsStateWithLifecycle()
-    val refresh = rememberSyncRefresh(lastSynced, viewModel::syncNow)
-    val firstLoad = rememberFirstLoad(orders.isEmpty() && query.isBlank(), lastSynced)
+    val refresh = rememberSyncRefresh(viewModel::syncNow)
+    val firstLoad = rememberFirstLoad(orders.isEmpty() && query.isBlank())
     val listState = rememberLazyListState()
     val zone = ZoneId.systemDefault()
     // Sticky day headers: orders are sorted by start (newest first) so groups stay contiguous.
@@ -319,7 +308,7 @@ fun RentalOrdersScreen(
                             modifier = Modifier.padding(horizontal = AvagoSpacing.cardHorizontal, vertical = AvagoSpacing.cardVertical),
                         ) {
                             Text(
-                                balances.joinToString(" · ") { "${it.currency} ${formatMoney(it)}" },
+                                balances.joinToString(" Â· ") { "${it.currency} ${formatMoney(it)}" },
                                 modifier = Modifier.padding(AvagoSpacing.md),
                                 style = MaterialTheme.typography.titleMedium,
                             )
@@ -424,14 +413,14 @@ private fun OrderRow(o: OrderView, zone: ZoneId, modifier: Modifier = Modifier, 
                     Text(formatMoney(o.total), style = MaterialTheme.typography.titleSmall, textAlign = TextAlign.End)
                 }
                 Text(
-                    "${formatDateTime(o.startAt, zone)} → ${formatDateTime(o.endAt, zone)}",
+                    "${formatDateTime(o.startAt, zone)} â†’ ${formatDateTime(o.endAt, zone)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     OrderStatusPill(o.status)
-                    SyncStateBadge(o.localState, failed = isSyncFailed(o.notice))
-                    o.balance?.takeIf { it.minor > 0 && !o.isDraft }?.let {
+                    SyncStateBadge(o.sync)
+                    o.balance?.takeIf { it.minor > 0 && OrderWorklist.canRecordPayment(o) }?.let {
                         StatusPill(stringResource(R.string.rentals_balance_due, formatMoney(it)), StatusTone.Warning, icon = Icons.Default.Payments)
                     }
                 }
@@ -440,64 +429,50 @@ private fun OrderRow(o: OrderView, zone: ZoneId, modifier: Modifier = Modifier, 
     }
 }
 
-// ── Order detail ─────────────────────────────────────────────────────────────────────
-
-data class LedgerRow(val id: String, val kind: String, val method: String?, val amount: Money?, val at: String?, val localState: String)
-data class InvoiceRow(val id: String, val number: String?, val status: String, val total: Money?, val localState: String)
-data class HandoverRow(val id: String, val kind: String, val at: String?, val assetId: String?, val localState: String)
+// â”€â”€ Order detail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class RentalOrderViewModel @Inject constructor(
     private val repo: RentalRepository,
     private val api: RentalsApi,
+    private val identity: IdentityManager,
     private val permissions: PermissionsManager,
     savedState: SavedStateHandle,
 ) : ViewModel() {
-    private val requestedId: String = requireNotNull(savedState["orderId"])
+    private val orderId: String = requireNotNull(savedState["orderId"])
 
-    val order: StateFlow<OrderView?> = repo.record(RentalEntity.ORDER, requestedId)
+    val order: StateFlow<OrderView?> = repo.observeOrder(orderId)
         .map { it?.let(OrderView::of) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val canRecordPayment = permissions.observeCan(PERMISSION_PAYMENT_RECORD)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
-    val canRefund = permissions.observeCan("rental.refund")
+    val canRefund = permissions.observeCan(PERMISSION_REFUND)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
-    val canInvoice = permissions.observeCan("rental.invoice_issue")
+    val canInvoice = permissions.observeCan(PERMISSION_INVOICE)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
-    /** Children follow the confirmed server id once the draft order has synced. */
-    private fun <T> children(entity: String, map: (RentalRecordEntity, String) -> T?): StateFlow<List<T>> =
-        order.flatMapLatest { o ->
-            if (o == null) flowOf(emptyList()) else repo.byOrder(entity, o.id).map { rows -> rows.mapNotNull { map(it, o.currency) } }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    val lines = children(RentalEntity.ORDER_LINE) { r, cur -> LineView.of(r, cur) }
+    val lines: StateFlow<List<LineView>> = combine(order, repo.observeLines(orderId)) { o, ls ->
+        if (o == null) emptyList() else ls.map { LineView.of(it, o.currency) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val allowedActions = combine(order, lines, permissions.permissions, permissions.isRoot) { o, ls, _, _ ->
         HandoverProgress.actions(o, ls).filter { permissions.can(OrderStatus.permission(it)) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-    val ledger = children(RentalEntity.LEDGER) { r, cur ->
-        val o = r.obj
-        LedgerRow(r.id, o.str("kind") ?: "payment", o.str("method"), Money.of(o.long("amount_minor"), o.str("currency") ?: cur), o.str("received_at"), r.localState)
-    }
-    val invoices = children(RentalEntity.INVOICE) { r, cur ->
-        val o = r.obj
-        InvoiceRow(r.id, o.str("number"), o.str("status") ?: "draft", Money.of(o.long("total_minor"), o.str("currency") ?: cur), r.localState)
-    }
-    val handovers = children(RentalEntity.HANDOVER) { r, _ ->
-        val o = r.obj
-        HandoverRow(r.id, o.str("kind") ?: "", o.str("at"), o.str("asset_id") ?: r.assetId, r.localState)
-    }
+    val invoices: StateFlow<List<RentalInvoice>> = repo.observeInvoices(orderId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val handovers: StateFlow<List<RentalHandover>> = repo.observeHandovers(orderId = orderId)
+        .map { hs -> hs.filter { !it.voided && it.kind != "readiness" }.sortedByDescending { it.at } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** Online-only platform fee / payout breakdown; stays null offline, for drafts or without access. */
+    /** Online-only platform fee / payout breakdown (GET); null offline, for unsynced orders or without access. */
     val fees: StateFlow<FeeBreakdown?> = order
-        .map { o -> o?.takeIf { !it.isDraft }?.id }
+        .map { o -> o?.takeIf { it.sync == RecordSyncState.SAVED }?.id }
         .distinctUntilChanged()
         .mapLatest { id -> id?.let { loadFees(it) } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private suspend fun loadFees(orderId: String): FeeBreakdown? {
-        val acc = repo.accountId.first() ?: return null
+        val acc = identity.getActiveAccountId() ?: return null
         return try {
             FeeBreakdown.from(api.feeBreakdown(acc, orderId))
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -519,21 +494,36 @@ class RentalOrderViewModel @Inject constructor(
         }
     }
 
+    /** Lifecycle step of the order ([OrderStatus.actions]); hand-overs and swaps have their own screens. */
     fun action(action: String, reason: String? = null, endAt: Instant? = null) = launchSafe {
         require(permissions.can(OrderStatus.permission(action))) { "Missing rental permission" }
-        repo.orderAction(order.value?.id ?: requestedId, action, reason, endAt)
+        repo.act(orderId, orderAction(action, reason, endAt))
     }
 
-    fun recordPayment(input: RentalRepository.PaymentInput) = launchSafe {
+    fun recordPayment(draft: PaymentDraft) = launchSafe {
         require(permissions.can(PERMISSION_PAYMENT_RECORD)) { "Missing rental permission" }
-        require(input.kind !in setOf("refund", "deposit_refunded") || permissions.can("rental.refund")) { "Missing rental refund permission" }
-        repo.recordPayment(input)
+        require(draft.kind !in REFUND_KINDS || permissions.can(PERMISSION_REFUND)) { "Missing rental refund permission" }
+        repo.recordPayment(draft)
         _paymentQueued.emit(Unit)
     }
 
-    fun createInvoice() = launchSafe { repo.createInvoiceDraft(order.value?.id ?: requestedId) }
+    fun createInvoice() = launchSafe {
+        require(permissions.can(PERMISSION_INVOICE)) { "Missing rental permission" }
+        repo.createInvoiceDraft(orderId)
+    }
+}
 
-    fun syncNow() = repo.requestSync()
+/** Maps a lifecycle action of [OrderStatus.actions] to its catalog command. */
+internal fun orderAction(action: String, reason: String?, endAt: Instant?): RentalOrderAction = when (action) {
+    "quote" -> RentalOrderAction.Quote
+    "hold" -> RentalOrderAction.Hold(reason)
+    "reserve" -> RentalOrderAction.Reserve()
+    "cancel" -> RentalOrderAction.Cancel(requireNotNull(reason?.takeIf { it.isNotBlank() }) { "A reason is required" })
+    "no-show" -> RentalOrderAction.NoShow(reason)
+    "extend" -> RentalOrderAction.Extend(requireNotNull(endAt) { "A new end is required" }, reason)
+    "off-rent" -> RentalOrderAction.OffRent(Instant.now(), reason = reason)
+    "close" -> RentalOrderAction.Close
+    else -> error("Not an order lifecycle action: $action")
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -545,7 +535,6 @@ fun RentalOrderScreen(
     onSwap: ((orderId: String) -> Unit)? = null,
     onSign: ((orderId: String) -> Unit)? = null,
     onAddDocument: ((customerId: String) -> Unit)? = null,
-    onOpenLegacyAsset: ((assetId: String) -> Unit)? = null,
     viewModel: RentalOrderViewModel = hiltViewModel(),
     wave2: OrderWave2ViewModel = hiltViewModel(),
 ) {
@@ -555,7 +544,6 @@ fun RentalOrderScreen(
     val canRefund by viewModel.canRefund.collectAsStateWithLifecycle()
     val canInvoice by viewModel.canInvoice.collectAsStateWithLifecycle()
     val lines by viewModel.lines.collectAsStateWithLifecycle()
-    val ledger by viewModel.ledger.collectAsStateWithLifecycle()
     val invoices by viewModel.invoices.collectAsStateWithLifecycle()
     val handovers by viewModel.handovers.collectAsStateWithLifecycle()
     val gate by wave2.gate.collectAsStateWithLifecycle()
@@ -563,11 +551,7 @@ fun RentalOrderScreen(
     val credit by wave2.credit.collectAsStateWithLifecycle()
     val payments by wave2.payments.collectAsStateWithLifecycle()
     val paymentUnavailable by wave2.paymentUnavailable.collectAsStateWithLifecycle()
-    val contracts by wave2.contracts.collectAsStateWithLifecycle()
-    val buyouts by wave2.buyouts.collectAsStateWithLifecycle()
-    val bulkLineIds by wave2.bulkLineIds.collectAsStateWithLifecycle()
     val bulkReturns by wave2.bulkReturns.collectAsStateWithLifecycle()
-    val subrented by wave2.subrented.collectAsStateWithLifecycle()
     val wave2Busy by wave2.busy.collectAsStateWithLifecycle()
     var bulkReturn by remember { mutableStateOf<Pair<LineView, java.math.BigDecimal>?>(null) }
     val context = LocalContext.current
@@ -587,44 +571,24 @@ fun RentalOrderScreen(
     val w2Texts = mapOf(
         OrderWave2ViewModel.Msg.FIX_INCOMPLETE to stringResource(R.string.rentals_gate_fix_incomplete),
         OrderWave2ViewModel.Msg.OFFLINE to stringResource(R.string.rentals_online_offline),
-        OrderWave2ViewModel.Msg.LINK_SENT to stringResource(R.string.rentals_pay_link_sent),
-        OrderWave2ViewModel.Msg.BULK_QUEUED to stringResource(R.string.rentals_bulk_queued),
+        OrderWave2ViewModel.Msg.BULK_SAVED to stringResource(R.string.rentals_bulk_queued),
         OrderWave2ViewModel.Msg.FAILED to stringResource(R.string.rentals_online_failed_generic),
-        OrderWave2ViewModel.Msg.CHARGED to stringResource(R.string.rentals_gw_charged),
-        OrderWave2ViewModel.Msg.HOLD_PLACED to stringResource(R.string.rentals_gw_hold_placed),
-        OrderWave2ViewModel.Msg.PROCESSING to stringResource(R.string.rentals_gw_processing),
-        OrderWave2ViewModel.Msg.ACTION_REQUIRED to stringResource(R.string.rentals_gw_action_required),
-        OrderWave2ViewModel.Msg.CAPTURED to stringResource(R.string.rentals_gw_captured),
-        OrderWave2ViewModel.Msg.RELEASED to stringResource(R.string.rentals_gw_released),
-        OrderWave2ViewModel.Msg.REFUNDED to stringResource(R.string.rentals_gw_refunded),
-        OrderWave2ViewModel.Msg.UNCERTAIN to stringResource(R.string.rentals_gw_uncertain),
-        OrderWave2ViewModel.Msg.PENDING_OTHER to stringResource(R.string.rentals_gw_pending_other_generic),
-        OrderWave2ViewModel.Msg.ACCOUNT_CHANGED to stringResource(R.string.rentals_gw_account_changed),
-    )
-    val pendingOther = stringResource(R.string.rentals_gw_pending_other, "%s")
-    val okMessages = setOf(
-        OrderWave2ViewModel.Msg.LINK_SENT, OrderWave2ViewModel.Msg.BULK_QUEUED, OrderWave2ViewModel.Msg.CHARGED,
-        OrderWave2ViewModel.Msg.HOLD_PLACED, OrderWave2ViewModel.Msg.CAPTURED, OrderWave2ViewModel.Msg.RELEASED,
-        OrderWave2ViewModel.Msg.REFUNDED,
     )
     val failedWith = stringResource(R.string.rentals_online_failed, "%s")
     val shareTitle = stringResource(R.string.rentals_pay_share)
-    val pdfFailed = stringResource(R.string.rentals_sign_pdf_failed)
     LaunchedEffect(Unit) {
         wave2.events.collect { e ->
             when (e) {
                 is OrderWave2ViewModel.Event.Message -> {
-                    val ok = e.msg in okMessages
-                    if (ok) haptics.success() else haptics.error()
-                    val text = when {
-                        e.msg == OrderWave2ViewModel.Msg.FAILED && !e.detail.isNullOrBlank() -> failedWith.replace("%s", e.detail)
-                        e.msg == OrderWave2ViewModel.Msg.PENDING_OTHER && !e.detail.isNullOrBlank() -> pendingOther.replace("%s", e.detail)
-                        else -> w2Texts.getValue(e.msg)
+                    if (e.msg == OrderWave2ViewModel.Msg.BULK_SAVED) haptics.success() else haptics.error()
+                    val text = if (e.msg == OrderWave2ViewModel.Msg.FAILED && !e.detail.isNullOrBlank()) {
+                        failedWith.replace("%s", e.detail)
+                    } else {
+                        w2Texts.getValue(e.msg)
                     }
                     snackbar.showSnackbar(text)
                 }
                 is OrderWave2ViewModel.Event.Share -> runCatching { sharePayLink(context, e.url, shareTitle) }
-                is OrderWave2ViewModel.Event.OpenPdf -> if (!openPdfFile(context, e.file)) snackbar.showSnackbar(pdfFailed)
             }
         }
     }
@@ -639,7 +603,6 @@ fun RentalOrderScreen(
             snackbar.showSnackbar(paymentRecorded)
         }
     }
-    val scope = rememberCoroutineScope()
     val o = order
     val zone = zoneOf(null)
 
@@ -696,13 +659,6 @@ fun RentalOrderScreen(
                 item(key = "legacy", contentType = "section") {
                     SectionCard(title = stringResource(R.string.rentals_worklist_legacy_title), contentPadding = true) {
                         Text(stringResource(R.string.rentals_worklist_legacy))
-                        if (onOpenLegacyAsset != null) {
-                            lines.mapNotNull { it.assetId }.distinct().forEach { assetId ->
-                                TextButton(onClick = { onOpenLegacyAsset(assetId) }) {
-                                    Text(stringResource(R.string.rentals_worklist_legacy_open, assetId))
-                                }
-                            }
-                        }
                     }
                 }
             }
@@ -720,7 +676,7 @@ fun RentalOrderScreen(
                     )
                 }
             }
-            if (!o.isDraft && !o.isLegacy) {
+            if (!o.isLegacy) {
                 item(key = "agreement", contentType = "section") {
                     OrderAgreementCard(esign, onSign?.let { s -> { s(o.id) } })
                 }
@@ -732,50 +688,20 @@ fun RentalOrderScreen(
                 OrderLinesCard(
                     lines = lines,
                     zone = zone,
-                    subrented = subrented,
-                    bulkLineIds = bulkLineIds,
                     bulkReturns = bulkReturns,
-                    onBulkReturn = if (o.isDraft || o.isLegacy) null else { l, out -> bulkReturn = l to out },
+                    onBulkReturn = if (o.isLegacy) null else { l, out -> bulkReturn = l to out },
                 )
-            }
-            contracts.forEach { c ->
-                item(key = "contract_" + c.id, contentType = "section") {
-                    ContractCard(
-                        contract = c,
-                        buyout = buyouts[c.id],
-                        busy = wave2Busy,
-                        onLoadQuote = { wave2.loadBuyout(c.id) },
-                        onEquityStatement = { wave2.equityStatement(c.id) },
-                    )
-                }
             }
             payments?.takeIf { !o.isLegacy }?.let { pay ->
                 item(key = "pay_links", contentType = "section") {
                     OnlinePaymentsCard(
                         payments = pay,
-                        owes = (o.balance?.minor ?: 0) > 0 && !o.isDraft,
-                        busy = wave2Busy,
                         zone = zone,
-                        onRequest = wave2::requestPayLink,
                         onShare = { url -> runCatching { sharePayLink(context, url, shareTitle) } },
-                        onEmail = wave2::emailLink,
-                        gatewayActions = GatewayActions(
-                            orderId = o.id,
-                            currency = o.currency,
-                            suggestedChargeMinor = o.balance?.minor?.takeIf { it > 0 },
-                            allowCharge = !o.isDraft && o.status != OrderStatus.CANCELLED,
-                            canCharge = wave2.can(OrderWave2ViewModel.PERMISSION_PAYMENT_CHARGE),
-                            canRefund = canRefund,
-                            pendingAmount = wave2::pendingAmount,
-                            onCharge = wave2::chargeSavedCard,
-                            onCapture = wave2::captureHold,
-                            onRelease = wave2::releaseHold,
-                            onRefund = wave2::refundPayment,
-                        ),
                     )
                 }
             }
-            paymentUnavailable?.takeIf { !o.isLegacy && !o.isDraft }?.let { unavailable ->
+            paymentUnavailable?.takeIf { !o.isLegacy }?.let { unavailable ->
                 item(key = "manual_payments", contentType = "section") {
                     SectionCard(title = stringResource(R.string.rentals_payments), contentPadding = true) {
                         Text(stringResource(
@@ -785,34 +711,7 @@ fun RentalOrderScreen(
                     }
                 }
             }
-            // Payments and invoices only appear once they exist; adding them lives in the bar / overflow.
-            if (ledger.isNotEmpty()) item(key = "payments", contentType = "section") {
-                SectionCard(title = stringResource(R.string.rentals_payments)) {
-                    ledger.forEachIndexed { i, p ->
-                        if (i > 0) CardDivider(Modifier.padding(start = AvagoSpacing.listInset))
-                        val outgoing = p.kind == "refund" || p.kind == "deposit_refunded"
-                        val at = p.at?.let { RentalTime.parseInstant(it) }?.let { formatDateTime(it, zone) }
-                        val method = p.method?.let { stringResource(methodLabel(it)) }
-                        ListItem(
-                            colors = cardListItemColors(),
-                            leadingContent = {
-                                LeadingBadge(
-                                    if (outgoing) Icons.AutoMirrored.Filled.Undo else Icons.Default.Payments,
-                                    if (outgoing) StatusTone.Warning else StatusTone.Success,
-                                )
-                            },
-                            headlineContent = { Text(stringResource(ledgerKindLabel(p.kind))) },
-                            supportingContent = { Text(listOfNotNull(method, at).joinToString(" · ")) },
-                            trailingContent = {
-                                Column(horizontalAlignment = Alignment.End) {
-                                    Text(formatMoney(p.amount), style = MaterialTheme.typography.bodyMedium)
-                                    SyncStateBadge(p.localState)
-                                }
-                            },
-                        )
-                    }
-                }
-            }
+            // Invoices only appear once they exist; recording payments and invoicing live in the bar / overflow.
             if (invoices.isNotEmpty()) item(key = "invoices", contentType = "section") {
                 SectionCard(title = stringResource(R.string.rentals_invoices)) {
                     invoices.forEachIndexed { i, inv ->
@@ -824,8 +723,8 @@ fun RentalOrderScreen(
                             supportingContent = { Text(invoiceStatusText(inv.status)) },
                             trailingContent = {
                                 Column(horizontalAlignment = Alignment.End) {
-                                    Text(formatMoney(inv.total), style = MaterialTheme.typography.bodyMedium)
-                                    SyncStateBadge(inv.localState)
+                                    Text(formatMoney(Money.of(inv.totalMinor, inv.currency)), style = MaterialTheme.typography.bodyMedium)
+                                    SyncStateBadge(inv.sync)
                                 }
                             },
                         )
@@ -833,29 +732,18 @@ fun RentalOrderScreen(
                 }
             }
             fees?.let { f -> item(key = "fees", contentType = "section") { FeeBreakdownCard(f) } }
-            if (!o.isLegacy) item(key = "post_charges", contentType = "section") {
-                PostChargesSection(
-                    orderId = o.id.takeIf { !o.isDraft },
-                    orderStatus = o.status,
-                    currency = o.currency,
-                    zone = zone,
-                    onMessage = { msg -> scope.launch { snackbar.showSnackbar(msg) } },
-                )
-            }
             if (handovers.isNotEmpty()) {
                 item(key = "history", contentType = "section") {
                     SectionCard(title = stringResource(R.string.rentals_order_history), contentPadding = true) {
-                        val sorted = handovers.sortedByDescending { h -> h.at?.let { RentalTime.parseInstant(it) } ?: Instant.MIN }
-                        sorted.forEachIndexed { i, h ->
+                        handovers.forEachIndexed { i, h ->
                             val out = h.kind == "checkout"
                             TimelineEntry(
                                 title = stringResource(if (out) R.string.rentals_action_checkout else R.string.rentals_action_checkin),
                                 icon = if (out) Icons.AutoMirrored.Filled.Logout else Icons.AutoMirrored.Filled.Login,
                                 tone = if (out) StatusTone.Accent else StatusTone.Success,
-                                time = h.at?.let { RentalTime.parseInstant(it) }?.let { formatDateTime(it, zone) },
-                                trailing = if (h.localState != RentalRecordEntity.STATE_SYNCED) stringResource(R.string.rentals_sync_pending) else null,
+                                time = formatDateTime(h.at, zone),
                                 isFirst = i == 0,
-                                isLast = i == sorted.lastIndex,
+                                isLast = i == handovers.lastIndex,
                             )
                         }
                     }
@@ -894,6 +782,7 @@ fun RentalOrderScreen(
             destructive = true,
             confirmLabel = stringResource(if (cancel) R.string.rentals_cancel_order_confirm else R.string.rentals_no_show_confirm),
             dismissLabel = stringResource(R.string.rentals_keep_order),
+            required = cancel,
             onDismiss = { confirmAction = null },
         ) { reason ->
             viewModel.action(a, reason = reason); confirmAction = null
@@ -920,20 +809,13 @@ private fun OrderSummaryCard(o: OrderView, zone: ZoneId, onOpenCustomer: (String
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 OrderStatusPill(o.status)
-                SyncStateBadge(o.localState, failed = isSyncFailed(o.notice))
+                SyncStateBadge(o.sync)
             }
-            if (o.isDraft) {
+            if (o.isPending) {
                 Text(
                     stringResource(R.string.rentals_draft_explainer),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            o.notice?.let {
-                ErrorBanner(
-                    noticeText(it, conflict = true),
-                    modifier = Modifier.fillMaxWidth(),
-                    tone = if (isSyncFailed(it)) StatusTone.Danger else StatusTone.Warning,
                 )
             }
         }
@@ -959,10 +841,10 @@ private fun OrderSummaryCard(o: OrderView, zone: ZoneId, onOpenCustomer: (String
             o.holdExpiresAt?.let { LabelValue(stringResource(R.string.rentals_hold_expires), formatDateTime(it, zone)) }
         }
         CardDivider()
-        // The one place money is shown on this screen: Total · Paid · Balance (+ deposit).
+        // The one place money is shown on this screen: Total Â· Paid Â· Balance (+ deposit).
         MoneyStats(
             listOf(
-                Triple(stringResource(R.string.rentals_total), formatMoney(o.total) + if (o.isDraft) " *" else "", null),
+                Triple(stringResource(R.string.rentals_total), formatMoney(o.total) + if (o.isPending) " *" else "", null),
                 Triple(stringResource(R.string.rentals_paid), formatMoney(o.paid), null),
                 Triple(
                     stringResource(R.string.rentals_balance),
@@ -1104,6 +986,7 @@ internal fun ReasonDialog(
     destructive: Boolean = false,
     confirmLabel: String? = null,
     dismissLabel: String? = null,
+    required: Boolean = false,
     onDismiss: () -> Unit,
     onConfirm: (String?) -> Unit,
 ) {
@@ -1126,7 +1009,7 @@ internal fun ReasonDialog(
             )
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(reason.takeIf { it.isNotBlank() }) }) {
+            TextButton(onClick = { onConfirm(reason.trim().takeIf { it.isNotEmpty() }) }, enabled = !required || reason.isNotBlank()) {
                 // Destructive confirm names the action in red (colour plus wording).
                 Text(confirmLabel ?: stringResource(R.string.rentals_ok), color = if (destructive) danger else Color.Unspecified)
             }
@@ -1169,8 +1052,8 @@ internal fun methodLabel(method: String): Int = when (method) {
 }
 
 /**
- * Manual payment capture (§5.1): kind, method, amount, reference, external-terminal card brand
- * and last 4 (never a card number), payer. `provider` stays null — gateway-ready, no Stripe.
+ * Manual payment capture (Â§5.1): kind, method, amount, reference, external-terminal card brand
+ * and last 4 (never a card number), payer. `provider` stays null â€” gateway-ready, no Stripe.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -1180,7 +1063,7 @@ internal fun PaymentSheet(
     canRefund: Boolean,
     suggested: Money?,
     onDismiss: () -> Unit,
-    onSave: (RentalRepository.PaymentInput) -> Unit,
+    onSave: (PaymentDraft) -> Unit,
 ) {
     var kind by remember { mutableStateOf("payment") }
     var method by remember { mutableStateOf("cash") }
@@ -1189,7 +1072,6 @@ internal fun PaymentSheet(
     var brand by remember { mutableStateOf("") }
     var last4 by remember { mutableStateOf("") }
     var payerName by remember { mutableStateOf("") }
-    var payerEmail by remember { mutableStateOf("") }
     var authorization by remember { mutableStateOf(false) }
     var notes by remember { mutableStateOf("") }
     var attempted by remember { mutableStateOf(false) }
@@ -1204,18 +1086,18 @@ internal fun PaymentSheet(
         attempted = true
         if (parsed != null && last4Ok) {
             onSave(
-                RentalRepository.PaymentInput(
+                PaymentDraft(
                     orderId = orderId,
                     kind = kind,
                     method = method,
-                    amount = parsed,
-                    reference = reference,
-                    cardBrand = brand.takeIf { card },
-                    last4 = last4.takeIf { card && it.length == 4 },
-                    payerName = payerName,
-                    payerEmail = payerEmail,
+                    amountMinor = parsed.minor,
+                    currency = parsed.currency,
+                    reference = reference.trim().ifEmpty { null },
+                    cardBrand = brand.trim().takeIf { card && it.isNotEmpty() },
+                    cardLast4 = last4.takeIf { card && it.length == 4 },
+                    payerName = payerName.trim().ifEmpty { null },
                     isAuthorization = card && authorization,
-                    notes = notes,
+                    notes = notes.trim().ifEmpty { null },
                     receivedAt = Instant.now(),
                 ),
             )
@@ -1256,13 +1138,13 @@ internal fun PaymentSheet(
             )
             FieldLabel(stringResource(R.string.rentals_payment_kind))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                RentalRepository.PaymentInput.KINDS.filter { canRefund || it !in setOf("refund", "deposit_refunded") }.forEach { k ->
+                PAYMENT_KINDS.filter { canRefund || it !in REFUND_KINDS }.forEach { k ->
                     FilterChip(kind == k, { kind = k }, { Text(stringResource(ledgerKindLabel(k))) }, Modifier.heightIn(min = MinTouch))
                 }
             }
             FieldLabel(stringResource(R.string.rentals_payment_method))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                RentalRepository.PaymentInput.METHODS.forEach { m ->
+                PAYMENT_METHODS.forEach { m ->
                     FilterChip(method == m, { method = m }, { Text(stringResource(methodLabel(m))) }, Modifier.heightIn(min = MinTouch))
                 }
             }
@@ -1314,14 +1196,6 @@ internal fun PaymentSheet(
                 payerName, { payerName = it },
                 label = { Text(stringResource(R.string.rentals_payer_name)) },
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
-                keyboardActions = next,
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                payerEmail, { payerEmail = it },
-                label = { Text(stringResource(R.string.rentals_payer_email)) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
                 keyboardActions = next,
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),

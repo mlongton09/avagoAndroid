@@ -1,15 +1,15 @@
 package com.avago.feature.rentals.ui
 
-import java.time.Instant
-import java.util.Currency
-import java.util.Locale
-import javax.inject.Inject
-import androidx.compose.foundation.background
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,29 +17,25 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Checklist
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.EventAvailable
 import androidx.compose.material.icons.filled.EventBusy
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.Icons
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -49,22 +45,20 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -72,103 +66,96 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
-import com.avago.core.data.db.entity.AssetEntity
-import com.avago.core.data.db.rental.RentalRecordEntity
+import com.avago.core.data.domain.ActivityFilter
+import com.avago.core.data.domain.ActivityRepository
+import com.avago.core.data.domain.Asset
+import com.avago.core.data.domain.AssetRepository
+import com.avago.core.data.domain.RecordSyncState
+import com.avago.core.data.domain.RentalRates
+import com.avago.core.data.domain.RentalRepository
 import com.avago.core.data.rental.FleetStatus
 import com.avago.core.data.rental.LocalFleet
 import com.avago.core.data.rental.MoneyFormatter
 import com.avago.core.design.theme.AvagoSpacing
 import com.avago.core.ui.components.BottomActionBar
-import com.avago.core.ui.components.toneColors
 import com.avago.core.ui.components.CardDivider
-import com.avago.core.ui.components.cardListItemColors
 import com.avago.core.ui.components.ErrorBanner
-import com.avago.core.ui.components.isDarkScheme
 import com.avago.core.ui.components.LeadingBadge
-import com.avago.core.ui.components.rememberHaptics
 import com.avago.core.ui.components.SectionCard
 import com.avago.core.ui.components.StatusPill
 import com.avago.core.ui.components.StatusTone
-import com.avago.feature.rentals.data.RentalRepository
+import com.avago.core.ui.components.cardListItemColors
+import com.avago.core.ui.components.isDarkScheme
+import com.avago.core.ui.components.rememberHaptics
+import com.avago.core.ui.components.toneColors
+import com.avago.feature.rentals.R
 import com.avago.feature.rentals.domain.AssetProfit
 import com.avago.feature.rentals.domain.HandoverTarget
 import com.avago.feature.rentals.domain.LineView
 import com.avago.feature.rentals.domain.OrderView
-import com.avago.feature.rentals.domain.RentalEntity
-import com.avago.feature.rentals.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.time.Instant
+import java.util.Currency
+import java.util.Locale
+import javax.inject.Inject
 
 data class AssetBooking(val order: OrderView, val line: LineView)
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class AssetRentalViewModel @Inject constructor(
     private val repo: RentalRepository,
-    private val dbFactory: DatabaseFactory,
-    private val identity: IdentityManager,
+    assets: AssetRepository,
+    activities: ActivityRepository,
     savedState: SavedStateHandle,
 ) : ViewModel() {
     val assetId: String = requireNotNull(savedState["assetId"])
 
-    private fun <T> perAccount(empty: T, block: suspend (String) -> Flow<T>): Flow<T> =
-        identity.activeAccountId.flatMapLatest { acc ->
-            if (acc == null) flowOf(empty) else flow { emitAll(block(acc)) }
-        }
+    val asset: StateFlow<Asset?> = assets.observeAsset(assetId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    val asset: StateFlow<AssetEntity?> = perAccount(null) { acc ->
-        dbFactory.get(acc).assetDao().observeAll(acc).map { list -> list.firstOrNull { it.assetId == assetId } }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-
-    val status: StateFlow<LocalFleet.Result?> = repo.fleetInputs()
+    val status: StateFlow<LocalFleet.Result?> = repo.observeFleet()
         .map { LocalFleet.compute(it, Instant.now())[assetId] }
         // Walks every rental row: keep it off the main thread.
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val bookings: StateFlow<List<AssetBooking>> = combine(
-        repo.byAsset(RentalEntity.ORDER_LINE, assetId),
-        repo.records(RentalEntity.ORDER),
+        repo.observeLines(),
+        repo.observeOrders(),
     ) { lines, orders ->
         val byId = orders.associateBy { it.id }
-        lines.mapNotNull { l ->
-            val o = l.orderId?.let(byId::get)?.let(OrderView::of) ?: return@mapNotNull null
+        lines.filter { it.assetId == assetId }.mapNotNull { l ->
+            val o = byId[l.orderId]?.let(OrderView::of) ?: return@mapNotNull null
             AssetBooking(o, LineView.of(l, o.currency))
         }.sortedByDescending { it.line.startAt ?: it.order.startAt }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    }.flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val profit: StateFlow<AssetProfit.Result?> = combine(
         bookings,
-        perAccount(emptyList()) { acc -> dbFactory.get(acc).logDao().observeAll(acc).map { logs -> logs.filter { it.assetId == assetId } } },
+        activities.observeActivities(ActivityFilter(assetId = assetId)),
     ) { bs, logs ->
         val cur = bs.firstOrNull()?.order?.currency ?: logs.firstNotNullOfOrNull { it.currency } ?: return@combine null
         AssetProfit.compute(
             cur,
             bs.map { AssetProfit.Revenue(it.order.status, it.line.amount) },
-            logs.map { AssetProfit.Cost(it.cost, it.currency) },
+            logs.map { AssetProfit.Cost(it.totalCost.toDouble(), it.currency) },
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
@@ -176,22 +163,25 @@ class AssetRentalViewModel @Inject constructor(
     val messages: SharedFlow<String> = _messages
     val currency = MutableStateFlow(runCatching { Currency.getInstance(Locale.getDefault()).currencyCode }.getOrDefault("USD"))
 
+    /** `rental.assets.enable_rental` with the entered rates, or `disable_rental`. */
     fun setRentable(enabled: Boolean, day: String, week: String, deposit: String) = viewModelScope.launch {
-        val a = asset.value
         val cur = currency.value
         try {
-            val dayRate = MoneyFormatter.parse(day, cur)?.takeIf { it.minor > 0 }
-            if (enabled && dayRate == null) {
+            if (!enabled) {
+                repo.disableRental(assetId)
+                return@launch
+            }
+            val dayRate = MoneyFormatter.parse(day, cur)?.takeIf { it.minor > 0 } ?: run {
                 _messages.emit("day rate"); return@launch
             }
-            repo.setRentable(
-                assetId = assetId,
-                assetName = a?.name ?: assetId,
-                assetType = a?.assetType,
-                enabled = enabled,
-                dayRate = dayRate,
-                weekRate = MoneyFormatter.parse(week, cur)?.takeIf { it.minor > 0 },
-                deposit = MoneyFormatter.parse(deposit, cur)?.takeIf { it.minor > 0 },
+            repo.enableRental(
+                assetId,
+                RentalRates(
+                    dayMinor = dayRate.minor,
+                    weekMinor = MoneyFormatter.parse(week, cur)?.minor?.takeIf { it > 0 },
+                    depositMinor = MoneyFormatter.parse(deposit, cur)?.minor?.takeIf { it > 0 },
+                    currency = cur,
+                ),
             )
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
@@ -208,7 +198,6 @@ fun AssetRentalScreen(
     onBack: () -> Unit,
     onBook: (assetId: String) -> Unit,
     onOpenOrder: (String) -> Unit,
-    onOpenLegacy: (assetId: String) -> Unit,
     onReadiness: ((assetId: String) -> Unit)? = null,
     onHandover: ((orderId: String, direction: String) -> Unit)? = null,
     viewModel: AssetRentalViewModel = hiltViewModel(),
@@ -249,7 +238,6 @@ fun AssetRentalScreen(
     val overflow = if (s == null) emptyList() else buildList {
         if (primary !== bookAction) add(bookAction)
         if (needsReadiness && primary !== readinessAction) add(readinessAction)
-        add(MenuAction(stringResource(R.string.rentals_legacy_rentals), Icons.Default.History) { onOpenLegacy(viewModel.assetId) })
         add(MenuAction(stringResource(R.string.rentals_disable_rentable), Icons.Default.Block, destructive = true) { confirmStop = true })
     }
 
@@ -309,7 +297,7 @@ fun AssetRentalScreen(
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm), verticalAlignment = Alignment.CenterVertically) {
                                 FleetStatusChip(s.status)
-                                if (s.local || s.readinessPending) SyncStateBadge(RentalRecordEntity.STATE_PENDING)
+                                if (s.readinessPending) SyncStateBadge(RecordSyncState.PENDING)
                             }
                         }
                     }

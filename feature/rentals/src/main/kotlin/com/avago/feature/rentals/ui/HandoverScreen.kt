@@ -1,50 +1,39 @@
 package com.avago.feature.rentals.ui
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import android.Manifest
 import android.content.pm.PackageManager
-import java.io.File
+import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.filled.AddAPhoto
-import androidx.compose.material3.Surface
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
-import coil3.compose.AsyncImage
-import com.avago.core.data.db.entity.PhotoEntity
-import com.avago.core.design.theme.AvagoSpacing
-import java.time.Instant
-import java.time.ZoneId
-import java.util.UUID
-import javax.inject.Inject
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DirectionsCar
@@ -53,7 +42,6 @@ import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocalGasStation
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.Icons
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -69,21 +57,24 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.input.ImeAction
@@ -93,98 +84,116 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
-import com.avago.core.data.db.rental.RentalRecordEntity
+import coil3.compose.AsyncImage
+import com.avago.core.data.domain.ActivityFilter
+import com.avago.core.data.domain.ActivityRepository
+import com.avago.core.data.domain.ActivityType
+import com.avago.core.data.domain.HandoverDamageDraft
+import com.avago.core.data.domain.HandoverDraft
+import com.avago.core.data.domain.LocalFileRef
+import com.avago.core.data.domain.RentalAllocation
+import com.avago.core.data.domain.RentalHandover
+import com.avago.core.data.domain.RentalOrderLine
+import com.avago.core.data.domain.RentalRepository
 import com.avago.core.data.rental.LocalFleet
 import com.avago.core.data.rental.Money
 import com.avago.core.data.rental.MoneyFormatter
+import com.avago.core.design.theme.AvagoSpacing
+import com.avago.core.permissions.PermissionsManager
 import com.avago.core.ui.components.BottomActionBar
 import com.avago.core.ui.components.CardDivider
-import com.avago.core.ui.components.cardListItemColors
 import com.avago.core.ui.components.ErrorBanner
 import com.avago.core.ui.components.LeadingBadge
-import com.avago.core.ui.components.rememberHaptics
 import com.avago.core.ui.components.SectionCard
 import com.avago.core.ui.components.StatusPill
 import com.avago.core.ui.components.StatusTone
 import com.avago.core.ui.components.StepIndicator
+import com.avago.core.ui.components.cardListItemColors
+import com.avago.core.ui.components.rememberHaptics
 import com.avago.feature.log.model.InspectionV2
 import com.avago.feature.log.model.VehicleSketchModel.SketchMark
-import com.avago.feature.log.ui.inspectionLocationLabel
 import com.avago.feature.log.ui.SignaturePad
 import com.avago.feature.log.ui.VehicleSketchLegend
 import com.avago.feature.log.ui.VehicleSketchView
-import com.avago.feature.rentals.data.RentalRepository
+import com.avago.feature.log.ui.inspectionLocationLabel
+import com.avago.feature.rentals.R
 import com.avago.feature.rentals.data.RentalsOnline
 import com.avago.feature.rentals.domain.CreditCheck
 import com.avago.feature.rentals.domain.Esign
 import com.avago.feature.rentals.domain.HandoverChecks
-import com.avago.feature.rentals.domain.HandoverProgress
-import com.avago.feature.rentals.domain.OrderView
 import com.avago.feature.rentals.domain.HandoverGates
+import com.avago.feature.rentals.domain.HandoverProgress
+import com.avago.feature.rentals.domain.Kits
 import com.avago.feature.rentals.domain.MeterInfo
-import com.avago.core.permissions.PermissionsManager
-import kotlinx.coroutines.flow.distinctUntilChanged
-import com.avago.feature.rentals.domain.bool
-import com.avago.feature.rentals.domain.obj
-import com.avago.feature.rentals.domain.objs
-import com.avago.feature.rentals.domain.RentalEntity
-import com.avago.feature.rentals.domain.str
-import com.avago.feature.rentals.R
+import com.avago.feature.rentals.domain.OrderView
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.io.File
+import java.time.Instant
+import java.time.ZoneId
+import java.util.UUID
+import javax.inject.Inject
 
 data class InspectionOption(val logId: String, val title: String, val at: Instant)
-data class HandoverUnit(val assetId: String, val name: String, val assetType: String?, val lineId: String?)
+data class HandoverUnit(val assetId: String, val name: String, val assetType: String?, val lineId: String)
 
 /** Charge (amount in the order currency, minor units) or waive (with reason) for new damage. */
 data class DamageDecision(val charge: Boolean, val chargeMinor: Long?, val reason: String?) {
     val isValid: Boolean get() = if (charge) (chargeMinor ?: 0L) > 0L else !reason.isNullOrBlank()
 }
 
-/**
- * Damage marks of a stored handover as sketch pins: the server keeps them as
- * `damage_summary[{label, severity, decision, location, …}]`; a pending local copy holds the
- * request's `damage[]`. `location` is the sketch zone key (`zone` read for older local rows).
- */
-internal fun marksOf(rec: RentalRecordEntity?): List<SketchMark> {
-    val o = rec?.obj ?: return emptyList()
-    val list = o.objs("damage_summary").ifEmpty { o.objs("damage") }
-    return list.mapIndexedNotNull { i, m ->
-        val zone = m.str("location") ?: m.str("zone") ?: return@mapIndexedNotNull null
-        SketchMark(m.str("id") ?: "b$i", zone, m.str("severity") ?: InspectionV2.SEV_MINOR, m.str("label") ?: "", i + 1)
+/** Damage findings of a stored handover as sketch pins (`location` is the sketch zone key). */
+internal fun marksOf(h: RentalHandover?): List<SketchMark> =
+    h?.damage.orEmpty().mapIndexedNotNull { i, d ->
+        val zone = d.location ?: return@mapIndexedNotNull null
+        SketchMark("b$i", zone, d.severity ?: InspectionV2.SEV_MINOR, d.label, i + 1)
     }
-}
 
 /**
  * Baseline for a handover (§14): check-in compares with this order's check-out; check-out
  * compares with the unit's latest check-in. Pure so it can be unit-tested.
  */
-internal fun baselineFor(direction: String, orderId: String, handovers: List<RentalRecordEntity>): RentalRecordEntity? {
-    val sorted = handovers.sortedByDescending { it.obj.str("at") ?: "" }
+internal fun baselineFor(direction: String, orderId: String, handovers: List<RentalHandover>): RentalHandover? {
+    val sorted = handovers.filter { !it.voided }.sortedByDescending { it.at }
     return if (direction == "in") {
-        sorted.firstOrNull { it.orderId == orderId && it.obj.str("kind") == "checkout" }
+        sorted.firstOrNull { it.orderId == orderId && it.kind == "checkout" }
     } else {
-        sorted.firstOrNull { it.obj.str("kind") == "checkin" }
+        sorted.firstOrNull { it.kind == "checkin" }
+    }
+}
+
+/** Units of the order that can be handed over: assigned lines first, then active allocations. */
+internal fun handoverUnits(
+    lines: List<RentalOrderLine>,
+    allocations: List<RentalAllocation>,
+    units: List<LocalFleet.FleetUnit>,
+): List<HandoverUnit> {
+    val byId = units.associateBy { it.assetId }
+    val fromLines = lines.filter { Kits.isHandoverLine(it.kind) }.mapNotNull { l -> l.assetId?.let { it to l.id } }
+    val fromAllocs = allocations.filter { it.active }.mapNotNull { a -> a.assetId?.let { id -> a.orderLineId?.let { id to it } } }
+    return (fromLines + fromAllocs).distinctBy { it.first }.map { (id, line) ->
+        HandoverUnit(id, byId[id]?.name ?: id, byId[id]?.assetType, line)
     }
 }
 
@@ -192,32 +201,26 @@ internal fun baselineFor(direction: String, orderId: String, handovers: List<Ren
 @HiltViewModel
 class HandoverViewModel @Inject constructor(
     private val repo: RentalRepository,
-    private val dbFactory: DatabaseFactory,
-    private val identity: IdentityManager,
+    activities: ActivityRepository,
     private val online: RentalsOnline,
     permissions: PermissionsManager,
     savedState: SavedStateHandle,
 ) : ViewModel() {
     val orderId: String = requireNotNull(savedState["orderId"])
     val direction: String = savedState.get<String>("direction")?.takeIf { it == "in" } ?: "out"
+    private val order = repo.observeOrder(orderId).stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val mayHandover = combine(
-        repo.record(RentalEntity.ORDER, orderId),
+        order,
         permissions.observeCan(if (direction == "out") "rental.checkout" else "rental.checkin"),
-    ) { record, permitted -> permitted && HandoverProgress.mayHandover(record?.let(OrderView::of), direction) }
+    ) { o, permitted -> permitted && HandoverProgress.mayHandover(o?.let(OrderView::of), direction) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
-    private val lines = repo.byOrder(RentalEntity.ORDER_LINE, orderId)
-    private val allocations = repo.byOrder(RentalEntity.ALLOCATION, orderId)
-    private val fleet = repo.records(RentalEntity.FLEET)
-
-    val units: StateFlow<List<HandoverUnit>> = combine(lines, allocations, fleet) { ls, al, fl ->
-        val byId = fl.mapNotNull(LocalFleet::unitOf).associateBy { it.assetId }
-        val fromLines = ls.mapNotNull { l -> l.assetId?.let { it to l.id } }
-        val fromAllocs = al.filter { it.obj.bool("active") != false }.mapNotNull { a -> a.assetId?.let { it to a.obj.str("order_line_id") } }
-        (fromLines + fromAllocs).distinctBy { it.first }.map { (id, line) ->
-            HandoverUnit(id, byId[id]?.name ?: id, byId[id]?.assetType, line)
-        }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val units: StateFlow<List<HandoverUnit>> = combine(
+        repo.observeLines(orderId),
+        repo.observeAllocations(orderId = orderId),
+        repo.observeFleet(),
+    ) { ls, al, fl -> handoverUnits(ls, al, fl.units) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val selected = MutableStateFlow<String?>(null)
 
@@ -226,58 +229,29 @@ class HandoverViewModel @Inject constructor(
     val currentUnit: StateFlow<HandoverUnit?> get() = unit
 
     val baseline: StateFlow<List<SketchMark>> = unit.flatMapLatest { u ->
-        if (u == null) flowOf(emptyList()) else repo.byAsset(RentalEntity.HANDOVER, u.assetId).map { marksOf(baselineFor(direction, orderId, it)) }
+        if (u == null) flowOf(emptyList()) else repo.observeHandovers(assetId = u.assetId).map { marksOf(baselineFor(direction, orderId, it)) }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    /** Recent inspection logs (last 24 h) for the unit — the inspection v2 form. */
+    /** Recent inspections (last 24 h) of the unit; the chosen one is linked to the hand-over. */
     val inspections: StateFlow<List<InspectionOption>> = unit.flatMapLatest { u ->
-        val acc = identity.getActiveAccountId()
-        if (u == null || acc == null) flowOf(emptyList())
-        else dbFactory.get(acc).logDao().observeAll(acc).map { logs ->
-            val since = System.currentTimeMillis() - 24 * 3_600_000L
-            logs.filter { it.assetId == u.assetId && it.entryDate >= since && (it.category == "inspection" || it.data?.contains("\"inspection\"") == true) }
-                .sortedByDescending { it.entryDate }
-                .map { InspectionOption(it.entryId, it.title, Instant.ofEpochMilli(it.entryDate)) }
+        if (u == null) {
+            flowOf(emptyList())
+        } else {
+            activities.observeActivities(
+                ActivityFilter(assetId = u.assetId, types = setOf(ActivityType.INSPECTION), from = System.currentTimeMillis() - 24 * 3_600_000L),
+            ).map { list ->
+                list.sortedByDescending { it.occurredAt }.map { InspectionOption(it.id, it.title ?: it.categoryLabel.orEmpty(), Instant.ofEpochMilli(it.occurredAt)) }
+            }
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val logId = MutableStateFlow<String?>(null)
 
-    /** Condition photos on the selected inspection log (uploaded with the handover). */
-    val photos: StateFlow<List<PhotoEntity>> = logId.flatMapLatest { id ->
-        val acc = identity.getActiveAccountId()
-        if (id == null || acc == null) flowOf(emptyList())
-        else dbFactory.get(acc).photoDao().observeByEntity(id, "log").map { ps -> ps.filter { it.deletedAt == null }.sortedBy { it.sortOrder } }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    /** Condition photos taken on this device (staged and uploaded with the hand-over). */
+    val photos = MutableStateFlow<List<File>>(emptyList())
 
-    /** Adds a camera photo to inspection log [forLogId]; the rental outbox uploads it before the handover. */
-    fun addPhoto(forLogId: String, file: java.io.File) = viewModelScope.launch {
-        try {
-            val acc = identity.getActiveAccountId() ?: return@launch
-            val now = System.currentTimeMillis()
-            dbFactory.get(acc).photoDao().upsert(
-                PhotoEntity(
-                    photoId = UUID.randomUUID().toString(),
-                    entityId = forLogId,
-                    entityType = "log",
-                    accountId = acc,
-                    storageKey = null,
-                    downloadUrl = null,
-                    sortOrder = photos.value.size.toLong(),
-                    isPrimary = false,
-                    createdAt = now,
-                    updatedAt = now,
-                    deletedAt = null,
-                    serverVersion = 0,
-                    localPath = file.absolutePath,
-                ),
-            )
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Timber.w(e, "add handover photo failed")
-            _errors.emit(e.message ?: e.javaClass.simpleName)
-        }
+    fun addPhoto(file: File) {
+        photos.value = photos.value + file
     }
 
     val marks = MutableStateFlow<List<SketchMark>>(emptyList())
@@ -290,7 +264,7 @@ class HandoverViewModel @Inject constructor(
     val signature = MutableStateFlow<String?>(null)
     val signer = MutableStateFlow("")
 
-    // ── Wave 2: meter rules, e-signature and credit gates ───────────────────────────
+    // ── Wave 2: meter rules, e-signature and credit gates ──
 
     val canOverrideMeter: Boolean = permissions.can(HandoverGates.PERMISSION_METER_OVERRIDE)
     val canOverrideSignature: Boolean = permissions.can(Esign.PERMISSION_OVERRIDE)
@@ -306,9 +280,9 @@ class HandoverViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private val esignCached = online.observe(online.signaturesKey(orderId))
-    /** Signature status with queued in-person captures counted as signed; null when unknown. */
-    val esign: StateFlow<Esign.Status?> = combine(esignCached, repo.pendingSignatureCaptures()) { c, pending ->
-        c?.let { Esign.parse(it.data) }?.let { Esign.withLocalCaptures(it, pending) }
+    /** Signature status with signatures captured on this device counted as signed; null when unknown. */
+    val esign: StateFlow<Esign.Status?> = combine(esignCached, repo.observeSignatures(orderId)) { c, local ->
+        c?.let { Esign.parse(it.data) }?.let { Esign.withLocal(it, local) }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
     private val esignFresh = esignCached.map { HandoverChecks.fresh(it?.at, System.currentTimeMillis()) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
@@ -360,16 +334,16 @@ class HandoverViewModel @Inject constructor(
     /** Refreshes the signature status and the credit check (check-out only). */
     fun refreshGates() = viewModelScope.launch {
         online.refreshSignatures(orderId)
-        val lineIds = units.value.mapNotNull { it.lineId }
+        val lineIds = units.value.map { it.lineId }
         creditUnknown.value = online.refreshCreditCheck(orderId, lineIds) !is RentalsOnline.Result.Ok
     }
 
     /** Currency of the order (damage charges are in the order currency). */
-    val currency: StateFlow<String?> = repo.record(RentalEntity.ORDER, orderId).map { it?.obj?.str("currency")?.trim()?.takeIf { c -> c.length == 3 } }
+    val currency: StateFlow<String?> = order.map { it?.currency?.trim()?.takeIf { c -> c.length == 3 } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     /** The order's customer (missing documents are added on the customer). */
-    val customerId: StateFlow<String?> = repo.record(RentalEntity.ORDER, orderId).map { it?.customerId ?: it?.obj?.str("customer_id") }
+    val customerId: StateFlow<String?> = order.map { it?.customerPartyId }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     /** New check-in damage still without a charge or a waive reason (save is blocked). */
@@ -377,8 +351,8 @@ class HandoverViewModel @Inject constructor(
         ms.count { it.isNew && ds[it.id]?.isValid != true }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
-    private val _done = MutableSharedFlow<String>(extraBufferCapacity = 1)
-    val done: SharedFlow<String> = _done
+    private val _done = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val done: SharedFlow<Unit> = _done
     private val _errors = MutableSharedFlow<String>(extraBufferCapacity = 2)
     val errors: SharedFlow<String> = _errors
 
@@ -412,43 +386,39 @@ class HandoverViewModel @Inject constructor(
     fun save(defaultSigner: String) = viewModelScope.launch {
         val u = unit.value ?: return@launch
         try {
-            val acc = identity.getActiveAccountId()
-            val photoIds = logId.value?.let { id -> acc?.let { dbFactory.get(it).photoDao().observeByEntity(id, "log").first() } }
-                ?.map { it.photoId }.orEmpty()
             val ds = decisions.value
-            val id = repo.saveHandover(
-                RentalRepository.HandoverInput(
+            val checks = checksInput.value
+            repo.handover(
+                HandoverDraft(
                     orderId = orderId,
-                    orderLineId = u.lineId,
+                    lineId = u.lineId,
                     assetId = u.assetId,
-                    direction = direction,
-                    meterReading = meter.value.replace(',', '.').toDoubleOrNull(),
-                    meterKind = meterKind.value,
-                    fuelLevel = fuel.value,
-                    marks = marks.value.map {
+                    checkout = direction == "out",
+                    at = Instant.now(),
+                    meterValue = MeterInfo.parseReading(meter.value),
+                    meterOverrideReason = meterOverrideReason.value.trim().takeIf { it.isNotEmpty() && HandoverChecks.meterOverrideNeeded(checks) },
+                    meterPhoto = meterPhotoPath.value?.let { LocalFileRef(Uri.fromFile(File(it)).toString(), "image/jpeg") },
+                    fuelLevelPct = fuel.value,
+                    damage = marks.value.map {
                         val d = ds[it.id].takeIf { _ -> it.isNew }
-                        RentalRepository.HandoverInput.Mark(
-                            it.id, it.zone, it.severity, it.label, it.isNew,
+                        HandoverDamageDraft(
+                            zone = it.zone, severity = it.severity, label = it.label, isNew = it.isNew,
                             chargeMinor = d?.chargeMinor?.takeIf { _ -> d.charge },
                             reason = d?.reason?.takeIf { _ -> !d.charge },
                         )
                     },
-                    notes = notes.value,
-                    logId = logId.value,
-                    photoIds = photoIds,
-                    signatureDataUrl = signature.value,
-                    signerName = signer.value.takeIf { it.isNotBlank() } ?: defaultSigner,
-                    occurredAt = Instant.now(),
-                    zoneId = ZoneId.systemDefault().id,
-                    meterOverrideReason = meterOverrideReason.value.takeIf { HandoverChecks.meterOverrideNeeded(checksInput.value) },
-                    meterPhotoPath = meterPhotoPath.value,
+                    notes = notes.value.trim().ifEmpty { null },
+                    inspectionActivityId = logId.value,
+                    photos = photos.value.map { LocalFileRef(Uri.fromFile(it).toString(), "image/jpeg") },
+                    signaturePng = signature.value?.let(Esign::pngBytes),
+                    signerName = signature.value?.let { signer.value.trim().ifEmpty { defaultSigner } },
                     overrideSignature = direction == "out" && overrideSignature.value,
-                    creditOverrideReason = creditOverrideReason.value.takeIf {
-                        direction == "out" && credit.value?.allowed == false && canOverrideCredit
+                    creditOverrideReason = creditOverrideReason.value.trim().takeIf {
+                        it.isNotEmpty() && direction == "out" && credit.value?.allowed == false && canOverrideCredit
                     },
                 ),
             )
-            _done.emit(id)
+            _done.emit(Unit)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -509,8 +479,7 @@ fun HandoverScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val cameraDenied = stringResource(R.string.rentals_readiness_camera_denied)
-    // Pending capture (log id + file) survives the camera activity / process death.
-    var captureLog by rememberSaveable { mutableStateOf<String?>(null) }
+    // The pending capture file survives the camera activity / process death.
     var capturePath by rememberSaveable { mutableStateOf<String?>(null) }
     val defaultSigner = stringResource(R.string.rentals_customer)
     var addZone by remember { mutableStateOf<String?>(null) }
@@ -522,36 +491,28 @@ fun HandoverScreen(
     val haptics = rememberHaptics()
     val scroll = rememberScrollState()
     val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
-        val forLog = captureLog
         val file = capturePath?.let(::File)
-        captureLog = null
         capturePath = null
-        if (ok && forLog != null && file != null && file.length() > 0) {
+        if (ok && file != null && file.length() > 0) {
             haptics.tick()
-            viewModel.addPhoto(forLog, file)
+            viewModel.addPhoto(file)
         } else {
             file?.delete()
         }
     }
-    fun launchCamera(forLog: String) {
+    fun launchCamera() {
         val dir = File(context.filesDir, "rental_photos").apply { mkdirs() }
         val file = File(dir, "handover_${UUID.randomUUID()}.jpg")
-        captureLog = forLog
         capturePath = file.absolutePath
         takePicture.launch(FileProvider.getUriForFile(context, "${context.packageName}.provider", file))
     }
-    var permissionFor by rememberSaveable { mutableStateOf<String?>(null) }
     val requestCamera = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        val forLog = permissionFor
-        permissionFor = null
-        if (granted && forLog != null) launchCamera(forLog)
-        else if (!granted) scope.launch { snackbar.showSnackbar(cameraDenied) }
+        if (granted) launchCamera() else scope.launch { snackbar.showSnackbar(cameraDenied) }
     }
-    fun takePhoto(forLog: String) {
+    fun takePhoto() {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-            launchCamera(forLog)
+            launchCamera()
         } else {
-            permissionFor = forLog
             requestCamera.launch(Manifest.permission.CAMERA)
         }
     }
@@ -747,12 +708,7 @@ fun HandoverScreen(
                                 )
                             }
                         }
-                        ConditionPhotoStrip(
-                            photos = photos,
-                            logId = logId,
-                            onAdd = { takePhoto(it) },
-                            onStartInspection = unit?.let { u -> { onStartInspection(u.assetId) } },
-                        )
+                        ConditionPhotoStrip(photos = photos, onAdd = { takePhoto() })
                         if (marks.isNotEmpty()) {
                             SectionCard {
                                 marks.forEachIndexed { i, m ->
@@ -1083,17 +1039,9 @@ private fun CustomerSignatureDialog(
     }
 }
 
-/**
- * Condition photo strip (72dp tiles + "Add photo"). Photos belong to the selected inspection
- * log and are uploaded with the handover; with no inspection selected the add tile starts one.
- */
+/** Condition photo strip (72dp tiles + "Add photo"); the photos are uploaded with the hand-over. */
 @Composable
-private fun ConditionPhotoStrip(
-    photos: List<PhotoEntity>,
-    logId: String?,
-    onAdd: (logId: String) -> Unit,
-    onStartInspection: (() -> Unit)?,
-) {
+private fun ConditionPhotoStrip(photos: List<File>, onAdd: () -> Unit) {
     SectionCard(
         title = stringResource(R.string.rentals_condition_photos),
         trailing = if (photos.isNotEmpty()) {
@@ -1103,41 +1051,28 @@ private fun ConditionPhotoStrip(
         },
         contentPadding = true,
     ) {
-        if (logId == null) {
-            Text(
-                stringResource(R.string.rentals_condition_photos_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = AvagoSpacing.sm),
-            )
-        }
         LazyRow(horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm)) {
-            items(photos, key = { it.photoId }) { p ->
-                val model = remember(p.photoId, p.localPath, p.downloadUrl) { photoModel(p) }
+            items(photos, key = { it.absolutePath }) { f ->
                 Box(
                     Modifier
                         .size(AvagoSpacing.photoTile)
                         .clip(MaterialTheme.shapes.small)
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                 ) {
-                    if (model != null) {
-                        AsyncImage(model = model, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                    }
+                    AsyncImage(model = f, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                 }
             }
             item(key = "add") {
-                val label = stringResource(if (logId == null) R.string.rentals_start_inspection else R.string.rentals_add_photo)
-                val enabled = logId != null || onStartInspection != null
+                val label = stringResource(R.string.rentals_add_photo)
                 Surface(
-                    onClick = { if (logId != null) onAdd(logId) else onStartInspection?.invoke() },
-                    enabled = enabled,
+                    onClick = onAdd,
                     shape = MaterialTheme.shapes.small,
                     color = MaterialTheme.colorScheme.secondaryContainer,
                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                     modifier = Modifier.size(AvagoSpacing.photoTile).semantics { contentDescription = label },
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(if (logId == null) Icons.Default.Add else Icons.Default.AddAPhoto, contentDescription = null)
+                        Icon(Icons.Default.AddAPhoto, contentDescription = null)
                     }
                 }
             }

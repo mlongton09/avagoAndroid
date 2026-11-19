@@ -55,8 +55,9 @@ internal object Media {
     }
 
     /**
-     * Renders signature strokes (pad coordinates) as a JPEG with a white background — the shared
-     * upload path sends `image/jpeg`, and a white ground keeps the ink visible in every viewer.
+     * Renders signature strokes (pad coordinates) as a PNG on a white background: the complete
+     * command carries the signature as PNG bytes, and a white ground keeps the ink visible in
+     * every viewer.
      */
     suspend fun writeSignature(strokes: List<List<Pair<Float, Float>>>, width: Int, height: Int, strokePx: Float, file: File): Boolean =
         withContext(Dispatchers.IO) {
@@ -83,7 +84,7 @@ internal object Media {
                 }
                 c.drawPath(p, paint)
             }
-            file.outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 90, it) }
+            file.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
             bmp.recycle()
             true
         }

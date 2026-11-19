@@ -29,7 +29,7 @@
     <string name="rentals_more_details">Weitere Angaben</string>
     <string name="rentals_name_required">Bitte geben Sie einen Namen ein</string>
     <string name="rentals_date_invalid">Bitte im Format %1$s eingeben</string>
-    <string name="rentals_documents_none">Noch keine Dokumente</string>
+    <string name="rentals_documents_hint">Führerschein, Ausweis oder Versicherungsnachweis hinzufügen; die Prüfung erfolgt auf dem Server.</string>
     <string name="rentals_scan_result">Scanergebnis</string>
     <string name="rentals_status">Status</string>
     <string name="rentals_readiness_progress">%1$d von %2$d erledigt</string>

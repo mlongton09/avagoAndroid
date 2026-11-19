@@ -10,8 +10,6 @@ import com.avago.feature.rentals.marketplace.domain.MktError
 import com.avago.feature.rentals.marketplace.domain.MktListing
 import com.avago.feature.rentals.marketplace.domain.MktMeetSlots
 import com.avago.feature.rentals.marketplace.domain.MktMyRequests
-import com.avago.feature.rentals.marketplace.domain.MktOwnerListing
-import com.avago.feature.rentals.marketplace.domain.MktOwnerMarketplace
 import com.avago.feature.rentals.marketplace.domain.MktPlaces
 import com.avago.feature.rentals.marketplace.domain.MktRenter
 import com.avago.feature.rentals.marketplace.domain.MktRenterMeetup
@@ -20,10 +18,6 @@ import com.avago.feature.rentals.marketplace.domain.MktSearchPage
 import com.avago.feature.rentals.marketplace.domain.MktRenterBooking
 import com.avago.feature.rentals.marketplace.domain.MktSlot
 import com.avago.feature.rentals.marketplace.nav.MarketplaceRoutes
-import com.avago.feature.rentals.marketplace.owner.MktDraftError
-import com.avago.feature.rentals.marketplace.owner.MktSettingsDraft
-import com.avago.feature.rentals.marketplace.owner.MktSettingsForm
-import com.avago.feature.rentals.marketplace.owner.summaryIn
 import com.avago.feature.rentals.marketplace.renter.MktMeetViewModel
 import com.avago.feature.rentals.marketplace.renter.MktSignInStep
 import com.avago.feature.rentals.marketplace.renter.MktSignInViewModel
@@ -229,53 +223,9 @@ class MktViewModelsTest {
     }
 
     @Test
-    fun `renter routes are public, owner routes are not`() {
+    fun `renter routes are public, staff routes are not`() {
         assertTrue(MarketplaceRoutes.isPublic(MarketplaceRoutes.SEARCH))
         assertTrue(MarketplaceRoutes.isPublic(MarketplaceRoutes.SIGN_IN))
-        assertTrue(!MarketplaceRoutes.isPublic(MarketplaceRoutes.OWNER_MEETUP))
         assertTrue(!MarketplaceRoutes.isPublic("rentals/home"))
-        assertTrue(MarketplaceRoutes.isOwner(MarketplaceRoutes.OWNER_SETTINGS))
-        // feature:rentalsops push routing builds these as literals (RentalOpsRoutes.mktMeetup / MKT_MEETUPS).
-        assertEquals("rentals/mkt/owner/meetup/m-1", MarketplaceRoutes.ownerMeetup("m-1"))
-        assertEquals("rentals/mkt/owner/meetups", MarketplaceRoutes.OWNER_MEETUPS)
-    }
-
-    // ---- owner settings form / listing summaries ----
-
-    private fun settings() = MktOwnerMarketplace.of(
-        json(
-            """{"settings":{"enabled":true,"offer_meetup":true,"meet_availability":{"mon":[["09:00","12:00"]]},
-            "lead_hours":12,"slot_minutes":30,"timezone":"America/Vancouver","server_version":3},"readiness":{}}""",
-        ),
-    ).settings
-
-    @Test
-    fun `settings draft round-trips and reports the first invalid field`() {
-        val base = settings()
-        val draft = MktSettingsDraft.of(base)
-        val (ok, err) = MktSettingsForm.build(draft, base)
-        assertNull(err)
-        assertEquals(base.meetAvailability, ok!!.meetAvailability)
-        assertEquals(12, ok.leadHours)
-
-        fun error(d: MktSettingsDraft) = MktSettingsForm.build(d, base).second
-        assertEquals(MktDraftError("windows", "tue"), error(draft.copy(windows = draft.windows + ("tue" to "17:00-09:00"))))
-        assertEquals(MktDraftError("no_windows"), error(draft.copy(windows = emptyMap())))
-        assertEquals(MktDraftError("lead"), error(draft.copy(leadHours = "200")))
-        assertEquals(MktDraftError("radius"), error(draft.copy(deliveryRadiusKm = "-1")))
-        assertEquals(MktDraftError("timezone"), error(draft.copy(timezone = "Mars/Base")))
-        assertEquals(12.5, MktSettingsForm.build(draft.copy(deliveryRadiusKm = "12,5"), base).first!!.deliveryRadiusKm)
-        // Meet-ups off: no hours needed.
-        assertNull(error(draft.copy(offerMeetup = false, windows = emptyMap())))
-    }
-
-    @Test
-    fun `listing summary is per language without fallback`() {
-        val l = MktOwnerListing.of(
-            json("""{"class_id":"c1","name":"Trailer","eligible":true,"listed":true,"summary_i18n":{"en-US":"Tow it","de-DE":" "}}"""),
-        )!!
-        assertEquals("Tow it", summaryIn(l, "en"))
-        assertEquals("", summaryIn(l, "de"))
-        assertNotNull(l.summaryI18n["de-DE"])
     }
 }

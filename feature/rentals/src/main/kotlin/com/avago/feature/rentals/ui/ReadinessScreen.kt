@@ -1,47 +1,36 @@
 package com.avago.feature.rentals.ui
 
-import java.io.File
-import java.time.Instant
-import java.time.ZoneId
-import java.util.UUID
-import javax.inject.Inject
-import android.content.pm.PackageManager
-import android.Manifest
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.setValue
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.HourglassEmpty
-import androidx.compose.material.icons.filled.PhotoCamera
-import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
@@ -53,59 +42,52 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import com.avago.core.data.rental.LocalFleet
+import com.avago.core.data.domain.ReadinessCheck
+import com.avago.core.data.domain.RecordSyncState
+import com.avago.core.data.domain.RentalRepository
 import com.avago.core.permissions.PermissionsManager
 import com.avago.core.ui.components.BottomActionBar
 import com.avago.core.ui.components.CardDivider
-import com.avago.core.ui.components.cardListItemColors
-import com.avago.core.ui.components.ErrorBanner
-import com.avago.core.ui.components.rememberHaptics
 import com.avago.core.ui.components.SectionCard
 import com.avago.core.ui.components.SkeletonList
 import com.avago.core.ui.components.StatusPill
 import com.avago.core.ui.components.StatusTone
+import com.avago.core.ui.components.cardListItemColors
+import com.avago.core.ui.components.rememberHaptics
 import com.avago.core.ui.components.toneColors
-import com.avago.feature.rentals.data.RentalRepository
-import com.avago.feature.rentals.domain.Readiness
-import com.avago.feature.rentals.domain.RentalEntity
 import com.avago.feature.rentals.R
+import com.avago.feature.rentals.domain.Readiness
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.time.ZoneId
+import javax.inject.Inject
 
 /**
  * What the readiness screen shows for a unit: the check being decided ([editable]) or the last
@@ -113,7 +95,7 @@ import timber.log.Timber
  */
 data class ReadinessUi(
     /** The check a decision applies to; null = a new check is started on save. */
-    val check: Readiness.Check?,
+    val check: ReadinessCheck?,
     val editable: Boolean,
 )
 
@@ -122,10 +104,10 @@ data class ReadinessUi(
  * not synced yet is shown read-only; otherwise (no check, or the last one is closed and synced)
  * a new check can be started when [startNew] is set or none exists.
  */
-internal fun readinessUi(current: Readiness.Check?, startNew: Boolean): ReadinessUi = when {
+internal fun readinessUi(current: ReadinessCheck?, startNew: Boolean): ReadinessUi = when {
     current == null -> ReadinessUi(null, editable = true)
     current.open -> ReadinessUi(current, editable = true)
-    startNew && !current.pendingSync -> ReadinessUi(null, editable = true)
+    startNew && current.sync == RecordSyncState.SAVED -> ReadinessUi(null, editable = true)
     else -> ReadinessUi(current, editable = false)
 }
 
@@ -140,14 +122,14 @@ class ReadinessViewModel @Inject constructor(
     /** Waiving needs `rental.override_ready` (server answers 403 otherwise). */
     val canWaive: Boolean = permissions.can(Readiness.PERMISSION_WAIVE)
 
-    val unitName: StateFlow<String?> = repo.records(RentalEntity.FLEET)
-        .map { rows -> rows.mapNotNull(LocalFleet::unitOf).firstOrNull { it.assetId == assetId }?.name }
+    val unitName: StateFlow<String?> = repo.observeFleet()
+        .map { inputs -> inputs.units.firstOrNull { it.assetId == assetId }?.name }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val startNew = MutableStateFlow(false)
 
     val ui: StateFlow<ReadinessUi?> = combine(
-        repo.readinessChecks(assetId).map { rows -> Readiness.current(rows.mapNotNull(Readiness::of)) },
+        repo.observeReadinessChecks(assetId).map(Readiness::current),
         startNew,
     ) { current, fresh -> readinessUi(current, fresh) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -155,9 +137,6 @@ class ReadinessViewModel @Inject constructor(
     val items = MutableStateFlow(Readiness.DEFAULT_ITEMS)
     val notes = MutableStateFlow("")
     private var loadedFor: String? = "\u0000"
-
-    /** Owner id for photos of a check that does not exist yet. */
-    private val draftOwner = UUID.randomUUID().toString()
 
     private val _problems = MutableSharedFlow<Readiness.Problem>(extraBufferCapacity = 2)
     val problems: SharedFlow<Readiness.Problem> = _problems
@@ -188,20 +167,6 @@ class ReadinessViewModel @Inject constructor(
         items.value = items.value.map { if (it.key == key) it.copy(done = done) else it }
     }
 
-    fun addPhoto(key: String, file: File) = viewModelScope.launch {
-        try {
-            val owner = ui.value?.check?.id ?: draftOwner
-            val count = items.value.sumOf { it.photoIds.size }
-            val id = repo.addReadinessPhoto(owner, file, count.toLong())
-            items.value = items.value.map { if (it.key == key) it.copy(photoIds = it.photoIds + id) else it }
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Timber.w(e, "readiness photo failed")
-            _errors.emit(e.message ?: e.javaClass.simpleName)
-        }
-    }
-
     fun decide(status: String) = viewModelScope.launch {
         val u = ui.value ?: return@launch
         if (!u.editable) return@launch
@@ -211,17 +176,9 @@ class ReadinessViewModel @Inject constructor(
             return@launch
         }
         try {
-            val id = repo.saveReadiness(
-                RentalRepository.ReadinessInput(
-                    checkId = u.check?.id,
-                    assetId = assetId,
-                    status = status,
-                    items = items.value,
-                    notes = notes.value.takeIf { it.isNotBlank() },
-                    canWaive = canWaive,
-                    at = Instant.now(),
-                ),
-            )
+            val text = notes.value.takeIf { it.isNotBlank() }
+            val id = u.check?.id ?: repo.startReadinessCheck(assetId, items.value, text)
+            if (status != Readiness.PENDING) repo.decideReadiness(id, status, items.value, text)
             startNew.value = false
             _done.emit(id)
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -259,9 +216,10 @@ private fun problemLabel(p: Readiness.Problem): Int = when (p) {
 }
 
 /**
- * Readiness checklist after a check-in (§11.1, stage B §3): tick items, add optional photos,
- * then pass / fail / waive (waive needs `rental.override_ready` and a reason). Saved on the
- * device first — the fleet updates at once with a pending marker — and synced in order.
+ * Readiness checklist after a check-in (§11.1, stage B §3): tick items, then pass / fail /
+ * waive (waive needs `rental.override_ready` and a reason). Sent as `rental.rental_handovers`
+ * readiness commands with an optimistic local apply — the fleet updates at once with a pending
+ * marker.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -275,47 +233,11 @@ fun ReadinessScreen(
     val notes by viewModel.notes.collectAsStateWithLifecycle()
     val unitName by viewModel.unitName.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-    val context = LocalContext.current
     val problemTexts = Readiness.Problem.entries.associateWith { stringResource(problemLabel(it)) }
-    val cameraDenied = stringResource(R.string.rentals_readiness_camera_denied)
     val haptics = rememberHaptics()
     LaunchedEffect(Unit) { viewModel.problems.collect { haptics.error(); snackbar.showSnackbar(problemTexts.getValue(it)) } }
     LaunchedEffect(Unit) { viewModel.errors.collect { haptics.error(); snackbar.showSnackbar(it) } }
     LaunchedEffect(Unit) { viewModel.done.collect { haptics.success(); onDone() } }
-
-    // Pending capture (item key + file path) survives the camera activity / process death.
-    var captureKey by rememberSaveable { mutableStateOf<String?>(null) }
-    var capturePath by rememberSaveable { mutableStateOf<String?>(null) }
-    val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
-        val key = captureKey
-        val file = capturePath?.let(::File)
-        captureKey = null
-        capturePath = null
-        if (ok && key != null && file != null && file.length() > 0) viewModel.addPhoto(key, file) else file?.delete()
-    }
-    fun launchCamera(key: String) {
-        val dir = File(context.filesDir, "rental_photos").apply { mkdirs() }
-        val file = File(dir, "readiness_${UUID.randomUUID()}.jpg")
-        captureKey = key
-        capturePath = file.absolutePath
-        takePicture.launch(FileProvider.getUriForFile(context, "${context.packageName}.provider", file))
-    }
-    var permissionFor by rememberSaveable { mutableStateOf<String?>(null) }
-    val requestCamera = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        val key = permissionFor
-        permissionFor = null
-        if (granted && key != null) launchCamera(key)
-        else if (!granted) scope.launch { snackbar.showSnackbar(cameraDenied) }
-    }
-    fun photo(key: String) {
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-            launchCamera(key)
-        } else {
-            permissionFor = key
-            requestCamera.launch(Manifest.permission.CAMERA)
-        }
-    }
 
     val u = ui
     val doneCount = items.count { it.done }
@@ -350,7 +272,7 @@ fun ReadinessScreen(
                         Text(stringResource(R.string.rentals_readiness_pass), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
-            } else if (u?.check != null && !u.check.pendingSync) {
+            } else if (u?.check != null && u.check.sync == RecordSyncState.SAVED) {
                 BottomActionBar {
                     Button(onClick = viewModel::startNewCheck, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
                         Text(stringResource(R.string.rentals_readiness_new_check))
@@ -386,18 +308,11 @@ fun ReadinessScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         StatusPill(stringResource(readinessStatusLabel(c.status)), readinessTone(c.status), icon = readinessIcon(c.status))
-                        SyncStateBadge(c.localState, failed = isSyncFailed(c.notice))
+                        SyncStateBadge(c.sync)
                     }
-                    c.notice?.let {
-                        ErrorBanner(
-                            noticeText(it, conflict = true),
-                            modifier = Modifier.padding(bottom = 12.dp),
-                            tone = if (isSyncFailed(it)) StatusTone.Danger else StatusTone.Warning,
-                        )
-                    }
-                    c.completedAt?.let {
+                    if (!c.open) {
                         CardDivider()
-                        LabelValue(stringResource(R.string.rentals_readiness_completed), formatDateTime(it, ZoneId.systemDefault()), Modifier.padding(vertical = 6.dp))
+                        LabelValue(stringResource(R.string.rentals_readiness_completed), formatDateTime(c.at, ZoneId.systemDefault()), Modifier.padding(vertical = 6.dp))
                     }
                 }
             }
@@ -448,34 +363,16 @@ fun ReadinessScreen(
                 items.forEachIndexed { i, item ->
                     if (i > 0) CardDivider()
                     val label = readinessItemLabel(item.key)?.let { stringResource(it) } ?: item.label
-                    val photoLabel = stringResource(R.string.rentals_readiness_add_photo_for, label)
-                    Row(Modifier.padding(end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Row(
-                            Modifier
-                                .weight(1f)
-                                .heightIn(min = 56.dp)
-                                .toggleable(value = item.done, role = Role.Checkbox) { viewModel.toggle(item.key, it) }
-                                .padding(horizontal = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Checkbox(checked = item.done, onCheckedChange = null, modifier = Modifier.padding(12.dp))
-                            Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text(label, style = MaterialTheme.typography.bodyLarge)
-                                if (item.photoIds.isNotEmpty()) {
-                                    StatusPill(
-                                        stringResource(R.string.rentals_readiness_photo_count, item.photoIds.size),
-                                        StatusTone.Info,
-                                        icon = Icons.Default.PhotoLibrary,
-                                    )
-                                }
-                            }
-                        }
-                        FilledTonalIconButton(
-                            onClick = { photo(item.key) },
-                            modifier = Modifier.size(MinTouch).semantics { contentDescription = photoLabel },
-                        ) {
-                            Icon(Icons.Default.PhotoCamera, contentDescription = null)
-                        }
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 56.dp)
+                            .toggleable(value = item.done, role = Role.Checkbox) { viewModel.toggle(item.key, it) }
+                            .padding(horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked = item.done, onCheckedChange = null, modifier = Modifier.padding(12.dp))
+                        Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(vertical = 8.dp))
                     }
                 }
             }

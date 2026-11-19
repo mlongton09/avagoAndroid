@@ -18,15 +18,15 @@ class RentalsTodayTest {
 
     private fun alloc(kind: String, orderId: String? = "o1") = LocalFleet.Alloc(
         id = "al-$kind", assetId = "a", kind = kind, blocking = true, startAt = now, endAt = null,
-        orderId = orderId, orderLineId = null, expiresAt = null, localState = "synced",
+        orderId = orderId, orderLineId = null, expiresAt = null,
     )
 
     private fun result(status: FleetStatus, current: LocalFleet.Alloc? = null, next: LocalFleet.Alloc? = null) = LocalFleet.Result(
         unit = LocalFleet.FleetUnit(
             assetId = "a", name = "Unit", assetType = null, classId = null, className = null, locationId = null,
-            timeZone = null, maintenanceOpen = false, ready = true, readiness = emptyList(), serverStatus = null, localState = "synced",
+            timeZone = null, maintenanceOpen = false, readiness = emptyList(),
         ),
-        status = status, dueBackToday = false, nextChangeAt = null, current = current, next = next, dueAt = null, local = true,
+        status = status, dueBackToday = false, nextChangeAt = null, current = current, next = next, dueAt = null,
     )
 
     @Test

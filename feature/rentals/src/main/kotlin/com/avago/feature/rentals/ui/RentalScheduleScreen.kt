@@ -1,72 +1,72 @@
 package com.avago.feature.rentals.ui
 
-import java.time.Duration
-import java.time.format.DateTimeFormatter
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import android.text.format.DateFormat
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.EventAvailable
-import androidx.compose.material.icons.Icons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.design.theme.AvagoSpacing
-import com.avago.core.ui.components.isDarkScheme
 import com.avago.core.ui.components.SectionCard
 import com.avago.core.ui.components.SkeletonListItem
 import com.avago.core.ui.components.StickyDayHeader
+import com.avago.core.ui.components.isDarkScheme
+import com.avago.feature.rentals.R
 import com.avago.feature.rentals.domain.Availability
 import com.avago.feature.rentals.domain.LocalSchedule
-import com.avago.feature.rentals.R
+import java.time.Duration
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /**
  * Schedule (§11.1): range chips, sticky day headers over the agenda; a Gantt board is added on
- * tablets. Offline (Room) with pull-to-refresh for a background sync.
+ * tablets. Offline (v2 store) with pull-to-refresh for a background sync.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -76,19 +76,18 @@ fun RentalScheduleScreen(
     viewModel: RentalsOverviewViewModel = hiltViewModel(),
 ) {
     val fleet by viewModel.fleet.collectAsStateWithLifecycle()
-    val lastSynced by viewModel.lastSyncedAt.collectAsStateWithLifecycle()
-    val queue by viewModel.queue.collectAsStateWithLifecycle()
+    val pending by viewModel.pendingCount.collectAsStateWithLifecycle()
     var days by rememberSaveable { mutableIntStateOf(7) }
     val zone = ZoneId.systemDefault()
     val today = LocalDate.now(zone)
     val from = today.atStartOfDay(zone).toInstant()
     val to = today.plusDays(days.toLong()).atStartOfDay(zone).toInstant()
-    val events = remember(fleet, days) { LocalSchedule.events(fleet.records, from, to, fleet.now) }
+    val events = remember(fleet, days) { fleet.inputs?.let { LocalSchedule.events(it, fleet.orderRefs, from, to, fleet.now) }.orEmpty() }
     val byDay = remember(events) { events.groupBy { it.at.atZone(zone).toLocalDate() }.toSortedMap() }
-    val busy = remember(fleet) { LocalSchedule.busy(fleet.records) }
+    val busy = remember(fleet) { fleet.inputs?.let(LocalSchedule::busy).orEmpty() }
     val wide = isWide()
-    val refresh = rememberSyncRefresh(lastSynced, viewModel::syncNow)
-    val firstLoad = rememberFirstLoad(fleet.isEmpty, lastSynced)
+    val refresh = rememberSyncRefresh(viewModel::syncNow)
+    val firstLoad = rememberFirstLoad(fleet.isEmpty)
 
     Scaffold(topBar = { RentalsTopBar(stringResource(R.string.rentals_schedule), onBack) }) { pad ->
         PullToRefreshBox(
@@ -99,7 +98,7 @@ fun RentalScheduleScreen(
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = pad.calculateBottomPadding() + 32.dp)) {
                 item(key = "sync", contentType = "sync") {
                     Column {
-                        LastSyncedRow(lastSynced, queue.size, viewModel::syncNow)
+                        SyncStatusRow(pending, refresh.onRefresh, syncing = refresh.refreshing)
                         RefreshFailedBanner(refresh)
                     }
                 }

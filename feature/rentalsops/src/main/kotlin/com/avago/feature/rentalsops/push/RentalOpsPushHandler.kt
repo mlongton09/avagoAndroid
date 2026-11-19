@@ -40,8 +40,7 @@ class RentalOpsPushHandler @Inject constructor(
         val spec = RentalPushRouter.route(data) ?: return
         scope.launch {
             try {
-                // The server already skips users who switched the event off (notification-prefs);
-                // the local mirror also covers drive-only users who cannot reach that endpoint.
+                // Events muted on this device (RentalOpsPushPrefs) are dropped here.
                 if (!prefs.isEnabled(spec.event)) return@launch
                 val text = PushText.resolve(spec)
                 val title = text.titleRes?.let(ctx::getString) ?: spec.title ?: ctx.getString(R.string.rentalops_push_fallback_title)

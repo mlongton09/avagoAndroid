@@ -31,7 +31,6 @@
     <string name="rentals_cancel">Avbryt</string>
     <string name="rentals_card_brand">Kortmerke</string>
     <string name="rentals_card_last4">Siste 4 sifre</string>
-    <string name="rentals_class">Klasse</string>
     <string name="rentals_class_codes">Førerkortklasser</string>
     <string name="rentals_company">Firma</string>
     <string name="rentals_complete_checkin">Fullfør innlevering</string>
@@ -71,7 +70,6 @@
     <string name="rentals_documents">Dokumenter</string>
     <string name="rentals_done">Ferdig</string>
     <string name="rentals_draft_explainer">Lagret frakoblet som utkast. Bekreftes når du er tilkoblet igjen.</string>
-    <string name="rentals_draft_generic">Utkast venter på bekreftelse</string>
     <string name="rentals_draft_order">Utkast til ordre</string>
     <string name="rentals_due">Forfall</string>
     <string name="rentals_due_back">Returneres %1$s</string>
@@ -87,7 +85,6 @@
     <string name="rentals_event_pickup">Henting</string>
     <string name="rentals_event_return">Retur</string>
     <string name="rentals_expires">Utløper</string>
-    <string name="rentals_expires_on">Utløper %1$s</string>
     <string name="rentals_extend_explainer">Velg ny slutt. Serveren beregner prisen på nytt.</string>
     <string name="rentals_filter_active">Aktive</string>
     <string name="rentals_filter_all">Alle (%1$d)</string>
@@ -105,7 +102,6 @@
     <string name="rentals_hand_to_customer">Gi til kunden for signering</string>
     <string name="rentals_handover_no_unit">Ingen enhet er tildelt denne ordren ennå.</string>
     <string name="rentals_handover_offline_note">Frakoblet: overleveringen beholder enhetens tid og lastes opp i rekkefølge (bilder, inspeksjon, signatur, overlevering, betalinger).</string>
-    <string name="rentals_handovers">Overleveringer</string>
     <string name="rentals_hold_expires">Reservasjonen utløper</string>
     <string name="rentals_increase">Øk</string>
     <string name="rentals_inspection">Inspeksjon</string>
@@ -121,8 +117,6 @@
     <string name="rentals_kind_other">Annet</string>
     <string name="rentals_kind_payment">Betaling</string>
     <string name="rentals_kind_refund">Refusjon</string>
-    <string name="rentals_last_synced">Sist synkronisert %1$s</string>
-    <string name="rentals_legacy_rentals">Utleiehistorikk</string>
     <string name="rentals_licence_hint">Skann strekkoden på baksiden av førerkortet.</string>
     <string name="rentals_licence_read">Førerkort lest. Opprette kunde fra det?</string>
     <string name="rentals_lines">Linjer</string>
@@ -142,7 +136,6 @@
     <string name="rentals_method_other">Annet</string>
     <string name="rentals_method_voucher">Gavekort</string>
     <string name="rentals_name">Navn</string>
-    <string name="rentals_never_synced">Ikke synkronisert ennå</string>
     <string name="rentals_new_customer">Ny kunde</string>
     <string name="rentals_new_damage_count">%1$d nye skader</string>
     <string name="rentals_new_end">Ny slutt</string>
@@ -174,11 +167,9 @@
     <string name="rentals_orders">Ordrer</string>
     <string name="rentals_orders_empty">Ingen ordrer ennå</string>
     <string name="rentals_paid">Betalt</string>
-    <string name="rentals_payer_email">Betalers e-post</string>
     <string name="rentals_payer_name">Betalers navn</string>
     <string name="rentals_payment_manual_note">Registrer en betaling mottatt utenfor appen. Ingen kort belastes.</string>
     <string name="rentals_payments">Betalinger</string>
-    <string name="rentals_payments_empty">Ingen betalinger registrert</string>
     <string name="rentals_pending_count">%1$d venter</string>
     <string name="rentals_phone">Telefon</string>
     <string name="rentals_price_confirmed">Pris bekreftet av serveren</string>
@@ -227,8 +218,6 @@
     <string name="rentals_status_on_rent">Utleid</string>
     <string name="rentals_status_overdue">Forsinket</string>
     <string name="rentals_status_reserved">Reservert</string>
-    <string name="rentals_sync_conflict">Konflikt</string>
-    <string name="rentals_sync_draft">Utkast</string>
     <string name="rentals_sync_now">Synkroniser nå</string>
     <string name="rentals_sync_pending">Venter på synkronisering</string>
     <string name="rentals_tax">MVA</string>
@@ -249,12 +238,6 @@
     <string name="rentals_date_placeholder">ÅÅÅÅ-MM-DD</string>
     <string name="rentals_sync_failed">Synkronisering mislyktes: %1$s. Prøv igjen etter serveroppdateringen, eller forkast.</string>
     <string name="rentals_sync_failed_badge">Synk feilet</string>
-    <string name="rentals_server_warnings">Lagret med advarsler: %1$s</string>
-    <string name="rentals_field_conflict">Endret her og av noen andre: %1$s. Prøv igjen beholder dine verdier; Forkast beholder deres.</string>
-    <string name="rentals_field_status">Status</string>
-    <string name="rentals_field_return_date">Returdato</string>
-    <string name="rentals_field_language">Språk</string>
-    <string name="rentals_confirmed_with_conflict">Bekreftet, men en enhet overlapper en annen bestilling. Kontroller tildelingen.</string>
     <string name="rentals_damage_decision_charge">Belast</string>
     <string name="rentals_damage_decision_waive">Frafall</string>
     <string name="rentals_damage_charge">Skadegebyr (%1$s)</string>
@@ -268,7 +251,6 @@
     <string name="rentals_readiness_item_cleaned">Rengjort</string>
     <string name="rentals_readiness_item_refuelled">Fylt / ladet</string>
     <string name="rentals_readiness_item_accessories">Tilbehør komplett</string>
-    <string name="rentals_readiness_status">Status: %1$s</string>
     <string name="rentals_readiness_status_pending">Venter</string>
     <string name="rentals_readiness_status_passed">Godkjent</string>
     <string name="rentals_readiness_status_failed">Ikke godkjent</string>
@@ -286,8 +268,6 @@
     <string name="rentals_readiness_error_not_allowed">Du har ikke tillatelse til å frafalle klarsjekker.</string>
     <string name="rentals_readiness_error_closed">Denne sjekken er allerede lukket.</string>
     <string name="rentals_readiness_waive_needs_permission">Frafall krever tillatelsen til å overstyre klarstatus.</string>
-    <string name="rentals_readiness_add_photo_for">Legg til bilde for %1$s</string>
-    <string name="rentals_readiness_photo_count">Bilder: %1$d</string>
     <string name="rentals_readiness_new_check">Start en ny sjekk</string>
     <string name="rentals_readiness_camera_denied">Kameratilgang trengs for å ta bilder.</string>
     <string name="rentals_line_status_open">Åpen</string>
@@ -304,7 +284,6 @@
     <string name="rentals_swap_returning">Enhet som returneres</string>
     <string name="rentals_swap_outgoing">Erstatning som går ut</string>
     <string name="rentals_swap_confirm">Bytt</string>
-    <string name="rentals_new_booking">Ny bestilling</string>
     <string name="rentals_scan_checkout">Skann enhet / Utlevering</string>
     <string name="rentals_check_in">Innlevering</string>
     <string name="rentals_available_now">%1$d tilgjengelige nå</string>
@@ -315,11 +294,8 @@
     <string name="rentals_find_free_sub">Se hva som er ledig på dine datoer og bestill</string>
     <string name="rentals_bookings_customers">Bestillinger og kunder</string>
     <string name="rentals_today_overdue">Forsinket</string>
-    <string name="rentals_today_overdue_empty">Ingenting er forsinket.</string>
     <string name="rentals_today_going_out">Skal ut i dag</string>
-    <string name="rentals_today_going_out_empty">Ingen hentinger i dag. Bruk Ny bestilling for å reservere en enhet.</string>
     <string name="rentals_today_due_back">Skal tilbake i dag</string>
-    <string name="rentals_today_due_back_empty">Ingen innleveringer i dag. Bruk Innlevering når en enhet kommer tilbake.</string>
     <string name="rentals_today_maintenance">Vedlikehold i dag</string>
     <string name="rentals_offline_hint">Du er frakoblet. Endringer lagres på denne enheten og synkroniseres automatisk.</string>
     <string name="rentals_scan_title_out">Skann enhet for utlevering</string>
@@ -331,5 +307,4 @@
     <string name="rentals_reason_open_work_order">Åpen arbeidsordre</string>
     <string name="rentals_reason_readiness_checklist">Klarsjekk åpen</string>
     <string name="rentals_reason_maintenance_open">Under vedlikehold</string>
-    <string name="rentals_invoice_void_confirm">Denne fakturaen blir annullert. Dette kan ikke angres.</string>
 </resources>

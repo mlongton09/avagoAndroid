@@ -1,42 +1,37 @@
 package com.avago.feature.assets.viewmodel
 
-import com.avago.core.data.domain.SyncRepository
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.domain.Asset
 import com.avago.core.data.domain.AssetRepository
+import com.avago.core.data.domain.RentalRepository
+import com.avago.core.data.domain.SyncRepository
 import com.avago.core.data.rental.FleetStatus
 import com.avago.core.data.rental.LocalFleet
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.flow
-import java.time.Instant
 import com.avago.core.permissions.Permissions
 import com.avago.core.permissions.PermissionsManager
 import com.avago.feature.assets.model.AssetTypes
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.time.Instant
 import javax.inject.Inject
 
 @HiltViewModel
 class AssetListViewModel @Inject constructor(
     private val repository: AssetRepository,
-    private val identityManager: IdentityManager,
     private val sync: SyncRepository,
-    private val dbFactory: DatabaseFactory,
+    private val rentals: RentalRepository,
     private val permissionsManager: PermissionsManager,
 ) : ViewModel() {
 
@@ -102,26 +97,16 @@ class AssetListViewModel @Inject constructor(
      * reserved → on rent → overdue transitions show without a sync. Empty when the
      * account has no rentals data (non-rental assets carry no chip).
      */
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val rentalStatuses: StateFlow<Map<String, FleetStatus>> = identityManager.activeAccountId
-        .flatMapLatest { accountId ->
-            if (accountId == null) {
-                flowOf(emptyMap())
-            } else {
-                val ticker = flow {
-                    while (true) {
-                        emit(Unit)
-                        delay(60_000)
-                    }
-                }
-                combine(
-                    dbFactory.get(accountId).rentalDao().observeEntities(LocalFleet.INPUT_ENTITIES),
-                    ticker,
-                ) { records, _ ->
-                    LocalFleet.compute(records, Instant.now()).mapValues { it.value.status }
-                }
-            }
+    private val ticker = flow {
+        while (true) {
+            emit(Unit)
+            delay(60_000)
         }
+    }
+
+    val rentalStatuses: StateFlow<Map<String, FleetStatus>> = combine(rentals.observeFleet(), ticker) { inputs, _ ->
+        LocalFleet.compute(inputs, Instant.now()).mapValues { it.value.status }
+    }
         .catch { e ->
             Timber.e(e, "[AssetListViewModel] rental status flow error")
             emit(emptyMap())

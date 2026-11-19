@@ -59,14 +59,14 @@ class DeliveryStateMachineTest {
     fun `fail needs a reason and an active task`() {
         assertEquals(TransitionResult.Rejected(TransitionError.ReasonRequired), t(TaskStatus.EN_ROUTE, TaskAction.FAIL, reason = " "))
         assertEquals(TransitionResult.Ok(TaskStatus.FAILED), t(TaskStatus.ARRIVED, TaskAction.FAIL, reason = "gate locked"))
-        // Pending (unassigned) tasks cannot be failed by a driver — matches the server.
-        assertEquals("invalid_transition", (t(TaskStatus.PENDING, TaskAction.FAIL, reason = "x") as TransitionResult.Rejected).error.code)
+        // Planned (unassigned) tasks cannot be failed by a driver — matches the server.
+        assertEquals("invalid_transition", (t(TaskStatus.PLANNED, TaskAction.FAIL, reason = "x") as TransitionResult.Rejected).error.code)
     }
 
     @Test
-    fun `start from pending needs a driver`() {
-        assertEquals(TransitionResult.Rejected(TransitionError.DriverRequired), t(TaskStatus.PENDING, TaskAction.START, hasDriver = false))
-        assertEquals(TransitionResult.Ok(TaskStatus.EN_ROUTE), t(TaskStatus.PENDING, TaskAction.START))
+    fun `start from planned needs a driver`() {
+        assertEquals(TransitionResult.Rejected(TransitionError.DriverRequired), t(TaskStatus.PLANNED, TaskAction.START, hasDriver = false))
+        assertEquals(TransitionResult.Ok(TaskStatus.EN_ROUTE), t(TaskStatus.PLANNED, TaskAction.START))
     }
 
     @Test
@@ -89,7 +89,7 @@ class DeliveryStateMachineTest {
                 assertTrue(r is TransitionResult.Ok, "$s offers $a but it is rejected")
             }
         }
-        assertTrue(DeliveryStateMachine.availableActions(TaskStatus.PENDING, hasDriver = false).isEmpty())
+        assertTrue(DeliveryStateMachine.availableActions(TaskStatus.PLANNED, hasDriver = false).isEmpty())
     }
 
     @Test

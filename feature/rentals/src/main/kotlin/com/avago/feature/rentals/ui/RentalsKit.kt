@@ -1,19 +1,11 @@
 package com.avago.feature.rentals.ui
 
-import java.io.File
-import javax.inject.Inject
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
-import androidx.compose.material3.rememberSwipeToDismissBoxState
-import androidx.compose.ui.semantics.CustomAccessibilityAction
-import androidx.compose.ui.semantics.customActions
-import androidx.compose.ui.semantics.semantics
-import com.avago.core.ui.components.rememberHaptics
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -28,18 +20,20 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,31 +43,33 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import coil3.compose.AsyncImage
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
-import com.avago.core.data.db.entity.PhotoEntity
+import com.avago.core.data.domain.AssetRepository
+import com.avago.core.data.domain.Attachment
 import com.avago.core.design.theme.AvagoSpacing
 import com.avago.core.ui.components.ErrorBanner
 import com.avago.core.ui.components.StatusTone
+import com.avago.core.ui.components.rememberHaptics
 import com.avago.core.ui.components.toneColors
 import com.avago.feature.rentals.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import java.io.File
+import javax.inject.Inject
 
 // Rentals UX pass 2 kit: unit photos, overflow menu with a destructive group, "Show all (N)",
 // readable width on tablets and the refresh-failed banner. See docs/rentals-ux-polish-android.md.
@@ -83,6 +79,15 @@ internal const val PREVIEW_ROWS = 3
 
 /** Permission for recording payments (`rental.payment_record`, same key as iOS). */
 internal const val PERMISSION_PAYMENT_RECORD = "rental.payment_record"
+internal const val PERMISSION_REFUND = "rental.refund"
+internal const val PERMISSION_INVOICE = "rental.invoice_issue"
+
+/** Ledger kinds that pay money back (need [PERMISSION_REFUND]). */
+internal val REFUND_KINDS = setOf("refund", "deposit_refunded")
+
+/** Ledger kinds and methods a manual payment can record (`rental.rental_orders.record_payment`). */
+internal val PAYMENT_KINDS = listOf("payment", "deposit_received", "refund", "deposit_refunded")
+internal val PAYMENT_METHODS = listOf("cash", "card_external", "bank_transfer", "cheque", "mobile_money", "direct_debit", "voucher", "other")
 
 /** Lifecycle actions that end an order early; always red, grouped last and confirmed. */
 internal val DESTRUCTIVE_ORDER_ACTIONS = setOf("cancel", "no-show")
@@ -97,47 +102,32 @@ internal fun primaryOrderAction(actions: List<String>): String? =
     ORDER_PRIMARY_PRIORITY.firstOrNull { it in actions }
 
 /**
- * Unit photos from the shared asset photo pipeline (`photos` table, entityType "asset"), keyed
- * by assetId. Read-only and screen-scoped: every [UnitThumbnail] on a screen shares one query.
+ * Unit photos from the v2 asset attachments, keyed by assetId. Read-only and screen-scoped: every
+ * [UnitThumbnail] on a screen shares one query.
  */
-@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
-class RentalPhotosViewModel @Inject constructor(
-    dbFactory: DatabaseFactory,
-    identity: IdentityManager,
-) : ViewModel() {
-    val thumbnails: StateFlow<Map<String, Any>> = identity.activeAccountId
-        .flatMapLatest { acc ->
-            if (acc == null) flowOf(emptyList()) else dbFactory.get(acc).photoDao().observeAll(acc)
-        }
+class RentalPhotosViewModel @Inject constructor(assets: AssetRepository) : ViewModel() {
+    val thumbnails: StateFlow<Map<String, File>> = assets.observeImages()
         .map { assetThumbnails(it) }
         .flowOn(Dispatchers.Default)
         .catch { emit(emptyMap()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 }
 
-/** Best photo per asset: primary first, then the lowest sort order; deleted photos ignored. */
-internal fun assetThumbnails(photos: List<PhotoEntity>, fileExists: (String) -> Boolean = { File(it).exists() }): Map<String, Any> =
-    photos.asSequence()
-        .filter { it.entityType.equals("asset", ignoreCase = true) && it.deletedAt == null }
-        .groupBy { it.entityId }
+/**
+ * Best photo per asset: the lowest sort order whose bytes are on this device (v2 has no file
+ * download endpoint yet, so remote-only pictures fall back to the status icon).
+ */
+internal fun assetThumbnails(images: List<Attachment>, fileExists: (File) -> Boolean = { it.exists() }): Map<String, File> =
+    images.asSequence()
+        .filter { it.assetId != null && it.file?.isImage == true }
+        .groupBy { it.assetId!! }
         .mapNotNull { (assetId, list) ->
-            list.sortedWith(compareByDescending<PhotoEntity> { it.isPrimary }.thenBy { it.sortOrder })
-                .firstNotNullOfOrNull { photoModel(it, fileExists) }
+            list.sortedWith(compareBy<Attachment> { it.sortOrder }.thenBy { it.createdAt })
+                .firstNotNullOfOrNull { a -> a.file?.localFile?.takeIf(fileExists) }
                 ?.let { assetId to it }
         }
         .toMap()
-
-/** Coil model for a photo: the local file while it exists (offline / not yet uploaded), else the URL. */
-internal fun photoModel(p: PhotoEntity, fileExists: (String) -> Boolean = { File(it).exists() }): Any? {
-    val path = p.localPath?.takeIf { it.isNotBlank() }
-    val url = p.downloadUrl?.takeIf { it.isNotBlank() }
-    return when {
-        path != null && fileExists(path) -> File(path)
-        url != null -> url
-        else -> null
-    }
-}
 
 /**
  * Unit photo (cropped, rounded) with the status icon on a tonal square underneath — shown while

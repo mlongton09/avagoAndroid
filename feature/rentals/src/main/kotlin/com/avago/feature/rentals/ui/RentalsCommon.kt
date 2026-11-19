@@ -12,7 +12,6 @@ import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EventAvailable
@@ -31,10 +30,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import com.avago.core.data.db.rental.RentalRecordEntity
+import com.avago.core.data.domain.RecordSyncState
+import com.avago.core.data.domain.RentalFailure
 import com.avago.core.data.rental.FleetStatus
 import com.avago.core.data.rental.Money
 import com.avago.core.data.rental.MoneyFormatter
@@ -42,7 +40,7 @@ import com.avago.core.ui.components.StatusPill
 import com.avago.core.ui.components.StatusTone
 import com.avago.core.ui.components.toneColors
 import com.avago.feature.rentals.R
-import com.avago.feature.rentals.data.RentalOutbox
+import com.avago.feature.rentals.domain.HandoverGates
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -176,85 +174,33 @@ internal fun orderStatusIcon(status: String): ImageVector = when (status) {
 internal fun OrderStatusPill(status: String, modifier: Modifier = Modifier) {
     StatusPill(stringResource(orderStatusLabel(status)), orderStatusTone(status), modifier, icon = orderStatusIcon(status))
 }
-/**
- * User-facing text of a record notice: the outbox stores markers
- * ([RentalOutbox.NOTICE_SYNC_FAILED_PREFIX], [RentalOutbox.NOTICE_WARNINGS_PREFIX],
- * [RentalOutbox.NOTICE_CONFIRMED_WITH_CONFLICT]) that are localised here; anything else is
- * the server's message (shown verbatim).
- */
+/** User-facing text of a refused rental change: a hand-over gate is explained, anything else is the server's message. */
 @Composable
-internal fun noticeText(notice: String?, conflict: Boolean): String = when {
-    notice == null -> stringResource(if (conflict) R.string.rentals_conflict_generic else R.string.rentals_draft_generic)
-    notice == RentalOutbox.NOTICE_CONFIRMED_WITH_CONFLICT -> stringResource(R.string.rentals_confirmed_with_conflict)
-    notice.startsWith(RentalOutbox.NOTICE_SYNC_FAILED_PREFIX) ->
-        stringResource(R.string.rentals_sync_failed, notice.removePrefix(RentalOutbox.NOTICE_SYNC_FAILED_PREFIX))
-    notice.startsWith(RentalOutbox.NOTICE_WARNINGS_PREFIX) ->
-        stringResource(R.string.rentals_server_warnings, notice.removePrefix(RentalOutbox.NOTICE_WARNINGS_PREFIX))
-    notice.startsWith(RentalOutbox.NOTICE_FIELD_CONFLICT_PREFIX) ->
-        stringResource(
-            R.string.rentals_field_conflict,
-            notice.removePrefix(RentalOutbox.NOTICE_FIELD_CONFLICT_PREFIX).split(',').filter { it.isNotBlank() }
-                .map { f -> conflictFieldLabel(f)?.let { stringResource(it) } ?: f.replace('_', ' ') }
-                .joinToString(),
-        )
-    notice.startsWith(com.avago.feature.rentals.domain.HandoverGates.NOTICE_PREFIX) ->
-        com.avago.feature.rentals.domain.HandoverGates.parse(notice)?.let { gateText(it) } ?: notice
-    notice.startsWith(RentalOutbox.NOTICE_ESIGN_DROPPED_PREFIX) ->
-        stringResource(R.string.rentals_notice_esign_dropped, notice.removePrefix(RentalOutbox.NOTICE_ESIGN_DROPPED_PREFIX))
-    else -> notice
-}
+internal fun failureText(failure: RentalFailure): String =
+    HandoverGates.of(failure)?.let { gateText(it) }
+        ?: failure.message?.takeIf { it.isNotBlank() }?.let { stringResource(R.string.rentals_sync_failed, it) }
+        ?: stringResource(R.string.rentals_conflict_generic)
 
-/** Label of a field named in a version-conflict notice (customer and order fields). */
-@StringRes
-internal fun conflictFieldLabel(field: String): Int? = when (field) {
-    "name", "customer_name" -> R.string.rentals_name
-    "company" -> R.string.rentals_company
-    "email" -> R.string.rentals_email
-    "phone" -> R.string.rentals_phone
-    "address" -> R.string.rentals_address
-    "date_of_birth" -> R.string.rentals_date_of_birth
-    "notes" -> R.string.rentals_notes
-    "preferred_currency" -> R.string.rentals_currency
-    "preferred_locale" -> R.string.rentals_field_language
-    "status" -> R.string.rentals_field_status
-    "end_at" -> R.string.rentals_field_return_date
-    else -> null
-}
-
-/** True when [notice] marks an outbox item parked after a 404/405. */
-internal fun isSyncFailed(notice: String?): Boolean = notice?.startsWith(RentalOutbox.NOTICE_SYNC_FAILED_PREFIX) == true
-
-/** Pending / draft / conflict badge for a locally changed record (spec §15). */
+/** Pending / failed badge for a record changed on this device (nothing once the server confirmed it). */
 @Composable
-internal fun SyncStateBadge(localState: String, modifier: Modifier = Modifier, failed: Boolean = false) {
-    if (localState == RentalRecordEntity.STATE_SYNCED) return
-    val (label, icon, tone) = when {
-        failed -> Triple(R.string.rentals_sync_failed_badge, Icons.Default.Warning, StatusTone.Danger)
-        localState == RentalRecordEntity.STATE_DRAFT -> Triple(R.string.rentals_sync_draft, Icons.Default.CloudOff, StatusTone.Warning)
-        localState == RentalRecordEntity.STATE_CONFLICT -> Triple(R.string.rentals_sync_conflict, Icons.Default.Warning, StatusTone.Danger)
-        else -> Triple(R.string.rentals_sync_pending, Icons.Default.Sync, StatusTone.Info)
+internal fun SyncStateBadge(state: RecordSyncState, modifier: Modifier = Modifier) {
+    val (label, icon, tone) = when (state) {
+        RecordSyncState.SAVED -> return
+        RecordSyncState.FAILED -> Triple(R.string.rentals_sync_failed_badge, Icons.Default.Warning, StatusTone.Danger)
+        RecordSyncState.PENDING -> Triple(R.string.rentals_sync_pending, Icons.Default.Sync, StatusTone.Info)
     }
     StatusPill(stringResource(label), tone, modifier, icon = icon)
 }
-/** "Last synced …" row with pending count and a Sync now action. */
+
+/** Changes waiting to be sent and a Sync now action. */
 @Composable
-internal fun LastSyncedRow(
-    lastSyncedAt: Long?,
+internal fun SyncStatusRow(
     pendingCount: Int,
     onSyncNow: () -> Unit,
     modifier: Modifier = Modifier,
+    syncing: Boolean = false,
 ) {
-    val synced = lastSyncedAt?.let { formatDateTime(Instant.ofEpochMilli(it), ZoneId.systemDefault()) }
-    val text = buildString {
-        append(
-            if (synced != null) stringResource(R.string.rentals_last_synced, synced)
-            else stringResource(R.string.rentals_never_synced),
-        )
-        if (pendingCount > 0) {
-            append(" · ")
-            append(stringResource(R.string.rentals_pending_count, pendingCount))
-        }
-    }
+    val text = if (pendingCount > 0) stringResource(R.string.rentals_pending_count, pendingCount) else ""
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -266,11 +212,9 @@ internal fun LastSyncedRow(
             text = text,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier
-                .weight(1f)
-                .semantics { contentDescription = text },
+            modifier = Modifier.weight(1f),
         )
-        TextButton(onClick = onSyncNow, modifier = Modifier.heightIn(min = MinTouch)) {
+        TextButton(onClick = onSyncNow, enabled = !syncing, modifier = Modifier.heightIn(min = MinTouch)) {
             Text(stringResource(R.string.rentals_sync_now))
         }
     }
