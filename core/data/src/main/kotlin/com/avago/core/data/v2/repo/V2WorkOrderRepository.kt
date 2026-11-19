@@ -228,10 +228,10 @@ class V2WorkOrderRepository @Inject constructor(
         commands.submit(WorkOrderCommands.updatePermitStatus(permit(permitId), status, System.currentTimeMillis()))
     }
 
-    override suspend fun signPermit(permitId: String, role: String, signedName: String, comment: String?) {
+    override suspend fun signPermit(permitId: String, role: String, signedName: String) {
         val now = System.currentTimeMillis()
         commands.submit(
-            WorkOrderCommands.signPermit(permit(permitId), V2Uuid.v7(now), role, signedName, comment, now, commands.currentUserId()),
+            WorkOrderCommands.signPermit(permit(permitId), V2Uuid.v7(now), role, signedName, now, commands.currentUserId()),
         )
     }
 
@@ -487,7 +487,7 @@ class V2WorkOrderRepository @Inject constructor(
                     id = r.str("id"),
                     label = row.strOrNull("label") ?: "",
                     description = row.strOrNull("description"),
-                    rowType = row.strOrNull("row_type") ?: "checkbox",
+                    rowType = row.strOrNull("row_type") ?: "step",
                     required = row.bool("required"),
                     sortOrder = row.intOrNull("sort_order") ?: 0,
                     completed = r.bool("completed"),

@@ -157,24 +157,23 @@ object MaintCommands {
 
     // ------------------------------------------------------------------ meters
 
-    /** [meterId]: the asset's default meter, when one exists locally (else no optimistic row). */
+    /** A reading on one of the asset's meters; the server evaluates its meter-based PM triggers. */
     fun recordReading(
         id: String,
         assetId: String,
-        meterId: String?,
+        meterId: String,
         value: BigDecimal,
         readAtMillis: Long,
-        notes: String?,
         nowMillis: Long,
         userId: String?,
     ): V2NewCommand {
+        require(value.signum() >= 0) { "a meter reading cannot be negative" }
+        require(readAtMillis <= nowMillis) { "a meter reading cannot be in the future" }
         val payload = MaintMeterReadingsRecord(
-            id = id, assetId = assetId, value = value, readAt = Instant.ofEpochMilli(readAtMillis), notes = notes.clean(),
+            id = id, assetId = assetId, meterId = meterId, value = value, readAt = Instant.ofEpochMilli(readAtMillis),
         )
-        val ops = if (meterId == null) {
-            emptyList()
-        } else {
-            listOf(
+        return payload.toNewCommand(
+            overlay = V2OverlayPatch.of(
                 V2RowOp.upsert(
                     "meter_readings", id,
                     mapOf(
@@ -182,9 +181,8 @@ object MaintCommands {
                         "read_at" to readAtMillis, "source" to "manual", "recorded_by" to userId,
                     ) + created(nowMillis, userId),
                 ),
-            )
-        }
-        return payload.toNewCommand(overlay = V2OverlayPatch(ops))
+            ),
+        )
     }
 
     fun correctReading(stored: MeterReading, value: BigDecimal, reason: String, nowMillis: Long): V2NewCommand =
@@ -433,7 +431,10 @@ object MaintCommands {
             d.overlay["resolved_by"] = if (resolved) userId else null
         }
         val payload = MaintInspectionDefectsUpdate(
-            id = stored.id, status = newStatus?.let { s -> DefectStatus.entries.first { it.wire == s } }, resolutionNote = note,
+            // monitoring is the open state of a Monitor-bucket defect; the server stores it when sent open.
+            id = stored.id,
+            status = newStatus?.let { if (status == DefectState.MONITORING) DefectStatus.OPEN else DefectStatus.entries.first { e -> e.wire == it } },
+            resolutionNote = note,
             clear = d.clear,
         )
         return payload.toNewCommand(

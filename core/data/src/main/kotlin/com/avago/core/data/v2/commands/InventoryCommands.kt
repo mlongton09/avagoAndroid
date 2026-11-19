@@ -139,8 +139,6 @@ object InventoryCommands {
                     productId = line.productId,
                     binId = line.binId,
                     quantity = line.quantity,
-                    unitCost = line.unitCost,
-                    costCurrency = line.unitCost?.let { line.currency },
                 )
             },
         )
@@ -173,8 +171,6 @@ object InventoryCommands {
                     "condition_code" to "good",
                     "quantity_micros" to V2Micros.fromDecimal(line.quantity),
                     "recount_required" to 0L,
-                    "unit_cost" to line.unitCost?.toPlainString(),
-                    "cost_currency" to line.unitCost?.let { line.currency },
                 ) + created(nowMillis, userId),
             )
             positionFor(line.productId, line.binId)?.let { pos ->

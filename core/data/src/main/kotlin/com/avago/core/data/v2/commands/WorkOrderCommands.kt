@@ -216,7 +216,9 @@ object WorkOrderCommands {
                 mapOf("status" to WorkOrderStatus.IN_PROGRESS.wire, "started_at" to nowMillis) + updated(nowMillis),
             )
         }
-        return MaintWorkOrdersTimer(id = stored.id, action = action.wire, at = Instant.ofEpochMilli(nowMillis))
+        // The server keeps one time entry per run: pause is a stop and resume a new start.
+        val wire = if (action == TimerAction.START || action == TimerAction.RESUME) "start" else "stop"
+        return MaintWorkOrdersTimer(id = stored.id, action = wire, at = Instant.ofEpochMilli(nowMillis))
             .toNewCommand(overlay = V2OverlayPatch(ops))
     }
 
@@ -282,7 +284,7 @@ object WorkOrderCommands {
     ): V2NewCommand {
         val label = requireNotNull(title.clean()) { "a checklist row needs a title" }
         val payload = MaintProcedureResponsesCreate(
-            id = id, workOrderId = workOrderId, title = label, rowType = CHECKBOX, required = required,
+            id = id, workOrderId = workOrderId, title = label, rowType = STEP_ROW, required = required,
             description = description.clean(),
         )
         val instance = instanceId ?: newInstanceId
@@ -297,7 +299,7 @@ object WorkOrderCommands {
             V2RowOp.upsert(
                 "procedure_template_rows", id,
                 mapOf(
-                    "version_id" to "", "sort_order" to sortOrder, "row_type" to CHECKBOX, "label" to label,
+                    "version_id" to "", "sort_order" to sortOrder, "row_type" to STEP_ROW, "label" to label,
                     "description" to payload.description, "required" to required, "attributes" to "{}",
                 ) + created(nowMillis, userId),
             ),
@@ -435,12 +437,11 @@ object WorkOrderCommands {
         signatureId: String,
         role: String,
         signedName: String,
-        comment: String?,
         nowMillis: Long,
         userId: String?,
     ): V2NewCommand {
         val name = requireNotNull(signedName.clean()) { "a signature needs a name" }
-        val payload = MaintWorkPermitsSign(id = stored.id, role = role, signedName = name, comment = comment.clean())
+        val payload = MaintWorkPermitsSign(id = stored.id, role = role, signedName = name)
         val signerRole = if (role in SIGNER_ROLES) role else "permit_holder"
         return payload.toNewCommand(
             overlay = V2OverlayPatch.of(
@@ -557,7 +558,7 @@ object WorkOrderCommands {
 
     // ------------------------------------------------------------------ helpers
 
-    private const val CHECKBOX = "checkbox"
+    private const val STEP_ROW = "step"
     private val SIGNER_ROLES = setOf("customer", "staff", "driver", "witness", "permit_holder", "approver")
 
     private fun assetLinks(workOrderId: String, assetIds: List<String>, nowMillis: Long, userId: String?): List<V2RowOp> =

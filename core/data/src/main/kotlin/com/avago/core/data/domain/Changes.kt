@@ -65,3 +65,5 @@ class FieldNotClearableException(val fields: List<String>) :
 
 /** Thrown when an edit is saved for a row that no longer exists locally. */
 class RecordNotFoundException(what: String, id: String) : NoSuchElementException("$what $id not found")
+
+class NoMeterException(assetId: String) : IllegalStateException("Asset $assetId has no meter to record a reading on")

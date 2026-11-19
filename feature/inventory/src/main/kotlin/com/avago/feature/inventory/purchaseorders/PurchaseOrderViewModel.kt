@@ -36,8 +36,8 @@ import javax.inject.Inject
 // Detail
 // ---------------------------------------------------------------------------
 
-/** Transitions that take an optional reason, confirmed in a dialog. */
-enum class PoReasonAction { REJECT, CANCEL }
+/** Transitions confirmed in a dialog first. */
+enum class PoConfirmAction { REJECT, CANCEL }
 
 data class PoDetailUiState(
     val po: PurchaseOrder? = null,
@@ -45,7 +45,7 @@ data class PoDetailUiState(
     val isLoading: Boolean = true,
     val actionError: String? = null,
     val showGrnSheet: Boolean = false,
-    val reasonAction: PoReasonAction? = null,
+    val confirmAction: PoConfirmAction? = null,
 )
 
 @HiltViewModel
@@ -71,16 +71,16 @@ class PurchaseOrderViewModel @Inject constructor(
     fun markOrdered() = act { orders.markOrdered(poId) }
     fun close() = act { orders.close(poId) }
 
-    fun requestReason(action: PoReasonAction) = ui.update { it.copy(reasonAction = action) }
-    fun dismissReason() = ui.update { it.copy(reasonAction = null) }
+    fun requestConfirm(action: PoConfirmAction) = ui.update { it.copy(confirmAction = action) }
+    fun dismissConfirm() = ui.update { it.copy(confirmAction = null) }
 
-    fun confirmReason(reason: String) {
-        val action = ui.value.reasonAction ?: return
-        ui.update { it.copy(reasonAction = null) }
+    fun confirm() {
+        val action = ui.value.confirmAction ?: return
+        ui.update { it.copy(confirmAction = null) }
         act {
             when (action) {
-                PoReasonAction.REJECT -> orders.reject(poId, reason)
-                PoReasonAction.CANCEL -> orders.cancel(poId, reason)
+                PoConfirmAction.REJECT -> orders.reject(poId)
+                PoConfirmAction.CANCEL -> orders.cancel(poId)
             }
         }
     }

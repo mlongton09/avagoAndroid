@@ -129,18 +129,6 @@ fun AddEditVendorScreen(
                 singleLine = true,
             )
             OutlinedTextField(
-                value = state.taxId,
-                onValueChange = viewModel::setTaxId,
-                label = { Text(stringResource(R.string.vendor_tax_id_label)) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                supportingText = if (vendorId != null) {
-                    { Text(stringResource(R.string.vendor_tax_id_write_only)) }
-                } else {
-                    null
-                },
-            )
-            OutlinedTextField(
                 value = state.notes,
                 onValueChange = viewModel::setNotes,
                 label = { Text(stringResource(R.string.vendor_notes_label)) },

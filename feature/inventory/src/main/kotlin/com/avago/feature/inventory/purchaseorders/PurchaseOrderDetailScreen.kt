@@ -64,11 +64,11 @@ fun PurchaseOrderDetailScreen(
         GrnCreateSheet(po = po, onDismiss = viewModel::dismissGrnSheet)
     }
 
-    state.reasonAction?.let { action ->
-        PoReasonDialog(
+    state.confirmAction?.let { action ->
+        PoConfirmDialog(
             action = action,
-            onConfirm = viewModel::confirmReason,
-            onDismiss = viewModel::dismissReason,
+            onConfirm = viewModel::confirm,
+            onDismiss = viewModel::dismissConfirm,
         )
     }
 
@@ -159,11 +159,11 @@ fun PurchaseOrderDetailScreen(
                     actionError = state.actionError,
                     onSubmit = viewModel::submit,
                     onApprove = viewModel::approve,
-                    onReject = { viewModel.requestReason(PoReasonAction.REJECT) },
+                    onReject = { viewModel.requestConfirm(PoConfirmAction.REJECT) },
                     onMarkOrdered = viewModel::markOrdered,
                     onReceive = viewModel::openGrnSheet,
                     onClose = viewModel::close,
-                    onCancel = { viewModel.requestReason(PoReasonAction.CANCEL) },
+                    onCancel = { viewModel.requestConfirm(PoConfirmAction.CANCEL) },
                 )
             }
         }
@@ -294,30 +294,30 @@ private fun PoActions(
 }
 
 @Composable
-private fun PoReasonDialog(action: PoReasonAction, onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
-    var reason by rememberSaveable { mutableStateOf("") }
+private fun PoConfirmDialog(action: PoConfirmAction, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
                 stringResource(
                     when (action) {
-                        PoReasonAction.REJECT -> R.string.po_reason_reject_title
-                        PoReasonAction.CANCEL -> R.string.po_reason_cancel_title
+                        PoConfirmAction.REJECT -> R.string.po_reason_reject_title
+                        PoConfirmAction.CANCEL -> R.string.po_reason_cancel_title
                     },
                 ),
             )
         },
         text = {
-            OutlinedTextField(
-                value = reason,
-                onValueChange = { reason = it },
-                label = { Text(stringResource(R.string.po_reason_label)) },
-                modifier = Modifier.fillMaxWidth(),
-                maxLines = 3,
+            Text(
+                stringResource(
+                    when (action) {
+                        PoConfirmAction.REJECT -> R.string.po_confirm_reject_message
+                        PoConfirmAction.CANCEL -> R.string.po_confirm_cancel_message
+                    },
+                ),
             )
         },
-        confirmButton = { TextButton(onClick = { onConfirm(reason) }) { Text(stringResource(R.string.common_confirm)) } },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(R.string.common_confirm)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_dismiss)) } },
     )
 }

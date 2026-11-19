@@ -370,12 +370,11 @@ data class PartIssueDraft(
     val notes: String? = null,
 )
 
+/** A part to issue; it is valued at the FIFO cost the server's posting consumes. */
 data class PartIssueLineDraft(
     val productId: String,
     val quantity: BigDecimal,
     val binId: String? = null,
-    val unitCost: BigDecimal? = null,
-    val currency: String? = null,
 )
 
 /** A stock document to create and post. */

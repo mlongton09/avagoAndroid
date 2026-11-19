@@ -1,4 +1,4 @@
-﻿package com.avago.feature.assets.ui
+package com.avago.feature.assets.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -391,7 +391,7 @@ fun AddEditAssetScreen(
             }
 
             // Current mileage (road vehicles with a distance meter)
-            if (AssetScope.tracksMileage(form.assetType)) item {
+            if (form.hasMeter && AssetScope.tracksMileage(form.assetType)) item {
                 OutlinedTextField(
                     value = form.mileage,
                     onValueChange = { viewModel.onMileageChanged(it) },

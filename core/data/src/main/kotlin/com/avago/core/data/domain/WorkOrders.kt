@@ -383,7 +383,7 @@ interface WorkOrderRepository {
 
     suspend fun updatePermitStatus(permitId: String, status: String)
 
-    suspend fun signPermit(permitId: String, role: String, signedName: String, comment: String?)
+    suspend fun signPermit(permitId: String, role: String, signedName: String)
 
     suspend fun deletePermit(permitId: String)
 

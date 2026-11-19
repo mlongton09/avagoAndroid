@@ -48,7 +48,6 @@ object PurchasingCommands {
             email = draft.email.clean(),
             phone = draft.phone.clean(),
             website = draft.website.clean(),
-            taxId = draft.taxId.clean(),
             address = draft.address.clean(),
             notes = draft.notes.clean(),
         )
@@ -110,16 +109,14 @@ object PurchasingCommands {
         val email = d.text("email", stored.email, draft.email)
         val phone = d.text("phone", stored.phone, draft.phone)
         val website = d.text("website", stored.website, draft.website)
-        // Not readable on mobile: only an entered value is sent (it cannot be compared or cleared).
-        val taxId = draft.taxId.clean()
         val address = d.text("address", stored.address, draft.address)
         val notes = d.text("notes", stored.notes, draft.notes)
         d.check()
-        if (d.isEmpty && taxId == null) return null
+        if (d.isEmpty) return null
         val payload = PlacesPartiesVendorsUpdate(
             id = stored.partyId, displayName = name, supplierCode = code, accountNumber = account,
             paymentTerms = terms, currencyCode = currency, leadTimeDays = lead, isPreferred = preferred, rating = rating,
-            email = email, phone = phone, website = website, taxId = taxId, address = address, notes = notes,
+            email = email, phone = phone, website = website, address = address, notes = notes,
             clear = d.clear,
         )
         val cleared = d.clear.map { it.wire }.toSet()
@@ -424,7 +421,7 @@ object PurchasingCommands {
 
     enum class Transition { SUBMIT, APPROVE, REJECT, MARK_ORDERED, CANCEL, CLOSE }
 
-    fun transition(stored: PurchaseOrder, transition: Transition, reason: String?, nowMillis: Long, userId: String?): V2NewCommand {
+    fun transition(stored: PurchaseOrder, transition: Transition, nowMillis: Long, userId: String?): V2NewCommand {
         val (payload, set) = when (transition) {
             Transition.SUBMIT -> {
                 require(stored.canSubmit) { "Only a draft with lines can be submitted" }
@@ -437,7 +434,7 @@ object PurchasingCommands {
             }
             Transition.REJECT -> {
                 require(stored.canApprove) { "Only an order pending approval can be rejected" }
-                StockPurchaseOrdersReject(stored.id, reason.clean()) to mapOf("status" to PurchaseOrderStatus.DRAFT.wire)
+                StockPurchaseOrdersReject(stored.id) to mapOf("status" to PurchaseOrderStatus.DRAFT.wire)
             }
             Transition.MARK_ORDERED -> {
                 require(stored.canMarkOrdered) { "Only an approved order can be marked as ordered" }
@@ -446,7 +443,7 @@ object PurchasingCommands {
             }
             Transition.CANCEL -> {
                 require(stored.canCancel) { "Only an open order with nothing received can be cancelled" }
-                StockPurchaseOrdersCancel(stored.id, reason.clean()) to mapOf("status" to PurchaseOrderStatus.CANCELLED.wire)
+                StockPurchaseOrdersCancel(stored.id) to mapOf("status" to PurchaseOrderStatus.CANCELLED.wire)
             }
             Transition.CLOSE -> {
                 require(stored.canClose) { "Only a (partially) received order can be closed" }

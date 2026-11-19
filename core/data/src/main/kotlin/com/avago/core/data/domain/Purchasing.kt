@@ -159,8 +159,6 @@ data class SupplierDraft(
     val email: String? = null,
     val phone: String? = null,
     val website: String? = null,
-    /** Write-only: the tax id is not part of the mobile projection. */
-    val taxId: String? = null,
     val address: String? = null,
     val notes: String? = null,
 )
@@ -221,11 +219,11 @@ interface PurchaseOrderRepository {
     suspend fun approve(id: String)
 
     /** Sends an order pending approval back to draft. */
-    suspend fun reject(id: String, reason: String?)
+    suspend fun reject(id: String)
 
     suspend fun markOrdered(id: String)
 
-    suspend fun cancel(id: String, reason: String?)
+    suspend fun cancel(id: String)
 
     suspend fun close(id: String)
 

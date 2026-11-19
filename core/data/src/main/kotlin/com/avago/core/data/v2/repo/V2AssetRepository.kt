@@ -1,6 +1,7 @@
 package com.avago.core.data.v2.repo
 
 import android.net.Uri
+import com.avago.core.data.domain.NoMeterException
 import com.avago.core.data.domain.Asset
 import com.avago.core.data.domain.AssetDraft
 import com.avago.core.data.domain.AssetFilter
@@ -175,11 +176,14 @@ class V2AssetRepository @Inject constructor(
         commands.submit(MaintCommands.setAssetParent(stored, parentAssetId, System.currentTimeMillis()))
     }
 
-    override suspend fun recordReading(assetId: String, value: BigDecimal, readAt: Long?, notes: String?): String {
+    override suspend fun recordReading(assetId: String, value: BigDecimal, readAt: Long?, meterId: String?): String {
         val now = System.currentTimeMillis()
         val id = V2Uuid.v7(now)
-        val meterId = store.read(null) { conn -> meters(conn, assetId).let { m -> m.firstOrNull { it.isDefault } ?: m.firstOrNull() }?.id }
-        commands.submit(MaintCommands.recordReading(id, assetId, meterId, value, readAt ?: now, notes, now, commands.currentUserId()))
+        val meter = store.read(null) { conn ->
+            val all = meters(conn, assetId)
+            if (meterId != null) all.firstOrNull { it.id == meterId } else all.firstOrNull { it.isDefault } ?: all.firstOrNull()
+        } ?: throw NoMeterException(assetId)
+        commands.submit(MaintCommands.recordReading(id, assetId, meter.id, value, readAt ?: now, now, commands.currentUserId()))
         return id
     }
 

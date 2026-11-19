@@ -127,7 +127,6 @@ data class AddEditVendorUiState(
     val paymentTerms: String = "",
     val accountNumber: String = "",
     /** Write-only on mobile: the stored value is not synced to devices, so the field starts empty. */
-    val taxId: String = "",
     val notes: String = "",
     val isPreferred: Boolean = false,
     val nameError: String? = null,
@@ -188,7 +187,6 @@ class AddEditVendorViewModel @Inject constructor(
     fun setAddress(v: String) = _state.update { it.copy(address = v) }
     fun setPaymentTerms(v: String) = _state.update { it.copy(paymentTerms = v) }
     fun setAccountNumber(v: String) = _state.update { it.copy(accountNumber = v) }
-    fun setTaxId(v: String) = _state.update { it.copy(taxId = v) }
     fun setNotes(v: String) = _state.update { it.copy(notes = v) }
     fun setPreferred(v: Boolean) = _state.update { it.copy(isPreferred = v) }
 
@@ -212,7 +210,6 @@ class AddEditVendorViewModel @Inject constructor(
                     address = s.address,
                     paymentTerms = s.paymentTerms,
                     accountNumber = s.accountNumber,
-                    taxId = s.taxId,
                     notes = s.notes,
                     isPreferred = s.isPreferred,
                 )

@@ -278,17 +278,17 @@ class V2PurchaseOrderRepository @Inject constructor(
         commands.submit(PurchasingCommands.deleteLine(order, stored, System.currentTimeMillis()))
     }
 
-    override suspend fun submit(id: String) = transition(id, Transition.SUBMIT, null)
+    override suspend fun submit(id: String) = transition(id, Transition.SUBMIT)
 
-    override suspend fun approve(id: String) = transition(id, Transition.APPROVE, null)
+    override suspend fun approve(id: String) = transition(id, Transition.APPROVE)
 
-    override suspend fun reject(id: String, reason: String?) = transition(id, Transition.REJECT, reason)
+    override suspend fun reject(id: String) = transition(id, Transition.REJECT)
 
-    override suspend fun markOrdered(id: String) = transition(id, Transition.MARK_ORDERED, null)
+    override suspend fun markOrdered(id: String) = transition(id, Transition.MARK_ORDERED)
 
-    override suspend fun cancel(id: String, reason: String?) = transition(id, Transition.CANCEL, reason)
+    override suspend fun cancel(id: String) = transition(id, Transition.CANCEL)
 
-    override suspend fun close(id: String) = transition(id, Transition.CLOSE, null)
+    override suspend fun close(id: String) = transition(id, Transition.CLOSE)
 
     override suspend fun receive(draft: GoodsReceiptDraft): String {
         val order = order(draft.purchaseOrderId)
@@ -320,8 +320,8 @@ class V2PurchaseOrderRepository @Inject constructor(
         return id
     }
 
-    private suspend fun transition(id: String, transition: Transition, reason: String?) {
-        commands.submit(PurchasingCommands.transition(order(id), transition, reason, System.currentTimeMillis(), commands.currentUserId()))
+    private suspend fun transition(id: String, transition: Transition) {
+        commands.submit(PurchasingCommands.transition(order(id), transition, System.currentTimeMillis(), commands.currentUserId()))
     }
 
     private suspend fun order(id: String): PurchaseOrder =

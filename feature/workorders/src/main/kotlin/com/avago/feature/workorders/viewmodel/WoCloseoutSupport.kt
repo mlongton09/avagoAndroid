@@ -49,7 +49,7 @@ class WoCloseoutSupport @Inject constructor(
         val assetId = wo.primaryAssetId
         val reading = closeout.meterReading
         if (assetId != null && reading != null) {
-            assets.recordReading(assetId, BigDecimal.valueOf(reading), System.currentTimeMillis(), closeout.resolutionNotes)
+            assets.recordReading(assetId, BigDecimal.valueOf(reading), System.currentTimeMillis())
         }
         repository.patchAttributes(wo.id, mapOf(WO_KEY_CLOSEOUT to closeout.toJson(), WO_KEY_HOLD to null))
         repository.transition(

@@ -60,8 +60,10 @@ data class AssetFormState(
     val avatarColor: String = "#4FC3F7",
     val licensePlate: String = "",
     val vinSerial: String = "",
-    /** Current odometer reading for road vehicles (attribute `odometer`). */
+    /** Current odometer reading for road vehicles, recorded on the asset's meter. */
     val mileage: String = "",
+    /** Readings need an existing asset meter (the catalog cannot create one). */
+    val hasMeter: Boolean = false,
     val purchaseDate: Long? = null,
     val purchasePrice: String = "",
     val location: String = "",
@@ -251,7 +253,7 @@ class AddEditAssetViewModel @Inject constructor(
                 return@launch
             }
             originalMileage = meter?.lastValue?.toBigInteger()?.toString().orEmpty()
-            _form.value = formFor(asset, originalMileage)
+            _form.value = formFor(asset, originalMileage).copy(hasMeter = meter != null)
         }
     }
 
@@ -539,8 +541,8 @@ class AddEditAssetViewModel @Inject constructor(
                     repository.update(editing, draft.copy(locationId = stored.locationId, conditionScore = stored.conditionScore))
                     editing
                 }
-                if (AssetScope.tracksMileage(current.assetType, catalog) && current.mileage != originalMileage) {
-                    current.mileage.toBigDecimalOrNull()?.let { repository.recordReading(assetId, it, null, null) }
+                if (current.hasMeter && AssetScope.tracksMileage(current.assetType, catalog) && current.mileage != originalMileage) {
+                    current.mileage.toBigDecimalOrNull()?.let { repository.recordReading(assetId, it) }
                 }
                 if (accountId != identityManager.getActiveAccountId()) return@launch
 

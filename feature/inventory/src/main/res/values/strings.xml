@@ -73,7 +73,6 @@
     <string name="vendor_phone">Phone</string>
     <string name="vendor_address">Address</string>
     <string name="vendor_payment_terms">Payment Terms</string>
-    <string name="vendor_tax_id">Tax ID</string>
     <string name="vendor_edit">Edit</string>
 
     <!-- Add / edit vendor -->
@@ -84,14 +83,12 @@
     <string name="vendor_phone_label">Phone</string>
     <string name="vendor_address_label">Address</string>
     <string name="vendor_payment_terms_label">Payment Terms</string>
-    <string name="vendor_tax_id_label">Tax ID</string>
     <string name="vendor_save">Save</string>
     <string name="vendor_contact_label">Contact person</string>
     <string name="vendor_website_label">Website</string>
     <string name="vendor_account_number_label">Account number</string>
     <string name="vendor_notes_label">Notes</string>
     <string name="vendor_preferred_label">Preferred vendor</string>
-    <string name="vendor_tax_id_write_only">Not shown on mobile; leave empty to keep the current value</string>
     <string name="vendor_contact">Contact</string>
     <string name="vendor_website">Website</string>
     <string name="vendor_account_number">Account number</string>
@@ -423,7 +420,8 @@
     <string name="po_receipt_reverse_confirm">Reverse this receipt? On-hand stock and received quantities are reduced again.</string>
     <string name="po_reason_reject_title">Reject purchase order</string>
     <string name="po_reason_cancel_title">Cancel purchase order</string>
-    <string name="po_reason_label">Reason (optional)</string>
+    <string name="po_confirm_reject_message">The order goes back to draft so it can be changed and submitted again.</string>
+    <string name="po_confirm_cancel_message">Cancel this purchase order? Nothing has been received on it.</string>
     <string name="po_action_cancel">Cancel order</string>
     <string name="po_internal_notes_label">Internal notes</string>
     <string name="po_invoice_ref_label">Supplier invoice ref</string>

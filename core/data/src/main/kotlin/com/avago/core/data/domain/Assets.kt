@@ -238,8 +238,11 @@ interface AssetRepository {
 
     suspend fun setParent(id: String, parentAssetId: String?)
 
-    /** Records a reading on the asset's default meter. */
-    suspend fun recordReading(assetId: String, value: BigDecimal, readAt: Long? = null, notes: String? = null): String
+    /**
+     * Records a reading on [meterId], or on the asset's default meter when null. Throws
+     * [NoMeterException] when the asset has no meter (the server rejects such readings).
+     */
+    suspend fun recordReading(assetId: String, value: BigDecimal, readAt: Long? = null, meterId: String? = null): String
 
     suspend fun correctReading(id: String, value: BigDecimal, reason: String)
 
