@@ -31,14 +31,9 @@ import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.v2.V2CapabilitiesClient
 import com.avago.core.network.v2.V2ProbeResult
 import com.avago.core.ai.ScoutRepository
-import com.avago.core.seed.ConfigSeeder
 import com.avago.core.sync.ConnectivityMonitor
-import com.avago.core.sync.DeltaPushApplier
-import com.avago.core.sync.PhotoCacheSweeper
 import com.avago.core.sync.SyncEngine
-import com.avago.core.sync.SyncGate
 import com.avago.core.sync.SyncWorker
-import com.avago.core.sync.TechLocationService
 import com.avago.core.sync.v2.V2SyncCoordinator
 import com.avago.feature.chat.realtime.BackgroundSyncCoordinator
 import com.avago.feature.chat.realtime.ChatRealtimeClient
@@ -49,7 +44,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -98,7 +92,7 @@ import javax.inject.Inject
  *
  * On sign-in (identity.signInEvents):
  *   - Re-connect chat WS for the newly active account.
- *   - SyncEngine kicks the initial pull via its own observer.
+ *   - observeIdentityForV2Sync runs the first v2 pull for the account.
  *
  * On sign-out (identity.signOutEvents):
  *   - chatRealtime.disconnect() to drop the old account's socket.
@@ -120,15 +114,10 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
     @Inject lateinit var identityManagerLazy: Lazy<IdentityManager>
     @Inject lateinit var crashDiagnosticsLazy: Lazy<CrashDiagnostics>
     @Inject lateinit var serviceClientLazy: Lazy<AvagoServiceClient>
-    @Inject lateinit var configSeederLazy: Lazy<ConfigSeeder>
     @Inject lateinit var connectivityMonitorLazy: Lazy<ConnectivityMonitor>
     @Inject lateinit var syncEngineLazy: Lazy<SyncEngine>
-    @Inject lateinit var syncGateLazy: Lazy<SyncGate>
     @Inject lateinit var exchangeRateServiceLazy: Lazy<ExchangeRateService>
-    @Inject lateinit var techLocationServiceLazy: Lazy<TechLocationService>
     @Inject lateinit var outboxRetryCoordinatorLazy: Lazy<OutboxRetryCoordinator>
-    @Inject lateinit var photoCacheSweeperLazy: Lazy<PhotoCacheSweeper>
-    @Inject lateinit var deltaApplierLazy: Lazy<DeltaPushApplier>
     @Inject lateinit var chatBackgroundSyncLazy: Lazy<BackgroundSyncCoordinator>
     @Inject lateinit var chatRealtimeLazy: Lazy<ChatRealtimeClient>
     @Inject lateinit var scoutRepositoryLazy: Lazy<ScoutRepository>
@@ -140,15 +129,10 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
     private val identityManager get() = identityManagerLazy.get()
     private val crashDiagnostics get() = crashDiagnosticsLazy.get()
     private val serviceClient get() = serviceClientLazy.get()
-    private val configSeeder get() = configSeederLazy.get()
     private val connectivityMonitor get() = connectivityMonitorLazy.get()
     private val syncEngine get() = syncEngineLazy.get()
-    private val syncGate get() = syncGateLazy.get()
     private val exchangeRateService get() = exchangeRateServiceLazy.get()
-    private val techLocationService get() = techLocationServiceLazy.get()
     private val outboxRetryCoordinator get() = outboxRetryCoordinatorLazy.get()
-    private val photoCacheSweeper get() = photoCacheSweeperLazy.get()
-    private val deltaApplier get() = deltaApplierLazy.get()
     private val chatBackgroundSync get() = chatBackgroundSyncLazy.get()
     private val chatRealtime get() = chatRealtimeLazy.get()
     private val scoutRepository get() = scoutRepositoryLazy.get()
@@ -172,19 +156,15 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
                 crashDiagnostics.setUserContext()
                 val accountId = identityManager.getActiveAccountId()
                 if (accountId != null) {
-                    Trace.beginSection("ConfigSeeder.seedIfNeeded")
-                    configSeeder.seedIfNeeded(accountId)
-                    Trace.endSection()
-                    syncGate.restore(accountId)
                     // Open chat WebSocket so messages arrive as push events instead of
                     // 15-minute periodic delta polls. Mirrors iOS AppBootstrapCoordinator.startChatServices.
                     runCatching { chatRealtime.connect(accountId) }
                         .onFailure { Timber.e(it, "AvagoApplication: chat realtime connect failed") }
                 } else {
-                    Timber.w("AvagoApplication: no active account after init, skipping seed")
+                    Timber.w("AvagoApplication: no active account after init")
                 }
             } catch (e: Exception) {
-                Timber.e(e, "AvagoApplication: failed to initialize identity or seed config")
+                Timber.e(e, "AvagoApplication: failed to initialize identity")
             }
         }
 
@@ -196,22 +176,10 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
             }
         }
 
-        appScope.launch {
-            while (true) {
-                delay(5 * 60 * 1000L)
-                val accountId = identityManager.getActiveAccountId() ?: continue
-                try {
-                    deltaApplier.flushMetrics(accountId)
-                } catch (e: Exception) {
-                    Timber.e(e, "AvagoApplication: periodic metrics flush failed")
-                }
-            }
-        }
-
         schedulePeriodicSync()
         observeConnectivityForSync()
-        observeSignOutForWatermarkReset()
-        observeAccountSwitchForSyncGate()
+        observeSignOutForChat()
+        observeAccountSwitchForSync()
         observeSignInForRateLimitClear()
         observePermissionsStaleness()
         observeAccountGone()
@@ -249,8 +217,9 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
 
     /**
      * Opens (and publishes to the v2 reads) the active user/account's v2 stores and runs a first
-     * v2 pull + outbox flush on launch, sign-in and account switch. Later cycles come through the
-     * existing triggers via SyncEngine's v2 hook. No-op unless the reset completed (V2StoreGate).
+     * v2 pull + outbox flush on launch, sign-in and account switch. Later cycles come through
+     * [SyncWorker] (periodic, connectivity, foreground, FCM nudges) and [SyncEngine]. No-op unless
+     * the reset completed (V2StoreGate).
      */
     private suspend fun observeIdentityForV2Sync() {
         combine(identityManager.activeAccountId, identityManager.activeUserId) { account, user -> account to user }
@@ -305,34 +274,25 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
                 .collect { (previous, current) ->
                     if (!previous && current) {
                         Timber.d("AvagoApplication: connectivity restored — triggering immediate sync")
-                        syncEngine.handleConnectivityLost() // resets any stale in-flight items
                         triggerImmediateSync()
                         scoutRepository.scheduleDrain()
-                    } else if (!current) {
-                        syncEngine.handleConnectivityLost()
                     }
                 }
         }
     }
 
-    private fun observeSignOutForWatermarkReset() {
+    private fun observeSignOutForChat() {
         appScope.launch {
-            identityManager.signOutEvents.collect { accountId ->
+            identityManager.signOutEvents.collect {
                 runCatching { chatRealtime.disconnect() }
                     .onFailure { Timber.e(it, "AvagoApplication: chat realtime disconnect failed") }
-                // Note: per-account Room DB watermarks are wiped by
-                // IdentityManager.signOut → DatabaseFactory.deleteDatabase, so we
-                // skip syncEngine.resetAllWatermarks here to avoid a race writing
-                // to a database that's being closed/deleted.
-                syncGate.reset()
             }
         }
     }
 
-    private fun observeAccountSwitchForSyncGate() {
+    private fun observeAccountSwitchForSync() {
         appScope.launch {
             identityManager.accountSwitchEvents.collect { accountId ->
-                syncGate.reset()
                 runCatching { triggerImmediateSync() }
                     .onFailure { Timber.e(it, "AvagoApplication: failed to sync after account switch to $accountId") }
             }
@@ -398,7 +358,6 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
                     ExistingWorkPolicy.KEEP,
                     request,
                 )
-                techLocationService.startMonitoring()
                 outboxRetryCoordinator.startPeriodicFlush()
                 // Ensure the chat WebSocket is connected on foreground (idempotent; no-op
                 // if already connected for the active account). Mirrors iOS
@@ -421,31 +380,11 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
                         Timber.e(e, "AvagoApplication: chat delta sync on foreground failed")
                     }
                 }
-
-                // Deferred cache sweep — give the app 30 s to settle before evicting local photos
-                appScope.launch {
-                    delay(30_000)
-                    val accountId = identityManager.getActiveAccountId() ?: return@launch
-                    try {
-                        photoCacheSweeper.runIfNeeded(accountId)
-                    } catch (e: Exception) {
-                        Timber.e(e, "AvagoApplication: PhotoCacheSweeper failed")
-                    }
-                }
             }
 
             override fun onStop(owner: LifecycleOwner) {
                 Timber.d("AvagoApplication: app backgrounded")
-                techLocationService.stopMonitoring()
                 outboxRetryCoordinator.stopPeriodicFlush()
-                appScope.launch {
-                    val accountId = identityManager.getActiveAccountId() ?: return@launch
-                    try {
-                        deltaApplier.flushMetrics(accountId)
-                    } catch (e: Exception) {
-                        Timber.e(e, "AvagoApplication: onStop metrics flush failed")
-                    }
-                }
             }
         })
     }

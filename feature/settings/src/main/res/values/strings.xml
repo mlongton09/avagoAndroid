@@ -121,4 +121,18 @@
     <string name="sample_workspaces_load_failed">Could not load sample workspaces: %1$s</string>
     <string name="sample_workspaces_empty">No sample profiles available</string>
     <string name="tech_profile_no_worker">You are not set up as a technician in this account yet. Ask an administrator to add you.</string>
+    <string name="settings_failed_changes">Failed changes</string>
+    <string name="failed_changes_title">Failed changes</string>
+    <string name="failed_changes_back">Back</string>
+    <string name="failed_changes_dismiss">Dismiss</string>
+    <string name="failed_changes_dismiss_all">Dismiss all</string>
+    <string name="failed_changes_all_sent">All changes are synced</string>
+    <plurals name="failed_changes_pending">
+        <item quantity="one">%d change waiting to sync</item>
+        <item quantity="other">%d changes waiting to sync</item>
+    </plurals>
+    <string name="failed_changes_empty">No failed changes</string>
+    <string name="failed_changes_empty_detail">Changes the server refuses are listed here. They are already undone on this device.</string>
+    <string name="failed_changes_conflict">Someone else changed this record first, so your edit was not applied. Open the record and make the change again.</string>
+    <string name="failed_changes_conflict_versions">Your edit was based on version %1$s; the server has version %2$s.</string>
 </resources>

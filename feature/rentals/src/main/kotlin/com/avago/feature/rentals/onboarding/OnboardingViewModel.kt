@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.auth.PermissionStore
+import com.avago.core.data.domain.SyncRepository
 import com.avago.core.network.json.ApiResult
 import com.avago.feature.assets.data.AssetTaxonomyRepository
 import com.avago.feature.assets.data.AssetScopeRepository
@@ -34,7 +35,6 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
 import kotlinx.serialization.json.put
 import javax.inject.Inject
-import com.avago.core.sync.SyncEngine
 import com.avago.core.data.domain.Location
 
 data class OnboardingUi(
@@ -62,7 +62,7 @@ class OnboardingViewModel @Inject constructor(
     private val repository: OnboardingRepository,
     private val taxonomyRepository: AssetTaxonomyRepository,
     private val scopes: AssetScopeRepository,
-    private val syncEngine: SyncEngine,
+    private val sync: SyncRepository,
 ) : ViewModel() {
     private val prefs = context.getSharedPreferences("rental_onboarding", Context.MODE_PRIVATE)
     private val _ui = MutableStateFlow(OnboardingUi())
@@ -253,7 +253,7 @@ class OnboardingViewModel @Inject constructor(
                 session { result.copy(editor = it.editor) }
                 rememberLocal()
                 // Existing sync batches each response page and watermark inside one Room transaction.
-                if (publish && result.publishedSuccessfully) syncEngine.sync()
+                if (publish && result.publishedSuccessfully) sync.syncNow()
             }
         }
     }

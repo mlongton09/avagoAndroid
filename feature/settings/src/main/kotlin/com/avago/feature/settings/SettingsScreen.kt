@@ -67,7 +67,7 @@ fun SettingsScreen(
     onNavigateToDeveloper: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {},
     onNavigateToTechProfile: () -> Unit = {},
-    onNavigateToSyncConflicts: () -> Unit = {},
+    onNavigateToFailedChanges: () -> Unit = {},
     onNavigateToPermissionSets: () -> Unit = {},
     onNavigateToCustomFields: () -> Unit = {},
 ) {
@@ -295,9 +295,9 @@ fun SettingsScreen(
         item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
         item {
             NavigationRow(
-                label = "Sync Conflicts",
+                label = stringResource(R.string.settings_failed_changes),
                 leadingIcon = { Icon(Icons.Default.Error, contentDescription = null) },
-                onClick = onNavigateToSyncConflicts,
+                onClick = onNavigateToFailedChanges,
             )
         }
         item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }

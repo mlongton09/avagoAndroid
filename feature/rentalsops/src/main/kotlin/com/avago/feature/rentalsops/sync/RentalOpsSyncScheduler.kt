@@ -15,9 +15,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Schedules the shared [SyncWorker] (which drains [RentalOpsOutbox] through SyncEngine's
- * ExternalOutbox hook) once the device has a network. Unique + KEEP so bursts of driver taps
- * collapse into one run; WorkManager's exponential backoff bounds retries.
+ * Schedules the shared [SyncWorker] once the device has a network. Unique + KEEP so bursts of
+ * driver taps collapse into one run. The sync cycle is schema v2 only; [RentalOpsOutbox] (legacy
+ * rentals P2 REST) is not drained by it (docs/v2-android-status.md, rentals).
  */
 @Singleton
 class RentalOpsSyncScheduler @Inject constructor(

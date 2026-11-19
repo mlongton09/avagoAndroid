@@ -1,5 +1,6 @@
 package com.avago.feature.assets.viewmodel
 
+import com.avago.core.data.domain.SyncRepository
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
@@ -13,7 +14,6 @@ import kotlinx.coroutines.flow.flow
 import java.time.Instant
 import com.avago.core.permissions.Permissions
 import com.avago.core.permissions.PermissionsManager
-import com.avago.core.sync.SyncEngine
 import com.avago.feature.assets.model.AssetTypes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -35,7 +35,7 @@ import javax.inject.Inject
 class AssetListViewModel @Inject constructor(
     private val repository: AssetRepository,
     private val identityManager: IdentityManager,
-    private val syncEngine: SyncEngine,
+    private val sync: SyncRepository,
     private val dbFactory: DatabaseFactory,
     private val permissionsManager: PermissionsManager,
 ) : ViewModel() {
@@ -182,7 +182,7 @@ class AssetListViewModel @Inject constructor(
             _isRefreshing.value = true
             _syncError.value = null
             try {
-                syncEngine.sync()
+                if (!sync.syncNow()) _syncError.value = "Couldn't sync. Tap to retry."
             } catch (e: Exception) {
                 Timber.e(e, "[AssetListViewModel] Sync failed")
                 _syncError.value = "Couldn't sync. Tap to retry."

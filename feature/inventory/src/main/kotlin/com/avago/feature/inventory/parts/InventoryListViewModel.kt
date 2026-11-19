@@ -1,5 +1,6 @@
 package com.avago.feature.inventory.parts
 
+import com.avago.core.data.domain.SyncRepository
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.data.domain.InventoryRepository
@@ -7,7 +8,6 @@ import com.avago.core.data.domain.ProductStock
 import com.avago.core.data.domain.StockStatus
 import com.avago.core.permissions.Permissions
 import com.avago.core.permissions.PermissionsManager
-import com.avago.core.sync.SyncEngine
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -47,7 +47,7 @@ data class InventoryListUiState(
 @HiltViewModel
 class InventoryListViewModel @Inject constructor(
     private val inventory: InventoryRepository,
-    private val syncEngine: SyncEngine,
+    private val sync: SyncRepository,
     private val permissionsManager: PermissionsManager,
 ) : ViewModel() {
 
@@ -126,7 +126,7 @@ class InventoryListViewModel @Inject constructor(
         viewModelScope.launch {
             _isRefreshing.value = true
             try {
-                syncEngine.sync()
+                sync.syncNow()
             } catch (e: Exception) {
                 Timber.e(e, "[InventoryListViewModel] Sync failed")
             } finally {

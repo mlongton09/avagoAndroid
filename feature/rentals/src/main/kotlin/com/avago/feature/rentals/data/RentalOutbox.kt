@@ -12,8 +12,6 @@ import com.avago.core.network.NetworkResult
 import com.avago.core.network.model.PresignedUploadRequest
 import com.avago.core.network.rentals.RentalsApi
 import com.avago.core.network.rentals.RentalsApiException
-import com.avago.core.sync.ExternalOutbox
-import com.avago.core.sync.PhotoUploader
 import com.avago.feature.rentals.domain.ConflictMerge
 import com.avago.feature.rentals.domain.Esign
 import com.avago.feature.rentals.domain.HandoverGates
@@ -44,7 +42,7 @@ import javax.inject.Singleton
 
 /**
  * Pushes queued rental actions (spec §15) in [OutboxPlanner] order. Called by
- * [com.avago.core.sync.SyncEngine] after `/sync/push` and by [RentalSyncWorker].
+ * [RentalSyncWorker] (legacy rentals API; inactive while schema v2 is on).
  *
  *  * success → server copy replaces the local draft (local→server id kept in `rental_id_map`),
  *    queue row deleted; a booking confirmed with an allocation conflict gets a notice;
@@ -65,21 +63,12 @@ import javax.inject.Singleton
 class RentalOutbox @Inject constructor(
     private val dbFactory: DatabaseFactory,
     private val api: RentalsApi,
-    private val photoUploader: Provider<PhotoUploader>,
-    private val sync: Provider<RentalSync>,
+    private val photoUploader: Provider<RentalPhotoUploader>,
     private val files: AvagoServiceClient,
     private val online: Provider<RentalsOnline>,
-) : ExternalOutbox {
+) {
 
     private val mutex = Mutex()
-
-    override val entityTypes: Set<String> = OutboxPlanner.TYPES
-
-    override suspend fun pull(accountId: String) {
-        sync.get().pull(accountId)
-    }
-
-    override suspend fun drain(accountId: String, items: List<SyncQueueEntity>): Int = drainAll(accountId)
 
     /** Drains every runnable rental row; returns how many were confirmed. */
     suspend fun drainAll(accountId: String): Int = mutex.withLock {

@@ -3,12 +3,11 @@ package com.avago.feature.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
+import com.avago.core.data.domain.SyncRepository
 import com.avago.core.data.repository.UserPreferencesRepository
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
 import com.avago.core.network.model.UpdatePreferencesRequest
-import com.avago.core.sync.SyncEngine
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -36,8 +35,7 @@ class SettingsViewModel @Inject constructor(
     private val prefs: UserPreferencesRepository,
     private val identity: IdentityManager,
     private val serviceClient: AvagoServiceClient,
-    private val databaseFactory: DatabaseFactory,
-    private val syncEngine: SyncEngine,
+    private val sync: SyncRepository,
 ) : ViewModel() {
 
     // ── Preference state ──────────────────────────────────────────────────────
@@ -229,9 +227,8 @@ class SettingsViewModel @Inject constructor(
             try {
                 when (val result = serviceClient.deleteCustomerContent(id)) {
                     is NetworkResult.Success -> {
-                        runCatching { databaseFactory.deleteDatabase(id) }
-                            .onFailure { Timber.w(it, "SettingsViewModel: local customer-content wipe failed for $id") }
-                        syncEngine.sync()
+                        // The server data is gone; re-bootstrap the local v2 store from it.
+                        sync.resync()
                     }
                     is NetworkResult.Error -> Timber.w("SettingsViewModel: deleteCustomerContent failed (${result.code}) — ${result.message}")
                     NetworkResult.Unauthorized -> Timber.w("SettingsViewModel: deleteCustomerContent unauthorized")

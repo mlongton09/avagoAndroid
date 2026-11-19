@@ -1,5 +1,6 @@
 package com.avago.feature.workorders.viewmodel
 
+import com.avago.core.data.domain.SyncRepository
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.data.domain.WorkOrder
@@ -7,7 +8,6 @@ import com.avago.core.data.domain.WorkOrderFilter
 import com.avago.core.data.domain.WorkOrderRepository
 import com.avago.core.data.domain.WorkOrderStatus
 import com.avago.core.data.domain.WorkerRepository
-import com.avago.core.sync.SyncEngine
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -25,7 +25,7 @@ import javax.inject.Inject
 class AvailableJobsViewModel @Inject constructor(
     private val repository: WorkOrderRepository,
     private val workers: WorkerRepository,
-    private val syncEngine: SyncEngine,
+    private val sync: SyncRepository,
 ) : ViewModel() {
 
     private val _isRefreshing = MutableStateFlow(false)
@@ -66,7 +66,7 @@ class AvailableJobsViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _isRefreshing.value = true
-            try { syncEngine.sync() } catch (e: Exception) {
+            try { sync.syncNow() } catch (e: Exception) {
                 Timber.e(e, "[AvailableJobsVM] sync failed")
             } finally {
                 _isRefreshing.value = false

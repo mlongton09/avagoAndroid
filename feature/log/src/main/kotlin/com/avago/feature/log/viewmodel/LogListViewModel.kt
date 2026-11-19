@@ -1,5 +1,6 @@
 package com.avago.feature.log.viewmodel
 
+import com.avago.core.data.domain.SyncRepository
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -13,7 +14,6 @@ import com.avago.core.data.domain.Attachment
 import com.avago.core.data.domain.AttachmentTarget
 import com.avago.core.data.domain.LocalFileRef
 import com.avago.core.data.repository.UserPreferencesRepository
-import com.avago.core.sync.SyncEngine
 import com.avago.feature.log.model.LogAnalytics
 import com.avago.feature.log.model.LogListFilter
 import com.avago.feature.log.model.LogPacks
@@ -41,7 +41,7 @@ import javax.inject.Inject
 class LogListViewModel @Inject constructor(
     private val activities: ActivityRepository,
     private val assets: AssetRepository,
-    private val syncEngine: SyncEngine,
+    private val sync: SyncRepository,
     userPrefsRepository: UserPreferencesRepository,
 ) : ViewModel() {
 
@@ -169,7 +169,7 @@ class LogListViewModel @Inject constructor(
         viewModelScope.launch {
             _isRefreshing.value = true
             try {
-                syncEngine.sync()
+                sync.syncNow()
             } catch (e: Exception) {
                 Timber.e(e, "[LogListViewModel] Refresh failed")
             } finally {

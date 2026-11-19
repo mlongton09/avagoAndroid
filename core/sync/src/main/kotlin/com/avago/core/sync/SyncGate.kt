@@ -1,49 +1,30 @@
 package com.avago.core.sync
 
-import com.avago.core.data.DatabaseFactory
-import kotlinx.coroutines.flow.MutableStateFlow
+import com.avago.core.data.v2.V2StoreAccess
+import com.avago.core.data.v2.scalarText
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Open once the signed-in account's v2 store holds a completed bootstrap, so the UI does not show
+ * empty screens before the first pull. Closes again while a re-bootstrap (reset, scope change,
+ * [SyncEngine.resync]) rebuilds the store.
+ */
 @Singleton
 class SyncGate @Inject constructor(
-    private val dbFactory: DatabaseFactory,
+    store: V2StoreAccess,
+    @ApplicationScope scope: CoroutineScope,
 ) {
-    private val _isOpen = MutableStateFlow(false)
-    val isOpen: StateFlow<Boolean> = _isOpen.asStateFlow()
-
-    /** Called by SyncEngine after the first successful pull cycle completes. */
-    fun open() { _isOpen.value = true }
-
-    /** Called on sign-out to reset for the next account. */
-    fun reset() { _isOpen.value = false }
-
-    /** Restore the persisted first-sync gate for a previously synced account. */
-    suspend fun restore(accountId: String?) {
-        if (accountId == null) {
-            reset()
-            return
-        }
-        _isOpen.value = runCatching {
-            (dbFactory.get(accountId).syncMetadataDao().getWatermark(FIRST_SYNC_KEY) ?: 0L) > 0L
-        }.getOrDefault(false)
-    }
-
-    /**
-     * Suspends until the gate is open. Call from any DAO/repository write path
-     * that should not execute before the first sync completes.
-     */
-    suspend fun awaitOpen() {
-        _isOpen.filter { it }.first()
-    }
-
-    val isOpenNow: Boolean get() = _isOpen.value
+    val isOpen: StateFlow<Boolean> = store.observe(setOf(SYNC_STATE), false) { conn ->
+        conn.scalarText("SELECT bootstrap_state FROM sync_state WHERE stream = 'account'") == BOOTSTRAP_COMPLETE
+    }.stateIn(scope, SharingStarted.Eagerly, false)
 
     private companion object {
-        const val FIRST_SYNC_KEY = "__delta_push_armed__"
+        const val SYNC_STATE = "sync_state"
+        const val BOOTSTRAP_COMPLETE = "complete"
     }
 }

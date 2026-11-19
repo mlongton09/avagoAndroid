@@ -1,4 +1,4 @@
-﻿plugins {
+plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.ksp)
@@ -43,7 +43,6 @@ dependencies {
     implementation(project(":core:data"))
     implementation(project(":core:network"))
     implementation(project(":core:auth"))
-    implementation(project(":core:sync"))
     implementation(project(":core:permissions"))
     testImplementation(libs.junit5)
     testImplementation(platform(libs.junit.bom))

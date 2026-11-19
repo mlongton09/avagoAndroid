@@ -110,6 +110,12 @@ class V2SyncEngine(
         V2SyncResult.Failed(V2ProtocolException("sync restarted $MAX_RESTARTS times without completing"))
     }
 
+    /**
+     * Discards the local copy: the next [sync] wipes the synced tables and bootstraps again.
+     * Queued commands and their overlays are kept and still sent.
+     */
+    suspend fun requestBootstrap() = mutex.withLock { resetToBootstrap(STATUS_BOOTSTRAP_REQUIRED) }
+
     /** Status column of `sync_state` (both streams carry the same value). */
     suspend fun status(): String = business.read { it.scalarText("SELECT status FROM sync_state WHERE stream = 'account'") ?: "ok" }
 

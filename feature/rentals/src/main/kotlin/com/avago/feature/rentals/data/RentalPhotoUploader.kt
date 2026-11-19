@@ -1,4 +1,4 @@
-package com.avago.core.sync
+package com.avago.feature.rentals.data
 
 import android.content.Context
 import com.avago.core.data.DatabaseFactory
@@ -24,7 +24,7 @@ import javax.inject.Singleton
  * potential Hilt dependency cycles.
  */
 @Singleton
-class PhotoUploader @Inject constructor(
+class RentalPhotoUploader @Inject constructor(
     @ApplicationContext private val context: Context,
     private val databaseFactory: DatabaseFactory,
     private val clientProvider: Provider<AvagoServiceClient>,
@@ -50,16 +50,16 @@ class PhotoUploader @Inject constructor(
         val pending = db.photoDao().pendingUpload(accountId)
 
         if (pending.isEmpty()) {
-            Timber.d("[PhotoUploader] No pending uploads for $accountId")
+            Timber.d("[RentalPhotoUploader] No pending uploads for $accountId")
             return@withContext
         }
 
-        Timber.d("[PhotoUploader] Sweeping ${pending.size} pending photo(s) for $accountId")
+        Timber.d("[RentalPhotoUploader] Sweeping ${pending.size} pending photo(s) for $accountId")
 
         for (photo in pending) {
             val photoId = photo.photoId
             if (!inFlight.add(photoId)) {
-                Timber.d("[PhotoUploader] Skipping $photoId — already in-flight")
+                Timber.d("[RentalPhotoUploader] Skipping $photoId — already in-flight")
                 continue
             }
 
@@ -70,11 +70,11 @@ class PhotoUploader @Inject constructor(
                 val bytes = try {
                     withContext(Dispatchers.IO) { file.readBytes() }
                 } catch (e: FileNotFoundException) {
-                    Timber.w("[PhotoUploader] Local file not found for $photoId: $localPath — clearing local_path")
+                    Timber.w("[RentalPhotoUploader] Local file not found for $photoId: $localPath — clearing local_path")
                     db.photoDao().clearLocalPath(photoId, System.currentTimeMillis())
                     continue
                 } catch (e: Exception) {
-                    Timber.e(e, "[PhotoUploader] Failed to read local file for $photoId: $localPath")
+                    Timber.e(e, "[RentalPhotoUploader] Failed to read local file for $photoId: $localPath")
                     continue
                 }
 
@@ -89,11 +89,11 @@ class PhotoUploader @Inject constructor(
                 val urlResponse = when (urlResult) {
                     is NetworkResult.Success -> urlResult.data
                     is NetworkResult.Error -> {
-                        Timber.w("[PhotoUploader] getPhotoUploadUrl failed for $photoId: ${urlResult.code} ${urlResult.message}")
+                        Timber.w("[RentalPhotoUploader] getPhotoUploadUrl failed for $photoId: ${urlResult.code} ${urlResult.message}")
                         continue
                     }
                     is NetworkResult.Unauthorized -> {
-                        Timber.w("[PhotoUploader] Unauthorized getting upload URL for $photoId — aborting sweep")
+                        Timber.w("[RentalPhotoUploader] Unauthorized getting upload URL for $photoId — aborting sweep")
                         return@withContext
                     }
                 }
@@ -108,23 +108,23 @@ class PhotoUploader @Inject constructor(
                             storageKey = urlResponse.storage_key,
                             now = System.currentTimeMillis(),
                         )
-                        Timber.d("[PhotoUploader] Uploaded $photoId → storage_key=${urlResponse.storage_key}")
+                        Timber.d("[RentalPhotoUploader] Uploaded $photoId → storage_key=${urlResponse.storage_key}")
                     }
                     is NetworkResult.Error -> {
-                        Timber.w("[PhotoUploader] Binary upload failed for $photoId: ${uploadResult.code} ${uploadResult.message}")
+                        Timber.w("[RentalPhotoUploader] Binary upload failed for $photoId: ${uploadResult.code} ${uploadResult.message}")
                     }
                     is NetworkResult.Unauthorized -> {
-                        Timber.w("[PhotoUploader] Unauthorized uploading binary for $photoId — aborting sweep")
+                        Timber.w("[RentalPhotoUploader] Unauthorized uploading binary for $photoId — aborting sweep")
                         return@withContext
                     }
                 }
             } catch (e: Exception) {
-                Timber.e(e, "[PhotoUploader] Unexpected error uploading $photoId")
+                Timber.e(e, "[RentalPhotoUploader] Unexpected error uploading $photoId")
             } finally {
                 inFlight.remove(photoId)
             }
         }
 
-        Timber.d("[PhotoUploader] Sweep complete for $accountId")
+        Timber.d("[RentalPhotoUploader] Sweep complete for $accountId")
     }
 }

@@ -9,12 +9,7 @@ import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 
-/**
- * Hilt module for the assets feature.
- *
- * [com.avago.core.data.repository.AssetRepository] and [com.avago.core.sync.SyncEngine]
- * are @Singleton and provided by their core modules.
- */
+/** Hilt bindings for the assets feature's server compute endpoints (scope, VIN decode, geocode). */
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class AssetsModule {

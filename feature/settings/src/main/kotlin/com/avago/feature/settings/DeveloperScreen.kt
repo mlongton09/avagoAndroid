@@ -45,8 +45,8 @@ import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.ClientFeatureFlag
 import com.avago.core.data.FeatureFlags
+import com.avago.core.data.domain.SyncRepository
 import com.avago.core.data.v2.V2Flag
-import com.avago.core.sync.SyncEngine
 import com.avago.feature.settings.BuildConfig
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -65,7 +65,7 @@ import javax.inject.Inject
 @HiltViewModel
 class DeveloperViewModel @Inject constructor(
     private val identityManager: IdentityManager,
-    private val syncEngine: SyncEngine,
+    private val sync: SyncRepository,
     private val featureFlags: FeatureFlags,
     private val v2Flag: V2Flag,
 ) : ViewModel() {
@@ -122,18 +122,16 @@ class DeveloperViewModel @Inject constructor(
         }
     }
 
+    /** Drops the local v2 projections and re-bootstraps them; pending changes are kept. */
     fun clearSyncCache() {
-        Timber.w("[DeveloperVM] clearSyncCache requested — stub (no public API yet)")
+        viewModelScope.launch {
+            runCatching { sync.resync() }.onFailure { Timber.e(it, "[DeveloperVM] resync failed") }
+        }
     }
 
     fun forceFullSync() {
         viewModelScope.launch {
-            try {
-                syncEngine.sync()
-                Timber.d("[DeveloperVM] Full sync triggered")
-            } catch (e: Exception) {
-                Timber.e(e, "[DeveloperVM] forceFullSync failed")
-            }
+            runCatching { sync.syncNow() }.onFailure { Timber.e(it, "[DeveloperVM] sync failed") }
         }
     }
 }

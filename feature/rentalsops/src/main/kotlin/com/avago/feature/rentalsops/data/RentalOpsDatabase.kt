@@ -31,8 +31,8 @@ import javax.inject.Singleton
  * lines, allocations and customers are read from P1's tables in AvagoDatabase (`LocalFleet`,
  * `rental_records`); nothing is cached twice. Everything here is a re-pullable cache of
  * server feeds (plus local proof media), so a destructive fallback is safe. The durable
- * outbox stays in the shared `sync_queue` table (AvagoDatabase) and is drained by SyncEngine
- * through [com.avago.core.sync.ExternalOutbox].
+ * outbox stays in the shared `sync_queue` table (AvagoDatabase) and is drained by
+ * [com.avago.feature.rentalsops.sync.RentalOpsOutbox].
  */
 
 @Entity(tableName = "rentalops_records", primaryKeys = ["entity", "id"], indices = [Index("entity")])

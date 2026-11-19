@@ -13,7 +13,6 @@ import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
 import com.avago.MainActivity
 import com.avago.core.auth.IdentityManager
-import com.avago.core.sync.DeltaPushApplier
 import com.avago.core.sync.SyncWorker
 import com.avago.feature.chat.ActiveThreadTracker
 import com.google.firebase.messaging.FirebaseMessagingService
@@ -31,7 +30,6 @@ import javax.inject.Inject
 class AvagoFcmService : FirebaseMessagingService() {
 
     @Inject lateinit var identity: IdentityManager
-    @Inject lateinit var deltaApplier: DeltaPushApplier
     @Inject lateinit var rentalOpsPush: com.avago.feature.rentalsops.push.RentalOpsPushHandler
 
     // Service-scoped coroutine scope; cancelled in onDestroy.
@@ -108,24 +106,9 @@ class AvagoFcmService : FirebaseMessagingService() {
     // Sync nudge
     // -------------------------------------------------------------------------
 
+    /** A v2 sync nudge carries no payload to apply locally; it just starts one pull + flush. */
     private fun handleSyncNudge(msg: RemoteMessage) {
-        val entityType = msg.data["entity_type"]
-        val serverSeqRaw = msg.data["server_seq"]
-        val accountId = identity.getActiveAccountId()
-
-        if (entityType != null && serverSeqRaw != null && accountId != null) {
-            val seq = serverSeqRaw.toLongOrNull()
-            if (seq != null) {
-                serviceScope.launch {
-                    val outcome = deltaApplier.handle(entityType, seq, accountId)
-                    Timber.d("FCM: delta outcome=$outcome entityType=$entityType seq=$seq accountId=$accountId")
-                }
-                return
-            }
-        }
-
-        // Fall back to full sync if any field is missing or unparseable
-        Timber.d("FCM: sync_nudge missing entity_type/server_seq — falling back to full sync")
+        Timber.d("FCM: sync_nudge (${msg.data["entity_type"]}) — enqueuing sync")
         enqueueSyncWork()
     }
 

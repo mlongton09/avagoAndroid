@@ -19,7 +19,6 @@ android {
 dependencies {
     implementation(project(":core:data"))
     implementation(project(":core:auth"))
-    implementation(project(":core:sync"))
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)

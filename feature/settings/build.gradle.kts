@@ -50,7 +50,6 @@ dependencies {
     implementation(project(":core:auth"))
     implementation(project(":core:data"))
     implementation(project(":core:network"))
-    implementation(project(":core:sync"))
     implementation(project(":core:design"))
     implementation(project(":core:push"))
     implementation(project(":core:ui"))

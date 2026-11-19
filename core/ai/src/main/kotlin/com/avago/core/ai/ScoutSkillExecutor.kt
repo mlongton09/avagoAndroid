@@ -1,77 +1,65 @@
 package com.avago.core.ai
 
 import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
-import com.avago.core.data.db.entity.AssetEntity
-import com.avago.core.data.db.entity.InventoryEntity
-import com.avago.core.data.db.entity.InventoryTransactionEntity
-import com.avago.core.data.db.entity.LogEntity
-import com.avago.core.data.db.entity.PartEntity
-import com.avago.core.data.db.entity.SyncQueueEntity
-import com.avago.core.data.db.entity.WorkOrderEntity
+import com.avago.core.data.domain.ActivityDraft
+import com.avago.core.data.domain.ActivityRepository
+import com.avago.core.data.domain.ActivityType
+import com.avago.core.data.domain.AssetDraft
+import com.avago.core.data.domain.AssetRepository
+import com.avago.core.data.domain.CostLineDraft
+import com.avago.core.data.domain.CostLineType
+import com.avago.core.data.domain.InventoryRepository
+import com.avago.core.data.domain.MovementKind
+import com.avago.core.data.domain.ProductDraft
+import com.avago.core.data.domain.StockDocumentDraft
+import com.avago.core.data.domain.StockLineDraft
+import com.avago.core.data.domain.WorkOrderDraft
+import com.avago.core.data.domain.WorkOrderPriority
+import com.avago.core.data.domain.WorkOrderRepository
+import com.avago.core.data.domain.WorkOrderStatus
+import com.avago.core.data.domain.toQtyOrNull
+import kotlinx.coroutines.flow.first
 import timber.log.Timber
+import java.math.BigDecimal
 import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
-import java.util.UUID
+import java.util.TimeZone
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
  * HITL-off execution path for Android Scout skills.
  *
- * When the user has disabled Human-in-the-Loop in preferences, [ScoutViewModel]
- * calls [executeIfPossible] instead of routing to a form. The executor builds
- * the same entity the form's Save handler would have built, persists it locally,
- * and enqueues a SyncQueue row so the change ships to the server on the next
- * SyncEngine cycle — no separate push call needed from here.
+ * When the user has disabled Human-in-the-Loop in preferences, [ScoutViewModel] calls
+ * [executeIfPossible] instead of routing to a form. The executor makes the same repository call
+ * the form's Save handler makes, so the change is applied optimistically to the v2 store and
+ * shipped as a catalog command by the outbox.
  *
- * Returns `true` when execution succeeded, `false` to signal "fall back to
- * HITL form" (skill not supported here, or a required field was missing).
- *
- * Mirrors iOS ScoutSkillExecutor.swift.
+ * Returns `true` when execution succeeded, `false` to signal "fall back to HITL form" (skill not
+ * supported here, a required field was missing, or the target record does not exist).
  */
 @Singleton
 class ScoutSkillExecutor @Inject constructor(
-    private val dbFactory: DatabaseFactory,
     private val identityManager: IdentityManager,
+    private val activities: ActivityRepository,
+    private val workOrders: WorkOrderRepository,
+    private val assets: AssetRepository,
+    private val inventory: InventoryRepository,
 ) {
 
     suspend fun executeIfPossible(skillName: String, fields: Map<String, String?>): Boolean {
-        val accountId = identityManager.getActiveAccountId() ?: return false
-
+        if (identityManager.getActiveAccountId() == null) return false
         return try {
             when (skillName) {
-                "log-entry-create", "fuel-log", "inspection-from-voice" ->
-                    executeAddLogEntry(fields, accountId)
-
-                "work-order-create" ->
-                    executeAddWorkOrder(fields, accountId)
-
-                "reschedule" ->
-                    executeEditWorkOrder(fields, accountId)
-
-                "asset-create" ->
-                    executeAddAsset(fields, accountId)
-
-                "work-order-action" ->
-                    executeWorkOrderAction(fields, accountId)
-
-                "work-order-assign" ->
-                    executeWorkOrderAssign(fields, accountId)
-
-                "inventory-receive" ->
-                    executeInventoryReceive(fields, accountId)
-
-                "inventory-use" ->
-                    executeInventoryUse(fields, accountId)
-
-                "parts-catalog-add" ->
-                    executeAddPart(fields, accountId)
-
-                "work-order-recurrence" ->
-                    executeSetRecurrence(fields, accountId)
-
+                "log-entry-create", "fuel-log", "inspection-from-voice" -> executeAddLogEntry(fields)
+                "work-order-create" -> executeAddWorkOrder(fields)
+                "reschedule" -> executeEditWorkOrder(fields)
+                "asset-create" -> executeAddAsset(fields)
+                "work-order-action" -> executeWorkOrderAction(fields)
+                "work-order-assign" -> executeWorkOrderAssign(fields)
+                "inventory-receive" -> executeStockMovement(fields, MovementKind.RECEIPT)
+                "inventory-use" -> executeStockMovement(fields, MovementKind.ISSUE)
+                "parts-catalog-add" -> executeAddPart(fields)
                 else -> false
             }
         } catch (e: Exception) {
@@ -80,502 +68,192 @@ class ScoutSkillExecutor @Inject constructor(
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Per-skill handlers
-    // -------------------------------------------------------------------------
-
-    private suspend fun executeAddLogEntry(fields: Map<String, String?>, accountId: String): Boolean {
-        val title = fields["title"]?.trim() ?: return false
-        val assetId = fields["asset_id"] ?: return false
-        if (title.isEmpty() || assetId.isEmpty()) return false
-
-        val now = System.currentTimeMillis()
-        val entryId = UUID.randomUUID().toString()
-        val category = fields["category"] ?: "service"
-
-        val entity = LogEntity(
-            entryId = entryId,
+    private suspend fun executeAddLogEntry(fields: Map<String, String?>): Boolean {
+        val title = fields.text("title") ?: return false
+        val assetId = fields.text("asset_id") ?: return false
+        val category = fields.text("category") ?: "service"
+        val currency = fields.text("currency")
+        val draft = ActivityDraft(
             assetId = assetId,
-            accountId = accountId,
+            type = ActivityType.forCategory(category),
+            categoryLabel = category,
             title = title,
-            entryDate = parseDate(fields["log_date"]) ?: now,
-            odometerValue = fields["meter"]?.toDoubleOrNull() ?: fields["odometer"]?.toDoubleOrNull(),
-            category = category,
-            cost = fields["cost"]?.toDoubleOrNull(),
-            performedBy = fields["performed_by"],
-            performedByUserId = fields["performed_by_user_id"],
-            notes = fields["notes"]?.ifBlank { null },
-            data = null,
-            // Preserve item attributes Scout extracted (e.g. oil_brand, filter_part_no).
-            // iOS ScoutSkillExecutor serialises fields["attributes"] into entry.attributes;
-            // Android was silently dropping this, causing Scout-filled Details fields to
-            // be lost on direct-execute (HITL-off) log entries.
-            attributes = fields["attributes"]?.ifBlank { null },
-            costMode = "total",
-            costItems = null,
-            costLabor = null,
-            costTax = null,
-            currency = fields["currency"] ?: "USD",
-            baseAmount = fields["cost"]?.toDoubleOrNull(),
-            exchangeRateUsed = 1.0,
-            configId = null,
-            configVersion = null,
-            serviceId = null,
-            costMisc = null,
-            parentId = null,
-            createdAt = now,
-            updatedAt = now,
-            deletedAt = null,
-            serverVersion = 0L,
-            seq = null,
+            occurredAt = parseDate(fields["log_date"]) ?: System.currentTimeMillis(),
+            meterValue = fields.qty("meter") ?: fields.qty("odometer"),
+            performedByUserId = fields.text("performed_by_user_id"),
+            performedByName = fields.text("performed_by"),
+            currency = currency,
+            notes = fields.text("notes"),
+            attributes = fields.text("attributes"),
         )
-
-        val db = dbFactory.get(accountId)
-        db.logDao().upsert(entity)
-        db.syncQueueDao().enqueueWithDedup(syncEntry("log", entryId, "insert", 0L, now))
+        val lines = fields.qty("cost")?.let { listOf(CostLineDraft(kind = CostLineType.MISC, description = title, unitCost = it)) }
+        activities.create(draft, lines.orEmpty())
         Timber.d("ScoutSkillExecutor: logged '$title'")
         return true
     }
 
-    private suspend fun executeAddWorkOrder(fields: Map<String, String?>, accountId: String): Boolean {
-        val title = fields["title"]?.trim() ?: return false
-        if (title.isEmpty()) return false
-
-        val now = System.currentTimeMillis()
-        val woId = UUID.randomUUID().toString()
-        val allowedPriorities = setOf("critical", "high", "medium", "low")
-        val priority = fields["priority"]?.lowercase()?.let { if (it in allowedPriorities) it else null } ?: "medium"
-
-        val entity = WorkOrderEntity(
-            woId = woId,
-            accountId = accountId,
-            assetId = fields["asset_id"],
-            locationId = fields["location_id"],
+    private suspend fun executeAddWorkOrder(fields: Map<String, String?>): Boolean {
+        val title = fields.text("title") ?: return false
+        val priority = WorkOrderPriority.entries.firstOrNull { it.wire == fields["priority"]?.trim()?.lowercase() }
+            ?: WorkOrderPriority.MEDIUM
+        val draft = WorkOrderDraft(
             title = title,
-            description = fields["description"],
-            category = fields["category"],
+            description = fields.text("description"),
+            assetIds = listOfNotNull(fields.text("asset_id")),
+            locationId = fields.text("location_id"),
+            category = fields.text("category"),
             priority = priority,
-            status = "pending_review",
-            requesterId = null,
-            assignedTo = fields["assigned_to"],
-            dispatcherNotes = null,
-            requiredSkills = null,
-            estimatedEffortMinutes = fields["estimated_effort_minutes"]?.toLongOrNull(),
-            actualEffortMinutes = null,
-            failureCode = null,
-            completionNotes = null,
-            partsNeeded = null,
-            logId = null,
-            dueDate = parseDate(fields["due_date"]),
-            startedAt = null,
-            completedAt = null,
-            timerStartedAt = null,
-            laborCost = null,
-            partsCost = null,
-            totalCost = null,
-            currency = null,
-            baseAmount = null,
-            exchangeRateUsed = null,
-            attributes = null,
-            createdBy = identityManager.getActiveAccountId(),
-            approvalState = null,
-            jobId = null,
-            woKind = "standard",
-            rrule = null,
-            endType = null,
-            endCount = null,
-            endDate = null,
-            meterType = null,
-            meterDue = null,
-            meterInterval = null,
-            parentWoId = null,
-            occurrenceDate = null,
-            scheduleId = null,
-            lastCompletedAt = null,
-            timezone = null,
-            createdAt = now,
-            updatedAt = now,
-            deletedAt = null,
-            serverVersion = 0L,
-            seq = null,
+            assignedUserId = fields.text("assigned_to"),
+            estimatedEffortMinutes = fields.text("estimated_effort_minutes")?.toIntOrNull(),
+            dueAt = parseDate(fields["due_date"]),
         )
-
-        val db = dbFactory.get(accountId)
-        db.workOrderDao().upsert(entity)
-        db.syncQueueDao().enqueueWithDedup(syncEntry("work_order", woId, "insert", 0L, now))
+        workOrders.create(draft)
         Timber.d("ScoutSkillExecutor: created WO '$title'")
         return true
     }
 
-    private suspend fun executeEditWorkOrder(fields: Map<String, String?>, accountId: String): Boolean {
-        val woId = fields["wo_id"] ?: return false
-        val db = dbFactory.get(accountId)
-        val existing = db.workOrderDao().getById(woId) ?: return false
-
-        val now = System.currentTimeMillis()
-        var changed = false
-
-        var updated = existing
-        fields["due_date"]?.let { ds -> parseDate(ds)?.let { updated = updated.copy(dueDate = it); changed = true } }
-        fields["title"]?.trim()?.takeIf { it.isNotEmpty() }?.let { updated = updated.copy(title = it); changed = true }
-        fields["description"]?.trim()?.let { updated = updated.copy(description = it); changed = true }
-        fields["priority"]?.trim()?.takeIf { it.isNotEmpty() }?.let { updated = updated.copy(priority = it); changed = true }
-        fields["category"]?.trim()?.takeIf { it.isNotEmpty() }?.let { updated = updated.copy(category = it); changed = true }
-
-        if (!changed) return false
-
-        updated = updated.copy(updatedAt = now)
-        db.workOrderDao().upsert(updated)
-        db.syncQueueDao().enqueueWithDedup(syncEntry("work_order", woId, "update", existing.serverVersion, now))
+    private suspend fun executeEditWorkOrder(fields: Map<String, String?>): Boolean {
+        val woId = fields.text("wo_id") ?: return false
+        if (workOrders.workOrder(woId) == null) return false
+        val dueAt = parseDate(fields["due_date"])
+        val title = fields.text("title")
+        val description = fields["description"]?.trim()
+        val priority = fields.text("priority")?.lowercase()?.let { p -> WorkOrderPriority.entries.firstOrNull { it.wire == p } }
+        val category = fields.text("category")
+        if (dueAt == null && title == null && description == null && priority == null && category == null) return false
+        workOrders.edit(woId) { d ->
+            d.copy(
+                dueAt = dueAt ?: d.dueAt,
+                title = title ?: d.title,
+                description = description ?: d.description,
+                priority = priority ?: d.priority,
+                category = category ?: d.category,
+            )
+        }
         Timber.d("ScoutSkillExecutor: edited WO $woId")
         return true
     }
 
-    private suspend fun executeAddAsset(fields: Map<String, String?>, accountId: String): Boolean {
-        val name = fields["name"]?.trim() ?: return false
-        if (name.isEmpty()) return false
-
-        val now = System.currentTimeMillis()
-        val assetId = UUID.randomUUID().toString()
-
-        val entity = AssetEntity(
-            assetId = assetId,
-            accountId = accountId,
-            name = name,
-            make = fields["make"],
-            model = fields["model"],
-            year = fields["year"]?.toLongOrNull(),
-            assetType = fields["asset_type"],
-            meterType = null,
-            avatarColor = null,
-            avatarInitial = name.firstOrNull()?.uppercaseChar()?.toString(),
-            addressLine1 = null,
-            addressLine2 = null,
-            city = null,
-            state = null,
-            postalCode = null,
-            country = null,
-            locationId = fields["location_id"],
-            attributes = null,
-            isFreSample = false,
-            parentAssetId = fields["parent_asset_id"],
-            path = null,
-            depth = 0L,
-            childCount = 0L,
-            isRental = false,
-            rentalRate = null,
-            rentalRateUnit = null,
-            purchasePrice = null,
-            salvageValue = null,
-            usefulLifeMonths = null,
-            depreciationMethod = null,
-            placedInServiceDate = null,
-            createdAt = now,
-            updatedAt = now,
-            deletedAt = null,
-            serverVersion = 0L,
-            seq = null,
+    private suspend fun executeAddAsset(fields: Map<String, String?>): Boolean {
+        val name = fields.text("name") ?: return false
+        val id = assets.create(
+            AssetDraft(
+                name = name,
+                assetTypeCode = fields.text("asset_type"),
+                make = fields.text("make"),
+                model = fields.text("model"),
+                modelYear = fields.text("year")?.toIntOrNull(),
+                locationId = fields.text("location_id"),
+                avatarInitial = name.first().uppercaseChar().toString(),
+            ),
         )
-
-        val db = dbFactory.get(accountId)
-        db.assetDao().upsert(entity)
-        db.syncQueueDao().enqueueWithDedup(syncEntry("asset", assetId, "insert", 0L, now))
+        fields.text("parent_asset_id")?.let { assets.setParent(id, it) }
         Timber.d("ScoutSkillExecutor: added asset '$name'")
         return true
     }
 
-    private suspend fun executeWorkOrderAction(fields: Map<String, String?>, accountId: String): Boolean {
-        val woId = fields["wo_id"] ?: return false
-        val db = dbFactory.get(accountId)
-        val existing = db.workOrderDao().getById(woId) ?: return false
-
-        val now = System.currentTimeMillis()
-        val actionToStatus = mapOf(
-            "complete" to "complete",
-            "start"    to "in_progress",
-            "pause"    to "on_hold",
-            "cancel"   to "cancelled",
-            "reopen"   to "pending_review",
-        )
-        val newStatus = fields["action"]?.lowercase()?.let { actionToStatus[it] }
-            ?: fields["status"]
-            ?: existing.status
-
-        val updated = existing.copy(
-            status = newStatus,
-            actualEffortMinutes = fields["actual_effort_minutes"]?.toLongOrNull() ?: existing.actualEffortMinutes,
-            partsCost = fields["actual_parts_cost"]?.toDoubleOrNull()
-                ?: fields["parts_cost"]?.toDoubleOrNull()
-                ?: existing.partsCost,
-            updatedAt = now,
-        )
-
-        db.workOrderDao().upsert(updated)
-        db.syncQueueDao().enqueueWithDedup(syncEntry("work_order", woId, "update", existing.serverVersion, now))
-        Timber.d("ScoutSkillExecutor: work-order-action on $woId → $newStatus")
-        return true
-    }
-
-    private suspend fun executeWorkOrderAssign(fields: Map<String, String?>, accountId: String): Boolean {
-        val woId = fields["wo_id"] ?: return false
-        val assignedTo = fields["assigned_to"] ?: return false
-        val db = dbFactory.get(accountId)
-        val existing = db.workOrderDao().getById(woId) ?: return false
-
-        val now = System.currentTimeMillis()
-        val updated = existing.copy(
-            assignedTo = assignedTo,
-            updatedAt = now,
-        )
-
-        db.workOrderDao().upsert(updated)
-        db.syncQueueDao().enqueueWithDedup(syncEntry("work_order", woId, "update", existing.serverVersion, now))
-        Timber.d("ScoutSkillExecutor: assigned WO $woId to $assignedTo")
-        return true
-    }
-
-    private suspend fun executeInventoryReceive(fields: Map<String, String?>, accountId: String): Boolean {
-        val partId = fields["part_id"] ?: return false
-        val qty = fields["quantity_change"]?.toDoubleOrNull()
-            ?: fields["quantity"]?.toDoubleOrNull()
+    private suspend fun executeWorkOrderAction(fields: Map<String, String?>): Boolean {
+        val woId = fields.text("wo_id") ?: return false
+        val status = fields.text("action")?.lowercase()?.let { ACTION_STATUS[it] }
+            ?: fields.text("status")?.let { s -> WorkOrderStatus.entries.firstOrNull { it.wire == s } }
             ?: return false
-        if (qty <= 0) return false
-
-        val db = dbFactory.get(accountId)
-        val inventories = db.inventoryDao().getByPartId(partId)
-        val inventory = inventories.firstOrNull() ?: return false
-        val now = System.currentTimeMillis()
-        val txnId = UUID.randomUUID().toString()
-
-        db.inventoryTransactionDao().upsert(
-            InventoryTransactionEntity(
-                transactionId = txnId,
-                accountId = accountId,
-                inventoryId = inventory.inventoryId,
-                partId = partId,
-                locationId = inventory.locationId,
-                transactionType = "received",
-                quantity = qty,
-                unitCost = fields["unit_cost_observed"]?.toDoubleOrNull(),
-                currency = fields["currency"] ?: "USD",
-                referenceId = fields["reference"]?.ifBlank { null },
-                referenceType = null,
-                performedBy = null,
-                notes = fields["notes"]?.ifBlank { null },
-                transferId = null,
-                fromLocationId = null,
-                toLocationId = null,
-                createdAt = now,
-                serverVersion = 0L,
-                seq = null,
-            )
-        )
-        db.inventoryDao().upsert(inventory.copy(
-            quantityOnHand = inventory.quantityOnHand + qty,
-            lastTransactionId = txnId,
-            updatedAt = now,
-        ))
-        db.syncQueueDao().enqueueWithDedup(syncEntry("inventory_transaction", txnId, "insert", 0L, now))
-        db.syncQueueDao().enqueueWithDedup(syncEntry("inventory", inventory.inventoryId, "update", inventory.serverVersion, now))
-        Timber.d("ScoutSkillExecutor: inventory-receive $qty of $partId")
+        if (workOrders.workOrder(woId) == null) return false
+        workOrders.transition(woId, status)
+        Timber.d("ScoutSkillExecutor: work-order-action on $woId -> ${status.wire}")
         return true
     }
 
-    private suspend fun executeInventoryUse(fields: Map<String, String?>, accountId: String): Boolean {
-        val partId = fields["part_id"] ?: return false
-        val qty = fields["quantity_change"]?.toDoubleOrNull()
-            ?: fields["quantity"]?.toDoubleOrNull()
-            ?: return false
-        if (qty <= 0) return false
-
-        val db = dbFactory.get(accountId)
-        val inventories = db.inventoryDao().getByPartId(partId)
-        val inventory = inventories.firstOrNull() ?: return false
-        val now = System.currentTimeMillis()
-        val txnId = UUID.randomUUID().toString()
-
-        db.inventoryTransactionDao().upsert(
-            InventoryTransactionEntity(
-                transactionId = txnId,
-                accountId = accountId,
-                inventoryId = inventory.inventoryId,
-                partId = partId,
-                locationId = inventory.locationId,
-                transactionType = "used",
-                quantity = -qty,
-                unitCost = null,
-                currency = null,
-                referenceId = fields["reference"]?.ifBlank { null },
-                referenceType = null,
-                performedBy = null,
-                notes = fields["notes"]?.ifBlank { null },
-                transferId = null,
-                fromLocationId = null,
-                toLocationId = null,
-                createdAt = now,
-                serverVersion = 0L,
-                seq = null,
-            )
-        )
-        db.inventoryDao().upsert(inventory.copy(
-            quantityOnHand = maxOf(0.0, inventory.quantityOnHand - qty),
-            lastTransactionId = txnId,
-            updatedAt = now,
-        ))
-        db.syncQueueDao().enqueueWithDedup(syncEntry("inventory_transaction", txnId, "insert", 0L, now))
-        db.syncQueueDao().enqueueWithDedup(syncEntry("inventory", inventory.inventoryId, "update", inventory.serverVersion, now))
-        Timber.d("ScoutSkillExecutor: inventory-use $qty of $partId")
+    private suspend fun executeWorkOrderAssign(fields: Map<String, String?>): Boolean {
+        val woId = fields.text("wo_id") ?: return false
+        val userId = fields.text("assigned_to") ?: return false
+        if (workOrders.workOrder(woId) == null) return false
+        workOrders.assign(woId, userId)
+        Timber.d("ScoutSkillExecutor: assigned WO $woId to $userId")
         return true
     }
 
-    private suspend fun executeAddPart(fields: Map<String, String?>, accountId: String): Boolean {
-        val partName = fields["part_name"]?.trim() ?: return false
-        if (partName.isEmpty()) return false
-
-        val now = System.currentTimeMillis()
-        val partId = UUID.randomUUID().toString()
-        val inventoryId = UUID.randomUUID().toString()
-        val initialQty = fields["quantity_on_hand"]?.toDoubleOrNull() ?: 0.0
-
-        val db = dbFactory.get(accountId)
-        db.partDao().upsert(
-            PartEntity(
-                partId = partId,
-                accountId = accountId,
-                sku = fields["part_number"]?.ifBlank { null },
-                name = partName,
-                description = null,
-                category = fields["category"]?.ifBlank { null },
-                unitOfMeasure = fields["unit_of_measure"] ?: "each",
-                defaultVendorId = null,
-                cost = fields["unit_cost"]?.toDoubleOrNull() ?: 0.0,
-                currency = fields["currency"] ?: "USD",
-                attributes = null,
-                manufacturer = fields["manufacturer"]?.ifBlank { null },
-                reorderQuantity = fields["reorder_quantity"]?.toDoubleOrNull(),
-                status = "active",
-                entityType = null,
-                entityId = null,
-                quantity = initialQty,
-                gtin = null,
-                serialNumber = null,
-                notes = fields["notes"]?.ifBlank { null },
-                baseAmount = fields["unit_cost"]?.toDoubleOrNull() ?: 0.0,
-                exchangeRateUsed = 1.0,
-                createdAt = now,
-                updatedAt = now,
-                deletedAt = null,
-                serverVersion = 0L,
-                seq = null,
-            )
+    /** Receives or issues stock of `part_id` at its first stocked location. */
+    private suspend fun executeStockMovement(fields: Map<String, String?>, kind: MovementKind): Boolean {
+        val productId = fields.text("part_id") ?: return false
+        val qty = (fields.qty("quantity_change") ?: fields.qty("quantity"))?.abs() ?: return false
+        if (qty.signum() == 0) return false
+        val position = inventory.observePositions(productId = productId).first().firstOrNull() ?: return false
+        inventory.postStockDocument(
+            StockDocumentDraft(
+                kind = kind,
+                locationId = position.locationId,
+                reference = fields.text("reference"),
+                notes = fields.text("notes"),
+                lines = listOf(
+                    StockLineDraft(
+                        productId = productId,
+                        quantity = qty,
+                        binId = position.binId,
+                        unitCost = if (kind == MovementKind.RECEIPT) fields.qty("unit_cost_observed") else null,
+                        currency = if (kind == MovementKind.RECEIPT) fields.text("currency") else null,
+                    ),
+                ),
+            ),
         )
-        db.inventoryDao().upsert(
-            InventoryEntity(
-                inventoryId = inventoryId,
-                accountId = accountId,
-                partId = partId,
-                locationId = null,
-                binId = null,
-                quantityOnHand = initialQty,
-                status = "active",
-                lastTransactionId = null,
-                createdAt = now,
-                updatedAt = now,
-                deletedAt = null,
-                serverVersion = 0L,
-                seq = null,
-            )
+        Timber.d("ScoutSkillExecutor: ${kind.wire} $qty of $productId")
+        return true
+    }
+
+    /** Creates a part; an initial quantity is booked as an opening balance at `location_id`. */
+    private suspend fun executeAddPart(fields: Map<String, String?>): Boolean {
+        val name = fields.text("part_name") ?: return false
+        val initialQty = fields.qty("quantity_on_hand")?.takeIf { it.signum() > 0 }
+        val locationId = fields.text("location_id")
+        if (initialQty != null && locationId == null) return false
+        val unitCost = fields.qty("unit_cost")
+        val currency = fields.text("currency")
+        val productId = inventory.createProduct(
+            ProductDraft(
+                name = name,
+                sku = fields.text("part_number"),
+                manufacturer = fields.text("manufacturer"),
+                category = fields.text("category"),
+                uomCode = fields.text("unit_of_measure"),
+                standardUnitCost = unitCost,
+                costCurrency = currency,
+                defaultReorderQty = fields.qty("reorder_quantity"),
+                notes = fields.text("notes"),
+            ),
         )
-        if (initialQty > 0) {
-            val txnId = UUID.randomUUID().toString()
-            db.inventoryTransactionDao().upsert(
-                InventoryTransactionEntity(
-                    transactionId = txnId,
-                    accountId = accountId,
-                    inventoryId = inventoryId,
-                    partId = partId,
-                    locationId = null,
-                    transactionType = "initial",
-                    quantity = initialQty,
-                    unitCost = fields["unit_cost"]?.toDoubleOrNull(),
-                    currency = fields["currency"] ?: "USD",
-                    referenceId = null,
-                    referenceType = null,
-                    performedBy = null,
-                    notes = "Initial stock",
-                    transferId = null,
-                    fromLocationId = null,
-                    toLocationId = null,
-                    createdAt = now,
-                    serverVersion = 0L,
-                    seq = null,
-                )
+        if (initialQty != null && locationId != null) {
+            inventory.postStockDocument(
+                StockDocumentDraft(
+                    kind = MovementKind.OPENING_BALANCE,
+                    locationId = locationId,
+                    lines = listOf(StockLineDraft(productId = productId, quantity = initialQty, unitCost = unitCost, currency = currency)),
+                ),
             )
-            db.syncQueueDao().enqueueWithDedup(syncEntry("inventory_transaction", txnId, "insert", 0L, now))
         }
-        db.syncQueueDao().enqueueWithDedup(syncEntry("part", partId, "insert", 0L, now))
-        db.syncQueueDao().enqueueWithDedup(syncEntry("inventory", inventoryId, "insert", 0L, now))
-        Timber.d("ScoutSkillExecutor: parts-catalog-add '$partName'")
+        Timber.d("ScoutSkillExecutor: parts-catalog-add '$name'")
         return true
     }
 
-    private suspend fun executeSetRecurrence(fields: Map<String, String?>, accountId: String): Boolean {
-        val woId = fields["wo_id"] ?: return false
-        val rrule = fields["rrule"]?.ifBlank { null } ?: return false
+    private fun Map<String, String?>.text(key: String): String? = this[key]?.trim()?.takeIf(String::isNotEmpty)
 
-        val db = dbFactory.get(accountId)
-        val existing = db.workOrderDao().getById(woId) ?: return false
-        val now = System.currentTimeMillis()
-
-        db.workOrderDao().upsert(existing.copy(
-            rrule = rrule,
-            endType = fields["end_type"] ?: "never",
-            endCount = fields["end_count"]?.toLongOrNull(),
-            endDate = parseDate(fields["end_date"]),
-            meterType = fields["meter_type"]?.ifBlank { null },
-            meterDue = fields["meter_due"]?.toDoubleOrNull(),
-            meterInterval = fields["meter_interval"]?.toDoubleOrNull(),
-            woKind = "recurring_parent",
-            updatedAt = now,
-        ))
-        db.syncQueueDao().enqueueWithDedup(syncEntry("work_order", woId, "update", existing.serverVersion, now))
-        Timber.d("ScoutSkillExecutor: work-order-recurrence $rrule on $woId")
-        return true
-    }
-
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
-
-    private fun syncEntry(
-        type: String,
-        id: String,
-        operation: String,
-        serverVersion: Long,
-        now: Long,
-    ) = SyncQueueEntity(
-        queueId = "${type}_$id",
-        entityType = type,
-        entityId = id,
-        operation = operation,
-        serverVersion = serverVersion,
-        payload = null,
-        syncStatus = "pending",
-        attempts = 0L,
-        lastError = null,
-        createdAt = now,
-        updatedAt = now,
-    )
-
-    private val ymdFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-    private val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+    private fun Map<String, String?>.qty(key: String): BigDecimal? = this[key]?.toQtyOrNull()
 
     private fun parseDate(v: String?): Long? {
-        if (v == null) return null
-        return try { isoFormat.parse(v)?.time }
-            catch (_: Exception) {
-                try { ymdFormat.parse(v)?.time }
-                catch (_: Exception) { null }
-            }
+        if (v.isNullOrBlank()) return null
+        return DATE_FORMATS.firstNotNullOfOrNull { pattern ->
+            runCatching {
+                SimpleDateFormat(pattern, Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }.parse(v)?.time
+            }.getOrNull()
+        }
+    }
+
+    private companion object {
+        val DATE_FORMATS = listOf("yyyy-MM-dd'T'HH:mm:ss'Z'", "yyyy-MM-dd")
+        val ACTION_STATUS = mapOf(
+            "complete" to WorkOrderStatus.COMPLETED,
+            "start" to WorkOrderStatus.IN_PROGRESS,
+            "pause" to WorkOrderStatus.ON_HOLD,
+            "cancel" to WorkOrderStatus.CANCELLED,
+            "reopen" to WorkOrderStatus.OPEN,
+        )
     }
 }

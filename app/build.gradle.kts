@@ -122,7 +122,6 @@ dependencies {
     implementation(project(":core:sync"))
     implementation(project(":core:push"))
     implementation(project(":core:data"))
-    implementation(project(":core:seed"))
     implementation(project(":core:i18n"))
     implementation(project(":core:ai"))
     implementation(project(":core:permissions"))

@@ -1,11 +1,11 @@
 package com.avago.feature.workorders.viewmodel
 
+import com.avago.core.data.domain.SyncRepository
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.data.FeatureFlags
 import com.avago.core.data.domain.WorkOrder
 import com.avago.core.data.domain.WorkOrderRepository
-import com.avago.core.sync.SyncEngine
 import com.avago.feature.workorders.model.WoSearch
 import com.avago.feature.workorders.model.WoStatus
 import com.avago.feature.workorders.model.availableTransitions
@@ -43,7 +43,7 @@ fun canUndoMove(from: WoStatus, to: WoStatus): Boolean = from in to.availableTra
 @HiltViewModel
 class DispatchBoardViewModel @Inject constructor(
     private val repository: WorkOrderRepository,
-    private val syncEngine: SyncEngine,
+    private val sync: SyncRepository,
     featureFlags: FeatureFlags,
 ) : ViewModel() {
 
@@ -142,7 +142,7 @@ class DispatchBoardViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _isRefreshing.value = true
-            try { syncEngine.sync() } catch (e: Exception) {
+            try { sync.syncNow() } catch (e: Exception) {
                 Timber.e(e, "[DispatchBoardVM] sync failed")
             } finally {
                 _isRefreshing.value = false

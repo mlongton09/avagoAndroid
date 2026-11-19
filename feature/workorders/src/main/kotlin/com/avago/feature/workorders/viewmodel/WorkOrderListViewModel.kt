@@ -1,5 +1,6 @@
 package com.avago.feature.workorders.viewmodel
 
+import com.avago.core.data.domain.SyncRepository
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -8,7 +9,6 @@ import com.avago.core.data.domain.WorkOrderRepository
 import com.avago.core.data.domain.WorkerRepository
 import com.avago.core.permissions.Permissions
 import com.avago.core.permissions.PermissionsManager
-import com.avago.core.sync.SyncEngine
 import com.avago.feature.workorders.R
 import com.avago.feature.workorders.model.WoSearch
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -43,7 +43,7 @@ data class WoBucket(val key: WoBucketKey, val items: List<WorkOrder>)
 class WorkOrderListViewModel @Inject constructor(
     private val repository: WorkOrderRepository,
     workers: WorkerRepository,
-    private val syncEngine: SyncEngine,
+    private val sync: SyncRepository,
     private val permissionsManager: PermissionsManager,
     @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
@@ -233,7 +233,7 @@ class WorkOrderListViewModel @Inject constructor(
             _isRefreshing.value = true
             _syncError.value = null
             try {
-                syncEngine.sync()
+                if (!sync.syncNow()) _syncError.value = appContext.getString(R.string.wo_list_sync_failed)
             } catch (e: Exception) {
                 Timber.e(e, "[WoListVM] Sync failed")
                 _syncError.value = appContext.getString(R.string.wo_list_sync_failed)

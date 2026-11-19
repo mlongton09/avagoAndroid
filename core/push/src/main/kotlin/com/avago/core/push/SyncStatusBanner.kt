@@ -40,7 +40,7 @@ fun SyncStatusBanner(
     modifier: Modifier = Modifier,
 ) {
     AnimatedVisibility(
-        visible = syncState is SyncState.Pushing || syncState is SyncState.Pulling,
+        visible = syncState is SyncState.Pulling,
         enter = slideInVertically() + fadeIn(),
         exit = slideOutVertically() + fadeOut(),
         modifier = modifier,
@@ -60,7 +60,7 @@ fun SyncStatusBanner(
                     strokeWidth = 2.dp,
                 )
                 Text(
-                    text = if (syncState is SyncState.Pushing) "Syncing changes…" else "Updating…",
+                    text = "Updating…",
                     style = MaterialTheme.typography.labelSmall,
                 )
             }

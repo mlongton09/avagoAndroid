@@ -20,8 +20,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import com.avago.app.MainViewModel
-import com.avago.core.sync.ui.SyncConflictSheet
-import com.avago.core.sync.ui.SyncConflictViewModel
 import com.avago.feature.assets.nav.AssetsRoute
 import com.avago.feature.assets.nav.assetsNavGraph
 import com.avago.feature.assets.ui.GalleryScreen
@@ -67,7 +65,6 @@ import com.avago.feature.workorders.nav.workOrderNavGraph
 fun AvagoNavHost(
     navController: NavHostController = rememberNavController(),
     mainViewModel: MainViewModel = hiltViewModel(),
-    conflictViewModel: SyncConflictViewModel = hiltViewModel(),
     navFlagsViewModel: NavFlagsViewModel = hiltViewModel(),
 ) {
     val activeAccountId by mainViewModel.activeAccountId.collectAsStateWithLifecycle()
@@ -258,25 +255,8 @@ fun AvagoNavHost(
             // Provider workspace for field mechanics (C).
             providerNavGraph(navController = navController)
         }
-
-        if (SHOW_SYNC_CONFLICT_SHEET) {
-            val conflicts by conflictViewModel.conflicts.collectAsStateWithLifecycle()
-            conflicts.firstOrNull()?.let { conflict ->
-                SyncConflictSheet(
-                    conflict = conflict,
-                    conflictCount = conflicts.size,
-                    onKeepLocal = { conflictViewModel.keepLocal(conflict) },
-                    onUseServer = { conflictViewModel.acceptServer(conflict) },
-                    onKeepAllLocal = { conflictViewModel.keepAllLocal() },
-                    onUseServerAll = { conflictViewModel.acceptAllServer() },
-                    onDismiss = { conflictViewModel.dismiss(conflict) },
-                )
-            }
-        }
     }
 }
-
-private const val SHOW_SYNC_CONFLICT_SHEET = false
 
 /** WO create route prefilled from an open inspection defect (contract §5). */
 private fun workOrderFromDefectRoute(req: DefectWorkOrderRequest): String =

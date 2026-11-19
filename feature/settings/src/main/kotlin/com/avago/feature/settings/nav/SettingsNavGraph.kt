@@ -17,7 +17,7 @@ import com.avago.feature.settings.MyTechProfileScreen
 import com.avago.feature.settings.CustomFieldDefsScreen
 import com.avago.feature.settings.PermissionSetsScreen
 import com.avago.feature.settings.SettingsScreen
-import com.avago.feature.settings.SyncConflictsScreen
+import com.avago.feature.settings.FailedChangesScreen
 
 /**
  * Route constants for the settings nested graph.
@@ -30,7 +30,7 @@ object SettingsRoute {
     const val About = "settings/about"
     const val TechProfile = "settings/tech_profile"
     const val TechProfileLocationPicker = "settings/tech_profile/location_picker?currentId={currentId}"
-    const val SyncConflicts = "settings/sync_conflicts"
+    const val FailedChanges = "settings/failed_changes"
     const val PrivacyPolicy = "settings/legal/privacy"
     const val TermsOfService = "settings/legal/terms"
     const val PermissionSets = "settings/permission_sets"
@@ -56,7 +56,7 @@ fun NavGraphBuilder.settingsNavGraph(navController: NavController) {
                 onNavigateToDeveloper     = { navController.navigate(SettingsRoute.Developer) },
                 onNavigateToAbout         = { navController.navigate(SettingsRoute.About) },
                 onNavigateToTechProfile   = { navController.navigate(SettingsRoute.TechProfile) },
-                onNavigateToSyncConflicts = { navController.navigate(SettingsRoute.SyncConflicts) },
+                onNavigateToFailedChanges = { navController.navigate(SettingsRoute.FailedChanges) },
                 onNavigateToPermissionSets = { navController.navigate(SettingsRoute.PermissionSets) },
                 onNavigateToCustomFields  = { navController.navigate(SettingsRoute.CustomFields) },
             )
@@ -127,8 +127,8 @@ fun NavGraphBuilder.settingsNavGraph(navController: NavController) {
             )
         }
 
-        composable(SettingsRoute.SyncConflicts) {
-            SyncConflictsScreen(onBack = { navController.popBackStack() })
+        composable(SettingsRoute.FailedChanges) {
+            FailedChangesScreen(onBack = { navController.popBackStack() })
         }
 
         composable(SettingsRoute.PermissionSets) {

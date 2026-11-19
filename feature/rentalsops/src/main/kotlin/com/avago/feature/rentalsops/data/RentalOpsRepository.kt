@@ -124,7 +124,7 @@ class RentalOpsRepository @Inject constructor(
     }, emptyList())
 
     private fun queue(types: Set<String>): Flow<List<SyncQueueEntity>> = perAccount({ a ->
-        // P1's rental DAO owns the typed sync_queue query (shared ExternalOutbox hook).
+        // P1's rental DAO owns the typed sync_queue query.
         dbFactory.get(a).rentalDao().observeQueueItemsOfTypes(types.toList())
     }, emptyList())
 

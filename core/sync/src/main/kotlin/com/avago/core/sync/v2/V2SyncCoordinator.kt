@@ -44,7 +44,7 @@ class V2SyncCoordinator @Inject constructor(
     private val identityManager: IdentityManager,
     private val blobs: V2HttpBlobTransport,
     private val transport: V2HttpTransport,
-) : V2SyncHook {
+) {
     private val mutex = Mutex()
     private var session: Session? = null
 
@@ -56,8 +56,6 @@ class V2SyncCoordinator @Inject constructor(
 
     /** The outbox of the active session, for feature write paths; null until a cycle opened one. */
     suspend fun outbox(): V2CommandOutbox? = mutex.withLock { session?.outbox }
-
-    override suspend fun runIfActive(): V2SyncResult? = runOnce()
 
     /** One pull + flush. Returns null when v2 is gated off or nobody is signed in. */
     suspend fun runOnce(): V2SyncResult? = mutex.withLock {
@@ -83,6 +81,17 @@ class V2SyncCoordinator @Inject constructor(
         }
         if (result is V2SyncResult.Synced || result is V2SyncResult.RetryLater) flush(current)
         result
+    }
+
+    /** Drops the local copy and bootstraps again (queued commands are kept). Null when v2 is off. */
+    suspend fun resync(): V2SyncResult? {
+        val requested = mutex.withLock {
+            if (!gate.isOpen()) return@withLock false
+            val current = sessionFor() ?: return@withLock false
+            current.engine.requestBootstrap()
+            true
+        }
+        return if (requested) runOnce() else null
     }
 
     /** Sends queued commands now (no pull); used right after a local write. */

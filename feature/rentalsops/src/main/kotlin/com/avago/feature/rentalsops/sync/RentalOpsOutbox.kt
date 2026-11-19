@@ -7,7 +7,6 @@ import com.avago.core.data.db.entity.SyncQueueEntity
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
 
-import com.avago.core.sync.ExternalOutbox
 import com.avago.feature.rentalsops.R
 import com.avago.feature.rentalsops.data.ApiResult
 import com.avago.feature.rentalsops.data.CursorEntity
@@ -38,7 +37,7 @@ import javax.inject.Singleton
 
 /**
  * Drains queued rentals P2 actions (driver task events, unit assignments, transfers) and pulls
- * the P2 feeds into the module's local store. Invoked by SyncEngine via [ExternalOutbox].
+ * the P2 feeds into the module's local store. Not scheduled while schema v2 owns sync (the rentals P2 feeds are legacy REST).
  *
  * Guarantees:
  * - FIFO per subject: a transient failure stops later events of the same task/transfer in this
@@ -62,11 +61,11 @@ class RentalOpsOutbox @Inject constructor(
     private val api: RentalOpsApi,
     private val client: AvagoServiceClient,
     private val notifier: RentalOpsNotifier,
-) : ExternalOutbox {
+) {
 
-    override val entityTypes: Set<String> = RentalOpsQueueTypes.ALL
+    val entityTypes: Set<String> = RentalOpsQueueTypes.ALL
 
-    override suspend fun drain(accountId: String, items: List<SyncQueueEntity>): Int {
+    suspend fun drain(accountId: String, items: List<SyncQueueEntity>): Int {
         val queue = dbFactory.get(accountId).syncQueueDao()
         val dao = opsDb.dao(accountId)
         val blockedSubjects = mutableSetOf<String>()
@@ -350,7 +349,7 @@ class RentalOpsOutbox @Inject constructor(
      * P2-only data: tasks, transfers and the unassigned-lines work queue. Fleet, orders, lines,
      * allocations and customers are pulled by P1 (feature:rentals) into the shared store.
      */
-    override suspend fun pull(accountId: String) {
+    suspend fun pull(accountId: String) {
         val dao = opsDb.dao(accountId)
         val steps: List<Pair<String, suspend () -> Unit>> = listOf(
             RentalOpsEntities.TASK to { pullTasks(accountId, dao) },

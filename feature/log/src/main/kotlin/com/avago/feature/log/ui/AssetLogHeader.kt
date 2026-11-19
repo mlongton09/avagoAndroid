@@ -41,8 +41,7 @@ import java.io.File
  * - Long-press a photo to surface a delete / set-as-cover action sheet
  *
  * Camera + gallery launchers are wired here; on capture, [onAddPhotoUri] is invoked with
- * the resulting URI which the viewmodel persists + pushes through the existing
- * `SyncEngine.pushIfNeeded()` → `PhotoUploader.sweep` pipeline.
+ * the resulting URI, which the viewmodel uploads and attaches to the asset.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

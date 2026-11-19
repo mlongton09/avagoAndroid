@@ -1,6 +1,0 @@
-[
-  { "id": "receipt",  "name": "doc_type.receipt"  },
-  { "id": "invoice",  "name": "doc_type.invoice"  },
-  { "id": "warranty", "name": "doc_type.warranty" },
-  { "id": "how_to",   "name": "doc_type.how_to"   }
-]

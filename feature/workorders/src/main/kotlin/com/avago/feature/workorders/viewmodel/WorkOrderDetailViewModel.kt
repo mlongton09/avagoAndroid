@@ -1,5 +1,6 @@
 package com.avago.feature.workorders.viewmodel
 
+import com.avago.core.data.domain.SyncRepository
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -34,7 +35,6 @@ import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
 import com.avago.core.permissions.Permissions
 import com.avago.core.permissions.PermissionsManager
-import com.avago.core.sync.SyncEngine
 import com.avago.feature.workorders.R
 import com.avago.feature.workorders.model.ChecklistRowState
 import com.avago.feature.workorders.model.DEFAULT_SLA_POLICY
@@ -98,7 +98,7 @@ class WorkOrderDetailViewModel @Inject constructor(
     workers: WorkerRepository,
     locations: LocationRepository,
     private val identityManager: IdentityManager,
-    private val syncEngine: SyncEngine,
+    private val sync: SyncRepository,
     private val serviceClient: AvagoServiceClient,
     private val permissionsManager: PermissionsManager,
     private val screenContextStore: ScreenContextStore,
@@ -250,7 +250,7 @@ class WorkOrderDetailViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _isRefreshing.value = true
-            try { syncEngine.sync() } catch (e: Exception) {
+            try { sync.syncNow() } catch (e: Exception) {
                 Timber.e(e, "[WoDetailVM] sync failed")
             }
             _isRefreshing.value = false
