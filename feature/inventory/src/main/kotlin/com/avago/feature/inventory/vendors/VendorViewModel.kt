@@ -3,25 +3,22 @@ package com.avago.feature.inventory.vendors
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
-import com.avago.core.data.db.entity.SyncQueueEntity
-import com.avago.core.data.db.entity.PartEntity
-import com.avago.core.data.db.entity.VendorEntity
-import com.avago.core.data.db.entity.VendorPartEntity
+import com.avago.core.data.domain.InventoryRepository
+import com.avago.core.data.domain.ProductSupplier
+import com.avago.core.data.domain.Supplier
+import com.avago.core.data.domain.SupplierDraft
+import com.avago.core.data.domain.SupplierRepository
+import com.avago.core.data.domain.toDraft
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import timber.log.Timber
-import java.util.UUID
 import javax.inject.Inject
 
 // ---------------------------------------------------------------------------
@@ -29,92 +26,91 @@ import javax.inject.Inject
 // ---------------------------------------------------------------------------
 
 data class VendorListUiState(
-    val vendors: List<VendorEntity> = emptyList(),
-    val filtered: List<VendorEntity> = emptyList(),
+    val vendors: List<Supplier> = emptyList(),
+    val filtered: List<Supplier> = emptyList(),
     val searchQuery: String = "",
     val isLoading: Boolean = true,
 )
 
 @HiltViewModel
 class VendorListViewModel @Inject constructor(
-    private val dbFactory: DatabaseFactory,
-    private val identityManager: IdentityManager,
+    suppliers: SupplierRepository,
 ) : ViewModel() {
 
-    val searchQuery = MutableStateFlow("")
+    private val searchQuery = MutableStateFlow("")
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val uiState: StateFlow<VendorListUiState> = identityManager.activeAccountId.flatMapLatest { accountId ->
-        if (accountId == null) flowOf(VendorListUiState(isLoading = false))
-        else combine(dbFactory.get(accountId).vendorDao().observeAll(accountId), searchQuery) { vendors, query ->
-            val filtered = if (query.isBlank()) vendors
-            else vendors.filter { it.name.contains(query, ignoreCase = true) }
+    val uiState: StateFlow<VendorListUiState> =
+        combine(suppliers.observeSuppliers(includeArchived = true), searchQuery) { vendors, query ->
+            val filtered = if (query.isBlank()) {
+                vendors
+            } else {
+                vendors.filter { it.name.contains(query, ignoreCase = true) || it.supplierCode?.contains(query, true) == true }
+            }
             VendorListUiState(vendors = vendors, filtered = filtered, searchQuery = query, isLoading = false)
-        }
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = VendorListUiState(),
-    )
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), VendorListUiState())
 
-    fun setSearchQuery(q: String) { searchQuery.value = q }
+    fun setSearchQuery(q: String) {
+        searchQuery.value = q
+    }
 }
 
 // ---------------------------------------------------------------------------
 // Detail state
 // ---------------------------------------------------------------------------
 
+/** A vendor catalog entry with the name of the product it supplies. */
 data class VendorPartWithPart(
-    val vendorPart: VendorPartEntity,
-    val part: PartEntity?,
+    val vendorPart: ProductSupplier,
+    val productName: String?,
 )
 
 data class VendorDetailUiState(
-    val vendor: VendorEntity? = null,
+    val vendor: Supplier? = null,
     val vendorParts: List<VendorPartWithPart> = emptyList(),
     val isLoading: Boolean = true,
+    val error: String? = null,
 )
 
 @HiltViewModel
 class VendorDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val dbFactory: DatabaseFactory,
-    private val identityManager: IdentityManager,
+    private val suppliers: SupplierRepository,
+    inventory: InventoryRepository,
 ) : ViewModel() {
 
     private val vendorId: String = checkNotNull(savedStateHandle["vendorId"])
+    private val error = MutableStateFlow<String?>(null)
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val uiState: StateFlow<VendorDetailUiState> = identityManager.activeAccountId.flatMapLatest { accountId ->
-        if (accountId == null) flowOf(VendorDetailUiState(isLoading = false))
-        else {
-            val db = dbFactory.get(accountId)
-            @Suppress("UNCHECKED_CAST")
-            combine(
-                db.vendorDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
-                db.vendorPartDao().observeByVendor(vendorId) as kotlinx.coroutines.flow.Flow<Any?>,
-                db.partDao().observeAll(accountId) as kotlinx.coroutines.flow.Flow<Any?>,
-            ) { v ->
-                val vendors = v[0] as List<VendorEntity>
-                val vendorParts = v[1] as List<VendorPartEntity>
-                val parts = v[2] as List<PartEntity>
-                val partMap = parts.associateBy { it.partId }
-                val partsWithPart = vendorParts
-                    .filter { it.deletedAt == null }
-                    .map { vp -> VendorPartWithPart(vp, partMap[vp.partId]) }
-                    .sortedBy { it.part?.name ?: it.vendorPart.vendorSku }
-                VendorDetailUiState(
-                    vendor = vendors.find { it.vendorId == vendorId },
-                    vendorParts = partsWithPart,
-                    isLoading = false,
-                )
-            }
+    val uiState: StateFlow<VendorDetailUiState> = combine(
+        suppliers.observeSupplier(vendorId),
+        suppliers.observeProductSuppliers(supplierPartyId = vendorId),
+        inventory.observeProductStock(includeArchived = true),
+        error,
+    ) { vendor, catalog, products, error ->
+        val names = products.associate { it.product.id to it.product.name }
+        VendorDetailUiState(
+            vendor = vendor,
+            vendorParts = catalog
+                .map { VendorPartWithPart(it, names[it.productId]) }
+                .sortedBy { it.productName ?: it.vendorPart.supplierSku.orEmpty() },
+            isLoading = false,
+            error = error,
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), VendorDetailUiState())
+
+    fun setActive(active: Boolean) {
+        viewModelScope.launch {
+            runCatching { suppliers.setSupplierActive(vendorId, active) }
+                .onFailure { e ->
+                    Timber.e(e, "VendorDetailViewModel: setActive failed")
+                    error.value = e.message
+                }
         }
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = VendorDetailUiState(),
-    )
+    }
+
+    fun dismissError() {
+        error.value = null
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -123,11 +119,17 @@ class VendorDetailViewModel @Inject constructor(
 
 data class AddEditVendorUiState(
     val name: String = "",
+    val contactName: String = "",
     val email: String = "",
     val phone: String = "",
+    val website: String = "",
     val address: String = "",
     val paymentTerms: String = "",
+    val accountNumber: String = "",
+    /** Write-only on mobile: the stored value is not synced to devices, so the field starts empty. */
     val taxId: String = "",
+    val notes: String = "",
+    val isPreferred: Boolean = false,
     val nameError: String? = null,
     val isSaving: Boolean = false,
     val isSaved: Boolean = false,
@@ -138,11 +140,11 @@ data class AddEditVendorUiState(
 @HiltViewModel
 class AddEditVendorViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val dbFactory: DatabaseFactory,
-    private val identityManager: IdentityManager,
+    private val suppliers: SupplierRepository,
 ) : ViewModel() {
 
     private val vendorId: String? = savedStateHandle["vendorId"]
+    private var stored: Supplier? = null
 
     private val _state = MutableStateFlow(AddEditVendorUiState())
     val state: StateFlow<AddEditVendorUiState> = _state.asStateFlow()
@@ -153,34 +155,42 @@ class AddEditVendorViewModel @Inject constructor(
 
     private fun loadVendor(id: String) {
         viewModelScope.launch {
-            _state.value = _state.value.copy(isLoading = true)
-            val accountId = identityManager.getActiveAccountId() ?: run {
-                _state.value = _state.value.copy(isLoading = false)
-                return@launch
-            }
-            val v = dbFactory.get(accountId).vendorDao().getById(id)
-            if (v != null) {
-                _state.value = _state.value.copy(
-                    name = v.name,
-                    email = v.email ?: "",
-                    phone = v.phone ?: "",
-                    address = v.address ?: "",
-                    paymentTerms = v.paymentTerms ?: "",
-                    taxId = v.taxId ?: "",
-                    isLoading = false,
-                )
-            } else {
-                _state.value = _state.value.copy(isLoading = false)
+            _state.update { it.copy(isLoading = true) }
+            val v = suppliers.supplier(id)
+            stored = v
+            _state.update { s ->
+                if (v == null) {
+                    s.copy(isLoading = false)
+                } else {
+                    s.copy(
+                        name = v.name,
+                        contactName = v.contactName.orEmpty(),
+                        email = v.email.orEmpty(),
+                        phone = v.phone.orEmpty(),
+                        website = v.website.orEmpty(),
+                        address = v.address.orEmpty(),
+                        paymentTerms = v.paymentTerms.orEmpty(),
+                        accountNumber = v.accountNumber.orEmpty(),
+                        notes = v.notes.orEmpty(),
+                        isPreferred = v.isPreferred,
+                        isLoading = false,
+                    )
+                }
             }
         }
     }
 
-    fun setName(v: String) { _state.value = _state.value.copy(name = v, nameError = null) }
-    fun setEmail(v: String) { _state.value = _state.value.copy(email = v) }
-    fun setPhone(v: String) { _state.value = _state.value.copy(phone = v) }
-    fun setAddress(v: String) { _state.value = _state.value.copy(address = v) }
-    fun setPaymentTerms(v: String) { _state.value = _state.value.copy(paymentTerms = v) }
-    fun setTaxId(v: String) { _state.value = _state.value.copy(taxId = v) }
+    fun setName(v: String) = _state.update { it.copy(name = v, nameError = null) }
+    fun setContactName(v: String) = _state.update { it.copy(contactName = v) }
+    fun setEmail(v: String) = _state.update { it.copy(email = v) }
+    fun setPhone(v: String) = _state.update { it.copy(phone = v) }
+    fun setWebsite(v: String) = _state.update { it.copy(website = v) }
+    fun setAddress(v: String) = _state.update { it.copy(address = v) }
+    fun setPaymentTerms(v: String) = _state.update { it.copy(paymentTerms = v) }
+    fun setAccountNumber(v: String) = _state.update { it.copy(accountNumber = v) }
+    fun setTaxId(v: String) = _state.update { it.copy(taxId = v) }
+    fun setNotes(v: String) = _state.update { it.copy(notes = v) }
+    fun setPreferred(v: Boolean) = _state.update { it.copy(isPreferred = v) }
 
     fun save() {
         val s = _state.value
@@ -188,57 +198,29 @@ class AddEditVendorViewModel @Inject constructor(
             _state.value = s.copy(nameError = "Vendor name is required")
             return
         }
-        val accountId = identityManager.getActiveAccountId() ?: return
         viewModelScope.launch {
-            _state.value = _state.value.copy(isSaving = true, error = null)
+            _state.update { it.copy(isSaving = true, error = null) }
             try {
-                val now = System.currentTimeMillis()
-                val id = vendorId ?: UUID.randomUUID().toString()
-                val entity = VendorEntity(
-                    vendorId = id,
-                    accountId = accountId,
-                    name = s.name.trim(),
-                    vendorCode = null,
-                    contactName = null,
-                    email = s.email.takeIf { it.isNotBlank() },
-                    phone = s.phone.takeIf { it.isNotBlank() },
-                    fax = null,
-                    website = null,
-                    address = s.address.takeIf { it.isNotBlank() },
-                    accountNumber = null,
-                    paymentTerms = s.paymentTerms.takeIf { it.isNotBlank() },
-                    defaultCurrency = null,
-                    taxId = s.taxId.takeIf { it.isNotBlank() },
-                    rating = null,
-                    qboVendorId = null,
-                    notes = null,
-                    createdAt = now,
-                    updatedAt = now,
-                    deletedAt = null,
-                    serverVersion = 0L,
-                    seq = null,
+                // Start from the stored vendor so fields this form does not show are kept.
+                val base = stored?.toDraft() ?: SupplierDraft(name = s.name)
+                val draft = base.copy(
+                    name = s.name,
+                    contactName = s.contactName,
+                    email = s.email,
+                    phone = s.phone,
+                    website = s.website,
+                    address = s.address,
+                    paymentTerms = s.paymentTerms,
+                    accountNumber = s.accountNumber,
+                    taxId = s.taxId,
+                    notes = s.notes,
+                    isPreferred = s.isPreferred,
                 )
-                val db = dbFactory.get(accountId)
-                db.vendorDao().upsert(entity)
-                db.syncQueueDao().enqueueWithDedup(
-                    SyncQueueEntity(
-                        queueId = "vendor_$id",
-                        entityType = "vendor",
-                        entityId = id,
-                        operation = if (vendorId == null) "insert" else "update",
-                        serverVersion = 0L,
-                        payload = null,
-                        syncStatus = "pending",
-                        attempts = 0L,
-                        lastError = null,
-                        createdAt = now,
-                        updatedAt = now,
-                    ),
-                )
-                _state.value = _state.value.copy(isSaving = false, isSaved = true)
+                if (vendorId == null) suppliers.createSupplier(draft) else suppliers.updateSupplier(vendorId, draft)
+                _state.update { it.copy(isSaving = false, isSaved = true) }
             } catch (e: Exception) {
                 Timber.e(e, "AddEditVendorViewModel: save failed")
-                _state.value = _state.value.copy(isSaving = false, error = e.message)
+                _state.update { it.copy(isSaving = false, error = e.message) }
             }
         }
     }

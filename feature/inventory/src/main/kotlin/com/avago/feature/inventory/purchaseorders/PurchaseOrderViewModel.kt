@@ -3,220 +3,120 @@ package com.avago.feature.inventory.purchaseorders
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
-import com.avago.core.data.db.entity.PoLineEntity
-import com.avago.core.data.db.entity.PurchaseOrderEntity
-import com.avago.core.data.db.entity.VendorEntity
-import com.avago.core.network.AvagoServiceClient
-import com.avago.core.network.model.CreatePurchaseOrderRequest
-import com.avago.core.network.model.PoLineRequest
+import com.avago.core.data.domain.InventoryRepository
+import com.avago.core.data.domain.LocationRepository
+import com.avago.core.data.domain.MovementKind
+import com.avago.core.data.domain.Product
+import com.avago.core.data.domain.PurchaseOrder
+import com.avago.core.data.domain.PurchaseOrderDraft
+import com.avago.core.data.domain.PurchaseOrderLineDraft
+import com.avago.core.data.domain.PurchaseOrderRepository
+import com.avago.core.data.domain.StockMovement
+import com.avago.core.data.domain.Supplier
+import com.avago.core.data.domain.toEdit
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import timber.log.Timber
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.math.BigDecimal
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
+import java.util.UUID
 import javax.inject.Inject
 
 // ---------------------------------------------------------------------------
 // Detail
 // ---------------------------------------------------------------------------
 
+/** Transitions that take an optional reason, confirmed in a dialog. */
+enum class PoReasonAction { REJECT, CANCEL }
+
 data class PoDetailUiState(
-    val po: PurchaseOrderEntity? = null,
-    val vendor: VendorEntity? = null,
-    val lines: List<PoLineEntity> = emptyList(),
+    val po: PurchaseOrder? = null,
+    val receipts: List<StockMovement> = emptyList(),
     val isLoading: Boolean = true,
-    val isActioning: Boolean = false,
     val actionError: String? = null,
     val showGrnSheet: Boolean = false,
+    val reasonAction: PoReasonAction? = null,
 )
 
 @HiltViewModel
 class PurchaseOrderViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val dbFactory: DatabaseFactory,
-    private val serviceClient: AvagoServiceClient,
-    private val identityManager: IdentityManager,
+    private val orders: PurchaseOrderRepository,
+    private val inventory: InventoryRepository,
 ) : ViewModel() {
 
     private val poId: String = checkNotNull(savedStateHandle["poId"])
-    private val _showGrnSheet = MutableStateFlow(false)
-    private val _isActioning = MutableStateFlow(false)
-    private val _actionError = MutableStateFlow<String?>(null)
+    private val ui = MutableStateFlow(PoDetailUiState())
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val uiState: StateFlow<PoDetailUiState> = identityManager.activeAccountId.flatMapLatest { accountId ->
-        if (accountId == null) flowOf(PoDetailUiState(isLoading = false))
-        else {
-            val db = dbFactory.get(accountId)
-            combine(
-                combine(
-                    db.purchaseOrderDao().observeAll(accountId),
-                    db.poLineDao().observeAll(accountId),
-                    db.vendorDao().observeAll(accountId),
-                    _showGrnSheet,
-                    _isActioning,
-                ) { pos, lines, vendors, showGrn, actioning ->
-                    PoDetailIntermediate(pos, lines, vendors, showGrn, actioning)
-                },
-                _actionError,
-            ) { mid, actionErr ->
-                val po = mid.pos.find { it.poId == poId }
-                val vendor = mid.vendors.find { it.vendorId == po?.vendorId }
-                val poLines = mid.lines.filter { it.poId == poId }.sortedBy { it.displayOrder }
-                PoDetailUiState(
-                    po = po,
-                    vendor = vendor,
-                    lines = poLines,
-                    isLoading = false,
-                    showGrnSheet = mid.showGrn,
-                    isActioning = mid.actioning,
-                    actionError = actionErr,
-                )
-            }
-        }
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = PoDetailUiState(),
-    )
+    val uiState: StateFlow<PoDetailUiState> = combine(
+        orders.observePurchaseOrder(poId),
+        inventory.observeMovements(setOf(MovementKind.RECEIPT)).map { all -> all.filter { it.purchaseOrderId == poId } },
+        ui,
+    ) { po, receipts, ui ->
+        ui.copy(po = po, receipts = receipts.sortedByDescending { it.effectiveAt ?: it.createdAt }, isLoading = false)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PoDetailUiState())
 
-    fun approve() {
-        val accountId = identityManager.getActiveAccountId() ?: return
-        viewModelScope.launch {
-            _isActioning.value = true
-            _actionError.value = null
-            try {
-                serviceClient.approvePurchaseOrder(accountId, poId)
-            } catch (e: Exception) {
-                Timber.e(e, "PurchaseOrderViewModel: approve failed")
-                _actionError.value = e.message
-            } finally {
-                _isActioning.value = false
+    fun submit() = act { orders.submit(poId) }
+    fun approve() = act { orders.approve(poId) }
+    fun markOrdered() = act { orders.markOrdered(poId) }
+    fun close() = act { orders.close(poId) }
+
+    fun requestReason(action: PoReasonAction) = ui.update { it.copy(reasonAction = action) }
+    fun dismissReason() = ui.update { it.copy(reasonAction = null) }
+
+    fun confirmReason(reason: String) {
+        val action = ui.value.reasonAction ?: return
+        ui.update { it.copy(reasonAction = null) }
+        act {
+            when (action) {
+                PoReasonAction.REJECT -> orders.reject(poId, reason)
+                PoReasonAction.CANCEL -> orders.cancel(poId, reason)
             }
         }
     }
 
-    fun markOrdered() {
-        val accountId = identityManager.getActiveAccountId() ?: return
+    /** Reverses a posted receipt (the server re-opens the order lines). */
+    fun reverseReceipt(receiptId: String) = act { inventory.reverseDocument(receiptId) }
+
+    fun openGrnSheet() = ui.update { it.copy(showGrnSheet = true) }
+    fun dismissGrnSheet() = ui.update { it.copy(showGrnSheet = false) }
+    fun clearError() = ui.update { it.copy(actionError = null) }
+
+    private fun act(block: suspend () -> Unit) {
         viewModelScope.launch {
-            _isActioning.value = true
-            _actionError.value = null
-            try {
-                serviceClient.markPurchaseOrderOrdered(accountId, poId)
-            } catch (e: Exception) {
-                Timber.e(e, "PurchaseOrderViewModel: markOrdered failed")
-                _actionError.value = e.message
-            } finally {
-                _isActioning.value = false
+            ui.update { it.copy(actionError = null) }
+            runCatching { block() }.onFailure { e ->
+                Timber.e(e, "PurchaseOrderViewModel: action failed")
+                ui.update { it.copy(actionError = e.message) }
             }
         }
     }
-
-    fun submit() {
-        val accountId = identityManager.getActiveAccountId() ?: return
-        viewModelScope.launch {
-            _isActioning.value = true
-            _actionError.value = null
-            try {
-                serviceClient.submitPurchaseOrder(accountId, poId)
-            } catch (e: Exception) {
-                Timber.e(e, "PurchaseOrderViewModel: submit failed")
-                _actionError.value = e.message
-            } finally {
-                _isActioning.value = false
-            }
-        }
-    }
-
-    fun reject() {
-        val accountId = identityManager.getActiveAccountId() ?: return
-        viewModelScope.launch {
-            _isActioning.value = true
-            _actionError.value = null
-            try {
-                serviceClient.rejectPurchaseOrder(accountId, poId)
-            } catch (e: Exception) {
-                Timber.e(e, "PurchaseOrderViewModel: reject failed")
-                _actionError.value = e.message
-            } finally {
-                _isActioning.value = false
-            }
-        }
-    }
-
-    fun close() {
-        val accountId = identityManager.getActiveAccountId() ?: return
-        viewModelScope.launch {
-            _isActioning.value = true
-            _actionError.value = null
-            try {
-                serviceClient.closePurchaseOrder(accountId, poId)
-            } catch (e: Exception) {
-                Timber.e(e, "PurchaseOrderViewModel: close failed")
-                _actionError.value = e.message
-            } finally {
-                _isActioning.value = false
-            }
-        }
-    }
-
-    fun cancel() {
-        val accountId = identityManager.getActiveAccountId() ?: return
-        viewModelScope.launch {
-            _isActioning.value = true
-            _actionError.value = null
-            try {
-                serviceClient.cancelPurchaseOrder(accountId, poId)
-            } catch (e: Exception) {
-                Timber.e(e, "PurchaseOrderViewModel: cancel failed")
-                _actionError.value = e.message
-            } finally {
-                _isActioning.value = false
-            }
-        }
-    }
-
-    fun openGrnSheet() { _showGrnSheet.value = true }
-    fun dismissGrnSheet() { _showGrnSheet.value = false }
-    fun clearError() { _actionError.value = null }
 }
-
-// ---------------------------------------------------------------------------
-// Private intermediate state for nested combine
-// ---------------------------------------------------------------------------
-
-private data class PoDetailIntermediate(
-    val pos: List<PurchaseOrderEntity>,
-    val lines: List<PoLineEntity>,
-    val vendors: List<VendorEntity>,
-    val showGrn: Boolean,
-    val actioning: Boolean,
-)
 
 // ---------------------------------------------------------------------------
 // Create / Edit
 // ---------------------------------------------------------------------------
 
 data class PoLineForm(
-    val id: String = java.util.UUID.randomUUID().toString(),
-    val partId: String? = null,
-    val partName: String? = null,
+    val key: String = UUID.randomUUID().toString(),
+    /** The stored line this row edits; null for a new line. */
+    val lineId: String? = null,
+    val productId: String? = null,
+    val productName: String? = null,
     val description: String = "",
     val quantity: String = "1",
     val unitCost: String = "",
-    val currency: String = "USD",
+    val taxRatePct: String = "",
 )
 
 val CURRENCIES = listOf("USD", "EUR", "GBP", "CAD", "AUD", "MXN", "JPY", "CHF")
@@ -224,19 +124,21 @@ val CURRENCIES = listOf("USD", "EUR", "GBP", "CAD", "AUD", "MXN", "JPY", "CHF")
 data class CreatePoUiState(
     val vendorId: String = "",
     val vendorName: String = "",
-    val lines: List<PoLineForm> = emptyList(),
-    // Date picker: stored as epoch millis; null = not set
+    val lines: List<PoLineForm> = listOf(PoLineForm()),
+    /** UTC midnight of the expected date (as the date picker reports it); null = not set. */
     val expectedDeliveryMs: Long? = null,
     val shipToLocationId: String? = null,
     val shipToLocationName: String? = null,
     val notes: String = "",
-    val costApproval: String = "not_required",
-    // Cost fields
-    val shippingCost: String = "",
-    val discountAmount: String = "",
+    val internalNotes: String = "",
+    val supplierInvoiceRef: String = "",
     val currency: String = "USD",
-    // UI state
+    /** Vendor, currency and lines can only change while the order is a draft. */
+    val isDraft: Boolean = true,
     val showVendorPicker: Boolean = false,
+    val showLocationPicker: Boolean = false,
+    /** Index of the line whose product is being picked. */
+    val productPickerLine: Int? = null,
     val isSaving: Boolean = false,
     val isSaved: Boolean = false,
     val error: String? = null,
@@ -246,12 +148,12 @@ data class CreatePoUiState(
 @HiltViewModel
 class PurchaseOrderCreateViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val dbFactory: DatabaseFactory,
-    private val serviceClient: AvagoServiceClient,
-    private val identityManager: IdentityManager,
+    private val orders: PurchaseOrderRepository,
+    private val locations: LocationRepository,
 ) : ViewModel() {
 
     private val poId: String? = savedStateHandle["poId"]
+    private var stored: PurchaseOrder? = null
 
     private val _state = MutableStateFlow(CreatePoUiState())
     val state: StateFlow<CreatePoUiState> = _state.asStateFlow()
@@ -262,120 +164,188 @@ class PurchaseOrderCreateViewModel @Inject constructor(
 
     private fun loadPo(id: String) {
         viewModelScope.launch {
-            _state.value = _state.value.copy(isLoading = true)
-            val accountId = identityManager.getActiveAccountId() ?: run {
-                _state.value = _state.value.copy(isLoading = false)
+            _state.update { it.copy(isLoading = true) }
+            val po = orders.purchaseOrder(id)
+            stored = po
+            if (po == null) {
+                _state.update { it.copy(isLoading = false, error = "Purchase order not found") }
                 return@launch
             }
-            val po = dbFactory.get(accountId).purchaseOrderDao().getById(id)
-            if (po != null) {
-                // Parse ISO date string back to millis if present
-                val deliveryMs = po.expectedDelivery?.let { dateStr ->
-                    runCatching {
-                        SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(dateStr)?.time
-                    }.getOrNull()
-                }
-                _state.value = _state.value.copy(
-                    vendorId = po.vendorId ?: "",
-                    expectedDeliveryMs = deliveryMs,
+            val shipTo = po.shipToLocationId?.let { locations.location(it) }
+            _state.update {
+                it.copy(
+                    vendorId = po.supplierPartyId,
+                    vendorName = po.supplierName.orEmpty(),
+                    currency = po.currency,
+                    expectedDeliveryMs = po.expectedOn?.let { d ->
+                        runCatching { LocalDate.parse(d).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli() }.getOrNull()
+                    },
                     shipToLocationId = po.shipToLocationId,
-                    currency = po.currency ?: "USD",
-                    shippingCost = po.shippingCost?.toString() ?: "",
-                    discountAmount = po.discount?.toString() ?: "",
-                    notes = po.notes ?: "",
+                    shipToLocationName = shipTo?.name,
+                    notes = po.notes.orEmpty(),
+                    internalNotes = po.internalNotes.orEmpty(),
+                    supplierInvoiceRef = po.supplierInvoiceRef.orEmpty(),
+                    isDraft = po.isEditable,
+                    lines = po.lines.map { line ->
+                        PoLineForm(
+                            key = line.id,
+                            lineId = line.id,
+                            productId = line.productId,
+                            productName = line.productName,
+                            description = line.description.orEmpty(),
+                            quantity = line.orderedQty.stripTrailingZeros().toPlainString(),
+                            unitCost = line.unitCost.toPlainString(),
+                            taxRatePct = line.taxRatePct?.stripTrailingZeros()?.toPlainString().orEmpty(),
+                        )
+                    },
                     isLoading = false,
                 )
-            } else {
-                _state.value = _state.value.copy(isLoading = false)
             }
         }
     }
 
-    fun setVendor(vendorId: String, vendorName: String) {
-        _state.value = _state.value.copy(vendorId = vendorId, vendorName = vendorName, showVendorPicker = false)
+    fun setVendor(vendor: Supplier) {
+        _state.update {
+            it.copy(
+                vendorId = vendor.partyId,
+                vendorName = vendor.name,
+                currency = if (stored == null) vendor.currency ?: it.currency else it.currency,
+                showVendorPicker = false,
+            )
+        }
     }
 
-    fun showVendorPicker() { _state.value = _state.value.copy(showVendorPicker = true) }
-    fun dismissVendorPicker() { _state.value = _state.value.copy(showVendorPicker = false) }
+    fun showVendorPicker() = _state.update { it.copy(showVendorPicker = true) }
+    fun dismissVendorPicker() = _state.update { it.copy(showVendorPicker = false) }
+    fun showLocationPicker() = _state.update { it.copy(showLocationPicker = true) }
+    fun dismissLocationPicker() = _state.update { it.copy(showLocationPicker = false) }
 
-    fun addLine() {
-        _state.value = _state.value.copy(lines = _state.value.lines + PoLineForm())
+    fun onLocationSelected(id: String?, name: String?) =
+        _state.update { it.copy(shipToLocationId = id, shipToLocationName = name, showLocationPicker = false) }
+
+    fun addLine() = _state.update { it.copy(lines = it.lines + PoLineForm()) }
+
+    fun removeLine(key: String) = _state.update { s -> s.copy(lines = s.lines.filter { it.key != key }) }
+
+    fun updateLine(updated: PoLineForm) =
+        _state.update { s -> s.copy(lines = s.lines.map { if (it.key == updated.key) updated else it }) }
+
+    fun pickProductFor(lineIndex: Int?) = _state.update { it.copy(productPickerLine = lineIndex) }
+
+    fun onProductSelected(product: Product) {
+        _state.update { s ->
+            val index = s.productPickerLine ?: return@update s
+            val lines = s.lines.toMutableList()
+            if (index !in lines.indices) return@update s.copy(productPickerLine = null)
+            val line = lines[index]
+            lines[index] = line.copy(
+                productId = product.id,
+                productName = product.name,
+                description = line.description.ifBlank { product.name },
+                unitCost = line.unitCost.ifBlank { product.standardUnitCost?.toPlainString().orEmpty() },
+            )
+            s.copy(lines = lines, productPickerLine = null)
+        }
     }
 
-    fun removeLine(id: String) {
-        _state.value = _state.value.copy(lines = _state.value.lines.filter { it.id != id })
-    }
-
-    fun updateLine(updated: PoLineForm) {
-        _state.value = _state.value.copy(
-            lines = _state.value.lines.map { if (it.id == updated.id) updated else it },
-        )
-    }
-
-    fun onDeliveryDateChanged(ms: Long) {
-        _state.value = _state.value.copy(expectedDeliveryMs = ms)
-    }
-
-    fun onLocationSelected(id: String, name: String) {
-        _state.value = _state.value.copy(shipToLocationId = id, shipToLocationName = name)
-    }
-
-    fun onPartSelectedForLine(lineIndex: Int, partId: String, partName: String, unitCost: Double) {
-        val lines = _state.value.lines.toMutableList()
-        if (lineIndex !in lines.indices) return
-        val line = lines[lineIndex]
-        lines[lineIndex] = line.copy(
-            partId = partId,
-            partName = partName,
-            description = if (line.description.isBlank()) partName else line.description,
-            unitCost = if (line.unitCost.isBlank()) unitCost.toString() else line.unitCost,
-        )
-        _state.value = _state.value.copy(lines = lines)
-    }
-
-    fun onShippingCostChanged(v: String) { _state.value = _state.value.copy(shippingCost = v) }
-    fun onDiscountAmountChanged(v: String) { _state.value = _state.value.copy(discountAmount = v) }
-    fun onCurrencyChanged(v: String) { _state.value = _state.value.copy(currency = v) }
-
-    fun setNotes(v: String) { _state.value = _state.value.copy(notes = v) }
-    fun setCostApproval(v: String) { _state.value = _state.value.copy(costApproval = v) }
+    fun onDeliveryDateChanged(ms: Long?) = _state.update { it.copy(expectedDeliveryMs = ms) }
+    fun onCurrencyChanged(v: String) = _state.update { it.copy(currency = v) }
+    fun setNotes(v: String) = _state.update { it.copy(notes = v) }
+    fun setInternalNotes(v: String) = _state.update { it.copy(internalNotes = v) }
+    fun setSupplierInvoiceRef(v: String) = _state.update { it.copy(supplierInvoiceRef = v) }
 
     fun save() {
         val s = _state.value
-        val accountId = identityManager.getActiveAccountId() ?: return
-        // Format delivery date as ISO string for the API
-        val deliveryIso = s.expectedDeliveryMs?.let { ms ->
-            SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(ms))
+        if (s.vendorId.isBlank()) {
+            _state.update { it.copy(error = "Choose a vendor") }
+            return
         }
+        val lines = try {
+            s.lines.map { it.toDraft() }
+        } catch (e: IllegalArgumentException) {
+            _state.update { it.copy(error = e.message) }
+            return
+        }
+        val expectedOn = s.expectedDeliveryMs?.let { Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate().toString() }
         viewModelScope.launch {
-            _state.value = _state.value.copy(isSaving = true, error = null)
+            _state.update { it.copy(isSaving = true, error = null) }
             try {
-                val request = CreatePurchaseOrderRequest(
-                    vendor_id = s.vendorId.takeIf { it.isNotBlank() },
-                    expected_delivery = deliveryIso,
-                    ship_to_location_id = s.shipToLocationId?.takeIf { it.isNotBlank() },
-                    notes = s.notes.takeIf { it.isNotBlank() },
-                    cost_approval = s.costApproval,
-                    lines = s.lines.map { line ->
-                        PoLineRequest(
-                            part_id = line.partId?.takeIf { it.isNotBlank() },
-                            description = line.description.takeIf { it.isNotBlank() },
-                            quantity = line.quantity.toDoubleOrNull() ?: 1.0,
-                            unit_cost = line.unitCost.toDoubleOrNull(),
-                            currency = line.currency.takeIf { it.isNotBlank() },
-                        )
-                    },
-                )
-                if (poId == null) {
-                    serviceClient.createPurchaseOrder(accountId, request)
+                val current = stored
+                if (current == null) {
+                    if (lines.isEmpty()) throw IllegalArgumentException("Add at least one line")
+                    orders.createPurchaseOrder(
+                        PurchaseOrderDraft(
+                            supplierPartyId = s.vendorId,
+                            currency = s.currency,
+                            lines = lines,
+                            shipToLocationId = s.shipToLocationId,
+                            expectedOn = expectedOn,
+                            notes = s.notes,
+                        ),
+                    )
                 } else {
-                    serviceClient.updatePurchaseOrder(accountId, poId, request)
+                    orders.updatePurchaseOrder(
+                        current.id,
+                        current.toEdit().copy(
+                            supplierPartyId = s.vendorId,
+                            currency = s.currency,
+                            shipToLocationId = s.shipToLocationId,
+                            expectedOn = expectedOn,
+                            notes = s.notes,
+                            internalNotes = s.internalNotes,
+                            supplierInvoiceRef = s.supplierInvoiceRef,
+                        ),
+                    )
+                    if (current.isEditable) saveLines(current, s.lines.zip(lines))
                 }
-                _state.value = _state.value.copy(isSaving = false, isSaved = true)
+                _state.update { it.copy(isSaving = false, isSaved = true) }
             } catch (e: Exception) {
                 Timber.e(e, "PurchaseOrderCreateViewModel: save failed")
-                _state.value = _state.value.copy(isSaving = false, error = e.message)
+                _state.update { it.copy(isSaving = false, error = e.message) }
             }
         }
+    }
+
+    private suspend fun saveLines(current: PurchaseOrder, lines: List<Pair<PoLineForm, PurchaseOrderLineDraft>>) {
+        val kept = lines.mapNotNull { it.first.lineId }.toSet()
+        current.lines.filter { it.id !in kept }.forEach { orders.deleteLine(it.id) }
+        val storedLines = current.lines.associateBy { it.id }
+        lines.forEach { (form, draft) ->
+            val existing = form.lineId?.let(storedLines::get)
+            if (existing == null) {
+                orders.addLine(current.id, draft)
+            } else {
+                // Keep the fields this form does not edit.
+                orders.updateLine(
+                    existing.id,
+                    draft.copy(
+                        supplierSku = existing.supplierSku,
+                        deliverToLocationId = existing.deliverToLocationId,
+                        deliverToBinId = existing.deliverToBinId,
+                        workOrderId = existing.workOrderId,
+                        notes = existing.notes,
+                    ),
+                )
+            }
+        }
+    }
+
+    private fun PoLineForm.toDraft(): PurchaseOrderLineDraft {
+        val label = description.ifBlank { productName.orEmpty() }
+        require(label.isNotBlank()) { "Each line needs a description or part" }
+        val qty = quantity.trim().toBigDecimalOrNull()
+        require(qty != null && qty.signum() > 0) { "Enter a positive quantity for \"$label\"" }
+        val cost = unitCost.trim().ifEmpty { "0" }.toBigDecimalOrNull()
+        require(cost != null && cost.signum() >= 0) { "Enter a valid unit cost for \"$label\"" }
+        val tax = taxRatePct.trim().takeIf { it.isNotEmpty() }?.let {
+            requireNotNull(it.toBigDecimalOrNull()?.takeIf { pct -> pct >= BigDecimal.ZERO }) { "Enter a valid tax % for \"$label\"" }
+        }
+        return PurchaseOrderLineDraft(
+            description = label,
+            orderedQty = qty,
+            unitCost = cost,
+            productId = productId,
+            taxRatePct = tax,
+        )
     }
 }

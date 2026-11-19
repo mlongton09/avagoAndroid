@@ -38,7 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.avago.core.data.db.entity.BinEntity
+import com.avago.core.data.domain.Bin
 import com.avago.feature.inventory.R
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -85,10 +85,10 @@ fun BinListScreen(
                             label = { Text(stringResource(R.string.bins_filter_all)) },
                         )
                     }
-                    items(state.locations, key = { it.locationId }) { loc ->
+                    items(state.locations, key = { it.id }) { loc ->
                         FilterChip(
-                            selected = state.filterLocationId == loc.locationId,
-                            onClick = { viewModel.setFilterLocation(loc.locationId) },
+                            selected = state.filterLocationId == loc.id,
+                            onClick = { viewModel.setFilterLocation(loc.id) },
                             label = { Text(loc.name) },
                         )
                     }
@@ -105,11 +105,11 @@ fun BinListScreen(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    items(bins, key = { it.binId }) { bin ->
+                    items(bins, key = { it.id }) { bin ->
                         BinCard(
                             bin = bin,
                             locationName = viewModel.locationName(bin.locationId),
-                            onClick = { onBinClick(bin.binId) },
+                            onClick = { onBinClick(bin.id) },
                         )
                     }
                 }
@@ -120,7 +120,7 @@ fun BinListScreen(
 
 @Composable
 private fun BinCard(
-    bin: BinEntity,
+    bin: Bin,
     locationName: String,
     onClick: () -> Unit,
 ) {
@@ -132,43 +132,33 @@ private fun BinCard(
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(bin.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                bin.binType?.let {
+                Text(bin.label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                bin.kind?.let {
                     SuggestionChip(onClick = {}, label = { Text(it, style = MaterialTheme.typography.labelSmall) })
                 }
-                if (!bin.active) {
+                if (bin.archived) {
                     Spacer(Modifier.width(6.dp))
                     SuggestionChip(onClick = {}, label = { Text(stringResource(R.string.bins_inactive), style = MaterialTheme.typography.labelSmall) })
                 }
             }
             Spacer(Modifier.height(2.dp))
             Text(locationName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (bin.code != null || bin.aisle != null) {
-                val parts = listOfNotNull(
-                    bin.code?.let { "Code: $it" },
-                    bin.aisle?.let { "Aisle $it" },
-                    bin.shelf?.let { "Shelf $it" },
-                    bin.slot?.let { "Slot $it" },
-                )
-                if (parts.isNotEmpty()) {
-                    Text(parts.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+            if (bin.name != null) {
+                Text("Code: ${bin.code}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             // Fill % bar
-            bin.capacity?.takeIf { it > 0 }?.let { capacity ->
-                bin.currentCount?.let { currentCount ->
-                    Spacer(Modifier.height(6.dp))
-                    val fillFraction = (currentCount.toFloat() / capacity.toFloat()).coerceIn(0f, 1f)
-                    LinearProgressIndicator(
-                        progress = { fillFraction },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Text(
-                        "$currentCount / $capacity ${stringResource(R.string.bins_units)}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+            bin.capacity?.takeIf { it.signum() > 0 }?.let { capacity ->
+                Spacer(Modifier.height(6.dp))
+                val fillFraction = (bin.onHand.toFloat() / capacity.toFloat()).coerceIn(0f, 1f)
+                LinearProgressIndicator(
+                    progress = { fillFraction },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    "${bin.onHand.toPlainString()} / ${capacity.toPlainString()} ${stringResource(R.string.bins_units)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

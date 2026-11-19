@@ -32,6 +32,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.feature.inventory.R
+import com.avago.core.data.domain.formatMoney
+import com.avago.core.data.domain.formatQty
+import java.math.BigDecimal
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -48,6 +51,7 @@ fun PartIssueDetailScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     LaunchedEffect(issueId) { viewModel.load(issueId) }
+    val names = state.locationNames
 
     Scaffold(
         topBar = {
@@ -83,25 +87,26 @@ fun PartIssueDetailScreen(
         ) {
             // Header
             Text(
-                if (issue.issueType == "transfer") stringResource(R.string.part_issues_type_transfer)
-                else stringResource(R.string.part_issues_type_issue),
+                listOfNotNull(
+                    if (issue.isTransfer) stringResource(R.string.part_issues_type_transfer)
+                    else stringResource(R.string.part_issues_type_issue),
+                    issue.number,
+                ).joinToString(" · "),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
-            Text(dateFmt.format(Date(issue.issuedAt)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(dateFmt.format(Date(issue.effectiveAt ?: issue.createdAt)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
             Spacer(Modifier.height(12.dp))
             HorizontalDivider()
             Spacer(Modifier.height(12.dp))
 
-            if (issue.referenceId != null) {
-                LabelValue(stringResource(R.string.part_issue_field_reference), "${issue.referenceType ?: "ref"}: ${issue.referenceId}")
-            }
-            if (issue.issueType == "transfer") {
-                issue.fromLocationId?.let { LabelValue(stringResource(R.string.part_issue_field_from_location), it) }
-                issue.toLocationId?.let { LabelValue(stringResource(R.string.part_issue_field_to_location), it) }
+            issue.reference?.let { LabelValue(stringResource(R.string.part_issue_field_reference), it) }
+            if (issue.isTransfer) {
+                LabelValue(stringResource(R.string.part_issue_field_from_location), names[issue.locationId] ?: issue.locationId)
+                issue.toLocationId?.let { LabelValue(stringResource(R.string.part_issue_field_to_location), names[it] ?: it) }
             } else {
-                issue.locationId?.let { LabelValue(stringResource(R.string.part_issue_field_location), it) }
+                LabelValue(stringResource(R.string.part_issue_field_location), names[issue.locationId] ?: issue.locationId)
             }
             issue.notes?.let { LabelValue(stringResource(R.string.part_issue_field_notes), it) }
 
@@ -109,10 +114,10 @@ fun PartIssueDetailScreen(
             Text(stringResource(R.string.part_issue_lines_section), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
 
-            if (state.lines.isEmpty()) {
+            if (issue.lines.isEmpty()) {
                 Text(stringResource(R.string.part_issue_no_lines), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             } else {
-                state.lines.forEach { line ->
+                issue.lines.forEach { line ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -120,15 +125,15 @@ fun PartIssueDetailScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(viewModel.partName(line.partId), style = MaterialTheme.typography.bodyMedium)
+                            Text(line.productName ?: line.productSku ?: line.productId, style = MaterialTheme.typography.bodyMedium)
                             line.notes?.let {
                                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                         Column(horizontalAlignment = Alignment.End) {
-                            Text(stringResource(R.string.common_qty_format, line.quantity), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                            Text((line.quantity ?: BigDecimal.ZERO).formatQty(), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                             line.unitCost?.let {
-                                Text(stringResource(R.string.common_currency_format, "", it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(it.formatMoney(null), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }

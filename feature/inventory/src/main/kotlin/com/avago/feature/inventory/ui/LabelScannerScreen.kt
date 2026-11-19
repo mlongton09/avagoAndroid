@@ -1,4 +1,4 @@
-﻿package com.avago.feature.inventory.ui
+package com.avago.feature.inventory.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -55,9 +55,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
-import com.avago.core.data.db.entity.PartEntity
+import com.avago.core.data.domain.InventoryRepository
+import com.avago.core.data.domain.Product
 import com.avago.feature.inventory.R
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.common.InputImage
@@ -75,24 +74,19 @@ import javax.inject.Inject
 
 @HiltViewModel
 class LabelScannerViewModel @Inject constructor(
-    private val dbFactory: DatabaseFactory,
-    private val identityManager: IdentityManager,
+    private val inventory: InventoryRepository,
 ) : ViewModel() {
 
-    private val _scanResult = MutableStateFlow<PartEntity?>(null)
-    val scanResult: StateFlow<PartEntity?> = _scanResult.asStateFlow()
+    private val _scanResult = MutableStateFlow<Product?>(null)
+    val scanResult: StateFlow<Product?> = _scanResult.asStateFlow()
 
     private val _scanError = MutableStateFlow<String?>(null)
     val scanError: StateFlow<String?> = _scanError.asStateFlow()
 
-    fun lookupByBarcode(barcode: String, onResult: (PartEntity?) -> Unit) {
-        val accountId = identityManager.getActiveAccountId() ?: run {
-            onResult(null)
-            return
-        }
+    fun lookupByBarcode(barcode: String, onResult: (Product?) -> Unit) {
         viewModelScope.launch {
             val part = try {
-                dbFactory.get(accountId).partDao().getByBarcode(barcode)
+                inventory.productByCode(barcode)
             } catch (e: Exception) {
                 Timber.e(e, "[LabelScannerViewModel] Error looking up barcode: $barcode")
                 null
@@ -189,7 +183,7 @@ fun LabelScannerScreen(
                         viewModel.lookupByBarcode(barcode) { part ->
                             scope.launch {
                                 if (part != null) {
-                                    onPartFound(part.partId)
+                                    onPartFound(part.id)
                                 } else {
                                     snackbarHostState.showSnackbar(
                                         context.getString(R.string.label_scanner_not_found),

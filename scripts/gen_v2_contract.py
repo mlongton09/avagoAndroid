@@ -6,6 +6,7 @@ Outputs (do not hand-edit; rerun this script when the contract changes):
     core/data/src/main/resources/com/avago/core/data/v2/business.sql   (verbatim copy)
     core/data/src/main/resources/com/avago/core/data/v2/chat.sql       (verbatim copy)
     core/data/src/main/kotlin/com/avago/core/data/v2/V2GeneratedSchema.kt
+    core/data/src/main/kotlin/com/avago/core/data/v2/commands/V2GeneratedCommands.kt
 
 The SQL files are the contract generator's mobile SQLite DDL (decision L29: iOS and Android
 apply the same generated file). They are Java resources, not Kotlin strings, because
@@ -19,6 +20,13 @@ working tree:
     schema/contract/out/sqlite/business.sql
     schema/contract/out/sqlite/chat.sql
     DBSetup/v2/seed/000_sync_projections.sql
+    schema/contract/out/commands/catalog.json   (the mobile command catalog, P3-14)
+
+V2GeneratedCommands.kt holds one typed payload class per catalog command (plus the nested line
+structs and enums). Each class knows its operation, entity and concurrency rule and encodes the
+wire payload: creates/actions/deletes are flat objects, updates use `{"id", "set", "clear"}`
+(sync-wire.md "Catalog"), so a nullable field is cleared through the typed `clear` set rather
+than by sending null.
 
 Usage (from the repo root):
 
@@ -40,6 +48,20 @@ import sys
 PKG_DIR = os.path.join("core", "data", "src", "main")
 RES_DIR = os.path.join(PKG_DIR, "resources", "com", "avago", "core", "data", "v2")
 KT_OUT = os.path.join(PKG_DIR, "kotlin", "com", "avago", "core", "data", "v2", "V2GeneratedSchema.kt")
+CMD_OUT = os.path.join(
+    PKG_DIR, "kotlin", "com", "avago", "core", "data", "v2", "commands", "V2GeneratedCommands.kt"
+)
+CATALOG_PATH = "schema/contract/out/commands/catalog.json"
+
+# Catalog scalar type -> (Kotlin type, wire note). Decimals are BigDecimal (sent as plain strings),
+# instants java.time.Instant (RFC 3339), dates java.time.LocalDate, jsonb a JsonElement.
+SCALARS = {
+    "uuid": "String", "text": "String", "code": "String", "currency": "String",
+    "country": "String", "timezone": "String",
+    "qty": "BigDecimal", "decimal": "BigDecimal", "rate_decimal": "BigDecimal",
+    "int": "Int", "smallint": "Int", "money_minor": "Long", "bool": "Boolean",
+    "instant": "Instant", "date": "LocalDate", "jsonb": "JsonElement",
+}
 
 ROW = re.compile(
     r"^\s+\('(?P<name>[a-z0-9_]+)', '(?P<stream>account|global)', (?P<per_user>true|false), "
@@ -90,6 +112,182 @@ def parse_manifest(seed: str) -> list[dict]:
     return rows
 
 
+def camel(name: str) -> str:
+    head, *rest = name.split("_")
+    return head + "".join(p[:1].upper() + p[1:] for p in rest)
+
+
+def pascal(name: str) -> str:
+    return "".join(p[:1].upper() + p[1:] for p in name.split("_"))
+
+
+KT_KEYWORDS = {"in", "is", "as", "fun", "val", "var", "object", "when", "class", "interface", "typealias"}
+
+
+def kt_name(name: str) -> str:
+    n = camel(name)
+    return f"`{n}`" if n in KT_KEYWORDS else n
+
+
+def kdoc(text: str | None, indent: str) -> list[str]:
+    if not text:
+        return []
+    text = " ".join(text.split()).replace("*/", "* /")
+    return [f"{indent}/** {text} */"]
+
+
+def kt_type(t: str, enums: dict) -> str:
+    if t.startswith("[") and t.endswith("]"):
+        return f"List<{kt_type(t[1:-1], enums)}>"
+    if t.startswith("enum:"):
+        name = pascal(t[5:])
+        if name not in enums:
+            sys.exit(f"unknown enum {t}")
+        return name
+    if t in SCALARS:
+        return SCALARS[t]
+    return t  # a struct
+
+
+def struct_fields(schema: dict) -> list[dict]:
+    """Catalog-style fields of a nested struct from its JSON schema."""
+    out = []
+    required = set(schema.get("required", []))
+    for name, prop in schema["properties"].items():
+        if prop.get("type") == "string" and prop.get("format") == "uuid":
+            t = "uuid"
+        elif prop.get("type") == "string" and prop.get("pattern", "").startswith("^-?[0-9]"):
+            t = "decimal"
+        elif prop.get("type") == "string" and prop.get("format") == "date-time":
+            t = "instant"
+        elif prop.get("type") == "string" and prop.get("format") == "date":
+            t = "date"
+        elif prop.get("type") == "string":
+            t = "text"
+        elif prop.get("type") == "integer":
+            t = "int"
+        elif prop.get("type") == "boolean":
+            t = "bool"
+        else:
+            sys.exit(f"unsupported struct property {name}: {prop}")
+        out.append({"name": name, "type": t, "required": name in required, "doc": prop.get("description")})
+    return out
+
+
+def param_lines(fields: list[dict], enums: dict, force_optional: bool = False) -> list[str]:
+    lines = []
+    for f in fields:
+        t = kt_type(f["type"], enums)
+        lines += kdoc(f.get("doc"), "    ")
+        if f.get("required") and not force_optional:
+            lines.append(f"    val {kt_name(f['name'])}: {t},")
+        else:
+            lines.append(f"    val {kt_name(f['name'])}: {t}? = null,")
+    return lines
+
+
+def pairs(fields: list[dict]) -> str:
+    return ", ".join(f'"{f["name"]}" to {kt_name(f["name"])}' for f in fields)
+
+
+def commands_kotlin(catalog: dict, source: str) -> str:
+    enums = {name: values for name, values in catalog["enums"].items()}
+    used_structs = sorted({
+        f["type"][1:-1] for c in catalog["commands"] for f in c["fields"]
+        if f["type"].startswith("[") and f["type"][1:-1] in catalog["types"]
+    })
+    out = [
+        "// @generated by scripts/gen_v2_contract.py -- DO NOT EDIT.",
+        f"// Source: {source}",
+        "// Mobile command catalog (sync-wire.md \"Catalog\"): one typed payload per command.",
+        '@file:Suppress("MaxLineLength", "LargeClass", "LongParameterList", "TooManyFunctions")',
+        "",
+        "package com.avago.core.data.v2.commands",
+        "",
+        "import kotlinx.serialization.json.JsonArray",
+        "import kotlinx.serialization.json.JsonElement",
+        "import kotlinx.serialization.json.JsonObject",
+        "import kotlinx.serialization.json.JsonPrimitive",
+        "import java.math.BigDecimal",
+        "import java.time.Instant",
+        "import java.time.LocalDate",
+        "",
+        f"const val V2_COMMAND_CATALOG_VERSION: Int = {catalog['catalog_version']}",
+        "",
+        "/** Every operation in the catalog (what `capabilities.commands` lists). */",
+        "val V2_CATALOG_OPERATIONS: Set<String> = setOf(",
+    ]
+    out += [f'    "{c["name"]}",' for c in catalog["commands"]]
+    out += [")", ""]
+
+    for name in sorted(enums):
+        out.append(f"enum class {name}(override val wire: String) : V2WireEnum {{")
+        for v in enums[name]:
+            out.append(f'    {v.upper()}("{v}"),')
+        out += ["}", ""]
+
+    for name in used_structs:
+        schema = catalog["types"][name]
+        fields = struct_fields(schema)
+        out += kdoc(schema.get("description"), "")
+        out.append(f"data class {name}(")
+        out += param_lines(fields, enums)
+        out.append(") : V2PayloadStruct {")
+        out.append(f"    override fun toJson(): JsonObject = V2PayloadJson.objectOf({pairs(fields)})")
+        out += ["}", ""]
+
+    for c in sorted(catalog["commands"], key=lambda c: c["name"]):
+        cls = c["payload"]
+        fields = c["fields"]
+        doc = f"`{c['name']}` ({c['kind']} on {c['entity']}). {c.get('doc') or ''}"
+        if c.get("permissions"):
+            doc += " Permission: " + " or ".join(c["permissions"]) + "."
+        out += kdoc(doc, "")
+        out.append(f"data class {cls}(")
+        if c["kind"] == "update":
+            clearable = c.get("clearable", [])
+            out.append(f"    val {c['key']}: String,")
+            out += param_lines(fields, enums, force_optional=True)
+            if clearable:
+                out.append("    /** Nullable fields to set to NULL (a field cannot be both set and cleared). */")
+                out.append("    val clear: Set<Clear> = emptySet(),")
+            out.append(") : V2CommandPayload {")
+            if clearable:
+                out.append("    enum class Clear(override val wire: String) : V2WireEnum {")
+                for f in clearable:
+                    out.append(f'        {f.upper()}("{f}"),')
+                out += ["    }", ""]
+            out.append("    override fun toJson(): JsonObject {")
+            out.append(f"        val set = V2PayloadJson.objectOf({pairs(fields)})")
+            if clearable:
+                out.append("        val clearSet = clear.mapTo(mutableSetOf()) { it.wire }")
+                out.append("        require(set.keys.none { it in clearSet }) { \"a field cannot be both set and cleared\" }")
+                out.append("        require(set.isNotEmpty() || clear.isNotEmpty()) { \"an update must change something\" }")
+                out.append(f'        return JsonObject(mapOf("{c["key"]}" to JsonPrimitive({c["key"]}), "set" to set, '
+                           '"clear" to JsonArray(clearSet.sorted().map(::JsonPrimitive))))')
+            else:
+                out.append("        require(set.isNotEmpty()) { \"an update must change something\" }")
+                out.append(f'        return JsonObject(mapOf("{c["key"]}" to JsonPrimitive({c["key"]}), "set" to set, '
+                           '"clear" to JsonArray(emptyList())))')
+            out.append("    }")
+        else:
+            out += param_lines(fields, enums)
+            out.append(") : V2CommandPayload {")
+            out.append(f"    override fun toJson(): JsonObject = V2PayloadJson.objectOf({pairs(fields)})")
+        key = kt_name(c["key"])
+        out += [
+            "",
+            f'    override val commandName: String get() = "{c["name"]}"',
+            f'    override val commandEntityType: String get() = "{c["entity"]}"',
+            f"    override val commandEntityKey: String get() = {key}",
+            f"    override val commandKind: V2CommandKind get() = V2CommandKind.{c['kind'].upper()}",
+            f"    override val requiresBaseVersion: Boolean get() = {'true' if c['concurrency'] == 'version' else 'false'}",
+            "}",
+            "",
+        ]
+    return "\n".join(out).rstrip() + "\n"
+
+
 def write_bytes(path: str, data: bytes) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "wb") as f:
@@ -100,6 +298,10 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--svc", default=os.path.join("..", "AvagoSvc"))
     ap.add_argument("--ref", default="origin/schema-v2")
+    ap.add_argument(
+        "--catalog-ref",
+        help="git ref to read the command catalog from (default: --ref)",
+    )
     args = ap.parse_args()
 
     rev = subprocess.check_output(["git", "-C", args.svc, "rev-parse", args.ref]).decode().strip()
@@ -170,6 +372,15 @@ object V2GeneratedSchema {{
     write_bytes(os.path.join(RES_DIR, "business.sql"), business_raw)
     write_bytes(os.path.join(RES_DIR, "chat.sql"), chat_raw)
     write_bytes(KT_OUT, out.encode("utf-8"))
+
+    import json
+
+    cat_ref = args.catalog_ref or args.ref
+    cat_rev = subprocess.check_output(["git", "-C", args.svc, "rev-parse", cat_ref]).decode().strip()
+    catalog = json.loads(git_show(args.svc, cat_ref, CATALOG_PATH).decode("utf-8"))
+    commands = commands_kotlin(catalog, f"AvagoSvc {cat_ref} @ {cat_rev} ({CATALOG_PATH})")
+    write_bytes(CMD_OUT, commands.encode("utf-8"))
+    print(f"wrote {CMD_OUT}: {len(catalog['commands'])} commands @ {cat_rev[:9]}")
     print(f"wrote {KT_OUT} + resources: {len(rows)} projections, "
           f"{len(business_tables)} business + {len(chat_tables)} chat tables @ {rev[:9]}")
 

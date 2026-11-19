@@ -20,8 +20,6 @@ class V2StoreGate(private val flag: V2Flag, private val marker: V2ResetMarker) {
 
 /** The business and chat databases of one user/account/device. */
 class V2Stores(val identity: V2StoreIdentity, val business: V2Database, val chat: V2Database) {
-    val locations: V2LocationReader by lazy { V2LocationReader(business) }
-
     fun close() {
         runCatching { business.close() }
         runCatching { chat.close() }

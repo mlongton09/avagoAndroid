@@ -117,114 +117,26 @@ class V2CommandOutbox(
     private val leaseOwner: String = V2Uuid.v7(),
     private val uploader: V2Uploader? = null,
 ) {
-    /** `capabilities.commands`; when set, [enqueue] refuses other operations. */
-    @Volatile var supportedOperations: Set<String>? = null
     var leaseDurationMs: Long = 60_000
     var maxBackoffMs: Long = 300_000
     var receiptRetryMs: Long = 2_000
 
-    // ---------------------------------------------------------------------------------------
-    // Enqueue
+    private val queue = V2CommandQueue(store, identity, clock)
 
-    suspend fun enqueue(command: V2NewCommand): String {
-        supportedOperations?.let { if (command.operation !in it) throw V2OutboxException.UnsupportedOperation(command.operation) }
-        if (!OPERATION.matches(command.operation)) throw V2OutboxException.InvalidCommand("bad operation ${command.operation}")
-        if (command.overlayPatch != null && (command.entityType == null || command.entityKey == null)) {
-            throw V2OutboxException.InvalidCommand("an overlay needs entity_type and entity_key")
-        }
-        val now = clock()
-        val id = V2Uuid.v7(now)
-        val hash = V2Canonical.requestHash(
-            operation = command.operation,
-            payloadSchemaVersion = command.payloadSchemaVersion,
-            entityType = command.entityType,
-            entityKey = command.entityKey,
-            baseVersion = command.baseVersion?.toString(),
-            payload = command.payload,
-        )
-        store.write { tx ->
-            val order = tx.connection.scalarLong("SELECT COALESCE(MAX(causal_order), 0) + 1 FROM pending_commands") ?: 1L
-            val epoch = tx.connection.scalarLong("SELECT scope_epoch FROM database_identity") ?: 0L
-            tx.execute(
-                "INSERT INTO pending_commands (id, user_id, account_id, scope_epoch, operation, payload_schema_version, " +
-                    "entity_type, entity_key, base_version, payload, request_hash, causal_order, state, attempts, created_at) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', 0, ?)",
-                listOf(
-                    id, identity.userId, identity.accountId, epoch, command.operation, command.payloadSchemaVersion,
-                    command.entityType, command.entityKey, command.baseVersion, V2Canonical.string(command.payload),
-                    hash, order, now,
-                ),
-            )
-            for (dep in command.dependsOn.map { it.lowercase() }.distinct()) {
-                if (!V2Uuid.isValid(dep)) throw V2OutboxException.InvalidCommand("bad dependency id $dep")
-                // A retired dependency (acknowledged and applied) needs no local wait; the server still checks it.
-                if (tx.connection.scalarLong("SELECT 1 FROM pending_commands WHERE id = ?", listOf(dep)) == null) continue
-                tx.execute(
-                    "INSERT OR IGNORE INTO command_dependencies (command_id, depends_on_command_id) VALUES (?, ?)",
-                    listOf(id, dep),
-                )
-            }
-            for (upload in command.uploads) {
-                tx.execute(
-                    "INSERT INTO upload_jobs (id, command_id, local_path, sha256, byte_size, media_type, state, attempts, created_at) " +
-                        "VALUES (?, ?, ?, ?, ?, ?, 'pending', 0, ?)",
-                    listOf(V2Uuid.v7(now), id, upload.localPath, upload.sha256, upload.byteSize, upload.mediaType, now),
-                )
-            }
-            val patch = command.overlayPatch
-            if (patch != null) {
-                tx.execute(
-                    "INSERT INTO local_overlays (id, entity_type, entity_key, kind, command_id, reducer_version, causal_order, " +
-                        "patch, base_version, created_at, updated_at) VALUES (?, ?, ?, 'command', ?, ?, ?, ?, ?, ?, ?)",
-                    listOf(
-                        V2Uuid.v7(now), command.entityType, command.entityKey, id, command.reducerVersion, order,
-                        V2Canonical.string(patch), command.baseVersion, now, now,
-                    ),
-                )
-                tx.markChanged("local_overlays")
-            }
-            tx.markChanged("pending_commands")
-        }
-        return id
-    }
+    /** `capabilities.commands`; when set, [enqueue] refuses other operations. */
+    var supportedOperations: Set<String>?
+        get() = queue.supportedOperations
+        set(value) { queue.supportedOperations = value }
 
-    // ---------------------------------------------------------------------------------------
-    // Queries
+    suspend fun enqueue(command: V2NewCommand): String = queue.enqueue(command)
 
-    suspend fun pending(): List<V2PendingCommand> = store.read { conn ->
-        conn.query(
-            "SELECT id, operation, entity_type, entity_key, state, attempts, causal_order, result_watermark, " +
-                "next_attempt_at, created_at FROM pending_commands " +
-                "WHERE state IN ('queued', 'leased', 'sent_unknown', 'acknowledged') ORDER BY causal_order",
-        ).mapNotNull(::pendingCommand)
-    }
+    suspend fun pending(): List<V2PendingCommand> = queue.pending()
 
-    suspend fun failures(): List<V2CommandFailure> = store.read { conn ->
-        conn.query(
-            "SELECT id, operation, entity_type, entity_key, last_error, created_at FROM pending_commands " +
-                "WHERE state = 'rejected' ORDER BY causal_order",
-        ).map(::failure)
-    }
+    suspend fun failures(): List<V2CommandFailure> = queue.failures()
 
-    /** Removes a surfaced rejection (and its overlays, by cascade). */
-    suspend fun dismissFailure(id: String) = store.write { tx ->
-        tx.execute("DELETE FROM pending_commands WHERE id = ? AND state IN ('rejected', 'cancelled')", listOf(id.lowercase()))
-        tx.markChanged("pending_commands", "local_overlays")
-    }
+    suspend fun dismissFailure(id: String) = queue.dismissFailure(id)
 
-    /** Cancels a command that has never been sent. Returns false otherwise. */
-    suspend fun cancel(id: String): Boolean = store.write { tx ->
-        val lower = id.lowercase()
-        val changed = tx.execute(
-            "UPDATE pending_commands SET state = 'cancelled', next_attempt_at = NULL WHERE id = ? AND state = 'queued' AND attempts = 0",
-            listOf(lower),
-        )
-        if (changed == 0L) return@write false
-        tx.execute("DELETE FROM local_overlays WHERE command_id = ?", listOf(lower))
-        rejectDependents(tx.connection, lower)
-        tx.markChanged("pending_commands", "local_overlays")
-        true
-    }
+    suspend fun cancel(id: String): Boolean = queue.cancel(id)
 
     // ---------------------------------------------------------------------------------------
     // Flush
@@ -521,28 +433,8 @@ class V2CommandOutbox(
             listOf(V2Canonical.string(JsonObject(error)), row.id),
         )
         tx.execute("DELETE FROM local_overlays WHERE command_id = ?", listOf(row.id))
-        rejectDependents(tx.connection, row.id)
+        V2CommandQueue.rejectDependents(tx.connection, row.id)
         tx.markChanged("pending_commands", "local_overlays")
-    }
-
-    /** Unsent dependents can never succeed: reject them (transitively) locally. */
-    private fun rejectDependents(conn: V2Connection, id: String) {
-        val error = V2Canonical.string(
-            JsonObject(mapOf("code" to JsonPrimitive("dependency_rejected"), "message" to JsonPrimitive("Command $id was rejected"))),
-        )
-        val dependents = conn.query(
-            "WITH RECURSIVE deps(id) AS (SELECT command_id FROM command_dependencies WHERE depends_on_command_id = ? " +
-                "UNION SELECT d.command_id FROM command_dependencies d JOIN deps ON d.depends_on_command_id = deps.id) " +
-                "SELECT c.id FROM pending_commands c JOIN deps ON deps.id = c.id WHERE c.state = 'queued'",
-            listOf(id),
-        ).map { it["id"] as String }
-        for (dependent in dependents) {
-            conn.execute(
-                "UPDATE pending_commands SET state = 'rejected', next_attempt_at = NULL, last_error = ? WHERE id = ?",
-                listOf(error, dependent),
-            )
-            conn.execute("DELETE FROM local_overlays WHERE command_id = ?", listOf(dependent))
-        }
     }
 
     /** A lease left by a crashed process (or expired): the request may have been sent. */
@@ -582,35 +474,4 @@ class V2CommandOutbox(
         }
     }
 
-    private fun pendingCommand(r: V2Row): V2PendingCommand? = V2PendingCommand(
-        id = r["id"] as String,
-        operation = r["operation"] as String,
-        entityType = r["entity_type"] as String?,
-        entityKey = r["entity_key"] as String?,
-        state = V2CommandState.fromWire(r["state"] as String?) ?: return null,
-        attempts = (r["attempts"] as Number).toInt(),
-        causalOrder = (r["causal_order"] as Number).toLong(),
-        resultWatermark = (r["result_watermark"] as Number?)?.toLong(),
-        nextAttemptAt = (r["next_attempt_at"] as Number?)?.toLong(),
-        createdAt = (r["created_at"] as Number).toLong(),
-    )
-
-    private fun failure(r: V2Row): V2CommandFailure {
-        val error = (r["last_error"] as String?)?.let { runCatching { Json.parseToJsonElement(it).jsonObject }.getOrNull() }
-        return V2CommandFailure(
-            id = r["id"] as String,
-            operation = r["operation"] as String,
-            entityType = r["entity_type"] as String?,
-            entityKey = r["entity_key"] as String?,
-            code = error?.get("code")?.jsonPrimitive?.content ?: "rejected",
-            message = error?.get("message")?.jsonPrimitive?.content,
-            conflictId = error?.get("conflict_id")?.jsonPrimitive?.content,
-            createdAt = (r["created_at"] as Number).toLong(),
-        )
-    }
-
-    private companion object {
-        /** sync-wire.md: `operation` must match `^[a-z][a-z0-9_.]{2,80}$`. */
-        val OPERATION = Regex("^[a-z][a-z0-9_.]{2,80}$")
-    }
 }

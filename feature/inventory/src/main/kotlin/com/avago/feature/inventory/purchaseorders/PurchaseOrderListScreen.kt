@@ -1,4 +1,4 @@
-﻿package com.avago.feature.inventory.purchaseorders
+package com.avago.feature.inventory.purchaseorders
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -34,8 +34,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.avago.core.data.domain.PurchaseOrder
+import com.avago.core.data.domain.PurchaseOrderStatus
+import com.avago.core.data.v2.V2Money
 import com.avago.core.ui.EmptyState
 import com.avago.feature.inventory.R
+import java.math.BigDecimal
+import java.math.RoundingMode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,8 +92,8 @@ fun PurchaseOrderListScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    items(state.filtered, key = { it.po.poId }) { item ->
-                        PoCard(item = item, onClick = { onPoClick(item.po.poId) })
+                    items(state.filtered, key = { it.id }) { po ->
+                        PoCard(po = po, onClick = { onPoClick(po.id) })
                     }
                 }
             }
@@ -97,7 +102,7 @@ fun PurchaseOrderListScreen(
 }
 
 @Composable
-internal fun PoCard(item: PoListItem, onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun PoCard(po: PurchaseOrder, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -112,39 +117,44 @@ internal fun PoCard(item: PoListItem, onClick: () -> Unit, modifier: Modifier = 
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = item.po.poNumber ?: item.po.poId.take(8),
+                    text = po.displayNumber,
                     style = MaterialTheme.typography.titleMedium,
                 )
-                item.vendor?.let {
-                    Text(it.name, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                po.supplierName?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 AssistChip(
                     onClick = {},
-                    label = { Text(poStatusLabel(item.po.status), style = MaterialTheme.typography.labelSmall) },
+                    label = { Text(poStatusLabel(po.status), style = MaterialTheme.typography.labelSmall) },
                 )
             }
             Spacer(Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.End) {
-                item.po.grandTotal?.let {
-                    Text(
-                        text = "${item.po.currency ?: "USD"} ${"%.2f".format(it)}",
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                }
+                Text(
+                    text = formatPoMoney(po.currency, po.grandTotal),
+                    style = MaterialTheme.typography.titleMedium,
+                )
             }
         }
     }
 }
 
 @Composable
-fun poStatusLabel(status: String): String = when (status) {
-    "draft" -> stringResource(R.string.po_status_draft)
-    "pending_approval" -> stringResource(R.string.po_status_pending_approval)
-    "approved" -> stringResource(R.string.po_status_approved)
-    "ordered" -> stringResource(R.string.po_status_ordered)
-    "partially_received" -> stringResource(R.string.po_status_partially_received)
-    "received" -> stringResource(R.string.po_status_received)
-    "closed" -> stringResource(R.string.po_status_closed)
-    "cancelled" -> stringResource(R.string.po_status_cancelled)
-    else -> status
-}
+fun poStatusLabel(status: PurchaseOrderStatus): String = stringResource(
+    when (status) {
+        PurchaseOrderStatus.DRAFT -> R.string.po_status_draft
+        PurchaseOrderStatus.PENDING_APPROVAL -> R.string.po_status_pending_approval
+        PurchaseOrderStatus.APPROVED -> R.string.po_status_approved
+        PurchaseOrderStatus.ORDERED -> R.string.po_status_ordered
+        PurchaseOrderStatus.PARTIALLY_RECEIVED -> R.string.po_status_partially_received
+        PurchaseOrderStatus.RECEIVED -> R.string.po_status_received
+        PurchaseOrderStatus.CLOSED -> R.string.po_status_closed
+        PurchaseOrderStatus.CANCELLED -> R.string.po_status_cancelled
+    },
+)
+
+internal val PurchaseOrder.displayNumber: String get() = number ?: id.take(8)
+
+/** Formats a money amount in the currency's minor-unit precision. */
+internal fun formatPoMoney(currency: String, amount: BigDecimal): String =
+    "$currency ${amount.setScale(V2Money.fractionDigits(currency), RoundingMode.HALF_UP).toPlainString()}"

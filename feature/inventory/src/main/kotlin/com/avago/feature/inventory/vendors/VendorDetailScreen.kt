@@ -19,6 +19,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -79,12 +80,29 @@ fun VendorDetailScreen(
                     elevation = CardDefaults.cardElevation(1.dp),
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
+                        vendor.contactName?.let { DetailRow(stringResource(R.string.vendor_contact), it) }
                         vendor.email?.let { DetailRow(stringResource(R.string.vendor_email), it) }
                         vendor.phone?.let { DetailRow(stringResource(R.string.vendor_phone), it) }
                         vendor.address?.let { DetailRow(stringResource(R.string.vendor_address), it) }
                         vendor.paymentTerms?.let { DetailRow(stringResource(R.string.vendor_payment_terms), it) }
-                        vendor.taxId?.let { DetailRow(stringResource(R.string.vendor_tax_id), it) }
+                        vendor.website?.let { DetailRow(stringResource(R.string.vendor_website), it) }
+                        vendor.accountNumber?.let { DetailRow(stringResource(R.string.vendor_account_number), it) }
                     }
+                }
+            }
+
+            state.error?.let { message ->
+                item {
+                    Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+
+            item {
+                OutlinedButton(
+                    onClick = { viewModel.setActive(vendor.archived) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(if (vendor.archived) R.string.vendor_activate else R.string.vendor_deactivate))
                 }
             }
 
@@ -105,7 +123,7 @@ fun VendorDetailScreen(
                     )
                 }
             } else {
-                items(state.vendorParts, key = { it.vendorPart.vendorPartId }) { entry ->
+                items(state.vendorParts, key = { it.vendorPart.id }) { entry ->
                     VendorPartRow(entry = entry)
                     HorizontalDivider()
                 }
@@ -127,7 +145,7 @@ private fun VendorPartRow(entry: VendorPartWithPart) {
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    text = entry.part?.name ?: vp.vendorSku ?: vp.partId,
+                    text = entry.productName ?: vp.supplierSku ?: vp.productId,
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 if (vp.isPreferred) {
@@ -139,7 +157,7 @@ private fun VendorPartRow(entry: VendorPartWithPart) {
                     )
                 }
             }
-            vp.vendorSku?.let {
+            vp.supplierSku?.let {
                 Text(
                     text = "${stringResource(R.string.vendor_part_sku)}: $it",
                     style = MaterialTheme.typography.bodySmall,
@@ -147,16 +165,16 @@ private fun VendorPartRow(entry: VendorPartWithPart) {
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                vp.leadDays?.let {
+                vp.leadTimeDays?.let {
                     Text(
                         text = "${stringResource(R.string.vendor_part_lead_days)}: $it d",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                vp.moq?.let {
+                vp.minOrderQty?.let {
                     Text(
-                        text = "${stringResource(R.string.vendor_part_moq)}: ${it.toLong()}",
+                        text = "${stringResource(R.string.vendor_part_moq)}: ${it.stripTrailingZeros().toPlainString()}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -165,7 +183,7 @@ private fun VendorPartRow(entry: VendorPartWithPart) {
         }
         vp.unitCost?.let { cost ->
             Text(
-                text = "${vp.currency ?: "USD"} ${"%.2f".format(cost)}",
+                text = "${vp.currency.orEmpty()} ${cost.setScale(2, java.math.RoundingMode.HALF_EVEN).toPlainString()}".trim(),
                 style = MaterialTheme.typography.bodyMedium,
             )
         }

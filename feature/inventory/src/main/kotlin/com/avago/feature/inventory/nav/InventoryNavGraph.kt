@@ -28,7 +28,7 @@ import com.avago.feature.inventory.bins.BinDetailScreen
 import com.avago.feature.inventory.bins.BinListScreen
 import com.avago.feature.inventory.partissues.PartIssueDetailScreen
 import com.avago.feature.inventory.partissues.PartIssueListScreen
-import com.avago.feature.inventory.transfers.PartTransferRequestListScreen
+import com.avago.feature.inventory.transfers.TransferListScreen
 import com.avago.feature.inventory.warehouse.WarehouseIssueScreen
 import com.avago.feature.inventory.warehouse.WarehouseMenuScreen
 import com.avago.feature.inventory.warehouse.WarehouseMoveScreen
@@ -264,7 +264,7 @@ fun NavGraphBuilder.inventoryNavGraph(navController: NavHostController) {
         composable(InventoryRoute.GrnList.route) {
             GrnListScreen(
                 onBack = { navController.popBackStack() },
-                onGrnClick = { },
+                onPoClick = { poId -> navController.navigate(InventoryRoute.PurchaseOrderDetail.build(poId)) },
             )
         }
         composable(InventoryRoute.StockingLevels.route) {
@@ -277,7 +277,6 @@ fun NavGraphBuilder.inventoryNavGraph(navController: NavHostController) {
         composable(InventoryRoute.CycleCountList.route) {
             CycleCountListScreen(
                 onCountClick = { countId -> navController.navigate(InventoryRoute.CycleCountDetail.build(countId)) },
-                onCreateStartedCount = { countId -> navController.navigate(InventoryRoute.CycleCountFloor.build(countId)) },
             )
         }
         composable(
@@ -340,7 +339,7 @@ fun NavGraphBuilder.inventoryNavGraph(navController: NavHostController) {
 
         // Part Transfer Requests
         composable(InventoryRoute.PartTransferRequestList.route) {
-            PartTransferRequestListScreen(
+            TransferListScreen(
                 onBack = { navController.popBackStack() },
             )
         }

@@ -3,17 +3,22 @@ package com.avago.feature.inventory.cyclecounts
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
-import com.avago.core.network.AvagoServiceClient
+import com.avago.core.data.domain.InventoryRepository
+import com.avago.core.data.domain.StockMovement
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import timber.log.Timber
+import java.math.BigDecimal
 import javax.inject.Inject
 
 data class ScannedItem(
@@ -22,15 +27,20 @@ data class ScannedItem(
     val count: Int,
 )
 
+/**
+ * Scan-to-count: each scan of a product's code adds one to its count line and records the new
+ * total with `stock.cycle_counts.count_line`, so every scan reaches the server through the outbox.
+ */
 @HiltViewModel
 class CycleCountFloorViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val databaseFactory: DatabaseFactory,
-    private val identityManager: IdentityManager,
-    private val serviceClient: AvagoServiceClient,
+    private val inventory: InventoryRepository,
 ) : ViewModel() {
 
     private val cycleCountId: String = checkNotNull(savedStateHandle["cycleCountId"])
+
+    val count: StateFlow<StockMovement?> = inventory.observeMovement(cycleCountId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _recentScans = MutableStateFlow<List<ScannedItem>>(emptyList())
     val recentScans: StateFlow<List<ScannedItem>> = _recentScans.asStateFlow()
@@ -44,95 +54,66 @@ class CycleCountFloorViewModel @Inject constructor(
     private val _isCompleting = MutableStateFlow(false)
     val isCompleting: StateFlow<Boolean> = _isCompleting.asStateFlow()
 
-    fun onBarcodeScanned(barcode: String) {
-        val accountId = identityManager.getActiveAccountId() ?: return
+    // Rapid scans of the same code must each add one; serialise read-modify-write.
+    private val scanLock = Mutex()
+    private var feedbackJob: Job? = null
 
+    fun onBarcodeScanned(barcode: String) {
         viewModelScope.launch {
             _lastScannedBarcode.value = barcode
-            Timber.d("[CycleCountFloorViewModel] Barcode scanned: $barcode for count: $cycleCountId")
-
             try {
-                val db = databaseFactory.get(accountId)
-                val part = db.partDao().getByBarcode(barcode)
-
-                if (part == null) {
-                    Timber.d("[CycleCountFloorViewModel] Part not found for barcode: $barcode")
-                    _scanFeedback.value = "Barcode not found: $barcode"
-                    clearFeedbackAfterDelay()
-                    return@launch
-                }
-
-                // Look up the cycle count line for this part — take a one-shot snapshot
-                val allLines = db.cycleCountLineDao().observeAll(accountId).first()
-                val line = allLines.find { it.cycleCountId == cycleCountId && it.partId == part.partId }
-
-                if (line == null) {
-                    Timber.d("[CycleCountFloorViewModel] No cycle count line found for part: ${part.partId}")
-                    _scanFeedback.value = "Barcode not found: $barcode"
-                    clearFeedbackAfterDelay()
-                    return@launch
-                }
-
-                // Increment the counted quantity
-                val now = System.currentTimeMillis()
-                val newQty = (line.countedQty ?: 0.0) + 1.0
-                val updatedLine = line.copy(
-                    countedQty = newQty,
-                    isCounted = true,
-                    countedAt = now,
-                    countedBy = accountId,
-                    updatedAt = now,
-                )
-                db.cycleCountLineDao().upsert(updatedLine)
-                Timber.d("[CycleCountFloorViewModel] Updated counted qty to $newQty for part ${part.name}")
-
-                // Update recent scans list (keep last 5, deduplicate by barcode updating count)
-                val currentScans = _recentScans.value.toMutableList()
-                val existingIndex = currentScans.indexOfFirst { it.barcode == barcode }
-                if (existingIndex >= 0) {
-                    currentScans[existingIndex] = currentScans[existingIndex].copy(
-                        count = currentScans[existingIndex].count + 1,
-                    )
-                    // Move to front
-                    val updated = currentScans.removeAt(existingIndex)
-                    currentScans.add(0, updated)
-                } else {
-                    currentScans.add(0, ScannedItem(partName = part.name, barcode = barcode, count = 1))
-                }
-                _recentScans.value = currentScans.take(5)
-
-                _scanFeedback.value = "${part.name}: +1"
-                clearFeedbackAfterDelay()
+                scanLock.withLock { countScan(barcode) }
             } catch (e: Exception) {
-                Timber.e(e, "[CycleCountFloorViewModel] Error processing barcode: $barcode")
-                _scanFeedback.value = "Error scanning barcode"
-                clearFeedbackAfterDelay()
+                Timber.e(e, "CycleCountFloorViewModel: scan of $barcode failed")
+                showFeedback(e.message ?: "Error scanning barcode")
             }
         }
     }
 
+    private suspend fun countScan(barcode: String) {
+        val product = inventory.productByCode(barcode)
+        if (product == null) {
+            showFeedback("Barcode not found: $barcode")
+            return
+        }
+        val current = inventory.observeMovement(cycleCountId).first()
+        val line = current?.lines?.firstOrNull { it.productId == product.id }
+        if (line == null) {
+            showFeedback("${product.name} is not part of this count")
+            return
+        }
+        val newQty = (line.countedQty ?: BigDecimal.ZERO) + BigDecimal.ONE
+        inventory.recordCount(line.id, newQty)
+
+        val scans = _recentScans.value.toMutableList()
+        val existing = scans.indexOfFirst { it.barcode == barcode }
+        val item = if (existing >= 0) scans.removeAt(existing).let { it.copy(count = it.count + 1) }
+        else ScannedItem(partName = product.name, barcode = barcode, count = 1)
+        scans.add(0, item)
+        _recentScans.value = scans.take(5)
+        showFeedback("${product.name}: ${newQty.stripTrailingZeros().toPlainString()}")
+    }
 
     fun markComplete(onComplete: () -> Unit) {
-        val accountId = identityManager.getActiveAccountId() ?: return
         if (_isCompleting.value) return
-
         viewModelScope.launch {
             _isCompleting.value = true
             try {
-                serviceClient.completeCycleCount(accountId, cycleCountId)
+                scanLock.withLock { inventory.completeCycleCount(cycleCountId) }
                 onComplete()
             } catch (e: Exception) {
-                Timber.e(e, "[CycleCountFloorViewModel] Complete failed for count: $cycleCountId")
-                _scanFeedback.value = e.message ?: "Error completing cycle count"
-                clearFeedbackAfterDelay()
+                Timber.e(e, "CycleCountFloorViewModel: complete failed for $cycleCountId")
+                showFeedback(e.message ?: "Error completing cycle count")
             } finally {
                 _isCompleting.value = false
             }
         }
     }
 
-    private fun clearFeedbackAfterDelay() {
-        viewModelScope.launch {
+    private fun showFeedback(message: String) {
+        _scanFeedback.value = message
+        feedbackJob?.cancel()
+        feedbackJob = viewModelScope.launch {
             delay(2_000)
             _scanFeedback.value = null
         }

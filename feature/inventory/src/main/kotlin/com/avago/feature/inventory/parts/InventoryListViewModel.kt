@@ -2,35 +2,26 @@ package com.avago.feature.inventory.parts
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
-import com.avago.core.data.db.entity.InventoryEntity
-import com.avago.core.data.db.entity.PartEntity
-import com.avago.core.data.db.entity.StockingLevelEntity
+import com.avago.core.data.domain.InventoryRepository
+import com.avago.core.data.domain.ProductStock
+import com.avago.core.data.domain.StockStatus
 import com.avago.core.permissions.Permissions
 import com.avago.core.permissions.PermissionsManager
 import com.avago.core.sync.SyncEngine
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
 
-data class PartListItem(
-    val part: PartEntity,
-    val inventory: InventoryEntity?,
-    val stockingLevel: StockingLevelEntity?,
-    val needsReorder: Boolean,
-)
+data class PartListItem(val stock: ProductStock) {
+    val category: String? get() = stock.product.categoryName?.ifBlank { null }
+}
 
 /** One entry in the displayed list — either a section header or a part row. */
 sealed interface InventoryListEntry {
@@ -55,8 +46,7 @@ data class InventoryListUiState(
 
 @HiltViewModel
 class InventoryListViewModel @Inject constructor(
-    private val dbFactory: DatabaseFactory,
-    private val identityManager: IdentityManager,
+    private val inventory: InventoryRepository,
     private val syncEngine: SyncEngine,
     private val permissionsManager: PermissionsManager,
 ) : ViewModel() {
@@ -71,73 +61,27 @@ class InventoryListViewModel @Inject constructor(
     val selectedCategory = MutableStateFlow<String?>(null)
     val stockFilter = MutableStateFlow("all")
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private val accountFlow = identityManager.activeAccountId.flatMapLatest { accountId ->
-        if (accountId == null) flowOf(Triple(emptyList<PartEntity>(), emptyList<InventoryEntity>(), emptyList<StockingLevelEntity>()))
-        else {
-            val db = dbFactory.get(accountId)
-            combine(
-                db.partDao().observeAll(accountId),
-                db.inventoryDao().observeAll(accountId),
-                db.stockingLevelDao().observeAll(accountId),
-            ) { parts, inventories, stockingLevels -> Triple(parts, inventories, stockingLevels) }
-        }
-    }
-
     val uiState: StateFlow<InventoryListUiState> = combine(
-        accountFlow,
+        inventory.observeProductStock(),
         searchQuery,
         selectedCategory,
         stockFilter,
-    ) { (parts, inventories, stockingLevels), query, category, stockFilterVal ->
-        val invByPart = inventories.associateBy { it.partId }
-        val slByPart = stockingLevels.associateBy { it.partId }
-
-        val allItems = parts.map { part ->
-            val inv = invByPart[part.partId]
-            val sl = slByPart[part.partId]
-            val needsReorder = if (inv != null && sl != null) {
-                StockingLevelPolicy.needsReorder(
-                    onHand = inv.quantityOnHand,
-                    minQty = sl.minQty ?: 0.0,
-                    safetyStock = sl.safetyStock ?: 0.0,
-                )
-            } else false
-            PartListItem(part, inv, sl, needsReorder)
-        }
-
-        val categories = parts.mapNotNull { it.category }.distinct().sorted()
-
-        // Summary stats from full unfiltered list
-        val totalCount = allItems.size
-        val inStockCount = allItems.count { item ->
-            val onHand = item.inventory?.quantityOnHand ?: 0.0
-            val threshold = (item.stockingLevel?.minQty ?: 0.0) + (item.stockingLevel?.safetyStock ?: 0.0)
-            onHand > threshold
-        }
-        val outOfStockCount = allItems.count { item ->
-            val onHand = item.inventory?.quantityOnHand ?: 0.0
-            onHand <= 0.0
-        }
-        val lowStockCount = allItems.count { item ->
-            val onHand = item.inventory?.quantityOnHand ?: 0.0
-            val threshold = (item.stockingLevel?.minQty ?: 0.0) + (item.stockingLevel?.safetyStock ?: 0.0)
-            onHand > 0.0 && onHand <= threshold
-        }
+    ) { stock, query, category, stockFilterVal ->
+        val allItems = stock.map(::PartListItem)
+        val categories = allItems.mapNotNull { it.category }.distinct().sorted()
 
         val filtered = allItems.filter { item ->
-            val onHand = item.inventory?.quantityOnHand ?: 0.0
-            val threshold = (item.stockingLevel?.minQty ?: 0.0) + (item.stockingLevel?.safetyStock ?: 0.0)
-
+            val product = item.stock.product
             val matchesQuery = query.isBlank() ||
-                item.part.name.contains(query, ignoreCase = true) ||
-                item.part.sku?.contains(query, ignoreCase = true) == true ||
-                item.part.manufacturer?.contains(query, ignoreCase = true) == true
-            val matchesCategory = category == null || item.part.category == category
+                product.name.contains(query, ignoreCase = true) ||
+                product.sku.contains(query, ignoreCase = true) ||
+                product.manufacturer?.contains(query, ignoreCase = true) == true ||
+                product.gtin?.contains(query, ignoreCase = true) == true
+            val matchesCategory = category == null || item.category == category
             val matchesStock = when (stockFilterVal) {
-                "in_stock" -> onHand > threshold
-                "low_stock" -> onHand > 0.0 && onHand <= threshold
-                "out_of_stock" -> onHand <= 0.0
+                "in_stock" -> item.stock.status == StockStatus.IN_STOCK
+                "low_stock" -> item.stock.status == StockStatus.LOW
+                "out_of_stock" -> item.stock.status == StockStatus.OUT
                 else -> true
             }
             matchesQuery && matchesCategory && matchesStock
@@ -146,12 +90,12 @@ class InventoryListViewModel @Inject constructor(
         // Build display list: group by category with section headers, sorted alphabetically within each group
         val displayList = buildList {
             val grouped = filtered
-                .groupBy { it.part.category?.ifBlank { null } ?: "Uncategorized" }
+                .groupBy { it.category ?: "Uncategorized" }
                 .entries
                 .sortedBy { it.key }
             for ((groupKey, groupItems) in grouped) {
                 add(InventoryListEntry.Header(groupKey))
-                groupItems.sortedBy { it.part.name }.forEach { add(InventoryListEntry.PartRow(it)) }
+                groupItems.sortedBy { it.stock.product.name.lowercase() }.forEach { add(InventoryListEntry.PartRow(it)) }
             }
         }
 
@@ -163,10 +107,10 @@ class InventoryListViewModel @Inject constructor(
             stockFilter = stockFilterVal,
             categories = categories,
             isLoading = false,
-            totalCount = totalCount,
-            inStockCount = inStockCount,
-            lowStockCount = lowStockCount,
-            outOfStockCount = outOfStockCount,
+            totalCount = allItems.size,
+            inStockCount = allItems.count { it.stock.status == StockStatus.IN_STOCK },
+            lowStockCount = allItems.count { it.stock.status == StockStatus.LOW },
+            outOfStockCount = allItems.count { it.stock.status == StockStatus.OUT },
         )
     }.stateIn(
         scope = viewModelScope,

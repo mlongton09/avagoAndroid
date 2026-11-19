@@ -1,4 +1,4 @@
-﻿package com.avago.feature.inventory.parts
+package com.avago.feature.inventory.parts
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,7 +14,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -27,6 +26,7 @@ import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
@@ -73,8 +73,7 @@ fun AddEditPartScreen(
     if (showLocationPicker) {
         LocationPickerSheet(
             onLocationPicked = { location ->
-                if (location != null) viewModel.setLocation(location.locationId, location.name)
-                else viewModel.setLocation("", "")
+                viewModel.setLocation(location)
                 showLocationPicker = false
             },
             onDismiss = { showLocationPicker = false },
@@ -122,7 +121,7 @@ fun AddEditPartScreen(
             OutlinedTextField(
                 value = state.manufacturer,
                 onValueChange = viewModel::setManufacturer,
-                label = { Text("Manufacturer") },
+                label = { Text(stringResource(R.string.part_manufacturer_label)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
@@ -168,47 +167,6 @@ fun AddEditPartScreen(
                 }
             }
 
-            // Location
-            OutlinedCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .semantics { role = Role.Button }
-                    .clickable { showLocationPicker = true },
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column {
-                        Text(
-                            text = "Location",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            text = state.locationName.ifBlank { "None" },
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                    }
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
-            OutlinedTextField(
-                value = state.description,
-                onValueChange = viewModel::setDescription,
-                label = { Text(stringResource(R.string.part_description_label)) },
-                modifier = Modifier.fillMaxWidth(),
-                maxLines = 3,
-            )
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -235,69 +193,101 @@ fun AddEditPartScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 OutlinedTextField(
-                    value = state.minQty,
-                    onValueChange = viewModel::setMinQty,
-                    label = { Text(stringResource(R.string.part_min_qty_label)) },
+                    value = state.reorderQty,
+                    onValueChange = viewModel::setReorderQty,
+                    label = { Text(stringResource(R.string.part_reorder_qty_label)) },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 )
-                OutlinedTextField(
-                    value = state.maxQty,
-                    onValueChange = viewModel::setMaxQty,
-                    label = { Text(stringResource(R.string.part_max_qty_label)) },
+                OptionDropdown(
+                    label = stringResource(R.string.part_abc_class_label),
+                    selected = state.abcClass,
+                    options = listOf("") + ABC_CLASSES,
+                    display = { it.ifBlank { "\u2014" } },
+                    onSelected = viewModel::setAbcClass,
                     modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 )
             }
 
-            OutlinedTextField(
-                value = state.safetyStock,
-                onValueChange = viewModel::setSafetyStock,
-                label = { Text(stringResource(R.string.part_safety_stock_label)) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            )
-
             // Unit of Measure dropdown
-            UomDropdown(
+            OptionDropdown(
+                label = stringResource(R.string.part_uom_label),
                 selected = state.uom,
+                options = UOM_OPTIONS,
+                display = { it },
                 onSelected = viewModel::setUom,
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            // Status dropdown
-            StatusDropdown(
-                selected = state.status,
-                onSelected = viewModel::setStatus,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            // Barcode field with scan stub
             OutlinedTextField(
                 value = state.barcode,
                 onValueChange = viewModel::setBarcode,
                 label = { Text(stringResource(R.string.part_barcode_label)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                trailingIcon = {
-                    IconButton(onClick = { /* Phase 10: ML Kit scanner */ }) {
-                        Icon(
-                            Icons.Default.QrCodeScanner,
-                            contentDescription = stringResource(R.string.part_scan_barcode),
-                        )
-                    }
-                },
             )
+
+            OutlinedTextField(
+                value = state.notes,
+                onValueChange = viewModel::setNotes,
+                label = { Text(stringResource(R.string.part_notes_label)) },
+                modifier = Modifier.fillMaxWidth(),
+                maxLines = 4,
+            )
+
+            if (partId != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        stringResource(R.string.part_archived_label),
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(checked = state.archived, onCheckedChange = viewModel::setArchived)
+                }
+            }
 
             // Initial Quantity — only for new parts
             if (partId == null) {
+                OutlinedCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics { role = Role.Button }
+                        .clickable { showLocationPicker = true },
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column {
+                            Text(
+                                text = stringResource(R.string.part_initial_location),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                text = state.locationName ?: stringResource(R.string.part_initial_location_none),
+                                style = MaterialTheme.typography.bodyLarge,
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
                 OutlinedTextField(
                     value = state.initialQty,
                     onValueChange = viewModel::setInitialQty,
-                    label = { Text("Initial Quantity") },
+                    label = { Text(stringResource(R.string.part_initial_qty_label)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -305,7 +295,7 @@ fun AddEditPartScreen(
             }
 
             state.error?.let {
-                Text(text = it)
+                Text(text = it, color = MaterialTheme.colorScheme.error)
             }
 
             Spacer(Modifier.height(8.dp))
@@ -325,8 +315,11 @@ fun AddEditPartScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun UomDropdown(
+private fun OptionDropdown(
+    label: String,
     selected: String,
+    options: List<String>,
+    display: (String) -> String,
     onSelected: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -337,10 +330,10 @@ private fun UomDropdown(
         modifier = modifier,
     ) {
         OutlinedTextField(
-            value = selected,
+            value = display(selected),
             onValueChange = {},
             readOnly = true,
-            label = { Text("Unit of Measure") },
+            label = { Text(label) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
                 .fillMaxWidth()
@@ -350,50 +343,9 @@ private fun UomDropdown(
             expanded = expanded,
             onDismissRequest = { expanded = false },
         ) {
-            UOM_OPTIONS.forEach { option ->
+            options.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text(option) },
-                    onClick = {
-                        onSelected(option)
-                        expanded = false
-                    },
-                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
-                )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun StatusDropdown(
-    selected: String,
-    onSelected: (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = it },
-        modifier = modifier,
-    ) {
-        OutlinedTextField(
-            value = selected.replace('_', ' ').replaceFirstChar { it.uppercaseChar() },
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("Status") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
-        )
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-        ) {
-            STATUS_OPTIONS.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(option.replace('_', ' ').replaceFirstChar { it.uppercaseChar() }) },
+                    text = { Text(display(option)) },
                     onClick = {
                         onSelected(option)
                         expanded = false

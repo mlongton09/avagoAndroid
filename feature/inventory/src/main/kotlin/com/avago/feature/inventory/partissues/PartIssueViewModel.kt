@@ -1,100 +1,91 @@
 package com.avago.feature.inventory.partissues
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
-import com.avago.core.data.db.entity.PartEntity
-import com.avago.core.data.db.entity.PartIssueEntity
-import com.avago.core.data.db.entity.PartIssueLineEntity
+import com.avago.core.data.domain.InventoryRepository
+import com.avago.core.data.domain.LocationRepository
+import com.avago.core.data.domain.MovementKind
+import com.avago.core.data.domain.MovementStatus
+import com.avago.core.data.domain.StockMovement
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
-// ---------------------------------------------------------------------------
-// Part Issue List
-// ---------------------------------------------------------------------------
+/** Issue-history filter: issues/returns vs. transfers. */
+enum class IssueFilter(val kinds: Set<MovementKind>) {
+    ALL(ISSUE_KINDS + TRANSFER_KINDS),
+    ISSUE(ISSUE_KINDS),
+    TRANSFER(TRANSFER_KINDS),
+}
+
+private val ISSUE_KINDS get() = setOf(MovementKind.ISSUE, MovementKind.RETURN)
+private val TRANSFER_KINDS get() = setOf(MovementKind.TRANSFER, MovementKind.TRANSFER_DISPATCH, MovementKind.TRANSFER_RECEIPT)
+
+val StockMovement.isTransfer: Boolean get() = kind in TRANSFER_KINDS
 
 data class PartIssueListUiState(
-    val issues: List<PartIssueEntity> = emptyList(),
-    val filterType: String? = null,
+    val issues: List<StockMovement> = emptyList(),
+    val locationNames: Map<String, String> = emptyMap(),
+    val filter: IssueFilter = IssueFilter.ALL,
     val isLoading: Boolean = true,
 )
 
-@OptIn(ExperimentalCoroutinesApi::class)
+/** Posted issues, returns and transfers, newest first. */
 @HiltViewModel
 class PartIssueListViewModel @Inject constructor(
-    private val dbFactory: DatabaseFactory,
-    private val identityManager: IdentityManager,
+    inventory: InventoryRepository,
+    locations: LocationRepository,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(PartIssueListUiState())
-    val state: StateFlow<PartIssueListUiState> = _state.asStateFlow()
+    private val filter = MutableStateFlow(IssueFilter.ALL)
 
-    init {
-        viewModelScope.launch {
-            identityManager.activeAccountId
-                .filterNotNull()
-                .flatMapLatest { accountId -> dbFactory.get(accountId).partIssueDao().observeAll(accountId) }
-                .collect { issues ->
-                    _state.value = _state.value.copy(issues = issues, isLoading = false)
-                }
-        }
-    }
+    val state: StateFlow<PartIssueListUiState> = combine(
+        inventory.observeMovements(IssueFilter.ALL.kinds, setOf(MovementStatus.POSTED)),
+        locations.observeLocations(includeArchived = true),
+        filter,
+    ) { movements, locs, f ->
+        PartIssueListUiState(
+            issues = movements.filter { it.kind in f.kinds }.sortedByDescending { it.effectiveAt ?: it.createdAt },
+            locationNames = locs.associate { it.id to it.name },
+            filter = f,
+            isLoading = false,
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PartIssueListUiState())
 
-    fun setFilter(type: String?) { _state.value = _state.value.copy(filterType = type) }
-
-    fun filteredIssues(): List<PartIssueEntity> {
-        val s = _state.value
-        return if (s.filterType == null) s.issues
-        else s.issues.filter { it.issueType == s.filterType }
-    }
+    fun setFilter(f: IssueFilter) { filter.value = f }
 }
 
-// ---------------------------------------------------------------------------
-// Part Issue Detail
-// ---------------------------------------------------------------------------
-
 data class PartIssueDetailUiState(
-    val issue: PartIssueEntity? = null,
-    val lines: List<PartIssueLineEntity> = emptyList(),
-    val parts: Map<String, PartEntity> = emptyMap(),
+    val issue: StockMovement? = null,
+    val locationNames: Map<String, String> = emptyMap(),
     val isLoading: Boolean = true,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class PartIssueDetailViewModel @Inject constructor(
-    private val dbFactory: DatabaseFactory,
-    private val identityManager: IdentityManager,
+    savedStateHandle: SavedStateHandle,
+    inventory: InventoryRepository,
+    locations: LocationRepository,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(PartIssueDetailUiState())
-    val state: StateFlow<PartIssueDetailUiState> = _state.asStateFlow()
+    private val issueId = MutableStateFlow(savedStateHandle.get<String>("issueId"))
 
-    fun load(issueId: String) {
-        viewModelScope.launch {
-            val accountId = identityManager.getActiveAccountId() ?: return@launch
-            val db = dbFactory.get(accountId)
-            val issue = db.partIssueDao().getById(issueId)
-            _state.value = _state.value.copy(issue = issue)
+    val state: StateFlow<PartIssueDetailUiState> = combine(
+        issueId.filterNotNull().flatMapLatest(inventory::observeMovement),
+        locations.observeLocations(includeArchived = true).map { locs -> locs.associate { it.id to it.name } },
+    ) { movement, names ->
+        PartIssueDetailUiState(issue = movement, locationNames = names, isLoading = false)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PartIssueDetailUiState())
 
-            db.partIssueLineDao().observeByIssueId(issueId).collect { lines ->
-                val partIds = lines.mapNotNull { it.partId }.toSet()
-                val partsMap = partIds.associateWith { pid ->
-                    db.partDao().getById(pid)
-                }.filterValues { it != null }.mapValues { it.value!! }
-                _state.value = _state.value.copy(lines = lines, parts = partsMap, isLoading = false)
-            }
-        }
-    }
-
-    fun partName(partId: String): String =
-        _state.value.parts[partId]?.name ?: partId
+    fun load(id: String) { issueId.value = id }
 }

@@ -1,13 +1,10 @@
-﻿package com.avago.feature.inventory.purchaseorders
+package com.avago.feature.inventory.purchaseorders
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -15,9 +12,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -43,10 +37,9 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.ui.EmptyState
 import com.avago.feature.inventory.R
-import com.avago.feature.inventory.cyclecounts.CYCLE_COUNT_STATUSES
 import com.avago.feature.inventory.cyclecounts.CycleCountCreateSheet
 import com.avago.feature.inventory.cyclecounts.CycleCountListViewModel
-import com.avago.feature.inventory.cyclecounts.cycleCountStatusLabel
+import com.avago.feature.inventory.cyclecounts.CycleCountListContent
 import com.avago.feature.inventory.warehouse.ReorderItemCard
 import com.avago.feature.inventory.warehouse.WarehouseReorderViewModel
 
@@ -68,7 +61,10 @@ fun PurchaseOrdersContainerScreen(
     if (cycleState.showCreateSheet) {
         CycleCountCreateSheet(
             onDismiss = cycleCountViewModel::dismissCreate,
-            onCreatedAndStarted = onCountClick,
+            onCreatedAndStarted = { countId ->
+                cycleCountViewModel.dismissCreate()
+                onCountClick(countId)
+            },
         )
     }
 
@@ -174,8 +170,8 @@ private fun PoTabContent(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(state.filtered, key = { it.po.poId }) { item ->
-                    PoCard(item = item, onClick = { onPoClick(item.po.poId) })
+                items(state.filtered, key = { it.id }) { po ->
+                    PoCard(po = po, onClick = { onPoClick(po.id) })
                 }
             }
         }
@@ -189,68 +185,12 @@ private fun CycleCountTabContent(
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    Column(modifier = modifier) {
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            item {
-                FilterChip(
-                    selected = state.selectedStatus == null,
-                    onClick = { viewModel.setStatus(null) },
-                    label = { Text(stringResource(R.string.po_status_all)) },
-                )
-            }
-            items(CYCLE_COUNT_STATUSES) { status ->
-                FilterChip(
-                    selected = state.selectedStatus == status,
-                    onClick = { viewModel.setStatus(status) },
-                    label = { Text(cycleCountStatusLabel(status)) },
-                )
-            }
-        }
-        if (state.filtered.isEmpty() && !state.isLoading) {
-            EmptyState(message = stringResource(R.string.cycle_count_empty))
-        } else {
-            LazyColumn(
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(state.filtered, key = { it.cycleCountId }) { count ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onCountClick(count.cycleCountId) },
-                        elevation = CardDefaults.cardElevation(1.dp),
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .padding(16.dp)
-                                .fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column {
-                                Text(
-                                    text = count.cycleCountId.take(8),
-                                    style = MaterialTheme.typography.titleMedium,
-                                )
-                                Text(
-                                    text = count.locationId,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            AssistChip(
-                                onClick = {},
-                                label = { Text(cycleCountStatusLabel(count.status)) },
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
+    CycleCountListContent(
+        state = state,
+        onStatus = viewModel::setStatus,
+        onCountClick = onCountClick,
+        modifier = modifier,
+    )
 }
 
 @Composable
@@ -258,8 +198,9 @@ private fun ReorderTabContent(
     viewModel: WarehouseReorderViewModel,
     modifier: Modifier = Modifier,
 ) {
-    val reorderItems by viewModel.reorderItems.collectAsStateWithLifecycle()
-    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val reorderItems = state.items
+    val isLoading = state.isLoading
 
     if (isLoading) {
         Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -279,7 +220,7 @@ private fun ReorderTabContent(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            items(reorderItems, key = { it.part.partId }) { item ->
+            items(reorderItems, key = { it.stock.product.id }) { item ->
                 ReorderItemCard(item = item)
             }
         }

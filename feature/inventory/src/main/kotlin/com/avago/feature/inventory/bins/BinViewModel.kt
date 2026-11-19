@@ -2,18 +2,15 @@ package com.avago.feature.inventory.bins
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
-import com.avago.core.data.v2.LocationBinReads
-import com.avago.core.data.db.entity.BinEntity
-import com.avago.core.data.db.entity.LocationEntity
+import com.avago.core.data.domain.Bin
+import com.avago.core.data.domain.Location
+import com.avago.core.data.domain.LocationRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -22,18 +19,15 @@ import javax.inject.Inject
 // ---------------------------------------------------------------------------
 
 data class BinListUiState(
-    val bins: List<BinEntity> = emptyList(),
-    val locations: List<LocationEntity> = emptyList(),
+    val bins: List<Bin> = emptyList(),
+    val locations: List<Location> = emptyList(),
     val filterLocationId: String? = null,
     val isLoading: Boolean = true,
 )
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class BinListViewModel @Inject constructor(
-    private val dbFactory: DatabaseFactory,
-    private val locationReads: LocationBinReads,
-    private val identityManager: IdentityManager,
+    private val locations: LocationRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(BinListUiState())
@@ -41,33 +35,22 @@ class BinListViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            identityManager.activeAccountId
-                .filterNotNull()
-                .flatMapLatest { accountId -> locationReads.observeBins(accountId) }
-                .collect { bins ->
-                    _state.value = _state.value.copy(bins = bins, isLoading = false)
-                }
-        }
-        viewModelScope.launch {
-            identityManager.activeAccountId
-                .filterNotNull()
-                .flatMapLatest { accountId -> locationReads.observeLocations(accountId) }
-                .collect { locs -> _state.value = _state.value.copy(locations = locs) }
+            combine(locations.observeBins(), locations.observeLocations()) { bins, locs -> bins to locs }
+                .collect { (bins, locs) -> _state.update { it.copy(bins = bins, locations = locs, isLoading = false) } }
         }
     }
 
     fun setFilterLocation(locationId: String?) {
-        _state.value = _state.value.copy(filterLocationId = locationId)
+        _state.update { it.copy(filterLocationId = locationId) }
     }
 
-    fun filteredBins(): List<BinEntity> {
+    fun filteredBins(): List<Bin> {
         val s = _state.value
-        return if (s.filterLocationId == null) s.bins
-        else s.bins.filter { it.locationId == s.filterLocationId }
+        return if (s.filterLocationId == null) s.bins else s.bins.filter { it.locationId == s.filterLocationId }
     }
 
     fun locationName(locationId: String): String =
-        _state.value.locations.firstOrNull { it.locationId == locationId }?.name ?: locationId
+        _state.value.locations.firstOrNull { it.id == locationId }?.name ?: locationId
 }
 
 // ---------------------------------------------------------------------------
@@ -75,16 +58,14 @@ class BinListViewModel @Inject constructor(
 // ---------------------------------------------------------------------------
 
 data class BinDetailUiState(
-    val bin: BinEntity? = null,
+    val bin: Bin? = null,
     val locationName: String = "",
     val isLoading: Boolean = true,
 )
 
 @HiltViewModel
 class BinDetailViewModel @Inject constructor(
-    private val dbFactory: DatabaseFactory,
-    private val locationReads: LocationBinReads,
-    private val identityManager: IdentityManager,
+    private val locations: LocationRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(BinDetailUiState())
@@ -92,11 +73,8 @@ class BinDetailViewModel @Inject constructor(
 
     fun load(binId: String) {
         viewModelScope.launch {
-            val accountId = identityManager.getActiveAccountId() ?: return@launch
-            val bin = locationReads.bin(accountId, binId)
-            val locationName = bin?.let { b ->
-                locationReads.location(accountId, b.locationId)?.name ?: b.locationId
-            } ?: ""
+            val bin = locations.bin(binId)
+            val locationName = bin?.let { b -> locations.location(b.locationId)?.name ?: b.locationId }.orEmpty()
             _state.value = BinDetailUiState(bin = bin, locationName = locationName, isLoading = false)
         }
     }

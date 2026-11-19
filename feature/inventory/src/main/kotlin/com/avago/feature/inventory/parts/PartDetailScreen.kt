@@ -1,7 +1,6 @@
-﻿package com.avago.feature.inventory.parts
+package com.avago.feature.inventory.parts
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -19,7 +18,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -27,7 +26,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -38,7 +36,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.avago.core.network.model.PartBinLocation
+import com.avago.core.data.domain.ProductSupplier
+import com.avago.core.data.domain.StockCondition
+import com.avago.core.data.domain.StockPosition
+import com.avago.core.data.domain.StockingPolicy
+import com.avago.core.data.domain.formatMoney
+import com.avago.core.data.domain.formatQty
 import com.avago.core.ui.EmptyState
 import com.avago.feature.inventory.R
 
@@ -52,29 +55,14 @@ fun PartDetailScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-    if (state.showReceiveSheet) {
-        state.inventory?.let { inventory ->
-            ReceiveUseModalSheet(
-                inventoryId = inventory.inventoryId,
-                mode = ReceiveUseMode.RECEIVE,
-                onDismiss = viewModel::dismissSheet,
-            )
-        }
-    }
-    if (state.showUseSheet) {
-        state.inventory?.let { inventory ->
-            ReceiveUseModalSheet(
-                inventoryId = inventory.inventoryId,
-                mode = ReceiveUseMode.USE,
-                onDismiss = viewModel::dismissSheet,
-            )
-        }
+    state.sheet?.let { mode ->
+        ReceiveUseModalSheet(productId = partId, mode = mode, onDismiss = viewModel::dismissSheet)
     }
 
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(state.part?.name ?: stringResource(R.string.part_detail_title)) },
+                title = { Text(state.product?.name ?: stringResource(R.string.part_detail_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
@@ -88,14 +76,15 @@ fun PartDetailScreen(
             )
         },
     ) { padding ->
-        val part = state.part
-        if (part == null) {
+        val product = state.product
+        if (product == null) {
             EmptyState(
-                message = stringResource(R.string.common_loading),
+                message = stringResource(if (state.isLoading) R.string.common_loading else R.string.part_not_found),
                 modifier = Modifier.padding(padding),
             )
             return@Scaffold
         }
+        val locationNames = state.positions.associate { it.locationId to (it.locationName ?: it.locationId) }
 
         LazyColumn(
             modifier = Modifier.padding(padding),
@@ -103,39 +92,26 @@ fun PartDetailScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
-                // Part header card
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     elevation = CardDefaults.cardElevation(1.dp),
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        part.sku?.let { LabelValue(stringResource(R.string.part_sku), it) }
-                        // Part number (sku shown as "Part #")
-                        if (!part.sku.isNullOrBlank()) {
-                            Text(
-                                text = "Part #: ${part.sku}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                        LabelValue(stringResource(R.string.part_sku), product.sku)
+                        product.manufacturer?.takeIf { it.isNotBlank() }?.let {
+                            LabelValue("Manufacturer", listOfNotNull(it, product.modelNumber).joinToString(" · "))
                         }
-                        // Manufacturer from attributes JSON
-                        if (!state.manufacturer.isNullOrBlank()) {
-                            Text(
-                                text = "Mfr: ${state.manufacturer}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                        product.categoryName?.let { LabelValue(stringResource(R.string.part_category), it) }
+                        product.gtin?.let { LabelValue(stringResource(R.string.part_barcode_label), it) }
+                        product.standardUnitCost?.let {
+                            LabelValue(stringResource(R.string.part_unit_cost_label), it.formatMoney(product.costCurrency))
                         }
-                        part.category?.let { LabelValue(stringResource(R.string.part_category), it) }
-                        part.description?.let { LabelValue("Description", it) }
+                        product.notes?.takeIf { it.isNotBlank() }?.let { LabelValue("Notes", it) }
                     }
                 }
             }
 
             item {
-                // Stock stats card with inline quick-adjust buttons
-                val inv = state.inventory
-                val sl = state.stockingLevel
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     elevation = CardDefaults.cardElevation(1.dp),
@@ -146,42 +122,15 @@ fun PartDetailScreen(
                             style = MaterialTheme.typography.titleSmall,
                         )
                         Spacer(Modifier.height(8.dp))
-                        val onHand = inv?.quantityOnHand ?: 0.0
-                        val committed = (state.part?.committedReservedQuantity ?: 0.0) +
-                            (state.part?.committedInProgressQuantity ?: 0.0)
-                        val available = maxOf(0.0, onHand - committed)
-                        LabelValue(
-                            stringResource(R.string.part_on_hand),
-                            "%.2f".format(onHand),
-                        )
-                        LabelValue("Committed", "%.2f".format(committed))
-                        LabelValue("Available", "%.2f".format(available))
-                        sl?.minQty?.let { LabelValue(stringResource(R.string.part_min_qty), "%.2f".format(it)) }
-                        sl?.maxQty?.let { LabelValue(stringResource(R.string.part_max_qty), "%.2f".format(it)) }
-                        sl?.reorderQty?.let { LabelValue(stringResource(R.string.part_reorder_point), "%.2f".format(it)) }
-                        sl?.safetyStock?.let { LabelValue("Safety Stock", "%.2f".format(it)) }
-                        // Quick-adjust inline buttons
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.padding(top = 8.dp),
-                        ) {
-                            OutlinedButton(
-                                onClick = { viewModel.showReceiveSheet() },
-                                modifier = Modifier.weight(1f),
-                                enabled = inv != null,
-                            ) { Text("+ Receive") }
-                            OutlinedButton(
-                                onClick = { viewModel.showUseSheet() },
-                                modifier = Modifier.weight(1f),
-                                enabled = inv != null,
-                            ) { Text("− Use") }
+                        LabelValue(stringResource(R.string.part_on_hand), "${state.onHand.formatQty()} ${product.uomCode}")
+                        state.policies.forEach { policy ->
+                            PolicyRows(policy, locationName = locationNames[policy.locationId], showLocation = state.policies.size > 1)
                         }
                     }
                 }
             }
 
             item {
-                // Primary action buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -189,39 +138,43 @@ fun PartDetailScreen(
                     Button(
                         onClick = viewModel::openReceive,
                         modifier = Modifier.weight(1f),
-                        enabled = state.inventory != null,
                     ) {
                         Text(stringResource(R.string.part_receive))
                     }
                     OutlinedButton(
                         onClick = viewModel::openUse,
                         modifier = Modifier.weight(1f),
-                        enabled = state.inventory != null,
+                        enabled = state.positions.any { it.onHand.signum() > 0 },
                     ) {
                         Text(stringResource(R.string.part_use))
                     }
                 }
             }
 
-            item {
-                // Transaction History Card
-                TransactionHistoryCard(transactions = state.partTransactions)
-            }
+            item { PositionsCard(state.positions) }
 
-            // Change 144: Bin locations — "Where is it?" section
-            item {
-                BinLocationsCard(
-                    bins = state.binLocations,
-                    isLoading = state.binLocationsLoading,
-                )
-            }
+            item { TransactionHistoryCard(transactions = state.history) }
 
-            item {
-                // Vendor Sources Card
-                VendorSourcesCard(sources = state.vendorSources)
-            }
+            item { SuppliersCard(state.suppliers) }
         }
     }
+}
+
+@Composable
+private fun PolicyRows(policy: StockingPolicy, locationName: String?, showLocation: Boolean) {
+    if (showLocation) {
+        Text(
+            text = locationName ?: "—",
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+    }
+    policy.minQty?.let { LabelValue(stringResource(R.string.part_min_qty), it.formatQty()) }
+    policy.maxQty?.let { LabelValue(stringResource(R.string.part_max_qty), it.formatQty()) }
+    if (policy.minQty != null || policy.safetyQty != null) {
+        LabelValue(stringResource(R.string.part_reorder_point), policy.reorderPoint.formatQty())
+    }
+    policy.safetyQty?.let { LabelValue(stringResource(R.string.part_safety_stock_label), it.formatQty()) }
 }
 
 @Composable
@@ -237,13 +190,9 @@ private fun LabelValue(label: String, value: String) {
     }
 }
 
-// Change 144: "Where is it?" — bin locations card
+/** "Where is it?" — every location/bin holding the product. */
 @Composable
-private fun BinLocationsCard(
-    bins: List<PartBinLocation>,
-    isLoading: Boolean,
-    modifier: Modifier = Modifier,
-) {
+private fun PositionsCard(positions: List<StockPosition>, modifier: Modifier = Modifier) {
     Card(
         modifier = modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(1.dp),
@@ -259,55 +208,42 @@ private fun BinLocationsCard(
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(18.dp),
                 )
-                Text(
-                    text = "Locations",
-                    style = MaterialTheme.typography.titleSmall,
-                )
+                Text(text = "Locations", style = MaterialTheme.typography.titleSmall)
             }
             Spacer(Modifier.height(8.dp))
-            when {
-                isLoading -> {
-                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                    }
-                }
-                bins.isEmpty() -> {
-                    Text(
-                        text = "Not assigned to any bin",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                else -> {
-                    bins.forEach { bin ->
-                        val displayName = bin.bin_name
-                            ?: bin.bin_label
-                            ?: bin.bin_id
-                        val location = bin.location_path?.takeIf { it.isNotBlank() }
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 3.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(displayName, style = MaterialTheme.typography.bodyMedium)
-                                if (location != null) {
-                                    Text(
-                                        text = location,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
+            if (positions.isEmpty()) {
+                Text(
+                    text = "Not stocked anywhere",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            positions.forEach { position ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 3.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(position.binCode ?: position.locationName ?: position.locationId, style = MaterialTheme.typography.bodyMedium)
+                        val detail = listOfNotNull(
+                            position.locationName.takeIf { position.binCode != null },
+                            position.condition.takeIf { it != StockCondition.GOOD }?.wire?.replace('_', ' '),
+                        ).joinToString(" · ")
+                        if (detail.isNotEmpty()) {
                             Text(
-                                text = "qty: ${bin.quantity.toLong()}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
+                                text = detail,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
+                    Text(
+                        text = position.onHand.formatQty(),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                 }
             }
         }
@@ -315,27 +251,31 @@ private fun BinLocationsCard(
 }
 
 @Composable
-private fun VendorSourcesCard(sources: List<VendorSource>) {
-    if (sources.isEmpty()) return
-    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 0.dp)) {
+private fun SuppliersCard(suppliers: List<ProductSupplier>) {
+    if (suppliers.isEmpty()) return
+    Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("Vendor Sources", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(8.dp))
-            sources.forEach { src ->
+            suppliers.forEach { src ->
                 Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(src.vendorName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                            Text(src.supplierName ?: "—", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                             if (src.isPreferred) {
                                 Spacer(Modifier.width(4.dp))
                                 Text("⭐", fontSize = 12.sp)
                             }
                         }
-                        src.sku?.let { Text("SKU: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)) }
+                        src.supplierSku?.let {
+                            Text("SKU: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                        }
                     }
                     Column(horizontalAlignment = Alignment.End) {
-                        src.unitCost?.let { Text("${'$'}${String.format("%.2f", it)}", style = MaterialTheme.typography.bodyMedium) }
-                        src.leadDays?.let { Text("$it day lead", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)) }
+                        src.unitCost?.let { Text(it.formatMoney(src.currency), style = MaterialTheme.typography.bodyMedium) }
+                        src.leadTimeDays?.let {
+                            Text("$it day lead", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                        }
                     }
                 }
             }

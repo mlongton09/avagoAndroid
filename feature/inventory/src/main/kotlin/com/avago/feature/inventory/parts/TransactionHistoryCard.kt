@@ -22,22 +22,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.avago.core.data.domain.MovementKind
+import com.avago.core.data.domain.StockLedgerEntry
+import com.avago.core.data.domain.formatQty
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-data class PartTransaction(
-    val transactionId: String,
-    val type: String,       // "receive", "use", "adjust", "move", "count"
-    val quantity: Double,   // positive = added, negative = removed
-    val referenceId: String? = null,
-    val notes: String? = null,
-    val createdAt: String,
-)
-
+/** The stock ledger of one product (posted movement legs, newest first). */
 @Composable
 fun TransactionHistoryCard(
-    transactions: List<PartTransaction>,
+    transactions: List<StockLedgerEntry>,
     modifier: Modifier = Modifier,
 ) {
     Card(
@@ -45,7 +40,6 @@ fun TransactionHistoryCard(
         elevation = CardDefaults.cardElevation(1.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // Header row: title + count badge
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -98,17 +92,22 @@ fun TransactionHistoryCard(
 }
 
 @Composable
-private fun TransactionHistoryRow(txn: PartTransaction) {
-    val icon = when (txn.type.lowercase()) {
-        "receive" -> "📦"
-        "use", "issue" -> "🔧"
-        "count" -> "📋"
-        "move" -> "↔️"
-        else -> "✏️" // adjust and anything else
+private fun TransactionHistoryRow(txn: StockLedgerEntry) {
+    val icon = when (txn.kind) {
+        MovementKind.RECEIPT, MovementKind.OPENING_BALANCE, MovementKind.RETURN -> "📦"
+        MovementKind.ISSUE -> "🔧"
+        MovementKind.COUNT -> "📋"
+        MovementKind.TRANSFER, MovementKind.TRANSFER_DISPATCH, MovementKind.TRANSFER_RECEIPT -> "↔️"
+        MovementKind.ADJUSTMENT -> "✏️"
     }
-    val quantityColor = if (txn.quantity >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
-    val quantityText = if (txn.quantity >= 0) "+${txn.quantity.toLong()}" else "−${(-txn.quantity).toLong()}"
-    val typeLabel = txn.type.replaceFirstChar { it.uppercaseChar() }
+    val positive = txn.quantity.signum() >= 0
+    val quantityColor = if (positive) Color(0xFF4CAF50) else Color(0xFFF44336)
+    val quantityText = if (positive) "+${txn.quantity.formatQty()}" else "−${txn.quantity.negate().formatQty()}"
+    val typeLabel = listOfNotNull(
+        txn.kind.label + if (txn.isReversal) " (reversal)" else "",
+        txn.number,
+    ).joinToString(" · ")
+    val note = txn.notes ?: txn.reference
 
     Column(modifier = Modifier.padding(vertical = 6.dp)) {
         Row(
@@ -137,14 +136,14 @@ private fun TransactionHistoryRow(txn: PartTransaction) {
                 }
             }
             Text(
-                text = txn.createdAt,
+                text = formatTransactionDate(txn.effectiveAt),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        if (!txn.notes.isNullOrBlank()) {
+        if (!note.isNullOrBlank()) {
             Text(
-                text = txn.notes,
+                text = note,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 32.dp, top = 2.dp),
@@ -152,6 +151,10 @@ private fun TransactionHistoryRow(txn: PartTransaction) {
         }
     }
 }
+
+/** "Opening balance", "Transfer dispatch", … */
+internal val MovementKind.label: String
+    get() = wire.replace('_', ' ').replaceFirstChar { it.uppercaseChar() }
 
 /** Convert an epoch-millis timestamp to "MMM d" format for display. */
 internal fun formatTransactionDate(epochMillis: Long): String {

@@ -1,4 +1,4 @@
-﻿package com.avago.feature.inventory.parts
+package com.avago.feature.inventory.parts
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -18,6 +18,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -30,6 +32,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.avago.core.data.domain.Product
+import com.avago.core.data.domain.ProductStock
+import com.avago.core.data.domain.formatQty
 import com.avago.feature.inventory.R
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -76,10 +81,10 @@ fun InventoryPickerScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 16.dp),
             ) {
-                items(parts, key = { it.part.partId }) { item ->
+                items(parts, key = { it.product.id }) { item ->
                     PickerPartRow(
                         item = item,
-                        onClick = { onPartSelected(item.part.partId, item.part.name) },
+                        onClick = { onPartSelected(item.product.id, item.product.name) },
                     )
                     HorizontalDivider()
                 }
@@ -88,9 +93,46 @@ fun InventoryPickerScreen(
     }
 }
 
+/** Bottom-sheet variant of the part picker for forms that pick a product per line. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProductPickerSheet(
+    onProductSelected: (Product) -> Unit,
+    onDismiss: () -> Unit,
+    viewModel: InventoryPickerViewModel = hiltViewModel(),
+) {
+    val parts by viewModel.filtered.collectAsStateWithLifecycle()
+    val query by viewModel.query.collectAsStateWithLifecycle()
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
+        Text(
+            text = stringResource(R.string.inventory_picker_title),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
+        OutlinedTextField(
+            value = query,
+            onValueChange = viewModel::setQuery,
+            placeholder = { Text(stringResource(R.string.inventory_picker_search_hint)) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            singleLine = true,
+        )
+        LazyColumn(contentPadding = PaddingValues(bottom = 16.dp)) {
+            items(parts, key = { it.product.id }) { item ->
+                PickerPartRow(item = item, onClick = { onProductSelected(item.product) })
+                HorizontalDivider()
+            }
+        }
+    }
+}
+
 @Composable
 private fun PickerPartRow(
-    item: PickerPartItem,
+    item: ProductStock,
     onClick: () -> Unit,
 ) {
     Row(
@@ -102,23 +144,18 @@ private fun PickerPartRow(
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = item.part.name,
+                text = item.product.name,
                 style = MaterialTheme.typography.bodyLarge,
             )
-            item.part.sku?.let { sku ->
-                Text(
-                    text = stringResource(R.string.inventory_picker_sku_prefix, sku),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            Text(
+                text = stringResource(R.string.inventory_picker_sku_prefix, item.product.sku),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         Spacer(modifier = Modifier.width(8.dp))
-        val qtyText = item.quantityOnHand?.let {
-            stringResource(R.string.inventory_picker_qty_on_hand, it)
-        } ?: stringResource(R.string.common_na)
         Text(
-            text = qtyText,
+            text = "${item.onHand.formatQty()} ${item.product.uomCode}",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

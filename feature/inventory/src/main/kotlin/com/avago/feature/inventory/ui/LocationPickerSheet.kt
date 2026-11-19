@@ -25,44 +25,30 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
-import com.avago.core.data.v2.LocationBinReads
-import com.avago.core.data.db.entity.LocationEntity
+import com.avago.core.data.domain.Location
+import com.avago.core.data.domain.LocationRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
-class LocationPickerViewModel @Inject constructor(
-    private val dbFactory: DatabaseFactory,
-    private val locationReads: LocationBinReads,
-    private val identity: IdentityManager,
+class InventoryLocationPickerViewModel @Inject constructor(
+    locations: LocationRepository,
 ) : ViewModel() {
 
-    val locations: StateFlow<List<LocationEntity>> = identity.activeAccountId
-        .flatMapLatest { accountId ->
-            if (accountId == null) flowOf(emptyList())
-            else locationReads.observeLocations(accountId)
-        }
+    val locations: StateFlow<List<Location>> = locations.observeLocations()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LocationPickerSheet(
-    onLocationPicked: (LocationEntity?) -> Unit,
+    onLocationPicked: (Location?) -> Unit,
     onDismiss: () -> Unit,
     showClearOption: Boolean = true,
-    viewModel: LocationPickerViewModel = hiltViewModel(),
+    viewModel: InventoryLocationPickerViewModel = hiltViewModel(),
 ) {
     val allLocations by viewModel.locations.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
@@ -107,7 +93,7 @@ fun LocationPickerSheet(
                         HorizontalDivider()
                     }
                 }
-                items(filtered, key = { it.locationId }) { location ->
+                items(filtered, key = { it.id }) { location ->
                     Text(
                         text = location.name,
                         style = MaterialTheme.typography.bodyMedium,

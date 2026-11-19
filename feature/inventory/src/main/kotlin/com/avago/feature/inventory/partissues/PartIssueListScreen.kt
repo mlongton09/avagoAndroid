@@ -37,7 +37,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.avago.core.data.db.entity.PartIssueEntity
+import com.avago.core.data.domain.StockMovement
+import com.avago.core.data.domain.formatQty
 import com.avago.feature.inventory.R
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -73,7 +74,7 @@ fun PartIssueListScreen(
             return@Scaffold
         }
 
-        val issues = viewModel.filteredIssues()
+        val issues = state.issues
 
         Column(modifier = Modifier.padding(padding)) {
             LazyRow(
@@ -82,22 +83,22 @@ fun PartIssueListScreen(
             ) {
                 item {
                     FilterChip(
-                        selected = state.filterType == null,
-                        onClick = { viewModel.setFilter(null) },
+                        selected = state.filter == IssueFilter.ALL,
+                        onClick = { viewModel.setFilter(IssueFilter.ALL) },
                         label = { Text(stringResource(R.string.part_issues_filter_all)) },
                     )
                 }
                 item {
                     FilterChip(
-                        selected = state.filterType == "issue",
-                        onClick = { viewModel.setFilter("issue") },
+                        selected = state.filter == IssueFilter.ISSUE,
+                        onClick = { viewModel.setFilter(IssueFilter.ISSUE) },
                         label = { Text(stringResource(R.string.part_issues_filter_issue)) },
                     )
                 }
                 item {
                     FilterChip(
-                        selected = state.filterType == "transfer",
-                        onClick = { viewModel.setFilter("transfer") },
+                        selected = state.filter == IssueFilter.TRANSFER,
+                        onClick = { viewModel.setFilter(IssueFilter.TRANSFER) },
                         label = { Text(stringResource(R.string.part_issues_filter_transfer)) },
                     )
                 }
@@ -113,8 +114,8 @@ fun PartIssueListScreen(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    items(issues, key = { it.issueId }) { issue ->
-                        PartIssueCard(issue = issue, onClick = { onIssueClick(issue.issueId) })
+                    items(issues, key = { it.id }) { issue ->
+                        PartIssueCard(issue = issue, locationNames = state.locationNames, onClick = { onIssueClick(issue.id) })
                     }
                 }
             }
@@ -123,7 +124,7 @@ fun PartIssueListScreen(
 }
 
 @Composable
-private fun PartIssueCard(issue: PartIssueEntity, onClick: () -> Unit) {
+private fun PartIssueCard(issue: StockMovement, locationNames: Map<String, String>, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -137,32 +138,44 @@ private fun PartIssueCard(issue: PartIssueEntity, onClick: () -> Unit) {
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Badge(
-                        containerColor = if (issue.issueType == "transfer")
+                        containerColor = if (issue.isTransfer)
                             MaterialTheme.colorScheme.secondaryContainer
                         else
                             MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = if (issue.issueType == "transfer")
+                        contentColor = if (issue.isTransfer)
                             MaterialTheme.colorScheme.onSecondaryContainer
                         else
                             MaterialTheme.colorScheme.onPrimaryContainer,
                     ) {
                         Text(
-                            if (issue.issueType == "transfer") stringResource(R.string.part_issues_type_transfer)
+                            if (issue.isTransfer) stringResource(R.string.part_issues_type_transfer)
                             else stringResource(R.string.part_issues_type_issue),
                             modifier = Modifier.padding(horizontal = 4.dp),
                         )
                     }
-                    if (issue.referenceId != null) {
+                    val title = issue.number ?: issue.reference
+                    if (title != null) {
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            "${issue.referenceType ?: "ref"}: ${issue.referenceId}",
+                            title,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
                 Spacer(Modifier.height(4.dp))
-                Text(dateFmt.format(Date(issue.issuedAt)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val where = listOfNotNull(locationNames[issue.locationId], issue.toLocationId?.let { locationNames[it] }).joinToString(" → ")
+                Text(
+                    listOf(dateFmt.format(Date(issue.effectiveAt ?: issue.createdAt)), where).filter { it.isNotEmpty() }.joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                val summary = issue.lines.joinToString(", ") { line ->
+                    "${line.productName ?: line.productSku ?: line.productId} × ${(line.quantity ?: java.math.BigDecimal.ZERO).formatQty()}"
+                }
+                if (summary.isNotEmpty()) {
+                    Text(summary, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                }
                 issue.notes?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                 }

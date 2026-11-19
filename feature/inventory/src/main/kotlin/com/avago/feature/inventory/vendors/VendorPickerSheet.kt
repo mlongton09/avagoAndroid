@@ -23,13 +23,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.avago.core.data.db.entity.VendorEntity
+import com.avago.core.data.domain.Supplier
 import com.avago.feature.inventory.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VendorPickerSheet(
-    onVendorSelected: (VendorEntity?) -> Unit,
+    onVendorSelected: (Supplier?) -> Unit,
     onDismiss: () -> Unit,
     viewModel: VendorListViewModel = hiltViewModel(),
 ) {
@@ -60,8 +60,9 @@ fun VendorPickerSheet(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )
-            val filtered = if (localQuery.isBlank()) state.vendors
-            else state.vendors.filter { it.name.contains(localQuery, ignoreCase = true) }
+            val active = state.vendors.filter { !it.archived }
+            val filtered = if (localQuery.isBlank()) active
+            else active.filter { it.name.contains(localQuery, ignoreCase = true) }
 
             LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
                 item {
@@ -74,7 +75,7 @@ fun VendorPickerSheet(
                     )
                     HorizontalDivider()
                 }
-                items(filtered, key = { it.vendorId }) { vendor ->
+                items(filtered, key = { it.partyId }) { vendor ->
                     Text(
                         text = vendor.name,
                         modifier = Modifier

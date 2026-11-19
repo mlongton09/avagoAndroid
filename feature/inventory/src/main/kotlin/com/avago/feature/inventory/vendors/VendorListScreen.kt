@@ -1,4 +1,4 @@
-﻿package com.avago.feature.inventory.vendors
+package com.avago.feature.inventory.vendors
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -74,11 +74,11 @@ fun VendorListScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    items(state.filtered, key = { it.vendorId }) { vendor ->
+                    items(state.filtered, key = { it.partyId }) { vendor ->
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onVendorClick(vendor.vendorId) },
+                                .clickable { onVendorClick(vendor.partyId) },
                             elevation = CardDefaults.cardElevation(1.dp),
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
@@ -93,16 +93,16 @@ fun VendorListScreen(
                                         modifier = Modifier.weight(1f),
                                     )
                                     // Preferred badge — orange star pill (matches iOS preferred vendor indicator)
-                                    if (vendor.preferred) {
+                                    if (vendor.isPreferred) {
                                         VendorStatusPill(
                                             label = "★ Preferred",
                                             containerColor = Color(0xFFF97316),
                                         )
                                     }
                                     // Inactive badge — shown when vendor.active == false
-                                    if (!vendor.active) {
+                                    if (vendor.archived) {
                                         VendorStatusPill(
-                                            label = "Inactive",
+                                            label = stringResource(R.string.vendor_inactive),
                                             containerColor = Color(0xFF9CA3AF),
                                         )
                                     }

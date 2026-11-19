@@ -15,6 +15,7 @@
 
     <!-- Part detail -->
     <string name="part_detail_title">Part Detail</string>
+    <string name="part_not_found">Part not found</string>
     <string name="part_sku">SKU</string>
     <string name="part_category">Category</string>
     <string name="part_location">Location</string>
@@ -85,6 +86,19 @@
     <string name="vendor_payment_terms_label">Payment Terms</string>
     <string name="vendor_tax_id_label">Tax ID</string>
     <string name="vendor_save">Save</string>
+    <string name="vendor_contact_label">Contact person</string>
+    <string name="vendor_website_label">Website</string>
+    <string name="vendor_account_number_label">Account number</string>
+    <string name="vendor_notes_label">Notes</string>
+    <string name="vendor_preferred_label">Preferred vendor</string>
+    <string name="vendor_tax_id_write_only">Not shown on mobile; leave empty to keep the current value</string>
+    <string name="vendor_contact">Contact</string>
+    <string name="vendor_website">Website</string>
+    <string name="vendor_account_number">Account number</string>
+    <string name="vendor_deactivate">Deactivate vendor</string>
+    <string name="vendor_activate">Reactivate vendor</string>
+    <string name="vendor_inactive">Inactive</string>
+    <string name="vendor_preferred_badge">? Preferred</string>
     <string name="vendor_name_required">Vendor name is required</string>
 
     <!-- Vendor parts (SKU catalog) -->
@@ -379,21 +393,17 @@
     <string name="part_issue_no_lines">No line items</string>
 
     <!-- Part Transfer Requests -->
-    <string name="transfer_requests_title">Transfer Requests</string>
-    <string name="transfer_requests_create">New Transfer Request</string>
-    <string name="transfer_requests_submit">Submit Request</string>
-    <string name="transfer_requests_empty">No transfer requests</string>
+    <string name="transfer_requests_title">Transfers</string>
+    <string name="transfer_requests_empty">No transfers</string>
     <string name="transfer_filter_all">All</string>
-    <string name="transfer_field_from_location">From Location</string>
-    <string name="transfer_field_to_location">To Location</string>
 
     <!-- Warehouse menu additions -->
     <string name="warehouse_bins_card">Bins</string>
     <string name="warehouse_bins_card_desc">Browse and manage storage bins</string>
     <string name="warehouse_part_issues_card">Issue History</string>
     <string name="warehouse_part_issues_card_desc">View all part issues and transfers</string>
-    <string name="warehouse_transfer_requests_card">Transfer Requests</string>
-    <string name="warehouse_transfer_requests_card_desc">Request inter-location part moves with approval</string>
+    <string name="warehouse_transfer_requests_card">Transfers</string>
+    <string name="warehouse_transfer_requests_card_desc">Inter-location transfers and requests</string>
 
     <!-- Common -->
     <string name="common_back">Back</string>
@@ -404,4 +414,57 @@
     <string name="common_na">N/A</string>
     <string name="common_currency_format">%1$s %2$.2f</string>
     <string name="common_qty_format">%.2f</string>
+    <string name="grn_location_label">Receive into</string>
+    <string name="grn_outstanding">Outstanding: %1$s</string>
+    <string name="grn_discrepancy_reason_label">Discrepancy reason (optional)</string>
+    <string name="po_receipts_section">Receipts</string>
+    <string name="po_receipt_reverse">Reverse</string>
+    <string name="po_receipt_reversed">Reversed</string>
+    <string name="po_receipt_reverse_confirm">Reverse this receipt? On-hand stock and received quantities are reduced again.</string>
+    <string name="po_reason_reject_title">Reject purchase order</string>
+    <string name="po_reason_cancel_title">Cancel purchase order</string>
+    <string name="po_reason_label">Reason (optional)</string>
+    <string name="po_action_cancel">Cancel order</string>
+    <string name="po_internal_notes_label">Internal notes</string>
+    <string name="po_invoice_ref_label">Supplier invoice ref</string>
+    <string name="po_line_tax_pct">Tax %</string>
+    <string name="po_received_of">Received %1$s of %2$s</string>
+    <string name="po_clear_date">Clear</string>
+    <string name="common_confirm">Confirm</string>
+    <string name="common_dismiss">Dismiss</string>
+    <string name="cycle_count_status_planned">Planned</string>
+    <string name="cycle_count_status_counting">Counting</string>
+    <string name="cycle_count_status_counted">Counted</string>
+    <string name="cycle_count_scope_abc_a">ABC class A</string>
+    <string name="cycle_count_scope_abc_b">ABC class B</string>
+    <string name="cycle_count_scope_abc_c">ABC class C</string>
+    <string name="cycle_count_blind">Blind count (hide expected quantities)</string>
+    <string name="cycle_count_scheduled_on">Scheduled date</string>
+    <string name="cycle_count_notes">Notes</string>
+    <string name="cycle_count_start_now">Start counting now</string>
+    <string name="cycle_count_create_only">Create</string>
+    <string name="cycle_count_save_line">Save count</string>
+    <string name="cycle_count_progress">%1$d of %2$d counted</string>
+    <string name="cycle_count_waiting_lines">Items appear once the server has started the count and the app has synced.</string>
+    <string name="cycle_count_select_location">Select location</string>
+    <string name="cycle_count_cancel_confirm">Cancel this cycle count? Recorded counts are discarded.</string>
+    <string name="part_initial_location">Initial stock location</string>
+    <string name="part_initial_location_none">None</string>
+    <string name="part_initial_qty_label">Initial quantity</string>
+    <string name="part_reorder_qty_label">Reorder quantity</string>
+    <string name="part_abc_class_label">ABC class</string>
+    <string name="part_uom_label">Unit of measure</string>
+    <string name="part_notes_label">Notes</string>
+    <string name="part_archived_label">Archived</string>
+    <string name="part_manufacturer_label">Manufacturer</string>
+    <string name="transfer_from">From: %1$s</string>
+    <string name="transfer_to">To: %1$s</string>
+    <string name="transfer_kind_dispatch">Transfer dispatch</string>
+    <string name="transfer_kind_receipt">Transfer receipt</string>
+    <string name="transfer_status_draft">Draft</string>
+    <string name="transfer_status_requested">Requested</string>
+    <string name="transfer_status_approved">Approved</string>
+    <string name="transfer_status_declined">Declined</string>
+    <string name="transfer_status_posted">Posted</string>
+    <string name="transfer_status_cancelled">Cancelled</string>
 </resources>

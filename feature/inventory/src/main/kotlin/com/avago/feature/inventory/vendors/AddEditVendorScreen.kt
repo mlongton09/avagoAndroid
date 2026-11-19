@@ -1,7 +1,8 @@
-﻿package com.avago.feature.inventory.vendors
+package com.avago.feature.inventory.vendors
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,11 +17,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -77,6 +80,13 @@ fun AddEditVendorScreen(
                 singleLine = true,
             )
             OutlinedTextField(
+                value = state.contactName,
+                onValueChange = viewModel::setContactName,
+                label = { Text(stringResource(R.string.vendor_contact_label)) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+            OutlinedTextField(
                 value = state.email,
                 onValueChange = viewModel::setEmail,
                 label = { Text(stringResource(R.string.vendor_email_label)) },
@@ -87,6 +97,13 @@ fun AddEditVendorScreen(
                 value = state.phone,
                 onValueChange = viewModel::setPhone,
                 label = { Text(stringResource(R.string.vendor_phone_label)) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+            OutlinedTextField(
+                value = state.website,
+                onValueChange = viewModel::setWebsite,
+                label = { Text(stringResource(R.string.vendor_website_label)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )
@@ -105,12 +122,39 @@ fun AddEditVendorScreen(
                 singleLine = true,
             )
             OutlinedTextField(
+                value = state.accountNumber,
+                onValueChange = viewModel::setAccountNumber,
+                label = { Text(stringResource(R.string.vendor_account_number_label)) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+            OutlinedTextField(
                 value = state.taxId,
                 onValueChange = viewModel::setTaxId,
                 label = { Text(stringResource(R.string.vendor_tax_id_label)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
+                supportingText = if (vendorId != null) {
+                    { Text(stringResource(R.string.vendor_tax_id_write_only)) }
+                } else {
+                    null
+                },
             )
+            OutlinedTextField(
+                value = state.notes,
+                onValueChange = viewModel::setNotes,
+                label = { Text(stringResource(R.string.vendor_notes_label)) },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 2,
+                maxLines = 5,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(stringResource(R.string.vendor_preferred_label), modifier = Modifier.weight(1f))
+                Switch(checked = state.isPreferred, onCheckedChange = viewModel::setPreferred)
+            }
             state.error?.let { Text(it) }
             Spacer(Modifier.height(8.dp))
             Button(

@@ -25,34 +25,21 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
-import com.avago.core.data.v2.LocationBinReads
-import com.avago.core.data.db.entity.BinEntity
+import com.avago.core.data.domain.Bin
+import com.avago.core.data.domain.LocationRepository
 import com.avago.feature.inventory.R
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
 @HiltViewModel
 class BinPickerViewModel @Inject constructor(
-    private val dbFactory: DatabaseFactory,
-    private val locationReads: LocationBinReads,
-    private val identityManager: IdentityManager,
+    locations: LocationRepository,
 ) : ViewModel() {
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val bins: StateFlow<List<BinEntity>> = identityManager.activeAccountId.flatMapLatest { accountId ->
-        if (accountId == null) flowOf(emptyList())
-        else locationReads.observeBins(accountId)
-    }.stateIn(
+    val bins: StateFlow<List<Bin>> = locations.observeBins().stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList(),
@@ -63,7 +50,7 @@ class BinPickerViewModel @Inject constructor(
 @Composable
 fun BinPickerSheet(
     locationId: String,
-    onBinSelected: (BinEntity?) -> Unit,
+    onBinSelected: (Bin?) -> Unit,
     onDismiss: () -> Unit,
     viewModel: BinPickerViewModel = hiltViewModel(),
 ) {
@@ -73,7 +60,7 @@ fun BinPickerSheet(
 
     val locationBins = allBins.filter { it.locationId == locationId }
     val filtered = if (query.isBlank()) locationBins
-    else locationBins.filter { it.name.contains(query, ignoreCase = true) }
+    else locationBins.filter { it.label.contains(query, ignoreCase = true) || it.code.contains(query, ignoreCase = true) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -99,9 +86,9 @@ fun BinPickerSheet(
                     )
                     HorizontalDivider()
                 }
-                items(filtered, key = { it.binId }) { bin ->
+                items(filtered, key = { it.id }) { bin ->
                     Text(
-                        text = "${bin.name}${bin.aisle?.let { " • Aisle $it" } ?: ""}",
+                        text = if (bin.name.isNullOrBlank()) bin.code else "${bin.code} • ${bin.name}",
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { onBinSelected(bin) }

@@ -83,6 +83,20 @@ class V2SyncCoordinator @Inject constructor(
         result
     }
 
+    /** Sends queued commands now (no pull); used right after a local write. */
+    suspend fun flushNow() = mutex.withLock {
+        if (!gate.isOpen()) return@withLock
+        val current = try {
+            sessionFor() ?: return@withLock
+        } catch (e: CancellationException) {
+            throw e
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            Timber.e(e, "V2SyncCoordinator: could not open the v2 stores")
+            return@withLock
+        }
+        flush(current)
+    }
+
     private suspend fun flush(current: Session) {
         try {
             val flushed = current.outbox.flush()

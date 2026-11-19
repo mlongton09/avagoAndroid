@@ -46,7 +46,7 @@ fun BinDetailScreen(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(state.bin?.name ?: stringResource(R.string.bins_detail_title)) },
+                title = { Text(state.bin?.label ?: stringResource(R.string.bins_detail_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
@@ -76,29 +76,26 @@ fun BinDetailScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
         ) {
-            DetailRow(label = stringResource(R.string.bins_field_name), value = bin.name)
+            DetailRow(label = stringResource(R.string.bins_field_name), value = bin.label)
             DetailRow(label = stringResource(R.string.bins_field_location), value = state.locationName)
-            bin.code?.let { DetailRow(label = stringResource(R.string.bins_field_code), value = it) }
+            DetailRow(label = stringResource(R.string.bins_field_code), value = bin.code)
             bin.barcode?.let { DetailRow(label = stringResource(R.string.bins_field_barcode), value = it) }
-            bin.aisle?.let { DetailRow(label = stringResource(R.string.bins_field_aisle), value = it) }
-            bin.shelf?.let { DetailRow(label = stringResource(R.string.bins_field_shelf), value = it) }
-            bin.slot?.let { DetailRow(label = stringResource(R.string.bins_field_slot), value = it) }
-            bin.binType?.let { DetailRow(label = stringResource(R.string.bins_field_type), value = it) }
-            DetailRow(label = stringResource(R.string.bins_field_active), value = if (bin.active) stringResource(R.string.bins_yes) else stringResource(R.string.bins_no))
+            bin.kind?.let { DetailRow(label = stringResource(R.string.bins_field_type), value = it) }
+            DetailRow(label = stringResource(R.string.bins_field_active), value = if (!bin.archived) stringResource(R.string.bins_yes) else stringResource(R.string.bins_no))
 
-            bin.capacity?.takeIf { it > 0 }?.let { capacity ->
+            bin.capacity?.takeIf { it.signum() > 0 }?.let { capacity ->
                 HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
                 Text(stringResource(R.string.bins_capacity_section), style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(8.dp))
-                val count = bin.currentCount ?: 0L
-                val fillFraction = (count.toFloat() / capacity.toFloat()).coerceIn(0f, 1f)
+                val count = bin.onHand.toPlainString()
+                val fillFraction = (bin.onHand.toFloat() / capacity.toFloat()).coerceIn(0f, 1f)
                 LinearProgressIndicator(
                     progress = { fillFraction },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "$count / $capacity ${stringResource(R.string.bins_units)} (${(fillFraction * 100).toInt()}%)",
+                    "$count / ${capacity.toPlainString()} ${stringResource(R.string.bins_units)} (${(fillFraction * 100).toInt()}%)",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

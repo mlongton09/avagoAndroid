@@ -1,5 +1,6 @@
 package com.avago.core.sync.v2
 
+import com.avago.core.data.v2.V2FlushRequester
 import com.avago.core.data.v2.V2SyncResult
 import dagger.Binds
 import dagger.Module
@@ -25,4 +26,7 @@ fun interface V2SyncHook {
 abstract class V2SyncModule {
     @Binds
     abstract fun bindV2SyncHook(coordinator: V2SyncCoordinator): V2SyncHook
+
+    @Binds
+    abstract fun bindV2FlushRequester(scheduler: V2FlushScheduler): V2FlushRequester
 }

@@ -39,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.avago.core.data.domain.formatQty
 import com.avago.core.ui.AvagoSearchBar
 import com.avago.core.ui.EmptyState
 import com.avago.feature.inventory.R
@@ -202,7 +203,7 @@ fun InventoryListScreen(
                                 is InventoryListEntry.PartRow -> {
                                     PartCard(
                                         item = entry.item,
-                                        onClick = { onPartClick(entry.item.part.partId) },
+                                        onClick = { onPartClick(entry.item.stock.product.id) },
                                     )
                                 }
                             }
@@ -268,17 +269,15 @@ private fun PartCard(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = item.part.name,
+                    text = item.stock.product.name,
                     style = MaterialTheme.typography.titleMedium,
                 )
-                item.part.sku?.let {
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                item.part.category?.let {
+                Text(
+                    text = item.stock.product.sku,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                item.category?.let {
                     Text(
                         text = it,
                         style = MaterialTheme.typography.labelSmall,
@@ -288,17 +287,16 @@ private fun PartCard(
             }
             Spacer(Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.End) {
-                val onHand = item.inventory?.quantityOnHand ?: 0.0
                 Text(
                     text = stringResource(R.string.inventory_on_hand),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    text = "%.2f".format(onHand),
+                    text = item.stock.onHand.formatQty(),
                     style = MaterialTheme.typography.titleMedium,
                 )
-                if (item.needsReorder) {
+                if (item.stock.needsReorder) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = Icons.Default.Warning,

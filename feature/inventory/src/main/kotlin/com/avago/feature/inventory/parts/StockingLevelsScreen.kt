@@ -31,27 +31,27 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.DatabaseFactory
-import com.avago.core.data.db.entity.StockingLevelEntity
+import com.avago.core.data.domain.InventoryRepository
+import com.avago.core.data.domain.LocationRepository
+import com.avago.core.data.domain.StockingPolicy
+import com.avago.core.data.domain.formatQty
 import com.avago.core.ui.AvagoSearchBar
 import com.avago.core.ui.EmptyState
 import com.avago.feature.inventory.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
+import java.math.BigDecimal
 
 data class StockingLevelItem(
-    val stockingLevel: StockingLevelEntity,
+    val stockingLevel: StockingPolicy,
     val partName: String?,
     val partSku: String?,
+    val locationName: String?,
 )
 
 data class StockingLevelsUiState(
@@ -62,42 +62,31 @@ data class StockingLevelsUiState(
 
 @HiltViewModel
 class StockingLevelsViewModel @Inject constructor(
-    private val dbFactory: DatabaseFactory,
-    private val identityManager: IdentityManager,
+    inventory: InventoryRepository,
+    locations: LocationRepository,
 ) : ViewModel() {
 
     val searchQuery = MutableStateFlow("")
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<StockingLevelsUiState> = combine(
-        identityManager.activeAccountId.flatMapLatest { accountId ->
-            if (accountId == null) {
-                flowOf(emptyList<StockingLevelItem>())
-            } else {
-                val db = dbFactory.get(accountId)
-                combine(
-                    db.stockingLevelDao().observeAll(accountId),
-                    db.partDao().observeAll(accountId),
-                ) { stockingLevels, parts ->
-                    val partsById = parts.associateBy { it.partId }
-                    stockingLevels
-                        .map { level ->
-                            val part = partsById[level.partId]
-                            StockingLevelItem(
-                                stockingLevel = level,
-                                partName = part?.name,
-                                partSku = part?.sku,
-                            )
-                        }
-                        .sortedWith(
-                            compareBy(
-                                { it.partName ?: "" },
-                                { it.partSku ?: "" },
-                                { it.stockingLevel.stockingLevelId },
-                            ),
-                        )
+        combine(
+            inventory.observePolicies(),
+            inventory.observeProductStock(includeArchived = true),
+            locations.observeLocations(includeArchived = true),
+        ) { policies, stock, locs ->
+            val products = stock.associateBy { it.product.id }
+            val locationNames = locs.associate { it.id to it.name }
+            policies
+                .map { policy ->
+                    val product = products[policy.productId]?.product
+                    StockingLevelItem(
+                        stockingLevel = policy,
+                        partName = product?.name,
+                        partSku = product?.sku,
+                        locationName = locationNames[policy.locationId],
+                    )
                 }
-            }
+                .sortedWith(compareBy({ it.partName ?: "" }, { it.locationName ?: "" }, { it.stockingLevel.id }))
         },
         searchQuery,
     ) { items, query ->
@@ -169,7 +158,7 @@ fun StockingLevelsScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    items(state.items, key = { it.stockingLevel.stockingLevelId }) { item ->
+                    items(state.items, key = { it.stockingLevel.id }) { item ->
                         StockingLevelCard(item = item)
                     }
                 }
@@ -192,14 +181,14 @@ private fun StockingLevelCard(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                text = item.partName ?: item.stockingLevel.partId,
+                text = item.partName ?: item.stockingLevel.productId,
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            item.partSku?.let { sku ->
+            listOfNotNull(item.partSku, item.locationName).joinToString(" · ").takeIf { it.isNotEmpty() }?.let { sub ->
                 Text(
-                    text = sku,
+                    text = sub,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -222,7 +211,7 @@ private fun StockingLevelCard(
                 )
                 StockValue(
                     label = stringResource(R.string.stocking_level_safety_stock),
-                    value = item.stockingLevel.safetyStock,
+                    value = item.stockingLevel.safetyQty,
                 )
             }
         }
@@ -232,7 +221,7 @@ private fun StockingLevelCard(
 @Composable
 private fun RowScope.StockValue(
     label: String,
-    value: Double?,
+    value: BigDecimal?,
 ) {
     Column(modifier = Modifier.weight(1f)) {
         Text(
@@ -241,7 +230,7 @@ private fun RowScope.StockValue(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
-            text = value?.let { "%.2f".format(it) } ?: stringResource(R.string.stocking_level_not_set),
+            text = value?.formatQty() ?: stringResource(R.string.stocking_level_not_set),
             style = MaterialTheme.typography.bodyMedium,
         )
     }

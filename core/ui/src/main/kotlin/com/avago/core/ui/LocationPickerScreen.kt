@@ -68,11 +68,11 @@ fun LocationPickerScreen(
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             }
-            items(locations, key = { it.locationId }) { location ->
-                val subtitle = listOfNotNull(location.city, location.state)
+            items(locations, key = { it.id }) { location ->
+                val subtitle = listOfNotNull(location.locality, location.region)
                     .joinToString(", ")
                     .ifBlank { null }
-                val isSelected = location.locationId == currentLocationId
+                val isSelected = location.id == currentLocationId
                 ListItem(
                     headlineContent = { Text(location.name) },
                     supportingContent = if (subtitle != null) {
@@ -93,7 +93,7 @@ fun LocationPickerScreen(
                         null
                     },
                     modifier = Modifier.clickable(role = Role.Button) {
-                        onLocationSelected(location.locationId, location.name)
+                        onLocationSelected(location.id, location.name)
                     },
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
