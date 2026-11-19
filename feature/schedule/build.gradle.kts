@@ -32,6 +32,13 @@ dependencies {
     implementation(project(":core:data"))
     implementation(project(":core:design"))
     implementation(project(":core:ui"))
-    implementation(project(":core:sync"))
-    implementation(project(":core:auth"))
+
+    testImplementation(libs.junit5)
+    testImplementation(platform(libs.junit.bom))
+    testRuntimeOnly(libs.junit5.engine)
+    testRuntimeOnly(libs.junit.platform.launcher)
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
 }

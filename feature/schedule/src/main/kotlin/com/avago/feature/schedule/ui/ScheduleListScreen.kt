@@ -12,11 +12,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -26,7 +26,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -34,15 +33,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.ui.EmptyState
 import com.avago.feature.schedule.R
 import com.avago.feature.schedule.ui.components.ScheduleCard
+import com.avago.feature.schedule.util.ScheduleStatusFilter
+import com.avago.feature.schedule.util.ScheduleTypeFilter
 import com.avago.feature.schedule.viewmodel.ScheduleListViewModel
-import com.avago.feature.schedule.viewmodel.ScheduleStatusFilter
-import com.avago.feature.schedule.viewmodel.ScheduleTypeFilter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScheduleListScreen(
     onScheduleClick: (scheduleId: String) -> Unit,
-    onAddSchedule: () -> Unit,
+    onOpenCalendar: () -> Unit,
     modifier: Modifier = Modifier,
     assetId: String? = null,
     viewModel: ScheduleListViewModel = hiltViewModel(),
@@ -61,27 +60,13 @@ fun ScheduleListScreen(
         modifier = modifier,
         topBar = {
             CenterAlignedTopAppBar(
-                title = {
-                    Text(
-                        if (assetId != null)
-                            stringResource(R.string.schedule_list_title)
-                        else
-                            stringResource(R.string.schedule_list_title)
-                    )
+                title = { Text(stringResource(R.string.schedule_list_title)) },
+                actions = {
+                    IconButton(onClick = onOpenCalendar) {
+                        Icon(Icons.Default.CalendarMonth, contentDescription = stringResource(R.string.schedule_calendar_title))
+                    }
                 },
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = onAddSchedule,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.White,
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = stringResource(R.string.schedule_add_fab_description),
-                )
-            }
         },
     ) { innerPadding ->
         Column(
@@ -157,27 +142,27 @@ fun ScheduleListScreen(
                         if (typeFilter == ScheduleTypeFilter.BY_ASSET) {
                             items(
                                 schedules.groupBy { it.assetId }.toList(),
-                                key = { (assetId, _) -> assetId },
-                            ) { (assetId, assetSchedules) ->
+                                key = { (assetId, _) -> assetId.orEmpty() },
+                            ) { (_, assetSchedules) ->
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text(
-                                        text = assetId.ifBlank { stringResource(R.string.schedule_no_asset) },
+                                        text = assetSchedules.first().assetName ?: stringResource(R.string.schedule_no_asset),
                                         style = MaterialTheme.typography.titleSmall,
                                         color = MaterialTheme.colorScheme.primary,
                                     )
                                     assetSchedules.forEach { schedule ->
                                         ScheduleCard(
                                             schedule = schedule,
-                                            onClick = { onScheduleClick(schedule.scheduleId) },
+                                            onClick = { onScheduleClick(schedule.id) },
                                         )
                                     }
                                 }
                             }
                         } else {
-                            items(schedules, key = { it.scheduleId }) { schedule ->
+                            items(schedules, key = { it.id }) { schedule ->
                                 ScheduleCard(
                                     schedule = schedule,
-                                    onClick = { onScheduleClick(schedule.scheduleId) },
+                                    onClick = { onScheduleClick(schedule.id) },
                                 )
                             }
                         }

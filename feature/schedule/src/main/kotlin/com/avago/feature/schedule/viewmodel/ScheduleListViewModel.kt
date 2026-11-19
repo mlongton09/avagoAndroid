@@ -2,11 +2,13 @@ package com.avago.feature.schedule.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.data.db.entity.ScheduleEntity
-import com.avago.core.sync.SyncEngine
-import com.avago.feature.schedule.repository.ScheduleRepository
-import com.avago.feature.schedule.util.RruleHelper
+import com.avago.core.data.domain.PmFilter
+import com.avago.core.data.domain.PmOccurrence
+import com.avago.core.data.domain.PmRepository
+import com.avago.core.data.domain.SyncRepository
+import com.avago.feature.schedule.util.PmSchedule
+import com.avago.feature.schedule.util.ScheduleStatusFilter
+import com.avago.feature.schedule.util.ScheduleTypeFilter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,26 +18,19 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
 
-/** Status filter applied to the schedule list. */
-enum class ScheduleStatusFilter { ALL, DUE_SOON, UPCOMING, OVERDUE }
-
-/** Schedule-type filter applied to the schedule list. */
-enum class ScheduleTypeFilter { ALL, BY_DATE, BY_METER, BY_ASSET }
-
+/** Open PM occurrences ("schedules"), optionally for one asset. */
 @HiltViewModel
 class ScheduleListViewModel @Inject constructor(
-    private val repository: ScheduleRepository,
-    private val identityManager: IdentityManager,
-    private val syncEngine: SyncEngine,
+    private val pm: PmRepository,
+    private val sync: SyncRepository,
 ) : ViewModel() {
 
-    /** When non-null, shows only schedules belonging to this asset. */
+    /** When non-null, shows only this asset's schedules. */
     val assetId: MutableStateFlow<String?> = MutableStateFlow(null)
 
     private val _statusFilter = MutableStateFlow(ScheduleStatusFilter.ALL)
@@ -48,67 +43,16 @@ class ScheduleListViewModel @Inject constructor(
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    private val _allSchedules: StateFlow<List<ScheduleEntity>> =
-        identityManager.activeAccountId
-            .flatMapLatest { accountId ->
-                if (accountId == null) {
-                    flowOf(emptyList())
-                } else {
-                    try {
-                        repository.observeAll(accountId)
-                    } catch (e: Exception) {
-                        Timber.e(e, "[ScheduleListVM] observe failed for $accountId")
-                        flowOf(emptyList())
-                    }
-                }
-            }
-            .catch { e ->
-                Timber.e(e, "[ScheduleListVM] flow error")
-                emit(emptyList())
-            }
-            .stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(5_000),
-                initialValue = emptyList(),
-            )
-
-    val schedules: StateFlow<List<ScheduleEntity>> = combine(
-        _allSchedules,
-        assetId,
+    val schedules: StateFlow<List<PmOccurrence>> = combine(
+        assetId.flatMapLatest { pm.observeOccurrences(PmFilter(assetId = it)) },
         _statusFilter,
         _typeFilter,
-    ) { all, filterAssetId, status, type ->
-        all
-            .filter { it.isActive }
-            .filter { s -> filterAssetId == null || s.assetId == filterAssetId }
-            .filter { s ->
-                when (type) {
-                    ScheduleTypeFilter.ALL -> true
-                    ScheduleTypeFilter.BY_DATE -> s.scheduleType == "calendar"
-                    ScheduleTypeFilter.BY_METER -> s.scheduleType == "meter"
-                    ScheduleTypeFilter.BY_ASSET -> true
-                }
-            }
-            .filter { s ->
-                when (status) {
-                    ScheduleStatusFilter.ALL -> true
-                    ScheduleStatusFilter.OVERDUE -> RruleHelper.isOverdue(s)
-                    ScheduleStatusFilter.DUE_SOON -> RruleHelper.isDueSoon(s)
-                    ScheduleStatusFilter.UPCOMING ->
-                        !RruleHelper.isOverdue(s) && !RruleHelper.isDueSoon(s)
-                }
-            }
-            .sortedWith(
-                compareByDescending<ScheduleEntity> { RruleHelper.isOverdue(it) }
-                    .thenByDescending { RruleHelper.isDueSoon(it) }
-                    .thenBy { it.nextDueAt ?: Long.MAX_VALUE }
-            )
-    }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = emptyList(),
-        )
+    ) { all, status, type -> PmSchedule.filter(all, status, type, System.currentTimeMillis()) }
+        .catch { e ->
+            Timber.e(e, "[ScheduleListVM] observe failed")
+            emit(emptyList())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun onStatusFilterChanged(filter: ScheduleStatusFilter) {
         _statusFilter.value = filter
@@ -122,9 +66,7 @@ class ScheduleListViewModel @Inject constructor(
         viewModelScope.launch {
             _isRefreshing.value = true
             try {
-                syncEngine.sync()
-            } catch (e: Exception) {
-                Timber.e(e, "[ScheduleListVM] sync failed")
+                sync.syncNow()
             } finally {
                 _isRefreshing.value = false
             }

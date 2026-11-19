@@ -1,4 +1,4 @@
-﻿package com.avago.feature.schedule.ui
+package com.avago.feature.schedule.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -47,11 +47,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.avago.core.data.db.entity.ScheduleEntity
 import com.avago.core.ui.EmptyState
 import com.avago.feature.schedule.R
 import com.avago.feature.schedule.ui.components.ScheduleCard
-import com.avago.feature.schedule.util.RruleHelper
+import com.avago.feature.schedule.util.PmDueStatus
+import com.avago.feature.schedule.util.PmSchedule
 import com.avago.feature.schedule.viewmodel.GlobalCalendarViewModel
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -162,10 +162,11 @@ fun GlobalCalendarScreen(
                         val isToday = date == LocalDate.now()
 
                         // Dot colour = worst status among schedules on this day
+                        val now = System.currentTimeMillis()
                         val dotColor = when {
-                            schedulesOnDay.any { RruleHelper.isOverdue(it) } ->
+                            schedulesOnDay.any { PmSchedule.status(it, now) == PmDueStatus.OVERDUE } ->
                                 MaterialTheme.colorScheme.error
-                            schedulesOnDay.any { RruleHelper.isDueSoon(it) } ->
+                            schedulesOnDay.any { PmSchedule.status(it, now) == PmDueStatus.DUE_SOON } ->
                                 Color(0xFFF59E0B)
                             else -> Color(0xFF16A34A)
                         }
@@ -235,10 +236,10 @@ fun GlobalCalendarScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    items(schedulesForDay, key = { it.scheduleId }) { schedule ->
+                    items(schedulesForDay, key = { it.id }) { schedule ->
                         ScheduleCard(
                             schedule = schedule,
-                            onClick = { onScheduleClick(schedule.scheduleId) },
+                            onClick = { onScheduleClick(schedule.id) },
                         )
                     }
                 }

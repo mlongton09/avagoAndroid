@@ -1,5 +1,6 @@
 package com.avago.feature.schedule.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,98 +16,91 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.avago.core.data.db.entity.ScheduleEntity
-import com.avago.core.data.db.entity.WorkOrderEntity
+import com.avago.core.data.domain.PmOccurrence
+import com.avago.core.data.domain.PmOccurrenceState
+import com.avago.core.data.domain.PmTrigger
+import com.avago.core.data.domain.PmTriggerKind
+import com.avago.core.data.domain.WorkOrder
 import com.avago.feature.schedule.R
+import com.avago.feature.schedule.ui.components.PmStatusBadge
+import com.avago.feature.schedule.ui.components.pmDueText
+import com.avago.feature.schedule.util.PmSchedule
 import com.avago.feature.schedule.util.RruleHelper
+import com.avago.feature.schedule.util.addOccurrenceToAndroidCalendar
+import com.avago.feature.schedule.viewmodel.ScheduleAction
+import com.avago.feature.schedule.viewmodel.ScheduleDetailUiState
 import com.avago.feature.schedule.viewmodel.ScheduleDetailViewModel
 import java.time.Instant
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScheduleDetailScreen(
-    scheduleId: String,
     onBack: () -> Unit,
-    onEdit: (scheduleId: String) -> Unit,
-    onCompleteService: (assetId: String) -> Unit,
+    onLogService: (assetId: String) -> Unit,
+    onOpenWorkOrder: (workOrderId: String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ScheduleDetailViewModel = hiltViewModel(),
 ) {
-    val schedule by viewModel.schedule.collectAsStateWithLifecycle()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
-    val deleted by viewModel.deleted.collectAsStateWithLifecycle()
-    val error by viewModel.error.collectAsStateWithLifecycle()
-    val linkedWos by viewModel.linkedWos.collectAsStateWithLifecycle()
-    val completeServiceAssetId by viewModel.completeServiceAssetId.collectAsStateWithLifecycle()
-
+    val event by viewModel.event.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    val context = LocalContext.current
 
-    var showDeleteDialog by remember { mutableStateOf(false) }
-    var showOverflow by remember { mutableStateOf(false) }
-
-    // Navigate back after deletion
-    LaunchedEffect(deleted) {
-        if (deleted) onBack()
+    val eventText = event?.let {
+        stringResource(
+            when (it) {
+                ScheduleAction.COMPLETED -> R.string.schedule_completed_message
+                ScheduleAction.SKIPPED -> R.string.schedule_skipped_message
+                ScheduleAction.DEFERRED -> R.string.schedule_deferred_message
+                ScheduleAction.FAILED -> R.string.schedule_action_failed
+            },
+        )
     }
-
-    LaunchedEffect(completeServiceAssetId) {
-        completeServiceAssetId?.let { assetId ->
-            viewModel.onCompleteServiceHandled()
-            onCompleteService(assetId)
-        }
-    }
-
-    // Show errors in snackbar
-    LaunchedEffect(error) {
-        error?.let { msg ->
-            snackbarHostState.showSnackbar(msg)
-            viewModel.clearError()
+    LaunchedEffect(event) {
+        if (eventText != null) {
+            viewModel.onEventShown()
+            snackbarHostState.showSnackbar(eventText)
         }
     }
 
@@ -117,460 +111,288 @@ fun ScheduleDetailScreen(
             CenterAlignedTopAppBar(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.schedule_detail_back),
-                        )
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.schedule_detail_back))
                     }
                 },
                 title = { Text(stringResource(R.string.schedule_detail_title)) },
-                actions = {
-                    IconButton(onClick = { onEdit(scheduleId) }) {
-                        Icon(
-                            Icons.Default.Edit,
-                            contentDescription = stringResource(R.string.schedule_detail_edit),
-                        )
-                    }
-                    Box {
-                        IconButton(onClick = { showOverflow = true }) {
-                            Icon(
-                                Icons.Default.MoreVert,
-                                contentDescription = stringResource(R.string.schedule_detail_overflow),
-                            )
-                        }
-                        DropdownMenu(
-                            expanded = showOverflow,
-                            onDismissRequest = { showOverflow = false },
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.schedule_detail_delete)) },
-                                leadingIcon = {
-                                    Icon(Icons.Default.Delete, contentDescription = null)
-                                },
-                                onClick = {
-                                    showOverflow = false
-                                    showDeleteDialog = true
-                                },
-                            )
-                        }
-                    }
-                },
             )
         },
     ) { innerPadding ->
-        if (schedule == null) {
-            Box(
-                modifier = Modifier
-                    .padding(innerPadding)
-                    .fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator()
-            }
-        } else {
-            val safeSchedule = schedule!!
-            ScheduleDetailContent(
-                schedule = safeSchedule,
+        val occurrence = state.occurrence
+        when {
+            occurrence != null -> ScheduleDetailContent(
+                state = state,
+                occurrence = occurrence,
                 isSaving = isSaving,
-                linkedWos = linkedWos,
-                onAddToCalendar = {
-                    viewModel.addToCalendar(context, safeSchedule.title)
-                },
-                onCompleteService = viewModel::completeService,
-                onSkipWo = { woId, reasonCode, notes ->
-                    viewModel.skipWo(woId, reasonCode, notes)
-                },
+                onComplete = viewModel::complete,
+                onSkip = viewModel::skip,
+                onDefer = viewModel::defer,
+                onLogService = onLogService,
+                onOpenWorkOrder = onOpenWorkOrder,
                 modifier = Modifier.padding(innerPadding),
             )
+            state.isLoading -> Box(Modifier.padding(innerPadding).fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+            else -> Box(Modifier.padding(innerPadding).fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(stringResource(R.string.schedule_detail_not_found), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
-    }
-
-    // ── Delete confirmation dialog ──────────────────────────────────────────
-    if (showDeleteDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = { Text(stringResource(R.string.schedule_detail_confirm_delete)) },
-            text = { Text(stringResource(R.string.schedule_detail_confirm_delete_body)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showDeleteDialog = false
-                        viewModel.delete()
-                    },
-                ) {
-                    Text(
-                        stringResource(R.string.schedule_detail_delete_confirm_btn),
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text(stringResource(R.string.schedule_detail_cancel_btn))
-                }
-            },
-        )
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Content
-// ─────────────────────────────────────────────────────────────────────────────
+private enum class PendingDialog { COMPLETE, SKIP, DEFER }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ScheduleDetailContent(
-    schedule: ScheduleEntity,
+    state: ScheduleDetailUiState,
+    occurrence: PmOccurrence,
     isSaving: Boolean,
-    linkedWos: List<WorkOrderEntity>,
-    onAddToCalendar: () -> Unit,
-    onCompleteService: () -> Unit,
-    onSkipWo: (woId: String, reasonCode: String, notes: String) -> Unit,
+    onComplete: (java.math.BigDecimal?) -> Unit,
+    onSkip: (String) -> Unit,
+    onDefer: (Long) -> Unit,
+    onLogService: (String) -> Unit,
+    onOpenWorkOrder: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val isOverdue = remember(schedule) { RruleHelper.isOverdue(schedule) }
-    val isDueSoon = remember(schedule) { RruleHelper.isDueSoon(schedule) }
-
-    val statusColor = when {
-        !schedule.isActive -> Color.Gray
-        isOverdue -> MaterialTheme.colorScheme.error
-        isDueSoon -> Color(0xFFF59E0B)
-        else -> Color(0xFF16A34A)
-    }
-    val statusLabel = when {
-        !schedule.isActive -> stringResource(R.string.schedule_detail_status_inactive)
-        isOverdue -> stringResource(R.string.schedule_detail_status_overdue)
-        isDueSoon -> stringResource(R.string.schedule_detail_status_due_soon)
-        else -> stringResource(R.string.schedule_detail_status_on_track)
-    }
-
-    val dateFmt = DateTimeFormatter.ofPattern("MMM d, yyyy")
-    fun Long?.fmtDate(): String = if (this == null) "—"
-    else Instant.ofEpochMilli(this).atZone(ZoneId.systemDefault()).format(dateFmt)
+    val context = LocalContext.current
+    val plan = state.plan
+    val now = System.currentTimeMillis()
+    val isOpen = occurrence.state == PmOccurrenceState.OPEN
+    var dialog by rememberSaveable { mutableStateOf<PendingDialog?>(null) }
 
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
+        modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        // ── Header ────────────────────────────────────────────────────────────
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = schedule.title,
-                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
-                )
-                schedule.category?.takeIf { it.isNotBlank() }?.let { category ->
-                    Text(
-                        text = category,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(occurrence.planTitle, style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold))
+                occurrence.assetName?.let {
+                    Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            // Status badge
-            Surface(
-                color = statusColor.copy(alpha = 0.12f),
-                shape = MaterialTheme.shapes.small,
-            ) {
-                Text(
-                    text = statusLabel,
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                    color = statusColor,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                )
-            }
+            PmStatusBadge(PmSchedule.status(occurrence, now))
         }
 
         HorizontalDivider()
 
-        // ── Frequency info card ────────────────────────────────────────────────
         DetailSection(title = stringResource(R.string.schedule_detail_section_info)) {
+            DetailRow(stringResource(R.string.schedule_detail_next_due), pmDueText(occurrence) ?: stringResource(R.string.schedule_detail_not_set))
+            DetailRow(stringResource(R.string.schedule_detail_cycle), occurrence.cycleNo.toString())
+            plan?.triggers?.forEach { trigger ->
+                DetailRow(stringResource(R.string.schedule_detail_frequency), triggerText(trigger))
+            }
             DetailRow(
-                label = stringResource(R.string.schedule_detail_frequency),
-                value = RruleHelper.describe(schedule.rrule),
+                stringResource(R.string.schedule_detail_last_completed),
+                plan?.lastCompletedAt?.let(::formatDate) ?: stringResource(R.string.schedule_detail_never),
             )
-            if (schedule.scheduleType == "meter") {
-                DetailRow(
-                    label = stringResource(R.string.schedule_detail_meter_type),
-                    value = schedule.meterType ?: "—",
-                )
-                DetailRow(
-                    label = stringResource(R.string.schedule_detail_meter_interval),
-                    value = schedule.meterInterval?.let { "${it.toLong()} ${schedule.meterType ?: ""}".trim() } ?: "—",
-                )
-                DetailRow(
-                    label = stringResource(R.string.schedule_detail_meter_due),
-                    value = schedule.meterDue?.let { "${it.toLong()} ${schedule.meterType ?: ""}".trim() } ?: "—",
-                )
-            } else {
-                DetailRow(
-                    label = stringResource(R.string.schedule_detail_next_due),
-                    value = schedule.nextDueAt.fmtDate(),
-                )
-                DetailRow(
-                    label = stringResource(R.string.schedule_detail_last_completed),
-                    value = schedule.lastCompletedAt.fmtDate(),
-                )
+            occurrence.closedAt?.let { DetailRow(stringResource(R.string.schedule_detail_closed), formatDate(it)) }
+            plan?.description?.takeIf { it.isNotBlank() }?.let {
+                Text(stringResource(R.string.schedule_detail_notes), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(it, style = MaterialTheme.typography.bodyMedium)
             }
         }
 
-        // ── History ────────────────────────────────────────────────────────────
-        // Change 72: each pending WO row gets a Skip action button
-        var skipTargetWoId by remember { mutableStateOf<String?>(null) }
-        val skipSheetState = rememberModalBottomSheetState()
-        val scope = rememberCoroutineScope()
+        state.workOrder?.let { wo ->
+            DetailSection(title = stringResource(R.string.schedule_detail_work_order)) {
+                WorkOrderRow(wo, onClick = { onOpenWorkOrder(wo.id) })
+            }
+        }
 
         DetailSection(title = stringResource(R.string.schedule_detail_history_title)) {
-            if (linkedWos.isEmpty()) {
+            if (state.history.isEmpty()) {
                 Text(
-                    text = stringResource(R.string.schedule_detail_history_no_wos),
+                    stringResource(R.string.schedule_detail_history_empty),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
-                linkedWos.forEach { wo ->
-                    WoHistoryRow(
-                        wo = wo,
-                        onSkip = if (wo.status in setOf("open", "pending", "assigned")) {
-                            {
-                                skipTargetWoId = wo.woId
-                                scope.launch { skipSheetState.show() }
-                            }
-                        } else null,
-                    )
+                state.history.forEach { HistoryRow(it, now) }
+            }
+        }
+
+        if (isOpen) {
+            Button(onClick = { dialog = PendingDialog.COMPLETE }, enabled = !isSaving, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.schedule_action_complete))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(onClick = { dialog = PendingDialog.SKIP }, enabled = !isSaving, modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.schedule_action_skip))
+                }
+                OutlinedButton(onClick = { dialog = PendingDialog.DEFER }, enabled = !isSaving, modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.schedule_action_defer))
                 }
             }
         }
-
-        // Skip bottom sheet
-        if (skipTargetWoId != null) {
-            SkipOccurrenceSheet(
-                sheetState = skipSheetState,
-                onDismiss = {
-                    scope.launch { skipSheetState.hide() }
-                    skipTargetWoId = null
-                },
-                onConfirm = { reasonCode, notes ->
-                    val woId = skipTargetWoId ?: return@SkipOccurrenceSheet
-                    scope.launch { skipSheetState.hide() }
-                    skipTargetWoId = null
-                    onSkipWo(woId, reasonCode, notes)
-                },
-            )
+        occurrence.assetId?.let { assetId ->
+            OutlinedButton(onClick = { onLogService(assetId) }, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.action_complete_service))
+            }
         }
-
-        // ── Actions ────────────────────────────────────────────────────────────
-        Button(
-            onClick = onCompleteService,
-            enabled = !isSaving,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(stringResource(R.string.action_complete_service))
-        }
-
-        if (schedule.scheduleType != "meter") {
-            OutlinedButton(
-                onClick = onAddToCalendar,
-                enabled = !isSaving,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Icon(
-                    Icons.Default.CalendarMonth,
-                    contentDescription = null,
-                    modifier = Modifier.padding(end = 8.dp),
-                )
+        if (isOpen && occurrence.dueAt != null) {
+            OutlinedButton(onClick = { addOccurrenceToAndroidCalendar(context, occurrence, plan) }, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
                 Text(stringResource(R.string.schedule_detail_add_to_calendar))
             }
         }
+        Spacer(Modifier.height(48.dp))
+    }
 
-        Spacer(modifier = Modifier.height(48.dp))
+    when (dialog) {
+        PendingDialog.COMPLETE -> CompleteDialog(
+            askMeter = occurrence.dueValue != null || plan?.triggers?.any { it.kind == PmTriggerKind.METER } == true,
+            onDismiss = { dialog = null },
+            onConfirm = { value -> dialog = null; onComplete(value) },
+        )
+        PendingDialog.SKIP -> SkipDialog(onDismiss = { dialog = null }, onConfirm = { reason -> dialog = null; onSkip(reason) })
+        PendingDialog.DEFER -> DeferDialog(
+            initial = occurrence.dueAt,
+            onDismiss = { dialog = null },
+            onConfirm = { dueAt -> dialog = null; onDefer(dueAt) },
+        )
+        null -> Unit
     }
 }
 
 @Composable
-private fun DetailSection(
-    title: String,
-    content: @Composable () -> Unit,
-) {
+private fun triggerText(t: PmTrigger): String = when (t.kind) {
+    PmTriggerKind.CALENDAR -> RruleHelper.describe(t.rrule)
+    PmTriggerKind.INTERVAL -> stringResource(R.string.schedule_trigger_interval, t.intervalValue ?: 0, t.intervalUnit.orEmpty())
+    PmTriggerKind.METER -> stringResource(R.string.schedule_trigger_meter, t.meterInterval?.let(PmSchedule::formatValue) ?: "?")
+}
+
+private fun formatDate(epochMs: Long): String =
+    PmSchedule.localDate(epochMs).format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
+
+@Composable
+private fun DetailSection(title: String, content: @Composable () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-            color = MaterialTheme.colorScheme.primary,
-        )
+        Text(title, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.primary)
         content()
     }
 }
 
 @Composable
 private fun DetailRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-        )
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.padding(horizontal = 8.dp))
+        Text(value, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium))
     }
 }
 
 @Composable
-private fun WoHistoryRow(
-    wo: WorkOrderEntity,
-    onSkip: (() -> Unit)? = null,
-) {
-    val dateFmt = DateTimeFormatter.ofPattern("MMM d, yyyy")
-    val dateStr = Instant.ofEpochMilli(wo.updatedAt).atZone(ZoneId.systemDefault()).format(dateFmt)
-    val statusColor = when (wo.status) {
-        "complete" -> Color(0xFF16A34A)
-        "cancelled" -> Color.Gray
-        "in_progress" -> Color(0xFF2563EB)
-        else -> Color(0xFFF59E0B)
-    }
+private fun WorkOrderRow(wo: WorkOrder, onClick: () -> Unit) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
+        Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick).padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(wo.title, style = MaterialTheme.typography.bodyMedium)
-            Text(
-                dateStr,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Surface(
-                color = statusColor.copy(alpha = 0.12f),
-                shape = MaterialTheme.shapes.small,
-            ) {
-                Text(
-                    text = wo.status.replace("_", " ").replaceFirstChar { it.uppercase() },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = statusColor,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                )
-            }
-            // Change 72: Skip button for open/pending occurrences
-            if (onSkip != null) {
-                IconButton(onClick = onSkip) {
-                    Icon(
-                        imageVector = Icons.Default.SkipNext,
-                        contentDescription = "Skip occurrence",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
+        Text(wo.title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        Text(
+            wo.status.wire.replace('_', ' ').replaceFirstChar { it.uppercase() },
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
-// Change 72: Skip occurrence bottom sheet
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SkipOccurrenceSheet(
-    sheetState: androidx.compose.material3.SheetState,
-    onDismiss: () -> Unit,
-    onConfirm: (reasonCode: String, notes: String) -> Unit,
-) {
-    val reasonCodes = listOf("DEFERRED", "EQUIPMENT_UNAVAILABLE", "WEATHER", "OTHER")
-    var selectedReason by remember { mutableStateOf(reasonCodes[0]) }
-    var notes by remember { mutableStateOf("") }
-    var reasonExpanded by remember { mutableStateOf(false) }
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
+private fun HistoryRow(o: PmOccurrence, now: Long) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Text(
-                text = "Skip Occurrence",
-                style = MaterialTheme.typography.titleLarge,
-            )
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(R.string.schedule_history_cycle, o.cycleNo), style = MaterialTheme.typography.bodyMedium)
+            (o.closedAt ?: o.dueAt)?.let {
+                Text(formatDate(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        PmStatusBadge(PmSchedule.status(o, now))
+    }
+}
 
-            // Reason code dropdown
-            Box {
-                OutlinedTextField(
-                    value = selectedReason.replace("_", " "),
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Reason") },
-                    trailingIcon = {
-                        IconButton(onClick = { reasonExpanded = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "Show reason options")
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                DropdownMenu(
-                    expanded = reasonExpanded,
-                    onDismissRequest = { reasonExpanded = false },
-                ) {
-                    reasonCodes.forEach { code ->
-                        DropdownMenuItem(
-                            text = { Text(code.replace("_", " ")) },
-                            onClick = {
-                                selectedReason = code
-                                reasonExpanded = false
-                            },
-                        )
-                    }
+@Composable
+private fun CompleteDialog(askMeter: Boolean, onDismiss: () -> Unit, onConfirm: (java.math.BigDecimal?) -> Unit) {
+    var meter by rememberSaveable { mutableStateOf("") }
+    val parsed = PmSchedule.parseValue(meter)
+    val invalid = meter.isNotBlank() && parsed == null
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.schedule_complete_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.schedule_complete_body))
+                if (askMeter) {
+                    OutlinedTextField(
+                        value = meter,
+                        onValueChange = { meter = it },
+                        label = { Text(stringResource(R.string.schedule_complete_meter)) },
+                        isError = invalid,
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
             }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(parsed) }, enabled = !invalid) { Text(stringResource(R.string.schedule_action_complete)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_detail_cancel_btn)) } },
+    )
+}
 
-            // Optional notes
+@Composable
+private fun SkipDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var reason by rememberSaveable { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.schedule_skip_title)) },
+        text = {
             OutlinedTextField(
-                value = notes,
-                onValueChange = { notes = it },
-                label = { Text("Notes (optional)") },
+                value = reason,
+                onValueChange = { reason = it },
+                label = { Text(stringResource(R.string.schedule_skip_reason)) },
                 minLines = 2,
                 maxLines = 4,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 modifier = Modifier.fillMaxWidth(),
             )
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(reason) }, enabled = reason.isNotBlank()) { Text(stringResource(R.string.schedule_action_skip)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_detail_cancel_btn)) } },
+    )
+}
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                OutlinedButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text("Cancel")
-                }
-                Button(
-                    onClick = { onConfirm(selectedReason, notes) },
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text("Skip")
-                }
-            }
-        }
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DeferDialog(initial: Long?, onDismiss: () -> Unit, onConfirm: (Long) -> Unit) {
+    // The picker works in UTC midnights; the new due time is that day's start in the local zone.
+    val today = java.time.LocalDate.now()
+    val start = initial?.let(PmSchedule::localDate)?.takeIf { it.isAfter(today) } ?: today.plusDays(1)
+    val pickerState = rememberDatePickerState(initialSelectedDateMillis = start.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    pickerState.selectedDateMillis?.let { utc ->
+                        val day = Instant.ofEpochMilli(utc).atZone(ZoneOffset.UTC).toLocalDate()
+                        onConfirm(day.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli())
+                    }
+                },
+                enabled = pickerState.selectedDateMillis != null,
+            ) { Text(stringResource(R.string.schedule_action_defer)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_detail_cancel_btn)) } },
+    ) {
+        DatePicker(state = pickerState, title = { Text(stringResource(R.string.schedule_defer_title), modifier = Modifier.padding(16.dp)) })
     }
 }

@@ -224,12 +224,10 @@ fun AvagoNavHost(
             // ── Schedule ──────────────────────────────────────────────────────────
             scheduleNavGraph(
                 navController = navController,
-                onNavigateToAssetPicker = {
-                    navController.navigate(AssetsRoute.PICKER)
-                },
                 onNavigateToAddLogEntry = { assetId ->
                     navController.navigate(LogRoute.addEdit(assetId = assetId))
                 },
+                onOpenWorkOrder = { woId -> navController.navigate("workorders/detail/$woId") },
             )
 
             // ── Chat ──────────────────────────────────────────────────────────────
