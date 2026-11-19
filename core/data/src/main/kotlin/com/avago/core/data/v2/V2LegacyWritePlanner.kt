@@ -76,8 +76,26 @@ class V2LegacyWritePlanner {
                 val changed = if (current == null) JsonObject(body) else diff(body, current)
                 if (changed.isEmpty()) none() else send(V2RestCall("PUT", "$a/tech-profiles/$userId", changed))
             }
+            "doc" -> doc(a, entityId, deleting, create, p, current)
             else -> V2BridgePlan.Unsupported("$entityType writes are not supported on the v2 server yet")
         }
+    }
+
+    private fun doc(
+        a: String, id: String, deleting: Boolean, create: Boolean, p: JsonObject, current: JsonObject?,
+    ): V2BridgePlan {
+        val base = "$a/docs"
+        if (deleting) return send(V2RestCall("DELETE", "$base/$id", null))
+        val fields = pick(p, DOC_FIELDS)
+        if (create) {
+            val entityId = p.str("entity_id") ?: p.str("asset_id")
+                ?: return V2BridgePlan.Unsupported("documents need an asset or entity on v2")
+            val entityType = p.str("entity_type") ?: "asset"
+            val body = fields + mapOf("entity_id" to JsonPrimitive(entityId), "entity_type" to JsonPrimitive(entityType))
+            return send(V2RestCall("POST", base, withId(body, "doc_id", id)))
+        }
+        val changed = diff(fields, current!!)
+        return if (changed.isEmpty()) none() else send(V2RestCall("PUT", "$base/$id", changed))
     }
 
     private fun workOrder(
@@ -222,7 +240,12 @@ class V2LegacyWritePlanner {
     companion object {
         val SUPPORTED_TYPES = setOf(
             "asset", "work_order", "wo_assignment", "wo_checklist_item", "wo_comment", "log", "log_cost_line",
-            "location", "bin", "part", "tech_profile",
+            "location", "bin", "part", "tech_profile", "doc",
+        )
+
+        private val DOC_FIELDS = setOf(
+            "title", "document_type", "vendor", "total_amount", "currency", "purchase_date", "warranty_end_date",
+            "notes", "storage_key",
         )
 
         private val ASSET_FIELDS = setOf(
@@ -269,7 +292,9 @@ class V2LegacyWritePlanner {
         /** Fields the server types as `Vec<…>`: a bare comma list becomes an array. */
         private val LIST_KEYS = setOf("required_skills", "mentioned_user_ids", "skills", "asset_tags")
 
-        private val TIME_KEYS = setOf("log_date", "due_date", "scheduled_start", "scheduled_end")
+        private val TIME_KEYS = setOf(
+            "log_date", "due_date", "scheduled_start", "scheduled_end", "purchase_date", "warranty_end_date",
+        )
 
         /** Server `Option<String>` fields the payload may carry as numbers. */
         private val STRING_KEYS = setOf("meter")

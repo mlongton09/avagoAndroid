@@ -374,7 +374,15 @@ class SyncEngine @Inject constructor(
         val bridge = v2Bridge?.get()
         val accountId = identity.getActiveAccountId()
         if (bridge != null && accountId != null && result !is V2SyncResult.Offline) {
-            val sent = runCatchingNonCancel("v2 bridge push") { bridge.push(accountId) } ?: 0
+            var sent = runCatchingNonCancel("v2 bridge push") { bridge.push(accountId) } ?: 0
+            // Photos upload after their parent rows were pushed (the photos route links to them).
+            val photosPending = runCatchingNonCancel("v2 photo check") {
+                dbFactory.get(accountId).photoDao().pendingUpload(accountId).isNotEmpty()
+            } == true
+            if (photosPending) {
+                runCatchingNonCancel("v2 photo upload") { photoUploader.get().sweep(accountId) }
+                sent++
+            }
             if (sent > 0) result = v2Sync.get().runIfActive() ?: result
             if (result is V2SyncResult.Synced) {
                 runCatchingNonCancel("v2 mirror") { mirrorV2(bridge, accountId) }
@@ -401,8 +409,9 @@ class SyncEngine @Inject constructor(
         bridge.mirror(
             accountId,
             apply = { type, item -> upsertPulledItem(accountId, type, item, mirrored = true) },
-            roomIds = { table, pk ->
-                db.openHelper.readableDatabase.query("SELECT $pk FROM $table").use { cursor ->
+            roomIds = { table, pk, where ->
+                val filter = if (where != null) " WHERE $where" else ""
+                db.openHelper.readableDatabase.query("SELECT $pk FROM $table$filter").use { cursor ->
                     buildList { while (cursor.moveToNext()) cursor.getString(0)?.let { add(it) } }
                 }
             },
@@ -1540,21 +1549,31 @@ class SyncEngine @Inject constructor(
 
                 "photo" -> {
                     val now = System.currentTimeMillis()
+                    val pulled = PhotoEntity(
+                        photoId = item.str("photo_id") ?: return,
+                        entityId = item.str("entity_id") ?: return,
+                        entityType = item.str("entity_type") ?: return,
+                        accountId = item.str("account_id") ?: accountId,
+                        storageKey = item.str("storage_key"),
+                        downloadUrl = item.str("download_url"),
+                        sortOrder = item.lng("sort_order") ?: 0L,
+                        isPrimary = item.bool("is_primary") ?: false,
+                        createdAt = isoToMs(item.str("created_at")) ?: now,
+                        updatedAt = isoToMs(item.str("updated_at") ?: item.str("created_at")) ?: now,
+                        deletedAt = isoToMs(item.str("deleted_at")),
+                        serverVersion = item.lng("server_version") ?: 0L,
+                    )
+                    // v2 mirror: the store has no download URL, cover flag or local file — keep the
+                    // device-local columns, and a local delete that is still waiting to be pushed.
+                    val local = if (mirrored) db.photoDao().getById(pulled.photoId) else null
                     db.photoDao().upsert(
-                        PhotoEntity(
-                            photoId = item.str("photo_id") ?: return,
-                            entityId = item.str("entity_id") ?: return,
-                            entityType = item.str("entity_type") ?: return,
-                            accountId = item.str("account_id") ?: accountId,
-                            storageKey = item.str("storage_key"),
-                            downloadUrl = item.str("download_url"),
-                            sortOrder = item.lng("sort_order") ?: 0L,
-                            isPrimary = item.bool("is_primary") ?: false,
-                            createdAt = isoToMs(item.str("created_at")) ?: now,
-                            updatedAt = isoToMs(item.str("updated_at") ?: item.str("created_at")) ?: now,
-                            deletedAt = isoToMs(item.str("deleted_at")),
-                            serverVersion = item.lng("server_version") ?: 0L,
-                        )
+                        if (local == null) pulled else pulled.copy(
+                            downloadUrl = pulled.downloadUrl ?: local.downloadUrl,
+                            isPrimary = local.isPrimary,
+                            localPath = local.localPath,
+                            thumbnailUrl = pulled.thumbnailUrl ?: local.thumbnailUrl,
+                            deletedAt = pulled.deletedAt ?: local.deletedAt,
+                        ),
                     )
                 }
 

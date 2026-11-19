@@ -14,6 +14,8 @@ import com.avago.core.sync.SyncPayloadBuilder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import timber.log.Timber
@@ -76,7 +78,28 @@ class V2LegacyBridge @Inject constructor(
                 }
             }
         }
-        sent
+        sent + pushPhotoDeletes(accountId)
+    }
+
+    /** Photo deletes are not queued (legacy pull reconciled them); send them straight to the photos route. */
+    private suspend fun pushPhotoDeletes(accountId: String): Int {
+        val photos = dbFactory.get(accountId).photoDao()
+        var sent = 0
+        for (photo in photos.deletedUploaded(accountId)) {
+            when (val result = client.sendJson("DELETE", "/accounts/$accountId/photos/${photo.photoId}", null)) {
+                is NetworkResult.Success -> {
+                    photos.hardDelete(photo.photoId)
+                    sent++
+                }
+                NetworkResult.Unauthorized -> return sent
+                is NetworkResult.Error -> when {
+                    result.code == 404 -> photos.hardDelete(photo.photoId)
+                    isRetryable(result.code) -> return sent
+                    else -> Timber.w("V2LegacyBridge: photo ${photo.photoId} delete failed: HTTP ${result.code}")
+                }
+            }
+        }
+        return sent
     }
 
     private sealed interface RowOutcome {
@@ -91,7 +114,17 @@ class V2LegacyBridge @Inject constructor(
             return RowOutcome.Failed("$UNSUPPORTED: $type writes are not available on the v2 server yet")
         }
         val payload = payloads.buildPayload(accountId, type, row.entityId)
-        val current = business.read { projector.projectOne(it, type, row.entityId) } ?: sentBefore
+        val restPath = REST_ENTITIES[type]
+        val current = if (restPath != null) {
+            when (val fetched = fetchRest(accountId, restPath, row.entityId)) {
+                is RestFetch.Found -> fetched.item
+                RestFetch.Missing -> sentBefore
+                is RestFetch.Offline -> return RowOutcome.Offline(fetched.reason)
+                is RestFetch.Failed -> return RowOutcome.Failed(fetched.reason)
+            }
+        } else {
+            business.read { projector.projectOne(it, type, row.entityId) } ?: sentBefore
+        }
         val plan = planner.plan(accountId, type, row.entityId, row.operation, payload, current)
         val calls = when (plan) {
             is V2BridgePlan.Unsupported -> return RowOutcome.Failed("$UNSUPPORTED: ${plan.reason}")
@@ -102,7 +135,7 @@ class V2LegacyBridge @Inject constructor(
                 is NetworkResult.Success -> Unit
                 NetworkResult.Unauthorized -> return RowOutcome.Offline("unauthorized")
                 is NetworkResult.Error -> return when {
-                    result.code == -1 || result.code == 408 || result.code == 429 || result.code >= 500 ->
+                    isRetryable(result.code) ->
                         RowOutcome.Offline("HTTP ${result.code}: ${result.message.take(200)}")
                     // Deleting something the server no longer has is done.
                     result.code == 404 && call.method == "DELETE" -> RowOutcome.Done(0, null)
@@ -114,6 +147,25 @@ class V2LegacyBridge @Inject constructor(
         return RowOutcome.Done(calls.size, payload?.let { JsonObject(it + ("server_version" to JsonPrimitive(0))) })
     }
 
+    private sealed interface RestFetch {
+        data class Found(val item: JsonObject) : RestFetch
+        data object Missing : RestFetch
+        data class Offline(val reason: String) : RestFetch
+        data class Failed(val reason: String) : RestFetch
+    }
+
+    /** The server's current JSON of a REST-only entity (one the v2 store does not carry). */
+    private suspend fun fetchRest(accountId: String, path: String, id: String): RestFetch =
+        when (val result = client.sendJson("GET", "/accounts/$accountId/$path/$id", null)) {
+            is NetworkResult.Success -> (parse(result.data) as? JsonObject)?.let { RestFetch.Found(it) } ?: RestFetch.Missing
+            NetworkResult.Unauthorized -> RestFetch.Offline("unauthorized")
+            is NetworkResult.Error -> when {
+                result.code == 404 -> RestFetch.Missing
+                isRetryable(result.code) -> RestFetch.Offline("HTTP ${result.code}: ${result.message.take(200)}")
+                else -> RestFetch.Failed("HTTP ${result.code} GET $path/$id: ${result.message.take(300)}")
+            }
+        }
+
     /**
      * Mirrors every projected entity type into Room. [apply] is the legacy pull upsert;
      * [roomIds] lists the Room primary keys of a type; [delete] removes Room rows by id.
@@ -121,7 +173,7 @@ class V2LegacyBridge @Inject constructor(
     suspend fun mirror(
         accountId: String,
         apply: suspend (entityType: String, item: JsonObject) -> Unit,
-        roomIds: suspend (table: String, pk: String) -> List<String>,
+        roomIds: suspend (table: String, pk: String, where: String?) -> List<String>,
         delete: suspend (table: String, pk: String, ids: Collection<String>) -> Unit,
     ): Int = mutex.withLock {
         val business = active.forAccount(accountId)?.business ?: return@withLock 0
@@ -157,13 +209,19 @@ class V2LegacyBridge @Inject constructor(
             seen.keys.retainAll(ids)
             keepByType[spec.entityType] = ids
         }
+        for ((type, list) in REST_LISTS) {
+            val rows = fetchRestList(accountId, list) ?: continue
+            changed += applyAll(accountId, type, REST_ID_KEYS.getValue(type), rows, apply)
+            // A full page may be truncated: only prune when the server returned everything.
+            if (rows.size < list.limit) keepByType[type] = rows.mapNotNull { (it[REST_ID_KEYS.getValue(type)] as? JsonPrimitive)?.content }.toSet()
+        }
         // Children first, so nothing references a pruned parent mid-way.
-        for (spec in V2LegacyProjector.SPECS.asReversed()) {
-            val (table, pk) = ROOM_TABLES[spec.entityType] ?: continue
-            val keep = keepByType[spec.entityType] ?: continue
+        for (type in REST_LISTS.keys.reversed() + V2LegacyProjector.SPECS.asReversed().map { it.entityType }) {
+            val (table, pk) = ROOM_TABLES[type] ?: continue
+            val keep = keepByType[type] ?: continue
             try {
-                val pending = queue.unsyncedEntityIds(spec.entityType).toSet()
-                val stale = roomIds(table, pk).filter { it !in keep && it !in pending }
+                val pending = queue.unsyncedEntityIds(type).toSet()
+                val stale = roomIds(table, pk, PRUNE_FILTERS[type]).filter { it !in keep && it !in pending }
                 if (stale.isNotEmpty()) {
                     delete(table, pk, stale)
                     changed += stale.size
@@ -171,11 +229,47 @@ class V2LegacyBridge @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-                Timber.w(e, "V2LegacyBridge: pruning ${spec.entityType} failed")
+                Timber.w(e, "V2LegacyBridge: pruning $type failed")
             }
         }
         if (changed > 0) Timber.d("V2LegacyBridge: mirrored $changed Room change(s)")
         changed
+    }
+
+    private suspend fun applyAll(
+        accountId: String,
+        type: String,
+        idKey: String,
+        rows: List<JsonObject>,
+        apply: suspend (entityType: String, item: JsonObject) -> Unit,
+    ): Int {
+        val seen = applied.getOrPut("$accountId|$type") { mutableMapOf() }
+        var changed = 0
+        for (item in rows) {
+            val id = (item[idKey] as? JsonPrimitive)?.content ?: continue
+            val hash = item.hashCode()
+            if (seen[id] == hash) continue
+            try {
+                apply(type, item)
+                seen[id] = hash
+                changed++
+            } catch (e: CancellationException) {
+                throw e
+            } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+                Timber.w(e, "V2LegacyBridge: mirroring $type/$id failed")
+            }
+        }
+        return changed
+    }
+
+    /** One REST list the store does not carry; null when the fetch failed (nothing is pruned). */
+    private suspend fun fetchRestList(accountId: String, list: RestList): List<JsonObject>? {
+        val result = client.sendJson("GET", "/accounts/$accountId/${list.path}", null)
+        if (result !is NetworkResult.Success) {
+            Timber.w("V2LegacyBridge: listing ${list.path} failed: $result")
+            return null
+        }
+        return listItems(parse(result.data), list.key)
     }
 
     /** Forces the next [mirror] to re-apply the entity (its Room row may hold a local edit). */
@@ -183,8 +277,45 @@ class V2LegacyBridge @Inject constructor(
         applied["$accountId|$entityType"]?.remove(entityId)
     }
 
+    /** A REST list endpoint: GET [path] returns `{ [key]: [...] }` (or a bare array), at most [limit] rows. */
+    data class RestList(val path: String, val key: String, val limit: Int)
+
     companion object {
         const val UNSUPPORTED = "v2_unsupported"
+
+        private val json = Json { ignoreUnknownKeys = true }
+
+        internal fun parse(text: String) = runCatching { json.parseToJsonElement(text) }.getOrNull()
+
+        /** Rows of a list response: `{key:[...]}`, `{data:{key:[...]}}`, `{data:[...]}` or a bare array. */
+        internal fun listItems(body: kotlinx.serialization.json.JsonElement?, key: String): List<JsonObject>? {
+            val arr = when (body) {
+                is JsonArray -> body
+                is JsonObject -> (body[key] as? JsonArray)
+                    ?: ((body["data"] as? JsonObject)?.get(key) as? JsonArray)
+                    ?: (body["data"] as? JsonArray)
+                else -> null
+            } ?: return null
+            return arr.filterIsInstance<JsonObject>()
+        }
+
+        private fun isRetryable(code: Int) = code == -1 || code == 408 || code == 429 || code >= 500
+
+        /** Entities the v2 store does not carry: their write diff is taken against `GET path/{id}`. */
+        val REST_ENTITIES: Map<String, String> = mapOf("doc" to "docs")
+
+        /** Entities mirrored from a REST list instead of the store (parents first). */
+        val REST_LISTS: Map<String, RestList> = linkedMapOf(
+            "doc" to RestList("docs?limit=500", "docs", 500),
+        )
+
+        private val REST_ID_KEYS: Map<String, String> = mapOf("doc" to "doc_id")
+
+        /** Room rows of these types are only prune candidates when they match the filter. */
+        val PRUNE_FILTERS: Map<String, String> = mapOf(
+            // A photo without a storage key is still waiting for its upload.
+            "photo" to "storage_key IS NOT NULL",
+        )
 
         /** Room table + primary-key column per mirrored entity type (prune targets). */
         val ROOM_TABLES: Map<String, Pair<String, String>> = mapOf(
@@ -206,6 +337,8 @@ class V2LegacyBridge @Inject constructor(
             "stocking_level" to ("stocking_levels" to "stocking_level_id"),
             "pm_plan" to ("pm_plans" to "pm_plan_id"),
             "meter_reading" to ("meter_readings" to "meter_reading_id"),
+            "photo" to ("photos" to "photo_id"),
+            "doc" to ("docs" to "doc_id"),
         )
     }
 }

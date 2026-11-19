@@ -38,6 +38,13 @@ interface PhotoDao {
     @Query("SELECT * FROM photos WHERE account_id = :accountId AND storage_key IS NOT NULL AND local_path IS NOT NULL AND deleted_at IS NULL")
     suspend fun uploadedWithLocalPath(accountId: String): List<PhotoEntity>
 
+    /** Uploaded photos deleted on this device — the v2 bridge sends their DELETE. */
+    @Query("SELECT * FROM photos WHERE account_id = :accountId AND storage_key IS NOT NULL AND deleted_at IS NOT NULL")
+    suspend fun deletedUploaded(accountId: String): List<PhotoEntity>
+
+    @Query("DELETE FROM photos WHERE photo_id = :photoId")
+    suspend fun hardDelete(photoId: String)
+
     @Query("UPDATE photos SET storage_key = :storageKey, updated_at = :now WHERE photo_id = :photoId")
     suspend fun updateStorageKey(photoId: String, storageKey: String, now: Long)
 

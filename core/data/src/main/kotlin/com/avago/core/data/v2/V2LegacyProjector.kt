@@ -294,6 +294,27 @@ class V2LegacyProjector {
                 LEFT JOIN asset_meters m ON m.id = r.meter_id
                 """,
             ),
+            Spec(
+                // Photos are file objects linked by an attachment; the latest link wins (attach() re-homes).
+                "photo", "photo_id", setOf("files", "attachments"),
+                """
+                SELECT f.id AS photo_id,
+                       COALESCE(a.asset_id, a.activity_id, a.work_order_id, a.asset_loan_id) AS entity_id,
+                       CASE WHEN a.asset_id IS NOT NULL THEN 'asset'
+                            WHEN a.activity_id IS NOT NULL THEN 'log'
+                            WHEN a.work_order_id IS NOT NULL THEN 'work_order'
+                            ELSE 'asset_loan' END AS entity_type,
+                       f.storage_key, COALESCE(a.sort_order, 0) AS sort_order,
+                       f.thumbnail_storage_key, f.image_width, f.image_height,
+                       f.created_at, f.updated_at, f.version AS server_version
+                FROM files f
+                JOIN attachments a ON a.id = (
+                    SELECT a2.id FROM attachments a2
+                    WHERE a2.file_object_id = f.id AND a2.document_id IS NULL
+                      AND COALESCE(a2.asset_id, a2.activity_id, a2.work_order_id, a2.asset_loan_id) IS NOT NULL
+                    ORDER BY a2.created_at DESC, a2.id DESC LIMIT 1)
+                """,
+            ),
         ).map { it.copy(sql = it.sql.trimIndent()) }
 
         val SPECS_BY_TYPE: Map<String, Spec> = SPECS.associateBy { it.entityType }

@@ -104,4 +104,21 @@ class V2LegacyWritePlannerTest {
         val plan = planner.plan(acct, "doc", "d1", "insert", buildJsonObject { put("doc_id", "d1") }, null)
         assertTrue(plan is V2BridgePlan.Unsupported)
     }
+
+    @Test
+    fun `doc create links the asset and dates round-trip through the diff`() {
+        val payload = buildJsonObject {
+            put("doc_id", "d1"); put("asset_id", "a1"); put("title", "Receipt"); put("purchase_date", "2026-02-01")
+        }
+        val create = calls(planner.plan(acct, "doc", "d1", "insert", payload, current = null)).single()
+        assertEquals("/accounts/acct/docs", create.path)
+        assertEquals(JsonPrimitive("a1"), create.body!!["entity_id"])
+        assertEquals(JsonPrimitive("asset"), create.body!!["entity_type"])
+        assertEquals(JsonPrimitive("d1"), create.body!!["doc_id"])
+
+        val current = buildJsonObject { put("title", "Receipt"); put("purchase_date", "2026-02-01T12:00:00Z") }
+        assertTrue(calls(planner.plan(acct, "doc", "d1", "update", payload, current)).isEmpty())
+        val unlinked = buildJsonObject { put("doc_id", "d2"); put("title", "Loose") }
+        assertTrue(planner.plan(acct, "doc", "d2", "insert", unlinked, current = null) is V2BridgePlan.Unsupported)
+    }
 }
