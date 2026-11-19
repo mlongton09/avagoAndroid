@@ -17,25 +17,6 @@ data class CustomFieldDef(
     val options: List<String> = emptyList(),
 )
 
-@Serializable
-data class CustomFieldValue(
-    val field_id: String,
-    val name: String? = null,
-    val type: String? = null,
-    val value: JsonElement? = null,
-)
-
-// New: Meter-based PM triggers
-@Serializable
-data class MeterTrigger(
-    val id: String,
-    val name: String,
-    val asset_id: String? = null,
-    val trigger_value: Double? = null,
-    val unit: String? = null,
-    val template_id: String? = null,
-)
-
 // New: PM plans (calendar / meter / multi-interval).
 // Svc wire shape: `plan_id`, `title`, UPPERCASE `schedule_type`, and an `attributes` JSON object
 // that must round-trip untouched. Legacy `id` / `name` are still accepted on read.

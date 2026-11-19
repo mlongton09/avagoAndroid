@@ -3,12 +3,6 @@ package com.avago.core.network.model
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class ApiResponse<T>(
-    val data: T? = null,
-    val error: String? = null,
-)
-
-@Serializable
 data class UserPreferencesResponse(
     val theme: String? = null,
     val language: String? = null,

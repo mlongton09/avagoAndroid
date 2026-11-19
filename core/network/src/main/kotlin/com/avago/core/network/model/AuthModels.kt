@@ -78,12 +78,6 @@ data class BulkInvitation(
 )
 
 @Serializable
-data class RolePermissionResponse(
-    val role: String,
-    val permissions: List<String>,
-)
-
-@Serializable
 data class RolePermissionsSyncEnvelope(
     val data: RolePermissionsSyncData = RolePermissionsSyncData(),
 )
@@ -93,20 +87,6 @@ data class RolePermissionsSyncData(
     val matrix: Map<String, Map<String, Boolean>> = emptyMap(),
     val labels: Map<String, String> = emptyMap(),
     val updated_at: String? = null,
-)
-
-@Serializable
-data class InvitationStatusResponse(
-    val email: String,
-    val status: String,
-    val invited_at: Long? = null,
-    val accepted_at: Long? = null,
-)
-
-@Serializable
-data class DispatchConfigResponse(
-    val enabled: Boolean,
-    val columns: List<String> = emptyList(),
 )
 
 @Serializable

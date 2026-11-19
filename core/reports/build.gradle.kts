@@ -16,11 +16,19 @@ android {
 
 dependencies {
     implementation(project(":core:data"))
-    implementation(project(":core:auth"))
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.coroutines.core)
     implementation(libs.coroutines.android)
     implementation(libs.kotlinx.datetime)
     implementation(libs.timber)
+
+    testImplementation(libs.junit5)
+    testImplementation(platform(libs.junit.bom))
+    testRuntimeOnly(libs.junit5.engine)
+    testRuntimeOnly(libs.junit.platform.launcher)
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
 }

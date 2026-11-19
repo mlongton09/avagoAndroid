@@ -2,26 +2,22 @@ package com.avago.feature.reports.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
 import com.avago.core.data.repository.UserPreferencesRepository
-import com.avago.core.reports.ReportAggregator
+import com.avago.core.reports.CostReportRepository
 import com.avago.core.reports.model.CostGroupMode
 import com.avago.core.reports.model.CostPeriodMode
 import com.avago.core.reports.model.CostPeriodSpec
 import com.avago.core.reports.model.CostReportData
 import com.avago.core.reports.model.ReportRange
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -36,8 +32,7 @@ import javax.inject.Inject
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class CostReportViewModel @Inject constructor(
-    private val aggregator: ReportAggregator,
-    private val identity: IdentityManager,
+    private val costReports: CostReportRepository,
     private val userPrefsRepository: UserPreferencesRepository,
 ) : ViewModel() {
 
@@ -61,18 +56,13 @@ class CostReportViewModel @Inject constructor(
     val expandedInventory: StateFlow<Boolean> = _expandedInventory.asStateFlow()
 
     val reportData: StateFlow<CostReportData?> = combine(
-        identity.activeAccountId.filterNotNull(),
         _groupMode,
         _periodMode,
         _periodOffset,
-    ) { accountId, groupMode, periodMode, offset ->
-        val periods = computePeriods(periodMode, offset)
-        Triple(accountId, groupMode, periods)
-    }.flatMapLatest { (accountId, groupMode, periods) ->
-        flow<CostReportData?> {
-            emit(null)
-            emit(aggregator.costReport(accountId, periods, groupMode))
-        }.flowOn(Dispatchers.IO)
+    ) { groupMode, periodMode, offset ->
+        groupMode to computePeriods(periodMode, offset)
+    }.flatMapLatest { (groupMode, periods) ->
+        costReports.observe(periods, groupMode).onStart<CostReportData?> { emit(null) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun setGroupMode(mode: CostGroupMode) {

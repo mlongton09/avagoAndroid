@@ -174,25 +174,11 @@ data class ReactMessageRequest(
 )
 
 @Serializable
-data class CreateThreadRequest(
-    val thread_type: String, // "direct" or "group"
-    val display_name: String? = null,
-    val member_ids: List<String> = emptyList(),
-)
-
-@Serializable
 data class ChatMemberResponse(
     val user_id: String,
     val display_name: String? = null,
     val role: String? = null,
     val joined_at: Long = 0,
-)
-
-@Serializable
-data class ChatPageResponse(
-    val items: List<ChatMessageResponse> = emptyList(),
-    val cursor: String? = null,
-    val has_more: Boolean = false,
 )
 
 @Serializable
@@ -287,19 +273,4 @@ data class ChatRosterEntry(
 data class ChatRosterEnvelope(
     val generated_at: String? = null,
     val members: List<ChatRosterEntry> = emptyList(),
-)
-
-@Serializable
-data class MessageReceiptResponse(
-    val user_id: String,
-    val read_at: String,
-)
-
-@Serializable
-data class BroadcastReceiptResponse(
-    val message_id: String,
-    val targets: Int,
-    val read_count: Long,
-    val read_by_count: Int,
-    val compliance_pct: Double,
 )

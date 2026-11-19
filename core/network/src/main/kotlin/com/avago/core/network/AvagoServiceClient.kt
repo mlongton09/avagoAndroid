@@ -1,44 +1,27 @@
 package com.avago.core.network
 
 import android.content.Context
-import com.avago.core.network.model.AccountFeaturesResponse
 import com.avago.core.network.model.AccountResponse
 import com.avago.core.network.model.AccountsEnvelope
-import com.avago.core.network.model.PutAccountFeaturesRequest
 import com.avago.core.network.model.MembersEnvelope
 import com.avago.core.network.model.AiSkillResponse
 import com.avago.core.network.model.AiSkillsEnvelope
-import com.avago.core.network.model.AuditEventResponse
-import com.avago.core.network.model.AuditListResponse
 import com.avago.core.network.model.AuthResponse
-import com.avago.core.network.model.BudgetPillResponse
 import com.avago.core.network.model.BulkInvitation
 import com.avago.core.network.model.CreateRentalRequest
 import com.avago.core.network.model.EndRentalRequest
-import com.avago.core.network.model.DispatchConfigResponse
 import com.avago.core.network.model.DocOcrResponse
-import com.avago.core.network.model.EffortStatsResponse
 import com.avago.core.network.model.GeocodeRequest
 import com.avago.core.network.model.GeocodeResponse
-import com.avago.core.network.model.PhotoResponse
 import com.avago.core.network.model.PhotoUploadUrlResponse
 import com.avago.core.network.model.RentalResponse
 import com.avago.core.network.model.RentalsEnvelope
 import com.avago.core.network.model.StartReservationEnvelope
-import com.avago.core.network.model.RolePermissionResponse
 import com.avago.core.network.model.RolePermissionsSyncData
 import com.avago.core.network.model.RolePermissionsSyncEnvelope
 import com.avago.core.network.model.UpdatePreferencesRequest
 import com.avago.core.network.model.UserPreferencesResponse
 import com.avago.core.network.model.VinDecodeResponse
-import com.avago.core.network.model.AssetCriticalityResponse
-import com.avago.core.network.model.AssetModelResponse
-import com.avago.core.network.model.RecommendedPartResponse
-import com.avago.core.network.model.RcaReportResponse
-import com.avago.core.network.model.CreateAssetCriticalityRequest
-import com.avago.core.network.model.CreateAssetModelRequest
-import com.avago.core.network.model.CreateRcaReportRequest
-import com.avago.core.network.model.AddRecommendedPartRequest
 import com.avago.core.network.model.FileUploadResponse
 import com.avago.core.network.model.PresignedUploadRequest
 import com.avago.core.network.model.PresignedUploadResponse
@@ -50,7 +33,6 @@ import com.avago.core.network.model.ChatMemberResponse
 import com.avago.core.network.model.ChatMessageResponse
 import com.avago.core.network.model.ChatMessagesResponse
 import com.avago.core.network.model.SendMessageEnvelope
-import com.avago.core.network.model.ChatPageResponse
 import com.avago.core.network.model.ChatPrefsRequest
 import com.avago.core.network.model.ChatPrefsResponse
 import com.avago.core.network.model.ChatRosterEntry
@@ -61,29 +43,9 @@ import com.avago.core.network.model.ChatThreadsEnvelope
 import com.avago.core.network.model.CreateThreadEnvelope
 import com.avago.core.network.model.TeamThreadEnvelope
 import com.avago.core.network.model.LinkPreviewResponse
-import com.avago.core.network.model.CreateCycleCountRequest
-import com.avago.core.network.model.CreateGrnRequest
-import com.avago.core.network.model.CreatePartIssueRequest
 import com.avago.core.network.model.CreatePurchaseOrderRequest
-import com.avago.core.network.model.CycleCountResponse
 import com.avago.core.network.model.DeviceUpdateRequest
 import com.avago.core.network.model.EditMessageRequest
-import com.avago.core.network.model.GrnResponse
-import com.avago.core.network.model.InventoryReceiveRequest
-import com.avago.core.network.model.InventoryReceiveResponse
-import com.avago.core.network.model.InventoryUseRequest
-import com.avago.core.network.model.PartBinLocation
-import com.avago.core.network.model.PartBinLocationsResponse
-import com.avago.core.network.model.PartIssueResponse
-import com.avago.core.network.model.CreateVendorPartRequest
-import com.avago.core.network.model.UpdateVendorPartRequest
-import com.avago.core.network.model.VendorPartResponse
-import com.avago.core.network.model.ReorderSuggestionResponse
-import com.avago.core.network.model.InvitationStatusResponse
-import com.avago.core.network.model.WorkOrderResponse
-import com.avago.core.network.model.WorkOrderPatch
-import com.avago.core.network.model.RecurrenceResponse
-import com.avago.core.network.model.RescheduleResponse
 import com.avago.core.network.model.ProvisionRequest
 import com.avago.core.network.model.PurchaseOrderResponse
 import com.avago.core.network.model.ReactMessageRequest
@@ -96,87 +58,11 @@ import com.avago.core.network.model.SendMessageRequest
 import com.avago.core.network.model.SignInRequest
 import com.avago.core.network.model.UpgradeDeviceRequest
 import com.avago.core.network.model.UpgradeRequest
-import com.avago.core.network.model.SyncPullResponse
-import com.avago.core.network.model.SyncPushRequest
-import com.avago.core.network.model.SyncPushResponse
 import com.avago.core.network.model.UserResponse
-import com.avago.core.network.model.MessageReceiptResponse
-import com.avago.core.network.model.BroadcastReceiptResponse
-import com.avago.core.network.model.VendorResponse
-import com.avago.core.network.model.PatchVendorRequest
-import com.avago.core.network.model.StockingLevelResponse
-import com.avago.core.network.model.UpsertStockingLevelRequest
-import com.avago.core.network.model.SavedFilterViewResponse
-import com.avago.core.network.model.CreateFilterViewRequest
-import com.avago.core.network.model.WoCostSummaryResponse
-import com.avago.core.network.model.ChatMessageSave
-import com.avago.core.network.model.ChatUserStatus
-import com.avago.core.network.model.ChatScheduledMessage
-import com.avago.core.network.model.SetStatusRequest
-import com.avago.core.network.model.UpdateScheduledMessageRequest
-import com.avago.core.network.model.SaveMessageRequest
-import com.avago.core.network.model.SetTopicRequest
-import com.avago.core.network.model.SetDescriptionRequest
 import com.avago.core.network.model.SkipOccurrenceRequest
-import com.avago.core.network.model.CreateInventoryTransactionRequest
-import com.avago.core.network.model.ReverseTransactionRequest
-import com.avago.core.network.model.InventoryTransactionResponse
-import com.avago.core.network.model.ConvertReorderToPORequest
-import com.avago.core.network.model.ConvertReorderToPOResponse
-import com.avago.core.network.model.PatchPurchaseOrderRequest
-import com.avago.core.network.model.PurchaseOrdersResponse
-import com.avago.core.network.model.VendorContactResponse
-import com.avago.core.network.model.VendorContactsResponse
-import com.avago.core.network.model.CreateVendorContactRequest
-import com.avago.core.network.model.UpdateVendorContactRequest
 import com.avago.core.network.model.KpiSummaryResponse
-import com.avago.core.network.model.BulkUpdateWorkOrderRequest
-import com.avago.core.network.model.BulkUpdateResponse
-import com.avago.core.network.model.ChatMessageTemplate
-import com.avago.core.network.model.CreateTemplateRequest
-import com.avago.core.network.model.ChatWebhook
-import com.avago.core.network.model.CreateWebhookRequest
-import com.avago.core.network.model.CreateWebhookResponse
-import com.avago.core.network.model.SyncConflict
-import com.avago.core.network.model.SlashCommandRequest
-import com.avago.core.network.model.GenerateCycleCountsRequest
-import com.avago.core.network.model.CopyTemplateRequest
-import com.avago.core.network.model.CycleCountLineResponse
-import com.avago.core.network.model.CategoryResponse
-import com.avago.core.network.model.DelegateApprovalRequest
-import com.avago.core.network.model.ApprovalResponse
-import com.avago.core.network.model.ApproveCostsRequest
-import com.avago.core.network.model.WoCostApproval
-import com.avago.core.network.model.PoCommentsResponse
-import com.avago.core.network.model.CreatePoCommentRequest
-import com.avago.core.network.model.PoCommentResponse
-import com.avago.core.network.model.OrganizationResponse
-import com.avago.core.network.model.OrgSummaryResponse
-import com.avago.core.network.model.RequestPortalResponse
-import com.avago.core.network.model.CreatePortalRequest
-import com.avago.core.network.model.PortalSubmissionRequest
-import com.avago.core.network.model.WorkRequestPortalResponse
-import com.avago.core.network.model.CreateWorkRequestPortalRequest
-import com.avago.core.network.model.SyncCheckpointResponse
-import com.avago.core.network.model.AncestorItem
-import com.avago.core.network.model.LocationHistoryEntry
-import com.avago.core.network.model.QrBatchJobRequest
-import com.avago.core.network.model.QrBatchJobResponse
-import com.avago.core.network.model.QrScanEntry
-import com.avago.core.network.model.RecordQrScanRequest
-import com.avago.core.network.model.AssetHistoryEvent
-import com.avago.core.network.model.BulkReassignRequest
-import com.avago.core.network.model.BulkReassignResponse
-import com.avago.core.network.model.WorkPermit
-import com.avago.core.network.model.CreateWorkPermitRequest
-import com.avago.core.network.model.BinContent
 import com.avago.core.network.model.CustomFieldDef
-import com.avago.core.network.model.CustomFieldValue
-import com.avago.core.network.model.MeterTrigger
-import com.avago.core.network.model.PmPlan
 import com.avago.core.network.model.PermissionSet
-import com.avago.core.network.model.CreatePartTransferRequestBody
-import com.avago.core.network.model.PartTransferRequestResponse
 import com.avago.core.network.model.SampleWorkspaceJson
 import com.avago.core.network.model.SampleWorkspacesResponse
 import com.avago.core.network.model.SwitchSampleWorkspaceRequest
@@ -188,12 +74,9 @@ import io.ktor.client.plugins.timeout
 import io.ktor.client.plugins.auth.Auth
 import io.ktor.client.plugins.auth.authProviders
 import io.ktor.client.plugins.auth.providers.BearerAuthProvider
-import io.ktor.client.plugins.plugin
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
-import io.ktor.client.request.headers
 import io.ktor.client.request.parameter
-import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
@@ -204,7 +87,6 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.ByteArrayContent
 import io.ktor.http.isSuccess
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import timber.log.Timber
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -224,10 +106,6 @@ class AvagoServiceClient @Inject constructor(
         context.getSharedPreferences(RUNTIME_FLAGS_PREFS, Context.MODE_PRIVATE)
     }
     val permissionsStaleEvents: SharedFlow<String> = _permissionsStaleEvents.asSharedFlow()
-
-    fun notifyPermissionsStale(accountId: String) {
-        _permissionsStaleEvents.tryEmit(accountId)
-    }
 
     /**
      * Clears Ktor's cached bearer token so the next request re-invokes [loadTokens]
@@ -287,10 +165,6 @@ class AvagoServiceClient @Inject constructor(
             setBody(RefreshRequest(refresh_token = refreshToken, device_id = deviceId))
         }.body() }
 
-    /** GET /auth/refresh — check token validity / retrieve a fresh token without a body. */
-    suspend fun checkAuthRefresh(): AuthResponse =
-        safeCall { client.get("$baseUrl/auth/refresh").body() }
-
     suspend fun switchAccount(targetAccountId: String): NetworkResult<AuthResponse> =
         safeNetworkCall {
             client.post("$baseUrl/auth/switch-account") {
@@ -320,14 +194,6 @@ class AvagoServiceClient @Inject constructor(
             }.body()
         }
 
-    /** POST /accounts — create a new account. */
-    suspend fun createAccount(accountName: String? = null): NetworkResult<AccountResponse> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts") {
-                setBody(mapOf("name" to accountName))
-            }.body()
-        }
-
     /** DELETE /accounts/{accountId}?hard=true|false — soft/hard account deletion. */
     suspend fun deleteAccount(accountId: String, hard: Boolean = false): NetworkResult<Unit> =
         safeNetworkCall {
@@ -344,27 +210,6 @@ class AvagoServiceClient @Inject constructor(
         safeNetworkCall {
             val response: HttpResponse =
                 client.delete("$baseUrl/accounts/$accountId/customer-content")
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-
-    /** PUT /accounts/{accountId} — rename an account. */
-    suspend fun updateAccountName(accountId: String, name: String): NetworkResult<Unit> =
-        safeNetworkCall {
-            val response: HttpResponse = client.put("$baseUrl/accounts/$accountId") {
-                setBody(mapOf("name" to name))
-            }
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-
-    /** POST /accounts/{accountId}/load-sample-data — seed demo data into the account. */
-    suspend fun loadSampleData(accountId: String): NetworkResult<Unit> =
-        safeNetworkCall {
-            val response: HttpResponse =
-                client.post("$baseUrl/accounts/$accountId/load-sample-data")
             if (!response.status.isSuccess()) {
                 throw NetworkException(response.status.value, response.status.description)
             }
@@ -408,10 +253,6 @@ class AvagoServiceClient @Inject constructor(
             }
         }
 
-    /** GET /accounts/{accountId}/invitations/batch — check batch invitation statuses. */
-    suspend fun getBatchInvitationStatuses(accountId: String): NetworkResult<List<InvitationStatusResponse>> =
-        safeNetworkCall { client.get("$baseUrl/accounts/$accountId/invitations/batch").body() }
-
     /** POST /accounts/{accountId}/invitations/batch — bulk-invite users by email. */
     suspend fun bulkInviteUsers(
         accountId: String,
@@ -427,28 +268,12 @@ class AvagoServiceClient @Inject constructor(
             }
         }
 
-    // ---------------------------------------------------------------------------
-    // Permissions & Dispatch Config
-    // ---------------------------------------------------------------------------
-
-    /** GET /accounts/{accountId}/admin/role-permissions — fetch the role permission matrix. */
-    suspend fun getRolePermissions(accountId: String): NetworkResult<List<RolePermissionResponse>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/admin/role-permissions").body()
-        }
-
     /** Mirrors iOS: GET /accounts/:id/sync/pull?entity_type=role_permissions. */
     suspend fun pullRolePermissions(accountId: String): NetworkResult<RolePermissionsSyncData> =
         safeNetworkCall {
             client.get("$baseUrl/accounts/$accountId/sync/pull") {
                 parameter("entity_type", "role_permissions")
             }.body<RolePermissionsSyncEnvelope>().data
-        }
-
-    /** GET /accounts/{accountId}/dispatch-config — fetch dispatch board configuration. */
-    suspend fun getDispatchConfig(accountId: String): NetworkResult<DispatchConfigResponse> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/dispatch-config").body()
         }
 
     suspend fun updateDevice(deviceId: String, request: DeviceUpdateRequest) {
@@ -462,74 +287,8 @@ class AvagoServiceClient @Inject constructor(
         }
     }
 
-    suspend fun syncPush(accountId: String, request: SyncPushRequest): SyncPushResponse =
-        safeCall { client.post("$baseUrl/accounts/$accountId/sync/push") {
-            setBody(request)
-        }.body() }
-
-    suspend fun syncPull(
-        accountId: String,
-        entityType: String,
-        lastSeq: Long,
-        limit: Int = 200,
-    ): SyncPullResponse = safeCall {
-        val response: HttpResponse = client.get("$baseUrl/accounts/$accountId/sync/pull") {
-            parameter("entity_type", entityType)
-            parameter("last_seq", lastSeq)
-            parameter("limit", limit)
-        }
-        if (!response.status.isSuccess()) {
-            val stale = if (response.status.value == 403) {
-                runCatching {
-                    val body = response.bodyAsText()
-                    body.contains("\"stale_permissions\":true")
-                }.getOrDefault(false)
-            } else false
-            throw NetworkException(
-                response.status.value,
-                "syncPull $entityType HTTP ${response.status.value}",
-                stalePermissions = stale,
-            )
-        }
-        response.body()
-    }
-
     suspend fun getMembers(accountId: String): List<UserResponse> =
         safeCall { client.get("$baseUrl/accounts/$accountId/members").body<MembersEnvelope>().members }
-
-    suspend fun inviteUser(accountId: String, email: String, role: String): NetworkResult<Unit> =
-        safeNetworkCall {
-            val response: HttpResponse = client.post("$baseUrl/accounts/$accountId/invitations") {
-                setBody(mapOf("email" to email, "role" to role))
-            }
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-
-    // ---------------------------------------------------------------------------
-    // Inventory — direct REST (not sync-queue)
-    // ---------------------------------------------------------------------------
-
-    suspend fun receiveInventory(
-        inventoryId: String,
-        request: InventoryReceiveRequest,
-    ): InventoryReceiveResponse =
-        safeCall {
-            client.post("$baseUrl/inventory/$inventoryId/receive") {
-                setBody(request)
-            }.body()
-        }
-
-    suspend fun useInventory(
-        inventoryId: String,
-        request: InventoryUseRequest,
-    ): InventoryReceiveResponse =
-        safeCall {
-            client.post("$baseUrl/inventory/$inventoryId/use") {
-                setBody(request)
-            }.body()
-        }
 
     // ---------------------------------------------------------------------------
     // Purchase Orders
@@ -552,85 +311,6 @@ class AvagoServiceClient @Inject constructor(
     ): PurchaseOrderResponse =
         safeCall {
             client.put("$baseUrl/accounts/$accountId/purchase-orders/$poId") {
-                setBody(request)
-            }.body()
-        }
-
-    suspend fun approvePurchaseOrder(accountId: String, poId: String) {
-        safeCall<Unit> {
-            val response: HttpResponse =
-                client.post("$baseUrl/accounts/$accountId/purchase-orders/$poId/approve")
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-    }
-
-    suspend fun markPurchaseOrderOrdered(accountId: String, poId: String) {
-        safeCall<Unit> {
-            val response: HttpResponse =
-                client.post("$baseUrl/accounts/$accountId/purchase-orders/$poId/mark-ordered")
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-    }
-
-    suspend fun receivePurchaseOrder(
-        accountId: String,
-        poId: String,
-        lines: List<Map<String, Any>>,
-    ) {
-        safeCall<Unit> {
-            val response: HttpResponse =
-                client.post("$baseUrl/accounts/$accountId/purchase-orders/$poId/receive") {
-                    setBody(mapOf("lines" to lines))
-                }
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-    }
-
-    // ---------------------------------------------------------------------------
-    // GRN
-    // ---------------------------------------------------------------------------
-
-    suspend fun createGrn(
-        accountId: String,
-        poId: String,
-        request: CreateGrnRequest,
-    ): GrnResponse =
-        safeCall {
-            client.post("$baseUrl/accounts/$accountId/purchase-orders/$poId/grns") {
-                setBody(request)
-            }.body()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Part Issues (warehouse issue / move)
-    // ---------------------------------------------------------------------------
-
-    suspend fun createPartIssue(
-        accountId: String,
-        request: CreatePartIssueRequest,
-    ): PartIssueResponse =
-        safeCall {
-            client.post("$baseUrl/accounts/$accountId/part-issues") {
-                setBody(request)
-            }.body()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Cycle Counts
-    // ---------------------------------------------------------------------------
-
-    suspend fun createCycleCount(
-        accountId: String,
-        request: CreateCycleCountRequest,
-    ): CycleCountResponse =
-        safeCall {
-            client.post("$baseUrl/accounts/$accountId/cycle-counts") {
                 setBody(request)
             }.body()
         }
@@ -675,361 +355,11 @@ class AvagoServiceClient @Inject constructor(
         }
     }
 
-    // ---------------------------------------------------------------------------
-    // Purchase Order additional workflow actions
-    // ---------------------------------------------------------------------------
-
-    suspend fun submitPurchaseOrder(accountId: String, poId: String) {
-        safeCall<Unit> {
-            val response: HttpResponse =
-                client.post("$baseUrl/accounts/$accountId/purchase-orders/$poId/submit")
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-    }
-
-    suspend fun rejectPurchaseOrder(accountId: String, poId: String) {
-        safeCall<Unit> {
-            val response: HttpResponse =
-                client.post("$baseUrl/accounts/$accountId/purchase-orders/$poId/reject")
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-    }
-
-    suspend fun closePurchaseOrder(accountId: String, poId: String) {
-        safeCall<Unit> {
-            val response: HttpResponse =
-                client.post("$baseUrl/accounts/$accountId/purchase-orders/$poId/close")
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-    }
-
-    suspend fun cancelPurchaseOrder(accountId: String, poId: String) {
-        safeCall<Unit> {
-            val response: HttpResponse =
-                client.post("$baseUrl/accounts/$accountId/purchase-orders/$poId/cancel")
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-    }
-
-    suspend fun duplicatePurchaseOrder(accountId: String, poId: String): PurchaseOrderResponse =
-        safeCall {
-            client.post("$baseUrl/accounts/$accountId/purchase-orders/$poId/duplicate").body()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Vendor Parts
-    // ---------------------------------------------------------------------------
-
-    suspend fun createVendorPart(
-        accountId: String,
-        request: CreateVendorPartRequest,
-    ): VendorPartResponse =
-        safeCall {
-            client.post("$baseUrl/accounts/$accountId/vendor-parts") {
-                setBody(request)
-            }.body()
-        }
-
-    suspend fun updateVendorPart(
-        accountId: String,
-        vendorPartId: String,
-        request: UpdateVendorPartRequest,
-    ): VendorPartResponse =
-        safeCall {
-            client.put("$baseUrl/accounts/$accountId/vendor-parts/$vendorPartId") {
-                setBody(request)
-            }.body()
-        }
-
-    suspend fun deleteVendorPart(accountId: String, vendorPartId: String) {
-        safeCall<Unit> {
-            val response: HttpResponse =
-                client.delete("$baseUrl/accounts/$accountId/vendor-parts/$vendorPartId")
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-    }
-
-    // ---------------------------------------------------------------------------
-    // Reorder Suggestions
-    // ---------------------------------------------------------------------------
-
-    suspend fun getReorderSuggestions(accountId: String): List<ReorderSuggestionResponse> =
-        safeCall {
-            client.get("$baseUrl/accounts/$accountId/reorder-suggestions").body()
-        }
-
-    suspend fun regenerateReorderSuggestions(accountId: String) {
-        safeCall<Unit> {
-            val response: HttpResponse =
-                client.post("$baseUrl/accounts/$accountId/reorder-suggestions/regenerate")
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-    }
-
-    suspend fun dismissReorderSuggestion(accountId: String, suggestionId: String) {
-        safeCall<Unit> {
-            val response: HttpResponse =
-                client.post("$baseUrl/accounts/$accountId/reorder-suggestions/$suggestionId/dismiss")
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-    }
-
-    suspend fun acceptReorderSuggestion(accountId: String, suggestionId: String) {
-        safeCall<Unit> {
-            val response: HttpResponse =
-                client.post("$baseUrl/accounts/$accountId/reorder-suggestions/$suggestionId/accept")
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-    }
-
-    // ---------------------------------------------------------------------------
-    // Work Orders — direct REST calls
-    // ---------------------------------------------------------------------------
-
-    /** GET /accounts/:accountId/work-orders/:woId — fetch a single work order by ID. */
-    suspend fun getWorkOrder(accountId: String, woId: String): NetworkResult<WorkOrderResponse> =
-        safeNetworkCall { client.get("$baseUrl/accounts/$accountId/work-orders/$woId").body() }
-
-    /** GET /accounts/:accountId/work-orders/:woId/recurrence — read recurrence rule. */
-    suspend fun getWorkOrderRecurrence(accountId: String, woId: String): NetworkResult<RecurrenceResponse> =
-        safeNetworkCall { client.get("$baseUrl/accounts/$accountId/work-orders/$woId/recurrence").body() }
-
-    /** GET /accounts/:accountId/work-orders/:woId/reschedule — read reschedule config. */
-    suspend fun getWorkOrderReschedule(accountId: String, woId: String): NetworkResult<RescheduleResponse> =
-        safeNetworkCall { client.get("$baseUrl/accounts/$accountId/work-orders/$woId/reschedule").body() }
-
-    /**
-     * POST /accounts/:accountId/work-orders/:woId/recurrence
-     * Sets or updates the RFC 5545 RRULE on a work order.
-     */
-    suspend fun updateWorkOrderRecurrence(
-        accountId: String,
-        woId: String,
-        rrule: String,
-    ) {
-        safeCall<Unit> {
-            val response: HttpResponse =
-                client.post("$baseUrl/accounts/$accountId/work-orders/$woId/recurrence") {
-                    setBody(mapOf("rrule" to rrule))
-                }
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-    }
-
-    /**
-     * PUT /accounts/:accountId/work-orders/:woId/assignments
-     * Self-assign the calling user (by userId) to the work order.
-     */
-    suspend fun selfAssignWorkOrder(
-        accountId: String,
-        woId: String,
-        userId: String,
-    ) {
-        safeCall<Unit> {
-            val response: HttpResponse =
-                client.put("$baseUrl/accounts/$accountId/work-orders/$woId/assignments") {
-                    setBody(mapOf("tech_id" to userId))
-                }
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-    }
-
-    /** POST /accounts/{accountId}/work-orders/{woId}/status — transition a WO status. */
-    suspend fun transitionWorkOrderStatus(
-        accountId: String,
-        woId: String,
-        status: String,
-    ): NetworkResult<Unit> =
-        safeNetworkCall {
-            val response: HttpResponse =
-                client.post("$baseUrl/accounts/$accountId/work-orders/$woId/transition") {
-                    setBody(mapOf("status" to status))
-                }
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-
-    /** PATCH /accounts/{accountId}/work-orders/{woId} — partial update of a work order. */
-    suspend fun patchWorkOrder(
-        accountId: String,
-        woId: String,
-        fields: JsonObject,
-    ): NetworkResult<Unit> =
-        safeNetworkCall {
-            val response: HttpResponse =
-                client.patch("$baseUrl/accounts/$accountId/work-orders/$woId") {
-                    setBody(fields)
-                }
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-
-    /**
-     * PATCH /accounts/{accountId}/work-orders/{woId} — typed overload for field-level edits.
-     * Change 3: only the non-null fields in [patch] are serialised and sent to the server.
-     */
-    suspend fun patchWorkOrder(
-        accountId: String,
-        woId: String,
-        patch: WorkOrderPatch,
-    ): NetworkResult<Unit> =
-        safeNetworkCall {
-            val response: HttpResponse =
-                client.patch("$baseUrl/accounts/$accountId/work-orders/$woId") {
-                    setBody(patch)
-                }
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-
-    // ---------------------------------------------------------------------------
-    // Log entries — direct update with optimistic concurrency + defect register
-    // ---------------------------------------------------------------------------
-
-    /**
-     * PUT /accounts/{accountId}/log/{logId} — full update of a log entry.
-     * [body] may carry `expected_server_version`; the service then answers 409 with
-     * `{ "error": "conflict", "current": {...} }` (returned as [NetworkResult.Error] whose
-     * message is the raw response body) when the row changed since it was read.
-     * Returns the updated entry JSON.
-     */
-    suspend fun updateLog(accountId: String, logId: String, body: JsonObject): NetworkResult<JsonObject> =
-        safeNetworkCall {
-            client.put("$baseUrl/accounts/$accountId/log/$logId") {
-                setBody(body)
-            }.body<JsonObject>()
-        }
-
-    /**
-     * GET /accounts/{accountId}/defects — open-defect register rows, for one asset or (when
-     * [assetId] is null) the whole account. [status] is the comma list / `all` filter; null means
-     * the server default (open, monitoring, deferred).
-     * 404/405 means the service predates the register (callers fall back to local history).
-     */
-    suspend fun getDefects(
-        accountId: String,
-        assetId: String?,
-        status: String? = null,
-    ): NetworkResult<kotlinx.serialization.json.JsonArray> =
-        safeNetworkCall {
-            val el = client.get("$baseUrl/accounts/$accountId/defects") {
-                if (assetId != null) parameter("asset_id", assetId)
-                if (status != null) parameter("status", status)
-            }.body<kotlinx.serialization.json.JsonElement>()
-            el as? kotlinx.serialization.json.JsonArray
-                ?: ((el as? JsonObject)?.let { it["defects"] ?: it["data"] } as? kotlinx.serialization.json.JsonArray)
-                ?: kotlinx.serialization.json.JsonArray(emptyList())
-        }
-
-    /**
-     * PATCH /accounts/{accountId}/defects/{defectId} `{ status, resolution_note }` — defect lifecycle
-     * (repaired / deferred / open). Returns the updated register row. [idempotencyKey] (the
-     * outbox queue id) is sent as `Idempotency-Key`; the PATCH sets an absolute status, so a
-     * replay after a lost response is harmless either way.
-     */
-    suspend fun patchDefect(
-        accountId: String,
-        defectId: String,
-        status: String,
-        resolutionNote: String?,
-        idempotencyKey: String? = null,
-    ): NetworkResult<JsonObject> =
-        safeNetworkCall {
-            val el = client.patch("$baseUrl/accounts/$accountId/defects/$defectId") {
-                if (idempotencyKey != null) headers.append("Idempotency-Key", idempotencyKey)
-                setBody(
-                    buildJsonObject {
-                        put("status", status)
-                        if (!resolutionNote.isNullOrBlank()) put("resolution_note", resolutionNote)
-                    },
-                )
-            }.body<kotlinx.serialization.json.JsonElement>()
-            (el as? JsonObject)?.let { (it["data"] as? JsonObject) ?: it } ?: JsonObject(emptyMap())
-        }
-
-    /**
-     * GET /accounts/{accountId}/inspection-drafts?asset_id=&log_id= — the caller's server drafts.
-     * 404/405 means the service predates drafts (callers keep local drafts only).
-     */
-    suspend fun getInspectionDrafts(
-        accountId: String,
-        assetId: String,
-        logId: String?,
-    ): NetworkResult<kotlinx.serialization.json.JsonArray> =
-        safeNetworkCall {
-            val el = client.get("$baseUrl/accounts/$accountId/inspection-drafts") {
-                parameter("asset_id", assetId)
-                if (logId != null) parameter("log_id", logId)
-            }.body<kotlinx.serialization.json.JsonElement>()
-            el as? kotlinx.serialization.json.JsonArray
-                ?: ((el as? JsonObject)?.let { it["drafts"] ?: it["data"] } as? kotlinx.serialization.json.JsonArray)
-                ?: kotlinx.serialization.json.JsonArray(emptyList())
-        }
-
-    /** PUT /accounts/{accountId}/inspection-drafts `{ asset_id, log_id?, config_id?, payload }` — upsert. */
-    suspend fun putInspectionDraft(accountId: String, body: JsonObject): NetworkResult<JsonObject> =
-        safeNetworkCall {
-            val el = client.put("$baseUrl/accounts/$accountId/inspection-drafts") {
-                setBody(body)
-            }.body<kotlinx.serialization.json.JsonElement>()
-            (el as? JsonObject)?.let { (it["data"] as? JsonObject) ?: it } ?: JsonObject(emptyMap())
-        }
-
-    /** DELETE /accounts/{accountId}/inspection-drafts/{draftId} (own drafts only). */
-    suspend fun deleteInspectionDraft(accountId: String, draftId: String): NetworkResult<Unit> =
-        safeNetworkCall {
-            val response: HttpResponse = client.delete("$baseUrl/accounts/$accountId/inspection-drafts/$draftId")
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-
     /** POST /accounts/{accountId}/work-orders/{woId}/assignments/claim — self-claim a WO. */
     suspend fun claimWorkOrder(accountId: String, woId: String): NetworkResult<Unit> =
         safeNetworkCall {
             val response: HttpResponse =
                 client.post("$baseUrl/accounts/$accountId/work-orders/$woId/assignments/claim")
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-
-    /** POST /accounts/{accountId}/work-orders/{woId}/reschedule — reschedule a WO's due date. */
-    suspend fun rescheduleWorkOrder(
-        accountId: String,
-        woId: String,
-        to: String,
-        scope: String? = null,
-        reason: String? = null,
-    ): NetworkResult<Unit> =
-        safeNetworkCall {
-            val response: HttpResponse =
-                client.post("$baseUrl/accounts/$accountId/work-orders/$woId/reschedule") {
-                    setBody(mapOf("to" to to, "scope" to scope, "reason" to reason))
-                }
             if (!response.status.isSuccess()) {
                 throw NetworkException(response.status.value, response.status.description)
             }
@@ -1063,38 +393,6 @@ class AvagoServiceClient @Inject constructor(
             }
         }
 
-    /** GET /accounts/{accountId}/work-orders/effort-stats — effort percentile stats for a category. */
-    suspend fun getEffortStats(
-        accountId: String,
-        category: String,
-        assetType: String? = null,
-    ): NetworkResult<EffortStatsResponse> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/work-orders/effort-stats") {
-                parameter("category", category)
-                assetType?.let { parameter("asset_type", it) }
-            }.body()
-        }
-
-    /** GET /accounts/{accountId}/work-orders/{woId}/audit — fetch audit trail for a WO. */
-    suspend fun getWorkOrderAudit(
-        accountId: String,
-        woId: String,
-    ): NetworkResult<List<AuditEventResponse>> =
-        safeNetworkCall {
-            val envelope: AuditListResponse = client.get("$baseUrl/accounts/$accountId/work-orders/$woId/audit").body()
-            envelope.entries
-        }
-
-    /** GET /accounts/{accountId}/work-orders/{woId}/budget-pill — fetch budget summary for a WO. */
-    suspend fun getWorkOrderBudgetPill(
-        accountId: String,
-        woId: String,
-    ): NetworkResult<BudgetPillResponse> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/work-orders/$woId/budget-pill").body()
-        }
-
     // ---------------------------------------------------------------------------
     // VIN Decode & Geocode
     // ---------------------------------------------------------------------------
@@ -1117,23 +415,6 @@ class AvagoServiceClient @Inject constructor(
                 setBody(request)
             }.body()
         }
-
-    /** GET /accounts/{accountId}/geocode — reverse-geocode lat/lon to an address. */
-    suspend fun reverseGeocode(
-        accountId: String,
-        lat: Double,
-        lon: Double,
-    ): NetworkResult<GeocodeResponse> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/geocode") {
-                parameter("lat", lat)
-                parameter("lon", lon)
-            }.body()
-        }
-
-    /** GET /accounts/{accountId}/photos — list all photos for an account. */
-    suspend fun getAccountPhotos(accountId: String): NetworkResult<List<PhotoResponse>> =
-        safeNetworkCall { client.get("$baseUrl/accounts/$accountId/photos").body() }
 
     // ---------------------------------------------------------------------------
     // User Preferences
@@ -1158,67 +439,6 @@ class AvagoServiceClient @Inject constructor(
             }
         }
 
-    @Deprecated(
-        message = "Path was incorrect — use getMyPreferences instead.",
-        replaceWith = ReplaceWith("getMyPreferences(accountId)"),
-    )
-    suspend fun getUserPreferences(accountId: String): NetworkResult<UserPreferencesResponse> =
-        safeNetworkCall { client.get("$baseUrl/accounts/$accountId/preferences").body() }
-
-    // ---------------------------------------------------------------------------
-    // Tech Location
-    // ---------------------------------------------------------------------------
-
-    suspend fun updateTechLocation(
-        accountId: String,
-        userId: String,
-        lat: Double,
-        lon: Double,
-    ): NetworkResult<Unit> =
-        safeNetworkCall {
-            val response: HttpResponse =
-                client.put("$baseUrl/accounts/$accountId/tech-profiles/$userId/location") {
-                    setBody(mapOf("lat" to lat, "lon" to lon))
-                }
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-
-    /** POST /accounts/:accountId/tech-profiles/:userId/location — push tech location (iOS style). */
-    suspend fun postTechLocation(
-        accountId: String,
-        userId: String,
-        lat: Double,
-        lon: Double,
-    ): NetworkResult<Unit> =
-        safeNetworkCall {
-            val response: HttpResponse =
-                client.post("$baseUrl/accounts/$accountId/tech-profiles/$userId/location") {
-                    setBody(mapOf("lat" to lat, "lon" to lon))
-                }
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-
-    // ---------------------------------------------------------------------------
-    // AI / Scout
-    // ---------------------------------------------------------------------------
-
-    /**
-     * POST /ai/warmup — pre-warm the AI inference pipeline.
-     *
-     * Call on app launch (after sign-in) to reduce latency on the first Scout query.
-     */
-    suspend fun aiWarmup(): NetworkResult<Unit> =
-        safeNetworkCall {
-            val response: HttpResponse = client.post("$baseUrl/ai/warmup")
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-
     /**
      * GET /accounts/{accountId}/ai/skills — list the Scout skills available for an account.
      */
@@ -1226,39 +446,6 @@ class AvagoServiceClient @Inject constructor(
         safeNetworkCall {
             client.get("$baseUrl/accounts/$accountId/ai/skills")
                 .body<AiSkillsEnvelope>().skills
-        }
-
-    /**
-     * POST /ai/extract — Scout AI form-fill from voice/text input.
-     *
-     * Sends a transcript and screen context to the AI pipeline; returns structured
-     * entity field values to pre-populate a form.
-     *
-     * @param transcript      Free-text or transcribed voice input.
-     * @param screenContext   Serialized snapshot of the currently visible screen/form.
-     * @param skillHint       Optional skill ID to bias extraction toward a specific skill.
-     * @param threadId        Optional chat thread ID for conversational context.
-     * @param idempotencyKey  Optional client-generated key for deduplication.
-     */
-    suspend fun aiExtract(
-        transcript: String,
-        screenContext: String,
-        skillHint: String? = null,
-        threadId: String? = null,
-        idempotencyKey: String? = null,
-    ): NetworkResult<String> =
-        safeNetworkCall {
-            client.post("$baseUrl/ai/extract") {
-                setBody(
-                    buildMap<String, String?> {
-                        put("transcript", transcript)
-                        put("screen_context", screenContext)
-                        skillHint?.let { put("skill_hint", it) }
-                        threadId?.let { put("thread_id", it) }
-                        idempotencyKey?.let { put("idempotency_key", it) }
-                    }.filterValues { it != null }
-                )
-            }.body()
         }
 
     /**
@@ -1349,38 +536,6 @@ class AvagoServiceClient @Inject constructor(
                     }.filterValues { it != null }
                 )
             }.body()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Client Metrics
-    // ---------------------------------------------------------------------------
-
-    /**
-     * POST /metrics/client — flush client-side telemetry counters to the server.
-     *
-     * @param metrics A [JsonObject] whose keys are metric names and whose values
-     *                are Long counts (serialized as JSON numbers).
-     */
-    suspend fun postClientMetrics(metrics: JsonObject): NetworkResult<Unit> =
-        safeNetworkCall {
-            val response: HttpResponse = client.post("$baseUrl/metrics/client") {
-                setBody(metrics)
-            }
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-
-    // ---------------------------------------------------------------------------
-    // Rentals
-    // ---------------------------------------------------------------------------
-
-    /**
-     * GET /accounts/{accountId}/rentals — list all rentals for an account.
-     */
-    suspend fun getRentals(accountId: String): NetworkResult<List<RentalResponse>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/rentals").body<RentalsEnvelope>().rentals
         }
 
     /**
@@ -1496,36 +651,11 @@ class AvagoServiceClient @Inject constructor(
                 .body<com.avago.core.network.model.RentalInvoiceEnvelope>().invoice
         }
 
-    /** GET /accounts/{accountId}/rental-invoices */
-    suspend fun getRentalInvoices(
-        accountId: String,
-        status: String? = null,
-        customerId: String? = null,
-    ): NetworkResult<List<com.avago.core.network.model.RentalInvoice>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/rental-invoices") {
-                status?.let { parameter("status", it) }
-                customerId?.let { parameter("customer_id", it) }
-            }.body<com.avago.core.network.model.RentalInvoicesEnvelope>().invoices
-        }
-
     /** GET /accounts/{accountId}/rental-invoices/{invoiceId} */
     suspend fun getRentalInvoice(accountId: String, invoiceId: String): NetworkResult<com.avago.core.network.model.RentalInvoice> =
         safeNetworkCall {
             client.get("$baseUrl/accounts/$accountId/rental-invoices/$invoiceId")
                 .body<com.avago.core.network.model.RentalInvoiceEnvelope>().invoice
-        }
-
-    /** PUT /accounts/{accountId}/rental-invoices/{invoiceId} */
-    suspend fun updateRentalInvoice(
-        accountId: String,
-        invoiceId: String,
-        request: com.avago.core.network.model.UpdateInvoiceRequest,
-    ): NetworkResult<com.avago.core.network.model.RentalInvoice> =
-        safeNetworkCall {
-            client.put("$baseUrl/accounts/$accountId/rental-invoices/$invoiceId") {
-                setBody(request)
-            }.body<com.avago.core.network.model.RentalInvoiceEnvelope>().invoice
         }
 
     /** POST /accounts/{accountId}/rental-invoices/{invoiceId}/send */
@@ -1577,28 +707,6 @@ class AvagoServiceClient @Inject constructor(
             client.post("$baseUrl/accounts/$accountId/reservations") {
                 setBody(request)
             }.body<com.avago.core.network.model.ReservationEnvelope>().reservation
-        }
-
-    /** PUT /accounts/{accountId}/reservations/{reservationId} */
-    suspend fun updateReservation(
-        accountId: String,
-        reservationId: String,
-        request: com.avago.core.network.model.UpdateReservationRequest,
-    ): NetworkResult<com.avago.core.network.model.RentalReservation> =
-        safeNetworkCall {
-            client.put("$baseUrl/accounts/$accountId/reservations/$reservationId") {
-                setBody(request)
-            }.body<com.avago.core.network.model.ReservationEnvelope>().reservation
-        }
-
-    /** DELETE /accounts/{accountId}/reservations/{reservationId} */
-    suspend fun deleteReservation(accountId: String, reservationId: String): NetworkResult<Unit> =
-        safeNetworkCall {
-            val response: HttpResponse =
-                client.delete("$baseUrl/accounts/$accountId/reservations/$reservationId")
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
         }
 
     /** POST /accounts/{accountId}/reservations/{reservationId}/start — convert reservation to rental */
@@ -1669,17 +777,6 @@ class AvagoServiceClient @Inject constructor(
             client.put("$baseUrl/chat/messages/$messageId") {
                 setBody(EditMessageRequest(body_md = body))
             }.body<SendMessageEnvelope>().message
-        }
-
-    /** PATCH /chat/messages/:messageId — partial-update a chat message (iOS style). */
-    suspend fun patchMessage(
-        messageId: String,
-        body: String,
-    ): NetworkResult<ChatMessageResponse> =
-        safeNetworkCall {
-            client.patch("$baseUrl/chat/messages/$messageId") {
-                setBody(EditMessageRequest(body_md = body))
-            }.body()
         }
 
     suspend fun deleteMessage(threadId: String, messageId: String): NetworkResult<Unit> =
@@ -1789,19 +886,6 @@ class AvagoServiceClient @Inject constructor(
             }.body<CreateThreadEnvelope>().thread
         }
 
-    /** GET /chat/threads/asset/{assetId}/timeline?cursor=... — asset timeline messages. */
-    suspend fun getAssetTimeline(
-        accountId: String,
-        assetId: String,
-        cursor: String? = null,
-    ): NetworkResult<ChatPageResponse> =
-        safeNetworkCall {
-            client.get("$baseUrl/chat/threads/asset/$assetId/timeline") {
-                parameter("account_id", accountId)
-                cursor?.let { parameter("cursor", it) }
-            }.body()
-        }
-
     /** GET /chat/threads/team — get the team/general thread. Server returns
      *  `{thread: {...}, messages: {...}}`; we only need the thread metadata. */
     suspend fun getTeamThread(accountId: String): NetworkResult<ChatThreadResponse> =
@@ -1817,18 +901,6 @@ class AvagoServiceClient @Inject constructor(
             val response: HttpResponse =
                 client.put("$baseUrl/chat/threads/$threadId/read") {
                     setBody(mapOf("last_read_message_id" to lastReadMessageId))
-                }
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-
-    /** PUT /chat/threads/{threadId}/notifications — toggle notifications. */
-    suspend fun setThreadNotifications(threadId: String, enabled: Boolean): NetworkResult<Unit> =
-        safeNetworkCall {
-            val response: HttpResponse =
-                client.put("$baseUrl/chat/threads/$threadId/notifications") {
-                    setBody(mapOf("enabled" to enabled))
                 }
             if (!response.status.isSuccess()) {
                 throw NetworkException(response.status.value, response.status.description)
@@ -1859,26 +931,6 @@ class AvagoServiceClient @Inject constructor(
                 client.put("$baseUrl/chat/threads/$threadId/favorite") {
                     setBody(mapOf("favorite" to favorite))
                 }
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-
-    /** POST /chat/threads/{threadId}/archive — archive thread. */
-    suspend fun archiveThread(threadId: String): NetworkResult<Unit> =
-        safeNetworkCall {
-            val response: HttpResponse =
-                client.post("$baseUrl/chat/threads/$threadId/archive")
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-
-    /** DELETE /chat/threads/{threadId}/archive — unarchive thread. */
-    suspend fun unarchiveThread(threadId: String): NetworkResult<Unit> =
-        safeNetworkCall {
-            val response: HttpResponse =
-                client.delete("$baseUrl/chat/threads/$threadId/archive")
             if (!response.status.isSuccess()) {
                 throw NetworkException(response.status.value, response.status.description)
             }
@@ -2090,16 +1142,6 @@ class AvagoServiceClient @Inject constructor(
             }
         }
 
-    /** POST /chat/threads/{threadId}/typing — typing indicator. */
-    suspend fun pingTyping(threadId: String): NetworkResult<Unit> =
-        safeNetworkCall {
-            val response: HttpResponse =
-                client.post("$baseUrl/chat/threads/$threadId/typing")
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-
     // ---------------------------------------------------------------------------
     // Chat Preferences & Roster
     // ---------------------------------------------------------------------------
@@ -2123,25 +1165,6 @@ class AvagoServiceClient @Inject constructor(
     /** GET /chat/me/roster */
     suspend fun getChatRoster(): NetworkResult<List<ChatRosterEntry>> =
         safeNetworkCall { client.get("$baseUrl/chat/me/roster").body<ChatRosterEnvelope>().members }
-
-    /** GET /chat/me/mentions?cursor=... */
-    suspend fun getMyMentions(cursor: String? = null): NetworkResult<ChatPageResponse> =
-        safeNetworkCall {
-            client.get("$baseUrl/chat/me/mentions") {
-                cursor?.let { parameter("cursor", it) }
-            }.body()
-        }
-
-    /** GET /chat/threads/{threadId}/media?cursor=... */
-    suspend fun getThreadMedia(
-        threadId: String,
-        cursor: String? = null,
-    ): NetworkResult<ChatPageResponse> =
-        safeNetworkCall {
-            client.get("$baseUrl/chat/threads/$threadId/media") {
-                cursor?.let { parameter("cursor", it) }
-            }.body()
-        }
 
     // ---------------------------------------------------------------------------
     // Photos — presigned upload
@@ -2171,19 +1194,6 @@ class AvagoServiceClient @Inject constructor(
         }
 
     /**
-     * GET /accounts/:accountId/entities/:entityId/photos
-     *
-     * Fetches all photos attached to an entity, each with a download URL.
-     */
-    suspend fun getPhotosForEntity(
-        accountId: String,
-        entityId: String,
-    ): NetworkResult<List<PhotoResponse>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/entities/$entityId/photos").body()
-        }
-
-    /**
      * PUT [uploadUrl]
      *
      * Uploads raw image bytes to a presigned URL obtained from [getPhotoUploadUrl].
@@ -2209,62 +1219,6 @@ class AvagoServiceClient @Inject constructor(
             uploadClient.close()
         }
     }
-
-    // ---------------------------------------------------------------------------
-    // Chat Read Receipts (Change 45)
-    // ---------------------------------------------------------------------------
-
-    suspend fun getMessageReadReceipts(messageId: String): NetworkResult<List<MessageReceiptResponse>> =
-        safeNetworkCall {
-            client.get("$baseUrl/chat/messages/$messageId/receipts")
-                .body<Map<String, List<MessageReceiptResponse>>>()["receipts"] ?: emptyList()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Broadcast Compliance (Change 46)
-    // ---------------------------------------------------------------------------
-
-    suspend fun getBroadcastReceipt(messageId: String): NetworkResult<BroadcastReceiptResponse> =
-        safeNetworkCall {
-            client.get("$baseUrl/chat/messages/$messageId/broadcast-receipt")
-                .body<BroadcastReceiptResponse>()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Jump-to-Message (Change 47)
-    // ---------------------------------------------------------------------------
-
-    suspend fun listMessagesAround(threadId: String, aroundMessageId: String, limit: Int = 50): NetworkResult<ChatPageResponse> =
-        safeNetworkCall {
-            client.get("$baseUrl/chat/threads/$threadId/messages") {
-                parameter("around", aroundMessageId)
-                parameter("limit", limit)
-            }.body<ChatPageResponse>()
-        }
-
-    // ---------------------------------------------------------------------------
-    // PATCH Vendor with ETag (Change 49)
-    // ---------------------------------------------------------------------------
-
-    suspend fun patchVendor(accountId: String, vendorId: String, request: PatchVendorRequest, serverVersion: Int? = null): NetworkResult<VendorResponse> =
-        safeNetworkCall {
-            client.patch("$baseUrl/accounts/$accountId/vendors/$vendorId") {
-                if (serverVersion != null) {
-                    headers.append("If-Match", "\"$serverVersion\"")
-                }
-                setBody(request)
-            }.body<VendorResponse>()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Sub-Work-Orders (Change 15)
-    // ---------------------------------------------------------------------------
-
-    suspend fun listSubWorkOrders(accountId: String, woId: String): NetworkResult<List<WorkOrderResponse>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/work-orders/$woId/sub-work-orders")
-                .body<Map<String, List<WorkOrderResponse>>>()["work_orders"] ?: emptyList()
-        }
 
     // ---------------------------------------------------------------------------
     // Internal helpers
@@ -2338,137 +1292,6 @@ class AvagoServiceClient @Inject constructor(
         return match.groupValues[1].toLongOrNull()
     }
 
-    // ---------------------------------------------------------------------------
-    // Asset Criticalities (Change 31)
-    // ---------------------------------------------------------------------------
-
-    suspend fun listAssetCriticalities(accountId: String): NetworkResult<List<AssetCriticalityResponse>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/asset-criticalities")
-                .body<Map<String, List<AssetCriticalityResponse>>>()["asset_criticalities"] ?: emptyList()
-        }
-
-    suspend fun createAssetCriticality(accountId: String, request: CreateAssetCriticalityRequest): NetworkResult<AssetCriticalityResponse> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/asset-criticalities") {
-                setBody(request)
-            }.body<AssetCriticalityResponse>()
-        }
-
-    suspend fun updateAssetCriticality(accountId: String, critId: String, request: CreateAssetCriticalityRequest): NetworkResult<AssetCriticalityResponse> =
-        safeNetworkCall {
-            client.put("$baseUrl/accounts/$accountId/asset-criticalities/$critId") {
-                setBody(request)
-            }.body<AssetCriticalityResponse>()
-        }
-
-    suspend fun deleteAssetCriticality(accountId: String, critId: String): NetworkResult<Unit> =
-        safeNetworkCall {
-            client.delete("$baseUrl/accounts/$accountId/asset-criticalities/$critId")
-            Unit
-        }
-
-    // ---------------------------------------------------------------------------
-    // Asset Models (Change 40) + Recommended Parts (Change 41)
-    // ---------------------------------------------------------------------------
-
-    suspend fun listAssetModels(accountId: String): NetworkResult<List<AssetModelResponse>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/asset-models")
-                .body<Map<String, List<AssetModelResponse>>>()["asset_models"] ?: emptyList()
-        }
-
-    suspend fun createAssetModel(accountId: String, request: CreateAssetModelRequest): NetworkResult<AssetModelResponse> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/asset-models") {
-                setBody(request)
-            }.body<AssetModelResponse>()
-        }
-
-    suspend fun updateAssetModel(accountId: String, modelId: String, request: CreateAssetModelRequest): NetworkResult<AssetModelResponse> =
-        safeNetworkCall {
-            client.put("$baseUrl/accounts/$accountId/asset-models/$modelId") {
-                setBody(request)
-            }.body<AssetModelResponse>()
-        }
-
-    suspend fun deleteAssetModel(accountId: String, modelId: String): NetworkResult<Unit> =
-        safeNetworkCall {
-            client.delete("$baseUrl/accounts/$accountId/asset-models/$modelId")
-            Unit
-        }
-
-    suspend fun listRecommendedParts(accountId: String, modelId: String): NetworkResult<List<RecommendedPartResponse>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/asset-models/$modelId/recommended-parts")
-                .body<Map<String, List<RecommendedPartResponse>>>()["recommended_parts"] ?: emptyList()
-        }
-
-    suspend fun addRecommendedPart(accountId: String, modelId: String, request: AddRecommendedPartRequest): NetworkResult<RecommendedPartResponse> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/asset-models/$modelId/recommended-parts") {
-                setBody(request)
-            }.body<RecommendedPartResponse>()
-        }
-
-    suspend fun removeRecommendedPart(accountId: String, modelId: String, partId: String): NetworkResult<Unit> =
-        safeNetworkCall {
-            client.delete("$baseUrl/accounts/$accountId/asset-models/$modelId/recommended-parts/$partId")
-            Unit
-        }
-
-    // ---------------------------------------------------------------------------
-    // RCA Reports (Change 34)
-    // ---------------------------------------------------------------------------
-
-    suspend fun createRcaReport(accountId: String, request: CreateRcaReportRequest): NetworkResult<RcaReportResponse> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/rca-reports") {
-                setBody(request)
-            }.body<RcaReportResponse>()
-        }
-
-    suspend fun getRcaReport(accountId: String, rcaId: String): NetworkResult<RcaReportResponse> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/rca-reports/$rcaId").body<RcaReportResponse>()
-        }
-
-    suspend fun listRcaReportsForWorkOrder(accountId: String, woId: String): NetworkResult<List<RcaReportResponse>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/work-orders/$woId/rca-reports")
-                .body<Map<String, List<RcaReportResponse>>>()["rca_reports"] ?: emptyList()
-        }
-
-    suspend fun listRcaReportsForAsset(accountId: String, assetId: String): NetworkResult<List<RcaReportResponse>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/assets/$assetId/rca-reports")
-                .body<Map<String, List<RcaReportResponse>>>()["rca_reports"] ?: emptyList()
-        }
-
-    suspend fun deleteRcaReport(accountId: String, rcaId: String): NetworkResult<Unit> =
-        safeNetworkCall {
-            client.delete("$baseUrl/accounts/$accountId/rca-reports/$rcaId")
-            Unit
-        }
-
-    // ---------------------------------------------------------------------------
-    // Attachments (Changes 38-39)
-    // ---------------------------------------------------------------------------
-
-    suspend fun listAssetAttachments(accountId: String, assetId: String): NetworkResult<List<Map<String, Any>>> =
-        safeNetworkCall {
-            @Suppress("UNCHECKED_CAST")
-            client.get("$baseUrl/accounts/$accountId/assets/$assetId/attachments")
-                .body<Map<String, Any>>()["photos"] as? List<Map<String, Any>> ?: emptyList()
-        }
-
-    suspend fun listWorkOrderAttachments(accountId: String, woId: String): NetworkResult<List<Map<String, Any>>> =
-        safeNetworkCall {
-            @Suppress("UNCHECKED_CAST")
-            client.get("$baseUrl/accounts/$accountId/work-orders/$woId/attachments")
-                .body<Map<String, Any>>()["photos"] as? List<Map<String, Any>> ?: emptyList()
-        }
-
     suspend fun getPresignedUploadUrl(accountId: String, request: PresignedUploadRequest): NetworkResult<PresignedUploadResponse> =
         safeNetworkCall {
             client.post("$baseUrl/accounts/$accountId/attachments/presigned-url") {
@@ -2481,208 +1304,6 @@ class AvagoServiceClient @Inject constructor(
             client.post("$baseUrl/accounts/$accountId/attachments/$fileUploadId/finalize") {
                 setBody(mapOf("file_size_bytes" to fileSizeBytes))
             }.body<Map<String, FileUploadResponse>>()?.get("file_upload") ?: throw IllegalStateException("Missing file_upload in response")
-        }
-
-    // ---------------------------------------------------------------------------
-    // Recurrence Preview (Change 43)
-    // ---------------------------------------------------------------------------
-
-    suspend fun previewRecurrence(accountId: String, woId: String): NetworkResult<List<String>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/work-orders/$woId/recurrence/preview")
-                .body<Map<String, List<String>>>()["occurrences"] ?: emptyList()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Stocking Levels (Changes 51-52)
-    // ---------------------------------------------------------------------------
-
-    suspend fun listStockingLevels(
-        accountId: String,
-        partId: String? = null,
-        locationId: String? = null,
-    ): NetworkResult<List<StockingLevelResponse>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/stocking-levels") {
-                partId?.let { parameter("part_id", it) }
-                locationId?.let { parameter("location_id", it) }
-            }.body<Map<String, List<StockingLevelResponse>>>()["stocking_levels"] ?: emptyList()
-        }
-
-    suspend fun upsertStockingLevel(
-        accountId: String,
-        request: UpsertStockingLevelRequest,
-    ): NetworkResult<StockingLevelResponse> =
-        safeNetworkCall {
-            client.put("$baseUrl/accounts/$accountId/stocking-levels/upsert") {
-                setBody(request)
-            }.body<StockingLevelResponse>()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Filter Views (Change 54)
-    // ---------------------------------------------------------------------------
-
-    suspend fun listFilterViews(
-        accountId: String,
-        entityType: String? = null,
-    ): NetworkResult<List<SavedFilterViewResponse>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/filter-views") {
-                entityType?.let { parameter("entity_type", it) }
-            }.body<Map<String, List<SavedFilterViewResponse>>>()["filter_views"] ?: emptyList()
-        }
-
-    suspend fun createFilterView(
-        accountId: String,
-        request: CreateFilterViewRequest,
-    ): NetworkResult<SavedFilterViewResponse> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/filter-views") {
-                setBody(request)
-            }.body<SavedFilterViewResponse>()
-        }
-
-    suspend fun deleteFilterView(accountId: String, viewId: String): NetworkResult<Unit> =
-        safeNetworkCall {
-            client.delete("$baseUrl/accounts/$accountId/filter-views/$viewId")
-            Unit
-        }
-
-    // ---------------------------------------------------------------------------
-    // Cost Line Approval + WO Cost Summary (Changes 55-56)
-    // ---------------------------------------------------------------------------
-
-    suspend fun approveCostLine(
-        accountId: String,
-        logId: String,
-        costLineId: String,
-    ): NetworkResult<JsonObject> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/log/$logId/cost-lines/$costLineId/approve")
-                .body<JsonObject>()
-        }
-
-    suspend fun getWoCostSummary(accountId: String, woId: String): NetworkResult<WoCostSummaryResponse> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/work-orders/$woId/costs/summary")
-                .body<WoCostSummaryResponse>()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Assets with Children (Change 60)
-    // ---------------------------------------------------------------------------
-
-    // Change 106: tags filter — pass a list of tags to filter assets (all must match)
-    suspend fun listAssetsWithChildren(
-        accountId: String,
-        maxDepth: Int = 3,
-        tags: List<String>? = null,
-    ): NetworkResult<List<JsonObject>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/assets") {
-                parameter("include_children", "true")
-                parameter("max_depth", maxDepth)
-                tags?.forEach { parameter("tags[]", it) }
-            }.body<Map<String, List<JsonObject>>>()["assets"] ?: emptyList()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Saved Messages (Change 67)
-    // ---------------------------------------------------------------------------
-
-    suspend fun saveMessage(messageId: String, note: String? = null): NetworkResult<ChatMessageSave> =
-        safeNetworkCall {
-            client.post("$baseUrl/chat/messages/$messageId/save") {
-                setBody(SaveMessageRequest(note = note))
-            }.body<Map<String, ChatMessageSave>>()?.get("save") ?: throw IllegalStateException("Missing save in response")
-        }
-
-    suspend fun unsaveMessage(messageId: String): NetworkResult<Unit> =
-        safeNetworkCall {
-            client.delete("$baseUrl/chat/messages/$messageId/save")
-            Unit
-        }
-
-    suspend fun listSavedMessages(limit: Int = 25, cursor: String? = null): NetworkResult<List<ChatMessageSave>> =
-        safeNetworkCall {
-            client.get("$baseUrl/chat/me/saved") {
-                parameter("limit", limit)
-                if (cursor != null) parameter("cursor", cursor)
-            }.body<Map<String, List<ChatMessageSave>>>()["saves"] ?: emptyList()
-        }
-
-    suspend fun updateSaveNote(messageId: String, note: String?): NetworkResult<ChatMessageSave> =
-        safeNetworkCall {
-            client.patch("$baseUrl/chat/messages/$messageId/save") {
-                setBody(SaveMessageRequest(note = note))
-            }.body<Map<String, ChatMessageSave>>()?.get("save") ?: throw IllegalStateException("Missing save in response")
-        }
-
-    // ---------------------------------------------------------------------------
-    // Custom User Status (Change 68)
-    // ---------------------------------------------------------------------------
-
-    suspend fun setUserStatus(request: SetStatusRequest): NetworkResult<Unit> =
-        safeNetworkCall {
-            client.put("$baseUrl/chat/me/status") {
-                setBody(request)
-            }
-            Unit
-        }
-
-    suspend fun clearUserStatus(): NetworkResult<Unit> =
-        safeNetworkCall {
-            client.delete("$baseUrl/chat/me/status")
-            Unit
-        }
-
-    suspend fun getUserStatus(userId: String): NetworkResult<ChatUserStatus> =
-        safeNetworkCall {
-            client.get("$baseUrl/chat/users/$userId/status").body<ChatUserStatus>()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Scheduled Messages (Change 69)
-    // ---------------------------------------------------------------------------
-
-    suspend fun listScheduledMessages(accountId: String, threadId: String): NetworkResult<List<ChatScheduledMessage>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/chat/threads/$threadId/scheduled")
-                .body<Map<String, List<ChatScheduledMessage>>>()["scheduled"] ?: emptyList()
-        }
-
-    suspend fun cancelScheduledMessage(accountId: String, scheduledMessageId: String): NetworkResult<Unit> =
-        safeNetworkCall {
-            client.delete("$baseUrl/accounts/$accountId/chat/scheduled-messages/$scheduledMessageId")
-            Unit
-        }
-
-    suspend fun updateScheduledMessage(accountId: String, scheduledMessageId: String, request: UpdateScheduledMessageRequest): NetworkResult<ChatScheduledMessage> =
-        safeNetworkCall {
-            client.patch("$baseUrl/accounts/$accountId/chat/scheduled-messages/$scheduledMessageId") {
-                setBody(request)
-            }.body<Map<String, ChatScheduledMessage>>()?.get("scheduled_message") ?: throw IllegalStateException("Missing scheduled_message in response")
-        }
-
-    // ---------------------------------------------------------------------------
-    // Thread Topic and Description (Change 70)
-    // ---------------------------------------------------------------------------
-
-    suspend fun setThreadTopic(threadId: String, topic: String): NetworkResult<Unit> =
-        safeNetworkCall {
-            client.put("$baseUrl/chat/threads/$threadId/topic") {
-                setBody(SetTopicRequest(topic = topic))
-            }
-            Unit
-        }
-
-    suspend fun setThreadDescription(threadId: String, description: String): NetworkResult<Unit> =
-        safeNetworkCall {
-            client.put("$baseUrl/chat/threads/$threadId/description") {
-                setBody(SetDescriptionRequest(description = description))
-            }
-            Unit
         }
 
     // ---------------------------------------------------------------------------
@@ -2701,147 +1322,6 @@ class AvagoServiceClient @Inject constructor(
                 client.post("$baseUrl/accounts/$accountId/occurrences/$occurrenceId/skip") {
                     setBody(SkipOccurrenceRequest(skip_reason_code = skipReasonCode, skip_reason = skipReason))
                 }
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-
-    // Change 72: POST /accounts/:accountId/work-orders/:woId/skip
-    suspend fun skipWorkOrder(
-        accountId: String,
-        woId: String,
-        reasonCode: String? = null,
-        notes: String? = null,
-    ): NetworkResult<Unit> =
-        safeNetworkCall {
-            val response: HttpResponse =
-                client.post("$baseUrl/accounts/$accountId/work-orders/$woId/skip") {
-        setBody(SkipOccurrenceRequest(skip_reason_code = reasonCode, skip_reason = notes))
-                }
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-
-    // ---------------------------------------------------------------------------
-    // Inventory Transactions (Changes 73-74)
-    // ---------------------------------------------------------------------------
-
-    /** POST /accounts/:accountId/inventory-transactions */
-    suspend fun createInventoryTransaction(
-        accountId: String,
-        request: CreateInventoryTransactionRequest,
-    ): NetworkResult<InventoryTransactionResponse> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/inventory-transactions") {
-                setBody(request)
-            }.body()
-        }
-
-    /** POST /accounts/:accountId/inventory-transactions/:transactionId/reverse */
-    suspend fun reverseInventoryTransaction(
-        accountId: String,
-        transactionId: String,
-        request: ReverseTransactionRequest,
-    ): NetworkResult<InventoryTransactionResponse> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/inventory-transactions/$transactionId/reverse") {
-                setBody(request)
-            }.body()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Reorder Suggestions → PO conversion (Change 75)
-    // ---------------------------------------------------------------------------
-
-    /** POST /accounts/:accountId/reorder-suggestions/convert-to-po */
-    suspend fun convertReorderToPO(
-        accountId: String,
-        request: ConvertReorderToPORequest,
-    ): NetworkResult<ConvertReorderToPOResponse> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/reorder-suggestions/convert-to-po") {
-                setBody(request)
-            }.body()
-        }
-
-    // ---------------------------------------------------------------------------
-    // PATCH Purchase Order (Change 76)
-    // ---------------------------------------------------------------------------
-
-    /** PATCH /accounts/:accountId/purchase-orders/:poId */
-    suspend fun patchPurchaseOrder(
-        accountId: String,
-        poId: String,
-        request: PatchPurchaseOrderRequest,
-    ): NetworkResult<PurchaseOrderResponse> =
-        safeNetworkCall {
-            client.patch("$baseUrl/accounts/$accountId/purchase-orders/$poId") {
-                setBody(request)
-            }.body()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Work Order Purchase Orders (Change 77)
-    // ---------------------------------------------------------------------------
-
-    /** GET /accounts/:accountId/work-orders/:woId/purchase-orders */
-    suspend fun getPurchaseOrdersForWorkOrder(
-        accountId: String,
-        woId: String,
-    ): NetworkResult<PurchaseOrdersResponse> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/work-orders/$woId/purchase-orders").body()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Vendor Contacts (Change 79)
-    // ---------------------------------------------------------------------------
-
-    /** GET /accounts/:accountId/vendors/:vendorId/contacts */
-    suspend fun listVendorContacts(
-        accountId: String,
-        vendorId: String,
-    ): NetworkResult<List<VendorContactResponse>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/vendors/$vendorId/contacts")
-                .body<VendorContactsResponse>().contacts
-        }
-
-    /** POST /accounts/:accountId/vendors/:vendorId/contacts */
-    suspend fun createVendorContact(
-        accountId: String,
-        vendorId: String,
-        request: CreateVendorContactRequest,
-    ): NetworkResult<VendorContactResponse> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/vendors/$vendorId/contacts") {
-                setBody(request)
-            }.body()
-        }
-
-    /** PATCH /accounts/:accountId/vendors/:vendorId/contacts/:contactId */
-    suspend fun updateVendorContact(
-        accountId: String,
-        vendorId: String,
-        contactId: String,
-        request: UpdateVendorContactRequest,
-    ): NetworkResult<VendorContactResponse> =
-        safeNetworkCall {
-            client.patch("$baseUrl/accounts/$accountId/vendors/$vendorId/contacts/$contactId") {
-                setBody(request)
-            }.body()
-        }
-
-    /** DELETE /accounts/:accountId/vendors/:vendorId/contacts/:contactId */
-    suspend fun deleteVendorContact(
-        accountId: String,
-        vendorId: String,
-        contactId: String,
-    ): NetworkResult<Unit> =
-        safeNetworkCall {
-            val response: HttpResponse =
-                client.delete("$baseUrl/accounts/$accountId/vendors/$vendorId/contacts/$contactId")
             if (!response.status.isSuccess()) {
                 throw NetworkException(response.status.value, response.status.description)
             }
@@ -2867,469 +1347,6 @@ class AvagoServiceClient @Inject constructor(
         }
 
     // ---------------------------------------------------------------------------
-    // Bulk Work Order Update (Change 88)
-    // ---------------------------------------------------------------------------
-
-    suspend fun bulkUpdateWorkOrders(accountId: String, request: BulkUpdateWorkOrderRequest): NetworkResult<BulkUpdateResponse> =
-        safeNetworkCall {
-            client.patch("$baseUrl/accounts/$accountId/work-orders/bulk") {
-                setBody(request)
-            }.body<BulkUpdateResponse>()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Team Work Order Queue (Change 84)
-    // ---------------------------------------------------------------------------
-
-    suspend fun listGroupWorkOrders(
-        accountId: String,
-        groupId: String,
-        status: String? = null,
-        priority: String? = null,
-    ): NetworkResult<List<WorkOrderResponse>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/groups/$groupId/work-orders") {
-                if (status != null) parameter("status", status)
-                if (priority != null) parameter("priority", priority)
-            }.body<Map<String, List<WorkOrderResponse>>>()["work_orders"] ?: emptyList()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Report CSV Export (Change 81)
-    // ---------------------------------------------------------------------------
-
-    fun getReportCsvUrl(accountId: String, reportKey: String, params: Map<String, String> = emptyMap()): String {
-        val qs = (params + mapOf("format" to "csv")).entries.joinToString("&") { "${it.key}=${it.value}" }
-        return "$baseUrl/accounts/$accountId/reports/$reportKey?$qs"
-    }
-
-    // ---------------------------------------------------------------------------
-    // Cycle Count Date Filters (Change 90)
-    // ---------------------------------------------------------------------------
-
-    suspend fun listCycleCountsFiltered(
-        accountId: String,
-        status: String? = null,
-        dueBefore: String? = null,
-        dueAfter: String? = null,
-        limit: Int? = null,
-    ): NetworkResult<List<CycleCountResponse>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/cycle-counts") {
-                if (status != null) parameter("status", status)
-                if (dueBefore != null) parameter("due_before", dueBefore)
-                if (dueAfter != null) parameter("due_after", dueAfter)
-                if (limit != null) parameter("limit", limit)
-            }.body<Map<String, List<CycleCountResponse>>>()["cycle_counts"] ?: emptyList()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Chat Message Templates (Change 102)
-    // ---------------------------------------------------------------------------
-
-    suspend fun listPersonalTemplates(): NetworkResult<List<ChatMessageTemplate>> =
-        safeNetworkCall {
-            client.get("$baseUrl/chat/me/templates")
-                .body<Map<String, List<ChatMessageTemplate>>>()["templates"] ?: emptyList()
-        }
-
-    suspend fun createPersonalTemplate(request: CreateTemplateRequest): NetworkResult<ChatMessageTemplate> =
-        safeNetworkCall {
-            client.post("$baseUrl/chat/me/templates") {
-                setBody(request)
-            }.body<Map<String, ChatMessageTemplate>>()?.get("template") ?: throw IllegalStateException("Missing template in response")
-        }
-
-    suspend fun updatePersonalTemplate(templateId: String, request: CreateTemplateRequest): NetworkResult<ChatMessageTemplate> =
-        safeNetworkCall {
-            client.put("$baseUrl/chat/me/templates/$templateId") {
-                setBody(request)
-            }.body<Map<String, ChatMessageTemplate>>()?.get("template") ?: throw IllegalStateException("Missing template in response")
-        }
-
-    suspend fun deletePersonalTemplate(templateId: String): NetworkResult<Unit> =
-        safeNetworkCall {
-            client.delete("$baseUrl/chat/me/templates/$templateId")
-            Unit
-        }
-
-    suspend fun listAccountTemplates(accountId: String): NetworkResult<List<ChatMessageTemplate>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/chat/templates")
-                .body<Map<String, List<ChatMessageTemplate>>>()["templates"] ?: emptyList()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Chat Slash Commands (Change 103)
-    // ---------------------------------------------------------------------------
-
-    suspend fun executeSlashCommand(request: SlashCommandRequest): NetworkResult<Map<String, Any>> =
-        safeNetworkCall {
-            @Suppress("UNCHECKED_CAST")
-            client.post("$baseUrl/chat/commands") {
-                setBody(request)
-            }.body<Map<String, Any>>()["result"] as? Map<String, Any> ?: emptyMap()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Chat Webhooks (Change 104)
-    // ---------------------------------------------------------------------------
-
-    suspend fun listChatWebhooks(accountId: String): NetworkResult<List<ChatWebhook>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/chat/webhooks")
-                .body<Map<String, List<ChatWebhook>>>()["webhooks"] ?: emptyList()
-        }
-
-    suspend fun createChatWebhook(accountId: String, request: CreateWebhookRequest): NetworkResult<CreateWebhookResponse> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/chat/webhooks") {
-                setBody(request)
-            }.body<CreateWebhookResponse>()
-        }
-
-    suspend fun deleteChatWebhook(accountId: String, webhookId: String): NetworkResult<Unit> =
-        safeNetworkCall {
-            client.delete("$baseUrl/accounts/$accountId/chat/webhooks/$webhookId")
-            Unit
-        }
-
-    // ---------------------------------------------------------------------------
-    // WO Template Copy (Change 109)
-    // ---------------------------------------------------------------------------
-
-    suspend fun copyWorkOrderTemplate(accountId: String, templateId: String, title: String? = null): NetworkResult<Map<String, Any>> =
-        safeNetworkCall {
-            @Suppress("UNCHECKED_CAST")
-            client.post("$baseUrl/accounts/$accountId/wo-templates/$templateId/copy") {
-                setBody(CopyTemplateRequest(title = title))
-            }.body<Map<String, Any>>()["template"] as? Map<String, Any> ?: emptyMap()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Cycle Count Generation (Change 107)
-    // ---------------------------------------------------------------------------
-
-    suspend fun generateCycleCounts(accountId: String, request: GenerateCycleCountsRequest): NetworkResult<Map<String, Any>> =
-        safeNetworkCall {
-            @Suppress("UNCHECKED_CAST")
-            client.post("$baseUrl/accounts/$accountId/cycle-counts/generate") {
-                setBody(request)
-            }.body<Map<String, Any>>()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Sync Conflict Review (Change 110)
-    // ---------------------------------------------------------------------------
-
-    suspend fun listSyncConflicts(accountId: String, page: Int = 0): NetworkResult<List<SyncConflict>> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/sync/conflicts") {
-                setBody(mapOf("mode" to "list", "page" to page))
-            }.body<Map<String, List<SyncConflict>>>()["conflicts"] ?: emptyList()
-        }
-
-    suspend fun resolveSyncConflicts(accountId: String, conflictIds: List<String>, resolution: String): NetworkResult<Int> =
-        safeNetworkCall {
-            val res = client.post("$baseUrl/accounts/$accountId/sync/conflicts") {
-                setBody(mapOf("mode" to "resolve", "conflict_ids" to conflictIds, "resolution" to resolution))
-            }.body<Map<String, Any>>()
-            (res["resolved_count"] as? Number)?.toInt() ?: 0
-        }
-
-    // ---------------------------------------------------------------------------
-    // Cycle Count Lines (Change 91)
-    // ---------------------------------------------------------------------------
-
-    /** GET /accounts/:accountId/cycle-counts/:countId/lines */
-    suspend fun listCycleCountLines(
-        accountId: String,
-        countId: String,
-        varianceOnly: Boolean? = null,
-        minValue: Double? = null,
-    ): NetworkResult<List<CycleCountLineResponse>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/cycle-counts/$countId/lines") {
-                if (varianceOnly != null) parameter("variance_only", varianceOnly)
-                if (minValue != null) parameter("min_value", minValue)
-            }.body<Map<String, List<CycleCountLineResponse>>>()["lines"] ?: emptyList()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Categories (Changes 93+94)
-    // ---------------------------------------------------------------------------
-
-    /** GET /accounts/:accountId/categories */
-    suspend fun listCategories(
-        accountId: String,
-        includeTree: Boolean? = null,
-    ): NetworkResult<List<CategoryResponse>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/categories") {
-                if (includeTree != null) parameter("include_tree", includeTree)
-            }.body<Map<String, List<CategoryResponse>>>()["categories"] ?: emptyList()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Approval Delegation (Change 95)
-    // ---------------------------------------------------------------------------
-
-    /** POST /accounts/:accountId/approval-requests/:requestId/delegate */
-    suspend fun delegateApproval(
-        accountId: String,
-        requestId: String,
-        request: DelegateApprovalRequest,
-    ): NetworkResult<ApprovalResponse> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/approval-requests/$requestId/delegate") {
-                setBody(request)
-            }.body<ApprovalResponse>()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Work Order Cost Approvals (Change 98)
-    // ---------------------------------------------------------------------------
-
-    /** POST /accounts/:accountId/work-orders/:woId/costs/approve */
-    suspend fun approveWoCosts(
-        accountId: String,
-        woId: String,
-        request: ApproveCostsRequest,
-    ): NetworkResult<WoCostApproval> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/work-orders/$woId/costs/approve") {
-                setBody(request)
-            }.body<WoCostApproval>()
-        }
-
-    // ---------------------------------------------------------------------------
-    // PO Comments (Change 100)
-    // ---------------------------------------------------------------------------
-
-    /** GET /accounts/:accountId/purchase-orders/:poId/comments */
-    suspend fun listPoComments(
-        accountId: String,
-        poId: String,
-        cursor: String? = null,
-        limit: Int? = null,
-    ): NetworkResult<PoCommentsResponse> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/purchase-orders/$poId/comments") {
-                if (cursor != null) parameter("cursor", cursor)
-                if (limit != null) parameter("limit", limit)
-            }.body<PoCommentsResponse>()
-        }
-
-    /** POST /accounts/:accountId/purchase-orders/:poId/comments */
-    suspend fun createPoComment(
-        accountId: String,
-        poId: String,
-        content: String,
-    ): NetworkResult<PoCommentResponse> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/purchase-orders/$poId/comments") {
-                setBody(CreatePoCommentRequest(content = content))
-            }.body<PoCommentResponse>()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Organizations (Change 112)
-    // ---------------------------------------------------------------------------
-
-    suspend fun listOrganizations(): NetworkResult<List<OrganizationResponse>> =
-        safeNetworkCall {
-            client.get("$baseUrl/organizations")
-                .body<Map<String, List<OrganizationResponse>>>()["organizations"] ?: emptyList()
-        }
-
-    suspend fun getOrgSummary(orgId: String, from: String? = null, to: String? = null): NetworkResult<OrgSummaryResponse> =
-        safeNetworkCall {
-            client.get("$baseUrl/organizations/$orgId/summary") {
-                from?.let { parameter("from", it) }
-                to?.let { parameter("to", it) }
-            }.body<OrgSummaryResponse>()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Request Portals (Change 113)
-    // ---------------------------------------------------------------------------
-
-    suspend fun createRequestPortal(accountId: String, request: CreatePortalRequest): NetworkResult<Map<String, Any>> =
-        safeNetworkCall {
-            @Suppress("UNCHECKED_CAST")
-            client.post("$baseUrl/accounts/$accountId/request-portals") {
-                setBody(request)
-            }.body<Map<String, Any>>()
-        }
-
-    suspend fun submitPortal(portalToken: String, request: PortalSubmissionRequest): NetworkResult<Map<String, Any>> =
-        safeNetworkCall {
-            @Suppress("UNCHECKED_CAST")
-            client.post("$baseUrl/request-portals/$portalToken/submissions") {
-                setBody(request)
-            }.body<Map<String, Any>>()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Sync Checkpoint (Change 114)
-    // ---------------------------------------------------------------------------
-
-    suspend fun getSyncCheckpoint(accountId: String, deviceId: String): NetworkResult<SyncCheckpointResponse> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/sync/checkpoint") {
-                headers { append("X-Device-Id", deviceId) }
-            }.body<SyncCheckpointResponse>()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Work Request Portals (Change 116)
-    // ---------------------------------------------------------------------------
-
-    suspend fun listWorkRequestPortals(accountId: String): NetworkResult<List<WorkRequestPortalResponse>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/work-request-portals")
-                .body<Map<String, List<WorkRequestPortalResponse>>>()["portals"] ?: emptyList()
-        }
-
-    suspend fun createWorkRequestPortal(accountId: String, request: CreateWorkRequestPortalRequest): NetworkResult<WorkRequestPortalResponse> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/work-request-portals") {
-                setBody(request)
-            }.body<Map<String, WorkRequestPortalResponse>>()?.get("portal") ?: throw IllegalStateException("Missing portal in response")
-        }
-
-    suspend fun updateWorkRequestPortal(accountId: String, portalId: String, updates: Map<String, Any>): NetworkResult<WorkRequestPortalResponse> =
-        safeNetworkCall {
-            client.patch("$baseUrl/accounts/$accountId/work-request-portals/$portalId") {
-                setBody(updates)
-            }.body<Map<String, WorkRequestPortalResponse>>()?.get("portal") ?: throw IllegalStateException("Missing portal in response")
-        }
-
-    suspend fun deleteWorkRequestPortal(accountId: String, portalId: String): NetworkResult<Unit> =
-        safeNetworkCall {
-            client.delete("$baseUrl/accounts/$accountId/work-request-portals/$portalId")
-            Unit
-        }
-
-    // ---------------------------------------------------------------------------
-    // Chat Link Preview (Change 119)
-    // ---------------------------------------------------------------------------
-
-    suspend fun getChatLinkPreview(url: String): NetworkResult<Map<String, Any>> =
-        safeNetworkCall {
-            @Suppress("UNCHECKED_CAST")
-            client.get("$baseUrl/chat/link-preview") {
-                parameter("url", url)
-            }.body<Map<String, Any>>()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Asset Location History with GPS + Pagination (Changes 131+132+134)
-    // ---------------------------------------------------------------------------
-
-    suspend fun getAssetLocationHistory(
-        accountId: String,
-        assetId:   String,
-        from:      String? = null,
-        to:        String? = null,
-        page:      Int? = null,
-        pageSize:  Int? = null,
-    ): NetworkResult<Map<String, Any>> =
-        safeNetworkCall {
-            @Suppress("UNCHECKED_CAST")
-            client.get("$baseUrl/accounts/$accountId/assets/$assetId/location-history") {
-                from?.let     { parameter("from",      it) }
-                to?.let       { parameter("to",        it) }
-                page?.let     { parameter("page",      it) }
-                pageSize?.let { parameter("page_size", it) }
-            }.body<Map<String, Any>>()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Asset Transfer (Fix 2)
-    // ---------------------------------------------------------------------------
-
-    suspend fun transferAsset(
-        accountId:    String,
-        assetId:      String,
-        toLocationId: String,
-        moveReason:   String? = null,
-        lat:          Double? = null,
-        lng:          Double? = null,
-    ): NetworkResult<Map<String, Any>> =
-        safeNetworkCall {
-            @Suppress("UNCHECKED_CAST")
-            client.post("$baseUrl/accounts/$accountId/assets/$assetId/transfer") {
-setBody(buildMap<String, Any?> {
-                    put("to_location_id", toLocationId)
-                    moveReason?.let { put("move_reason", it) }
-                    lat?.let        { put("lat", it) }
-                    lng?.let        { put("lng", it) }
-                })
-            }.body<Map<String, Any>>()
-        }
-
-    // ---------------------------------------------------------------------------
-    // QR Batch Generation (Change 133)
-    // ---------------------------------------------------------------------------
-
-    suspend fun generateQrBatch(
-        accountId:        String,
-        assetIds:         List<String>,
-        format:           String? = null,
-        pageSize:         String? = null,
-        includeAssetName: Boolean? = null,
-    ): NetworkResult<Map<String, Any>> =
-        safeNetworkCall {
-            @Suppress("UNCHECKED_CAST")
-            client.post("$baseUrl/accounts/$accountId/assets/qr-tokens/batch") {
-setBody(buildMap<String, Any?> {
-                    put("asset_ids", assetIds)
-                    format?.let           { put("format", it) }
-                    pageSize?.let         { put("page_size", it) }
-                    includeAssetName?.let { put("include_asset_name", it) }
-                })
-            }.body<Map<String, Any>>()
-        }
-
-    // ---------------------------------------------------------------------------
-    // QR Scan History (Change 135)
-    // ---------------------------------------------------------------------------
-
-    suspend fun getAssetQrScans(
-        accountId: String,
-        assetId:   String,
-        from:      String? = null,
-        to:        String? = null,
-        page:      Int? = null,
-        pageSize:  Int? = null,
-    ): NetworkResult<Map<String, Any>> =
-        safeNetworkCall {
-            @Suppress("UNCHECKED_CAST")
-            client.get("$baseUrl/accounts/$accountId/assets/$assetId/qr-scans") {
-                from?.let     { parameter("from",      it) }
-                to?.let       { parameter("to",        it) }
-                page?.let     { parameter("page",      it) }
-                pageSize?.let { parameter("page_size", it) }
-            }.body<Map<String, Any>>()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Record QR Scan with GPS (Change 132/135)
-    // ---------------------------------------------------------------------------
-
-    /** POST /accounts/:accountId/assets/:assetId/qr-scans — record a scan with optional GPS. */
-    suspend fun recordQrScan(
-        accountId: String,
-        request: RecordQrScanRequest,
-    ): NetworkResult<QrScanEntry> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/assets/${request.asset_id}/qr-scans") {
-setBody(request)
-            }.body()
-        }
-
-    // ---------------------------------------------------------------------------
     // AI Thread Summary Stub (Change 136)
     // ---------------------------------------------------------------------------
 
@@ -3338,266 +1355,6 @@ setBody(request)
             @Suppress("UNCHECKED_CAST")
             client.post("$baseUrl/chat/threads/$threadId/summary")
                 .body<Map<String, Any>>()
-        }
-
-    // ---------------------------------------------------------------------------
-    // QBO Targeted Re-sync (Change 138)
-    // ---------------------------------------------------------------------------
-
-    suspend fun resyncQboEntity(
-        accountId:  String,
-        entityType: String,
-        entityId:   String,
-        force:      Boolean? = null,
-        reason:     String? = null,
-    ): NetworkResult<Map<String, Any>> =
-        safeNetworkCall {
-            @Suppress("UNCHECKED_CAST")
-            client.post("$baseUrl/accounts/$accountId/integrations/qbo/sync/$entityType/$entityId") {
-setBody(buildMap<String, Any?> {
-                    force?.let  { put("force",  it) }
-                    reason?.let { put("reason", it) }
-                })
-            }.body<Map<String, Any>>()
-        }
-
-    // ---------------------------------------------------------------------------
-    // QBO Sync Directions (Change 139)
-    // ---------------------------------------------------------------------------
-
-    suspend fun getQboSyncDirections(accountId: String): NetworkResult<Map<String, Any>> =
-        safeNetworkCall {
-            @Suppress("UNCHECKED_CAST")
-            client.get("$baseUrl/accounts/$accountId/integrations/qbo/sync-directions")
-                .body<Map<String, Any>>()
-        }
-
-    suspend fun putQboSyncDirections(
-        accountId:        String,
-        entityDirections: List<Map<String, String>>,
-    ): NetworkResult<Map<String, Any>> =
-        safeNetworkCall {
-            @Suppress("UNCHECKED_CAST")
-            client.put("$baseUrl/accounts/$accountId/integrations/qbo/sync-directions") {
-setBody(mapOf("entity_directions" to entityDirections))
-            }.body<Map<String, Any>>()
-        }
-
-    // ---------------------------------------------------------------------------
-    // GL Mapping Rules (Change 140)
-    // ---------------------------------------------------------------------------
-
-    suspend fun listGlMappingRules(accountId: String): NetworkResult<Map<String, Any>> =
-        safeNetworkCall {
-            @Suppress("UNCHECKED_CAST")
-            client.get("$baseUrl/accounts/$accountId/gl-accounts/mapping-rules")
-                .body<Map<String, Any>>()
-        }
-
-    suspend fun createGlMappingRule(
-        accountId:   String,
-        name:        String,
-        conditions:  List<Map<String, Any>>,
-        glAccountId: String,
-        priority:    Int? = null,
-        enabled:     Boolean? = null,
-    ): NetworkResult<Map<String, Any>> =
-        safeNetworkCall {
-            @Suppress("UNCHECKED_CAST")
-            client.post("$baseUrl/accounts/$accountId/gl-accounts/mapping-rules") {
-setBody(buildMap<String, Any?> {
-                    put("name", name)
-                    put("conditions", conditions)
-                    put("gl_account_id", glAccountId)
-                    priority?.let { put("priority", it) }
-                    enabled?.let  { put("enabled",  it) }
-                })
-            }.body<Map<String, Any>>()
-        }
-
-    suspend fun deleteGlMappingRule(
-        accountId: String,
-        ruleId:    String,
-    ): NetworkResult<Unit> =
-        safeNetworkCall {
-            client.delete("$baseUrl/accounts/$accountId/gl-accounts/mapping-rules/$ruleId")
-            Unit
-        }
-
-    // ── Account Feature Flags ─────────────────────────────────────────────────
-
-    suspend fun getAccountFeatures(
-        accountId: String,
-    ): NetworkResult<AccountFeaturesResponse> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/features").body()
-        }
-
-    suspend fun putAccountFeatures(
-        accountId: String,
-        patch:     PutAccountFeaturesRequest,
-    ): NetworkResult<AccountFeaturesResponse> =
-        safeNetworkCall {
-            client.put("$baseUrl/accounts/$accountId/features") {
-setBody(patch)
-            }.body()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Asset Ancestors & History (new)
-    // ---------------------------------------------------------------------------
-
-    /** GET /accounts/:accountId/assets/:assetId/ancestors */
-    suspend fun getAssetAncestors(
-        accountId: String,
-        assetId: String,
-    ): NetworkResult<List<AncestorItem>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/assets/$assetId/ancestors")
-                .body<Map<String, List<AncestorItem>>>()["ancestors"] ?: emptyList()
-        }
-
-    /** GET /accounts/:accountId/assets/:assetId/history */
-    suspend fun getAssetHistory(
-        accountId: String,
-        assetId: String,
-        limit: Int = 50,
-        cursor: String? = null,
-    ): NetworkResult<List<AssetHistoryEvent>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/assets/$assetId/history") {
-                parameter("limit", limit)
-                cursor?.let { parameter("cursor", it) }
-            }.body<Map<String, List<AssetHistoryEvent>>>()["events"] ?: emptyList()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Work Order Batch Log Entries & Quick Work (new)
-    // ---------------------------------------------------------------------------
-
-    /** POST /accounts/:accountId/work-orders/:woId/log-entries/batch */
-    suspend fun batchCreateLogEntries(
-        accountId: String,
-        woId: String,
-        entries: List<Map<String, Any>>,
-    ): NetworkResult<Unit> =
-        safeNetworkCall {
-            val response: HttpResponse =
-                client.post("$baseUrl/accounts/$accountId/work-orders/$woId/log-entries/batch") {
-                    setBody(entries)
-                }
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-
-    /** POST /accounts/:accountId/quick-work */
-    suspend fun createQuickWork(
-        accountId: String,
-        body: Map<String, Any>,
-    ): NetworkResult<Map<String, Any>> =
-        safeNetworkCall {
-            @Suppress("UNCHECKED_CAST")
-            client.post("$baseUrl/accounts/$accountId/quick-work") {
-                setBody(body)
-            }.body<Map<String, Any>>()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Bulk Reassign Work Orders (new)
-    // ---------------------------------------------------------------------------
-
-    /** POST /accounts/:accountId/work-orders/bulk-reassign */
-    suspend fun bulkReassignWorkOrders(
-        accountId: String,
-        request: BulkReassignRequest,
-    ): NetworkResult<BulkReassignResponse> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/work-orders/bulk-reassign") {
-                setBody(request)
-            }.body()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Work Permits (new)
-    // ---------------------------------------------------------------------------
-
-    /** GET /accounts/:accountId/work-orders/:woId/permits */
-    suspend fun listWorkPermits(
-        accountId: String,
-        woId: String,
-    ): NetworkResult<List<WorkPermit>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/work-orders/$woId/permits")
-                .body<Map<String, List<WorkPermit>>>()["permits"] ?: emptyList()
-        }
-
-    /** POST /accounts/:accountId/work-orders/:woId/permits */
-    suspend fun createWorkPermit(
-        accountId: String,
-        woId: String,
-        request: CreateWorkPermitRequest,
-    ): NetworkResult<WorkPermit> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/work-orders/$woId/permits") {
-                setBody(request)
-            }.body()
-        }
-
-    /** POST /accounts/:accountId/work-permits/:permitId/sign */
-    suspend fun signWorkPermit(
-        accountId: String,
-        permitId: String,
-        signatureData: String,
-    ): NetworkResult<WorkPermit> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/work-permits/$permitId/sign") {
-                setBody(mapOf("signature" to signatureData))
-            }.body()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Bin Contents (new)
-    // ---------------------------------------------------------------------------
-
-    /** GET /accounts/:accountId/bins/:binId/contents */
-    suspend fun listBinContents(
-        accountId: String,
-        binId: String,
-    ): NetworkResult<List<BinContent>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/bins/$binId/contents")
-                .body<Map<String, List<BinContent>>>()["contents"] ?: emptyList()
-        }
-
-    /** POST /accounts/:accountId/bins/:binId/contents */
-    suspend fun addBinContent(
-        accountId: String,
-        binId: String,
-        partId: String,
-        quantity: Int,
-    ): NetworkResult<Unit> =
-        safeNetworkCall {
-            val response: HttpResponse =
-                client.post("$baseUrl/accounts/$accountId/bins/$binId/contents") {
-                    setBody(mapOf("part_id" to partId, "quantity" to quantity))
-                }
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-
-    // Change 144: GET /accounts/:accountId/inventory?part_id=:partId&include_bins=true
-    suspend fun getPartBinLocations(
-        accountId: String,
-        partId: String,
-    ): NetworkResult<List<PartBinLocation>> =
-        safeNetworkCall {
-            val resp = client.get("$baseUrl/accounts/$accountId/inventory") {
-                parameter("part_id", partId)
-                parameter("include_bins", "true")
-            }.body<PartBinLocationsResponse>()
-            resp.bins
         }
 
     // ---------------------------------------------------------------------------
@@ -3613,127 +1370,6 @@ setBody(patch)
             client.get("$baseUrl/accounts/$accountId/custom-fields") {
                 parameter("entity_type", entityType)
             }.body<Map<String, List<CustomFieldDef>>>()["field_defs"] ?: emptyList()
-        }
-
-    /** GET /accounts/:accountId/custom-fields/values?entity_type=...&entity_id=... */
-    suspend fun getEntityCustomValues(
-        accountId: String,
-        entityType: String,
-        entityId: String,
-    ): NetworkResult<List<CustomFieldValue>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/custom-fields/values") {
-                parameter("entity_type", entityType)
-                parameter("entity_id", entityId)
-            }.body<Map<String, List<CustomFieldValue>>>()["values"] ?: emptyList()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Meter Triggers (new)
-    // ---------------------------------------------------------------------------
-
-    /** GET /accounts/:accountId/meter-triggers */
-    suspend fun listMeterTriggers(accountId: String): NetworkResult<List<MeterTrigger>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/meter-triggers")
-                .body<Map<String, List<MeterTrigger>>>()["triggers"] ?: emptyList()
-        }
-
-    /** POST /accounts/:accountId/meter-triggers */
-    suspend fun createMeterTrigger(
-        accountId: String,
-        trigger: MeterTrigger,
-    ): NetworkResult<MeterTrigger> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/meter-triggers") {
-                setBody(trigger)
-            }.body()
-        }
-
-    // ---------------------------------------------------------------------------
-    // PM Plans (new)
-    // ---------------------------------------------------------------------------
-
-    /** GET /accounts/:accountId/pm-plans */
-    suspend fun listPmPlans(accountId: String): NetworkResult<List<PmPlan>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/pm-plans")
-                .body<Map<String, List<PmPlan>>>()["plans"] ?: emptyList()
-        }
-
-    /** POST /accounts/:accountId/pm-plans */
-    suspend fun createPmPlan(
-        accountId: String,
-        plan: PmPlan,
-    ): NetworkResult<PmPlan> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/pm-plans") {
-                setBody(plan.forWrite())
-            }.body()
-        }
-
-    suspend fun updatePmPlan(
-        accountId: String,
-        planId: String,
-        plan: PmPlan,
-    ): NetworkResult<PmPlan> =
-        safeNetworkCall {
-            client.patch("$baseUrl/accounts/$accountId/pm-plans/$planId") {
-                setBody(plan.forWrite())
-            }.body()
-        }
-
-    suspend fun deletePmPlan(
-        accountId: String,
-        planId: String,
-    ): NetworkResult<Unit> =
-        safeNetworkCall {
-            client.delete("$baseUrl/accounts/$accountId/pm-plans/$planId").body()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Work-order v3 (optional endpoints; callers fall back to local defaults on
-    // 404/405/501 or offline)
-    // ---------------------------------------------------------------------------
-
-    /** GET /accounts/:accountId/wo-codes?kind= -> `{codes:[...]}` (empty = use client defaults). */
-    suspend fun getWoCodes(accountId: String, kind: String? = null): NetworkResult<kotlinx.serialization.json.JsonElement> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/wo-codes") {
-                if (kind != null) parameter("kind", kind)
-            }.body()
-        }
-
-    /** GET /accounts/:accountId/wo-sla-policy -> `{policy:{priority:{respond_hours,resolve_hours}}}`. */
-    suspend fun getWoSlaPolicy(accountId: String): NetworkResult<kotlinx.serialization.json.JsonElement> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/wo-sla-policy").body()
-        }
-
-    /** GET /accounts/:accountId/work-orders/:woId/timer -> `{running, started_at, total_seconds, events[]}`. */
-    suspend fun getWoTimer(accountId: String, woId: String): NetworkResult<kotlinx.serialization.json.JsonElement> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/work-orders/$woId/timer").body()
-        }
-
-    /** POST /accounts/:accountId/work-orders/:woId/timer `{action: start|stop, at}`. */
-    suspend fun postWoTimer(
-        accountId: String,
-        woId: String,
-        action: String,
-        atIso: String? = null,
-    ): NetworkResult<kotlinx.serialization.json.JsonElement> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/work-orders/$woId/timer") {
-                setBody(
-                    JsonObject(
-                        buildMap {
-                            put("action", kotlinx.serialization.json.JsonPrimitive(action))
-                            if (atIso != null) put("at", kotlinx.serialization.json.JsonPrimitive(atIso))
-                        },
-                    ),
-                )
-            }.body()
         }
 
     // ---------------------------------------------------------------------------
@@ -3791,29 +1427,6 @@ setBody(patch)
             client.get("$baseUrl/accounts/$accountId/reports/kpis").body()
         }
 
-    // ---------------------------------------------------------------------------
-    // Part Transfer Requests
-    // ---------------------------------------------------------------------------
-
-    suspend fun createPartTransferRequest(
-        accountId: String,
-        request: CreatePartTransferRequestBody,
-    ): NetworkResult<PartTransferRequestResponse> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/part-transfer-requests") {
-                setBody(request)
-            }.body()
-        }
-
-    suspend fun approvePartTransferRequest(accountId: String, requestId: String): NetworkResult<Unit> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/part-transfer-requests/$requestId/approve").body()
-        }
-
-    suspend fun rejectPartTransferRequest(accountId: String, requestId: String): NetworkResult<Unit> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/part-transfer-requests/$requestId/reject").body()
-        }
 }
 
 class NetworkException(

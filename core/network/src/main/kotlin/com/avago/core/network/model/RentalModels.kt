@@ -86,25 +86,6 @@ data class CreateRentalCustomerRequest(
 )
 
 // ---------------------------------------------------------------------------
-// Rental Periods (updated model for new API fields)
-// ---------------------------------------------------------------------------
-
-@Serializable
-data class RentalPeriod(
-    val rental_period_id: String,
-    val asset_id: String,
-    val rental_customer_id: String? = null,
-    val customer_name: String? = null,
-    val rate: Double,
-    val rate_unit: String,
-    val currency: String,
-    val start_at: String,
-    val end_at: String? = null,
-    val status: String,  // "active", "ended", "invoiced", "paid"
-    val notes: String? = null,
-)
-
-// ---------------------------------------------------------------------------
 // Rental Invoices
 // ---------------------------------------------------------------------------
 
@@ -148,18 +129,6 @@ data class RentalInvoiceEnvelope(
 )
 
 @Serializable
-data class RentalInvoicesEnvelope(
-    val invoices: List<RentalInvoice>,
-)
-
-@Serializable
-data class UpdateInvoiceRequest(
-    val tax_rate: Double? = null,
-    val notes: String? = null,
-    val due_date: String? = null,
-)
-
-@Serializable
 data class PayInvoiceRequest(
     val payment_method: String? = null,
     val payment_notes: String? = null,
@@ -197,14 +166,6 @@ data class CreateReservationRequest(
     val rental_customer_id: String? = null,
     val reserved_from: String,
     val reserved_until: String,
-    val notes: String? = null,
-)
-
-@Serializable
-data class UpdateReservationRequest(
-    val status: String? = null,
-    val reserved_from: String? = null,
-    val reserved_until: String? = null,
     val notes: String? = null,
 )
 
