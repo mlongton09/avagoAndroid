@@ -49,6 +49,11 @@ class V2FileStager @Inject constructor(
         file.inputStream().use { copy(it, mediaType, file.name) }
     }
 
+    /** Stages content produced in memory (a drawn signature PNG). */
+    suspend fun stage(bytes: ByteArray, mediaType: String, name: String?): V2StagedFile = withContext(Dispatchers.IO) {
+        bytes.inputStream().use { copy(it, mediaType, name) }
+    }
+
     /** The local copy of [fileId], if this device staged it. */
     fun localFile(fileId: String): File? = File(root, fileId).takeIf { it.isFile }
 

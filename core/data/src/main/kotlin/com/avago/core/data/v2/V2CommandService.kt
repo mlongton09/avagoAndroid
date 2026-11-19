@@ -33,6 +33,18 @@ class V2CommandService @Inject constructor(
         return id
     }
 
+    /** A refused command of the active account (null when it is not refused / gone). */
+    suspend fun rejected(id: String): V2RejectedCommand? {
+        val stores = active.current.value ?: throw StoreNotReadyException()
+        return V2CommandQueue(stores.business, stores.identity).rejected(id)
+    }
+
+    /** Drops a refused command (its overlay is already rolled back). */
+    suspend fun dismiss(id: String) {
+        val stores = active.current.value ?: throw StoreNotReadyException()
+        V2CommandQueue(stores.business, stores.identity).dismissFailure(id)
+    }
+
     /** The signed-in user's id in the active store (for `created_by`-style overlay fields). */
     fun currentUserId(): String? = active.current.value?.identity?.userId
 }

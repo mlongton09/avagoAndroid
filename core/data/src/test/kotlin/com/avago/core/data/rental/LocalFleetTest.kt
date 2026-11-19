@@ -1,8 +1,8 @@
 package com.avago.core.data.rental
 
-import com.avago.core.data.db.rental.RentalRecordEntity
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.time.Instant
@@ -11,43 +11,40 @@ class LocalFleetTest {
 
     private val now = Instant.parse("2026-05-01T10:00:00Z")
 
-    private fun fleet(id: String, extra: String = "") = RentalRecordEntity(
-        entity = LocalFleet.ENTITY_FLEET, id = id,
-        json = """{"asset_id":"$id","name":"Unit $id","rental_status":"available","ready":true,"maintenance_open":false$extra}""",
-        assetId = id,
+    private fun unit(id: String, vararg reasons: String, maintenance: Boolean = false) = LocalFleet.FleetUnit(
+        assetId = id, name = "Unit $id", assetType = null, classId = null, className = null, locationId = null,
+        timeZone = "UTC", maintenanceOpen = maintenance, readiness = reasons.toList(),
     )
 
-    private fun alloc(id: String, asset: String, kind: String, start: String, end: String?, extra: String = "") =
-        RentalRecordEntity(
-            entity = LocalFleet.ENTITY_ALLOCATION, id = id, assetId = asset,
-            json = """{"id":"$id","asset_id":"$asset","kind":"$kind","active":true,"blocking":true,""" +
-                """"start_at":"$start","end_at":${end?.let { "\"$it\"" } ?: "null"}$extra}""",
+    private fun alloc(id: String, asset: String, kind: String, start: String, end: String?, line: String? = null, expires: String? = null) =
+        LocalFleet.Alloc(
+            id = id, assetId = asset, kind = kind, blocking = true, startAt = Instant.parse(start), endAt = end?.let(Instant::parse),
+            orderId = null, orderLineId = line, expiresAt = expires?.let(Instant::parse),
         )
 
     @Test
     fun `on rent uses the order line due time not the extended allocation end`() {
-        val line = RentalRecordEntity(
-            entity = LocalFleet.ENTITY_ORDER_LINE, id = "L1",
-            json = """{"id":"L1","end_at":"2026-05-01T09:00:00Z"}""",
-        )
         val r = LocalFleet.compute(
-            listOf(
-                fleet("A"),
-                alloc("X", "A", "on_rent", "2026-05-01T06:00:00Z", "2026-05-01T12:00:00Z", ""","order_line_id":"L1""""),
-                line,
+            LocalFleet.Inputs(
+                units = listOf(unit("A")),
+                allocations = listOf(alloc("X", "A", "on_rent", "2026-05-01T06:00:00Z", "2026-05-01T12:00:00Z", line = "L1")),
+                lineEnds = mapOf("L1" to Instant.parse("2026-05-01T09:00:00Z")),
             ),
             now,
         )
         assertEquals(FleetStatus.OVERDUE, r.getValue("A").status)
+        assertEquals(Instant.parse("2026-05-01T09:00:00Z"), r.getValue("A").dueAt)
     }
 
     @Test
-    fun `reserved within the window and open ended maintenance`() {
+    fun `reserved within the window, open ended maintenance and not ready`() {
         val r = LocalFleet.compute(
-            listOf(
-                fleet("A"), fleet("B"), fleet("C", ""","ready":false,"readiness":["inspection_due"]"""),
-                alloc("1", "A", "reserved", "2026-05-01T20:00:00Z", "2026-05-03T08:00:00Z"),
-                alloc("2", "B", "maintenance", "2026-05-01T08:00:00Z", null),
+            LocalFleet.Inputs(
+                units = listOf(unit("A"), unit("B"), unit("C", LocalFleet.REASON_OPEN_DEFECT)),
+                allocations = listOf(
+                    alloc("1", "A", "reserved", "2026-05-01T20:00:00Z", "2026-05-03T08:00:00Z"),
+                    alloc("2", "B", "maintenance", "2026-05-01T08:00:00Z", null),
+                ),
             ),
             now,
         )
@@ -58,20 +55,26 @@ class LocalFleetTest {
         assertEquals(1, counts[FleetStatus.RESERVED])
         assertEquals(0, counts[FleetStatus.AVAILABLE])
         assertEquals(0, dueToday)
-        assertTrue(r.values.all { it.local })
     }
 
     @Test
-    fun `inactive allocations are ignored and server status is kept before the first allocation pull`() {
-        val inactive = alloc("1", "A", "on_rent", "2026-05-01T06:00:00Z", null).let {
-            it.copy(json = it.json.replace("\"active\":true", "\"active\":false"))
-        }
-        assertEquals(null, LocalFleet.allocOf(inactive))
-        val serverOnly = LocalFleet.compute(
-            listOf(fleet("A").let { it.copy(json = it.json.replace("available", "on_rent")) }),
+    fun `an expired hold no longer counts`() {
+        val hold = alloc("H", "A", "hold", "2026-05-01T09:00:00Z", "2026-05-02T09:00:00Z", expires = "2026-05-01T09:30:00Z")
+        val r = LocalFleet.compute(LocalFleet.Inputs(listOf(unit("A")), listOf(hold)), now)
+        assertEquals(FleetStatus.AVAILABLE, r.getValue("A").status)
+        assertNull(r.getValue("A").current)
+    }
+
+    @Test
+    fun `the checklist travels with the result with its pending marker`() {
+        val flag = LocalFleet.ReadinessFlag("c", "pending", pending = true, at = now)
+        val r = LocalFleet.compute(
+            LocalFleet.Inputs(listOf(unit("A", LocalFleet.READINESS_REASON)), emptyList(), checklists = mapOf("A" to flag)),
             now,
         )
-        assertEquals(FleetStatus.ON_RENT, serverOnly.getValue("A").status)
-        assertFalse(serverOnly.getValue("A").local)
+        assertEquals(FleetStatus.NOT_READY, r.getValue("A").status)
+        assertTrue(r.getValue("A").readinessPending)
+        assertTrue(flag.open)
+        assertFalse(flag.copy(status = "waived").open)
     }
 }

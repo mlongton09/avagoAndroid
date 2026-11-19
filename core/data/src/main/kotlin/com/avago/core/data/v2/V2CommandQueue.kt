@@ -110,6 +110,21 @@ class V2CommandQueue(
         ).map(::failure)
     }
 
+    /** A refused command with its payload (to resend it corrected). */
+    suspend fun rejected(id: String): V2RejectedCommand? = store.read { conn ->
+        conn.query(
+            "SELECT id, operation, entity_type, entity_key, base_version, payload, last_error, created_at FROM pending_commands " +
+                "WHERE id = ? AND state = 'rejected'",
+            listOf(id.lowercase()),
+        ).firstOrNull()?.let { r ->
+            V2RejectedCommand(
+                failure = failure(r),
+                baseVersion = (r["base_version"] as Number?)?.toLong(),
+                payload = Json.parseToJsonElement(r["payload"] as String).jsonObject,
+            )
+        }
+    }
+
     /** Removes a surfaced rejection (and its overlays, by cascade). */
     suspend fun dismissFailure(id: String) = store.write { tx ->
         tx.execute("DELETE FROM pending_commands WHERE id = ? AND state IN ('rejected', 'cancelled')", listOf(id.lowercase()))
@@ -182,3 +197,10 @@ class V2CommandQueue(
         }
     }
 }
+
+/** A refused command: why it was refused and what was sent. */
+data class V2RejectedCommand(
+    val failure: V2CommandFailure,
+    val baseVersion: Long?,
+    val payload: JsonObject,
+)
