@@ -73,6 +73,8 @@ class V2Flag(
     private val marker: V2ResetMarker,
     private val isDebuggable: Boolean,
     private val buildSupportsV2: Boolean = BUILD_SUPPORTS_V2,
+    /** Internal cutover builds (`-Pv2Default=true`): v2 on unless the debug override says off. */
+    private val defaultEnabled: Boolean = false,
 ) {
     private val _updateRequired = MutableStateFlow(computeUpdateRequired())
 
@@ -88,10 +90,10 @@ class V2Flag(
     val serverCapability: ServerV2Capability get() = storage.serverCapability
 
     fun isEnabled(): Boolean = debugOverride
-        ?: (buildSupportsV2 && (storage.serverCapability == ServerV2Capability.COMPATIBLE || marker.isComplete))
+        ?: (defaultEnabled || (buildSupportsV2 && (storage.serverCapability == ServerV2Capability.COMPATIBLE || marker.isComplete)))
 
     /** Whether the server probe is worth running at all; false keeps the default build inert. */
-    fun shouldProbeServer(): Boolean = buildSupportsV2 || debugOverride == true
+    fun shouldProbeServer(): Boolean = buildSupportsV2 || defaultEnabled || debugOverride == true
 
     fun setDebugOverride(value: Boolean?) {
         if (!isDebuggable) return

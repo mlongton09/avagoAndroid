@@ -51,6 +51,7 @@ object DataModule {
         storage = storage,
         marker = marker,
         isDebuggable = (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0,
+        defaultEnabled = com.avago.core.data.BuildConfig.V2_DEFAULT,
     )
 
     @Provides

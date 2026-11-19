@@ -6,13 +6,19 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+// Internal cutover builds: `-Pv2Default=true` turns schema v2 on by default (V2Flag.defaultEnabled).
+// Without the property v2 stays off; see docs/v2-android-status.md.
+val v2Default = (project.findProperty("v2Default") as String?)?.toBoolean() ?: false
+
 android {
     namespace = "com.avago.core.data"
     compileSdk = 37
     defaultConfig {
         minSdk = 26
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("boolean", "V2_DEFAULT", "$v2Default")
     }
+    buildFeatures { buildConfig = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21

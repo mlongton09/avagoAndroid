@@ -42,6 +42,16 @@ class V2FlagTest {
     }
 
     @Test
+    fun `v2Default build is on before any probe, and the debug override can still turn it off`() {
+        val flag = V2Flag(storage, marker, isDebuggable = true, defaultEnabled = true)
+
+        assertTrue(flag.isEnabled())
+        assertTrue(flag.shouldProbeServer())
+        flag.setDebugOverride(false)
+        assertFalse(flag.isEnabled())
+    }
+
+    @Test
     fun `server compatible does not enable a build without the v2 data layer`() {
         storage.serverCapability = ServerV2Capability.COMPATIBLE
 
