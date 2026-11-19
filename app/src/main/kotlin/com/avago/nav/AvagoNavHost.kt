@@ -43,6 +43,8 @@ import com.avago.feature.assets.ui.GlobalCategoryReportScreen
 import com.avago.feature.reports.KpiDashboardScreen
 import com.avago.feature.reports.ui.CostReportScreen
 import com.avago.feature.schedule.nav.scheduleNavGraph
+import com.avago.feature.docs.nav.DocsRoute
+import com.avago.feature.docs.nav.docsNavGraph
 import com.avago.feature.settings.nav.settingsNavGraph
 import com.avago.feature.workorders.nav.workOrderNavGraph
 
@@ -155,6 +157,7 @@ fun AvagoNavHost(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     )
                 },
+                onNavigateToAddDocument = { assetId -> navController.navigate(DocsRoute.add(assetId)) },
                 onOpenAssetRentals = { assetId ->
                     navController.navigate(RentalsRoute.asset(assetId))
                 },
@@ -222,6 +225,7 @@ fun AvagoNavHost(
                 GalleryScreen()
             }
             // ── Schedule ──────────────────────────────────────────────────────────
+            docsNavGraph(navController)
             scheduleNavGraph(
                 navController = navController,
                 onNavigateToAddLogEntry = { assetId ->

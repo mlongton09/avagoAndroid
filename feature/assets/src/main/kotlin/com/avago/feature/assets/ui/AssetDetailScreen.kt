@@ -73,6 +73,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -150,6 +151,7 @@ fun AssetDetailScreen(
     onOpenToolDetails: (() -> Unit)? = null,
     onOpenVehicleDetails: (() -> Unit)? = null,
     onOpenRecalls: (() -> Unit)? = null,
+    onAddDocument: (() -> Unit)? = null,
     /** Slot rendered at the top of the Log tab (e.g. the open-defects panel from :feature:log). */
     logTabHeader: (@Composable () -> Unit)? = null,
     viewModel: AssetDetailViewModel = hiltViewModel(),
@@ -480,7 +482,7 @@ fun AssetDetailScreen(
                         onCloneLogEntry = { viewModel.cloneLogEntry(it) },
                         header = logTabHeader,
                     )
-                    1 -> DocumentsTab(documents = documents)
+                    1 -> DocumentsTab(documents = documents, onAddDocument = onAddDocument)
                     2 -> WorkOrdersTab(onOpenWorkOrders = onOpenWorkOrders)
                 }
             }
@@ -693,11 +695,20 @@ private fun InfoTab(
 }
 
 @Composable
-private fun DocumentsTab(documents: List<Attachment>) {
+private fun DocumentsTab(documents: List<Attachment>, onAddDocument: (() -> Unit)?) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
     ) {
+        if (onAddDocument != null) {
+            item(key = "add_document") {
+                OutlinedButton(onClick = onAddDocument, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.asset_detail_add_document))
+                }
+            }
+        }
         if (documents.isEmpty()) {
             item {
                 EmptyState(

@@ -1,4 +1,4 @@
-﻿package com.avago.feature.docs.ui
+package com.avago.feature.docs.ui
 
 import android.app.Activity
 import android.net.Uri
@@ -66,39 +66,34 @@ import com.avago.core.docscan.DocScanResult
 import com.avago.core.docscan.launchDocScan
 import com.avago.core.docscan.rememberDocScanLauncher
 import com.avago.feature.docs.R
+import com.avago.core.data.domain.DocumentKind
 import com.avago.feature.docs.model.DocTypes
 import com.avago.feature.docs.viewmodel.DocAddViewModel
 import timber.log.Timber
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DocAddScreen(
     onBack: () -> Unit,
     onSaved: () -> Unit,
-    /** Non-null when editing an existing doc. */
-    existingDocId: String? = null,
-    /** Pre-attach to an asset on creation. */
-    assetId: String? = null,
     viewModel: DocAddViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val activity = context as? Activity
 
-    LaunchedEffect(existingDocId) {
-        if (existingDocId != null) viewModel.loadForEdit(existingDocId)
-    }
-
     LaunchedEffect(state) {
         if (state is DocAddViewModel.UiState.Done) onSaved()
     }
 
     val scanLauncher = rememberDocScanLauncher { result: DocScanResult? ->
-        if (result != null && result.pageUris.isNotEmpty()) {
-            viewModel.processScannedPages(result.pageUris)
+        if (result != null && (result.pdfUri != null || result.pageUris.isNotEmpty())) {
+            viewModel.onScanned(result.pdfUri, result.pageUris)
         } else {
             viewModel.resetToIdle()
         }
@@ -107,19 +102,13 @@ fun DocAddScreen(
     val fileLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
     ) { uri: Uri? ->
-        if (uri != null) viewModel.processScannedPages(listOf(uri))
-        else viewModel.resetToIdle()
-    }
-
-    val topBarTitle = when {
-        existingDocId != null -> stringResource(R.string.doc_edit_title)
-        else -> stringResource(R.string.doc_add_title)
+        if (uri != null) viewModel.onImported(uri) else viewModel.resetToIdle()
     }
 
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(topBarTitle) },
+                title = { Text(stringResource(R.string.doc_add_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.doc_add_cancel))
@@ -130,77 +119,50 @@ fun DocAddScreen(
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
             when (val s = state) {
-                is DocAddViewModel.UiState.Idle -> {
-                    if (existingDocId != null) {
-                        CenteredLoader(message = null)
-                    } else {
-                        SourcePicker(
-                            onScanClick = {
-                                viewModel.onScanRequested()
-                                if (activity != null) {
-                                    launchDocScan(
-                                        activity = activity,
-                                        launcher = scanLauncher,
-                                        onError = { e ->
-                                            Timber.e(e, "[DocAddScreen] Scanner failed to start")
-                                            viewModel.resetToIdle()
-                                        },
-                                    )
-                                } else {
+                DocAddViewModel.UiState.Idle -> SourcePicker(
+                    onScanClick = {
+                        viewModel.onPicking()
+                        if (activity != null) {
+                            launchDocScan(
+                                activity = activity,
+                                launcher = scanLauncher,
+                                onError = { e ->
+                                    Timber.e(e, "[DocAddScreen] Scanner failed to start")
                                     viewModel.resetToIdle()
-                                }
-                            },
-                            onImportClick = {
-                                viewModel.onImportRequested()
-                                fileLauncher.launch(arrayOf("image/*", "application/pdf"))
-                            },
-                        )
-                    }
-                }
+                                },
+                            )
+                        } else {
+                            viewModel.resetToIdle()
+                        }
+                    },
+                    onImportClick = {
+                        viewModel.onPicking()
+                        fileLauncher.launch(arrayOf("image/*", "application/pdf"))
+                    },
+                )
 
-                is DocAddViewModel.UiState.Scanning -> CenteredLoader(message = null)
+                DocAddViewModel.UiState.Picking, DocAddViewModel.UiState.Done -> CenteredLoader(message = null)
 
-                is DocAddViewModel.UiState.OcrProcessing -> CenteredLoader(
+                is DocAddViewModel.UiState.Recognizing -> CenteredLoader(
                     message = stringResource(R.string.doc_add_ocr_processing),
                 )
 
-                is DocAddViewModel.UiState.Form -> {
-                    DocFormContent(
-                        formState = s,
-                        onSave = { name, docType, vendor, amount, currency, purchaseDateMs, warrantyDateMs, notes ->
-                            viewModel.save(
-                                name = name,
-                                docType = docType,
-                                vendor = vendor,
-                                amount = amount,
-                                currency = currency,
-                                purchaseDateMs = purchaseDateMs,
-                                warrantyEndDateMs = warrantyDateMs,
-                                notes = notes,
-                                rawText = s.rawText,
-                                ocrResult = s.ocrResult,
-                                assetId = assetId,
-                                existingDocId = s.existingDocId,
-                            )
-                        },
-                    )
-                }
+                is DocAddViewModel.UiState.Editing -> DocFormContent(
+                    form = s.form,
+                    onSave = { form, title, notes -> viewModel.save(form, title, notes) },
+                )
 
                 is DocAddViewModel.UiState.Saving -> CenteredLoader(message = stringResource(R.string.doc_add_saving))
 
-                DocAddViewModel.UiState.Done -> CenteredLoader(message = null)
-
-                is DocAddViewModel.UiState.Error -> {
-                    Column(
-                        modifier = Modifier.fillMaxSize().padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                    ) {
-                        Text(text = s.message, color = MaterialTheme.colorScheme.error)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(onClick = { viewModel.resetToIdle() }) {
-                            Text(stringResource(R.string.doc_add_cancel))
-                        }
+                is DocAddViewModel.UiState.Error -> Column(
+                    modifier = Modifier.fillMaxSize().padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text(text = s.message, color = MaterialTheme.colorScheme.error)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(onClick = { viewModel.dismissError() }) {
+                        Text(stringResource(R.string.doc_add_back))
                     }
                 }
             }
@@ -208,73 +170,71 @@ fun DocAddScreen(
     }
 }
 
-// ---------------------------------------------------------------------------
-// Form — all fields matching iOS AddEditDocViewController
-// ---------------------------------------------------------------------------
+private val dateFormatter: DateTimeFormatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+
+/** Material date pickers work in UTC midnight millis. */
+private fun LocalDate.toPickerMillis(): Long = atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+
+private fun Long.fromPickerMillis(): LocalDate = Instant.ofEpochMilli(this).atZone(ZoneOffset.UTC).toLocalDate()
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DocDatePicker(initial: LocalDate?, onPicked: (LocalDate?) -> Unit, onDismiss: () -> Unit) {
+    val dpState = rememberDatePickerState(initialSelectedDateMillis = initial?.toPickerMillis())
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = { onPicked(dpState.selectedDateMillis?.fromPickerMillis()) }) {
+                Text(stringResource(R.string.doc_add_ok))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.doc_add_cancel)) }
+        },
+    ) { DatePicker(state = dpState) }
+}
+
+@Composable
+private fun DateField(label: String, value: LocalDate?, onClick: () -> Unit) {
+    OutlinedTextField(
+        value = value?.format(dateFormatter).orEmpty(),
+        onValueChange = {},
+        readOnly = true,
+        label = { Text(label) },
+        placeholder = { Text(stringResource(R.string.doc_add_pick_date)) },
+        trailingIcon = {
+            IconButton(onClick = onClick) {
+                Icon(Icons.Default.CalendarToday, contentDescription = stringResource(R.string.doc_add_pick_date))
+            }
+        },
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+    )
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DocFormContent(
-    formState: DocAddViewModel.UiState.Form,
-    onSave: (
-        name: String,
-        docType: String,
-        vendor: String,
-        amount: String,
-        currency: String,
-        purchaseDateMs: Long?,
-        warrantyDateMs: Long?,
-        notes: String,
-    ) -> Unit,
+    form: DocAddViewModel.Form,
+    onSave: (form: DocAddViewModel.Form, title: String, notes: String) -> Unit,
 ) {
-    var name by rememberSaveable { mutableStateOf(formState.name) }
-    var nameError by remember { mutableStateOf(false) }
-    var docTypeExpanded by remember { mutableStateOf(false) }
-    var selectedDocType by rememberSaveable {
-        mutableStateOf(DocTypes.all.firstOrNull { it.key == formState.docType } ?: DocTypes.all.first())
-    }
-    var vendor by rememberSaveable { mutableStateOf(formState.vendor) }
-    var amount by rememberSaveable { mutableStateOf(formState.amount) }
-    var currency by rememberSaveable { mutableStateOf(formState.currency) }
-    var purchaseDateMs by rememberSaveable { mutableStateOf(formState.purchaseDateMs) }
-    var warrantyDateMs by rememberSaveable { mutableStateOf(formState.warrantyEndDateMs) }
-    var notes by rememberSaveable { mutableStateOf(formState.notes) }
+    var title by rememberSaveable { mutableStateOf("") }
+    var titleError by remember { mutableStateOf(false) }
+    var kindExpanded by remember { mutableStateOf(false) }
+    var kind by rememberSaveable { mutableStateOf(form.kind) }
+    var issuer by rememberSaveable { mutableStateOf(form.issuerName) }
+    var amount by rememberSaveable { mutableStateOf(form.amount) }
+    var currency by rememberSaveable { mutableStateOf(form.currency) }
+    var issuedOnDay by rememberSaveable { mutableStateOf(form.issuedOn?.toEpochDay()) }
+    var warrantyDay by rememberSaveable { mutableStateOf(form.warrantyEndsOn?.toEpochDay()) }
+    var notes by rememberSaveable { mutableStateOf("") }
+    var picking by rememberSaveable { mutableStateOf<String?>(null) }
 
-    var showPurchaseDatePicker by remember { mutableStateOf(false) }
-    var showWarrantyDatePicker by remember { mutableStateOf(false) }
+    val issuedOn = issuedOnDay?.let(LocalDate::ofEpochDay)
+    val warrantyEndsOn = warrantyDay?.let(LocalDate::ofEpochDay)
 
-    val dateFormatter = remember { SimpleDateFormat("MMM d, yyyy", Locale.getDefault()) }
-
-    if (showPurchaseDatePicker) {
-        val dpState = rememberDatePickerState(initialSelectedDateMillis = purchaseDateMs)
-        DatePickerDialog(
-            onDismissRequest = { showPurchaseDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    purchaseDateMs = dpState.selectedDateMillis
-                    showPurchaseDatePicker = false
-                }) { Text("OK") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showPurchaseDatePicker = false }) { Text("Cancel") }
-            },
-        ) { DatePicker(state = dpState) }
-    }
-
-    if (showWarrantyDatePicker) {
-        val dpState = rememberDatePickerState(initialSelectedDateMillis = warrantyDateMs)
-        DatePickerDialog(
-            onDismissRequest = { showWarrantyDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    warrantyDateMs = dpState.selectedDateMillis
-                    showWarrantyDatePicker = false
-                }) { Text("OK") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showWarrantyDatePicker = false }) { Text("Cancel") }
-            },
-        ) { DatePicker(state = dpState) }
+    when (picking) {
+        PICK_ISSUED -> DocDatePicker(issuedOn, { issuedOnDay = it?.toEpochDay(); picking = null }, { picking = null })
+        PICK_WARRANTY -> DocDatePicker(warrantyEndsOn, { warrantyDay = it?.toEpochDay(); picking = null }, { picking = null })
     }
 
     Column(
@@ -284,13 +244,12 @@ private fun DocFormContent(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // Name
         OutlinedTextField(
-            value = name,
-            onValueChange = { name = it; nameError = false },
+            value = title,
+            onValueChange = { title = it; titleError = false },
             label = { Text(stringResource(R.string.doc_add_field_name)) },
-            isError = nameError,
-            supportingText = if (nameError) {
+            isError = titleError,
+            supportingText = if (titleError) {
                 { Text(stringResource(R.string.doc_add_field_name_required)) }
             } else null,
             singleLine = true,
@@ -298,25 +257,25 @@ private fun DocFormContent(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        // Doc type dropdown
+        val selectedType = DocTypes.forKind(kind)
         ExposedDropdownMenuBox(
-            expanded = docTypeExpanded,
-            onExpandedChange = { docTypeExpanded = !docTypeExpanded },
+            expanded = kindExpanded,
+            onExpandedChange = { kindExpanded = !kindExpanded },
         ) {
             OutlinedTextField(
-                value = stringResource(selectedDocType.labelResId),
+                value = stringResource(selectedType.labelResId),
                 onValueChange = {},
                 readOnly = true,
                 label = { Text(stringResource(R.string.doc_add_field_type)) },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = docTypeExpanded) },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = kindExpanded) },
                 modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
             )
-            ExposedDropdownMenu(expanded = docTypeExpanded, onDismissRequest = { docTypeExpanded = false }) {
+            ExposedDropdownMenu(expanded = kindExpanded, onDismissRequest = { kindExpanded = false }) {
                 DocTypes.all.forEach { typeItem ->
                     DropdownMenuItem(
                         text = { Text(stringResource(typeItem.labelResId)) },
                         leadingIcon = { Icon(typeItem.icon, contentDescription = null) },
-                        onClick = { selectedDocType = typeItem; docTypeExpanded = false },
+                        onClick = { kind = typeItem.kind; kindExpanded = false },
                     )
                 }
             }
@@ -324,33 +283,17 @@ private fun DocFormContent(
 
         HorizontalDivider()
 
-        // Date (purchase date) — tappable row with inline picker
-        OutlinedTextField(
-            value = purchaseDateMs?.let { dateFormatter.format(Date(it)) } ?: "",
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("Date") },
-            placeholder = { Text("Select date") },
-            trailingIcon = {
-                IconButton(onClick = { showPurchaseDatePicker = true }) {
-                    Icon(Icons.Default.CalendarToday, contentDescription = "Pick date")
-                }
-            },
-            modifier = Modifier.fillMaxWidth().clickable { showPurchaseDatePicker = true },
-        )
+        DateField(stringResource(R.string.doc_add_field_date), issuedOn) { picking = PICK_ISSUED }
 
-        // Vendor
         OutlinedTextField(
-            value = vendor,
-            onValueChange = { vendor = it },
-            label = { Text("Vendor") },
-            placeholder = { Text("Vendor name") },
+            value = issuer,
+            onValueChange = { issuer = it },
+            label = { Text(stringResource(R.string.doc_add_field_vendor)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
             modifier = Modifier.fillMaxWidth(),
         )
 
-        // Amount + currency
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -358,55 +301,41 @@ private fun DocFormContent(
             OutlinedTextField(
                 value = amount,
                 onValueChange = { amount = it },
-                label = { Text("Amount") },
+                label = { Text(stringResource(R.string.doc_add_field_amount)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.weight(2f),
             )
             OutlinedTextField(
                 value = currency,
-                onValueChange = { currency = it },
-                label = { Text("Currency") },
+                onValueChange = { currency = it.take(3).uppercase() },
+                label = { Text(stringResource(R.string.doc_add_field_currency)) },
                 singleLine = true,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
                 modifier = Modifier.weight(1f),
             )
         }
 
-        // Warranty expiry date (only relevant for warranty/receipt doc types)
-        OutlinedTextField(
-            value = warrantyDateMs?.let { dateFormatter.format(Date(it)) } ?: "",
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("Warranty Expiry") },
-            placeholder = { Text("Select date (optional)") },
-            trailingIcon = {
-                IconButton(onClick = { showWarrantyDatePicker = true }) {
-                    Icon(Icons.Default.CalendarToday, contentDescription = "Pick warranty date")
-                }
-            },
-            modifier = Modifier.fillMaxWidth().clickable { showWarrantyDatePicker = true },
-        )
+        DateField(stringResource(R.string.doc_add_field_warranty_end), warrantyEndsOn) { picking = PICK_WARRANTY }
 
         HorizontalDivider()
 
-        // Notes
         OutlinedTextField(
             value = notes,
             onValueChange = { notes = it },
-            label = { Text("Notes") },
+            label = { Text(stringResource(R.string.doc_add_field_notes)) },
             modifier = Modifier.fillMaxWidth(),
             minLines = 3,
         )
 
-        // OCR preview (read-only)
-        if (formState.rawText.isNotBlank()) {
+        if (form.rawText.isNotBlank()) {
             Text(
                 text = stringResource(R.string.doc_add_ocr_raw_text),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                text = formState.rawText.take(500) + if (formState.rawText.length > 500) "…" else "",
+                text = form.rawText.take(500) + if (form.rawText.length > 500) "\u2026" else "",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -417,10 +346,21 @@ private fun DocFormContent(
 
         Button(
             onClick = {
-                if (name.isBlank()) {
-                    nameError = true
+                if (title.isBlank()) {
+                    titleError = true
                 } else {
-                    onSave(name.trim(), selectedDocType.key, vendor, amount, currency, purchaseDateMs, warrantyDateMs, notes)
+                    onSave(
+                        form.copy(
+                            kind = kind,
+                            issuerName = issuer,
+                            amount = amount,
+                            currency = currency,
+                            issuedOn = issuedOn,
+                            warrantyEndsOn = warrantyEndsOn,
+                        ),
+                        title.trim(),
+                        notes,
+                    )
                 }
             },
             modifier = Modifier.fillMaxWidth(),
@@ -432,8 +372,11 @@ private fun DocFormContent(
     }
 }
 
+private const val PICK_ISSUED = "issued"
+private const val PICK_WARRANTY = "warranty"
+
 // ---------------------------------------------------------------------------
-// Source picker (new doc only)
+// Source picker
 // ---------------------------------------------------------------------------
 
 @Composable

@@ -7,26 +7,23 @@ import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.RequestQuote
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.avago.core.data.domain.DocumentKind
 import com.avago.feature.docs.R
 
 data class DocTypeItem(
-    val key: String,
+    val kind: DocumentKind,
     val labelResId: Int,
     val icon: ImageVector,
 )
 
 object DocTypes {
-    val receipt = DocTypeItem("receipt", R.string.docs_filter_receipt, Icons.Default.Receipt)
-    val invoice = DocTypeItem("invoice", R.string.docs_filter_invoice, Icons.Default.RequestQuote)
-    val warranty = DocTypeItem("warranty", R.string.docs_filter_warranty, Icons.Default.Shield)
-    val howto = DocTypeItem("howto", R.string.docs_filter_howto, Icons.Default.Build)
-    val other = DocTypeItem("other", R.string.docs_filter_other, Icons.Default.Description)
+    val all: List<DocTypeItem> = listOf(
+        DocTypeItem(DocumentKind.RECEIPT, R.string.docs_kind_receipt, Icons.Default.Receipt),
+        DocTypeItem(DocumentKind.INVOICE, R.string.docs_kind_invoice, Icons.Default.RequestQuote),
+        DocTypeItem(DocumentKind.WARRANTY, R.string.docs_kind_warranty, Icons.Default.Shield),
+        DocTypeItem(DocumentKind.HOWTO, R.string.docs_kind_howto, Icons.Default.Build),
+        DocTypeItem(DocumentKind.OTHER, R.string.docs_kind_other, Icons.Default.Description),
+    )
 
-    val all: List<DocTypeItem> = listOf(receipt, invoice, warranty, howto, other)
-
-    fun fromKey(key: String): DocTypeItem = all.firstOrNull { it.key == key } ?: other
-
-    fun iconFor(key: String?): ImageVector = fromKey(key ?: "other").icon
-
-    fun labelResIdFor(key: String?): Int = fromKey(key ?: "other").labelResId
+    fun forKind(kind: DocumentKind): DocTypeItem = all.first { it.kind == kind }
 }

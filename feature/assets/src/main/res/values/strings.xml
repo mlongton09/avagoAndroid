@@ -389,4 +389,5 @@
     <string name="asset_detail_document_untitled">Untitled document</string>
     <string name="asset_scope_vehicle_none">No vehicle details are recorded for this asset.</string>
     <string name="asset_scope_tool_none">No tool details are recorded for this asset.</string>
+    <string name="asset_detail_add_document">Add document</string>
 </resources>
