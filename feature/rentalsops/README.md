@@ -53,7 +53,7 @@ The home-screen widget is P1's `RentalFleetWidget`; P2's Glance widget was dropp
 | `GET …/sync/rental_delivery_task`, `…/sync/rental_transfer` | P1 `RentalsApi.syncFeed` (delegated) | ✅ the account-wide feed; on 403 it switches to `my-tasks` |
 | `POST …/dispatch/tasks/{id}/{start\|arrive\|complete\|fail}` | `taskAction` | ✅ `{at, version, lat, lng, reason, photo_file_ids, signature_file_id, signed_name, notes}`; 403 `not_assigned` → reassigned |
 | `POST …/dispatch/tasks/{id}/proof-uploads` | `proofUpload` | ✅ `client_uuid` idempotent; the null-`upload_url` replay is handled |
-| `POST /accounts/{a}/attachments/{id}/finalize` | `AvagoServiceClient.finalizeFileUpload` | ✅ |
+| E12 upload (register → PUT → finalize) | `Files` / `V2ApiUploader` | ✅ the legacy `attachments/{id}/finalize` call was removed |
 | `POST …/transfers`, `POST …/transfers/{id}/{ship\|receive\|cancel}` | `createTransfer`, `transferAction` | ✅ the stage A asset-move fallback was removed |
 | `GET …/unassigned-lines?location_id&limit` | `unassignedLines` | ✅ new; replaces the derive-from-order-lines workaround |
 | `POST …/orders/{o}/lines/{l}/assign-unit` | `assignUnit` | ✅ `{asset_id, version}` |
