@@ -12,6 +12,12 @@
     <string name="asset_qr_layout_a4">A4-ark</string>
     <string name="asset_qr_layout_avery">Avery-etiketter %1$s</string>
     <string name="asset_qr_layout_thermal">Termoetikett %1$s</string>
+    <string name="asset_qr_labels_template">Etikettmall</string>
+    <string name="asset_qr_template_default">Kontostandard: %1$s</string>
+    <string name="asset_qr_template_builtin">Kontostandard (inbyggt ark)</string>
+    <string name="asset_qr_template_option">%1$s (%2$s × %3$s mm)</string>
+    <string name="asset_qr_layout_thermal_roll">Termoskrivare (en etikett per sida)</string>
+    <string name="asset_qr_labels_template_used">Mall: %1$s</string>
     <string name="asset_qr_labels_generate">Skapa PDF</string>
     <string name="asset_qr_labels_open">Öppna PDF</string>
     <string name="asset_qr_labels_rendering">Skapar etiketter…</string>

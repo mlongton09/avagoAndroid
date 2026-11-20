@@ -1,7 +1,9 @@
 package com.avago.feature.assets.model
 
+import com.avago.core.data.domain.AssetLabelTemplate
 import com.avago.core.network.json.double
 import com.avago.core.network.json.int
+import com.avago.core.network.json.jsonBody
 import com.avago.core.network.json.obj
 import com.avago.core.network.json.objs
 import com.avago.core.network.json.str
@@ -26,17 +28,59 @@ data class QrScanPage(val scans: List<QrScan>, val total: Int, val page: Int, va
     val hasMore: Boolean get() = page * pageSize < total
 }
 
-/** Sheet layouts the bulk label job renders (`page_size` of `POST .../qr-tokens/batch`). */
-enum class QrLabelLayout(val wire: String) {
-    LETTER("letter"),
-    A4("a4"),
-    AVERY_5160("avery_5160"),
-    AVERY_5163("avery_5163"),
-    AVERY_L7160("avery_l7160"),
-    AVERY_L7163("avery_l7163"),
-    THERMAL_2X1IN("thermal_2x1in"),
-    THERMAL_50X25MM("thermal_50x25mm"),
+/**
+ * Sheet layouts the bulk label job renders (`page_size` of `POST .../qr-tokens/batch`).
+ * [accepts] mirrors the server's sheet rules (maintenance.md "QR label templates"): the built-in
+ * sheet prints on [LETTER], [A4] and the stock layouts; template labels print as a grid on
+ * [LETTER] / [A4] when they fit inside the margins, one per page on [THERMAL], or one per cell of a
+ * stock layout they fit.
+ */
+enum class QrLabelLayout(
+    val wire: String,
+    private val kind: Kind,
+    private val widthMm: Double = 0.0,
+    private val heightMm: Double = 0.0,
+) {
+    LETTER("letter", Kind.PAGE, 215.9, 279.4),
+    A4("a4", Kind.PAGE, 210.0, 297.0),
+    THERMAL("thermal", Kind.LABEL_SIZED),
+    AVERY_5160("avery_5160", Kind.CELL, 66.675, 25.4),
+    AVERY_5163("avery_5163", Kind.CELL, 101.6, 50.8),
+    AVERY_L7160("avery_l7160", Kind.CELL, 63.5, 38.1),
+    AVERY_L7163("avery_l7163", Kind.CELL, 99.1, 38.1),
+    THERMAL_2X1IN("thermal_2x1in", Kind.CELL, 50.8, 25.4),
+    THERMAL_50X25MM("thermal_50x25mm", Kind.CELL, 50.0, 25.0),
+    ;
+
+    private enum class Kind { PAGE, LABEL_SIZED, CELL }
+
+    /** Whether labels of [template] print on this layout; null prints the built-in sheet. */
+    fun accepts(template: AssetLabelTemplate?): Boolean {
+        if (template == null) return kind != Kind.LABEL_SIZED
+        val w = template.widthMm.toDouble()
+        val h = template.heightMm.toDouble()
+        return when (kind) {
+            Kind.PAGE -> w <= widthMm - 2 * SHEET_MARGIN_MM + FIT_EPSILON_MM && h <= heightMm - 2 * SHEET_MARGIN_MM + FIT_EPSILON_MM
+            Kind.LABEL_SIZED -> true
+            Kind.CELL -> w <= widthMm + CELL_TOLERANCE_MM && h <= heightMm + CELL_TOLERANCE_MM
+        }
+    }
+
+    private companion object {
+        const val SHEET_MARGIN_MM = 6.35
+        const val FIT_EPSILON_MM = 0.001
+
+        /** The server lets a label exceed a stock cell by half a point. */
+        const val CELL_TOLERANCE_MM = 0.5 * 25.4 / 72
+    }
 }
+
+/**
+ * The label template a bulk job prints with: the chosen saved template [templateId], else the
+ * account default; null when neither exists (the built-in sheet).
+ */
+fun effectiveLabelTemplate(templates: List<AssetLabelTemplate>, templateId: String?): AssetLabelTemplate? =
+    templateId?.let { id -> templates.firstOrNull { it.id == id } } ?: templates.firstOrNull { it.isDefault }
 
 /** A bulk QR label job (`masters.asset_qr_batch_jobs`); the PDF downloads once [completed]. */
 data class QrLabelJob(
@@ -45,6 +89,8 @@ data class QrLabelJob(
     val pageSize: String?,
     val assetCount: Int,
     val outputFileId: String?,
+    /** The name of the template the job printed with; null for the built-in sheet or an unnamed template. */
+    val templateName: String?,
 ) {
     val completed: Boolean get() = status == "completed" && outputFileId != null
 }
@@ -63,8 +109,21 @@ object AssetQr {
             pageSize = o.str("page_size"),
             assetCount = o.int("asset_count") ?: 0,
             outputFileId = o.str("output_file_id"),
+            templateName = o.obj("label_template")?.str("name"),
         )
     }
+
+    /**
+     * `POST .../qr-tokens/batch` body. A chosen [templateId] is sent as `{"template_id"}`; without
+     * one `label_template` is omitted, so the server applies the account default (or the built-in
+     * sheet when there is none).
+     */
+    fun labelSheetBody(assetIds: List<String>, layout: QrLabelLayout, templateId: String?): JsonObject = jsonBody(
+        "asset_ids" to assetIds,
+        "format" to "pdf",
+        "page_size" to layout.wire,
+        "label_template" to templateId?.let { jsonBody("template_id" to it) },
+    )
 
     /** Public report link the server mints tokens under. */
     const val URL_BASE = "https://www.avagomate.com/a/"

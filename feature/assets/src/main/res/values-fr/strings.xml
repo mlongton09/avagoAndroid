@@ -12,6 +12,12 @@
     <string name="asset_qr_layout_a4">Feuille A4</string>
     <string name="asset_qr_layout_avery">Étiquettes Avery %1$s</string>
     <string name="asset_qr_layout_thermal">Étiquette thermique %1$s</string>
+    <string name="asset_qr_labels_template">Modèle d’étiquette</string>
+    <string name="asset_qr_template_default">Par défaut du compte : %1$s</string>
+    <string name="asset_qr_template_builtin">Par défaut du compte (planche intégrée)</string>
+    <string name="asset_qr_template_option">%1$s (%2$s × %3$s mm)</string>
+    <string name="asset_qr_layout_thermal_roll">Imprimante thermique (une étiquette par page)</string>
+    <string name="asset_qr_labels_template_used">Modèle : %1$s</string>
     <string name="asset_qr_labels_generate">Générer le PDF</string>
     <string name="asset_qr_labels_open">Ouvrir le PDF</string>
     <string name="asset_qr_labels_rendering">Génération des étiquettes…</string>

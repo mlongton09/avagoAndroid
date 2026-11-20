@@ -38,8 +38,11 @@ interface AssetQrService {
     /** Records an in-app scan of the asset's label (append-only telemetry, never synced); returns the scan id. */
     suspend fun recordScan(assetId: String, scannedAt: Instant): ApiResult<String>
 
-    /** Renders one PDF label sheet for [assetIds] (rendered synchronously: the job comes back completed). */
-    suspend fun createLabelSheet(assetIds: List<String>, layout: QrLabelLayout): ApiResult<QrLabelJob>
+    /**
+     * Renders one PDF label sheet for [assetIds] (rendered synchronously: the job comes back completed)
+     * with the saved template [templateId], or the account default when null.
+     */
+    suspend fun createLabelSheet(assetIds: List<String>, layout: QrLabelLayout, templateId: String?): ApiResult<QrLabelJob>
 
     suspend fun labelJob(jobId: String): ApiResult<QrLabelJob>
 
@@ -96,9 +99,9 @@ class KtorAssetQrService @Inject constructor(
         }
     }
 
-    override suspend fun createLabelSheet(assetIds: List<String>, layout: QrLabelLayout): ApiResult<QrLabelJob> =
+    override suspend fun createLabelSheet(assetIds: List<String>, layout: QrLabelLayout, templateId: String?): ApiResult<QrLabelJob> =
         withAccount { a ->
-            val body = jsonBody("asset_ids" to assetIds, "format" to "pdf", "page_size" to layout.wire)
+            val body = AssetQr.labelSheetBody(assetIds, layout, templateId)
             api.post("/accounts/$a/assets/qr-tokens/batch", body, timeoutMs = LABEL_TIMEOUT_MS).job()
         }
 

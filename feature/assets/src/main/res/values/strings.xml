@@ -333,6 +333,12 @@
     <string name="asset_qr_layout_a4">A4 sheet</string>
     <string name="asset_qr_layout_avery">Avery %1$s labels</string>
     <string name="asset_qr_layout_thermal">Thermal label %1$s</string>
+    <string name="asset_qr_labels_template">Label template</string>
+    <string name="asset_qr_template_default">Account default: %1$s</string>
+    <string name="asset_qr_template_builtin">Account default (built-in sheet)</string>
+    <string name="asset_qr_template_option">%1$s (%2$s × %3$s mm)</string>
+    <string name="asset_qr_layout_thermal_roll">Thermal printer (one label per page)</string>
+    <string name="asset_qr_labels_template_used">Template: %1$s</string>
     <string name="asset_qr_labels_generate">Generate PDF</string>
     <string name="asset_qr_labels_open">Open PDF</string>
     <string name="asset_qr_labels_rendering">Rendering labels…</string>

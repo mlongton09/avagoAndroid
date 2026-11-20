@@ -12,6 +12,12 @@
     <string name="asset_qr_layout_a4">A4-vel</string>
     <string name="asset_qr_layout_avery">Avery-labels %1$s</string>
     <string name="asset_qr_layout_thermal">Thermisch label %1$s</string>
+    <string name="asset_qr_labels_template">Labelsjabloon</string>
+    <string name="asset_qr_template_default">Accountstandaard: %1$s</string>
+    <string name="asset_qr_template_builtin">Accountstandaard (ingebouwd vel)</string>
+    <string name="asset_qr_template_option">%1$s (%2$s × %3$s mm)</string>
+    <string name="asset_qr_layout_thermal_roll">Thermische printer (één label per pagina)</string>
+    <string name="asset_qr_labels_template_used">Sjabloon: %1$s</string>
     <string name="asset_qr_labels_generate">PDF maken</string>
     <string name="asset_qr_labels_open">PDF openen</string>
     <string name="asset_qr_labels_rendering">Labels worden gemaakt…</string>

@@ -1,5 +1,6 @@
 package com.avago.feature.assets.model
 
+import com.avago.core.data.domain.AssetLabelTemplate
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
@@ -8,6 +9,7 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.math.BigDecimal
 
 class AssetQrTest {
     private fun json(s: String): JsonObject = Json.parseToJsonElement(s).jsonObject
@@ -64,5 +66,61 @@ class AssetQrTest {
         assertTrue(done.completed)
         assertFalse(AssetQr.labelJob(json("""{"id":"j2","status":"pending","asset_count":3}"""))!!.completed)
         assertNull(AssetQr.labelJob(json("""{"status":"completed"}""")))
+        assertNull(done.templateName)
     }
+
+    @Test
+    fun `a label job names the template it printed with`() {
+        val job = AssetQr.labelJob(
+            json(
+                """{"id":"j1","status":"completed","page_size":"thermal","asset_count":1,"output_file_id":"f1",
+                "label_template":{"template_id":"t1","name":"Shelf 50x25","width_mm":50,"height_mm":25,"barcode_format":"qr","layout":[]}}""",
+            ),
+        )!!
+        assertEquals("Shelf 50x25", job.templateName)
+    }
+
+    @Test
+    fun `the batch body names a chosen template and omits it for the account default`() {
+        assertEquals(
+            json("""{"asset_ids":["a1","a2"],"format":"pdf","page_size":"thermal","label_template":{"template_id":"t1"}}"""),
+            AssetQr.labelSheetBody(listOf("a1", "a2"), QrLabelLayout.THERMAL, "t1"),
+        )
+        assertEquals(
+            json("""{"asset_ids":["a1"],"format":"pdf","page_size":"letter"}"""),
+            AssetQr.labelSheetBody(listOf("a1"), QrLabelLayout.LETTER, null),
+        )
+    }
+
+    @Test
+    fun `layouts follow the server sheet rules`() {
+        assertEquals(QrLabelLayout.entries - QrLabelLayout.THERMAL, QrLabelLayout.entries.filter { it.accepts(null) })
+
+        val small = template("s", 50.0, 25.0)
+        assertEquals(QrLabelLayout.entries.toList(), QrLabelLayout.entries.filter { it.accepts(small) })
+
+        val wide = template("w", 100.0, 38.1)
+        assertEquals(
+            listOf(QrLabelLayout.LETTER, QrLabelLayout.A4, QrLabelLayout.THERMAL, QrLabelLayout.AVERY_5163),
+            QrLabelLayout.entries.filter { it.accepts(wide) },
+        )
+
+        // Letter is 215.9 mm wide: 203.2 mm fits inside the 6.35 mm margins, A4's 197.3 mm does not.
+        val sheetWide = template("x", 203.2, 30.0)
+        assertEquals(listOf(QrLabelLayout.LETTER, QrLabelLayout.THERMAL), QrLabelLayout.entries.filter { it.accepts(sheetWide) })
+        assertEquals(listOf(QrLabelLayout.THERMAL), QrLabelLayout.entries.filter { it.accepts(template("y", 300.0, 300.0)) })
+    }
+
+    @Test
+    fun `a chosen template wins over the account default`() {
+        val default = template("d", 50.0, 25.0, isDefault = true)
+        val other = template("o", 60.0, 30.0)
+        assertEquals(other, effectiveLabelTemplate(listOf(default, other), "o"))
+        assertEquals(default, effectiveLabelTemplate(listOf(default, other), null))
+        assertEquals(default, effectiveLabelTemplate(listOf(default, other), "gone"))
+        assertNull(effectiveLabelTemplate(listOf(other), null))
+    }
+
+    private fun template(id: String, w: Double, h: Double, isDefault: Boolean = false) =
+        AssetLabelTemplate(id, "Template $id", BigDecimal.valueOf(w), BigDecimal.valueOf(h), isDefault)
 }

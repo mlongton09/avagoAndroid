@@ -8,6 +8,7 @@ import com.avago.core.data.domain.ChangeQueueRepository
 import com.avago.core.data.domain.ConfigRepository
 import com.avago.core.data.domain.DocumentRepository
 import com.avago.core.data.domain.InventoryRepository
+import com.avago.core.data.domain.LabelTemplateRepository
 import com.avago.core.data.domain.LocationRepository
 import com.avago.core.data.domain.PmRepository
 import com.avago.core.data.domain.PurchaseOrderRepository
@@ -27,6 +28,7 @@ import com.avago.core.data.v2.repo.V2AssetRepository
 import com.avago.core.data.v2.repo.V2ConfigRepository
 import com.avago.core.data.v2.repo.V2DocumentRepository
 import com.avago.core.data.v2.repo.V2InventoryRepository
+import com.avago.core.data.v2.repo.V2LabelTemplateRepository
 import com.avago.core.data.v2.repo.V2LocationRepository
 import com.avago.core.data.v2.repo.V2PmRepository
 import com.avago.core.data.v2.repo.V2PurchaseOrderRepository
@@ -82,4 +84,6 @@ abstract class RepositoryModule {
     @Binds abstract fun accountPreferences(impl: V2AccountPreferencesRepository): AccountPreferencesRepository
 
     @Binds abstract fun admin(impl: V2AdminRepository): AdminRepository
+
+    @Binds abstract fun labelTemplates(impl: V2LabelTemplateRepository): LabelTemplateRepository
 }
