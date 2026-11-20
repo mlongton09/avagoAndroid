@@ -412,4 +412,22 @@
     <string name="asset_meter_add_failed">The meter could not be added</string>
     <string name="gallery_set_cover">Set as cover</string>
     <string name="gallery_cover_failed">The cover photo could not be changed</string>
+    <string name="asset_detail_info">Asset info</string>
+    <string name="asset_detail_location">Location</string>
+    <string name="asset_qr_title">QR label</string>
+    <string name="asset_qr_image_description">QR code of the asset\'s public label</string>
+    <string name="asset_qr_none">No QR label yet. Generate one to print on the asset; scanning it opens the asset\'s public report page.</string>
+    <string name="asset_qr_copy_link">Copy link</string>
+    <string name="asset_qr_share">Share</string>
+    <string name="asset_qr_retry">Retry</string>
+    <string name="asset_qr_generate">Generate label</string>
+    <string name="asset_qr_replace">Replace label</string>
+    <string name="asset_qr_revoke">Revoke label</string>
+    <string name="asset_qr_invalidates_label">Printed labels with the current code will stop working.</string>
+    <string name="asset_qr_scan_history">Scan history</string>
+    <string name="asset_qr_scan_anonymous">Anonymous</string>
+    <string name="asset_qr_load_more">Load more</string>
+    <string name="asset_qr_no_scans">No scans yet.</string>
+    <string name="fre_sample_load">Explore with sample data</string>
+    <string name="fre_sample_loading">Adding sample data?</string>
 </resources>

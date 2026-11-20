@@ -19,6 +19,8 @@ import com.avago.core.data.domain.AssetMeter
 import com.avago.core.data.domain.AssetRepository
 import com.avago.core.data.domain.Attachment
 import com.avago.core.data.domain.AttachmentTarget
+import com.avago.core.data.domain.Location
+import com.avago.core.data.domain.LocationRepository
 import com.avago.core.data.repository.UserPreferencesRepository
 import com.avago.core.permissions.Permissions
 import com.avago.core.permissions.PermissionsManager
@@ -27,6 +29,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -36,6 +39,9 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -78,6 +84,7 @@ class AssetDetailViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
     private val assets: AssetRepository,
     private val activities: ActivityRepository,
+    locations: LocationRepository,
     userPrefsRepository: UserPreferencesRepository,
     permissionsManager: PermissionsManager,
 ) : ViewModel() {
@@ -108,6 +115,15 @@ class AssetDetailViewModel @Inject constructor(
 
     val asset: StateFlow<Asset?> = assets.observeAsset(assetId)
         .catch { e -> Timber.e(e, "[AssetDetailViewModel] asset flow error"); emit(null) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** The asset's location row, for its address (`locations`). */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val location: StateFlow<Location?> = asset.map { it?.locationId }.distinctUntilChanged()
+        .flatMapLatest { id ->
+            if (id == null) flowOf(null) else locations.observeLocations(includeArchived = true).map { all -> all.firstOrNull { it.id == id } }
+        }
+        .catch { e -> Timber.e(e, "[AssetDetailViewModel] location flow error"); emit(null) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val allLogs: StateFlow<List<Activity>> = activities.observeActivities(ActivityFilter(assetId = assetId))

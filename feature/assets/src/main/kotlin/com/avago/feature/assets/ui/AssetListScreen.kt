@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -30,21 +31,22 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -56,6 +58,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -272,8 +275,12 @@ fun AssetListScreen(
                     }
                 }
                 if (showOnboarding) {
+                    val canLoadSample by onboardingViewModel.canLoadSampleData.collectAsStateWithLifecycle()
+                    val sampleState by onboardingViewModel.sampleDataState.collectAsStateWithLifecycle()
                     FreWelcomeOverlay(
                         onDismiss = { onboardingViewModel.dismiss() },
+                        onLoadSampleData = if (canLoadSample) onboardingViewModel::loadSampleData else null,
+                        sampleState = sampleState,
                         modifier = Modifier.align(Alignment.Center),
                     )
                 }
@@ -409,8 +416,11 @@ fun AssetListScreen(
 @Composable
 private fun FreWelcomeOverlay(
     onDismiss: () -> Unit,
+    onLoadSampleData: (() -> Unit)?,
+    sampleState: SampleDataState,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
     Surface(
         modifier = modifier
             .padding(24.dp)
@@ -451,6 +461,25 @@ private fun FreWelcomeOverlay(
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
                 )
+            }
+            if (onLoadSampleData != null) {
+                when (sampleState) {
+                    SampleDataState.Loading -> Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Text(stringResource(R.string.fre_sample_loading), style = MaterialTheme.typography.bodySmall)
+                    }
+                    else -> TextButton(onClick = onLoadSampleData) { Text(stringResource(R.string.fre_sample_load)) }
+                }
+                (sampleState as? SampleDataState.Failed)?.let {
+                    Text(
+                        text = scopeErrorText(context, it.error),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
             }
             Text(
                 text = stringResource(R.string.fre_fab_hint),

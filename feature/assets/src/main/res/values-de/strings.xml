@@ -220,4 +220,22 @@
     <string name="asset_meter_add_failed">Der Zähler konnte nicht hinzugefügt werden</string>
     <string name="gallery_set_cover">Als Titelbild festlegen</string>
     <string name="gallery_cover_failed">Das Titelbild konnte nicht geändert werden</string>
+    <string name="asset_detail_info">Anlageninfo</string>
+    <string name="asset_detail_location">Standort</string>
+    <string name="asset_qr_title">QR-Etikett</string>
+    <string name="asset_qr_image_description">QR-Code des ?ffentlichen Etiketts der Anlage</string>
+    <string name="asset_qr_none">Noch kein QR-Etikett. Erzeugen Sie eins zum Aufkleben; beim Scannen ?ffnet sich die ?ffentliche Meldeseite der Anlage.</string>
+    <string name="asset_qr_copy_link">Link kopieren</string>
+    <string name="asset_qr_share">Teilen</string>
+    <string name="asset_qr_retry">Erneut versuchen</string>
+    <string name="asset_qr_generate">Etikett erzeugen</string>
+    <string name="asset_qr_replace">Etikett ersetzen</string>
+    <string name="asset_qr_revoke">Etikett widerrufen</string>
+    <string name="asset_qr_invalidates_label">Gedruckte Etiketten mit dem aktuellen Code funktionieren dann nicht mehr.</string>
+    <string name="asset_qr_scan_history">Scan-Verlauf</string>
+    <string name="asset_qr_scan_anonymous">Anonym</string>
+    <string name="asset_qr_load_more">Mehr laden</string>
+    <string name="asset_qr_no_scans">Noch keine Scans.</string>
+    <string name="fre_sample_load">Mit Beispieldaten ausprobieren</string>
+    <string name="fre_sample_loading">Beispieldaten werden hinzugef?gt?</string>
 </resources>

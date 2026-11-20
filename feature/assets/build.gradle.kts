@@ -30,6 +30,7 @@ dependencies {
     implementation(libs.coroutines.android)
     implementation(libs.timber)
     implementation(libs.mlkit.barcode)
+    implementation(libs.zxing.core)
     implementation(libs.play.services.location)
     implementation(libs.mlkit.doc.scanner)
     implementation(libs.camera.core)

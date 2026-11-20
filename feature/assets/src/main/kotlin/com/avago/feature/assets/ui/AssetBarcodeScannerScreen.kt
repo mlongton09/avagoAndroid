@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,7 +30,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -56,6 +56,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.avago.core.data.domain.AssetRepository
 import com.avago.feature.assets.R
+import com.avago.feature.assets.data.AssetQrService
+import com.avago.feature.assets.model.AssetQr
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.common.InputImage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -70,14 +72,21 @@ import javax.inject.Inject
 @HiltViewModel
 class AssetBarcodeScannerViewModel @Inject constructor(
     private val assets: AssetRepository,
+    private val qr: AssetQrService,
 ) : ViewModel() {
 
     /**
-     * Looks up an asset by the scanned value: QR global id, asset id, serial number or VIN (as scanned,
-     * then normalised). Returns the asset id, or null when nothing matches.
+     * Looks up an asset by the scanned value: a public QR label (resolved online through the
+     * account's active tokens), QR global id, asset id, serial number or VIN (as scanned, then
+     * normalised). Returns the asset id, or null when nothing matches.
      */
     suspend fun lookupByBarcode(barcode: String): String? = try {
-        assets.findByCode(barcode)?.id ?: normalizeVin(barcode)?.let { assets.findByCode(it)?.id }
+        val token = AssetQr.tokenFromScan(barcode)
+        if (token != null) {
+            qr.tokenAssets().valueOrNull()?.get(token)
+        } else {
+            assets.findByCode(barcode)?.id ?: normalizeVin(barcode)?.let { assets.findByCode(it)?.id }
+        }
     } catch (e: Exception) {
         Timber.e(e, "[AssetBarcodeScannerViewModel] Error looking up barcode: $barcode")
         null

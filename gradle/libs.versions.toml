@@ -16,6 +16,7 @@ work = "2.12.0"
 glance = "1.1.1"
 camerax = "1.6.2"
 ml-kit-barcode = "17.3.0"
+zxing = "3.5.3"
 ml-kit-text = "16.0.1"
 ml-kit-doc-scanner = "16.0.0"
 play-services-location = "21.4.0"
@@ -112,6 +113,7 @@ camera-view = { module = "androidx.camera:camera-view", version.ref = "camerax" 
 
 # ML Kit
 mlkit-barcode = { module = "com.google.mlkit:barcode-scanning", version.ref = "ml-kit-barcode" }
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
 mlkit-text = { module = "com.google.mlkit:text-recognition", version.ref = "ml-kit-text" }
 mlkit-doc-scanner = { module = "com.google.android.gms:play-services-mlkit-document-scanner", version.ref = "ml-kit-doc-scanner" }
 play-services-location = { module = "com.google.android.gms:play-services-location", version.ref = "play-services-location" }

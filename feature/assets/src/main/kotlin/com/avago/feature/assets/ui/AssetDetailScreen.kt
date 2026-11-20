@@ -50,6 +50,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.MoreVert
@@ -67,6 +68,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
@@ -114,6 +116,7 @@ import com.avago.core.data.domain.Asset
 import com.avago.core.data.domain.AssetMeter
 import com.avago.core.data.domain.Attachment
 import com.avago.core.data.domain.CustomFieldEntity
+import com.avago.core.data.domain.Location
 import com.avago.core.ui.CategoryBadge
 import com.avago.core.ui.CategoryItem
 import com.avago.core.ui.CustomFieldsCard
@@ -124,6 +127,7 @@ import com.avago.core.ui.categoryGroup
 import com.avago.core.ui.categoryIconName
 import com.avago.core.ui.components.StoredFileImage
 import com.avago.feature.assets.R
+import com.avago.feature.assets.model.AssetAddress
 import com.avago.feature.assets.model.AssetTypes
 import com.avago.feature.assets.viewmodel.AssetDetailViewModel
 import com.avago.feature.assets.viewmodel.LogsByYear
@@ -179,6 +183,8 @@ fun AssetDetailScreen(
     val canEditAsset by viewModel.canEditAsset.collectAsStateWithLifecycle()
     val canAddMeter by viewModel.canAddMeter.collectAsStateWithLifecycle()
     val distanceUnit by viewModel.distanceUnit.collectAsStateWithLifecycle()
+    val location by viewModel.location.collectAsStateWithLifecycle()
+    var showInfoSheet by remember { mutableStateOf(false) }
 
     var showOverflowMenu by remember { mutableStateOf(false) }
     var showAddLogCategoryPicker by remember { mutableStateOf(false) }
@@ -307,6 +313,15 @@ fun AssetDetailScreen(
                                 )
                                 HorizontalDivider()
                             }
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.asset_detail_info)) },
+                                leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                                enabled = asset != null,
+                                onClick = {
+                                    showOverflowMenu = false
+                                    showInfoSheet = true
+                                },
+                            )
                             val extrasType = asset?.assetTypeCode
                             if (onOpenToolDetails != null && com.avago.feature.assets.model.AssetScope.isTool(extrasType)) {
                                 DropdownMenuItem(
@@ -496,6 +511,22 @@ fun AssetDetailScreen(
                     2 -> WorkOrdersTab(onOpenWorkOrders = onOpenWorkOrders)
                 }
             }
+            if (showInfoSheet) {
+                // Details, location address, QR label and notes of the asset.
+                ModalBottomSheet(onDismissRequest = { showInfoSheet = false }) {
+                    InfoTab(
+                        asset = safeAsset,
+                        location = location,
+                        photos = photos,
+                        onOpenPhotoGallery = onOpenPhotoGallery,
+                        onOpenNotes = onOpenNotes,
+                        onOpenWheelConfig = onOpenWheelConfig,
+                        onOpenWheelDataInput = onOpenWheelDataInput,
+                        onOpenRentals = onOpenRentals,
+                        onOpenAsset = { id -> showInfoSheet = false; onOpenAsset(id) },
+                    )
+                }
+            }
         }
     }
 
@@ -651,6 +682,7 @@ private fun LogTab(
 @Composable
 private fun InfoTab(
     asset: Asset,
+    location: Location?,
     photos: List<Attachment>,
     onOpenPhotoGallery: (Int) -> Unit,
     onOpenNotes: (String) -> Unit,
@@ -693,7 +725,7 @@ private fun InfoTab(
 
         item(key = "location_card") {
             LocationCard(
-                asset = asset,
+                address = AssetAddress.of(asset, location, parseAttributes(asset.attributes)),
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
         }
@@ -706,7 +738,7 @@ private fun InfoTab(
         }
 
         item(key = "qr_code_card") {
-            QrCodeCard(
+            AssetQrCard(
                 assetId = asset.id,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
@@ -1245,21 +1277,11 @@ private fun HierarchyCard(
 
 @Composable
 private fun LocationCard(
-    asset: Asset,
+    address: AssetAddress?,
     modifier: Modifier = Modifier,
 ) {
-    val attributes = parseAttributes(asset.attributes)
-    val street = attributes["street_address"]
-    val latitude = attributes["latitude"]?.toDoubleOrNull()
-    val longitude = attributes["longitude"]?.toDoubleOrNull()
-    val site = asset.locationName?.takeIf { it.isNotBlank() }
-    if (site == null && street == null && (latitude == null || longitude == null)) return
+    if (address == null) return
     val context = LocalContext.current
-
-    val city = attributes["city"]
-    val state = attributes["state"]
-    val zip = attributes["zip_code"]
-    val country = attributes["country"]
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -1277,38 +1299,26 @@ private fun LocationCard(
                     tint = MaterialTheme.colorScheme.primary,
                 )
                 Text(
-                    text = "Location",
+                    text = stringResource(R.string.asset_detail_location),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
-            site?.let {
+            address.site?.let {
                 Text(
                     text = it,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
                 )
             }
-            street?.let {
+            address.lines.forEach { line ->
                 Text(
-                    text = it,
+                    text = line,
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
-            val cityStateZip = listOfNotNull(city, state, zip).joinToString(", ")
-            if (cityStateZip.isNotBlank()) {
-                Text(
-                    text = cityStateZip,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-            if (!country.isNullOrBlank()) {
-                Text(
-                    text = country,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            val latitude = address.latitude
+            val longitude = address.longitude
             if (latitude != null && longitude != null) {
                 MapCard(
                     latitude = latitude,

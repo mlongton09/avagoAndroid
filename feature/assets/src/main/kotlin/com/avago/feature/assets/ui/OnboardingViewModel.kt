@@ -5,10 +5,18 @@ import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.domain.AssetFilter
 import com.avago.core.data.domain.AssetRepository
+import com.avago.core.data.domain.SyncRepository
 import com.avago.core.data.repository.UserPreferencesRepository
+import com.avago.core.network.json.ApiError
+import com.avago.core.network.json.ApiResult
+import com.avago.core.permissions.Permissions
+import com.avago.core.permissions.PermissionsManager
+import com.avago.feature.assets.data.SampleDataService
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
@@ -17,12 +25,28 @@ import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
 
+sealed interface SampleDataState {
+    data object Idle : SampleDataState
+    data object Loading : SampleDataState
+    data class Failed(val error: ApiError) : SampleDataState
+}
+
 @HiltViewModel
 class OnboardingViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val identityManager: IdentityManager,
     assets: AssetRepository,
+    private val sampleData: SampleDataService,
+    private val sync: SyncRepository,
+    permissions: PermissionsManager,
 ) : ViewModel() {
+
+    /** Loading sample data adds rows to the account, so it is offered to users who can create assets. */
+    val canLoadSampleData: StateFlow<Boolean> = permissions.observeCan(Permissions.ASSETS_CREATE)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), permissions.can(Permissions.ASSETS_CREATE))
+
+    private val _sampleData = MutableStateFlow<SampleDataState>(SampleDataState.Idle)
+    val sampleDataState: StateFlow<SampleDataState> = _sampleData.asStateFlow()
 
     private val assetCountFlow = assets.observeAssets(AssetFilter())
         .map { it.size }
@@ -73,6 +97,24 @@ class OnboardingViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = true,
         )
+
+    /**
+     * Clones the server's demo data into the account (`POST load-sample-data`), then syncs so the
+     * new rows show; the welcome overlay hides once assets exist.
+     */
+    fun loadSampleData() {
+        if (_sampleData.value == SampleDataState.Loading) return
+        _sampleData.value = SampleDataState.Loading
+        viewModelScope.launch {
+            _sampleData.value = when (val r = sampleData.load()) {
+                is ApiResult.Ok -> {
+                    if (!sync.syncNow()) Timber.w("[OnboardingViewModel] sync after sample data did not complete")
+                    SampleDataState.Idle
+                }
+                is ApiResult.Err -> SampleDataState.Failed(r.error)
+            }
+        }
+    }
 
     /** Stores fre_dismissed = true and hides the banner permanently. */
     fun dismiss() {
