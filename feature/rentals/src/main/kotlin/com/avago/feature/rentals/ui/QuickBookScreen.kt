@@ -1,23 +1,19 @@
 package com.avago.feature.rentals.ui
 
-import java.time.Instant
-import java.time.ZoneId
-import java.util.Currency
-import java.util.Locale
-import javax.inject.Inject
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Description
@@ -26,7 +22,6 @@ import androidx.compose.material.icons.filled.EventAvailable
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Verified
-import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -47,57 +42,64 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.avago.core.data.domain.RentalBookingDraft
+import com.avago.core.data.domain.RentalRepository
+import com.avago.core.data.domain.RentalSettings
+import com.avago.core.data.domain.RentalSettingsRepository
 import com.avago.core.data.rental.LocalFleet
+import com.avago.core.data.rental.RentalPricing
 import com.avago.core.ui.components.BottomActionBar
 import com.avago.core.ui.components.CardDivider
 import com.avago.core.ui.components.ErrorBanner
-import com.avago.core.ui.components.rememberHaptics
 import com.avago.core.ui.components.SectionCard
 import com.avago.core.ui.components.StatusPill
 import com.avago.core.ui.components.StatusTone
-import com.avago.core.data.domain.RentalBookingDraft
-import com.avago.core.data.domain.RentalRepository
+import com.avago.core.ui.components.rememberHaptics
+import com.avago.feature.rentals.R
 import com.avago.feature.rentals.data.BookingQuery
 import com.avago.feature.rentals.data.RentalsOnline
 import com.avago.feature.rentals.domain.Availability
 import com.avago.feature.rentals.domain.ClassView
 import com.avago.feature.rentals.domain.CustomerView
-import com.avago.feature.rentals.domain.LocalSchedule
 import com.avago.feature.rentals.domain.InstantBookCheck
+import com.avago.feature.rentals.domain.LocalSchedule
 import com.avago.feature.rentals.domain.PricingDisplay
-import com.avago.feature.rentals.R
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.time.Instant
+import java.time.ZoneId
+import java.time.ZoneOffset
+import javax.inject.Inject
 
 data class QuickBookForm(
     val assetId: String? = null,
@@ -115,6 +117,7 @@ data class UnitOption(val assetId: String, val name: String, val classId: String
 class QuickBookViewModel @Inject constructor(
     private val repo: RentalRepository,
     private val online: RentalsOnline,
+    settingsRepo: RentalSettingsRepository,
     savedState: SavedStateHandle,
 ) : ViewModel() {
     private val initialAsset: String? = savedState.get<String>("assetId")?.takeIf { it.isNotBlank() }
@@ -165,6 +168,28 @@ class QuickBookViewModel @Inject constructor(
     private val _serverPreview = MutableStateFlow<PricingDisplay?>(null)
     val serverPreview: StateFlow<PricingDisplay?> = _serverPreview.asStateFlow()
 
+    private val settings: StateFlow<RentalSettings> = settingsRepo.observeSettings()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, RentalSettings())
+
+    /**
+     * Offline estimate from the synced rate cards and the account pricing policy (server pricing
+     * engine port); shown while the server price is unavailable. Null without an applicable card.
+     */
+    val estimate: StateFlow<PricingDisplay?> = combine(_form, settings, settingsRepo.observeRateCards(), units, classes) { f, s, cards, us, cs ->
+        if (!f.end.isAfter(f.start)) return@combine null
+        val unit = us.firstOrNull { it.assetId == f.assetId }
+        val classId = f.classId ?: unit?.classId
+        if (f.assetId == null && classId == null) return@combine null
+        val cls = cs.firstOrNull { it.id == classId }
+        val currency = cls?.currency ?: s.defaultCurrency
+        // The server prices in the location's time zone, UTC without a location.
+        val zone: ZoneId = unit?.timeZone?.takeIf { unit.locationId != null }?.let { runCatching { ZoneId.of(it) }.getOrNull() } ?: ZoneOffset.UTC
+        val card = RentalPricing.resolveCard(cards, currency, f.assetId, classId, f.customer?.id, unit?.locationId, f.start, zone)
+            ?: return@combine null
+        RentalPricing.priceLine(card.rates, f.start, f.end, s.pricingPolicy(zone))
+            ?.let { PricingDisplay.estimate(it, currency, unit?.name ?: cls?.name.orEmpty()) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
     /** Would a renter booking this online be confirmed instantly? Null offline or before a unit/class is picked. */
     private val _instant = MutableStateFlow<InstantBookCheck?>(null)
     val instant: StateFlow<InstantBookCheck?> = _instant.asStateFlow()
@@ -213,7 +238,7 @@ class QuickBookViewModel @Inject constructor(
         val classId = f.classId ?: unitOf(f)?.classId
         return serverPreview.value?.currency
             ?: classes.value.firstOrNull { it.id == classId }?.currency
-            ?: runCatching { Currency.getInstance(Locale.getDefault()).currencyCode }.getOrDefault("USD")
+            ?: settings.value.defaultCurrency
     }
 
     private fun query(f: QuickBookForm): BookingQuery {
@@ -275,6 +300,7 @@ fun QuickBookScreen(
     val classes by viewModel.classes.collectAsStateWithLifecycle()
     val customers by viewModel.customers.collectAsStateWithLifecycle()
     val server by viewModel.serverPreview.collectAsStateWithLifecycle()
+    val estimate by viewModel.estimate.collectAsStateWithLifecycle()
     val instant by viewModel.instant.collectAsStateWithLifecycle()
     val conflict by viewModel.conflict.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
@@ -410,7 +436,7 @@ fun QuickBookScreen(
                     }
                 }
             }
-            PricePreviewCard(server)
+            PricePreviewCard(server ?: estimate)
             instant?.let { InstantBookCard(it) }
             Text(
                 stringResource(R.string.rentals_booking_offline_note),

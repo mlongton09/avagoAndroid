@@ -29,14 +29,17 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.EventAvailable
+import androidx.compose.material.icons.filled.Handshake
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -80,11 +83,19 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.avago.core.data.domain.CollectionSettings
 import com.avago.core.data.domain.CustomerDocumentDraft
+import com.avago.core.data.domain.CustomerSite
+import com.avago.core.data.domain.LedgerEntry
 import com.avago.core.data.domain.LocalFileRef
+import com.avago.core.data.domain.PartyDocument
+import com.avago.core.data.domain.RentalAccountsRepository
+import com.avago.core.data.domain.RentalContract
 import com.avago.core.data.domain.RentalCustomer
 import com.avago.core.data.domain.RentalCustomerDraft
 import com.avago.core.data.domain.RentalRepository
+import com.avago.core.data.domain.RentalSettingsRepository
+import com.avago.core.data.rental.Money
 import com.avago.core.design.theme.AvagoSpacing
 import com.avago.core.ui.components.BottomActionBar
 import com.avago.core.ui.components.CardDivider
@@ -98,10 +109,12 @@ import com.avago.core.ui.components.cardListItemColors
 import com.avago.core.ui.components.rememberHaptics
 import com.avago.core.ui.components.toneColors
 import com.avago.feature.rentals.R
+import com.avago.feature.rentals.data.RentalsOnline
 import com.avago.feature.rentals.domain.Aamva
 import com.avago.feature.rentals.domain.CustomerView
 import com.avago.feature.rentals.domain.OrderView
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -113,6 +126,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonPrimitive
 import timber.log.Timber
 import java.io.File
 import java.time.LocalDate
@@ -274,6 +288,9 @@ data class CustomerFormState(
 @HiltViewModel
 class RentalCustomerViewModel @Inject constructor(
     private val repo: RentalRepository,
+    accounts: RentalAccountsRepository,
+    settings: RentalSettingsRepository,
+    private val online: RentalsOnline,
     savedState: SavedStateHandle,
 ) : ViewModel() {
     val customerId: String? = savedState.get<String>("customerId")?.takeIf { it.isNotBlank() && it != "new" }
@@ -284,6 +301,21 @@ class RentalCustomerViewModel @Inject constructor(
     val orders: StateFlow<List<OrderView>> = (customerId?.let { repo.observeOrders(it) } ?: flowOf(emptyList()))
         .map { rows -> rows.map(OrderView::of).sortedByDescending { it.startAt } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    private fun <T> Flow<List<T>>.state(): StateFlow<List<T>> = stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Licences, IDs and certificates on file, newest expiry first. */
+    val documents: StateFlow<List<PartyDocument>> = (customerId?.let { accounts.observeCustomerDocuments(it) } ?: flowOf(emptyList()))
+        .map { ds -> ds.sortedWith(compareBy<PartyDocument> { it.kind }.thenByDescending { it.expiresOn }) }.state()
+    val sites: StateFlow<List<CustomerSite>> = (customerId?.let { accounts.observeCustomerSites(it) } ?: flowOf(emptyList()))
+        .map { ss -> ss.sortedWith(compareByDescending<CustomerSite> { it.isPrimary }.thenBy { it.name.orEmpty() }) }.state()
+    val ledger: StateFlow<List<LedgerEntry>> = (customerId?.let { accounts.observeLedger(null, it) } ?: flowOf(emptyList()))
+        .map { es -> es.sortedByDescending { it.receivedAt } }.state()
+    val contracts: StateFlow<List<RentalContract>> = (customerId?.let { accounts.observeContracts(null, it) } ?: flowOf(emptyList())).state()
+
+    /** The account's document expiry alert window (collection settings). */
+    val collection: StateFlow<CollectionSettings> = settings.observeCollectionSettings()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CollectionSettings())
 
     /** The stored customer; fields this form does not edit are carried over unchanged. */
     private var loaded: RentalCustomer? = null
@@ -306,8 +338,19 @@ class RentalCustomerViewModel @Inject constructor(
                     address = c.address ?: "",
                     notes = c.notes ?: "",
                 )
+                prefillDateOfBirth(id)
             }
         }
+    }
+
+    /**
+     * The date of birth is encrypted at rest and never synced: it is read online
+     * (`GET /rentals/customers/{id}`) and only fills a field the user has not typed in.
+     */
+    private suspend fun prefillDateOfBirth(id: String) {
+        val r = online.refreshCustomer(id) as? RentalsOnline.Result.Ok ?: return
+        val dob = (r.value["date_of_birth"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return
+        if (DATE.matches(dob) && form.value.dateOfBirth.isBlank()) form.value = form.value.copy(dateOfBirth = dob)
     }
 
     /** Fills empty fields from a licence scanned on this device (AAMVA). */
@@ -365,7 +408,13 @@ fun RentalCustomerScreen(
     val form by viewModel.form.collectAsStateWithLifecycle()
     val view by viewModel.view.collectAsStateWithLifecycle()
     val orders by viewModel.orders.collectAsStateWithLifecycle()
+    val documents by viewModel.documents.collectAsStateWithLifecycle()
+    val sites by viewModel.sites.collectAsStateWithLifecycle()
+    val ledger by viewModel.ledger.collectAsStateWithLifecycle()
+    val contracts by viewModel.contracts.collectAsStateWithLifecycle()
+    val collection by viewModel.collection.collectAsStateWithLifecycle()
     var showAllOrders by rememberSaveable { mutableStateOf(false) }
+    var showAllLedger by rememberSaveable { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     val haptics = rememberHaptics()
     var attempted by remember { mutableStateOf(false) }
@@ -498,8 +547,58 @@ fun RentalCustomerScreen(
                         }
                     },
                 ) {
-                    CardNote(stringResource(R.string.rentals_documents_hint))
+                    if (documents.isEmpty()) CardNote(stringResource(R.string.rentals_documents_hint))
+                    val today = LocalDate.now(zone)
+                    documents.forEachIndexed { i, d ->
+                        if (i > 0) CardDivider(Modifier.padding(start = AvagoSpacing.listInset))
+                        DocumentRow(d, today, collection, zone)
+                    }
                 }
+                if (sites.isNotEmpty()) {
+                    SectionCard(title = stringResource(R.string.rentals_sites_title)) {
+                        sites.forEachIndexed { i, site ->
+                            if (i > 0) CardDivider(Modifier.padding(start = AvagoSpacing.listInset))
+                            ListItem(
+                                colors = cardListItemColors(),
+                                leadingContent = { LeadingBadge(Icons.Default.Place, if (site.isPrimary) StatusTone.Info else StatusTone.Neutral) },
+                                overlineContent = { Text(stringResource(sitePurposeLabel(site.purpose))) },
+                                headlineContent = { Text(site.name ?: site.address.orEmpty()) },
+                                supportingContent = listOfNotNull(site.address.takeIf { site.name != null }, site.contactNote)
+                                    .takeIf { it.isNotEmpty() }
+                                    ?.let { lines -> { Text(lines.joinToString("\n")) } },
+                            )
+                        }
+                    }
+                }
+                if (contracts.isNotEmpty()) {
+                    SectionCard(title = stringResource(R.string.rentals_contracts_title)) {
+                        contracts.forEachIndexed { i, c ->
+                            if (i > 0) CardDivider(Modifier.padding(start = AvagoSpacing.listInset))
+                            val (statusText, tone) = contractStatus(c)
+                            val orderId = c.orderId
+                            ListItem(
+                                colors = cardListItemColors(),
+                                modifier = if (orderId != null) Modifier.clickable(role = Role.Button) { onOpenOrder(orderId) } else Modifier,
+                                leadingContent = { LeadingBadge(Icons.Default.Handshake, tone) },
+                                headlineContent = {
+                                    Text(c.number ?: stringResource(if (c.ownsEquity) R.string.rentals_contract_rto else R.string.rentals_contract_long_term))
+                                },
+                                supportingContent = {
+                                    Column(verticalArrangement = Arrangement.spacedBy(AvagoSpacing.xs)) {
+                                        c.endAt?.let { Text(stringResource(R.string.rentals_contract_ends) + " " + formatDate(it, zone)) }
+                                        StatusPill(statusText, tone)
+                                    }
+                                },
+                                trailingContent = c.monthlyRateMinor?.let { m -> { Text(formatMoney(Money.of(m, c.currency)), style = MaterialTheme.typography.bodyMedium) } },
+                            )
+                        }
+                    }
+                }
+                OrderLedgerCard(
+                    ledger, zone,
+                    maxRows = if (showAllLedger) Int.MAX_VALUE else PREVIEW_ROWS,
+                    footer = { ShowAllRow(ledger.size, showAllLedger, { showAllLedger = !showAllLedger }) },
+                )
                 if (orders.isNotEmpty()) {
                     SectionCard(title = stringResource(R.string.rentals_orders)) {
                         orders.take(if (showAllOrders) orders.size else PREVIEW_ROWS).forEachIndexed { i, o ->
@@ -552,6 +651,51 @@ private fun Field(
         keyboardActions = KeyboardActions(onNext = { focus.moveFocus(FocusDirection.Down) }),
         modifier = Modifier.fillMaxWidth(),
     )
+}
+
+/** A document on file with its masked number and the expiry state against the account's alert window. */
+@Composable
+private fun DocumentRow(d: PartyDocument, today: LocalDate, collection: CollectionSettings, zone: ZoneId) {
+    val expired = d.expired(today)
+    val expiring = !expired && collection.expiringSoon(d.expiresOn, today)
+    val tone = when {
+        expired -> StatusTone.Danger
+        expiring -> StatusTone.Warning
+        d.verifiedAt != null -> StatusTone.Success
+        else -> StatusTone.Neutral
+    }
+    ListItem(
+        colors = cardListItemColors(),
+        leadingContent = { LeadingBadge(Icons.Default.Badge, tone) },
+        headlineContent = { Text(stringResource(documentKindLabel(d.kind))) },
+        supportingContent = {
+            Column(verticalArrangement = Arrangement.spacedBy(AvagoSpacing.xs)) {
+                val details = listOfNotNull(
+                    d.numberLast4?.let { stringResource(R.string.rentals_doc_ending, it) },
+                    d.issuer ?: listOfNotNull(d.issuingRegion, d.issuingCountry).joinToString(", ").ifEmpty { null },
+                    d.expiresOn?.let { stringResource(R.string.rentals_doc_expires_on, formatDate(it.atStartOfDay(zone).toInstant(), zone)) },
+                )
+                if (details.isNotEmpty()) Text(details.joinToString(" \u00b7 "))
+                SyncStateBadge(d.sync)
+            }
+        },
+        trailingContent = when {
+            expired -> ({ StatusPill(stringResource(R.string.rentals_doc_expired_badge), StatusTone.Danger) })
+            expiring -> ({ StatusPill(stringResource(R.string.rentals_doc_expiring), StatusTone.Warning) })
+            d.verifiedAt != null -> ({ StatusPill(stringResource(R.string.rentals_doc_verified), StatusTone.Success) })
+            else -> null
+        },
+    )
+}
+
+@StringRes
+private fun sitePurposeLabel(purpose: String): Int = when (purpose) {
+    "primary" -> R.string.rentals_site_primary
+    "billing" -> R.string.rentals_site_billing
+    "shipping" -> R.string.rentals_site_shipping
+    "job_site" -> R.string.rentals_site_job_site
+    "pickup" -> R.string.rentals_site_pickup
+    else -> R.string.rentals_site_other
 }
 
 internal val DOCUMENT_KINDS = listOf("driver_licence", "identity", "coi", "tax_exempt", "operator_cert", "credit_app", "other")

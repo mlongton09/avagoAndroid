@@ -63,4 +63,17 @@
     <string name="rentals_pay_new_link">Ny länk</string>
     <string name="rentals_pay_link_ready">Betalningslänken är klar att dela.</string>
     <string name="rentals_payer_email_invalid">Ange en giltig e-postadress</string>
+    <string name="rentals_doc_expires_on">Upphör %1$s</string>
+    <string name="rentals_doc_expiring">Upphör snart</string>
+    <string name="rentals_doc_expired_badge">Utgånget</string>
+    <string name="rentals_doc_verified">Verifierat</string>
+    <string name="rentals_doc_ending">Slutar på %1$s</string>
+    <string name="rentals_sites_title">Platser och adresser</string>
+    <string name="rentals_site_primary">Huvudadress</string>
+    <string name="rentals_site_billing">Fakturering</string>
+    <string name="rentals_site_shipping">Leverans</string>
+    <string name="rentals_site_job_site">Arbetsplats</string>
+    <string name="rentals_site_pickup">Upphämtning</string>
+    <string name="rentals_site_other">Övrigt</string>
+    <string name="rentals_contracts_title">Avtal</string>
 </resources>

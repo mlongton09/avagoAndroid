@@ -15,6 +15,7 @@ import com.avago.core.data.domain.ReferenceRepository
 import com.avago.core.data.domain.RentalAccountsRepository
 import com.avago.core.data.domain.RentalDispatchRepository
 import com.avago.core.data.domain.RentalRepository
+import com.avago.core.data.domain.RentalSettingsRepository
 import com.avago.core.data.domain.SupplierRepository
 import com.avago.core.data.domain.WorkOrderRepository
 import com.avago.core.data.domain.WorkerRepository
@@ -33,6 +34,7 @@ import com.avago.core.data.v2.repo.V2ReferenceRepository
 import com.avago.core.data.v2.repo.V2RentalAccountsRepository
 import com.avago.core.data.v2.repo.V2RentalDispatchRepository
 import com.avago.core.data.v2.repo.V2RentalRepository
+import com.avago.core.data.v2.repo.V2RentalSettingsRepository
 import com.avago.core.data.v2.repo.V2SupplierRepository
 import com.avago.core.data.v2.repo.V2WorkOrderRepository
 import com.avago.core.data.v2.repo.V2WorkerRepository
@@ -55,6 +57,7 @@ abstract class RepositoryModule {
     @Binds abstract fun rentalAccounts(impl: V2RentalAccountsRepository): RentalAccountsRepository
 
     @Binds abstract fun rentalDispatch(impl: V2RentalDispatchRepository): RentalDispatchRepository
+    @Binds abstract fun rentalSettings(impl: V2RentalSettingsRepository): RentalSettingsRepository
 
     @Binds abstract fun purchaseOrders(impl: V2PurchaseOrderRepository): PurchaseOrderRepository
 

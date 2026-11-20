@@ -1,11 +1,13 @@
 package com.avago.feature.rentals.domain
 
 import com.avago.core.data.rental.Money
+import com.avago.core.data.rental.RentalPricing
 import kotlinx.serialization.json.JsonObject
 
 /**
  * Price breakdown shown on Quick-book / Order (spec §8). [confirmed] is true for an
- * answer from `POST /rentals/pricing/preview` (or a synced order).
+ * answer from `POST /rentals/pricing/preview` (or a synced order); the offline [estimate] from
+ * the synced rate cards is never confirmed and excludes fees, discounts and tax.
  */
 data class PricingDisplay(
     val currency: String,
@@ -47,6 +49,21 @@ data class PricingDisplay(
                 total = m("total_minor"),
                 deposit = priced.money("deposit_required_minor", cur)?.takeIf { !it.isZero },
                 confirmed = true,
+            )
+        }
+
+        /** The offline estimate of one unit priced by [RentalPricing.priceLine]. */
+        fun estimate(breakdown: RentalPricing.Breakdown, currency: String, label: String): PricingDisplay {
+            val amount = Money(breakdown.totalMinor, currency)
+            return PricingDisplay(
+                currency = currency,
+                rows = listOf(Row(label, "1", amount, "${breakdown.billedDays}d")),
+                subtotal = amount,
+                discount = Money.zero(currency),
+                tax = null,
+                total = amount,
+                deposit = null,
+                confirmed = false,
             )
         }
 

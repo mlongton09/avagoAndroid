@@ -3,10 +3,12 @@ package com.avago.feature.rentals.domain
 import com.avago.core.data.domain.LocalFileRef
 import com.avago.core.data.domain.PostCharge
 import com.avago.core.data.domain.PostChargeDraft
+import com.avago.core.data.domain.RentalOrderLine
 import com.avago.core.data.rental.MoneyFormatter
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import java.time.Duration
 import java.time.Instant
 
 /** Tolls, tickets and citations billed to an order after the rental (`post_charges`). */
@@ -17,6 +19,19 @@ object PostCharges {
     )
 
     fun allowedFor(orderStatus: String): Boolean = orderStatus in ORDER_STATUSES
+
+    /**
+     * When the order came back (server `post_charges.rs` `returned_at`): the last line check-in,
+     * else the order end; null while the order is not returned or closed.
+     */
+    fun returnedAt(orderStatus: String, lines: List<RentalOrderLine>, orderEnd: Instant?): Instant? {
+        if (orderStatus != OrderStatus.RETURNED && orderStatus != OrderStatus.CLOSED) return null
+        return lines.mapNotNull { it.actualInAt }.maxOrNull() ?: orderEnd
+    }
+
+    /** Charges are accepted up to [windowDays] (owner scope policy) after the return; always before it. */
+    fun withinWindow(returnedAt: Instant?, windowDays: Int, now: Instant): Boolean =
+        returnedAt == null || !now.isAfter(returnedAt.plus(Duration.ofDays(windowDays.coerceAtLeast(0).toLong())))
 
     const val PERMISSION_CREATE = "rental.quote"
     const val PERMISSION_CHARGE = "rental.payment_charge"

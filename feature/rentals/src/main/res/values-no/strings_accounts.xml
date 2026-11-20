@@ -63,4 +63,17 @@
     <string name="rentals_pay_new_link">Ny lenke</string>
     <string name="rentals_pay_link_ready">Betalingslenken er klar til å deles.</string>
     <string name="rentals_payer_email_invalid">Skriv inn en gyldig e-postadresse</string>
+    <string name="rentals_doc_expires_on">Utløper %1$s</string>
+    <string name="rentals_doc_expiring">Utløper snart</string>
+    <string name="rentals_doc_expired_badge">Utløpt</string>
+    <string name="rentals_doc_verified">Bekreftet</string>
+    <string name="rentals_doc_ending">Slutter på %1$s</string>
+    <string name="rentals_sites_title">Steder og adresser</string>
+    <string name="rentals_site_primary">Hovedadresse</string>
+    <string name="rentals_site_billing">Fakturering</string>
+    <string name="rentals_site_shipping">Levering</string>
+    <string name="rentals_site_job_site">Byggeplass</string>
+    <string name="rentals_site_pickup">Henting</string>
+    <string name="rentals_site_other">Annet</string>
+    <string name="rentals_contracts_title">Kontrakter</string>
 </resources>

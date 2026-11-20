@@ -63,4 +63,17 @@
     <string name="rentals_pay_new_link">Nieuwe link</string>
     <string name="rentals_pay_link_ready">De betaallink is klaar om te delen.</string>
     <string name="rentals_payer_email_invalid">Voer een geldig e-mailadres in</string>
+    <string name="rentals_doc_expires_on">Verloopt op %1$s</string>
+    <string name="rentals_doc_expiring">Verloopt binnenkort</string>
+    <string name="rentals_doc_expired_badge">Verlopen</string>
+    <string name="rentals_doc_verified">Geverifieerd</string>
+    <string name="rentals_doc_ending">Eindigend op %1$s</string>
+    <string name="rentals_sites_title">Locaties en adressen</string>
+    <string name="rentals_site_primary">Hoofdadres</string>
+    <string name="rentals_site_billing">Facturatie</string>
+    <string name="rentals_site_shipping">Verzending</string>
+    <string name="rentals_site_job_site">Bouwplaats</string>
+    <string name="rentals_site_pickup">Ophalen</string>
+    <string name="rentals_site_other">Overig</string>
+    <string name="rentals_contracts_title">Contracten</string>
 </resources>

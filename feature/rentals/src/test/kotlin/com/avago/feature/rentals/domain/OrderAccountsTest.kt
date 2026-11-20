@@ -1,6 +1,8 @@
 package com.avago.feature.rentals.domain
 
 import com.avago.core.data.domain.LocalFileRef
+import com.avago.core.data.domain.RecordSyncState
+import com.avago.core.data.domain.RentalOrderLine
 import com.avago.core.data.domain.Subrental
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonPrimitive
@@ -11,6 +13,7 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.math.BigDecimal
+import java.time.Duration
 import java.time.Instant
 
 class OrderAccountsTest {
@@ -23,6 +26,26 @@ class OrderAccountsTest {
         assertTrue(PostCharges.allowedFor(OrderStatus.CLOSED))
         assertFalse(PostCharges.allowedFor(OrderStatus.RESERVED))
         assertFalse(PostCharges.allowedFor(OrderStatus.CANCELLED))
+    }
+
+    @Test
+    fun `post charges close the owner's window after the return`() {
+        val end = Instant.parse("2026-01-10T00:00:00Z")
+        val line = RentalOrderLine(
+            id = "L1", version = 1, orderId = "O1", lineNo = 1, kind = "rental", classId = "K", assetId = "A",
+            productId = null, parentLineId = null, description = "Van", qty = BigDecimal.ONE,
+            startAt = null, endAt = end, actualOutAt = null, actualInAt = Instant.parse("2026-01-12T00:00:00Z"),
+            unitPriceMinor = null, amountMinor = 0, discountMinor = 0, taxMinor = 0, status = "returned",
+            kitInstanceId = null, assignUnitLater = false, sync = RecordSyncState.SAVED,
+        )
+        val second = line.copy(id = "L2", actualInAt = Instant.parse("2026-01-11T00:00:00Z"))
+        assertNull(PostCharges.returnedAt(OrderStatus.ON_RENT, listOf(line), end))
+        val back = PostCharges.returnedAt(OrderStatus.RETURNED, listOf(second, line), end)
+        assertEquals(line.actualInAt, back)
+        assertEquals(end, PostCharges.returnedAt(OrderStatus.CLOSED, listOf(line.copy(actualInAt = null)), end))
+        assertTrue(PostCharges.withinWindow(null, 0, now))
+        assertTrue(PostCharges.withinWindow(back, 90, back!!.plus(Duration.ofDays(90))))
+        assertFalse(PostCharges.withinWindow(back, 90, back.plus(Duration.ofDays(90)).plusSeconds(1)))
     }
 
     @Test

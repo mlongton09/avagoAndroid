@@ -63,4 +63,17 @@
     <string name="rentals_pay_new_link">Nuovo link</string>
     <string name="rentals_pay_link_ready">Il link di pagamento è pronto da condividere.</string>
     <string name="rentals_payer_email_invalid">Inserisci un indirizzo e-mail valido</string>
+    <string name="rentals_doc_expires_on">Scade il %1$s</string>
+    <string name="rentals_doc_expiring">In scadenza</string>
+    <string name="rentals_doc_expired_badge">Scaduto</string>
+    <string name="rentals_doc_verified">Verificato</string>
+    <string name="rentals_doc_ending">Termina con %1$s</string>
+    <string name="rentals_sites_title">Sedi e indirizzi</string>
+    <string name="rentals_site_primary">Indirizzo principale</string>
+    <string name="rentals_site_billing">Fatturazione</string>
+    <string name="rentals_site_shipping">Spedizione</string>
+    <string name="rentals_site_job_site">Cantiere</string>
+    <string name="rentals_site_pickup">Ritiro</string>
+    <string name="rentals_site_other">Altro</string>
+    <string name="rentals_contracts_title">Contratti</string>
 </resources>

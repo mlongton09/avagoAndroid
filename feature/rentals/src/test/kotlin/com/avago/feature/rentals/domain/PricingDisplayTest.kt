@@ -1,12 +1,30 @@
 package com.avago.feature.rentals.domain
 
 import com.avago.core.data.rental.Money
+import com.avago.core.data.rental.RatePolicy
+import com.avago.core.data.rental.RateValues
+import com.avago.core.data.rental.RentalPricing
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.time.Instant
 
 class PricingDisplayTest {
+
+    @Test
+    fun `offline estimate is an unconfirmed one-unit display without tax`() {
+        val b = RentalPricing.priceLine(
+            RateValues(day = 10_000, week = 30_000),
+            Instant.parse("2026-01-05T09:00:00Z"), Instant.parse("2026-01-09T09:00:00Z"), RatePolicy(),
+        )!!
+        val p = PricingDisplay.estimate(b, "EUR", "Van")
+        assertFalse(p.confirmed)
+        assertNull(p.tax)
+        assertEquals(Money(30_000, "EUR"), p.total)
+        assertEquals(PricingDisplay.Row("Van", "1", Money(30_000, "EUR"), "4d"), p.rows.single())
+    }
 
     @Test
     fun `server priced object maps to a confirmed display`() {

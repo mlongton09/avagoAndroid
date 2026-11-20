@@ -65,6 +65,7 @@ import com.avago.core.data.domain.PriceAdjustmentDraft
 import com.avago.core.data.domain.RentalAccountsRepository
 import com.avago.core.data.domain.RentalContract
 import com.avago.core.data.domain.RentalRepository
+import com.avago.core.data.domain.RentalSettingsRepository
 import com.avago.core.data.domain.SignatureRequest
 import com.avago.core.data.domain.SignatureSigner
 import com.avago.core.data.domain.Subrental
@@ -129,6 +130,7 @@ import javax.inject.Inject
 class OrderAccountsViewModel @Inject constructor(
     repo: RentalRepository,
     private val accounts: RentalAccountsRepository,
+    settings: RentalSettingsRepository,
     private val online: RentalsOnline,
     private val uploads: FileUploads,
     private val permissions: PermissionsManager,
@@ -170,6 +172,11 @@ class OrderAccountsViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
+    /** Whether the owner's post-charge window after the return is still open (scope policy). */
+    private val windowOpen: StateFlow<Boolean> = combine(order, repo.observeLines(orderId), settings.observeScopePolicy()) { o, lines, policy ->
+        o == null || PostCharges.withinWindow(PostCharges.returnedAt(o.status, lines, o.endAt), policy.postChargeWindowDays, Instant.now())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
     data class Abilities(
         val addPostCharge: Boolean,
         /** The card on file may be charged (permission and online payments). */
@@ -177,20 +184,23 @@ class OrderAccountsViewModel @Inject constructor(
         val voidPostCharge: Boolean,
         val adjustPrice: Boolean,
         val buyout: Boolean,
+        /** The order takes post charges by status but its window after the return has closed. */
+        val postChargeWindowClosed: Boolean = false,
     )
 
-    val abilities: StateFlow<Abilities> = combine(order, paymentsEnabled, permissions.permissions, permissions.isRoot) { o, enabled, _, _ ->
+    val abilities: StateFlow<Abilities> = combine(order, paymentsEnabled, windowOpen, permissions.permissions, permissions.isRoot) { o, enabled, open, _, _ ->
         val status = o?.status
         val quote = permissions.can(PostCharges.PERMISSION_CREATE)
         val charge = enabled && permissions.can(PostCharges.PERMISSION_CHARGE)
         Abilities(
             // A closed order is billed online with "charge now" only.
-            addPostCharge = o != null && !o.isLegacy && status != null && PostCharges.allowedFor(status) && quote &&
+            addPostCharge = o != null && !o.isLegacy && status != null && PostCharges.allowedFor(status) && quote && open &&
                 (status != OrderStatus.CLOSED || charge),
             chargeCard = o != null && !o.isLegacy && charge,
             voidPostCharge = quote,
             adjustPrice = o != null && !o.isLegacy && status != null && PriceAdjustments.allowedFor(status) && permissions.can(PriceAdjustments.PERMISSION),
             buyout = permissions.can(PERMISSION_BUYOUT),
+            postChargeWindowClosed = o != null && status != null && PostCharges.allowedFor(status) && quote && !open,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Abilities(false, false, false, false, false))
 
@@ -467,7 +477,7 @@ internal fun PostChargesCard(
     onVoid: (PostCharge, String?) -> Unit,
     onOpenPayLink: (PostCharge) -> Unit,
 ) {
-    if (charges.isEmpty() && !(abilities.addPostCharge && PostCharges.allowedFor(orderStatus))) return
+    if (charges.isEmpty() && !(abilities.addPostCharge && PostCharges.allowedFor(orderStatus)) && !abilities.postChargeWindowClosed) return
     var voiding by remember { mutableStateOf<PostCharge?>(null) }
     SectionCard(
         title = stringResource(R.string.rentals_pc_title),
@@ -482,6 +492,7 @@ internal fun PostChargesCard(
             null
         },
     ) {
+        if (abilities.postChargeWindowClosed) CardNote(stringResource(R.string.rentals_pc_err_window))
         if (charges.isEmpty()) CardNote(stringResource(R.string.rentals_pc_empty))
         charges.forEachIndexed { i, pc ->
             if (i > 0) CardDivider(Modifier.padding(start = AvagoSpacing.listInset))
@@ -705,9 +716,17 @@ private fun ledgerStateText(state: String): String? = when (state) {
     else -> null
 }
 
-/** Payments, deposits and refunds of the order (`customer_ledger_entries`). */
+/**
+ * Payments, deposits and refunds (`customer_ledger_entries`) of an order or a customer; the net
+ * covers every entry while only the first [maxRows] are listed above the optional [footer].
+ */
 @Composable
-internal fun OrderLedgerCard(entries: List<LedgerEntry>, zone: ZoneId) {
+internal fun OrderLedgerCard(
+    entries: List<LedgerEntry>,
+    zone: ZoneId,
+    maxRows: Int = Int.MAX_VALUE,
+    footer: (@Composable () -> Unit)? = null,
+) {
     if (entries.isEmpty()) return
     val settled = entries.filter { it.state == LedgerEntry.STATE_SETTLED && it.voidReason == null }
     val currency = entries.first().currency
@@ -719,10 +738,11 @@ internal fun OrderLedgerCard(entries: List<LedgerEntry>, zone: ZoneId) {
             null
         },
     ) {
-        entries.forEachIndexed { i, e ->
+        entries.take(maxRows).forEachIndexed { i, e ->
             if (i > 0) CardDivider(Modifier.padding(start = AvagoSpacing.listInset))
             LedgerRow(e, zone)
         }
+        footer?.invoke()
     }
 }
 
@@ -829,7 +849,7 @@ internal fun PriceAdjustmentDialog(orderId: String, currency: String, onDismiss:
 // ── Contracts ────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun contractStatus(c: RentalContract): Pair<String, StatusTone> = when {
+internal fun contractStatus(c: RentalContract): Pair<String, StatusTone> = when {
     c.boughtOutAt != null || c.status == "bought_out" -> stringResource(R.string.rentals_contract_bought_out) to StatusTone.Info
     c.terminatedAt != null || c.status == "terminated" -> stringResource(R.string.rentals_contract_terminated) to StatusTone.Neutral
     c.status == "notice_given" -> stringResource(R.string.rentals_contract_notice) to StatusTone.Warning
