@@ -1,8 +1,5 @@
 package com.avago.feature.log.ui
 
-import androidx.compose.ui.res.stringResource
-import com.avago.feature.log.R
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -39,11 +36,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil3.compose.AsyncImage
 import com.avago.core.data.domain.Attachment
+import com.avago.core.ui.components.imageModel
+import com.avago.feature.log.R
 import kotlin.math.max
 import kotlin.math.min
 
@@ -188,7 +188,7 @@ private fun ZoomableAsyncImage(
     photo: Attachment,
     onTap: () -> Unit,
 ) {
-    val model: Any? = photo.file?.localFile?.takeIf { photo.file?.isImage == true }
+    val model: Any? = photo.file?.imageModel()
     var scale by remember(photo.id) { mutableFloatStateOf(1f) }
     var offsetX by remember(photo.id) { mutableFloatStateOf(0f) }
     var offsetY by remember(photo.id) { mutableFloatStateOf(0f) }

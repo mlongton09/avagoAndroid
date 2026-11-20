@@ -222,6 +222,17 @@ sealed class V2ApiException(message: String, cause: Throwable? = null) : Excepti
     class Decoding(message: String, cause: Throwable? = null) : V2ApiException(message, cause)
 }
 
+/** `GET /v2/accounts/{a}/files/{id}/download`: short-lived signed URLs, never stored. */
+@Serializable
+data class V2FileDownload(
+    @SerialName("file_id") val fileId: String,
+    val url: String,
+    @SerialName("thumbnail_url") val thumbnailUrl: String? = null,
+    @SerialName("mime_type") val mimeType: String? = null,
+    @SerialName("size_bytes") val sizeBytes: Long? = null,
+    @SerialName("original_name") val originalName: String? = null,
+)
+
 /** Typed v2 calls (sync-wire.md). Adds `X-Contract-Version` and `X-Device-Id` to every request. */
 class V2Api(
     private val transport: V2Transport,
@@ -286,6 +297,10 @@ class V2Api(
         if (answer["state"]?.decimalText() == "finalized") return null
         return answer["upload_url"]?.decimalText() ?: throw V2ApiException.Decoding("upload register: no upload_url")
     }
+
+    /** Signed GET URLs for a finalized file's bytes (and thumbnail); `404 file_not_found` otherwise. */
+    suspend fun fileDownload(fileId: String): V2FileDownload =
+        decode(V2FileDownload.serializer(), raw("GET", "$accountPath/files/$fileId/download"))
 
     /** E12 finalize: the server hashes the stored bytes; a mismatch is `422`. */
     suspend fun finalizeUpload(fileId: String, sha256: String, byteSize: Long) {

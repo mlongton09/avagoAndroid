@@ -46,7 +46,7 @@ class V2SyncCoordinator @Inject constructor(
     private val transport: V2HttpTransport,
 ) {
     private val mutex = Mutex()
-    private var session: Session? = null
+    @Volatile private var session: Session? = null
 
     private class Session(val stores: V2Stores, val api: V2Api, val engine: V2SyncEngine, val outbox: V2CommandOutbox)
 
@@ -56,6 +56,19 @@ class V2SyncCoordinator @Inject constructor(
 
     /** The outbox of the active session, for feature write paths; null until a cycle opened one. */
     suspend fun outbox(): V2CommandOutbox? = mutex.withLock { session?.outbox }
+
+    /**
+     * The API of the active session, for online reads such as file downloads; opens the session
+     * when no cycle has run yet. Null when v2 is gated off or nobody is signed in.
+     */
+    suspend fun api(): V2Api? {
+        if (!gate.isOpen()) return null
+        val accountId = identityManager.getActiveAccountId() ?: return null
+        val userId = identityManager.activeUserId.value ?: return null
+        session?.takeIf { it.stores.identity.accountId == accountId && it.stores.identity.userId == userId }
+            ?.let { return it.api }
+        return mutex.withLock { sessionFor()?.api }
+    }
 
     /** One pull + flush. Returns null when v2 is gated off or nobody is signed in. */
     suspend fun runOnce(): V2SyncResult? = mutex.withLock {

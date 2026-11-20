@@ -1,7 +1,9 @@
 package com.avago.feature.rentals.ui
 
 import com.avago.core.data.domain.Attachment
+import com.avago.core.data.domain.FileVariant
 import com.avago.core.data.domain.StoredFile
+import com.avago.core.ui.components.StoredFileRequest
 import java.io.File
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -14,9 +16,10 @@ class RentalsKitTest {
         sort: Int = 0,
         local: String? = "/data/$id.jpg",
         mime: String = "image/jpeg",
+        status: String = "uploaded",
     ) = Attachment(
         id = id,
-        file = StoredFile("f$id", "$id.jpg", mime, 10, "uploaded", local?.let(::File)),
+        file = StoredFile("f$id", "$id.jpg", mime, 10, status, local?.let(::File)),
         fileId = "f$id", documentId = null, assetId = assetId, activityId = null, workOrderId = null,
         sortOrder = sort, createdAt = 0,
     )
@@ -27,6 +30,14 @@ class RentalsKitTest {
             listOf(image("p3", sort = 3), image("p1", sort = 1), image("p0", sort = 0, local = null)),
         ) { true }
         assertEquals(File("/data/p1.jpg"), map["a1"])
+    }
+
+    @Test
+    fun `a verified server copy stands in when no local copy exists`() {
+        val map = assetThumbnails(
+            listOf(image("p0", sort = 0, local = null, status = "verified"), image("p1", sort = 1)),
+        ) { true }
+        assertEquals(StoredFileRequest("fp0", FileVariant.THUMBNAIL), map["a1"])
     }
 
     @Test

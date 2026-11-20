@@ -190,6 +190,9 @@ data class StoredFile(
 ) {
     val isImage: Boolean get() = mimeType?.startsWith("image/") == true
     val isPdf: Boolean get() = mimeType == "application/pdf"
+
+    /** The server serves the bytes (`files/{id}/download`) only once the upload is verified. */
+    val isDownloadable: Boolean get() = status == "verified"
 }
 
 /** A file linked to an asset, activity or work order (`attachments`). */

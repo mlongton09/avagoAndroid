@@ -1,7 +1,5 @@
 package com.avago.feature.rentals.ui
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,8 +30,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,9 +54,11 @@ import androidx.lifecycle.viewModelScope
 import coil3.compose.AsyncImage
 import com.avago.core.data.domain.AssetRepository
 import com.avago.core.data.domain.Attachment
+import com.avago.core.data.domain.FileVariant
 import com.avago.core.design.theme.AvagoSpacing
 import com.avago.core.ui.components.ErrorBanner
 import com.avago.core.ui.components.StatusTone
+import com.avago.core.ui.components.imageModel
 import com.avago.core.ui.components.rememberHaptics
 import com.avago.core.ui.components.toneColors
 import com.avago.feature.rentals.R
@@ -107,7 +109,7 @@ internal fun primaryOrderAction(actions: List<String>): String? =
  */
 @HiltViewModel
 class RentalPhotosViewModel @Inject constructor(assets: AssetRepository) : ViewModel() {
-    val thumbnails: StateFlow<Map<String, File>> = assets.observeImages()
+    val thumbnails: StateFlow<Map<String, Any>> = assets.observeImages()
         .map { assetThumbnails(it) }
         .flowOn(Dispatchers.Default)
         .catch { emit(emptyMap()) }
@@ -115,16 +117,16 @@ class RentalPhotosViewModel @Inject constructor(assets: AssetRepository) : ViewM
 }
 
 /**
- * Best photo per asset: the lowest sort order whose bytes are on this device (v2 has no file
- * download endpoint yet, so remote-only pictures fall back to the status icon).
+ * Best photo per asset: the lowest sort order whose bytes are on this device or downloadable
+ * (verified on the server); pictures still uploading elsewhere fall back to the status icon.
  */
-internal fun assetThumbnails(images: List<Attachment>, fileExists: (File) -> Boolean = { it.exists() }): Map<String, File> =
+internal fun assetThumbnails(images: List<Attachment>, fileExists: (File) -> Boolean = { it.exists() }): Map<String, Any> =
     images.asSequence()
         .filter { it.assetId != null && it.file?.isImage == true }
         .groupBy { it.assetId!! }
         .mapNotNull { (assetId, list) ->
             list.sortedWith(compareBy<Attachment> { it.sortOrder }.thenBy { it.createdAt })
-                .firstNotNullOfOrNull { a -> a.file?.localFile?.takeIf(fileExists) }
+                .firstNotNullOfOrNull { a -> a.file?.imageModel(FileVariant.THUMBNAIL, fileExists) }
                 ?.let { assetId to it }
         }
         .toMap()

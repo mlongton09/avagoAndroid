@@ -3,9 +3,6 @@ package com.avago
 import android.app.Application
 import android.content.Context
 import android.os.Trace
-import coil3.ImageLoader
-import coil3.SingletonImageLoader
-import coil3.svg.SvgDecoder
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -19,10 +16,14 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import java.util.concurrent.TimeUnit
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
+import coil3.svg.SvgDecoder
+import com.avago.core.ai.ScoutRepository
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.CrashDiagnostics
 import com.avago.core.data.ExchangeRateService
+import com.avago.core.data.domain.FileRepository
 import com.avago.core.data.v2.LegacyStoreReset
 import com.avago.core.data.v2.ServerV2Capability
 import com.avago.core.data.v2.V2Contract
@@ -30,11 +31,12 @@ import com.avago.core.data.v2.V2Flag
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.v2.V2CapabilitiesClient
 import com.avago.core.network.v2.V2ProbeResult
-import com.avago.core.ai.ScoutRepository
 import com.avago.core.sync.ConnectivityMonitor
 import com.avago.core.sync.SyncEngine
 import com.avago.core.sync.SyncWorker
 import com.avago.core.sync.v2.V2SyncCoordinator
+import com.avago.core.ui.components.StoredFileFetcher
+import com.avago.core.ui.components.StoredFileKeyer
 import com.avago.feature.chat.realtime.BackgroundSyncCoordinator
 import com.avago.feature.chat.realtime.ChatRealtimeClient
 import com.avago.feature.chat.realtime.OutboxRetryCoordinator
@@ -44,6 +46,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -51,6 +54,7 @@ import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import timber.log.Timber
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 @HiltAndroidApp
@@ -105,7 +109,11 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
 
     override fun newImageLoader(context: Context): ImageLoader =
         ImageLoader.Builder(context)
-            .components { add(SvgDecoder.Factory()) }
+            .components {
+                add(SvgDecoder.Factory())
+                add(StoredFileKeyer())
+                add(StoredFileFetcher.Factory { fileRepositoryLazy.get() })
+            }
             .build()
 
 
@@ -122,6 +130,7 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
     @Inject lateinit var chatRealtimeLazy: Lazy<ChatRealtimeClient>
     @Inject lateinit var scoutRepositoryLazy: Lazy<ScoutRepository>
     @Inject lateinit var v2FlagLazy: Lazy<V2Flag>
+    @Inject lateinit var fileRepositoryLazy: Lazy<FileRepository>
     @Inject lateinit var legacyStoreResetLazy: Lazy<LegacyStoreReset>
     @Inject lateinit var v2CapabilitiesClientLazy: Lazy<V2CapabilitiesClient>
     @Inject lateinit var v2SyncCoordinatorLazy: Lazy<V2SyncCoordinator>
@@ -137,6 +146,7 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
     private val scoutRepository get() = scoutRepositoryLazy.get()
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    @Volatile private var lastFileCacheTrimMs = 0L
 
     override fun onCreate() {
         Trace.beginSection("AvagoApplication.onCreate")
@@ -377,6 +387,7 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
                         Timber.e(e, "AvagoApplication: chat delta sync on foreground failed")
                     }
                 }
+                trimFileCacheIfDue()
             }
 
             override fun onStop(owner: LifecycleOwner) {
@@ -384,6 +395,21 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
                 outboxRetryCoordinator.stopPeriodicFlush()
             }
         })
+    }
+
+    /**
+     * Keeps downloaded v2 files under [FILE_CACHE_CAP_BYTES]: least recently used first, at most
+     * every [FILE_CACHE_TRIM_INTERVAL_MS], deferred past the foreground burst.
+     */
+    private fun trimFileCacheIfDue() {
+        val now = System.currentTimeMillis()
+        if (now - lastFileCacheTrimMs < FILE_CACHE_TRIM_INTERVAL_MS) return
+        lastFileCacheTrimMs = now
+        appScope.launch {
+            delay(FILE_CACHE_TRIM_DELAY_MS)
+            val freed = fileRepositoryLazy.get().trimCache(FILE_CACHE_CAP_BYTES)
+            if (freed > 0) Timber.d("AvagoApplication: file cache trimmed by $freed bytes")
+        }
     }
 
     private fun triggerImmediateSync() {
@@ -406,4 +432,10 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
         get() = Configuration.Builder()
             .setWorkerFactory(workerFactory)
             .build()
+
+    private companion object {
+        const val FILE_CACHE_CAP_BYTES = 500L * 1024 * 1024
+        const val FILE_CACHE_TRIM_INTERVAL_MS = 30 * 60 * 1000L
+        const val FILE_CACHE_TRIM_DELAY_MS = 30_000L
+    }
 }

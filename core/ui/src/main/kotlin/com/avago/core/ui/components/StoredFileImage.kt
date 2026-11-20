@@ -14,13 +14,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
+import coil3.compose.SubcomposeAsyncImage
+import com.avago.core.data.domain.FileVariant
 import com.avago.core.data.domain.StoredFile
 
 /**
- * Renders a v2 stored file. Image bytes are shown from the device-local copy (files captured on this
- * device, or already downloaded); otherwise a typed placeholder is drawn. v2 has no file download
- * endpoint yet (see docs "Catalog requests"), so remote-only files render as placeholders.
+ * Renders a v2 stored file. Images captured on this device are drawn from the local copy; verified
+ * remote images are fetched through [StoredFileRequest] (`files/{id}/download`, cached on device).
+ * Non-images, and images still loading or unavailable, show a typed placeholder.
  */
 @Composable
 fun StoredFileImage(
@@ -28,31 +29,41 @@ fun StoredFileImage(
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Crop,
     contentDescription: String? = null,
+    variant: FileVariant = FileVariant.ORIGINAL,
 ) {
-    val local = file?.localFile
-    if (local != null && file.isImage) {
-        AsyncImage(
-            model = local,
-            contentDescription = contentDescription ?: file.name,
+    val model = file?.imageModel(variant)
+    if (model == null) {
+        FilePlaceholder(file, modifier, contentDescription)
+    } else {
+        SubcomposeAsyncImage(
+            model = model,
+            contentDescription = contentDescription ?: file?.name,
             contentScale = contentScale,
             modifier = modifier,
+            loading = { FilePlaceholder(file, Modifier.fillMaxSize(), null) },
+            error = { FilePlaceholder(file, Modifier.fillMaxSize(), null) },
         )
-    } else {
-        Box(
-            modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = if (file?.isImage != false) Icons.Outlined.Image else Icons.Outlined.Description,
-                contentDescription = contentDescription ?: file?.name,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(32.dp),
-            )
-        }
+    }
+}
+
+@Composable
+private fun FilePlaceholder(file: StoredFile?, modifier: Modifier, contentDescription: String?) {
+    Box(
+        modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = if (file?.isImage != false) Icons.Outlined.Image else Icons.Outlined.Description,
+            contentDescription = contentDescription ?: file?.name,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(32.dp),
+        )
     }
 }
 
 @Composable
 fun StoredFileThumbnail(file: StoredFile?, modifier: Modifier = Modifier) {
-    Box(modifier = modifier) { StoredFileImage(file = file, modifier = Modifier.fillMaxSize()) }
+    Box(modifier = modifier) {
+        StoredFileImage(file = file, modifier = Modifier.fillMaxSize(), variant = FileVariant.THUMBNAIL)
+    }
 }
