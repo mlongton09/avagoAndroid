@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -109,6 +110,7 @@ fun LabelScannerScreen(
     viewModel: LabelScannerViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -186,7 +188,7 @@ fun LabelScannerScreen(
                                     onPartFound(part.id)
                                 } else {
                                     snackbarHostState.showSnackbar(
-                                        context.getString(R.string.label_scanner_not_found),
+                                        resources.getString(R.string.label_scanner_not_found),
                                     )
                                     scanningActive = true
                                 }

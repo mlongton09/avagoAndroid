@@ -1,6 +1,5 @@
 package com.avago.feature.workorders
 
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.SnackbarHostState
@@ -28,6 +27,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -123,7 +123,7 @@ fun WorkOrderListScreen(
     val isManager by viewModel.isManager.collectAsStateWithLifecycle()
     val viewMessage by viewModel.viewMessage.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
-    val context = LocalContext.current
+    val resources = LocalResources.current
     // "" opens the dialog for a new view, otherwise the id of the view being edited.
     var viewDialog by rememberSaveable { mutableStateOf<String?>(null) }
     val haptic = LocalHapticFeedback.current
@@ -144,7 +144,7 @@ fun WorkOrderListScreen(
 
     LaunchedEffect(viewMessage) {
         viewMessage?.let {
-            snackbar.showSnackbar(context.getString(it))
+            snackbar.showSnackbar(resources.getString(it))
             viewModel.viewMessageShown()
         }
     }

@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -273,8 +274,9 @@ private fun PayoutRow(p: Payout) {
 @Composable
 internal fun OpenLinksEffect(links: Flow<String>, snackbar: SnackbarHostState) {
     val ctx = LocalContext.current
+    val resources = LocalResources.current
     LaunchedEffect(links) {
-        links.collect { url -> if (!openUrl(ctx, url)) snackbar.showSnackbar(ctx.getString(R.string.growth_no_browser)) }
+        links.collect { url -> if (!openUrl(ctx, url)) snackbar.showSnackbar(resources.getString(R.string.growth_no_browser)) }
     }
 }
 

@@ -49,7 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -76,13 +76,13 @@ fun CategoriesScreen(
     val canEdit = canEditSettings || (kind == CategoryKind.WORK_ORDER && canManageTemplates)
     val message by viewModel.message.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
-    val context = LocalContext.current
+    val resources = LocalResources.current
     var editing by rememberSaveable { mutableStateOf<String?>(null) }
     var deleting by remember { mutableStateOf<Category?>(null) }
 
     LaunchedEffect(message) {
         message?.let {
-            snackbar.showSnackbar(context.getString(it))
+            snackbar.showSnackbar(resources.getString(it))
             viewModel.messageShown()
         }
     }

@@ -35,6 +35,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -123,11 +124,12 @@ internal fun GrowthScaffold(
 @Composable
 internal fun NoticeEffect(notices: Flow<Notice>, snackbar: SnackbarHostState) {
     val ctx = LocalContext.current
+    val resources = LocalResources.current
     LaunchedEffect(notices) {
         notices.collect { n ->
             snackbar.showSnackbar(
                 when (n) {
-                    is Notice.Done -> ctx.getString(n.messageRes)
+                    is Notice.Done -> resources.getString(n.messageRes)
                     is Notice.Failed -> errorText(ctx, n.error)
                 },
             )

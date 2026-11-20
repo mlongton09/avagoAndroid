@@ -38,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
@@ -58,7 +59,6 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -118,8 +118,9 @@ fun GlobalCalendarScreen(
             }
 
             // ── Day-of-week header ─────────────────────────────────────────────
+            val locale = LocalConfiguration.current.locales[0]
             val dayNames = DayOfWeek.values().map {
-                it.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+                it.getDisplayName(TextStyle.SHORT, locale)
             }
             Row(modifier = Modifier.fillMaxWidth()) {
                 dayNames.forEach { name ->

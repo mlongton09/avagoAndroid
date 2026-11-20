@@ -1,4 +1,4 @@
-﻿package com.avago.feature.assets.ui
+package com.avago.feature.assets.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -38,6 +38,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -50,7 +51,6 @@ import com.avago.feature.assets.model.AssetTypeGroup
 import com.avago.feature.assets.model.AssetTypeItem
 import com.avago.feature.assets.model.AssetTypes
 import com.avago.feature.assets.viewmodel.AssetScopeViewModel
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -121,7 +121,7 @@ private fun AssetTypeSectionHeader(
         contentAlignment = Alignment.BottomStart,
     ) {
         Text(
-            text = stringResource(group.titleResId).uppercase(Locale.getDefault()),
+            text = stringResource(group.titleResId).uppercase(LocalConfiguration.current.locales[0]),
             style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.8.sp),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

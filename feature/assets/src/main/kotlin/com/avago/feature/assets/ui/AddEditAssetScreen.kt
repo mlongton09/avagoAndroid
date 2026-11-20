@@ -77,6 +77,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -92,7 +93,6 @@ import com.avago.feature.assets.viewmodel.AddEditAssetViewModel
 import com.avago.feature.assets.viewmodel.GeocodeResult
 import java.text.SimpleDateFormat
 import java.util.Date
-import java.util.Locale
 
 private val WHEEL_CONFIG_ASSET_TYPES = setOf(
     "vehicle", "light_vehicle", "ev", "truck", "commercial_vehicle",
@@ -425,7 +425,7 @@ fun AddEditAssetScreen(
                         Text(
                             text = if (form.purchaseDate != null) {
                                 val purchaseDate = form.purchaseDate ?: error("unreachable")
-                                SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
+                                SimpleDateFormat("MMM d, yyyy", LocalConfiguration.current.locales[0])
                                     .format(Date(purchaseDate))
                             } else {
                                 stringResource(R.string.asset_field_purchase_date)

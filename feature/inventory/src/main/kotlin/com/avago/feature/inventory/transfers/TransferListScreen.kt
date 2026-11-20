@@ -56,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -68,7 +69,6 @@ import com.avago.feature.inventory.parts.ProductPickerSheet
 import com.avago.feature.inventory.ui.LocationPickerSheet
 import java.text.SimpleDateFormat
 import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -180,7 +180,7 @@ fun TransferListScreen(
 @Composable
 private fun TransferCard(item: TransferListItem, decisions: List<MovementStatus>, onDecide: (MovementStatus) -> Unit) {
     val transfer = item.transfer
-    val dateFmt = SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
+    val dateFmt = SimpleDateFormat("MMM d, yyyy", LocalConfiguration.current.locales[0])
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(1.dp),

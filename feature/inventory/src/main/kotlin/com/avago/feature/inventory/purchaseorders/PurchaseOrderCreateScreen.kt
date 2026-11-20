@@ -47,6 +47,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
@@ -61,7 +62,6 @@ import com.avago.feature.inventory.ui.LocationPickerSheet
 import com.avago.feature.inventory.vendors.VendorPickerSheet
 import java.text.SimpleDateFormat
 import java.util.Date
-import java.util.Locale
 import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -168,7 +168,7 @@ fun PurchaseOrderCreateScreen(
             // Expected delivery — date picker
             OutlinedTextField(
                 value = if (state.expectedDeliveryMs != null)
-                    SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
+                    SimpleDateFormat("MMM d, yyyy", LocalConfiguration.current.locales[0])
                         .apply { timeZone = TimeZone.getTimeZone("UTC") }
                         .format(Date(state.expectedDeliveryMs!!))
                 else "",
