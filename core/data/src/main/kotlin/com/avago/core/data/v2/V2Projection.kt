@@ -29,4 +29,19 @@ data class V2Projection(
     val store: V2StoreKind?,
     val applyRank: Int,
     val schemaVersion: Int,
+    /** Windowed history (`history_days` in capabilities); null: every row is kept. */
+    val historyWindow: V2HistoryWindow? = null,
 )
+
+/**
+ * A bounded history projection (sync-wire.md "History windows"): open rows and rows whose
+ * [endColumn] (epoch millis) is less than [days] old are delivered. Older rows age out silently,
+ * so the client prunes them itself.
+ */
+data class V2HistoryWindow(val days: Int, val endColumn: String) {
+    fun cutoffMillis(nowMillis: Long): Long = nowMillis - days * MILLIS_PER_DAY
+
+    private companion object {
+        const val MILLIS_PER_DAY = 86_400_000L
+    }
+}

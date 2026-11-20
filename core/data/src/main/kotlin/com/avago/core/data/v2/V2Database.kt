@@ -139,8 +139,9 @@ class V2Database private constructor(
         }
 
         /**
-         * Opens (creating on first use) a store on [connection]. Throws [V2SchemaMismatchException]
-         * when the file was built from another DDL or belongs to another user/account.
+         * Opens (creating on first use) a store on [connection]. A store built from another contract
+         * DDL is migrated ([migrate]). Throws [V2SchemaMismatchException] when the file has another
+         * store layout version or belongs to another user/account.
          */
         fun open(
             connection: V2Connection,
@@ -168,14 +169,15 @@ class V2Database private constructor(
                     }
                     connection.execute("PRAGMA user_version = ${V2Contract.V2_DB_SCHEMA_VERSION}")
                 } else {
-                    val stored = runCatching { metaGet(connection, META_DDL_SHA) }.getOrNull()
-                    if (userVersion != V2Contract.V2_DB_SCHEMA_VERSION.toLong() || stored != expectedSha) {
-                        throw V2SchemaMismatchException("v2 $kind store was built from another contract DDL")
+                    if (userVersion != V2Contract.V2_DB_SCHEMA_VERSION.toLong()) {
+                        throw V2SchemaMismatchException("v2 $kind store has user_version $userVersion")
                     }
                     val row = connection.query("SELECT user_id, account_id FROM database_identity").firstOrNull()
                     if (row == null || row["user_id"] != identity.userId || row["account_id"] != identity.accountId) {
                         throw V2SchemaMismatchException("v2 $kind store belongs to another user/account")
                     }
+                    val stored = runCatching { metaGet(connection, META_DDL_SHA) }.getOrNull()
+                    if (stored != expectedSha) migrate(connection, kind, expectedSha)
                 }
             } catch (e: Exception) {
                 connection.close()
@@ -183,6 +185,74 @@ class V2Database private constructor(
             }
             return V2Database(connection, kind, dispatcher)
         }
+
+        /**
+         * Store migration for a new contract DDL (same user/account). Projection rows are disposable,
+         * so every table is rebuilt from the new DDL and sync restarts from a bootstrap; the identity
+         * (device id, scope epoch), device registration and the outbox (pending commands, their
+         * dependencies, overlays and upload jobs) are carried over so no local write is lost.
+         */
+        private fun migrate(conn: V2Connection, kind: V2StoreKind, expectedSha: String) {
+            val script = ddl(kind)
+            val carried = CARRIED_TABLES.getValue(kind).associateWith { table ->
+                if (conn.scalarLong("SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?", listOf(table)) == 0L) {
+                    emptyList()
+                } else {
+                    conn.query("SELECT * FROM ${V2SqlScript.quote(table)}")
+                }
+            }
+            val carriedMeta = CARRIED_META.associateWith { runCatching { metaGet(conn, it) }.getOrNull() }
+            conn.execute("PRAGMA foreign_keys = OFF")
+            try {
+                transaction(conn) {
+                    val tables = conn.query(
+                        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+                    ).map { it.getValue("name") as String }
+                    for (table in tables) conn.execute("DROP TABLE IF EXISTS ${V2SqlScript.quote(table)}")
+                    conn.executeScript(script)
+                    conn.execute(META_DDL)
+                    metaPut(conn, META_DDL_SHA, expectedSha)
+                    carriedMeta.forEach { (key, value) -> metaPut(conn, key, value) }
+                    for ((table, rows) in carried) reinsert(conn, table, rows)
+                    if (kind == V2StoreKind.BUSINESS) {
+                        conn.execute(
+                            "UPDATE database_identity SET contract_version = ?, feed_generation = 0, global_feed_generation = 0",
+                            listOf(V2Contract.CLIENT_CONTRACT_VERSION),
+                        )
+                        for (stream in V2Stream.entries) {
+                            conn.execute("INSERT INTO sync_state (stream) VALUES (?)", listOf(stream.wire))
+                        }
+                    }
+                    val violations = conn.query("PRAGMA foreign_key_check")
+                    check(violations.isEmpty()) { "v2 $kind store migration left ${violations.size} dangling references" }
+                }
+            } finally {
+                conn.execute("PRAGMA foreign_keys = ON")
+            }
+        }
+
+        /** Re-inserts [rows] into the rebuilt [table], keeping the columns both DDLs share. */
+        private fun reinsert(conn: V2Connection, table: String, rows: List<Map<String, Any?>>) {
+            if (rows.isEmpty()) return
+            val columns = conn.query("PRAGMA table_info(${V2SqlScript.quote(table)})").map { it.getValue("name") as String }.toSet()
+            for (row in rows) {
+                val shared = row.filterKeys { it in columns }
+                conn.execute(
+                    "INSERT INTO ${V2SqlScript.quote(table)} (${shared.keys.joinToString { V2SqlScript.quote(it) }}) " +
+                        "VALUES (${shared.keys.joinToString { "?" }})",
+                    shared.values.toList(),
+                )
+            }
+        }
+
+        /** Parent tables first so the carried rows satisfy their foreign keys in order. */
+        private val CARRIED_TABLES = mapOf(
+            V2StoreKind.BUSINESS to listOf(
+                "database_identity", "pending_commands", "command_dependencies", "local_overlays", "upload_jobs",
+            ),
+            V2StoreKind.CHAT to listOf("database_identity"),
+        )
+        private val CARRIED_META = listOf(V2SyncEngine.META_DEVICE_REGISTERED)
 
         private fun insertIdentity(conn: V2Connection, kind: V2StoreKind, identity: V2StoreIdentity, now: Long) {
             when (kind) {

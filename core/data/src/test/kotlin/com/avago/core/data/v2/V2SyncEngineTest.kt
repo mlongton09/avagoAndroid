@@ -9,8 +9,10 @@ import com.avago.core.data.v2.V2Fixtures.page
 import com.avago.core.data.v2.repo.V2LocationRepository
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -83,6 +85,51 @@ class V2SyncEngineTest {
         assertEquals(0, BigDecimal("12.5").compareTo(b.capacity))
         assertEquals("shelf", b.kind)
         assertTrue(!b.archived)
+    }
+
+    @Test
+    fun `a per-account singleton applies by account key and history ages out of its window`() = runTest {
+        scriptBootstrap()
+        engine.sync()
+        val asset = V2Uuid.v7()
+        val yearMillis = 365L * 86_400_000L
+        business.writeWithoutForeignKeys { tx ->
+            for ((id, end) in listOf("old" to 5_000L - yearMillis - 1, "recent" to 4_000L, "open" to null)) {
+                tx.execute(
+                    "INSERT INTO asset_status_intervals (id, created_at, updated_at, asset_id, status_code, " +
+                        "valid_during_start, valid_during_end, reason) VALUES (?, 1, 1, ?, 'online', ?, ?, ?)",
+                    listOf(V2Uuid.v7(), asset, (end ?: 4_500L) - 10_000_000_000L, end, id),
+                )
+            }
+        }
+        val preferences = buildJsonObject {
+            put("entity_type", "account_preferences")
+            put("entity_key", V2Fixtures.ACCOUNT)
+            put("seq", "10")
+            put("version", 2)
+            put("op", "upsert")
+            put(
+                "body",
+                buildJsonObject {
+                    put("account_id", V2Fixtures.ACCOUNT)
+                    put("created_at", "2026-01-02T03:04:05Z")
+                    put("updated_at", "2026-01-02T03:04:05Z")
+                    put("version", 2)
+                    put("currency", "NOK")
+                    put("costing_method", "fifo")
+                    put("disable_quotes", true)
+                },
+            )
+        }
+        server.opens += open(s2, "incremental", w = "10", g = "3", from = "9", gFrom = "3")
+        server.pages["t1"] = page(s2, "account", 1, "9", "10", listOf(preferences), next = null)
+
+        assertInstanceOf(V2SyncResult.Synced::class.java, engine.sync())
+
+        val row = business.read { it.query("SELECT singleton, currency, costing_method, disable_quotes FROM account_preferences").single() }
+        assertEquals(mapOf("singleton" to 1L, "currency" to "NOK", "costing_method" to "fifo", "disable_quotes" to 1L), row)
+        val kept = business.read { c -> c.query("SELECT reason FROM asset_status_intervals").map { it["reason"] }.toSet() }
+        assertEquals(setOf("recent", "open"), kept)
     }
 
     @Test

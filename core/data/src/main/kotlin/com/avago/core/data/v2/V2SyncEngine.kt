@@ -551,7 +551,22 @@ class V2SyncEngine(
             listOf(w),
         )
         if (retired > 0) tx.markChanged("pending_commands", "local_overlays")
+        pruneHistory(tx, now)
         tx.markChanged("sync_state")
+    }
+
+    /** Windowed projections: rows that closed before the window are no longer delivered, so drop them. */
+    private fun pruneHistory(tx: V2Transaction, nowMillis: Long) {
+        for (projection in manifest.values) {
+            val window = projection.historyWindow ?: continue
+            val table = projection.mobileTable?.takeIf { projection.store == V2StoreKind.BUSINESS } ?: continue
+            val end = V2SqlScript.quote(window.endColumn)
+            val pruned = tx.execute(
+                "DELETE FROM ${V2SqlScript.quote(table)} WHERE $end IS NOT NULL AND $end <= ?",
+                listOf(window.cutoffMillis(nowMillis)),
+            )
+            if (pruned > 0) tx.markChanged(table)
+        }
     }
 
     // ---------------------------------------------------------------------------------------

@@ -33,7 +33,14 @@ class V2ProjectionApplier {
     data class Column(val name: String, val type: String, val notNull: Boolean, val primaryKeyIndex: Int)
 
     data class TableInfo(val name: String, val columns: List<Column>) {
+        /**
+         * Key columns the wire key maps onto. A per-account singleton (`account_features`,
+         * `account_preferences`) is keyed by `account_id` on the server and by the constant
+         * `singleton` column on the device, so it has none: the store holds one row.
+         */
         val primaryKey: List<String> = columns.filter { it.primaryKeyIndex > 0 }.sortedBy { it.primaryKeyIndex }.map { it.name }
+            .takeUnless { it == listOf(SINGLETON) }
+            .orEmpty()
         val hasVersion: Boolean = columns.any { it.name == "version" }
     }
 
@@ -161,5 +168,6 @@ class V2ProjectionApplier {
 
     private companion object {
         const val MICROS = "_micros"
+        const val SINGLETON = "singleton"
     }
 }

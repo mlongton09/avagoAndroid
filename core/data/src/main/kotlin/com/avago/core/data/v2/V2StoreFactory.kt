@@ -28,8 +28,9 @@ class V2Stores(val identity: V2StoreIdentity, val business: V2Database, val chat
 
 /**
  * Opens the per-user/account v2 stores ([V2StorePaths]) on the bundled SQLite driver (STRICT
- * tables need SQLite ≥ 3.37; minSdk 26 ships older). A file built from another DDL or owned by
- * another user/account is a disposable cache (L12): it is deleted and rebuilt, then re-bootstraps.
+ * tables need SQLite ≥ 3.37; minSdk 26 ships older). A file owned by another user/account (or
+ * with another store layout version) is a disposable cache (L12): it is deleted and rebuilt, then
+ * re-bootstraps. A file built from an older contract DDL migrates in place and keeps its outbox.
  */
 @Singleton
 class V2StoreFactory @Inject constructor(

@@ -22,6 +22,7 @@ working tree:
     schema/contract/out/sqlite/chat.sql
     DBSetup/v2/seed/000_sync_projections.sql
     schema/contract/out/commands/catalog.json   (the mobile command catalog, P3-14)
+    src/v2/contract/loaders.rs                  (history windows, sync-wire.md "History windows")
     schema/fixtures/reference/permission_keys.csv (the permission keys a permission set can hold)
 
 V2GeneratedCommands.kt holds one typed payload class per catalog command (plus the nested line
@@ -54,6 +55,7 @@ CMD_OUT = os.path.join(
     PKG_DIR, "kotlin", "com", "avago", "core", "data", "v2", "commands", "V2GeneratedCommands.kt"
 )
 CATALOG_PATH = "schema/contract/out/commands/catalog.json"
+LOADERS_PATH = "src/v2/contract/loaders.rs"
 PERMISSIONS_PATH = "schema/fixtures/reference/permission_keys.csv"
 PERM_OUT = os.path.join(PKG_DIR, "kotlin", "com", "avago", "core", "data", "v2", "V2GeneratedPermissions.kt")
 
@@ -114,6 +116,34 @@ def parse_manifest(seed: str) -> list[dict]:
     if not rows:
         sys.exit("no projections parsed")
     return rows
+
+
+LOADER = re.compile(
+    r'Loader \{\s*projection: "(?P<name>[a-z0-9_]+)",.*?history_days: (?:None|Some\((?P<days>\d+)\)),'
+    r'.*?sql: "(?P<sql>(?:[^"\\]|\\.)*)",\s*\}',
+    re.S,
+)
+
+
+def parse_windows(loaders: str, business: str) -> dict[str, tuple[int, str]]:
+    """Windowed projections (sync-wire.md "History windows"): name -> (history_days, mobile end column).
+
+    The range column comes from the loader's window predicate (`upper_inf(t."<range>")`); its mobile
+    end column (`<range>_end`) must exist in the generated table.
+    """
+    windows = {}
+    for m in LOADER.finditer(loaders):
+        if m.group("days") is None:
+            continue
+        rng = re.search(r'upper_inf\(t\.\\"([a-z0-9_]+)\\"\)', m.group("sql"))
+        if not rng:
+            sys.exit(f"windowed loader {m.group('name')} has no upper_inf(range) predicate")
+        end = rng.group(1) + "_end"
+        table = re.search(rf"^CREATE TABLE IF NOT EXISTS {m.group('name')} \((.*?)^\) STRICT", business, re.M | re.S)
+        if not table or not re.search(rf"^\s+{end} INTEGER,?$", table.group(1), re.M):
+            sys.exit(f"windowed projection {m.group('name')}: mobile column {end} not found")
+        windows[m.group("name")] = (int(m.group("days")), end)
+    return windows
 
 
 def camel(name: str) -> str:
@@ -393,6 +423,7 @@ def main() -> None:
     business_tables = set(tables_in(business))
     chat_tables = set(tables_in(chat))
     rows = parse_manifest(seed)
+    windows = parse_windows(git_show(args.svc, args.ref, LOADERS_PATH).decode("utf-8"), business)
 
     lines = []
     for r in sorted(rows, key=lambda r: (r["rank"], r["name"])):
@@ -406,10 +437,14 @@ def main() -> None:
         keys = ", ".join(f'"{k}"' for k in r["keys"])
         mobile = f'"{r["mobile"]}"' if r["mobile"] else "null"
         stream = "V2Stream.ACCOUNT" if r["stream"] == "account" else "V2Stream.GLOBAL"
+        window = ""
+        if r["name"] in windows and r["mobile"] is not None:
+            days, end = windows[r["name"]]
+            window = f', historyWindow = V2HistoryWindow(days = {days}, endColumn = "{end}")'
         lines.append(
             f'        V2Projection("{r["name"]}", {stream}, perUser = {"true" if r["per_user"] else "false"}, '
             f'keyColumns = listOf({keys}), mobileTable = {mobile}, store = {db}, '
-            f'applyRank = {r["rank"]}, schemaVersion = {r["schema"]}),'
+            f'applyRank = {r["rank"]}, schemaVersion = {r["schema"]}{window}),'
         )
 
     business_sha = hashlib.sha256(business_raw).hexdigest()
@@ -419,6 +454,7 @@ def main() -> None:
 //   schema/contract/out/sqlite/business.sql (body sha256 {body_sha(business)})
 //   schema/contract/out/sqlite/chat.sql (body sha256 {body_sha(chat)})
 //   DBSetup/v2/seed/000_sync_projections.sql
+//   {LOADERS_PATH} (history windows)
 // Decision L29: iOS and Android apply the same generated SQLite file (copied to
 // core/data/src/main/resources/com/avago/core/data/v2/).
 @file:Suppress("MaxLineLength", "LargeClass")
