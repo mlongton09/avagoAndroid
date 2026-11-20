@@ -32,6 +32,7 @@ dependencies {
     implementation(project(":core:data"))
     implementation(project(":core:design"))
     implementation(project(":core:ui"))
+    implementation(project(":core:permissions"))
 
     testImplementation(libs.junit5)
     testImplementation(platform(libs.junit.bom))

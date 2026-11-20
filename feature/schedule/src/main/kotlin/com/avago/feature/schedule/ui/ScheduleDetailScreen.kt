@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -55,14 +56,13 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.data.domain.PmOccurrence
 import com.avago.core.data.domain.PmOccurrenceState
-import com.avago.core.data.domain.PmTrigger
 import com.avago.core.data.domain.PmTriggerKind
 import com.avago.core.data.domain.WorkOrder
 import com.avago.feature.schedule.R
 import com.avago.feature.schedule.ui.components.PmStatusBadge
 import com.avago.feature.schedule.ui.components.pmDueText
+import com.avago.feature.schedule.ui.components.pmTriggerText
 import com.avago.feature.schedule.util.PmSchedule
-import com.avago.feature.schedule.util.RruleHelper
 import com.avago.feature.schedule.util.addOccurrenceToAndroidCalendar
 import com.avago.feature.schedule.viewmodel.ScheduleAction
 import com.avago.feature.schedule.viewmodel.ScheduleDetailUiState
@@ -79,10 +79,12 @@ fun ScheduleDetailScreen(
     onBack: () -> Unit,
     onLogService: (assetId: String) -> Unit,
     onOpenWorkOrder: (workOrderId: String) -> Unit,
+    onEditPlan: (planId: String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ScheduleDetailViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val canManagePlans by viewModel.canManagePlans.collectAsStateWithLifecycle()
     val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
     val event by viewModel.event.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -115,6 +117,14 @@ fun ScheduleDetailScreen(
                     }
                 },
                 title = { Text(stringResource(R.string.schedule_detail_title)) },
+                actions = {
+                    val plan = state.plan
+                    if (plan != null && canManagePlans) {
+                        IconButton(onClick = { onEditPlan(plan.id) }) {
+                            Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.pm_plan_edit))
+                        }
+                    }
+                },
             )
         },
     ) { innerPadding ->
@@ -182,7 +192,7 @@ private fun ScheduleDetailContent(
             DetailRow(stringResource(R.string.schedule_detail_next_due), pmDueText(occurrence) ?: stringResource(R.string.schedule_detail_not_set))
             DetailRow(stringResource(R.string.schedule_detail_cycle), occurrence.cycleNo.toString())
             plan?.triggers?.forEach { trigger ->
-                DetailRow(stringResource(R.string.schedule_detail_frequency), triggerText(trigger))
+                DetailRow(stringResource(R.string.schedule_detail_frequency), pmTriggerText(trigger))
             }
             DetailRow(
                 stringResource(R.string.schedule_detail_last_completed),
@@ -254,13 +264,6 @@ private fun ScheduleDetailContent(
         )
         null -> Unit
     }
-}
-
-@Composable
-private fun triggerText(t: PmTrigger): String = when (t.kind) {
-    PmTriggerKind.CALENDAR -> RruleHelper.describe(t.rrule)
-    PmTriggerKind.INTERVAL -> stringResource(R.string.schedule_trigger_interval, t.intervalValue ?: 0, t.intervalUnit.orEmpty())
-    PmTriggerKind.METER -> stringResource(R.string.schedule_trigger_meter, t.meterInterval?.let(PmSchedule::formatValue) ?: "?")
 }
 
 private fun formatDate(epochMs: Long): String =

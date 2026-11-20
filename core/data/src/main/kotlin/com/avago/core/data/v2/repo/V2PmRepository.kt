@@ -4,6 +4,7 @@ import com.avago.core.data.domain.PmFilter
 import com.avago.core.data.domain.PmOccurrence
 import com.avago.core.data.domain.PmOccurrenceState
 import com.avago.core.data.domain.PmPlan
+import com.avago.core.data.domain.PmPlanDraft
 import com.avago.core.data.domain.PmRepository
 import com.avago.core.data.domain.PmTrigger
 import com.avago.core.data.domain.PmTriggerKind
@@ -13,6 +14,7 @@ import com.avago.core.data.v2.V2Connection
 import com.avago.core.data.v2.V2OverlayMerge
 import com.avago.core.data.v2.V2Row
 import com.avago.core.data.v2.V2StoreAccess
+import com.avago.core.data.v2.V2Uuid
 import com.avago.core.data.v2.bool
 import com.avago.core.data.v2.intOrNull
 import com.avago.core.data.v2.longOrNull
@@ -20,14 +22,17 @@ import com.avago.core.data.v2.microsOrNull
 import com.avago.core.data.v2.str
 import com.avago.core.data.v2.strOrNull
 import com.avago.core.data.v2.commands.MaintCommands
+import com.avago.core.data.v2.commands.PmCommands
 import kotlinx.coroutines.flow.Flow
 import java.math.BigDecimal
+import java.time.LocalDate
+import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Preventive maintenance: plans and their triggers are server-managed (no mobile create/update commands in
- * catalog v1), occurrences are worked from the device (complete / skip / defer).
+ * Preventive maintenance: plans and their triggers (`maint.pm_plans.*`, `maint.pm_triggers.*`) and the
+ * occurrences worked from the device (complete / skip / defer).
  */
 @Singleton
 class V2PmRepository @Inject constructor(
@@ -57,6 +62,28 @@ class V2PmRepository @Inject constructor(
     override suspend fun defer(occurrenceId: String, dueAt: Long) {
         commands.submit(MaintCommands.deferOccurrence(open(occurrenceId), dueAt, System.currentTimeMillis()))
     }
+
+    override suspend fun createPlan(draft: PmPlanDraft): String {
+        val now = System.currentTimeMillis()
+        val id = V2Uuid.v7(now)
+        commands.submit(
+            PmCommands.createPlan(id, draft, { V2Uuid.v7(System.currentTimeMillis()) }, ZoneId.systemDefault().id, now, commands.currentUserId()),
+        )
+        return id
+    }
+
+    override suspend fun updatePlan(id: String, draft: PmPlanDraft) {
+        val stored = plan(id)
+        PmCommands.updatePlan(stored, draft, { V2Uuid.v7(System.currentTimeMillis()) }, System.currentTimeMillis(), commands.currentUserId())
+            .forEach { commands.submit(it) }
+    }
+
+    override suspend fun deletePlan(id: String) {
+        commands.submit(PmCommands.deletePlan(plan(id)))
+    }
+
+    private suspend fun plan(id: String): PmPlan =
+        store.read(null) { conn -> plans(conn).firstOrNull { it.id == id } } ?: throw RecordNotFoundException("pm plan", id)
 
     private suspend fun open(id: String): PmOccurrence {
         val stored = store.read(null) { conn -> occurrence(conn, id) } ?: throw RecordNotFoundException("pm occurrence", id)
@@ -102,6 +129,9 @@ class V2PmRepository @Inject constructor(
                     templateId = r.strOrNull("work_order_template_id"),
                     active = r.bool("active"),
                     endType = r.strOrNull("end_type") ?: "never",
+                    endCount = r.intOrNull("end_count"),
+                    endOn = r.strOrNull("end_on")?.let(LocalDate::parse),
+                    timezone = r.strOrNull("timezone"),
                     cycleNo = r.intOrNull("cycle_no") ?: 0,
                     lastCompletedAt = r.longOrNull("last_completed_at"),
                     triggers = triggers[id].orEmpty().sortedBy { it.intOrNull("priority") ?: 0 }.map(::trigger),
@@ -120,6 +150,12 @@ class V2PmRepository @Inject constructor(
             meterInterval = r.microsOrNull("meter_interval_micros"),
             nextDueAt = r.longOrNull("next_due_at"),
             nextDueValue = r.microsOrNull("next_due_value_micros"),
+            priority = r.intOrNull("priority") ?: 0,
+            assetId = r.strOrNull("asset_id"),
+            meterCondition = r.strOrNull("meter_condition"),
+            thresholdValue = r.microsOrNull("threshold_value_micros"),
+            generateOnce = r.bool("generate_once"),
+            version = r.longOrNull("version") ?: 0L,
         )
 
         private fun occurrence(r: V2Row, plan: PmPlan, assets: Map<String, String>): PmOccurrence {

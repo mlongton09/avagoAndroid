@@ -23,6 +23,9 @@ object Permissions {
     const val WO_COMPLETE = "work_orders.complete"
     const val WO_APPROVE = "work_orders.approve"
 
+    /** Create, change and delete PM plans and work-order recurrences. */
+    const val WO_MANAGE_RECURRING = "work_orders.manage_recurring"
+
     // Schedules
     const val SCHEDULES_VIEW = "schedules.view"
     const val SCHEDULES_CREATE = "schedules.create"

@@ -39,6 +39,32 @@ object RruleHelper {
         }
     }
 
+    /** The FREQ (null when not one the editor offers) and INTERVAL of [rrule]; a blank rule reads as monthly. */
+    data class Rule(val freq: CalendarFreq?, val interval: Int)
+
+    fun parse(rrule: String?): Rule {
+        if (rrule.isNullOrBlank()) return Rule(CalendarFreq.MONTHLY, 1)
+        val parts = parseRrule(rrule)
+        val freq = CalendarFreq.entries.firstOrNull { it.name == parts["FREQ"] }
+        return Rule(freq, parts["INTERVAL"]?.toIntOrNull() ?: 1)
+    }
+
+    /**
+     * [stored] with its FREQ and INTERVAL set to [freq] and [interval]. [stored] is returned unchanged
+     * when it already has them. Parts other than FREQ/INTERVAL are kept; BY* parts are dropped when the
+     * frequency changes, as they are specific to it.
+     */
+    fun compose(stored: String?, freq: CalendarFreq, interval: Int): String {
+        require(interval > 0) { "interval must be positive" }
+        if (stored != null && parse(stored) == Rule(freq, interval)) return stored
+        val old = stored?.takeIf { it.isNotBlank() }?.let(::parseRrule).orEmpty()
+        val sameFreq = old["FREQ"] == freq.name
+        val rest = old.filterKeys { it != "FREQ" && it != "INTERVAL" && (sameFreq || !it.startsWith("BY")) }
+        val parts = listOf("FREQ" to freq.name) + (if (interval > 1) listOf("INTERVAL" to interval.toString()) else emptyList()) + rest.toList()
+        val prefix = if (stored?.startsWith("RRULE:") == true) "RRULE:" else ""
+        return prefix + parts.joinToString(";") { (k, v) -> "$k=$v" }
+    }
+
     private fun parseRrule(rrule: String): Map<String, String> =
         rrule.removePrefix("RRULE:").split(";").mapNotNull { part ->
             val idx = part.indexOf('=')

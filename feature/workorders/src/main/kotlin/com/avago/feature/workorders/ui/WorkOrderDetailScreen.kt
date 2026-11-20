@@ -139,6 +139,7 @@ fun WorkOrderDetailScreen(
     val editTitle by viewModel.editTitle.collectAsStateWithLifecycle()
     val editDescription by viewModel.editDescription.collectAsStateWithLifecycle()
     val canEdit by viewModel.canEdit.collectAsStateWithLifecycle()
+    val canManageRecurring by viewModel.canManageRecurring.collectAsStateWithLifecycle()
     val canApprove by viewModel.canApprove.collectAsStateWithLifecycle()
     val canDelete by viewModel.canDelete.collectAsStateWithLifecycle()
     val mapPreview by viewModel.mapPreview.collectAsStateWithLifecycle()
@@ -584,7 +585,7 @@ fun WorkOrderDetailScreen(
                             label = stringResource(R.string.wo_detail_repeats_label),
                             value = recurrenceSummary(detail?.recurrence),
                             onClick = { showRepeatsSheet = true },
-                            enabled = canEdit,
+                            enabled = canManageRecurring,
                         )
                         currentWo.projectName?.let { project ->
                             LabeledRow(label = stringResource(R.string.wo_detail_project_label), value = project)

@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.EventRepeat
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -42,6 +43,7 @@ import com.avago.feature.schedule.viewmodel.ScheduleListViewModel
 fun ScheduleListScreen(
     onScheduleClick: (scheduleId: String) -> Unit,
     onOpenCalendar: () -> Unit,
+    onOpenPlans: (assetId: String?) -> Unit,
     modifier: Modifier = Modifier,
     assetId: String? = null,
     viewModel: ScheduleListViewModel = hiltViewModel(),
@@ -62,6 +64,9 @@ fun ScheduleListScreen(
             CenterAlignedTopAppBar(
                 title = { Text(stringResource(R.string.schedule_list_title)) },
                 actions = {
+                    IconButton(onClick = { onOpenPlans(assetId) }) {
+                        Icon(Icons.Default.EventRepeat, contentDescription = stringResource(R.string.pm_plans_title))
+                    }
                     IconButton(onClick = onOpenCalendar) {
                         Icon(Icons.Default.CalendarMonth, contentDescription = stringResource(R.string.schedule_calendar_title))
                     }

@@ -9,6 +9,8 @@ import com.avago.core.data.domain.PmPlan
 import com.avago.core.data.domain.PmRepository
 import com.avago.core.data.domain.WorkOrder
 import com.avago.core.data.domain.WorkOrderRepository
+import com.avago.core.permissions.Permissions
+import com.avago.core.permissions.PermissionsManager
 import com.avago.feature.schedule.util.PmSchedule
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -45,7 +47,11 @@ class ScheduleDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val pm: PmRepository,
     private val workOrders: WorkOrderRepository,
+    permissions: PermissionsManager,
 ) : ViewModel() {
+
+    val canManagePlans: StateFlow<Boolean> = permissions.observeCan(Permissions.WO_MANAGE_RECURRING)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), permissions.can(Permissions.WO_MANAGE_RECURRING))
 
     private val occurrenceId: String = requireNotNull(savedStateHandle["scheduleId"]) {
         "ScheduleDetailViewModel requires scheduleId in SavedStateHandle"

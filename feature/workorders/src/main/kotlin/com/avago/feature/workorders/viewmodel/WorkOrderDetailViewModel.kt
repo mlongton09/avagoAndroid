@@ -185,6 +185,9 @@ class WorkOrderDetailViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
+    val canManageRecurring: StateFlow<Boolean> = permissionsManager.observeCan(Permissions.WO_MANAGE_RECURRING)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), permissionsManager.can(Permissions.WO_MANAGE_RECURRING))
+
     val canApprove: StateFlow<Boolean> = permissionsManager.observeCan(Permissions.WO_APPROVE)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), permissionsManager.can(Permissions.WO_APPROVE))
 
