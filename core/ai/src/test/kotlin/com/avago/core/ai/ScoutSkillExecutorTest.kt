@@ -135,6 +135,21 @@ class ScoutSkillExecutorTest {
     }
 
     @Test
+    fun `work-order-recurrence sets the rule and its end`() = runTest {
+        val fields = mapOf("wo_id" to "wo-1", "rrule" to "FREQ=WEEKLY;BYDAY=MO", "end_type" to "date", "end_date" to "2026-03-02")
+        assertTrue(executor.executeIfPossible("work-order-recurrence", fields))
+        coVerify {
+            workOrders.setRecurrence(
+                "wo-1",
+                match { it.rrule == "FREQ=WEEKLY;BYDAY=MO" && it.endType == "date" && it.endOnEpochDay == java.time.LocalDate.of(2026, 3, 2).toEpochDay() },
+            )
+        }
+        assertFalse(executor.executeIfPossible("work-order-recurrence", mapOf("wo_id" to "wo-1", "rrule" to "FREQ=DAILY", "end_type" to "count")))
+        assertFalse(executor.executeIfPossible("work-order-recurrence", mapOf("wo_id" to "missing", "rrule" to "FREQ=DAILY")))
+        coVerify(exactly = 1) { workOrders.setRecurrence(any(), any()) }
+    }
+
+    @Test
     fun `asset-create creates the asset and sets its parent`() = runTest {
         coEvery { assets.create(any()) } returns "ast-new"
         val fields = mapOf("name" to "forklift", "year" to "2020", "parent_asset_id" to "p-1")
@@ -183,7 +198,7 @@ class ScoutSkillExecutorTest {
 
     @Test
     fun `unknown skills and missing accounts fall back`() = runTest {
-        assertFalse(executor.executeIfPossible("work-order-recurrence", mapOf("wo_id" to "wo-1", "rrule" to "FREQ=DAILY")))
+        assertFalse(executor.executeIfPossible("work-order-teleport", mapOf("wo_id" to "wo-1")))
         every { identity.getActiveAccountId() } returns null
         assertFalse(executor.executeIfPossible("work-order-create", mapOf("title" to "x")))
     }

@@ -11,6 +11,7 @@ import com.avago.core.data.domain.CostLineType
 import com.avago.core.data.domain.InventoryRepository
 import com.avago.core.data.domain.MovementKind
 import com.avago.core.data.domain.ProductDraft
+import com.avago.core.data.domain.RecurrenceRule
 import com.avago.core.data.domain.StockDocumentDraft
 import com.avago.core.data.domain.StockLineDraft
 import com.avago.core.data.domain.WorkOrderDraft
@@ -60,6 +61,7 @@ class ScoutSkillExecutor @Inject constructor(
                 "inventory-receive" -> executeStockMovement(fields, MovementKind.RECEIPT)
                 "inventory-use" -> executeStockMovement(fields, MovementKind.ISSUE)
                 "parts-catalog-add" -> executeAddPart(fields)
+                "work-order-recurrence" -> executeSetRecurrence(fields)
                 else -> false
             }
         } catch (e: Exception) {
@@ -172,6 +174,32 @@ class ScoutSkillExecutor @Inject constructor(
         return true
     }
 
+    /**
+     * Makes a work order recurring (`maint.work_orders.set_recurrence`): `rrule`, optional
+     * `end_type` never | count | date with `end_count` / `end_date`. Incomplete ends fall back to
+     * the form.
+     */
+    private suspend fun executeSetRecurrence(fields: Map<String, String?>): Boolean {
+        val woId = fields.text("wo_id") ?: return false
+        val rrule = fields.text("rrule") ?: return false
+        val endType = fields.text("end_type")?.lowercase() ?: "never"
+        val endCount = fields.text("end_count")?.toIntOrNull()
+        val endOn = parseDate(fields["end_date"])?.let { Math.floorDiv(it, MILLIS_PER_DAY) }
+        val complete = when (endType) {
+            "never" -> true
+            "count" -> endCount != null && endCount > 0
+            "date" -> endOn != null
+            else -> false
+        }
+        if (!complete || workOrders.workOrder(woId) == null) return false
+        workOrders.setRecurrence(
+            woId,
+            RecurrenceRule(rrule = rrule, endType = endType, endCount = endCount, endOnEpochDay = endOn, timezone = TimeZone.getDefault().id),
+        )
+        Timber.d("ScoutSkillExecutor: recurrence on $woId")
+        return true
+    }
+
     /** Receives or issues stock of `part_id` at its first stocked location. */
     private suspend fun executeStockMovement(fields: Map<String, String?>, kind: MovementKind): Boolean {
         val productId = fields.text("part_id") ?: return false
@@ -247,6 +275,7 @@ class ScoutSkillExecutor @Inject constructor(
     }
 
     private companion object {
+        const val MILLIS_PER_DAY = 86_400_000L
         val DATE_FORMATS = listOf("yyyy-MM-dd'T'HH:mm:ss'Z'", "yyyy-MM-dd")
         val ACTION_STATUS = mapOf(
             "complete" to WorkOrderStatus.COMPLETED,

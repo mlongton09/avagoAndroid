@@ -22,7 +22,10 @@ class V2UpdateDiff<C : V2WireEnum>(clearable: Collection<C>) {
     /** Overlay column → new value (null for cleared columns). */
     val overlay: MutableMap<String, Any?> = linkedMapOf()
 
-    val isEmpty: Boolean get() = overlay.isEmpty() && clear.isEmpty()
+    /** True when a field is sent in `set` (including fields without an overlay column). */
+    private var anySet = false
+
+    val isEmpty: Boolean get() = !anySet && overlay.isEmpty() && clear.isEmpty()
 
     fun text(wire: String, old: String?, new: String?, column: String? = wire): String? =
         field(wire, old.normalized(), new.normalized(), column) { it }
@@ -43,6 +46,7 @@ class V2UpdateDiff<C : V2WireEnum>(clearable: Collection<C>) {
             return null
         }
         if (column != null) overlay[column] = toColumn(new)
+        anySet = true
         return new
     }
 

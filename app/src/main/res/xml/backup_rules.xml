@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Auto Backup up to Android 11 (API 30); API 31+ uses data_extraction_rules.xml.
+    An <include> makes this an allow-list: only the plain user preferences are backed up, so
+    account stores, encrypted preferences and the accounts manifest are never part of a backup.
+-->
 <full-backup-content>
-    <exclude domain="file" path="accounts/" />
-    <exclude domain="sharedpref" path="encrypted_prefs.xml" />
-    <exclude domain="file" path="accounts_manifest.json" />
     <include domain="sharedpref" path="user_prefs.xml" />
 </full-backup-content>

@@ -433,13 +433,15 @@ object MaintCommands {
         return payload.toNewCommand(overlay = V2OverlayPatch.of(V2RowOp.upsert("activity_records", id, row)))
     }
 
-    /** Null when nothing changed. Kind, asset and work order are fixed after creation. */
     /**
-     * Diffs [draft] against [stored]. Changing `work_order_id` moves the activity and its cost lines
-     * ([costLineIds]) to the work order, or detaches them when cleared.
+     * Diffs [draft] against [stored]; null when nothing changed. The asset is fixed after creation.
+     * Changing the kind keeps the category label unless that changes too; changing `work_order_id`
+     * moves the activity and its cost lines ([costLineIds]) to the work order, or detaches them when
+     * cleared; clearing the meter value unlinks the activity's reading (it stays in the meter history).
      */
     fun updateActivity(stored: Activity, draft: ActivityDraft, nowMillis: Long, costLineIds: List<String> = emptyList()): V2NewCommand? {
         val d = V2UpdateDiff(MaintActivityRecordsUpdate.Clear.entries)
+        val kind = d.field("kind", stored.type, draft.type, toColumn = { it.wire })
         val category = d.text("category_label", stored.categoryLabel, draft.categoryLabel)
         val title = d.text("title", stored.title, draft.title)
         val workOrder = d.text("work_order_id", stored.workOrderId, draft.workOrderId)
@@ -457,7 +459,7 @@ object MaintCommands {
         d.check()
         if (d.isEmpty) return null
         val payload = MaintActivityRecordsUpdate(
-            id = stored.id, categoryLabel = category, title = title, workOrderId = workOrder, occurredAt = occurred?.let(Instant::ofEpochMilli),
+            id = stored.id, kind = kind?.let { k -> ActivityKind.entries.first { it.wire == k.wire } }, categoryLabel = category, title = title, workOrderId = workOrder, occurredAt = occurred?.let(Instant::ofEpochMilli),
             meterValue = meter, performedByUserId = performerId, performedByName = performer, providerName = provider,
             currency = currency, overtimeMultiplier = overtime, notes = notes, payload = payloadJson,
             attributes = attributes, clear = d.clear,

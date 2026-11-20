@@ -144,4 +144,17 @@ class MaintAndPurchasingCommandBuildersTest {
         val retitled = MaintCommands.updateActivity(activity, draftOf(activity).copy(title = "Pads"), 10_000, listOf("l1"))!!
         assertEquals(listOf("activity_records"), V2OverlayPatch.parse(retitled.overlayPatch!!)!!.ops.map { it.table })
     }
+
+    @Test
+    fun `an activity's kind changes and its meter value is set or cleared`() {
+        val rekinded = MaintCommands.updateActivity(activity, draftOf(activity).copy(type = ActivityType.SERVICE), 10_000)!!
+        assertEquals("service", rekinded.payload.jsonObject["set"]!!.jsonObject["kind"]!!.jsonPrimitive.content)
+        assertEquals("service", V2OverlayPatch.parse(rekinded.overlayPatch!!)!!.ops.single().set["kind"])
+
+        val metered = MaintCommands.updateActivity(activity, draftOf(activity).copy(meterValue = BigDecimal("120.5")), 10_000)
+        assertEquals("120.5", metered!!.payload.jsonObject["set"]!!.jsonObject["meter_value"]!!.jsonPrimitive.content, "a meter-only edit is sent")
+
+        val unmetered = MaintCommands.updateActivity(activity.copy(meterValue = BigDecimal.TEN), draftOf(activity), 10_000)!!
+        assertEquals(listOf("meter_value"), unmetered.payload.jsonObject["clear"]!!.jsonArray.map { it.jsonPrimitive.content })
+    }
 }

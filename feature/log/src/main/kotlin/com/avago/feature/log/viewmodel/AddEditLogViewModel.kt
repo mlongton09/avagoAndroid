@@ -1504,7 +1504,12 @@ class AddEditLogViewModel @Inject constructor(
                     assetId = current.assetId,
                     // An existing entry's picker starts at its stored work order; "none" detaches it.
                     workOrderId = if (existing != null) current.linkedWoId else current.linkedWoId ?: current.workOrderId,
-                    type = activityTypeOf(current.logType, current.category),
+                    // A stored kind the form cannot express (handover, other...) is kept until the
+                    // user changes the log type or category.
+                    type = existing
+                        ?.takeIf { logTypeOf(it.type) == current.logType && it.categoryLabel == current.category }
+                        ?.type
+                        ?: activityTypeOf(current.logType, current.category),
                     categoryLabel = current.category,
                     title = current.title.trim(),
                     occurredAt = current.entryDate,
