@@ -22,6 +22,7 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.CarRental
 import androidx.compose.material.icons.filled.Inventory2
@@ -123,6 +124,7 @@ private fun titleForRoute(route: String?): Int = when {
     route.startsWith("workorders")               -> R.string.nav_work_orders
     route.startsWith("assets")                   -> R.string.nav_assets
     route == "gallery"                           -> R.string.nav_gallery
+    route == "docs/list"                         -> R.string.nav_documents
     route.startsWith("inventory")                -> R.string.nav_inventory
     route == "reports/cost"                      -> R.string.nav_cost_report
     route == "reports"                           -> R.string.nav_reports
@@ -206,6 +208,8 @@ fun MainScaffold(
     val isAssetLogDestination = currentRoute?.startsWith("log/list") == true
     val isLogAddEditDestination = currentRoute?.startsWith("log/add_edit") == true
     val isLogDetailDestination = currentRoute?.startsWith("log/detail") == true
+    // Document capture and detail draw their own bar with back navigation; the list is a drawer tab.
+    val isDocDetailDestination = currentRoute?.startsWith("docs/") == true && currentRoute != "docs/list"
     // Rentals screens (feature/rentals) render their own top bars, except the rentals home: as
     // a top-level tab it keeps the shared bar so the side menu stays one tap away.
     val isRentalsDestination = currentRoute?.startsWith("rentals/") == true &&
@@ -252,7 +256,7 @@ fun MainScaffold(
         Scaffold(
             floatingActionButtonPosition = FabPosition.Start,
             topBar = {
-                if (!isAuthDestination && !isAssetLogDestination && !isChatDetailDestination && !isLogAddEditDestination && !isLogDetailDestination && !isWorkOrderListDestination && !isWorkOrderLogDestination && !isRentalsDestination && !isRentalOpsDestination) {
+                if (!isAuthDestination && !isAssetLogDestination && !isChatDetailDestination && !isLogAddEditDestination && !isLogDetailDestination && !isDocDetailDestination && !isWorkOrderListDestination && !isWorkOrderLogDestination && !isRentalsDestination && !isRentalOpsDestination) {
                     CenterAlignedTopAppBar(
                         title = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -660,6 +664,16 @@ fun SideMenuContent(
                 selected = currentRoute == "gallery",
                 icon = { Icon(Icons.Default.PhotoLibrary, contentDescription = null) },
                 onClick = { onNavigate("gallery") },
+                modifier = Modifier.padding(horizontal = 8.dp),
+            )
+        }
+
+        if (canNavigate("documents.view")) {
+            NavigationDrawerItem(
+                label = { Text(stringResource(R.string.nav_documents)) },
+                selected = currentRoute == "docs/list",
+                icon = { Icon(Icons.Default.Description, contentDescription = null) },
+                onClick = { onNavigate("docs/list") },
                 modifier = Modifier.padding(horizontal = 8.dp),
             )
         }

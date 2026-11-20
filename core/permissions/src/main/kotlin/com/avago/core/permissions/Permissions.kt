@@ -49,9 +49,10 @@ object Permissions {
     const val INVENTORY_PURCHASE_ORDERS_APPROVE = "inventory.purchase_orders.approve"
 
     // Documents
-    const val DOCS_VIEW = "docs.view"
-    const val DOCS_CREATE = "docs.create"
-    const val DOCS_DELETE = "docs.delete"
+    const val DOCUMENTS_VIEW = "documents.view"
+    const val DOCUMENTS_CREATE = "documents.create"
+    const val DOCUMENTS_EDIT = "documents.edit"
+    const val DOCUMENTS_DELETE = "documents.delete"
 
     // Reports
     const val REPORTS_VIEW = "reports.view"

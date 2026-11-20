@@ -116,6 +116,7 @@ fun NavGraphBuilder.assetsNavGraph(
     onOpenAssetRentals: (assetId: String) -> Unit = {},
     /** Document capture for an asset, owned by feature/docs (`docs/add/{assetId}`). */
     onNavigateToAddDocument: (assetId: String) -> Unit = {},
+    onOpenDocument: (documentId: String) -> Unit = {},
     /** Optional header above the asset list (e.g. the rentals fleet summary card). */
     listHeader: (@Composable () -> Unit)? = null,
 ) {
@@ -193,6 +194,7 @@ fun NavGraphBuilder.assetsNavGraph(
                     onOpenAssetRentals(assetId)
                 },
                 onAddDocument = { onNavigateToAddDocument(assetId) },
+                onOpenDocument = onOpenDocument,
                 rentalsEnabled = rentalsEnabled,
                 onOpenAssetChat = {
                     // No asset->thread mapping yet on Android; route to the chat list.

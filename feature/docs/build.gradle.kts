@@ -37,4 +37,5 @@ dependencies {
     implementation(project(":core:network"))
     implementation(project(":core:docscan"))
     implementation(project(":core:ocr"))
+    implementation(project(":core:permissions"))
 }

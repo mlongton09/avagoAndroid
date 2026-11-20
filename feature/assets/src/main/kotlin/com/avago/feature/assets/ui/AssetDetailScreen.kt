@@ -116,6 +116,8 @@ import com.avago.core.data.domain.Asset
 import com.avago.core.data.domain.AssetMeter
 import com.avago.core.data.domain.Attachment
 import com.avago.core.data.domain.CustomFieldEntity
+import com.avago.core.data.domain.Document
+import com.avago.core.data.domain.DocumentKind
 import com.avago.core.data.domain.Location
 import com.avago.core.ui.CategoryBadge
 import com.avago.core.ui.CategoryItem
@@ -135,6 +137,8 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import java.util.Date
 import java.util.Locale
 
@@ -161,6 +165,7 @@ fun AssetDetailScreen(
     onOpenVehicleDetails: (() -> Unit)? = null,
     onOpenRecalls: (() -> Unit)? = null,
     onAddDocument: (() -> Unit)? = null,
+    onOpenDocument: (documentId: String) -> Unit = {},
     /** Slot rendered at the top of the Log tab (e.g. the open-defects panel from :feature:log). */
     logTabHeader: (@Composable () -> Unit)? = null,
     viewModel: AssetDetailViewModel = hiltViewModel(),
@@ -175,6 +180,8 @@ fun AssetDetailScreen(
     val categoryFilter by viewModel.categoryFilter.collectAsStateWithLifecycle()
     val photos by viewModel.photos.collectAsStateWithLifecycle()
     val documents by viewModel.documents.collectAsStateWithLifecycle()
+    val otherFiles by viewModel.otherFiles.collectAsStateWithLifecycle()
+    val canAddDocument by viewModel.canAddDocument.collectAsStateWithLifecycle()
     val currencyCode by viewModel.currencyCode.collectAsStateWithLifecycle()
     val latestMeterReading by viewModel.latestMeterReading.collectAsStateWithLifecycle()
     val meter by viewModel.meter.collectAsStateWithLifecycle()
@@ -507,7 +514,12 @@ fun AssetDetailScreen(
                         onCloneLogEntry = { viewModel.cloneLogEntry(it) },
                         header = logTabHeader,
                     )
-                    1 -> DocumentsTab(documents = documents, onAddDocument = onAddDocument)
+                    1 -> DocumentsTab(
+                        documents = documents,
+                        otherFiles = otherFiles,
+                        onAddDocument = onAddDocument?.takeIf { canAddDocument },
+                        onOpenDocument = onOpenDocument,
+                    )
                     2 -> WorkOrdersTab(onOpenWorkOrders = onOpenWorkOrders)
                 }
             }
@@ -756,7 +768,12 @@ private fun InfoTab(
 }
 
 @Composable
-private fun DocumentsTab(documents: List<Attachment>, onAddDocument: (() -> Unit)?) {
+private fun DocumentsTab(
+    documents: List<Document>,
+    otherFiles: List<Attachment>,
+    onAddDocument: (() -> Unit)?,
+    onOpenDocument: (String) -> Unit,
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
@@ -770,39 +787,58 @@ private fun DocumentsTab(documents: List<Attachment>, onAddDocument: (() -> Unit
                 }
             }
         }
-        if (documents.isEmpty()) {
+        if (documents.isEmpty() && otherFiles.isEmpty()) {
             item {
                 EmptyState(
-                    message = "No documents yet.",
+                    message = stringResource(R.string.asset_detail_documents_empty),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(200.dp),
                 )
             }
-        } else {
-            items(documents, key = { it.id }) { doc ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(doc.file?.name ?: stringResource(R.string.asset_detail_document_untitled), style = MaterialTheme.typography.bodyMedium)
-                        doc.file?.mimeType?.takeIf { it.isNotBlank() }?.let { type ->
-                            Text(
-                                text = type.substringAfter('/').uppercase(Locale.getDefault()),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-                HorizontalDivider()
+        }
+        items(documents, key = { it.id }) { doc ->
+            val details = listOfNotNull(
+                stringResource(documentKindLabel(doc.kind)),
+                doc.issuedOn?.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)),
+                doc.issuerName,
+            ).joinToString(" \u00b7 ")
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenDocument(doc.id) }
+                    .padding(vertical = 12.dp),
+            ) {
+                Text(
+                    doc.displayTitle ?: stringResource(R.string.asset_detail_document_untitled),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(details, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            HorizontalDivider()
+        }
+        items(otherFiles, key = { it.id }) { file ->
+            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+                Text(file.file?.name ?: stringResource(R.string.asset_detail_document_untitled), style = MaterialTheme.typography.bodyMedium)
+                file.file?.mimeType?.takeIf { it.isNotBlank() }?.let { type ->
+                    Text(
+                        text = type.substringAfter('/').uppercase(Locale.getDefault()),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            HorizontalDivider()
         }
     }
+}
+
+private fun documentKindLabel(kind: DocumentKind): Int = when (kind) {
+    DocumentKind.RECEIPT -> R.string.asset_document_kind_receipt
+    DocumentKind.INVOICE -> R.string.asset_document_kind_invoice
+    DocumentKind.WARRANTY -> R.string.asset_document_kind_warranty
+    DocumentKind.HOWTO -> R.string.asset_document_kind_howto
+    DocumentKind.OTHER -> R.string.asset_document_kind_other
 }
 
 @Composable

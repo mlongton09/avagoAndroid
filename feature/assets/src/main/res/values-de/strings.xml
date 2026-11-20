@@ -238,4 +238,10 @@
     <string name="asset_qr_no_scans">Noch keine Scans.</string>
     <string name="fre_sample_load">Mit Beispieldaten ausprobieren</string>
     <string name="fre_sample_loading">Beispieldaten werden hinzugef?gt?</string>
+    <string name="asset_detail_documents_empty">Noch keine Dokumente.</string>
+    <string name="asset_document_kind_receipt">Beleg</string>
+    <string name="asset_document_kind_invoice">Rechnung</string>
+    <string name="asset_document_kind_warranty">Garantie</string>
+    <string name="asset_document_kind_howto">Anleitung</string>
+    <string name="asset_document_kind_other">Sonstiges</string>
 </resources>

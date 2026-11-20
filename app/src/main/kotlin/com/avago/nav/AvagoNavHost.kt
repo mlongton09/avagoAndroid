@@ -155,6 +155,7 @@ fun AvagoNavHost(
                     )
                 },
                 onNavigateToAddDocument = { assetId -> navController.navigate(DocsRoute.add(assetId)) },
+            onOpenDocument = { documentId -> navController.navigate(DocsRoute.detail(documentId)) },
                 onOpenAssetRentals = { assetId ->
                     navController.navigate(RentalsRoute.asset(assetId))
                 },

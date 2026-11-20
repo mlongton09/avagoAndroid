@@ -19,6 +19,9 @@ import com.avago.core.data.domain.AssetMeter
 import com.avago.core.data.domain.AssetRepository
 import com.avago.core.data.domain.Attachment
 import com.avago.core.data.domain.AttachmentTarget
+import com.avago.core.data.domain.Document
+import com.avago.core.data.domain.DocumentOwner
+import com.avago.core.data.domain.DocumentRepository
 import com.avago.core.data.domain.Location
 import com.avago.core.data.domain.LocationRepository
 import com.avago.core.data.repository.UserPreferencesRepository
@@ -84,6 +87,7 @@ class AssetDetailViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
     private val assets: AssetRepository,
     private val activities: ActivityRepository,
+    documentRepository: DocumentRepository,
     locations: LocationRepository,
     userPrefsRepository: UserPreferencesRepository,
     permissionsManager: PermissionsManager,
@@ -186,10 +190,18 @@ class AssetDetailViewModel @Inject constructor(
         .map { list -> list.filter { it.file?.isImage == true } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** Non-image attachments (manuals, invoices, PDFs). */
-    val documents: StateFlow<List<Attachment>> = attachments
-        .map { list -> list.filter { it.file?.isImage != true } }
+    /** The asset's documents (receipts, invoices, warranties, manuals), newest first. */
+    val documents: StateFlow<List<Document>> = documentRepository.observeDocuments(DocumentOwner.Asset(assetId))
+        .catch { e -> Timber.e(e, "[AssetDetailViewModel] document flow error"); emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Non-image files attached to the asset directly, outside any document. */
+    val otherFiles: StateFlow<List<Attachment>> = attachments
+        .map { list -> list.filter { it.file?.isImage != true && it.documentId == null } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val canAddDocument: StateFlow<Boolean> = permissionsManager.observeCan(Permissions.DOCUMENTS_CREATE)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), permissionsManager.can(Permissions.DOCUMENTS_CREATE))
 
     fun onAddMeterReadingTapped() {
         _showMeterDialog.value = true

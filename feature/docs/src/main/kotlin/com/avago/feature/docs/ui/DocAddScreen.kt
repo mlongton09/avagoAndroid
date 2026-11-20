@@ -170,47 +170,6 @@ fun DocAddScreen(
     }
 }
 
-private val dateFormatter: DateTimeFormatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-
-/** Material date pickers work in UTC midnight millis. */
-private fun LocalDate.toPickerMillis(): Long = atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
-
-private fun Long.fromPickerMillis(): LocalDate = Instant.ofEpochMilli(this).atZone(ZoneOffset.UTC).toLocalDate()
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DocDatePicker(initial: LocalDate?, onPicked: (LocalDate?) -> Unit, onDismiss: () -> Unit) {
-    val dpState = rememberDatePickerState(initialSelectedDateMillis = initial?.toPickerMillis())
-    DatePickerDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(onClick = { onPicked(dpState.selectedDateMillis?.fromPickerMillis()) }) {
-                Text(stringResource(R.string.doc_add_ok))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.doc_add_cancel)) }
-        },
-    ) { DatePicker(state = dpState) }
-}
-
-@Composable
-private fun DateField(label: String, value: LocalDate?, onClick: () -> Unit) {
-    OutlinedTextField(
-        value = value?.format(dateFormatter).orEmpty(),
-        onValueChange = {},
-        readOnly = true,
-        label = { Text(label) },
-        placeholder = { Text(stringResource(R.string.doc_add_pick_date)) },
-        trailingIcon = {
-            IconButton(onClick = onClick) {
-                Icon(Icons.Default.CalendarToday, contentDescription = stringResource(R.string.doc_add_pick_date))
-            }
-        },
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-    )
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DocFormContent(
@@ -219,7 +178,6 @@ private fun DocFormContent(
 ) {
     var title by rememberSaveable { mutableStateOf("") }
     var titleError by remember { mutableStateOf(false) }
-    var kindExpanded by remember { mutableStateOf(false) }
     var kind by rememberSaveable { mutableStateOf(form.kind) }
     var issuer by rememberSaveable { mutableStateOf(form.issuerName) }
     var amount by rememberSaveable { mutableStateOf(form.amount) }
@@ -257,33 +215,11 @@ private fun DocFormContent(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        val selectedType = DocTypes.forKind(kind)
-        ExposedDropdownMenuBox(
-            expanded = kindExpanded,
-            onExpandedChange = { kindExpanded = !kindExpanded },
-        ) {
-            OutlinedTextField(
-                value = stringResource(selectedType.labelResId),
-                onValueChange = {},
-                readOnly = true,
-                label = { Text(stringResource(R.string.doc_add_field_type)) },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = kindExpanded) },
-                modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
-            )
-            ExposedDropdownMenu(expanded = kindExpanded, onDismissRequest = { kindExpanded = false }) {
-                DocTypes.all.forEach { typeItem ->
-                    DropdownMenuItem(
-                        text = { Text(stringResource(typeItem.labelResId)) },
-                        leadingIcon = { Icon(typeItem.icon, contentDescription = null) },
-                        onClick = { kind = typeItem.kind; kindExpanded = false },
-                    )
-                }
-            }
-        }
+        KindField(kind) { kind = it }
 
         HorizontalDivider()
 
-        DateField(stringResource(R.string.doc_add_field_date), issuedOn) { picking = PICK_ISSUED }
+        DateField(stringResource(R.string.doc_add_field_date), issuedOn, onClear = { issuedOnDay = null }) { picking = PICK_ISSUED }
 
         OutlinedTextField(
             value = issuer,
@@ -316,7 +252,7 @@ private fun DocFormContent(
             )
         }
 
-        DateField(stringResource(R.string.doc_add_field_warranty_end), warrantyEndsOn) { picking = PICK_WARRANTY }
+        DateField(stringResource(R.string.doc_add_field_warranty_end), warrantyEndsOn, onClear = { warrantyDay = null }) { picking = PICK_WARRANTY }
 
         HorizontalDivider()
 

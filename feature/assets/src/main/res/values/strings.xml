@@ -430,4 +430,10 @@
     <string name="asset_qr_no_scans">No scans yet.</string>
     <string name="fre_sample_load">Explore with sample data</string>
     <string name="fre_sample_loading">Adding sample data?</string>
+    <string name="asset_detail_documents_empty">No documents yet.</string>
+    <string name="asset_document_kind_receipt">Receipt</string>
+    <string name="asset_document_kind_invoice">Invoice</string>
+    <string name="asset_document_kind_warranty">Warranty</string>
+    <string name="asset_document_kind_howto">How-to</string>
+    <string name="asset_document_kind_other">Other</string>
 </resources>
