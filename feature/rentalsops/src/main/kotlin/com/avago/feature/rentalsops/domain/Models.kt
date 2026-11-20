@@ -1,5 +1,12 @@
 package com.avago.feature.rentalsops.domain
 
+import com.avago.core.data.domain.RentalDeliveryTask
+import com.avago.core.data.domain.RentalOrder
+import com.avago.core.data.domain.RentalOrderLine
+import com.avago.core.data.domain.RentalOrderStatus
+import com.avago.core.data.domain.RentalTransfer
+import com.avago.core.data.rental.ClassAvailability
+import com.avago.core.data.rental.LocalFleet
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -8,12 +15,6 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
-import com.avago.core.data.domain.RentalDeliveryTask
-import com.avago.core.data.domain.RentalOrder
-import com.avago.core.data.domain.RentalOrderLine
-import com.avago.core.data.domain.RentalOrderStatus
-import com.avago.core.data.domain.RentalTransfer
-import com.avago.core.data.rental.LocalFleet
 import java.time.Instant
 import java.time.OffsetDateTime
 
@@ -167,16 +168,26 @@ data class UnassignedLine(
     val start: Instant?,
     val end: Instant?,
     val holdExpiresAt: Instant?,
+    /** Free units of the class at the branch over the line's window (synced allocations); null without a window. */
+    val classFreeUnits: Int? = null,
 ) {
     val title: String? get() = className ?: description
 
     companion object {
         /** Open class-booked rental lines (no unit yet) of orders that still hold stock. */
-        fun of(orders: List<RentalOrder>, lines: List<RentalOrderLine>, classes: Map<String, String>): List<UnassignedLine> {
+        fun of(
+            orders: List<RentalOrder>,
+            lines: List<RentalOrderLine>,
+            classes: Map<String, String>,
+            availability: ClassAvailability.Facts = ClassAvailability.Facts.EMPTY,
+            now: Instant = Instant.now(),
+        ): List<UnassignedLine> {
             val live = orders.filter { it.status in RentalOrderStatus.ACTIVE }.associateBy { it.id }
             return lines.filter { it.kind == "rental" && it.classId != null && it.assetId == null && it.status == "open" }
                 .mapNotNull { l ->
                     val o = live[l.orderId] ?: return@mapNotNull null
+                    val start = l.startAt ?: o.startAt
+                    val end = l.endAt ?: o.endAt
                     UnassignedLine(
                         lineId = l.id,
                         lineNo = l.lineNo,
@@ -189,9 +200,14 @@ data class UnassignedLine(
                         description = l.description.ifBlank { null },
                         qty = l.qty.toInt(),
                         locationId = o.locationId,
-                        start = l.startAt ?: o.startAt,
-                        end = l.endAt ?: o.endAt,
+                        start = start,
+                        end = end,
                         holdExpiresAt = o.holdExpiresAt,
+                        classFreeUnits = if (start != null && end != null) {
+                            ClassAvailability.freeUnits(availability, l.classId!!, o.locationId, start, end, now)
+                        } else {
+                            null
+                        },
                     )
                 }
         }

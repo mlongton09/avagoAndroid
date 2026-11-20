@@ -220,4 +220,6 @@
     <string name="rentalops_statement_emailed_default">Kontoutdrag skickat</string>
     <string name="rentalops_statement_no_recipient">Kunden saknar faktureringsadress. Ange en mottagare.</string>
     <string name="rentalops_statement_recipient">Mottagarens e-post (valfritt)</string>
+    <string name="rentalops_class_free">Lediga enheter: %1$d</string>
+    <string name="rentalops_class_full">Inga lediga enheter under perioden</string>
 </resources>

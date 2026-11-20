@@ -220,4 +220,6 @@
     <string name="rentalops_statement_emailed_default">Extrato enviado</string>
     <string name="rentalops_statement_no_recipient">Este cliente não tem e-mail de cobrança. Informe um destinatário.</string>
     <string name="rentalops_statement_recipient">E-mail do destinatário (opcional)</string>
+    <string name="rentalops_class_free">Unidades livres: %1$d</string>
+    <string name="rentalops_class_full">Nenhuma unidade livre neste período</string>
 </resources>

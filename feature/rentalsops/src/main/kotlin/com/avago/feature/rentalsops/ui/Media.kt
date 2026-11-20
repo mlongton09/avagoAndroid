@@ -13,12 +13,14 @@ import android.graphics.Path
 import android.location.Location
 import android.media.ExifInterface
 import androidx.core.content.ContextCompat
+import com.avago.core.data.domain.StopFix
 import com.google.android.gms.location.LocationServices
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
+import java.math.BigDecimal
 import kotlin.coroutines.resume
 
 internal object Media {
@@ -106,5 +108,13 @@ internal object LastLocation {
                 }.onFailure { if (cont.isActive) cont.resume(null) }
             }
         }
+    }
+    /** The last fix as a stop position with its accuracy radius, or null without one. */
+    suspend fun fix(ctx: Context): StopFix? = get(ctx)?.let { l ->
+        StopFix(
+            lat = BigDecimal.valueOf(l.latitude),
+            lng = BigDecimal.valueOf(l.longitude),
+            accuracyM = if (l.hasAccuracy()) BigDecimal.valueOf(l.accuracy.toDouble()) else null,
+        )
     }
 }

@@ -6,7 +6,10 @@ import com.avago.core.data.domain.RecordNotFoundException
 import com.avago.core.data.domain.RecordSyncState
 import com.avago.core.data.domain.RentalDeliveryTask
 import com.avago.core.data.domain.RentalDispatchRepository
+import com.avago.core.data.domain.RentalTaskAsset
 import com.avago.core.data.domain.RentalTransfer
+import com.avago.core.data.domain.RouteCheckInStatus
+import com.avago.core.data.domain.StopFix
 import com.avago.core.data.v2.V2CommandService
 import com.avago.core.data.v2.V2Connection
 import com.avago.core.data.v2.V2FileStager
@@ -24,7 +27,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
-import java.math.BigDecimal
 import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -49,42 +51,38 @@ class V2RentalDispatchRepository @Inject constructor(
     override fun observeTransfers(): Flow<List<RentalTransfer>> =
         store.observe(TRANSFER_TABLES, emptyList()) { conn -> transfers(conn, null) }
 
+    override fun observeTaskAssets(taskId: String): Flow<List<RentalTaskAsset>> =
+        store.observe(setOf("rental_delivery_task_assets", "assets"), emptyList()) { conn ->
+            val ids = V2OverlayMerge.query(conn, "rental_delivery_task_assets", "task_id = ?", listOf(taskId)) { it["task_id"] == taskId }
+                .sortedWith(compareBy<V2Row> { it.longOrNull("created_at") ?: 0L }.thenBy { it.str("asset_id") })
+                .map { it.str("asset_id") }
+                .distinct()
+            if (ids.isEmpty()) return@observe emptyList()
+            val names = V2OverlayMerge.query(conn, "assets").filter { it["id"] in ids }.associate { it.str("id") to it.strOrNull("name") }
+            ids.map { RentalTaskAsset(it, names[it]) }
+        }
+
     override suspend fun assign(taskId: String, driverUserId: String?) {
         commands.submit(RentalCommands.assignTask(task(taskId), driverUserId, System.currentTimeMillis()))
     }
 
-    override suspend fun start(taskId: String, at: Instant, lat: BigDecimal?, lng: BigDecimal?) {
-        task(taskId)
-        commands.submit(RentalCommands.startTask(taskId, at, lat, lng, System.currentTimeMillis()))
-    }
-
-    override suspend fun arrive(taskId: String, at: Instant, lat: BigDecimal?, lng: BigDecimal?) {
-        task(taskId)
-        commands.submit(RentalCommands.arriveTask(taskId, at, lat, lng, System.currentTimeMillis()))
-    }
-
-    override suspend fun complete(
+    override suspend fun checkIn(
         taskId: String,
+        status: RouteCheckInStatus,
         at: Instant,
+        fix: StopFix?,
+        reason: String?,
+        notes: String?,
         photos: List<LocalFileRef>,
         signaturePng: ByteArray?,
         signedName: String?,
-        notes: String?,
-        lat: BigDecimal?,
-        lng: BigDecimal?,
     ) {
         task(taskId)
         val staged = photos.map { stager.stage(Uri.parse(it.uri), it.fallbackMediaType) }
         val signature = signaturePng?.let { stager.stage(it, "image/png", "proof-signature.png") }
         val now = System.currentTimeMillis()
-        commands.submit(
-            RentalCommands.completeTask(taskId, at, staged, signature, signedName, notes, lat, lng, now, commands.currentUserId()),
-        )
-    }
-
-    override suspend fun fail(taskId: String, reason: String, at: Instant, notes: String?, lat: BigDecimal?, lng: BigDecimal?) {
-        task(taskId)
-        commands.submit(RentalCommands.failTask(taskId, reason, at, notes, lat, lng, System.currentTimeMillis()))
+        val proof = RentalCommands.StopProof(reason, notes, staged, signature, signedName)
+        commands.submit(RentalCommands.checkIn(taskId, V2Uuid.v7(now), status, at, fix, proof, now, commands.currentUserId()))
     }
 
     override suspend fun cancel(taskId: String, reason: String?) {

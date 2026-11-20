@@ -28,6 +28,7 @@ import com.avago.core.data.domain.RentalRates
 import com.avago.core.data.domain.RentalRepository
 import com.avago.core.data.domain.RentalSignature
 import com.avago.core.data.domain.SwapDraft
+import com.avago.core.data.rental.ClassAvailability
 import com.avago.core.data.rental.FleetFacts
 import com.avago.core.data.rental.LocalFleet
 import com.avago.core.data.v2.V2CommandQueue
@@ -110,6 +111,11 @@ class V2RentalRepository @Inject constructor(
                 .filter { r -> (orderId == null || r["order_id"] == orderId) && (assetId == null || r["asset_id"] == assetId) }
                 .map(::allocation)
                 .sortedWith(compareBy<RentalAllocation> { it.startAt }.thenBy { it.id })
+        }
+
+    override fun observeClassAvailability(): Flow<ClassAvailability.Facts> =
+        store.observe(setOf("assets", "resource_allocations", "rental_orders"), ClassAvailability.Facts.EMPTY) { conn ->
+            classAvailability(conn)
         }
 
     override fun observeHandovers(orderId: String?, assetId: String?): Flow<List<RentalHandover>> =
@@ -782,6 +788,33 @@ class V2RentalRepository @Inject constructor(
                     createdAt = r.longOrNull("created_at") ?: 0L,
                 )
             }
+        }
+
+        /** Units, unit allocations and class holds as `class_free_sql` reads them. */
+        fun classAvailability(conn: V2Connection): ClassAvailability.Facts {
+            val units = V2OverlayMerge.query(conn, "assets", "rentable = 1 AND rental_class_id IS NOT NULL") {
+                it["rentable"] == 1L && it["rental_class_id"] != null
+            }.map { ClassAvailability.Unit(it.str("id"), it.str("rental_class_id"), it.strOrNull("location_id")) }
+            val allocations = V2OverlayMerge.query(conn, "resource_allocations", "active = 1") { it["active"] == 1L }
+            val busy = allocations.filter { it["resource_kind"] == "unit" && it["blocking"] != 0L && it["asset_id"] != null }.map {
+                ClassAvailability.UnitBusy(it.str("asset_id"), it.instant("during_start") ?: Instant.EPOCH, it.instant("during_end"))
+            }
+            val classRows = allocations.filter { it["resource_kind"] == "class" && it["class_id"] != null }
+            val orderIds = classRows.mapNotNull { it.strOrNull("order_id") }.toSet()
+            val statuses = if (orderIds.isEmpty()) emptyMap() else V2OverlayMerge.query(conn, "rental_orders")
+                .filter { it["id"] in orderIds }.associate { it.str("id") to it.strOrNull("status") }
+            val holds = classRows.map {
+                ClassAvailability.ClassHold(
+                    classId = it.str("class_id"),
+                    locationId = it.strOrNull("location_id"),
+                    qty = it.microsOrNull("qty_micros") ?: BigDecimal.ONE,
+                    start = it.instant("during_start") ?: Instant.EPOCH,
+                    end = it.instant("during_end"),
+                    expiresAt = it.instant("expires_at"),
+                    orderStatus = it.strOrNull("order_id")?.let(statuses::get),
+                )
+            }
+            return ClassAvailability.Facts(units, busy, holds)
         }
 
         /** The stored facts of the fleet rule (fleet.rs `load_units` / `load_allocations`). */

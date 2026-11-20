@@ -220,4 +220,6 @@
     <string name="rentalops_statement_emailed_default">Estratto conto inviato</string>
     <string name="rentalops_statement_no_recipient">Questo cliente non ha un\'e-mail di fatturazione. Inserisci un destinatario.</string>
     <string name="rentalops_statement_recipient">E-mail destinatario (facoltativa)</string>
+    <string name="rentalops_class_free">Unità libere: %1$d</string>
+    <string name="rentalops_class_full">Nessuna unità libera in questo periodo</string>
 </resources>

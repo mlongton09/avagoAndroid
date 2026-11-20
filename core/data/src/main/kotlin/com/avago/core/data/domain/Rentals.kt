@@ -1,5 +1,6 @@
 package com.avago.core.data.domain
 
+import com.avago.core.data.rental.ClassAvailability
 import com.avago.core.data.rental.LocalFleet
 import kotlinx.coroutines.flow.Flow
 import java.math.BigDecimal
@@ -506,6 +507,9 @@ interface RentalRepository {
 
     fun observeClasses(): Flow<List<RentalClass>>
 
+    /** Rentable class units, blocking unit allocations and class holds for [ClassAvailability.freeUnits]. */
+    fun observeClassAvailability(): Flow<ClassAvailability.Facts>
+
     /** Fleet inputs (units, active allocations, due times, readiness) for [LocalFleet.compute]. */
     fun observeFleet(): Flow<LocalFleet.Inputs>
 
@@ -591,24 +595,28 @@ interface RentalDispatchRepository {
 
     fun observeTransfers(): Flow<List<RentalTransfer>>
 
+    /** Units loaded for the stop (`rental_delivery_task_assets`); empty when none were listed. */
+    fun observeTaskAssets(taskId: String): Flow<List<RentalTaskAsset>>
+
     suspend fun assign(taskId: String, driverUserId: String?)
 
-    suspend fun start(taskId: String, at: Instant, lat: BigDecimal?, lng: BigDecimal?)
-
-    suspend fun arrive(taskId: String, at: Instant, lat: BigDecimal?, lng: BigDecimal?)
-
-    suspend fun complete(
+    /**
+     * A driver's route check-in at the stop: moves the task like the matching action (start,
+     * arrive, complete, fail) and records the check-in with the device fix and its accuracy.
+     * Completing carries the proof (photos staged for upload, PNG signature, signer's name);
+     * failing needs a [reason].
+     */
+    suspend fun checkIn(
         taskId: String,
+        status: RouteCheckInStatus,
         at: Instant,
-        photos: List<LocalFileRef>,
-        signaturePng: ByteArray?,
-        signedName: String?,
-        notes: String?,
-        lat: BigDecimal?,
-        lng: BigDecimal?,
+        fix: StopFix?,
+        reason: String? = null,
+        notes: String? = null,
+        photos: List<LocalFileRef> = emptyList(),
+        signaturePng: ByteArray? = null,
+        signedName: String? = null,
     )
-
-    suspend fun fail(taskId: String, reason: String, at: Instant, notes: String?, lat: BigDecimal?, lng: BigDecimal?)
 
     suspend fun cancel(taskId: String, reason: String?)
 
@@ -622,3 +630,12 @@ interface RentalDispatchRepository {
 
     suspend fun cancelTransfer(id: String, reason: String?)
 }
+
+/** A driver's route check-in at a stop (`route_checkin_status`). */
+enum class RouteCheckInStatus { EN_ROUTE, ARRIVED, COMPLETED, FAILED }
+
+/** The device's position at a stop; [accuracyM] is the fix's radius in metres when known. */
+data class StopFix(val lat: BigDecimal, val lng: BigDecimal, val accuracyM: BigDecimal?)
+
+/** A unit the dispatcher loaded for a delivery / pick-up stop. */
+data class RentalTaskAsset(val assetId: String, val name: String?)

@@ -17,6 +17,8 @@ import com.avago.core.data.domain.RentalOrderAction
 import com.avago.core.data.domain.RentalOrderLine
 import com.avago.core.data.domain.RentalRates
 import com.avago.core.data.domain.RentalTransfer
+import com.avago.core.data.domain.RouteCheckInStatus
+import com.avago.core.data.domain.StopFix
 import com.avago.core.data.domain.SwapDraft
 import com.avago.core.data.v2.V2Micros
 import com.avago.core.data.v2.V2NewCommand
@@ -29,7 +31,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
-import java.math.BigDecimal
 import java.time.Instant
 
 /**
@@ -931,48 +932,68 @@ object RentalCommands {
         )
     }
 
-    fun startTask(id: String, at: Instant, lat: BigDecimal?, lng: BigDecimal?, nowMillis: Long): V2NewCommand =
-        RentalRentalDeliveryTasksStart(id, at, lat, lng).toNewCommand(
-            overlay = task(id, nowMillis, "status" to "en_route", "started_at" to at.toEpochMilli()),
-        )
+    /** What a driver leaves at a stop: the fail reason, notes and the proof of delivery. */
+    data class StopProof(
+        val reason: String? = null,
+        val notes: String? = null,
+        val photos: List<V2StagedFile> = emptyList(),
+        val signature: V2StagedFile? = null,
+        val signedName: String? = null,
+    )
 
-    fun arriveTask(id: String, at: Instant, lat: BigDecimal?, lng: BigDecimal?, nowMillis: Long): V2NewCommand =
-        RentalRentalDeliveryTasksArrive(id, at, lat, lng).toNewCommand(
-            overlay = task(id, nowMillis, "status" to "arrived", "arrived_at" to at.toEpochMilli()),
-        )
-
-    fun completeTask(
+    /**
+     * `rental.rental_delivery_tasks.check_in`: the matching task action plus the route check-in
+     * with the fix's accuracy. The overlay moves the task like the action does; completion also
+     * shows the proof and the pending uploads.
+     */
+    fun checkIn(
         id: String,
+        checkinId: String,
+        status: RouteCheckInStatus,
         at: Instant,
-        photos: List<V2StagedFile>,
-        signature: V2StagedFile?,
-        signedName: String?,
-        notes: String?,
-        lat: BigDecimal?,
-        lng: BigDecimal?,
+        fix: StopFix?,
+        proof: StopProof,
         nowMillis: Long,
         userId: String?,
     ): V2NewCommand {
-        require(signature == null || !signedName.isNullOrBlank()) { "a signature needs the signer's name" }
-        val files = photos + listOfNotNull(signature)
-        val ops = files.map { MaintCommands.pendingFileRow(it, nowMillis, userId) } + V2RowOp.upsert(
-            "rental_delivery_tasks", id,
-            mapOf(
-                "status" to "completed", "completed_at" to at.toEpochMilli(), "proof_signed_name" to signedName.clean(),
-                "proof_notes" to notes.clean(), "proof_lat" to lat?.toPlainString(), "proof_lng" to lng?.toPlainString(),
-            ) + updated(nowMillis),
-        )
-        return RentalRentalDeliveryTasksComplete(
-            id = id, at = at, photoFileObjectIds = photos.map { it.fileId }.ifEmpty { null },
-            signatureFileObjectId = signature?.fileId, signedName = signedName.clean(), notes = notes.clean(), lat = lat, lng = lng,
+        require(proof.signature == null || !proof.signedName.isNullOrBlank()) { "a signature needs the signer's name" }
+        require(status == RouteCheckInStatus.COMPLETED || (proof.signature == null && proof.signedName == null)) {
+            "only a completed stop carries a signature"
+        }
+        val why = proof.reason.clean()
+        require(status != RouteCheckInStatus.FAILED || why != null) { "a failed stop needs a reason" }
+        val millis = at.toEpochMilli()
+        val set: Map<String, Any?> = when (status) {
+            RouteCheckInStatus.EN_ROUTE -> mapOf("status" to "en_route", "started_at" to millis)
+            RouteCheckInStatus.ARRIVED -> mapOf("status" to "arrived", "arrived_at" to millis)
+            RouteCheckInStatus.FAILED -> mapOf("status" to "failed", "failed_reason" to why)
+            RouteCheckInStatus.COMPLETED -> mapOf(
+                "status" to "completed", "completed_at" to millis, "proof_signed_name" to proof.signedName.clean(),
+                "proof_notes" to proof.notes.clean(), "proof_lat" to fix?.lat?.toPlainString(), "proof_lng" to fix?.lng?.toPlainString(),
+            )
+        }
+        val files = proof.photos + listOfNotNull(proof.signature)
+        val ops = files.map { MaintCommands.pendingFileRow(it, nowMillis, userId) } +
+            V2RowOp.upsert("rental_delivery_tasks", id, set + updated(nowMillis))
+        return RentalRentalDeliveryTasksCheckIn(
+            id = id,
+            checkinId = checkinId,
+            status = when (status) {
+                RouteCheckInStatus.EN_ROUTE -> RouteCheckinStatus.EN_ROUTE
+                RouteCheckInStatus.ARRIVED -> RouteCheckinStatus.ARRIVED
+                RouteCheckInStatus.COMPLETED -> RouteCheckinStatus.COMPLETED
+                RouteCheckInStatus.FAILED -> RouteCheckinStatus.FAILED
+            },
+            at = at,
+            lat = fix?.lat,
+            lng = fix?.lng,
+            accuracyM = fix?.accuracyM,
+            reason = if (status == RouteCheckInStatus.FAILED) why else null,
+            photoFileObjectIds = proof.photos.map { it.fileId }.ifEmpty { null },
+            signatureFileObjectId = proof.signature?.fileId,
+            signedName = proof.signedName.clean(),
+            notes = proof.notes.clean(),
         ).toNewCommand(overlay = V2OverlayPatch(ops), uploads = files.map { it.toUpload() })
-    }
-
-    fun failTask(id: String, reason: String, at: Instant, notes: String?, lat: BigDecimal?, lng: BigDecimal?, nowMillis: Long): V2NewCommand {
-        val why = requireNotNull(reason.clean()) { "a failed stop needs a reason" }
-        return RentalRentalDeliveryTasksFail(id = id, reason = why, at = at, notes = notes.clean(), lat = lat, lng = lng).toNewCommand(
-            overlay = task(id, nowMillis, "status" to "failed", "failed_reason" to why),
-        )
     }
 
     fun cancelTask(id: String, reason: String?, nowMillis: Long): V2NewCommand =

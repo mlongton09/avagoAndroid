@@ -220,4 +220,6 @@
     <string name="rentalops_statement_emailed_default">Estado de cuenta enviado</string>
     <string name="rentalops_statement_no_recipient">Este cliente no tiene correo de facturación. Indica un destinatario.</string>
     <string name="rentalops_statement_recipient">Correo del destinatario (opcional)</string>
+    <string name="rentalops_class_free">Unidades libres: %1$d</string>
+    <string name="rentalops_class_full">No hay unidades libres en este periodo</string>
 </resources>

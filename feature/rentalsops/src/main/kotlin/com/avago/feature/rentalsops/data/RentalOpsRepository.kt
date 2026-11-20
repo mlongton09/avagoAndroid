@@ -13,6 +13,8 @@ import com.avago.core.data.domain.LocationRepository
 import com.avago.core.data.domain.RecordSyncState
 import com.avago.core.data.domain.RentalDispatchRepository
 import com.avago.core.data.domain.RentalRepository
+import com.avago.core.data.domain.RouteCheckInStatus
+import com.avago.core.data.domain.StopFix
 import com.avago.core.data.rental.LocalFleet
 import com.avago.feature.rentalsops.domain.DeliveryStateMachine
 import com.avago.feature.rentalsops.domain.DeliveryTask
@@ -39,6 +41,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -49,7 +53,6 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import timber.log.Timber
 import java.io.File
-import java.math.BigDecimal
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
@@ -158,8 +161,20 @@ class RentalOpsRepository @Inject constructor(
 
     fun observeTask(id: String): Flow<TaskView?> = observeTasks().map { list -> list.firstOrNull { it.task.id == id } }
 
-    /** Units on the task: the transfer's unit, else the units assigned on the order's lines. */
-    fun observeTaskUnits(task: DeliveryTask): Flow<List<String>> = when {
+    /**
+     * Units on the task: the units the dispatcher loaded for the stop (`rental_delivery_task_assets`);
+     * without a load list, the transfer's unit or the units assigned on the order's lines.
+     */
+    fun observeTaskUnits(task: DeliveryTask): Flow<List<String>> =
+        dispatch.observeTaskAssets(task.id).flatMapLatest { loaded ->
+            if (loaded.isNotEmpty()) {
+                flowOf(loaded.map { it.name?.ifBlank { null } ?: it.assetId.take(8) })
+            } else {
+                derivedTaskUnits(task)
+            }
+        }
+
+    private fun derivedTaskUnits(task: DeliveryTask): Flow<List<String>> = when {
         task.transferId != null -> dispatch.observeTransfers().map { list ->
             list.filter { it.id == task.transferId }.map { it.assetName ?: it.assetId.take(8) }
         }
@@ -168,7 +183,7 @@ class RentalOpsRepository @Inject constructor(
                 .map { l -> names[l.assetId] ?: l.description.ifBlank { l.assetId!!.take(8) } }
                 .distinct()
         }
-        else -> kotlinx.coroutines.flow.flowOf(emptyList())
+        else -> flowOf(emptyList())
     }
 
     private val draftsChanged = MutableStateFlow(0L)
@@ -208,8 +223,8 @@ class RentalOpsRepository @Inject constructor(
     }
 
     /**
-     * Validates [action] against the task's current (overlaid) status and queues the matching
-     * dispatch command. Complete carries the task's proof drafts: photos and the PNG signature
+     * Validates [action] against the task's current (overlaid) status and queues it as a route
+     * check-in carrying the device [fix] and its accuracy. Complete carries the task's proof drafts: photos and the PNG signature
      * are staged for upload with the command, then the drafts are removed.
      */
     suspend fun submit(
@@ -218,8 +233,7 @@ class RentalOpsRepository @Inject constructor(
         reason: String?,
         signedName: String?,
         notes: String?,
-        lat: Double?,
-        lng: Double?,
+        fix: StopFix?,
     ): TransitionResult {
         val taskId = view.task.id
         val drafts = if (action == TaskAction.COMPLETE) drafts(taskId) else emptyList()
@@ -232,19 +246,19 @@ class RentalOpsRepository @Inject constructor(
         val result = DeliveryStateMachine.transition(view.localStatus, action, view.task.kind, hasDriver, proof, reason)
         if (result !is TransitionResult.Ok) return result
         val at = Instant.now()
-        val la = lat?.let(BigDecimal::valueOf)
-        val ln = lng?.let(BigDecimal::valueOf)
         try {
             when (action) {
-                TaskAction.START -> dispatch.start(taskId, at, la, ln)
-                TaskAction.ARRIVE -> dispatch.arrive(taskId, at, la, ln)
-                TaskAction.FAIL -> dispatch.fail(taskId, reason!!.trim(), at, note, la, ln)
+                TaskAction.START -> dispatch.checkIn(taskId, RouteCheckInStatus.EN_ROUTE, at, fix)
+                TaskAction.ARRIVE -> dispatch.checkIn(taskId, RouteCheckInStatus.ARRIVED, at, fix)
+                TaskAction.FAIL -> dispatch.checkIn(taskId, RouteCheckInStatus.FAILED, at, fix, reason = reason, notes = note)
                 TaskAction.COMPLETE -> {
                     val png = signature?.let { withContext(Dispatchers.IO) { File(it.localPath).readBytes() } }
-                    dispatch.complete(
-                        taskId, at,
-                        photos.map { LocalFileRef(Uri.fromFile(File(it.localPath)).toString(), "image/jpeg") },
-                        png, name, note, la, ln,
+                    dispatch.checkIn(
+                        taskId, RouteCheckInStatus.COMPLETED, at, fix,
+                        notes = note,
+                        photos = photos.map { LocalFileRef(Uri.fromFile(File(it.localPath)).toString(), "image/jpeg") },
+                        signaturePng = png,
+                        signedName = name,
                     )
                     withContext(Dispatchers.IO) { draftDir(taskId)?.deleteRecursively() }
                     draftsUpdated()
@@ -277,10 +291,11 @@ class RentalOpsRepository @Inject constructor(
         rentals.observeOrders(),
         rentals.observeLines(),
         rentals.observeClasses(),
+        rentals.observeClassAvailability(),
         opsFailures(),
-    ) { orders, lines, classes, failures ->
+    ) { orders, lines, classes, availability, failures ->
         val refused = failures.filter { it.entityType == LINES }.associateBy { it.entityKey }
-        UnassignedLine.of(orders, lines, classes.associate { it.id to it.name })
+        UnassignedLine.of(orders, lines, classes.associate { it.id to it.name }, availability)
             .map { l -> LineView(l, refused[l.lineId]?.let { PendingAction(it.commandId, true, it.message ?: it.code) }) }
             .sortedWith(compareBy<LineView> { it.line.start ?: Instant.MAX }.thenBy { it.line.orderNumber })
     }

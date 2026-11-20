@@ -201,8 +201,8 @@ class DriverRouteViewModel @Inject constructor(
         }
         // A stop not yet on the device (route fresher than the task feed): open it, which syncs.
         val view: TaskView = repo.observeTask(stop.taskId).first() ?: run { _events.tryEmit(open); return@launch }
-        val loc = LastLocation.get(ctx)
-        val r = repo.submit(view, action, null, null, null, loc?.latitude, loc?.longitude)
+        val fix = LastLocation.fix(ctx)
+        val r = repo.submit(view, action, null, null, null, fix)
         _events.tryEmit(if (r is TransitionResult.Rejected) RouteEvent.Error(r.error) else RouteEvent.Queued)
     }
 

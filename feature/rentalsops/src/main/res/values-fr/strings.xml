@@ -220,4 +220,6 @@
     <string name="rentalops_statement_emailed_default">Relevé envoyé</string>
     <string name="rentalops_statement_no_recipient">Ce client n\'a pas d\'e-mail de facturation. Saisissez un destinataire.</string>
     <string name="rentalops_statement_recipient">E-mail du destinataire (facultatif)</string>
+    <string name="rentalops_class_free">Unités libres : %1$d</string>
+    <string name="rentalops_class_full">Aucune unité libre sur cette période</string>
 </resources>

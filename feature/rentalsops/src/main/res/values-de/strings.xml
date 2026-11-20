@@ -220,4 +220,6 @@
     <string name="rentalops_statement_emailed_default">Kontoauszug gesendet</string>
     <string name="rentalops_statement_no_recipient">Dieser Kunde hat keine Rechnungs-E-Mail. Gib einen Empfänger ein.</string>
     <string name="rentalops_statement_recipient">Empfänger-E-Mail (optional)</string>
+    <string name="rentalops_class_free">Freie Einheiten: %1$d</string>
+    <string name="rentalops_class_full">Keine freien Einheiten in diesem Zeitraum</string>
 </resources>

@@ -220,4 +220,6 @@
     <string name="rentalops_statement_emailed_default">Rekeningoverzicht verzonden</string>
     <string name="rentalops_statement_no_recipient">Deze klant heeft geen factuuradres. Vul een ontvanger in.</string>
     <string name="rentalops_statement_recipient">E-mailadres ontvanger (optioneel)</string>
+    <string name="rentalops_class_free">Vrije eenheden: %1$d</string>
+    <string name="rentalops_class_full">Geen vrije eenheden in deze periode</string>
 </resources>

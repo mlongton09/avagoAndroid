@@ -116,7 +116,7 @@ private fun LineRow(v: LineView, modifier: Modifier = Modifier, onClick: () -> U
     }
 }
 
-/** Order number · quantity and the rental window. */
+/** Order number · quantity, the rental window and the class's free-unit headroom. */
 @Composable
 private fun LineMeta(v: LineView) {
     val l = v.line
@@ -130,6 +130,13 @@ private fun LineMeta(v: LineView) {
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+    l.classFreeUnits?.let { free ->
+        StatusPill(
+            if (free <= 0) stringResource(R.string.rentalops_class_full) else stringResource(R.string.rentalops_class_free, free),
+            if (free <= 0) StatusTone.Danger else StatusTone.Success,
+            icon = if (free <= 0) Icons.Filled.Block else Icons.Filled.CheckCircle,
+        )
+    }
 }
 
 data class AssignLineState(

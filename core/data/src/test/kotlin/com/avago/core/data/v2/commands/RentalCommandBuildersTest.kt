@@ -14,6 +14,8 @@ import com.avago.core.data.domain.RentalOrder
 import com.avago.core.data.domain.RentalOrderAction
 import com.avago.core.data.domain.RentalOrderLine
 import com.avago.core.data.domain.RentalTransfer
+import com.avago.core.data.domain.RouteCheckInStatus
+import com.avago.core.data.domain.StopFix
 import com.avago.core.data.v2.V2OverlayPatch
 import com.avago.core.data.v2.V2RowOp
 import kotlinx.serialization.json.JsonObject
@@ -276,5 +278,39 @@ class RentalCommandBuildersTest {
         assertEquals("l2", received.on("assets").single().set["location_id"])
         assertThrows(IllegalArgumentException::class.java) { RentalCommands.shipTransfer(t.copy(status = "received"), start, 1) }
         assertFalse(RentalCommands.cancelTransfer(t, null, 1).payload.jsonObject.containsKey("reason"))
+    }
+
+    @Test
+    fun `a stop check-in carries the fix accuracy and moves the task like the action`() {
+        val fix = StopFix(BigDecimal("52.1"), BigDecimal("4.3"), BigDecimal("8.5"))
+        val cmd = RentalCommands.checkIn("t1", "c1", RouteCheckInStatus.ARRIVED, start, fix, RentalCommands.StopProof(), 1, "u1")
+
+        assertEquals("rental.rental_delivery_tasks.check_in", cmd.operation)
+        val body = cmd.payload.jsonObject
+        assertEquals("arrived", body["status"]!!.jsonPrimitive.content)
+        assertEquals("c1", body["checkin_id"]!!.jsonPrimitive.content)
+        assertEquals("8.5", body["accuracy_m"]!!.jsonPrimitive.content)
+        assertEquals("52.1", body["lat"]!!.jsonPrimitive.content)
+        val task = ops(cmd.overlayPatch).on("rental_delivery_tasks").single()
+        assertEquals("arrived", task.set["status"])
+        assertEquals(start.toEpochMilli(), task.set["arrived_at"])
+    }
+
+    @Test
+    fun `a failed check-in needs a reason and only a completed stop carries a signature`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            RentalCommands.checkIn("t1", "c1", RouteCheckInStatus.FAILED, start, null, RentalCommands.StopProof(reason = " "), 1, null)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            RentalCommands.checkIn("t1", "c1", RouteCheckInStatus.ARRIVED, start, null, RentalCommands.StopProof(signedName = "Ada"), 1, null)
+        }
+        val failed = RentalCommands.checkIn("t1", "c2", RouteCheckInStatus.FAILED, start, null, RentalCommands.StopProof(reason = "closed"), 1, null)
+        assertEquals("closed", failed.payload.jsonObject["reason"]!!.jsonPrimitive.content)
+        assertFalse(failed.payload.jsonObject.containsKey("accuracy_m"))
+        assertEquals("failed", ops(failed.overlayPatch).single().set["status"])
+        val done = RentalCommands.checkIn(
+            "t1", "c3", RouteCheckInStatus.COMPLETED, start, null, RentalCommands.StopProof(notes = "left at gate", signedName = "Bo"), 1, null,
+        )
+        assertEquals("left at gate", ops(done.overlayPatch).single().set["proof_notes"])
     }
 }
