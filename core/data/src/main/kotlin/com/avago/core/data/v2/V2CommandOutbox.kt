@@ -425,10 +425,18 @@ class V2CommandOutbox(
         }
 
     private suspend fun reject(row: Row, code: String, message: String?, conflictId: String?) = store.write { tx ->
+        // A version conflict can be resolved by re-applying the edit: keep what it showed.
+        val rolledBack = if (code == "version_conflict") {
+            tx.query("SELECT patch FROM local_overlays WHERE command_id = ? ORDER BY causal_order", listOf(row.id))
+                .firstOrNull()?.let { runCatching { Json.parseToJsonElement(it["patch"] as String) }.getOrNull() }
+        } else {
+            null
+        }
         val error = buildMap<String, JsonElement> {
             put("code", JsonPrimitive(code))
             message?.let { put("message", JsonPrimitive(it)) }
             conflictId?.let { put("conflict_id", JsonPrimitive(it)) }
+            rolledBack?.let { put(V2CommandQueue.ROLLED_BACK_OVERLAY, it) }
         }
         tx.execute(
             "UPDATE pending_commands SET state = 'rejected', lease_owner = NULL, lease_expires_at = NULL, next_attempt_at = NULL, " +

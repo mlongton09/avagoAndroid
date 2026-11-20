@@ -3,12 +3,15 @@ package com.avago.feature.settings
 import android.text.format.DateUtils
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -16,6 +19,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -30,9 +34,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.avago.core.data.domain.ChangeQueueRepository
+import com.avago.core.data.domain.ConflictField
+import com.avago.core.data.domain.ConflictResolution
 import com.avago.core.data.domain.FailedChange
+import com.avago.core.data.domain.RecordNotFoundException
+import com.avago.core.data.domain.StoreNotReadyException
 import com.avago.core.data.domain.SyncConflict
+import com.avago.core.data.domain.fieldDiffs
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -46,27 +57,72 @@ data class FailedChangeRow(val change: FailedChange, val conflict: SyncConflict?
 data class FailedChangesUiState(
     val pendingCount: Int = 0,
     val failures: List<FailedChangeRow> = emptyList(),
+    /** Open conflicts whose refused edit is not on this device (another device, or dismissed). */
+    val otherConflicts: List<SyncConflict> = emptyList(),
+    /** Why the last resolution could not be queued. */
+    val error: ResolveError? = null,
 )
+
+enum class ResolveError {
+    /** Re-applying needs the record, but it is gone locally (deleted on the server). */
+    RECORD_GONE,
+
+    /** Nobody is signed in or the local store is not open yet. */
+    NOT_READY,
+}
 
 @HiltViewModel
 class FailedChangesViewModel @Inject constructor(
     private val changes: ChangeQueueRepository,
 ) : ViewModel() {
 
+    private val error = MutableStateFlow<ResolveError?>(null)
+
     val state: StateFlow<FailedChangesUiState> = combine(
         changes.observePendingCount(),
         changes.observeFailures(),
         changes.observeOpenConflicts(),
-    ) { pending, failures, conflicts ->
-        FailedChangesUiState(pending, failureRows(failures, conflicts))
+        error,
+    ) { pending, failures, conflicts, error ->
+        val rows = failureRows(failures, conflicts)
+        val shown = rows.mapNotNullTo(mutableSetOf()) { it.conflict?.id }
+        FailedChangesUiState(pending, rows, conflicts.filter { it.id !in shown }, error)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), FailedChangesUiState())
 
-    fun dismiss(commandId: String) {
-        viewModelScope.launch { changes.dismiss(commandId) }
+    /**
+     * Drops a refusal from the list. A refused edit with an open conflict also closes the conflict
+     * on the server (`dismissed`), so it does not stay open for the user's other devices.
+     */
+    fun dismiss(row: FailedChangeRow) {
+        val conflict = row.conflict
+        if (conflict == null) {
+            viewModelScope.launch { changes.dismiss(row.change.commandId) }
+        } else {
+            resolve(conflict, row.change.commandId, ConflictResolution.DISMISS)
+        }
+    }
+
+    fun resolve(conflict: SyncConflict, failedCommandId: String?, resolution: ConflictResolution) {
+        viewModelScope.launch {
+            error.value = null
+            try {
+                changes.resolveConflict(conflict, failedCommandId, resolution)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: RecordNotFoundException) {
+                error.value = ResolveError.RECORD_GONE
+            } catch (_: StoreNotReadyException) {
+                error.value = ResolveError.NOT_READY
+            }
+        }
+    }
+
+    fun clearError() {
+        error.value = null
     }
 
     fun dismissAll() {
-        viewModelScope.launch { state.value.failures.forEach { changes.dismiss(it.change.commandId) } }
+        state.value.failures.forEach(::dismiss)
     }
 
     companion object {
@@ -91,7 +147,9 @@ class FailedChangesViewModel @Inject constructor(
 
 /**
  * Local changes the server refused. Their optimistic effect has already been rolled back; the
- * user reads why and dismisses them. Edit conflicts show the versions involved.
+ * user reads why and dismisses them. An edit conflict shows the versions and fields involved and
+ * is settled with `sync.sync_conflicts.resolve`: re-apply the edit on the current record, keep the
+ * server's record, or dismiss it.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -142,16 +200,58 @@ fun FailedChangesScreen(
                 }
             } else {
                 items(state.failures, key = { it.change.commandId }) { row ->
-                    FailedChangeItem(row = row, onDismiss = { viewModel.dismiss(row.change.commandId) })
+                    FailedChangeItem(
+                        row = row,
+                        onDismiss = { viewModel.dismiss(row) },
+                        onResolve = { conflict, resolution -> viewModel.resolve(conflict, row.change.commandId, resolution) },
+                    )
+                    HorizontalDivider()
+                }
+            }
+            if (state.otherConflicts.isNotEmpty()) {
+                item {
+                    ListItem(
+                        headlineContent = {
+                            Text(stringResource(R.string.failed_changes_other_conflicts), style = MaterialTheme.typography.titleSmall)
+                        },
+                        supportingContent = { Text(stringResource(R.string.failed_changes_other_conflicts_detail)) },
+                    )
+                }
+                items(state.otherConflicts, key = { it.id }) { conflict ->
+                    OpenConflictItem(
+                        conflict = conflict,
+                        onResolve = { resolution -> viewModel.resolve(conflict, null, resolution) },
+                    )
                     HorizontalDivider()
                 }
             }
         }
     }
+    state.error?.let { error ->
+        AlertDialog(
+            onDismissRequest = viewModel::clearError,
+            confirmButton = { TextButton(onClick = viewModel::clearError) { Text(stringResource(R.string.failed_changes_ok)) } },
+            title = { Text(stringResource(R.string.failed_changes_resolve_failed)) },
+            text = {
+                Text(
+                    stringResource(
+                        when (error) {
+                            ResolveError.RECORD_GONE -> R.string.failed_changes_record_gone
+                            ResolveError.NOT_READY -> R.string.failed_changes_not_ready
+                        },
+                    ),
+                )
+            },
+        )
+    }
 }
 
 @Composable
-private fun FailedChangeItem(row: FailedChangeRow, onDismiss: () -> Unit) {
+private fun FailedChangeItem(
+    row: FailedChangeRow,
+    onDismiss: () -> Unit,
+    onResolve: (SyncConflict, ConflictResolution) -> Unit,
+) {
     val change = row.change
     ListItem(
         overlineContent = {
@@ -162,15 +262,19 @@ private fun FailedChangeItem(row: FailedChangeRow, onDismiss: () -> Unit) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (change.isConflict) {
                     Text(stringResource(R.string.failed_changes_conflict), color = MaterialTheme.colorScheme.error)
-                    row.conflict?.let { c ->
-                        Text(
-                            stringResource(
-                                R.string.failed_changes_conflict_versions,
-                                c.baseVersion?.toString() ?: "-",
-                                c.serverVersion?.toString() ?: "-",
-                            ),
-                            style = MaterialTheme.typography.bodySmall,
-                        )
+                    val conflict = row.conflict
+                    if (conflict == null) {
+                        Text(stringResource(R.string.failed_changes_conflict_pending), style = MaterialTheme.typography.bodySmall)
+                    } else {
+                        ConflictDetails(conflict)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = { onResolve(conflict, ConflictResolution.KEEP_MINE) }) {
+                                Text(stringResource(R.string.failed_changes_keep_mine))
+                            }
+                            OutlinedButton(onClick = { onResolve(conflict, ConflictResolution.KEEP_SERVER) }) {
+                                Text(stringResource(R.string.failed_changes_keep_server))
+                            }
+                        }
                     }
                 } else {
                     Text(change.message ?: change.code, color = MaterialTheme.colorScheme.error)
@@ -187,4 +291,44 @@ private fun FailedChangeItem(row: FailedChangeRow, onDismiss: () -> Unit) {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.failed_changes_dismiss)) }
         },
     )
+}
+
+@Composable
+private fun OpenConflictItem(conflict: SyncConflict, onResolve: (ConflictResolution) -> Unit) {
+    ListItem(
+        headlineContent = { Text(listOf(conflict.entityType, conflict.entityKey).joinToString(" \u00b7 ")) },
+        supportingContent = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                ConflictDetails(conflict)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { onResolve(ConflictResolution.KEEP_SERVER) }) {
+                        Text(stringResource(R.string.failed_changes_keep_server))
+                    }
+                    TextButton(onClick = { onResolve(ConflictResolution.DISMISS) }) {
+                        Text(stringResource(R.string.failed_changes_dismiss))
+                    }
+                }
+            }
+        },
+    )
+}
+
+/** The versions involved and, per field, the refused value next to the server's. */
+@Composable
+private fun ConflictDetails(conflict: SyncConflict) {
+    Text(
+        stringResource(
+            R.string.failed_changes_conflict_versions,
+            conflict.baseVersion?.toString() ?: "-",
+            conflict.serverVersion?.toString() ?: "-",
+        ),
+        style = MaterialTheme.typography.bodySmall,
+    )
+    val empty = stringResource(R.string.failed_changes_value_empty)
+    conflict.fieldDiffs().forEach { field: ConflictField ->
+        Text(
+            stringResource(R.string.failed_changes_field_diff, field.name, field.mine ?: empty, field.server ?: empty),
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
 }

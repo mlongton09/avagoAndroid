@@ -120,4 +120,29 @@
     <string name="sample_workspaces_account_missing">Arbeidsområdet ble opprettet, men er ikke i kontolisten din ennå. Prøv igjen.</string>
     <string name="sample_workspaces_load_failed">Kunne ikke laste inn eksempelarbeidsområder: %1$s</string>
     <string name="sample_workspaces_empty">Ingen eksempelprofiler tilgjengelig</string>
+    <string name="settings_failed_changes">Mislykkede endringer</string>
+    <string name="failed_changes_title">Mislykkede endringer</string>
+    <string name="failed_changes_back">Tilbake</string>
+    <string name="failed_changes_dismiss">Avvis</string>
+    <string name="failed_changes_dismiss_all">Avvis alle</string>
+    <string name="failed_changes_all_sent">Alle endringer er synkronisert</string>
+    <plurals name="failed_changes_pending">
+        <item quantity="one">%d endring venter p? synkronisering</item>
+        <item quantity="other">%d endringer venter p? synkronisering</item>
+    </plurals>
+    <string name="failed_changes_empty">Ingen mislykkede endringer</string>
+    <string name="failed_changes_empty_detail">Endringer serveren avviser vises her. De er allerede angret p? denne enheten.</string>
+    <string name="failed_changes_conflict">Noen andre endret denne posten f?rst, s? endringen din ble ikke brukt.</string>
+    <string name="failed_changes_conflict_versions">Endringen din var basert p? versjon %1$s; serveren har versjon %2$s.</string>
+    <string name="failed_changes_conflict_pending">Detaljene om konflikten kommer med neste synkronisering.</string>
+    <string name="failed_changes_field_diff">%1$s: din %2$s, server %3$s</string>
+    <string name="failed_changes_value_empty">(tom)</string>
+    <string name="failed_changes_keep_mine">Bruk min endring</string>
+    <string name="failed_changes_keep_server">Behold serverversjonen</string>
+    <string name="failed_changes_other_conflicts">?pne konflikter</string>
+    <string name="failed_changes_other_conflicts_detail">Endringer gjort p? en annen enhet som serveren avviste.</string>
+    <string name="failed_changes_resolve_failed">Kunne ikke l?se konflikten</string>
+    <string name="failed_changes_record_gone">Posten finnes ikke lenger, s? endringen kan ikke brukes p? nytt. Behold serverversjonen eller avvis konflikten.</string>
+    <string name="failed_changes_not_ready">Logg inn og vent p? f?rste synkronisering, og pr?v igjen.</string>
+    <string name="failed_changes_ok">OK</string>
 </resources>

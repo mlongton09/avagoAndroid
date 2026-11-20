@@ -1,5 +1,6 @@
 package com.avago.core.data.v2.repo
 
+import com.avago.core.data.domain.ConflictResolution
 import com.avago.core.data.domain.MovementKind
 import com.avago.core.data.domain.StockDocumentDraft
 import com.avago.core.data.domain.StockLineDraft
@@ -10,9 +11,11 @@ import com.avago.core.data.v2.V2ChangeQueueRepository
 import com.avago.core.data.v2.V2CommandOutbox
 import com.avago.core.data.v2.V2CommandService
 import com.avago.core.data.v2.V2Fixtures
+import com.avago.core.data.v2.V2NewCommand
 import com.avago.core.data.v2.V2StoreAccess
 import com.avago.core.data.v2.V2Stores
 import com.avago.core.data.v2.V2Uuid
+import com.avago.core.data.v2.scalarText
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.buildJsonObject
@@ -30,7 +33,7 @@ class V2InventoryRepositoryTest {
     private val commands = V2CommandService(active) { flushes++ }
     private val access = V2StoreAccess(active)
     private val repo = V2InventoryRepository(access, commands)
-    private val changes = V2ChangeQueueRepository(access)
+    private val changes = V2ChangeQueueRepository(access) { flushes++ }
     private val server = ScriptedServer()
     private val outbox = V2CommandOutbox(
         business, V2Api(server.transport, V2Fixtures.ACCOUNT, V2Fixtures.DEVICE), V2Fixtures.identity,
@@ -121,5 +124,85 @@ class V2InventoryRepositoryTest {
             listOf("stock.cycle_counts.create" to countId, "stock.cycle_counts.count_line" to lineId),
             queued,
         )
+    }
+
+    private suspend fun seedConflict(commandId: String): String {
+        val id = V2Uuid.v7()
+        business.writeWithoutForeignKeys { tx ->
+            tx.execute(
+                "INSERT INTO sync_conflicts (id, created_at, updated_at, version, command_id, actor_user_id, entity_type, entity_key, " +
+                    "base_version, server_version, client_payload, server_snapshot, status) " +
+                    "VALUES (?, 1, 1, 2, ?, ?, 'products', ?, 1, 4, ?, ?, 'open')",
+                listOf(id, commandId, V2Fixtures.identity.userId, product, "{\"id\":\"$product\",\"set\":{\"name\":\"Mine\"}}", "{\"name\":\"Filter\"}"),
+            )
+            tx.execute("UPDATE products SET version = 4 WHERE id = ?", listOf(product))
+        }
+        return id
+    }
+
+    private suspend fun queued() = business.read { conn ->
+        conn.query("SELECT id, operation, base_version FROM pending_commands WHERE state = 'queued' ORDER BY causal_order")
+    }
+
+    @Test
+    fun `keeping the server version closes the conflict at once and queues the resolve`() = runTest {
+        seed()
+        val conflictId = seedConflict(V2Uuid.v7())
+        val conflict = changes.observeOpenConflicts().first().single()
+        assertEquals(2L, conflict.version)
+
+        changes.resolveConflict(conflict, null, ConflictResolution.KEEP_SERVER)
+
+        assertTrue(changes.observeOpenConflicts().first().isEmpty())
+        val resolve = queued().single()
+        assertEquals("sync.sync_conflicts.resolve", resolve["operation"])
+        assertEquals(2L, resolve["base_version"])
+        val payload = business.read { it.scalarText("SELECT payload FROM pending_commands WHERE id = ?", listOf(resolve["id"])) }
+        assertEquals("{\"id\":\"$conflictId\",\"status\":\"resolved_server\"}", payload)
+        assertEquals(1, flushes)
+    }
+
+    @Test
+    fun `applying my change resends it on the current version before the resolve`() = runTest {
+        seed()
+        val edit = outbox.enqueue(
+            V2NewCommand(
+                operation = "stock.products.update",
+                payload = buildJsonObject {
+                    put("id", product)
+                    put("set", buildJsonObject { put("name", "Mine") })
+                },
+                entityType = "products",
+                entityKey = product,
+                baseVersion = 1,
+            ),
+        )
+        server.commands += {
+            V2Fixtures.json(
+                200,
+                buildJsonObject {
+                    put("command_id", edit)
+                    put("state", "rejected")
+                    put("rejection_code", "version_conflict")
+                },
+            )
+        }
+        outbox.flush()
+        val conflict = run {
+            seedConflict(edit)
+            changes.observeOpenConflicts().first().single()
+        }
+
+        changes.resolveConflict(conflict, edit, ConflictResolution.KEEP_MINE)
+
+        val (resent, resolve) = queued()
+        assertEquals("stock.products.update", resent["operation"])
+        assertEquals(4L, resent["base_version"])
+        assertEquals("sync.sync_conflicts.resolve", resolve["operation"])
+        assertEquals(
+            resent["id"],
+            business.read { it.scalarText("SELECT depends_on_command_id FROM command_dependencies WHERE command_id = ?", listOf(resolve["id"])) },
+        )
+        assertTrue(changes.observeFailures().first().isEmpty())
     }
 }

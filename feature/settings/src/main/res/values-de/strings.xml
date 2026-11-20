@@ -120,4 +120,29 @@
     <string name="sample_workspaces_account_missing">Der Arbeitsbereich wurde erstellt, ist aber noch nicht in Ihrer Kontoliste. Bitte erneut versuchen.</string>
     <string name="sample_workspaces_load_failed">Beispiel-Arbeitsbereiche konnten nicht geladen werden: %1$s</string>
     <string name="sample_workspaces_empty">Keine Beispielprofile verfügbar</string>
+    <string name="settings_failed_changes">Fehlgeschlagene ?nderungen</string>
+    <string name="failed_changes_title">Fehlgeschlagene ?nderungen</string>
+    <string name="failed_changes_back">Zur?ck</string>
+    <string name="failed_changes_dismiss">Verwerfen</string>
+    <string name="failed_changes_dismiss_all">Alle verwerfen</string>
+    <string name="failed_changes_all_sent">Alle ?nderungen sind synchronisiert</string>
+    <plurals name="failed_changes_pending">
+        <item quantity="one">%d ?nderung wartet auf Synchronisierung</item>
+        <item quantity="other">%d ?nderungen warten auf Synchronisierung</item>
+    </plurals>
+    <string name="failed_changes_empty">Keine fehlgeschlagenen ?nderungen</string>
+    <string name="failed_changes_empty_detail">Vom Server abgelehnte ?nderungen werden hier aufgef?hrt. Auf diesem Ger?t sind sie bereits r?ckg?ngig gemacht.</string>
+    <string name="failed_changes_conflict">Jemand anderes hat diesen Datensatz zuerst ge?ndert, daher wurde Ihre Bearbeitung nicht ?bernommen.</string>
+    <string name="failed_changes_conflict_versions">Ihre Bearbeitung basierte auf Version %1$s; der Server hat Version %2$s.</string>
+    <string name="failed_changes_conflict_pending">Die Konfliktdetails kommen mit der n?chsten Synchronisierung.</string>
+    <string name="failed_changes_field_diff">%1$s: Ihr Wert %2$s, Server %3$s</string>
+    <string name="failed_changes_value_empty">(leer)</string>
+    <string name="failed_changes_keep_mine">Meine ?nderung ?bernehmen</string>
+    <string name="failed_changes_keep_server">Serverversion behalten</string>
+    <string name="failed_changes_other_conflicts">Offene Konflikte</string>
+    <string name="failed_changes_other_conflicts_detail">Auf einem anderen Ger?t vorgenommene Bearbeitungen, die der Server abgelehnt hat.</string>
+    <string name="failed_changes_resolve_failed">Konflikt konnte nicht gel?st werden</string>
+    <string name="failed_changes_record_gone">Der Datensatz existiert nicht mehr, daher kann Ihre ?nderung nicht erneut ?bernommen werden. Behalten Sie die Serverversion oder verwerfen Sie den Konflikt.</string>
+    <string name="failed_changes_not_ready">Melden Sie sich an und warten Sie auf die erste Synchronisierung; versuchen Sie es dann erneut.</string>
+    <string name="failed_changes_ok">OK</string>
 </resources>

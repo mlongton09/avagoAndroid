@@ -122,4 +122,29 @@
     <string name="sample_workspaces_account_missing">L\'espace de travail a été créé, mais n\'apparaît pas encore dans votre liste de comptes. Veuillez réessayer.</string>
     <string name="sample_workspaces_load_failed">Impossible de charger les espaces de travail d\'exemple : %1$s</string>
     <string name="sample_workspaces_empty">Aucun profil d\'exemple disponible</string>
+    <string name="settings_failed_changes">Modifications ?chou?es</string>
+    <string name="failed_changes_title">Modifications ?chou?es</string>
+    <string name="failed_changes_back">Retour</string>
+    <string name="failed_changes_dismiss">Ignorer</string>
+    <string name="failed_changes_dismiss_all">Tout ignorer</string>
+    <string name="failed_changes_all_sent">Toutes les modifications sont synchronis?es</string>
+    <plurals name="failed_changes_pending">
+        <item quantity="one">%d modification en attente de synchronisation</item>
+        <item quantity="other">%d modifications en attente de synchronisation</item>
+    </plurals>
+    <string name="failed_changes_empty">Aucune modification ?chou?e</string>
+    <string name="failed_changes_empty_detail">Les modifications refus?es par le serveur sont list?es ici. Elles sont d?j? annul?es sur cet appareil.</string>
+    <string name="failed_changes_conflict">Quelqu?un d?autre a modifi? cet enregistrement avant vous ; votre modification n?a pas ?t? appliqu?e.</string>
+    <string name="failed_changes_conflict_versions">Votre modification reposait sur la version %1$s ; le serveur a la version %2$s.</string>
+    <string name="failed_changes_conflict_pending">Les d?tails du conflit arriveront avec la prochaine synchronisation.</string>
+    <string name="failed_changes_field_diff">%1$s : le v?tre %2$s, serveur %3$s</string>
+    <string name="failed_changes_value_empty">(vide)</string>
+    <string name="failed_changes_keep_mine">Appliquer ma modification</string>
+    <string name="failed_changes_keep_server">Garder la version du serveur</string>
+    <string name="failed_changes_other_conflicts">Conflits ouverts</string>
+    <string name="failed_changes_other_conflicts_detail">Modifications faites sur un autre appareil et refus?es par le serveur.</string>
+    <string name="failed_changes_resolve_failed">Impossible de r?soudre le conflit</string>
+    <string name="failed_changes_record_gone">L?enregistrement n?existe plus ; votre modification ne peut pas ?tre r?appliqu?e. Gardez la version du serveur ou ignorez le conflit.</string>
+    <string name="failed_changes_not_ready">Connectez-vous et attendez la premi?re synchronisation, puis r?essayez.</string>
+    <string name="failed_changes_ok">OK</string>
 </resources>

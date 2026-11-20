@@ -30,7 +30,21 @@ data class SyncConflict(
     /** The row as the server had it (JSON), when available. */
     val serverSnapshot: String?,
     val status: String,
+    /** Row version of the conflict itself (the resolve command's base version). */
+    val version: Long,
 )
+
+/** How the user settles an edit conflict (`sync.sync_conflicts.resolve`). */
+enum class ConflictResolution {
+    /** Re-apply the refused edit on top of the current server row (`resolved_client`). */
+    KEEP_MINE,
+
+    /** Keep the server row and drop the edit (`resolved_server`). */
+    KEEP_SERVER,
+
+    /** Close the conflict without deciding (`dismissed`). */
+    DISMISS,
+}
 
 /** Sync state of one record's local edits. */
 enum class RecordSyncState { SAVED, PENDING, FAILED }
@@ -51,6 +65,14 @@ interface ChangeQueueRepository {
 
     /** Removes a failed change from the list (its effect is already rolled back). */
     suspend fun dismiss(commandId: String)
+
+    /**
+     * Settles [conflict] on the server and drops the local refusal [failedCommandId] (when the
+     * refusal is still on this device). [ConflictResolution.KEEP_MINE] needs it: the refused edit
+     * is queued again against the record's current version, with its optimistic effect, and the
+     * conflict is resolved once that edit commits.
+     */
+    suspend fun resolveConflict(conflict: SyncConflict, failedCommandId: String?, resolution: ConflictResolution)
 }
 
 /** Thrown by write methods when nobody is signed in or the local store is not open yet. */

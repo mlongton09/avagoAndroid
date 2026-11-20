@@ -190,6 +190,41 @@ class V2CommandOutboxTest {
     }
 
     @Test
+    fun `a conflicting edit is re-applied on the current version with its overlay and a dependent resolve`() = runTest {
+        val first = outbox.enqueue(update("A", overlay = true))
+        server.commands += {
+            json(
+                200,
+                buildJsonObject {
+                    put("command_id", first)
+                    put("state", "rejected")
+                    put("rejection_code", "version_conflict")
+                    put("conflict_id", V2Uuid.v7())
+                },
+            )
+        }
+        outbox.flush()
+        assertEquals(0L, store.read { it.scalarLong("SELECT COUNT(*) FROM local_overlays") })
+
+        val queue = V2CommandQueue(store, V2Fixtures.identity, clock = { now })
+        val resolveKey = V2Uuid.v7()
+        val ids = queue.resendRejected(first, baseVersion = 4) { resent -> listOf(update("R", base = 1, key = resolveKey, deps = listOf(resent))) }
+
+        assertNull(row(first))
+        val (resent, resolve) = ids
+        val resentRow = row(resent)!!
+        assertEquals("queued", resentRow["state"])
+        assertEquals(4L, resentRow["base_version"])
+        assertEquals(V2Canonical.string(buildJsonObject { put("name", "A") }), resentRow["payload"])
+        assertEquals(
+            V2Canonical.string(buildJsonObject { put("name", "A") }),
+            store.read { it.scalarText("SELECT patch FROM local_overlays WHERE command_id = ?", listOf(resent)) },
+        )
+        assertEquals(resent, store.read { it.scalarText("SELECT depends_on_command_id FROM command_dependencies WHERE command_id = ?", listOf(resolve)) })
+        assertThrows(V2OutboxException.InvalidCommand::class.java) { kotlinx.coroutines.runBlocking { queue.resendRejected(first, 4) } }
+    }
+
+    @Test
     fun `commands wait for their dependency and for earlier commands on the same entity`() = runTest {
         val first = outbox.enqueue(update("A"))
         val sameEntity = outbox.enqueue(update("B"))

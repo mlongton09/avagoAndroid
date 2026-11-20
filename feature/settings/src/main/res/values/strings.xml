@@ -133,6 +133,17 @@
     </plurals>
     <string name="failed_changes_empty">No failed changes</string>
     <string name="failed_changes_empty_detail">Changes the server refuses are listed here. They are already undone on this device.</string>
-    <string name="failed_changes_conflict">Someone else changed this record first, so your edit was not applied. Open the record and make the change again.</string>
+    <string name="failed_changes_conflict">Someone else changed this record first, so your edit was not applied.</string>
     <string name="failed_changes_conflict_versions">Your edit was based on version %1$s; the server has version %2$s.</string>
+    <string name="failed_changes_conflict_pending">The conflict details arrive with the next sync.</string>
+    <string name="failed_changes_field_diff">%1$s: yours %2$s, server %3$s</string>
+    <string name="failed_changes_value_empty">(empty)</string>
+    <string name="failed_changes_keep_mine">Apply my change</string>
+    <string name="failed_changes_keep_server">Keep server version</string>
+    <string name="failed_changes_other_conflicts">Open conflicts</string>
+    <string name="failed_changes_other_conflicts_detail">Edits you made on another device that the server refused.</string>
+    <string name="failed_changes_resolve_failed">Could not resolve the conflict</string>
+    <string name="failed_changes_record_gone">The record no longer exists, so your change cannot be applied again. Keep the server version or dismiss the conflict.</string>
+    <string name="failed_changes_not_ready">Sign in and wait for the first sync, then try again.</string>
+    <string name="failed_changes_ok">OK</string>
 </resources>

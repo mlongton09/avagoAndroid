@@ -120,4 +120,29 @@
     <string name="sample_workspaces_account_missing">Arbetsytan skapades men finns inte i din kontolista ännu. Försök igen.</string>
     <string name="sample_workspaces_load_failed">Det gick inte att läsa in exempelarbetsytor: %1$s</string>
     <string name="sample_workspaces_empty">Inga exempelprofiler tillgängliga</string>
+    <string name="settings_failed_changes">Misslyckade ?ndringar</string>
+    <string name="failed_changes_title">Misslyckade ?ndringar</string>
+    <string name="failed_changes_back">Tillbaka</string>
+    <string name="failed_changes_dismiss">Avf?rda</string>
+    <string name="failed_changes_dismiss_all">Avf?rda alla</string>
+    <string name="failed_changes_all_sent">Alla ?ndringar ?r synkroniserade</string>
+    <plurals name="failed_changes_pending">
+        <item quantity="one">%d ?ndring v?ntar p? synkronisering</item>
+        <item quantity="other">%d ?ndringar v?ntar p? synkronisering</item>
+    </plurals>
+    <string name="failed_changes_empty">Inga misslyckade ?ndringar</string>
+    <string name="failed_changes_empty_detail">?ndringar som servern avvisar visas h?r. De ?r redan ?ngrade p? den h?r enheten.</string>
+    <string name="failed_changes_conflict">N?gon annan ?ndrade posten f?rst, s? din ?ndring till?mpades inte.</string>
+    <string name="failed_changes_conflict_versions">Din ?ndring baserades p? version %1$s; servern har version %2$s.</string>
+    <string name="failed_changes_conflict_pending">Konfliktdetaljerna kommer med n?sta synkronisering.</string>
+    <string name="failed_changes_field_diff">%1$s: ditt %2$s, server %3$s</string>
+    <string name="failed_changes_value_empty">(tomt)</string>
+    <string name="failed_changes_keep_mine">Till?mpa min ?ndring</string>
+    <string name="failed_changes_keep_server">Beh?ll serverns version</string>
+    <string name="failed_changes_other_conflicts">?ppna konflikter</string>
+    <string name="failed_changes_other_conflicts_detail">?ndringar gjorda p? en annan enhet som servern avvisade.</string>
+    <string name="failed_changes_resolve_failed">Konflikten kunde inte l?sas</string>
+    <string name="failed_changes_record_gone">Posten finns inte l?ngre, s? ?ndringen kan inte till?mpas igen. Beh?ll serverns version eller avf?rda konflikten.</string>
+    <string name="failed_changes_not_ready">Logga in och v?nta p? f?rsta synkroniseringen, f?rs?k sedan igen.</string>
+    <string name="failed_changes_ok">OK</string>
 </resources>

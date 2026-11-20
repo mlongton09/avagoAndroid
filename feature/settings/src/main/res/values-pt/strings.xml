@@ -122,4 +122,29 @@
     <string name="sample_workspaces_account_missing">O espaço de trabalho foi criado, mas ainda não está na sua lista de contas. Tente novamente.</string>
     <string name="sample_workspaces_load_failed">Não foi possível carregar os espaços de trabalho de exemplo: %1$s</string>
     <string name="sample_workspaces_empty">Nenhum perfil de exemplo disponível</string>
+    <string name="settings_failed_changes">Altera??es falhadas</string>
+    <string name="failed_changes_title">Altera??es falhadas</string>
+    <string name="failed_changes_back">Voltar</string>
+    <string name="failed_changes_dismiss">Ignorar</string>
+    <string name="failed_changes_dismiss_all">Ignorar tudo</string>
+    <string name="failed_changes_all_sent">Todas as altera??es est?o sincronizadas</string>
+    <plurals name="failed_changes_pending">
+        <item quantity="one">%d altera??o a aguardar sincroniza??o</item>
+        <item quantity="other">%d altera??es a aguardar sincroniza??o</item>
+    </plurals>
+    <string name="failed_changes_empty">Sem altera??es falhadas</string>
+    <string name="failed_changes_empty_detail">As altera??es recusadas pelo servidor aparecem aqui. J? foram anuladas neste dispositivo.</string>
+    <string name="failed_changes_conflict">Outra pessoa alterou este registo primeiro, por isso a sua edi??o n?o foi aplicada.</string>
+    <string name="failed_changes_conflict_versions">A sua edi??o baseou-se na vers?o %1$s; o servidor tem a vers?o %2$s.</string>
+    <string name="failed_changes_conflict_pending">Os detalhes do conflito chegam na pr?xima sincroniza??o.</string>
+    <string name="failed_changes_field_diff">%1$s: seu %2$s, servidor %3$s</string>
+    <string name="failed_changes_value_empty">(vazio)</string>
+    <string name="failed_changes_keep_mine">Aplicar a minha altera??o</string>
+    <string name="failed_changes_keep_server">Manter vers?o do servidor</string>
+    <string name="failed_changes_other_conflicts">Conflitos em aberto</string>
+    <string name="failed_changes_other_conflicts_detail">Edi??es feitas noutro dispositivo que o servidor recusou.</string>
+    <string name="failed_changes_resolve_failed">N?o foi poss?vel resolver o conflito</string>
+    <string name="failed_changes_record_gone">O registo j? n?o existe, por isso a altera??o n?o pode ser aplicada de novo. Mantenha a vers?o do servidor ou ignore o conflito.</string>
+    <string name="failed_changes_not_ready">Inicie sess?o e aguarde a primeira sincroniza??o; depois tente novamente.</string>
+    <string name="failed_changes_ok">OK</string>
 </resources>

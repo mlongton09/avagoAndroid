@@ -120,4 +120,29 @@
     <string name="sample_workspaces_account_missing">De werkruimte is aangemaakt, maar staat nog niet in uw accountlijst. Probeer het opnieuw.</string>
     <string name="sample_workspaces_load_failed">Kan voorbeeldwerkruimten niet laden: %1$s</string>
     <string name="sample_workspaces_empty">Geen voorbeeldprofielen beschikbaar</string>
+    <string name="settings_failed_changes">Mislukte wijzigingen</string>
+    <string name="failed_changes_title">Mislukte wijzigingen</string>
+    <string name="failed_changes_back">Terug</string>
+    <string name="failed_changes_dismiss">Negeren</string>
+    <string name="failed_changes_dismiss_all">Alles negeren</string>
+    <string name="failed_changes_all_sent">Alle wijzigingen zijn gesynchroniseerd</string>
+    <plurals name="failed_changes_pending">
+        <item quantity="one">%d wijziging wacht op synchronisatie</item>
+        <item quantity="other">%d wijzigingen wachten op synchronisatie</item>
+    </plurals>
+    <string name="failed_changes_empty">Geen mislukte wijzigingen</string>
+    <string name="failed_changes_empty_detail">Wijzigingen die de server weigert staan hier. Ze zijn op dit apparaat al ongedaan gemaakt.</string>
+    <string name="failed_changes_conflict">Iemand anders heeft dit record eerder gewijzigd, dus je bewerking is niet toegepast.</string>
+    <string name="failed_changes_conflict_versions">Je bewerking was gebaseerd op versie %1$s; de server heeft versie %2$s.</string>
+    <string name="failed_changes_conflict_pending">De details van het conflict komen met de volgende synchronisatie.</string>
+    <string name="failed_changes_field_diff">%1$s: jouw %2$s, server %3$s</string>
+    <string name="failed_changes_value_empty">(leeg)</string>
+    <string name="failed_changes_keep_mine">Mijn wijziging toepassen</string>
+    <string name="failed_changes_keep_server">Serverversie behouden</string>
+    <string name="failed_changes_other_conflicts">Open conflicten</string>
+    <string name="failed_changes_other_conflicts_detail">Bewerkingen op een ander apparaat die de server heeft geweigerd.</string>
+    <string name="failed_changes_resolve_failed">Conflict kon niet worden opgelost</string>
+    <string name="failed_changes_record_gone">Het record bestaat niet meer, dus je wijziging kan niet opnieuw worden toegepast. Behoud de serverversie of negeer het conflict.</string>
+    <string name="failed_changes_not_ready">Meld je aan en wacht op de eerste synchronisatie; probeer het daarna opnieuw.</string>
+    <string name="failed_changes_ok">OK</string>
 </resources>

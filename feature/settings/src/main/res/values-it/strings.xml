@@ -122,4 +122,29 @@
     <string name="sample_workspaces_account_missing">L\'area di lavoro è stata creata ma non è ancora nel tuo elenco di account. Riprova.</string>
     <string name="sample_workspaces_load_failed">Impossibile caricare le aree di lavoro di esempio: %1$s</string>
     <string name="sample_workspaces_empty">Nessun profilo di esempio disponibile</string>
+    <string name="settings_failed_changes">Modifiche non riuscite</string>
+    <string name="failed_changes_title">Modifiche non riuscite</string>
+    <string name="failed_changes_back">Indietro</string>
+    <string name="failed_changes_dismiss">Ignora</string>
+    <string name="failed_changes_dismiss_all">Ignora tutto</string>
+    <string name="failed_changes_all_sent">Tutte le modifiche sono sincronizzate</string>
+    <plurals name="failed_changes_pending">
+        <item quantity="one">%d modifica in attesa di sincronizzazione</item>
+        <item quantity="other">%d modifiche in attesa di sincronizzazione</item>
+    </plurals>
+    <string name="failed_changes_empty">Nessuna modifica non riuscita</string>
+    <string name="failed_changes_empty_detail">Qui sono elencate le modifiche rifiutate dal server. Sono gi? state annullate su questo dispositivo.</string>
+    <string name="failed_changes_conflict">Qualcun altro ha modificato prima questo record, quindi la tua modifica non ? stata applicata.</string>
+    <string name="failed_changes_conflict_versions">La tua modifica si basava sulla versione %1$s; il server ha la versione %2$s.</string>
+    <string name="failed_changes_conflict_pending">I dettagli del conflitto arriveranno con la prossima sincronizzazione.</string>
+    <string name="failed_changes_field_diff">%1$s: tuo %2$s, server %3$s</string>
+    <string name="failed_changes_value_empty">(vuoto)</string>
+    <string name="failed_changes_keep_mine">Applica la mia modifica</string>
+    <string name="failed_changes_keep_server">Mantieni versione del server</string>
+    <string name="failed_changes_other_conflicts">Conflitti aperti</string>
+    <string name="failed_changes_other_conflicts_detail">Modifiche fatte su un altro dispositivo e rifiutate dal server.</string>
+    <string name="failed_changes_resolve_failed">Impossibile risolvere il conflitto</string>
+    <string name="failed_changes_record_gone">Il record non esiste pi?, quindi la modifica non pu? essere riapplicata. Mantieni la versione del server o ignora il conflitto.</string>
+    <string name="failed_changes_not_ready">Accedi e attendi la prima sincronizzazione, poi riprova.</string>
+    <string name="failed_changes_ok">OK</string>
 </resources>
