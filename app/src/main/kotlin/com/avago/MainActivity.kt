@@ -7,18 +7,18 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.avago.app.AssetTagParser
@@ -27,8 +27,10 @@ import com.avago.core.auth.IdentityManager
 import com.avago.core.auth.PermissionStore
 import com.avago.core.data.repository.UserPreferencesRepository
 import com.avago.core.data.v2.V2Flag
+import com.avago.core.data.v2.V2Uuid
 import com.avago.core.design.theme.AvagoTheme
 import com.avago.core.push.NotificationPermissionHelper
+import com.avago.core.push.WorkOrderNotifier
 import com.avago.core.sync.SyncEngine
 import com.avago.core.sync.SyncGate
 import com.avago.core.ui.ServiceUnavailableUpdateScreen
@@ -221,6 +223,14 @@ class MainActivity : ComponentActivity() {
         intent?.getStringExtra(com.avago.feature.rentals.widget.RentalFleetWidget.EXTRA_OPEN)
             ?.takeIf { it.startsWith(com.avago.feature.rentals.nav.RentalsRoute.PREFIX) }
             ?.let { mainViewModel.openRoute(it) }
+        // Work-order notifications (FCM and the local ones posted after a sync) carry the id.
+        intent?.getStringExtra(WorkOrderNotifier.EXTRA_WORK_ORDER_ID)
+            ?.takeIf { V2Uuid.isValid(it) }
+            ?.let {
+                intent.removeExtra(WorkOrderNotifier.EXTRA_WORK_ORDER_ID)
+                mainViewModel.openRoute(com.avago.feature.workorders.nav.WorkOrderRoute.detail(it))
+                return
+            }
         when (intent?.action) {
             android.content.Intent.ACTION_VIEW -> {
                 // Marketplace web links, QR passport / transfer-claim links (crew) and

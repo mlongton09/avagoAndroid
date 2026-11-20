@@ -14,7 +14,21 @@ import timber.log.Timber
 
 /** Outcome of one [V2SyncEngine.sync] run. */
 sealed interface V2SyncResult {
-    data class Synced(val mode: String, val w: String, val g: String, val pages: Int, val items: Int) : V2SyncResult
+    /**
+     * [upserted] is entity_type to the keys of the rows this run upserted, for incremental runs
+     * only (a bootstrap rewrites everything, so it says nothing about what is new).
+     */
+    data class Synced(
+        val mode: String,
+        val w: String,
+        val g: String,
+        val pages: Int,
+        val items: Int,
+        val upserted: Map<String, Set<String>> = emptyMap(),
+    ) : V2SyncResult {
+        override fun toString() =
+            "Synced(mode=$mode, w=$w, g=$g, pages=$pages, items=$items, upserted=${upserted.mapValues { it.value.size }})"
+    }
 
     /** `426 upgrade_required`: the app must show the update screen (M-02). */
     data object UpgradeRequired : V2SyncResult
@@ -70,6 +84,9 @@ class V2SyncEngine(
     private val businessApplier = V2ProjectionApplier()
     private val chatApplier = V2ProjectionApplier()
 
+    /** Upserts applied by the current [sync] run (guarded by [mutex]); see [V2SyncResult.Synced.upserted]. */
+    private val upserted = LinkedHashMap<String, MutableSet<String>>()
+
     private data class Chain(
         val sessionId: String,
         val mode: String,
@@ -100,6 +117,7 @@ class V2SyncEngine(
      * difference from the versions the store was bootstrapped with forces a bootstrap.
      */
     suspend fun sync(serverProjectionVersions: Map<String, Int>? = null): V2SyncResult = mutex.withLock {
+        upserted.clear()
         val desiredVersions = desiredVersions(serverProjectionVersions)
         repeat(MAX_RESTARTS) {
             when (val step = runSession(desiredVersions)) {
@@ -115,6 +133,12 @@ class V2SyncEngine(
      * Queued commands and their overlays are kept and still sent.
      */
     suspend fun requestBootstrap() = mutex.withLock { resetToBootstrap(STATUS_BOOTSTRAP_REQUIRED) }
+
+    /** The committed account-stream cursor; null until a bootstrap has completed. */
+    suspend fun committedAccountCursor(): Long? = business.read { conn ->
+        conn.query("SELECT cursor FROM sync_state WHERE stream = 'account' AND bootstrap_state = ?", listOf(BOOTSTRAP_COMPLETE))
+            .firstOrNull()?.longOrNull("cursor")
+    }
 
     /** Status column of `sync_state` (both streams carry the same value). */
     suspend fun status(): String = business.read { it.scalarText("SELECT status FROM sync_state WHERE stream = 'account'") ?: "ok" }
@@ -230,6 +254,7 @@ class V2SyncEngine(
             carried += page
             try {
                 applyBusiness(carried)
+                if (chain.mode == MODE_INCREMENTAL) collectUpserts(carried)
                 carried.clear()
             } catch (e: V2ApplyException) {
                 if (e.isForeignKey && !page.isFinal && carried.size < MAX_CARRIED_PAGES) {
@@ -286,7 +311,14 @@ class V2SyncEngine(
             markUpgradeRequired()
             return Step.Done(V2SyncResult.UpgradeRequired)
         }
-        return Step.Done(V2SyncResult.Synced(chain.mode, w, g, pages, items))
+        val applied = if (chain.mode == MODE_INCREMENTAL) upserted.mapValues { it.value.toSet() } else emptyMap()
+        return Step.Done(V2SyncResult.Synced(chain.mode, w, g, pages, items, applied))
+    }
+
+    private fun collectUpserts(pages: List<V2PageResponse>) {
+        for (item in pages.flatMap { it.items }) {
+            if (item.op == OP_UPSERT) upserted.getOrPut(item.entityType) { linkedSetOf() } += item.entityKey
+        }
     }
 
     private sealed interface PageFetch {

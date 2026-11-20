@@ -13,7 +13,9 @@ import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
 import com.avago.MainActivity
 import com.avago.core.auth.IdentityManager
+import com.avago.core.push.WorkOrderNotifier
 import com.avago.core.sync.SyncWorker
+import com.avago.core.sync.v2.V2SyncCoordinator
 import com.avago.feature.chat.ActiveThreadTracker
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
@@ -23,6 +25,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import timber.log.Timber
 import javax.inject.Inject
 
@@ -30,6 +33,7 @@ import javax.inject.Inject
 class AvagoFcmService : FirebaseMessagingService() {
 
     @Inject lateinit var identity: IdentityManager
+    @Inject lateinit var syncCoordinator: V2SyncCoordinator
     @Inject lateinit var rentalOpsPush: com.avago.feature.rentalsops.push.RentalOpsPushHandler
 
     // Service-scoped coroutine scope; cancelled in onDestroy.
@@ -110,10 +114,15 @@ class AvagoFcmService : FirebaseMessagingService() {
     // Sync hint
     // -------------------------------------------------------------------------
 
-    /** A sync hint is a silent invalidation with no rows to apply; it just starts one pull + flush. */
+    /**
+     * A sync hint is a silent invalidation with no rows to apply: it starts one pull + flush when
+     * its head is ahead of the active account's committed cursor (`V2SyncHints`). Runs on the
+     * FCM worker thread, so the local cursor read may block briefly.
+     */
     private fun handleSyncHint(msg: RemoteMessage) {
-        Timber.d("FCM: sync_hint (head ${msg.data["w"]}) — enqueuing sync")
-        enqueueSyncWork()
+        val outcome = runBlocking { syncCoordinator.hint(msg.data["account_id"], msg.data["w"]) }
+        Timber.d("FCM: sync_hint (head ${msg.data["w"]}) -> ${outcome.wire}")
+        if (outcome.syncs) enqueueSyncWork()
     }
 
     internal fun enqueueSyncWork() {
@@ -142,7 +151,7 @@ class AvagoFcmService : FirebaseMessagingService() {
             notifId = (woId + "mention").hashCode(),
             title = title,
             text = body,
-            deepLinkExtra = "wo_id" to woId,
+            deepLinkExtra = WorkOrderNotifier.EXTRA_WORK_ORDER_ID to woId,
             extraExtras = if (commentId != null) listOf("comment_id" to commentId) else emptyList(),
         )
         enqueueSyncWork()
@@ -179,7 +188,7 @@ class AvagoFcmService : FirebaseMessagingService() {
             notifId = (permitId + "sig").hashCode(),
             title = "Permit Signature",
             text = text,
-            deepLinkExtra = if (woId != null) "wo_id" to woId else "permit_id" to permitId,
+            deepLinkExtra = if (woId != null) WorkOrderNotifier.EXTRA_WORK_ORDER_ID to woId else "permit_id" to permitId,
         )
         enqueueSyncWork()
     }
@@ -196,7 +205,7 @@ class AvagoFcmService : FirebaseMessagingService() {
             notifId = permitId.hashCode(),
             title = "Work Permit: $status",
             text = "Permit status changed to $status",
-            deepLinkExtra = if (woId != null) "wo_id" to woId else "permit_id" to permitId,
+            deepLinkExtra = if (woId != null) WorkOrderNotifier.EXTRA_WORK_ORDER_ID to woId else "permit_id" to permitId,
         )
         enqueueSyncWork()
     }
@@ -213,7 +222,7 @@ class AvagoFcmService : FirebaseMessagingService() {
             notifId = (woId + "assign").hashCode(),
             title = "Assigned: $woTitle",
             text = "Assigned to you by $assignedBy",
-            deepLinkExtra = "wo_id" to woId,
+            deepLinkExtra = WorkOrderNotifier.EXTRA_WORK_ORDER_ID to woId,
         )
         enqueueSyncWork()
     }
@@ -230,7 +239,7 @@ class AvagoFcmService : FirebaseMessagingService() {
             notifId = (woId + "teamassign").hashCode(),
             title = "Team Assignment: $woTitle",
             text = "$teamName was assigned to this work order",
-            deepLinkExtra = "wo_id" to woId,
+            deepLinkExtra = WorkOrderNotifier.EXTRA_WORK_ORDER_ID to woId,
         )
         enqueueSyncWork()
     }
@@ -249,7 +258,7 @@ class AvagoFcmService : FirebaseMessagingService() {
             title = "RCA Report: $status",
             text = "Root Cause Analysis report was $status",
             deepLinkExtra = when {
-                woId != null -> "wo_id" to woId
+                woId != null -> WorkOrderNotifier.EXTRA_WORK_ORDER_ID to woId
                 assetId != null -> "asset_id" to assetId
                 else -> "report_id" to reportId
             },

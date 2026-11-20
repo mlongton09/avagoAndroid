@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="push_channel_wo_assignments">Work Order Assignments</string>
+    <string name="push_channel_wo_comments">Work Order Comments</string>
+    <string name="push_channel_approvals">Approvals</string>
+    <string name="push_wo_assigned_title">New job assigned</string>
+    <string name="push_wo_comment_title">Comment on %1$s</string>
+    <string name="push_wo_comment_media">New photo, voice or file comment</string>
+    <string name="push_wo_approval_title">Approval required</string>
+    <string name="push_wo_approval_text">%1$s needs review</string>
+</resources>

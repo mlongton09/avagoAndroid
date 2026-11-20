@@ -7,6 +7,7 @@ import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import dagger.multibindings.Multibinds
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -19,4 +20,7 @@ abstract class V2SyncModule {
 
     @Binds
     abstract fun bindFileUploads(uploads: V2OnlineUploads): FileUploads
+
+    @Multibinds
+    abstract fun pullListeners(): Set<V2PullListener>
 }

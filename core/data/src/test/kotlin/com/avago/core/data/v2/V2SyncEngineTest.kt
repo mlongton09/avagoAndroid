@@ -56,6 +56,7 @@ class V2SyncEngineTest {
     @Test
     fun `bootstrap pages through both streams, acks and commits cursors`() = runTest {
         scriptBootstrap()
+        assertNull(engine.committedAccountCursor())
 
         val result = engine.sync()
 
@@ -67,6 +68,7 @@ class V2SyncEngineTest {
         assertEquals("3", ack["global_cursor"]!!.jsonPrimitive.content)
         assertEquals("true", ack["bootstrap_completed"]!!.jsonPrimitive.content)
         assertEquals(9L, stream("account")["cursor"])
+        assertEquals(9L, engine.committedAccountCursor())
         assertEquals(3L, stream("global")["cursor"])
         assertEquals("complete", stream("account")["bootstrap_state"])
         assertNull(business.meta(V2SyncEngine.META_CHAIN))
@@ -94,6 +96,7 @@ class V2SyncEngineTest {
         val result = engine.sync()
 
         assertInstanceOf(V2SyncResult.Synced::class.java, result)
+        assertEquals(mapOf("locations" to setOf(locA)), (result as V2SyncResult.Synced).upserted, "tombstones are not upserts")
         val openBody = body(server.transport.matching("POST", "/sync/sessions").last())
         assertEquals("incremental", openBody["mode"]!!.jsonPrimitive.content)
         assertEquals("9", openBody["account"]!!.jsonObject["cursor"]!!.jsonPrimitive.content)

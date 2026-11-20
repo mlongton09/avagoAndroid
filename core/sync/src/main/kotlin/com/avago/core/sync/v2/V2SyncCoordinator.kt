@@ -15,6 +15,7 @@ import com.avago.core.data.v2.V2StoreGate
 import com.avago.core.data.v2.V2StoreIdentity
 import com.avago.core.data.v2.V2Stores
 import com.avago.core.data.v2.V2SyncEngine
+import com.avago.core.data.v2.V2SyncHints
 import com.avago.core.data.v2.V2SyncResult
 import com.avago.core.data.v2.V2Uuid
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -44,6 +45,8 @@ class V2SyncCoordinator @Inject constructor(
     private val identityManager: IdentityManager,
     private val blobs: V2HttpBlobTransport,
     private val transport: V2HttpTransport,
+    private val pullListeners: Set<@JvmSuppressWildcards V2PullListener>,
+    private val metrics: V2ClientMetrics,
 ) {
     private val mutex = Mutex()
     @Volatile private var session: Session? = null
@@ -92,8 +95,46 @@ class V2SyncCoordinator @Inject constructor(
             is V2SyncResult.Failed -> Timber.e(result.error, "V2SyncCoordinator: sync failed")
             else -> Timber.d("V2SyncCoordinator: sync → $result")
         }
+        if (result is V2SyncResult.Synced) notifyPulled(current, result)
         if (result is V2SyncResult.Synced || result is V2SyncResult.RetryLater) flush(current)
+        metrics.count(METRIC_SYNC_RUN, "account", outcome(result))
+        metrics.flushIfDue()
         result
+    }
+
+    /**
+     * Gates an E13 sync hint ([V2SyncHints]) against the active store's committed cursor and
+     * counts the outcome. Reads the open session only; without one the hint always pulls.
+     */
+    suspend fun hint(accountId: String?, head: String?): V2SyncHints.Outcome {
+        val active = identityManager.getActiveAccountId()
+        val cursor = session?.takeIf { gate.isOpen() && it.stores.identity.accountId == active }?.engine?.committedAccountCursor()
+        return V2SyncHints.decide(accountId, head, active, cursor).also {
+            metrics.count(METRIC_SYNC_HINT, "account", it.wire)
+        }
+    }
+
+    private fun outcome(result: V2SyncResult) = when (result) {
+        is V2SyncResult.Synced -> result.mode
+        is V2SyncResult.Offline -> "offline"
+        is V2SyncResult.RetryLater -> "retry_later"
+        is V2SyncResult.Failed -> "failed"
+        V2SyncResult.UpgradeRequired -> "upgrade_required"
+        V2SyncResult.Forbidden -> "forbidden"
+        V2SyncResult.DeviceRevoked -> "device_revoked"
+        V2SyncResult.DeviceIdRejected -> "device_id_rejected"
+    }
+
+    private suspend fun notifyPulled(current: Session, result: V2SyncResult.Synced) {
+        for (listener in pullListeners) {
+            try {
+                listener.onPulled(current.stores, result)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+                Timber.e(e, "V2SyncCoordinator: pull listener ${listener::class.simpleName} failed")
+            }
+        }
     }
 
     /** Drops the local copy and bootstraps again (queued commands are kept). Null when v2 is off. */
@@ -171,5 +212,7 @@ class V2SyncCoordinator @Inject constructor(
 
     private companion object {
         const val KEY_DEVICE_ID = "v2_device_id"
+        const val METRIC_SYNC_RUN = "sync_v2_run"
+        const val METRIC_SYNC_HINT = "sync_v2_hint"
     }
 }
