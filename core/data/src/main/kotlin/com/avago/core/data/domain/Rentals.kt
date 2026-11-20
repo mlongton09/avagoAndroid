@@ -160,6 +160,8 @@ data class ReadinessCheck(
     val notes: String?,
     val at: Instant,
     val sync: RecordSyncState,
+    /** Condition photos (file ids, oldest first). */
+    val photoFileIds: List<String> = emptyList(),
 ) {
     val open: Boolean get() = status == "pending" || status == "failed"
 }
@@ -446,6 +448,8 @@ data class PaymentDraft(
     val isAuthorization: Boolean,
     val notes: String?,
     val receivedAt: Instant,
+    /** Where the receipt is e-mailed. */
+    val payerEmail: String? = null,
 )
 
 data class RentalRates(
@@ -544,9 +548,21 @@ interface RentalRepository {
         consentTextVersion: String,
     ): String
 
-    suspend fun startReadinessCheck(assetId: String, items: List<ReadinessCheckItem>, notes: String?): String
+    suspend fun startReadinessCheck(
+        assetId: String,
+        items: List<ReadinessCheckItem>,
+        notes: String?,
+        photos: List<LocalFileRef> = emptyList(),
+    ): String
 
-    suspend fun decideReadiness(checkId: String, status: String, items: List<ReadinessCheckItem>, notes: String?)
+    /** [photos] are added to the check's existing photos. */
+    suspend fun decideReadiness(
+        checkId: String,
+        status: String,
+        items: List<ReadinessCheckItem>,
+        notes: String?,
+        photos: List<LocalFileRef> = emptyList(),
+    )
 
     suspend fun enableRental(assetId: String, rates: RentalRates)
 

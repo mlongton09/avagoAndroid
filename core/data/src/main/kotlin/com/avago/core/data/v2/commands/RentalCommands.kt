@@ -162,7 +162,15 @@ object RentalCommands {
     }
 
     /** Customer documents are read through REST (no projection), so there is no overlay. */
-    fun addCustomerDocument(partyId: String, documentId: String, draft: CustomerDocumentDraft, scans: List<V2StagedFile>): V2NewCommand =
+    /** The document shows at once (number reduced to its last 4, as the server keeps it). */
+    fun addCustomerDocument(
+        partyId: String,
+        documentId: String,
+        draft: CustomerDocumentDraft,
+        scans: List<V2StagedFile>,
+        nowMillis: Long,
+        userId: String?,
+    ): V2NewCommand =
         PlacesPartiesCustomersAddDocument(
             id = partyId,
             documentId = documentId,
@@ -176,7 +184,22 @@ object RentalCommands {
             expiresOn = draft.expiresOn,
             notes = draft.notes.clean(),
             fileObjectIds = scans.map { it.fileId }.ifEmpty { null },
-        ).toNewCommand(uploads = scans.map { it.toUpload() })
+        ).toNewCommand(
+            overlay = V2OverlayPatch(
+                scans.map { MaintCommands.pendingFileRow(it, nowMillis, userId) } + V2RowOp.upsert(
+                    "party_documents", documentId,
+                    mapOf(
+                        "party_id" to partyId, "kind" to draft.kind,
+                        "number_last4" to draft.number.clean()?.filter { it.isLetterOrDigit() }?.takeLast(4),
+                        "issuer" to draft.issuer.clean(), "issuing_country" to draft.issuingCountry.clean()?.uppercase(),
+                        "issuing_region" to draft.issuingRegion.clean(), "class_codes" to draft.classCodes.clean(),
+                        "issued_on" to draft.issuedOn?.toString(), "expires_on" to draft.expiresOn?.toString(),
+                        "notes" to draft.notes.clean(),
+                    ) + created(nowMillis, userId),
+                ),
+            ),
+            uploads = scans.map { it.toUpload() },
+        )
 
     // ----------------------------------------------------------------------------------- orders
 
@@ -671,10 +694,12 @@ object RentalCommands {
 
     // ------------------------------------------------------------------------- money & documents
 
-    /** Ledger entries are not projected, so a recorded payment shows as pending on the order. */
-    fun recordPayment(entryId: String, draft: PaymentDraft): V2NewCommand {
+    /** The entry shows in the order ledger at once (settled, or authorized for a card hold). */
+    fun recordPayment(entryId: String, draft: PaymentDraft, customerPartyId: String?, nowMillis: Long, userId: String?): V2NewCommand {
         require(draft.amountMinor > 0) { "the amount must be positive" }
-        return RentalRentalOrdersRecordPayment(
+        val email = draft.payerEmail.clean()?.lowercase()
+        require(email == null || EMAIL.matches(email)) { "the payer e-mail is not valid" }
+        val payload = RentalRentalOrdersRecordPayment(
             id = draft.orderId,
             entryId = entryId,
             kind = LedgerKind.entries.first { it.wire == draft.kind },
@@ -687,9 +712,24 @@ object RentalCommands {
             cardBrand = draft.cardBrand.clean(),
             cardLast4 = draft.cardLast4.clean(),
             payerName = draft.payerName.clean(),
+            payerEmail = email,
             receivedAt = draft.receivedAt,
-        ).toNewCommand()
+        )
+        val row = V2RowOp.upsert(
+            "customer_ledger_entries", entryId,
+            mapOf(
+                "order_id" to draft.orderId, "customer_party_id" to customerPartyId, "kind" to payload.kind.wire,
+                "method" to payload.method?.wire, "amount_minor" to draft.amountMinor, "currency" to payload.currency,
+                "state" to if (draft.isAuthorization) "authorized" else "settled", "received_at" to draft.receivedAt.toEpochMilli(),
+                "reference" to payload.reference, "notes" to payload.notes,
+                "payer_name" to payload.payerName, "payer_email" to email, "recorded_by" to userId,
+            ) + created(nowMillis, userId),
+        )
+        // An authorization row needs its expiry (store CHECK); the server's row brings it.
+        return payload.toNewCommand(overlay = if (draft.isAuthorization) null else V2OverlayPatch.of(row))
     }
+
+    private val EMAIL = Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")
 
     fun createInvoiceDraft(id: String, order: RentalOrder, nowMillis: Long, userId: String?): V2NewCommand {
         val customer = requireNotNull(order.customerPartyId) { "a walk-in order cannot be invoiced; add a customer first" }
@@ -787,11 +827,39 @@ object RentalCommands {
         ) + created(nowMillis, userId),
     )
 
-    fun createCheck(id: String, assetId: String, items: List<ReadinessCheckItem>, notes: String?, nowMillis: Long, userId: String?): V2NewCommand {
+    fun createCheck(
+        id: String,
+        assetId: String,
+        items: List<ReadinessCheckItem>,
+        notes: String?,
+        nowMillis: Long,
+        userId: String?,
+        photos: List<V2StagedFile> = emptyList(),
+    ): V2NewCommand {
         val list = items.ifEmpty { DEFAULT_CHECKLIST }
-        return RentalRentalHandoversCreateCheck(id = id, assetId = assetId, items = itemsIn(list), notes = notes.clean())
-            .toNewCommand(overlay = V2OverlayPatch(listOf(readinessRow(id, assetId, null, "pending", list, notes.clean(), nowMillis, nowMillis, userId))))
+        return RentalRentalHandoversCreateCheck(
+            id = id, assetId = assetId, items = itemsIn(list), notes = notes.clean(),
+            photoFileIds = photos.map { it.fileId }.ifEmpty { null },
+        ).toNewCommand(
+            overlay = V2OverlayPatch(
+                listOf(readinessRow(id, assetId, null, "pending", list, notes.clean(), nowMillis, nowMillis, userId)) +
+                    photoRows(id, photos, nowMillis, userId),
+            ),
+            uploads = photos.map { it.toUpload() },
+        )
     }
+
+    /** The server stores each photo as a `photo` handover file. */
+    private fun photoRows(checkId: String, photos: List<V2StagedFile>, nowMillis: Long, userId: String?): List<V2RowOp> =
+        photos.flatMap { staged ->
+            listOf(
+                MaintCommands.pendingFileRow(staged, nowMillis, userId),
+                V2RowOp.upsert(
+                    "rental_handover_files", mapOf("handover_id" to checkId, "file_object_id" to staged.fileId),
+                    mapOf("role" to "photo", "created_at" to nowMillis),
+                ),
+            )
+        }
 
     /** Readiness rule (server `check_status_ok`): only an open check changes; passing needs every item done. */
     fun updateCheck(
@@ -800,6 +868,8 @@ object RentalCommands {
         items: List<ReadinessCheckItem>,
         notes: String?,
         nowMillis: Long,
+        photos: List<V2StagedFile> = emptyList(),
+        userId: String? = null,
     ): V2NewCommand {
         require(stored.open) { "a closed checklist cannot change" }
         val target = ReadinessStatus.entries.first { it.wire == status }
@@ -815,6 +885,8 @@ object RentalCommands {
             status = target.takeIf { it.wire != stored.status },
             items = itemsIn(items),
             notes = reason,
+            // The set replaces the check's photos, so it carries the kept ones too.
+            photoFileIds = photos.takeIf { it.isNotEmpty() }?.let { stored.photoFileIds + it.map { p -> p.fileId } },
         ).toNewCommand(
             baseVersion = stored.version,
             overlay = V2OverlayPatch(
@@ -823,8 +895,9 @@ object RentalCommands {
                         "rental_handovers", stored.id,
                         mapOf("readiness_status" to target.wire, "readiness_items" to itemsJson(items), "notes" to reason) + updated(nowMillis),
                     ),
-                ),
+                ) + photoRows(stored.id, photos, nowMillis, userId),
             ),
+            uploads = photos.map { it.toUpload() },
         )
     }
 

@@ -26,3 +26,13 @@ interface FileRepository {
     /** Trims the download cache to [maxBytes], least recently used first; returns the bytes freed. */
     suspend fun trimCache(maxBytes: Long): Long
 }
+
+/**
+ * Uploads a local file now (E12 register, PUT, finalize) for an online action whose REST request
+ * names the file, such as a post charge billed at once on a closed order. Synced writes attach files
+ * through their command's upload jobs instead. Returns the finalized file id; throws when offline,
+ * or [StoreNotReadyException] when nobody is signed in.
+ */
+interface FileUploads {
+    suspend fun upload(file: LocalFileRef): String
+}

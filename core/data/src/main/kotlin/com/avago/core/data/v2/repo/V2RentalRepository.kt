@@ -121,13 +121,13 @@ class V2RentalRepository @Inject constructor(
         }
 
     override fun observeReadinessChecks(assetId: String): Flow<List<ReadinessCheck>> =
-        store.observe(setOf("rental_handovers", "pending_commands"), emptyList()) { conn ->
+        store.observe(setOf("rental_handovers", "rental_handover_files", "pending_commands"), emptyList()) { conn ->
             val sync = syncStates(conn, "rental_handovers")
-            V2OverlayMerge.query(conn, "rental_handovers", "kind = 'readiness' AND asset_id = ?", listOf(assetId)) {
+            val rows = V2OverlayMerge.query(conn, "rental_handovers", "kind = 'readiness' AND asset_id = ?", listOf(assetId)) {
                 it["kind"] == "readiness" && it["asset_id"] == assetId
             }.filter { it["voided_at"] == null }
-                .map { readiness(it, sync) }
-                .sortedByDescending { it.at }
+            val photos = handoverPhotos(conn, rows.map { it.str("id") }.toSet())
+            rows.map { readiness(it, sync, photos) }.sortedByDescending { it.at }
         }
 
     override fun observeBulkReturns(orderId: String): Flow<List<RentalBulkReturn>> =
@@ -242,7 +242,8 @@ class V2RentalRepository @Inject constructor(
     override suspend fun addCustomerDocument(partyId: String, draft: CustomerDocumentDraft): String {
         val id = V2Uuid.v7()
         val scans = stage(draft.scans)
-        commands.submit(RentalCommands.addCustomerDocument(partyId, id, draft, scans))
+        val now = System.currentTimeMillis()
+        commands.submit(RentalCommands.addCustomerDocument(partyId, id, draft, scans, now, commands.currentUserId()))
         return id
     }
 
@@ -341,8 +342,10 @@ class V2RentalRepository @Inject constructor(
     }
 
     override suspend fun recordPayment(draft: PaymentDraft): String {
-        val id = V2Uuid.v7()
-        commands.submit(RentalCommands.recordPayment(id, draft))
+        val order = order(draft.orderId) ?: throw RecordNotFoundException("rental order", draft.orderId)
+        val now = System.currentTimeMillis()
+        val id = V2Uuid.v7(now)
+        commands.submit(RentalCommands.recordPayment(id, draft, order.customerPartyId, now, commands.currentUserId()))
         return id
     }
 
@@ -383,19 +386,33 @@ class V2RentalRepository @Inject constructor(
         return id
     }
 
-    override suspend fun startReadinessCheck(assetId: String, items: List<ReadinessCheckItem>, notes: String?): String {
+    override suspend fun startReadinessCheck(
+        assetId: String,
+        items: List<ReadinessCheckItem>,
+        notes: String?,
+        photos: List<LocalFileRef>,
+    ): String {
+        val staged = stage(photos)
         val now = System.currentTimeMillis()
         val id = V2Uuid.v7(now)
-        commands.submit(RentalCommands.createCheck(id, assetId, items, notes, now, commands.currentUserId()))
+        commands.submit(RentalCommands.createCheck(id, assetId, items, notes, now, commands.currentUserId(), staged))
         return id
     }
 
-    override suspend fun decideReadiness(checkId: String, status: String, items: List<ReadinessCheckItem>, notes: String?) {
+    override suspend fun decideReadiness(
+        checkId: String,
+        status: String,
+        items: List<ReadinessCheckItem>,
+        notes: String?,
+        photos: List<LocalFileRef>,
+    ) {
         val stored = store.read(null) { conn ->
             V2OverlayMerge.query(conn, "rental_handovers", "id = ?", listOf(checkId)) { it["id"] == checkId }
-                .firstOrNull { it["kind"] == "readiness" }?.let { readiness(it, emptyMap()) }
+                .firstOrNull { it["kind"] == "readiness" }?.let { readiness(it, emptyMap(), handoverPhotos(conn, setOf(checkId))) }
         } ?: throw RecordNotFoundException("readiness checklist", checkId)
-        commands.submit(RentalCommands.updateCheck(stored, status, items, notes, System.currentTimeMillis()))
+        val staged = stage(photos)
+        val now = System.currentTimeMillis()
+        commands.submit(RentalCommands.updateCheck(stored, status, items, notes, now, staged, commands.currentUserId()))
     }
 
     override suspend fun enableRental(assetId: String, rates: RentalRates) {
@@ -648,7 +665,20 @@ class V2RentalRepository @Inject constructor(
             )
         }
 
-        private fun readiness(r: V2Row, sync: Map<String, RecordSyncState>): ReadinessCheck {
+        /** Photo file ids per handover, oldest first. */
+        internal fun handoverPhotos(conn: V2Connection, handoverIds: Set<String>): Map<String, List<String>> =
+            if (handoverIds.isEmpty()) {
+                emptyMap()
+            } else {
+                V2OverlayMerge.query(
+                    conn, "rental_handover_files",
+                    "role = 'photo' AND handover_id IN (${handoverIds.joinToString(",") { "?" }})", handoverIds.toList(),
+                ) { it["role"] == "photo" && it["handover_id"] in handoverIds }
+                    .sortedBy { it.longOrNull("created_at") ?: 0L }
+                    .groupBy({ it.str("handover_id") }, { it.str("file_object_id") })
+            }
+
+        private fun readiness(r: V2Row, sync: Map<String, RecordSyncState>, photos: Map<String, List<String>>): ReadinessCheck {
             val id = r.str("id")
             return ReadinessCheck(
                 id = id,
@@ -660,6 +690,7 @@ class V2RentalRepository @Inject constructor(
                 notes = r.strOrNull("notes"),
                 at = r.instant("at") ?: Instant.EPOCH,
                 sync = sync[id] ?: RecordSyncState.SAVED,
+                photoFileIds = photos[id].orEmpty(),
             )
         }
 

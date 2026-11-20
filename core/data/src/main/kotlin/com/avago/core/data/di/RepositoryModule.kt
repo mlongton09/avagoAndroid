@@ -1,8 +1,8 @@
 package com.avago.core.data.di
 
 import com.avago.core.data.domain.AccountPreferencesRepository
-import com.avago.core.data.domain.AdminRepository
 import com.avago.core.data.domain.ActivityRepository
+import com.avago.core.data.domain.AdminRepository
 import com.avago.core.data.domain.AssetRepository
 import com.avago.core.data.domain.ChangeQueueRepository
 import com.avago.core.data.domain.ConfigRepository
@@ -12,6 +12,7 @@ import com.avago.core.data.domain.LocationRepository
 import com.avago.core.data.domain.PmRepository
 import com.avago.core.data.domain.PurchaseOrderRepository
 import com.avago.core.data.domain.ReferenceRepository
+import com.avago.core.data.domain.RentalAccountsRepository
 import com.avago.core.data.domain.RentalDispatchRepository
 import com.avago.core.data.domain.RentalRepository
 import com.avago.core.data.domain.SupplierRepository
@@ -19,8 +20,8 @@ import com.avago.core.data.domain.WorkOrderRepository
 import com.avago.core.data.domain.WorkerRepository
 import com.avago.core.data.v2.V2ChangeQueueRepository
 import com.avago.core.data.v2.repo.V2AccountPreferencesRepository
-import com.avago.core.data.v2.repo.V2AdminRepository
 import com.avago.core.data.v2.repo.V2ActivityRepository
+import com.avago.core.data.v2.repo.V2AdminRepository
 import com.avago.core.data.v2.repo.V2AssetRepository
 import com.avago.core.data.v2.repo.V2ConfigRepository
 import com.avago.core.data.v2.repo.V2DocumentRepository
@@ -29,6 +30,7 @@ import com.avago.core.data.v2.repo.V2LocationRepository
 import com.avago.core.data.v2.repo.V2PmRepository
 import com.avago.core.data.v2.repo.V2PurchaseOrderRepository
 import com.avago.core.data.v2.repo.V2ReferenceRepository
+import com.avago.core.data.v2.repo.V2RentalAccountsRepository
 import com.avago.core.data.v2.repo.V2RentalDispatchRepository
 import com.avago.core.data.v2.repo.V2RentalRepository
 import com.avago.core.data.v2.repo.V2SupplierRepository
@@ -50,6 +52,7 @@ abstract class RepositoryModule {
     @Binds abstract fun suppliers(impl: V2SupplierRepository): SupplierRepository
 
     @Binds abstract fun rentals(impl: V2RentalRepository): RentalRepository
+    @Binds abstract fun rentalAccounts(impl: V2RentalAccountsRepository): RentalAccountsRepository
 
     @Binds abstract fun rentalDispatch(impl: V2RentalDispatchRepository): RentalDispatchRepository
 
