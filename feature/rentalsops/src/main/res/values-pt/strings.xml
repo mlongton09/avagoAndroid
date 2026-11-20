@@ -213,4 +213,11 @@
     <string name="rentalops_transfer_cancel">Cancelar transferência</string>
     <string name="rentalops_kind_swap">Troca</string>
     <string name="rentalops_push_intro_synced">Escolha quais eventos de aluguel notificam você. Suas escolhas valem em todos os seus dispositivos.</string>
+    <string name="rentalops_send">Enviar</string>
+    <string name="rentalops_statement_email">Enviar extrato por e-mail</string>
+    <string name="rentalops_statement_email_hint">Deixe vazio para usar o e-mail de cobrança do cliente.</string>
+    <string name="rentalops_statement_emailed">Extrato enviado para %1$s</string>
+    <string name="rentalops_statement_emailed_default">Extrato enviado</string>
+    <string name="rentalops_statement_no_recipient">Este cliente não tem e-mail de cobrança. Informe um destinatário.</string>
+    <string name="rentalops_statement_recipient">E-mail do destinatário (opcional)</string>
 </resources>

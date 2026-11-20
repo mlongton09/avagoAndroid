@@ -29,6 +29,7 @@ import java.time.Instant
 
 /** Routes of the rentals feature (§14). All screens own their top bar. */
 object RentalsRoute {
+    const val ONBOARDING = "rentals/onboarding"
     const val PREFIX = "rentals/"
     const val HOME = "rentals/home"
     const val FLEET = "rentals/fleet?status={status}&find={find}"
@@ -83,6 +84,10 @@ fun NavGraphBuilder.rentalsNavGraph(
     val back: () -> Unit = { navController.popBackStack() }
     fun go(route: String) = navController.navigate(route) { launchSingleTop = true }
     val handover: (String, String) -> Unit = { orderId, direction -> go(RentalsRoute.handover(orderId, direction)) }
+    composable(RentalsRoute.ONBOARDING) {
+        com.avago.feature.rentals.onboarding.OnboardingScreen(onBack = back)
+    }
+
     composable(RentalsRoute.HOME) {
         RentalsHomeScreen(
             onBack = null,
@@ -99,6 +104,7 @@ fun NavGraphBuilder.rentalsNavGraph(
                 onHandover = handover,
             ),
             operations = {
+                com.avago.feature.rentals.onboarding.OnboardingEntry(onOpen = { go(RentalsRoute.ONBOARDING) })
                 operationsEntries?.invoke { route -> go(route) }
             },
         )

@@ -213,4 +213,11 @@
     <string name="rentalops_transfer_cancel">Annulla trasferimento</string>
     <string name="rentalops_kind_swap">Sostituzione</string>
     <string name="rentalops_push_intro_synced">Scegli quali eventi di noleggio ti inviano notifiche. Le tue scelte valgono su tutti i tuoi dispositivi.</string>
+    <string name="rentalops_send">Invia</string>
+    <string name="rentalops_statement_email">Invia estratto conto via e-mail</string>
+    <string name="rentalops_statement_email_hint">Lascia vuoto per usare l\'e-mail di fatturazione del cliente.</string>
+    <string name="rentalops_statement_emailed">Estratto conto inviato a %1$s</string>
+    <string name="rentalops_statement_emailed_default">Estratto conto inviato</string>
+    <string name="rentalops_statement_no_recipient">Questo cliente non ha un\'e-mail di fatturazione. Inserisci un destinatario.</string>
+    <string name="rentalops_statement_recipient">E-mail destinatario (facoltativa)</string>
 </resources>

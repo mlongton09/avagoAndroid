@@ -213,4 +213,11 @@
     <string name="rentalops_transfer_cancel">Avbryt overføring</string>
     <string name="rentalops_kind_swap">Bytte</string>
     <string name="rentalops_push_intro_synced">Velg hvilke utleiehendelser du skal varsles om. Valgene gjelder på alle enhetene dine.</string>
+    <string name="rentalops_send">Send</string>
+    <string name="rentalops_statement_email">Send kontoutskrift på e-post</string>
+    <string name="rentalops_statement_email_hint">La stå tomt for å bruke kundens fakturaadresse.</string>
+    <string name="rentalops_statement_emailed">Kontoutskrift sendt til %1$s</string>
+    <string name="rentalops_statement_emailed_default">Kontoutskrift sendt</string>
+    <string name="rentalops_statement_no_recipient">Denne kunden har ingen fakturaadresse. Oppgi en mottaker.</string>
+    <string name="rentalops_statement_recipient">Mottakers e-post (valgfritt)</string>
 </resources>

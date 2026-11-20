@@ -533,6 +533,38 @@ class RentalsApi @Inject constructor(
         client.post(r(accountId, "/meetups/$meetupId/$action")) { json(body) }.bodyOrEmpty()
     }
 
+    // ---- L38 online actions whose results arrive through sync ---------------------------
+
+    /**
+     * POST /orders/{o}/post-charges with `charge_now: true` (rental.quote + rental.payment_charge):
+     * `{kind, amount_minor, admin_fee_minor?, incurred_at, reference?, authority?, description?,
+     * evidence_file_id, asset_id?, client_uuid, charge_now}` → the charge `{id, status, …, pay_url?}`.
+     * Replays by `client_uuid` return the existing charge.
+     */
+    suspend fun createPostCharge(accountId: String, orderId: String, body: JsonObject): JsonObject = call {
+        client.post(r(accountId, "/orders/$orderId/post-charges")) { json(body) }.body()
+    }
+
+    /** POST /orders/{o}/post-charges/{id}/charge (rental.payment_charge) — charges the saved card (retry allowed). */
+    suspend fun chargePostCharge(accountId: String, orderId: String, chargeId: String): JsonObject = call {
+        client.post(r(accountId, "/orders/$orderId/post-charges/$chargeId/charge")) { json(JsonObject(emptyMap())) }.body()
+    }
+
+    /** POST /payment-requests/{id}/link (rental.payment_record) — creates or rotates the pay link of an open request. */
+    suspend fun linkPaymentRequest(accountId: String, requestId: String): JsonObject = call {
+        client.post(r(accountId, "/payment-requests/$requestId/link")) { json(JsonObject(emptyMap())) }.body()
+    }
+
+    /** POST /contracts/{id}/buyout `{expected_quote_minor?, notes?}` (rental.buyout); 409 quote_changed carries the new quote. */
+    suspend fun buyout(accountId: String, contractId: String, body: JsonObject, idempotencyKey: String): JsonObject = call {
+        client.post(r(accountId, "/contracts/$contractId/buyout")) { json(body); idem(idempotencyKey) }.body()
+    }
+
+    /** GET /customers/{id} — the full customer, including fields never synced (date of birth). */
+    suspend fun getCustomer(accountId: String, customerId: String): JsonObject = call {
+        client.get(r(accountId, "/customers/$customerId")).body()
+    }
+
     private suspend fun io.ktor.client.statement.HttpResponse.bodyOrEmpty(): JsonObject {
         val text = bodyAsText()
         if (text.isBlank()) return JsonObject(emptyMap())

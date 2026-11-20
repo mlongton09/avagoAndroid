@@ -234,7 +234,7 @@ private fun QrScanHistory(viewModel: AssetQrViewModel) {
                         } else {
                             null
                         }
-                        Text(listOfNotNull(who, scan.deviceInfo, where).joinToString(" ? "))
+                        Text(listOfNotNull(who, scan.deviceInfo, where).joinToString(" · "))
                     },
                 )
                 HorizontalDivider()

@@ -213,4 +213,11 @@
     <string name="rentalops_transfer_cancel">Cancelar traslado</string>
     <string name="rentalops_kind_swap">Cambio de equipo</string>
     <string name="rentalops_push_intro_synced">Elige qué eventos de alquiler te notifican. Tu elección se aplica en todos tus dispositivos.</string>
+    <string name="rentalops_send">Enviar</string>
+    <string name="rentalops_statement_email">Enviar estado de cuenta por correo</string>
+    <string name="rentalops_statement_email_hint">Déjalo vacío para usar el correo de facturación del cliente.</string>
+    <string name="rentalops_statement_emailed">Estado de cuenta enviado a %1$s</string>
+    <string name="rentalops_statement_emailed_default">Estado de cuenta enviado</string>
+    <string name="rentalops_statement_no_recipient">Este cliente no tiene correo de facturación. Indica un destinatario.</string>
+    <string name="rentalops_statement_recipient">Correo del destinatario (opcional)</string>
 </resources>

@@ -80,6 +80,7 @@ object MktUnits {
 @InstallIn(SingletonComponent::class)
 abstract class MarketplaceModule {
     @Binds abstract fun repository(impl: MarketplaceRepositoryImpl): MarketplaceRepository
+    @Binds abstract fun ownerRepository(impl: MarketplaceOwnerRepositoryImpl): MarketplaceOwnerRepository
     @Binds abstract fun tokenStore(impl: EncryptedRenterTokenStore): RenterTokenStore
     @Binds abstract fun locator(impl: FusedMktLocator): MktLocator
 }

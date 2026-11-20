@@ -26,6 +26,7 @@ import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.History
@@ -40,6 +41,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.PersonSearch
 import androidx.compose.material.icons.outlined.TaskAlt
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
@@ -57,6 +59,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
@@ -79,6 +82,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
@@ -193,6 +197,8 @@ private fun bucketTone(b: AgingBucket): StatusTone = when (b) {
 
 sealed class StatementEvent {
     data class SharePdf(val file: java.io.File) : StatementEvent()
+    data class Emailed(val to: String?) : StatementEvent()
+    data object NoRecipient : StatementEvent()
     data class Failed(val status: Int?) : StatementEvent()
 }
 
@@ -205,10 +211,32 @@ class StatementViewModel @Inject constructor(private val repo: RentalOpsReposito
     private val _events = MutableSharedFlow<StatementEvent>(extraBufferCapacity = 2)
     val events: SharedFlow<StatementEvent> = _events
 
+    /**
+     * One idempotency key per (customer, recipient) e-mail intent, so a retry after a lost
+     * response replays (`replayed: true`) instead of sending a second e-mail.
+     */
+    private var emailIntent: Triple<String, String?, String>? = null
+
     fun sharePdf() = send { c ->
         when (val r = repo.statementPdf(c.id)) {
             is RentalOpsRepository.PdfResult.Pdf -> StatementEvent.SharePdf(r.file)
             is RentalOpsRepository.PdfResult.Failed -> StatementEvent.Failed(r.status)
+        }
+    }
+
+    fun email(recipient: String?) = send { c ->
+        val to = recipient?.trim()?.takeIf { it.isNotEmpty() }
+        val prev = emailIntent
+        val key = if (prev != null && prev.first == c.id && prev.second == to) prev.third else java.util.UUID.randomUUID().toString()
+        emailIntent = Triple(c.id, to, key)
+        when (val r = repo.emailStatement(c.id, key, to)) {
+            is RentalOpsRepository.EmailResult.Emailed -> { emailIntent = null; StatementEvent.Emailed(r.to) }
+            RentalOpsRepository.EmailResult.NoRecipient -> { emailIntent = null; StatementEvent.NoRecipient }
+            is RentalOpsRepository.EmailResult.Failed -> {
+                // Only a transport/5xx failure may have been applied: keep the key for the retry.
+                if (r.status != null && r.status < 500) emailIntent = null
+                StatementEvent.Failed(r.status)
+            }
         }
     }
 
@@ -251,8 +279,12 @@ fun StatementScreen(onBack: () -> Unit, vm: StatementViewModel = hiltViewModel()
     val sending by vm.sending.collectAsStateWithLifecycle()
     var expanded by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
+    var emailDialog by rememberSaveable { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     val ctx = LocalContext.current
+    val sentTo = stringResource(R.string.rentalops_statement_emailed)
+    val sentDefault = stringResource(R.string.rentalops_statement_emailed_default)
+    val noRecipient = stringResource(R.string.rentalops_statement_no_recipient)
     val sendFailed = stringResource(R.string.rentalops_statement_send_failed)
     val forbidden = stringResource(R.string.rentalops_err_forbidden)
     val shareTitle = stringResource(R.string.rentalops_statement_share)
@@ -260,9 +292,14 @@ fun StatementScreen(onBack: () -> Unit, vm: StatementViewModel = hiltViewModel()
         vm.events.collect { e ->
             when (e) {
                 is StatementEvent.SharePdf -> shareFile(ctx, e.file, "application/pdf", shareTitle)
+                is StatementEvent.Emailed -> snackbar.showSnackbar(e.to?.let { sentTo.format(it) } ?: sentDefault)
+                StatementEvent.NoRecipient -> snackbar.showSnackbar(noRecipient)
                 is StatementEvent.Failed -> snackbar.showSnackbar(if (e.status == 403) forbidden else sendFailed)
             }
         }
+    }
+    if (emailDialog) {
+        EmailStatementDialog(onDismiss = { emailDialog = false }, onSend = { vm.email(it); emailDialog = false })
     }
     Scaffold(
         topBar = { OpsTopBar(stringResource(R.string.rentalops_statement_title), onBack) },
@@ -336,17 +373,22 @@ fun StatementScreen(onBack: () -> Unit, vm: StatementViewModel = hiltViewModel()
                         )
                     }
                     if (canSend && selected != null) {
-                        FilledTonalButton(
-                            onClick = vm::sharePdf,
-                            enabled = !sending,
-                            modifier = Modifier.fillMaxWidth().padding(top = AvagoSpacing.md).heightIn(min = MinTouch),
+                        Row(
+                            Modifier.fillMaxWidth().padding(top = AvagoSpacing.md),
+                            horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm),
                         ) {
-                            if (sending) {
-                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                            } else {
+                            FilledTonalButton(onClick = vm::sharePdf, enabled = !sending, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
                                 Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Text(stringResource(R.string.rentalops_statement_pdf), Modifier.padding(start = AvagoSpacing.sm))
                             }
-                            Text(stringResource(R.string.rentalops_statement_pdf), Modifier.padding(start = AvagoSpacing.sm))
+                            FilledTonalButton(onClick = { emailDialog = true }, enabled = !sending, modifier = Modifier.weight(1f).heightIn(min = MinTouch)) {
+                                if (sending) {
+                                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                } else {
+                                    Icon(Icons.Filled.Email, contentDescription = null, modifier = Modifier.size(18.dp))
+                                }
+                                Text(stringResource(R.string.rentalops_statement_email), Modifier.padding(start = AvagoSpacing.sm))
+                            }
                         }
                     }
                 }
@@ -397,6 +439,37 @@ fun StatementScreen(onBack: () -> Unit, vm: StatementViewModel = hiltViewModel()
         }
     }
 }
+/** Recipient is optional: blank → the customer's billing e-mail on the server. */
+@Composable
+private fun EmailStatementDialog(onDismiss: () -> Unit, onSend: (String?) -> Unit) {
+    var to by rememberSaveable { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.rentalops_statement_email)) },
+        text = {
+            Column {
+                Text(stringResource(R.string.rentalops_statement_email_hint), style = MaterialTheme.typography.bodyMedium)
+                OutlinedTextField(
+                    value = to,
+                    onValueChange = { to = it.take(254) },
+                    label = { Text(stringResource(R.string.rentalops_statement_recipient)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    modifier = Modifier.fillMaxWidth().padding(top = AvagoSpacing.sm),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSend(to.trim().ifEmpty { null }) }, modifier = Modifier.heightIn(min = MinTouch)) {
+                Text(stringResource(R.string.rentalops_send))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = MinTouch)) { Text(stringResource(R.string.rentalops_cancel)) }
+        },
+    )
+}
+
 /** Shares an app-cache file via the app's FileProvider (`${packageName}.provider`, cache-path). */
 private fun shareFile(ctx: Context, file: java.io.File, mime: String, title: String) {
     val uri = runCatching { FileProvider.getUriForFile(ctx, "${ctx.packageName}.provider", file) }.getOrNull() ?: return

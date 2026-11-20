@@ -46,6 +46,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
 import timber.log.Timber
 import java.io.File
 import java.math.BigDecimal
@@ -422,6 +423,35 @@ class RentalOpsRepository @Inject constructor(
             is ApiResult.Ok -> PdfResult.Pdf(dest)
             is ApiResult.Http -> { dest.delete(); PdfResult.Failed(r.status, r.message) }
             is ApiResult.Transport -> { dest.delete(); PdfResult.Failed(null, r.message) }
+        }
+    }
+
+    sealed class EmailResult {
+        data class Emailed(val to: String?, val replayed: Boolean) : EmailResult()
+        /** 400 `invalid_value`: neither the request nor the customer has an e-mail address. */
+        data object NoRecipient : EmailResult()
+        data class Failed(val status: Int?, val message: String) : EmailResult()
+    }
+
+    /**
+     * `POST …/statement/email` (online action, decision L38). [clientUuid] stays stable for one
+     * user intent so a retry replays instead of mailing twice; the stored statement document
+     * reaches the store through the next sync.
+     */
+    suspend fun emailStatement(customerId: String, clientUuid: String, recipient: String?): EmailResult {
+        val a = identity.getActiveAccountId() ?: return EmailResult.Failed(null, "signed out")
+        val to = recipient?.trim()?.takeIf { it.isNotEmpty() }?.let { listOf(it) }.orEmpty()
+        return when (val r = api.statementEmail(a, customerId, clientUuid, to, null)) {
+            is ApiResult.Ok -> {
+                requestSync()
+                EmailResult.Emailed(
+                    (r.body["email"] as? JsonPrimitive)?.contentOrNull ?: to.firstOrNull(),
+                    (r.body["replayed"] as? JsonPrimitive)?.booleanOrNull == true,
+                )
+            }
+            is ApiResult.Http ->
+                if (r.status == 400 && r.code == "invalid_value") EmailResult.NoRecipient else EmailResult.Failed(r.status, r.message)
+            is ApiResult.Transport -> EmailResult.Failed(null, r.message)
         }
     }
 

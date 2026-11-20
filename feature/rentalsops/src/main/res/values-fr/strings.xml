@@ -213,4 +213,11 @@
     <string name="rentalops_transfer_cancel">Annuler le transfert</string>
     <string name="rentalops_kind_swap">Échange</string>
     <string name="rentalops_push_intro_synced">Choisissez les événements de location qui vous notifient. Vos choix s\'appliquent sur tous vos appareils.</string>
+    <string name="rentalops_send">Envoyer</string>
+    <string name="rentalops_statement_email">Envoyer le relevé par e-mail</string>
+    <string name="rentalops_statement_email_hint">Laissez vide pour utiliser l\'e-mail de facturation du client.</string>
+    <string name="rentalops_statement_emailed">Relevé envoyé à %1$s</string>
+    <string name="rentalops_statement_emailed_default">Relevé envoyé</string>
+    <string name="rentalops_statement_no_recipient">Ce client n\'a pas d\'e-mail de facturation. Saisissez un destinataire.</string>
+    <string name="rentalops_statement_recipient">E-mail du destinataire (facultatif)</string>
 </resources>

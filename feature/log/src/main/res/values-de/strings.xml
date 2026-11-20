@@ -476,10 +476,10 @@
     <string name="log_detail_audit_edited_by">Zuletzt bearbeitet von %1$s am %2$s</string>
     <string name="log_detail_audit_edited">Zuletzt bearbeitet am %1$s</string>
     <string name="log_detail_photo_set_primary">Als Hauptfoto festlegen</string>
-    <string name="log_edit_conflict_title">Dieser Eintrag wurde von jemand anderem ge?ndert</string>
-    <string name="log_edit_conflict_message">Jemand hat diesen Eintrag gespeichert, nachdem Sie ihn ge?ffnet haben. Behalten Sie Ihre Version, um Ihre ?nderungen auf deren Version anzuwenden (alle anderen ?nderungen bleiben erhalten), oder laden Sie deren Version und verwerfen Ihre ?nderungen.</string>
-    <string name="log_edit_conflict_both_changed">Auf beiden Seiten ge?ndert. ?Meine behalten? ersetzt deren Werte:</string>
-    <string name="log_edit_conflict_mine_theirs">Ihre: %1$s ? Deren: %2$s</string>
+    <string name="log_edit_conflict_title">Dieser Eintrag wurde von jemand anderem geändert</string>
+    <string name="log_edit_conflict_message">Jemand hat diesen Eintrag gespeichert, nachdem Sie ihn geöffnet haben. Behalten Sie Ihre Version, um Ihre Änderungen auf deren Version anzuwenden (alle anderen Änderungen bleiben erhalten), oder laden Sie deren Version und verwerfen Ihre Änderungen.</string>
+    <string name="log_edit_conflict_both_changed">Auf beiden Seiten geändert. „Meine behalten“ ersetzt deren Werte:</string>
+    <string name="log_edit_conflict_mine_theirs">Ihre: %1$s · Deren: %2$s</string>
     <string name="log_edit_conflict_empty_value">(leer)</string>
     <string name="log_edit_conflict_keep_mine">Meine behalten</string>
     <string name="log_edit_conflict_reload">Deren Version laden</string>
@@ -487,8 +487,8 @@
     <string name="log_edit_conflict_field_category">Kategorie</string>
     <string name="log_edit_conflict_field_title">Titel</string>
     <string name="log_edit_conflict_field_date">Datum</string>
-    <string name="log_edit_conflict_field_meter">Z?hlerstand</string>
-    <string name="log_edit_conflict_field_performer">Durchgef?hrt von</string>
+    <string name="log_edit_conflict_field_meter">Zählerstand</string>
+    <string name="log_edit_conflict_field_performer">Durchgeführt von</string>
     <string name="log_edit_conflict_field_provider">Werkstatt</string>
     <string name="log_edit_conflict_field_notes">Notizen</string>
     <string name="log_open_defects_pending_sync">Wartet auf Synchronisierung</string>

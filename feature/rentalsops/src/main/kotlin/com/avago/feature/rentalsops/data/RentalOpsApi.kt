@@ -18,7 +18,9 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import java.io.File
 import javax.inject.Inject
@@ -120,11 +122,30 @@ class RentalOpsApi @Inject constructor(
         ApiResult.Transport(e.message ?: e.javaClass.simpleName, offline = e is java.io.IOException)
     }
 
+    /**
+     * `POST …/billing/customers/{id}/statement/email` `{client_uuid, recipients?, message?}`
+     * (`rental.reports`) → 201 `{document_id, email, replayed}`; 400 `invalid_value` when neither
+     * the request nor the customer has an address. Replaying [clientUuid] never mails twice.
+     */
+    suspend fun statementEmail(accountId: String, customerId: String, clientUuid: String, recipients: List<String>, message: String?): ApiResult = call {
+        client.post(r(accountId, "/billing/customers/$customerId/statement/email")) { body(statementEmailBody(clientUuid, recipients, message)) }
+    }
+
     // ---- plumbing ---------------------------------------------------------------------
 
     private fun HttpRequestBuilder.body(o: JsonObject) {
         contentType(ContentType.Application.Json)
         setBody(o)
+    }
+
+    companion object {
+        fun statementEmailBody(clientUuid: String, recipients: List<String>, message: String?): JsonObject = JsonObject(
+            buildMap {
+                put("client_uuid", JsonPrimitive(clientUuid))
+                if (recipients.isNotEmpty()) put("recipients", JsonArray(recipients.map(::JsonPrimitive)))
+                message?.let { put("message", JsonPrimitive(it)) }
+            },
+        )
     }
 
     private suspend fun wrap(block: suspend () -> JsonObject): ApiResult = try {

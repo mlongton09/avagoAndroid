@@ -496,7 +496,7 @@
     <string name="log_edit_conflict_title">This entry was changed by someone else</string>
     <string name="log_edit_conflict_message">Someone saved this entry after you opened it. Keep yours to apply your changes on top of their version (everything else they changed is kept), or reload theirs to discard your changes.</string>
     <string name="log_edit_conflict_both_changed">Changed on both sides. Keeping yours replaces theirs:</string>
-    <string name="log_edit_conflict_mine_theirs">Yours: %1$s ? Theirs: %2$s</string>
+    <string name="log_edit_conflict_mine_theirs">Yours: %1$s · Theirs: %2$s</string>
     <string name="log_edit_conflict_empty_value">(empty)</string>
     <string name="log_edit_conflict_keep_mine">Keep mine</string>
     <string name="log_edit_conflict_reload">Reload theirs</string>

@@ -4,6 +4,8 @@ import com.avago.feature.rentals.marketplace.domain.DistanceUnit
 import com.avago.feature.rentals.marketplace.domain.MktAvailabilityHint
 import com.avago.feature.rentals.marketplace.domain.MktBodies
 import com.avago.feature.rentals.marketplace.domain.MktChangeDates
+import com.avago.feature.rentals.marketplace.domain.MktCoords
+import com.avago.feature.rentals.marketplace.domain.MktCounter
 import com.avago.feature.rentals.marketplace.domain.MktDates
 import com.avago.feature.rentals.marketplace.domain.MktDistance
 import com.avago.feature.rentals.marketplace.domain.MktEarliest
@@ -18,6 +20,7 @@ import com.avago.feature.rentals.marketplace.domain.MktSlot
 import com.avago.feature.rentals.marketplace.domain.MktSlots
 import com.avago.feature.rentals.marketplace.domain.MktSort
 import com.avago.feature.rentals.marketplace.domain.MktText
+import com.avago.feature.rentals.marketplace.domain.MktWindows
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
@@ -227,10 +230,54 @@ class MktLogicTest {
     }
 
     @Test
+    fun `counter proposal validation`() {
+        val s = now.plus(Duration.ofHours(2))
+        assertEquals("err_start", MktCounter.validate(null, null, now))
+        assertEquals("err_past", MktCounter.validate(now.minusSeconds(60), s, now))
+        assertEquals("err_end", MktCounter.validate(s, s, now))
+        assertEquals("invalid_slots", MktCounter.validate(s, s.plus(Duration.ofHours(5)), now))
+        assertNull(MktCounter.validate(s, s.plus(Duration.ofMinutes(30)), now))
+    }
+
+    // ---- owner editors ----
+
+    @Test
+    fun `coordinates accept comma decimals and reject 0,0 and out of range`() {
+        assertEquals(51.6448 to -121.2959, MktCoords.parse("51.6448", "-121,2959"))
+        assertNull(MktCoords.parse("0", "0"))
+        assertNull(MktCoords.parse("91", "10"))
+        assertNull(MktCoords.parse("abc", "10"))
+        assertFalse(MktCoords.valid(0.0, 0.0))
+        assertTrue(MktCoords.valid(51.6, -121.3))
+    }
+
+    @Test
+    fun `weekly windows parse, sort and reject overlaps`() {
+        assertEquals(listOf("09:00" to "12:00", "13:00" to "17:00"), MktWindows.parse("13:00-17:00, 9:00 – 12:00"))
+        assertEquals(emptyList<Pair<String, String>>(), MktWindows.parse(" "))
+        assertNull(MktWindows.parse("09:00-08:00"))
+        assertNull(MktWindows.parse("09:00-12:00, 11:00-13:00"))
+        assertNull(MktWindows.parse("9-5"))
+        assertEquals("09:00-12:00, 13:00-17:00", MktWindows.format(listOf("09:00" to "12:00", "13:00" to "17:00")))
+    }
+
+    @Test
+    fun `blackouts parse single dates and ranges`() {
+        val b = MktWindows.parseBlackouts("2026-12-24..2026-12-26\n2027-01-01")!!
+        assertEquals(LocalDate.of(2026, 12, 24) to LocalDate.of(2026, 12, 26), b[0])
+        assertEquals(LocalDate.of(2027, 1, 1) to LocalDate.of(2027, 1, 1), b[1])
+        assertNull(MktWindows.parseBlackouts("2026-12-26..2026-12-24"))
+        assertNull(MktWindows.parseBlackouts("tomorrow"))
+        assertEquals("2026-12-24..2026-12-26\n2027-01-01", MktWindows.formatBlackouts(b))
+    }
+
+    // ---- text / errors / bodies ----
+
+    @Test
     fun `locale text prefers exact, then language, then en-US, then the fallback`() {
         val m = mapOf("en-US" to "Trailer", "de-DE" to "Anhänger")
         assertEquals("Anhänger", MktText.pick(m, Locale.GERMANY))
-        assertEquals("Anhänger", MktText.pick(m, Locale("de", "AT")))
+        assertEquals("Anhänger", MktText.pick(m, Locale.Builder().setLanguage("de").setRegion("AT").build()))
         assertEquals("Trailer", MktText.pick(m, Locale.FRANCE))
         assertEquals("Base", MktText.pick(mapOf("de-DE" to "Anhänger"), Locale.US, "Base"))
         assertEquals("Anhänger", MktText.pick(mapOf("de-DE" to "Anhänger"), Locale.US))

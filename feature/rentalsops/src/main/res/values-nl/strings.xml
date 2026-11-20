@@ -213,4 +213,11 @@
     <string name="rentalops_transfer_cancel">Overdracht annuleren</string>
     <string name="rentalops_kind_swap">Omruil</string>
     <string name="rentalops_push_intro_synced">Kies over welke verhuurgebeurtenissen je meldingen krijgt. Je keuzes gelden op al je apparaten.</string>
+    <string name="rentalops_send">Verzenden</string>
+    <string name="rentalops_statement_email">Rekeningoverzicht e-mailen</string>
+    <string name="rentalops_statement_email_hint">Laat leeg om het factuuradres van de klant te gebruiken.</string>
+    <string name="rentalops_statement_emailed">Rekeningoverzicht verzonden naar %1$s</string>
+    <string name="rentalops_statement_emailed_default">Rekeningoverzicht verzonden</string>
+    <string name="rentalops_statement_no_recipient">Deze klant heeft geen factuuradres. Vul een ontvanger in.</string>
+    <string name="rentalops_statement_recipient">E-mailadres ontvanger (optioneel)</string>
 </resources>

@@ -213,4 +213,11 @@
     <string name="rentalops_transfer_cancel">Transfer abbrechen</string>
     <string name="rentalops_kind_swap">Austausch</string>
     <string name="rentalops_push_intro_synced">Wählen Sie, über welche Mietereignisse Sie benachrichtigt werden. Ihre Auswahl gilt auf allen Ihren Geräten.</string>
+    <string name="rentalops_send">Senden</string>
+    <string name="rentalops_statement_email">Kontoauszug per E-Mail senden</string>
+    <string name="rentalops_statement_email_hint">Leer lassen, um die Rechnungs-E-Mail des Kunden zu verwenden.</string>
+    <string name="rentalops_statement_emailed">Kontoauszug an %1$s gesendet</string>
+    <string name="rentalops_statement_emailed_default">Kontoauszug gesendet</string>
+    <string name="rentalops_statement_no_recipient">Dieser Kunde hat keine Rechnungs-E-Mail. Gib einen Empfänger ein.</string>
+    <string name="rentalops_statement_recipient">Empfänger-E-Mail (optional)</string>
 </resources>

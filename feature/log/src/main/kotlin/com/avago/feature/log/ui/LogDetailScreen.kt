@@ -682,7 +682,7 @@ fun LogDetailScreen(
 // Sub-composables
 // ---------------------------------------------------------------------------
 
-/** "Created by ? on ?" and "Last edited by ? on ?" lines. */
+/** "Created by … on …" and "Last edited by … on …" lines. */
 @Composable
 private fun AuditFooter(audit: LogAudit, modifier: Modifier = Modifier) {
     val format = remember { java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT) }

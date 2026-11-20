@@ -1,5 +1,6 @@
 package com.avago.feature.rentalsops.domain
 
+import com.avago.feature.rentalsops.data.RentalOpsApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
@@ -61,5 +62,17 @@ class FinanceTest {
         assertEquals(listOf("i2", "i1"), s.invoices.map { it.id })
         assertEquals(mapOf("EUR" to 2500L), s.balanceByCurrency)
         assertEquals(0L, s.creditMinor)
+    }
+
+    @Test
+    fun `statement e-mail body carries the idempotency key and only given fields`() {
+        assertEquals(
+            obj("""{"client_uuid":"u1"}"""),
+            RentalOpsApi.statementEmailBody("u1", emptyList(), null),
+        )
+        assertEquals(
+            obj("""{"client_uuid":"u2","recipients":["a@b.c"],"message":"Hi"}"""),
+            RentalOpsApi.statementEmailBody("u2", listOf("a@b.c"), "Hi"),
+        )
     }
 }

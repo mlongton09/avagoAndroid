@@ -1579,7 +1579,7 @@ class AddEditLogViewModel @Inject constructor(
 
     private var conflictPendingOnSuccess: ((String) -> Unit)? = null
 
-    /** Edit conflict ? "Keep mine": applies this device's edits on top of the latest version. */
+    /** Edit conflict — "Keep mine": applies this device's edits on top of the latest version. */
     fun resolveEditConflictKeepMine() {
         val onSuccess = conflictPendingOnSuccess ?: return
         conflictPendingOnSuccess = null
@@ -1587,7 +1587,7 @@ class AddEditLogViewModel @Inject constructor(
         save(onSuccess, skipMeterCheck = true, keepMine = true)
     }
 
-    /** Edit conflict ? "Reload theirs": discards this device's edits and reloads the latest version. */
+    /** Edit conflict — "Reload theirs": discards this device's edits and reloads the latest version. */
     fun resolveEditConflictReload() {
         val entryId = _form.value.entryId ?: return
         conflictPendingOnSuccess = null

@@ -213,4 +213,11 @@
     <string name="rentalops_transfer_cancel">Avbryt överföring</string>
     <string name="rentalops_kind_swap">Byte</string>
     <string name="rentalops_push_intro_synced">Välj vilka uthyrningshändelser du ska aviseras om. Dina val gäller på alla dina enheter.</string>
+    <string name="rentalops_send">Skicka</string>
+    <string name="rentalops_statement_email">Skicka kontoutdrag via e-post</string>
+    <string name="rentalops_statement_email_hint">Lämna tomt för att använda kundens faktureringsadress.</string>
+    <string name="rentalops_statement_emailed">Kontoutdrag skickat till %1$s</string>
+    <string name="rentalops_statement_emailed_default">Kontoutdrag skickat</string>
+    <string name="rentalops_statement_no_recipient">Kunden saknar faktureringsadress. Ange en mottagare.</string>
+    <string name="rentalops_statement_recipient">Mottagarens e-post (valfritt)</string>
 </resources>

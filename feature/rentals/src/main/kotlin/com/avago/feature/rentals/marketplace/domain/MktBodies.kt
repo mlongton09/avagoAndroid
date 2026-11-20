@@ -83,4 +83,73 @@ object MktBodies {
     }
 
     fun cancelBooking(reason: String?): JsonObject = buildJsonObject { put("reason", text(reason, 2000) ?: JsonNull) }
+
+    // ---- owner -----------------------------------------------------------------------------
+
+    fun accept(slotIndex: Int, message: String?, createReservation: Boolean, serverVersion: Long?): JsonObject = buildJsonObject {
+        put("slot_index", slotIndex)
+        text(message, 2000)?.let { put("message", it) }
+        put("create_reservation", createReservation)
+        serverVersion?.let { put("server_version", it) }
+    }
+
+    fun counter(start: Instant, end: Instant, message: String?, serverVersion: Long?): JsonObject = buildJsonObject {
+        put("start_at", start.toString())
+        put("end_at", end.toString())
+        text(message, 2000)?.let { put("message", it) }
+        serverVersion?.let { put("server_version", it) }
+    }
+
+    fun decline(message: String?, serverVersion: Long?): JsonObject = buildJsonObject {
+        text(message, 2000)?.let { put("message", it) }
+        serverVersion?.let { put("server_version", it) }
+    }
+
+    fun block(reason: String?): JsonObject = buildJsonObject { text(reason, 500)?.let { put("reason", it) } }
+
+    fun location(lat: Double, lng: Double): JsonObject = buildJsonObject {
+        put("latitude", lat)
+        put("longitude", lng)
+    }
+
+    fun weekly(w: Map<String, List<Pair<String, String>>>): JsonObject = buildJsonObject {
+        MktWindows.DAYS.forEach { d ->
+            val list = w[d].orEmpty()
+            if (list.isNotEmpty()) put(d, buildJsonArray { list.forEach { (a, b) -> add(buildJsonArray { add(JsonPrimitive(a)); add(JsonPrimitive(b)) }) } })
+        }
+    }
+
+    /** Full settings update (every editable field) with optimistic `server_version`. */
+    fun settings(s: MktOwnerSettings): JsonObject = buildJsonObject {
+        put("enabled", s.enabled)
+        put("display_name", text(s.displayName, 120) ?: JsonPrimitive(""))
+        put("about", text(s.about, 2000) ?: JsonPrimitive(""))
+        put("offer_pickup", s.offerPickup)
+        put("offer_delivery", s.offerDelivery)
+        put("delivery_radius_km", s.deliveryRadiusKm ?: 0.0)
+        put("offer_meetup", s.offerMeetup)
+        put("meet_availability", weekly(s.meetAvailability))
+        put("meet_blackouts", buildJsonArray {
+            s.meetBlackouts.forEach { (a, b) -> add(buildJsonObject { put("from", a.toString()); put("to", b.toString()) }) }
+        })
+        put("meet_slot_minutes", s.slotMinutes)
+        put("meet_lead_hours", s.leadHours)
+        put("meet_timezone", s.timezone?.trim().orEmpty())
+        s.serverVersion?.let { put("server_version", it) }
+    }
+
+    /** Listing options; `null` offer flags inherit the account setting. */
+    fun listing(l: MktOwnerListing, summaryEn: String, summaryDe: String): JsonObject = buildJsonObject {
+        put("listed", l.listed)
+        put("category", l.category.orEmpty())
+        put("summary_i18n", buildJsonObject {
+            summaryEn.trim().take(300).takeIf { it.isNotEmpty() }?.let { put("en-US", it) }
+            summaryDe.trim().take(300).takeIf { it.isNotEmpty() }?.let { put("de-DE", it) }
+        })
+        val inherit = l.offerPickup == null && l.offerDelivery == null && l.offerMeetup == null
+        put("offer_pickup", l.offerPickup?.let { JsonPrimitive(it) } ?: JsonNull)
+        put("offer_delivery", l.offerDelivery?.let { JsonPrimitive(it) } ?: JsonNull)
+        put("offer_meetup", l.offerMeetup?.let { JsonPrimitive(it) } ?: JsonNull)
+        put("clear_overrides", inherit)
+    }
 }

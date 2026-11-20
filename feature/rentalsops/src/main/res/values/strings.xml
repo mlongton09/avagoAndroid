@@ -218,4 +218,11 @@
     <string name="rentalops_transfer_cancel">Cancel transfer</string>
     <string name="rentalops_kind_swap">Swap</string>
     <string name="rentalops_push_intro_synced">Choose which rental events notify you. Your choices apply on all your devices.</string>
+    <string name="rentalops_send">Send</string>
+    <string name="rentalops_statement_email">Email statement</string>
+    <string name="rentalops_statement_email_hint">Leave empty to use the customer\'s billing email.</string>
+    <string name="rentalops_statement_emailed">Statement sent to %1$s</string>
+    <string name="rentalops_statement_emailed_default">Statement sent</string>
+    <string name="rentalops_statement_no_recipient">This customer has no billing email. Enter a recipient.</string>
+    <string name="rentalops_statement_recipient">Recipient email (optional)</string>
 </resources>
