@@ -5,6 +5,7 @@ import com.avago.core.data.domain.Worker
 import com.avago.core.data.domain.WorkerDraft
 import com.avago.core.data.domain.WorkerRate
 import com.avago.core.data.v2.V2OverlayPatch
+import com.avago.core.data.v2.V2RowOp
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -28,7 +29,7 @@ class WorkerCommandBuildersTest {
 
     private fun draft() = WorkerDraft(
         displayName = worker.displayName, skills = worker.skills, maxActiveWorkOrders = null, available = true,
-        homeLocationId = null, certifications = worker.certifications,
+        homeLocationId = null, certifications = worker.certifications, hourlyRate = rate.costRate, rateCurrency = rate.currency,
     )
 
     private fun build(d: WorkerDraft, w: Worker = worker) = MaintCommands.updateWorker(w, d, 10, today, "r-new", "u1")
@@ -72,6 +73,28 @@ class WorkerCommandBuildersTest {
         assertEquals("r1", op.key["id"])
         assertEquals("USD", op.set["currency"])
         assertEquals("40.00", op.set["cost_rate"])
+    }
+
+    @Test
+    fun `an emptied name and rate are cleared, closing the rate today`() {
+        val command = build(draft().copy(displayName = " ", hourlyRate = null, rateCurrency = null))!!
+        val clear = command.payload.jsonObject["clear"]!!.jsonArray.map { it.jsonPrimitive.content }
+        assertEquals(listOf("display_name", "hourly_rate"), clear)
+        assertEquals(emptyMap<String, Any>(), command.payload.jsonObject["set"]!!.jsonObject)
+        val ops = V2OverlayPatch.parse(command.overlayPatch!!)!!.ops
+        assertNull(ops.single { it.table == "workers" }.set.getValue("display_name"))
+        val rateOp = ops.single { it.table == "worker_rates" }
+        assertEquals("r1", rateOp.key["id"])
+        assertEquals("2025-06-02", rateOp.set["valid_during_end"])
+    }
+
+    @Test
+    fun `clearing a rate that starts today drops it`() {
+        val w = worker.copy(hourlyRate = rate.copy(validFrom = today))
+        val command = build(draft().copy(hourlyRate = null), w)!!
+        val op = V2OverlayPatch.parse(command.overlayPatch!!)!!.ops.single { it.table == "worker_rates" }
+        assertEquals(V2RowOp.Kind.DELETE, op.kind)
+        assertEquals("r1", op.key["id"])
     }
 
     @Test

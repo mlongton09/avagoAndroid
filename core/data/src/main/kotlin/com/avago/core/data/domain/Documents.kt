@@ -18,9 +18,12 @@ enum class DocumentKind(val wire: String) {
     }
 }
 
-/** What a new document hangs off: the catalog requires exactly one asset or work order. */
+/** What a new document hangs off: the catalog requires exactly one asset, activity or work order. */
 sealed interface DocumentOwner {
     data class Asset(val assetId: String) : DocumentOwner
+
+    /** A service record (ctivity_records). */
+    data class Activity(val activityId: String) : DocumentOwner
     data class WorkOrder(val workOrderId: String) : DocumentOwner
 }
 
@@ -39,7 +42,7 @@ data class DocumentDraft(
 )
 
 /**
- * A maintenance document (`documents` linked to an asset or work order through `attachments`).
+ * A maintenance document (`documents` linked to an asset, activity or work order through `attachments`).
  * Rental paperwork (contracts, invoices, receipts, signed agreements) lives on its order and is not
  * listed here.
  */
@@ -59,6 +62,7 @@ data class Document(
     val file: StoredFile?,
     val revisionNo: Int?,
     val assetId: String?,
+    val activityId: String?,
     val workOrderId: String?,
     /** The `attachments` rows linking the document to its owner. */
     val linkIds: List<String>,

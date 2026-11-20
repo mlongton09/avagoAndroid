@@ -93,5 +93,14 @@ data class WorkOrderBudget(
     val period_end: String? = null,
 )
 
+/** Effort benchmark in minutes (`GET .../work-orders/{id}/effort-stats`). */
+@Serializable
+data class EffortStats(
+    val p10_minutes: Int,
+    val p50_minutes: Int,
+    val p90_minutes: Int,
+    val real_sample_count: Long,
+)
+
 @Serializable
 data class WorkOrderBudgetsResponse(val budgets: List<WorkOrderBudget> = emptyList())

@@ -66,12 +66,13 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.longOrNull
 import java.math.BigDecimal
 import java.time.Instant
+import java.time.LocalDate
 import java.util.Currency
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
-private val ORDER_TABLES = setOf("rental_orders", "parties", "invoices", "pending_commands")
+private val ORDER_TABLES = setOf("rental_orders", "parties", "invoices", "rental_billing_cycles", "pending_commands")
 private val CUSTOMER_TABLES = setOf(
     "parties", "customer_profiles", "party_contact_points", "party_locations", "locations", "customer_balances", "pending_commands",
 )
@@ -528,6 +529,7 @@ class V2RentalRepository @Inject constructor(
             val invoices = V2OverlayMerge.query(conn, "invoices", "order_id IS NOT NULL") { it["order_id"] != null }
                 .filter { it["status"] in INVOICED && it["kind"] != "credit_note" }
                 .groupBy { it.str("order_id") }
+            val billedThrough = billedThrough(conn)
             val sync = syncStates(conn, "rental_orders")
             return rows.map { r ->
                 val id = r.str("id")
@@ -569,9 +571,19 @@ class V2RentalRepository @Inject constructor(
                     cancelReason = r.strOrNull("cancel_reason"),
                     needsReview = r.bool("needs_review"),
                     sync = sync[id] ?: RecordSyncState.SAVED,
+                    billedThrough = billedThrough[id],
                 )
             }.sortedWith(compareByDescending<RentalOrder> { it.startAt }.thenByDescending { it.id })
         }
+
+        /**
+         * The last billed day per order: the latest cycle's `period_end` is the exclusive upper
+         * date of its billed period (server `billing_cycles.rs`), so the day before it.
+         */
+        fun billedThrough(conn: V2Connection): Map<String, LocalDate> =
+            conn.query("SELECT order_id, max(period_end) AS period_end FROM rental_billing_cycles GROUP BY order_id")
+                .mapNotNull { r -> r.strOrNull("period_end")?.let { r.str("order_id") to LocalDate.parse(it).minusDays(1) } }
+                .toMap()
 
         fun orderById(conn: V2Connection, id: String): RentalOrder? =
             orders(conn, "id = ?" to listOf(id)) { it["id"] == id }.firstOrNull()

@@ -142,13 +142,14 @@ data class AssetToolDetails(
 
 /**
  * Edited tool details (`maint.asset_tool_details.update`). A null [calibrationDueOn] lets the server
- * derive the due date from [calibratedOn] + [calibrationIntervalDays].
+ * derive the due date from [calibratedOn] + [calibrationIntervalDays]. A null [usageUnit] uses the
+ * asset type's usage meter; a null [usageValue] resets the usage counter to 0.
  */
 data class ToolDetailsDraft(
     val calibratedOn: java.time.LocalDate? = null,
     val calibrationIntervalDays: Int? = null,
     val calibrationDueOn: java.time.LocalDate? = null,
-    val usageUnit: String = "days",
+    val usageUnit: String? = null,
     val usageValue: BigDecimal? = null,
     val replacementValue: BigDecimal? = null,
     val currency: String? = null,
@@ -195,7 +196,7 @@ data class StoredFile(
     val isDownloadable: Boolean get() = status == "verified"
 }
 
-/** A file linked to an asset, activity or work order (`attachments`). */
+/** A file linked to an asset, activity, work order or cost line (`attachments`). */
 data class Attachment(
     val id: String,
     val file: StoredFile?,
@@ -204,6 +205,7 @@ data class Attachment(
     val assetId: String?,
     val activityId: String?,
     val workOrderId: String?,
+    val costLineId: String? = null,
     val sortOrder: Int,
     val createdAt: Long,
 )
@@ -213,6 +215,9 @@ sealed interface AttachmentTarget {
     data class ToAsset(val assetId: String) : AttachmentTarget
     data class ToActivity(val activityId: String) : AttachmentTarget
     data class ToWorkOrder(val workOrderId: String) : AttachmentTarget
+
+    /** Photos of a fitted part (`activity_cost_lines`). */
+    data class ToCostLine(val costLineId: String) : AttachmentTarget
 }
 
 /** Content picked or captured on the device, staged for upload (see `V2FileStager`). */
@@ -340,7 +345,9 @@ data class WorkerRate(
 
 /**
  * A worker profile edit. [certifications] replaces the list when not null; [hourlyRate] /
- * [rateCurrency] start a new rate today when they differ from the current one.
+ * [rateCurrency] start a new rate today when they differ from the current one, and a null
+ * [hourlyRate] ends the current rate today. A null [displayName] clears it (the dispatch name
+ * falls back to the user's name).
  */
 data class WorkerDraft(
     val displayName: String?,

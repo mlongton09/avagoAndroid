@@ -3,8 +3,8 @@ package com.avago.core.data.domain
 import kotlinx.coroutines.flow.Flow
 
 /**
- * The signed-in user's own display preferences (synced `user_preferences`). A null field inherits
- * the account default.
+ * Display preferences: the signed-in user's own (synced `user_preferences`), where a null field
+ * inherits the account default, or the account defaults themselves (synced `account_preferences`).
  */
 data class UserPreferenceOverrides(
     val locale: String? = null,
@@ -43,12 +43,15 @@ enum class NotificationChannel(val wire: String) {
 data class NotificationPreference(val eventKey: String, val channel: NotificationChannel, val enabled: Boolean)
 
 /**
- * The signed-in user's synced preferences. Writes are `core.user_preferences.update` and
+ * The signed-in user's synced preferences and the account defaults. Writes are `core.user_preferences.update` and
  * `specialist.notification_preferences.set`: applied at once, sent when online.
  */
 interface AccountPreferencesRepository {
     /** The user's own overrides; null when nothing is stored (or nobody is signed in). */
     fun observeMine(): Flow<UserPreferenceOverrides?>
+
+    /** The account's defaults that the user's own preferences override; null before the first sync. */
+    fun observeAccountDefaults(): Flow<UserPreferenceOverrides?>
 
     suspend fun update(changes: List<UserPreferenceChange>)
 

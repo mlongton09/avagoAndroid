@@ -28,6 +28,9 @@ class V2AccountPreferencesRepository @Inject constructor(
     override fun observeMine(): Flow<UserPreferenceOverrides?> =
         store.observe(setOf(USER_PREFERENCES), null) { conn -> commands.currentUserId()?.let { mine(conn, it) } }
 
+    override fun observeAccountDefaults(): Flow<UserPreferenceOverrides?> =
+        store.observe(setOf(ACCOUNT_PREFERENCES), null) { conn -> accountDefaults(conn) }
+
     override suspend fun update(changes: List<UserPreferenceChange>) {
         val userId = commands.currentUserId() ?: throw StoreNotReadyException()
         commands.submit(PreferenceCommands.updateUserPreferences(userId, changes, System.currentTimeMillis()))
@@ -48,6 +51,7 @@ class V2AccountPreferencesRepository @Inject constructor(
 
     companion object {
         private const val USER_PREFERENCES = "user_preferences"
+        private const val ACCOUNT_PREFERENCES = "account_preferences"
         private const val NOTIFICATION_PREFERENCES = "notification_preferences"
         private const val EFFECTIVE_PERMISSIONS = "effective_permissions"
         const val EDIT_PERMISSION = "settings.edit_display"
@@ -61,16 +65,20 @@ class V2AccountPreferencesRepository @Inject constructor(
         fun mine(conn: V2Connection, userId: String): UserPreferenceOverrides? =
             V2OverlayMerge.query(conn, USER_PREFERENCES, "user_id = ?", listOf(userId)) { it["user_id"] == userId }
                 .firstOrNull()
-                ?.let { r ->
-                    UserPreferenceOverrides(
-                        locale = r.strOrNull("locale"),
-                        currency = r.strOrNull("currency"),
-                        distanceUnit = r.strOrNull("distance_unit"),
-                        fuelVolumeUnit = r.strOrNull("fuel_volume_unit"),
-                        disableQuotes = r.flag("disable_quotes"),
-                        enableHumanInLoop = r.flag("enable_human_in_loop"),
-                    )
-                }
+                ?.let(::preferences)
+
+        /** The singleton `account_preferences` row; only the server writes it. */
+        fun accountDefaults(conn: V2Connection): UserPreferenceOverrides? =
+            conn.query("SELECT * FROM $ACCOUNT_PREFERENCES").firstOrNull()?.let(::preferences)
+
+        private fun preferences(r: V2Row) = UserPreferenceOverrides(
+            locale = r.strOrNull("locale"),
+            currency = r.strOrNull("currency"),
+            distanceUnit = r.strOrNull("distance_unit"),
+            fuelVolumeUnit = r.strOrNull("fuel_volume_unit"),
+            disableQuotes = r.flag("disable_quotes"),
+            enableHumanInLoop = r.flag("enable_human_in_loop"),
+        )
 
         fun notifications(conn: V2Connection, userId: String): List<NotificationPreference> =
             V2OverlayMerge.query(conn, NOTIFICATION_PREFERENCES, "user_id = ?", listOf(userId)) { it["user_id"] == userId }

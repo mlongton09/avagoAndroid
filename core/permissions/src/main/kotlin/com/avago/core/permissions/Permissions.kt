@@ -9,6 +9,7 @@ object Permissions {
     const val ASSETS_LOG_METER_READING = "assets.log_meter_reading"
     const val ASSETS_MANAGE_PHOTOS = "assets.manage_photos"
     const val ASSET_QR_VIEW_SCAN_HISTORY = "asset_qr.view_scan_history"
+    const val ASSET_QR_BULK_GENERATE = "asset_qr.bulk_generate"
 
     // Log entries
     const val LOG_VIEW = "log.view"

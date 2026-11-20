@@ -8,8 +8,10 @@ import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.request.request
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsBytes
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.content.ByteArrayContent
 import io.ktor.http.content.TextContent
@@ -79,6 +81,25 @@ class JsonApi @Inject constructor(
 
     suspend fun delete(path: String): ApiResult<JsonObject> =
         send(HttpMethod.Delete, path, null, RequestOptions(newKey()))
+
+    /** GET a binary body (a rendered PDF, an image) as bytes; errors carry the JSON error shape. */
+    suspend fun download(path: String, accept: String = "application/pdf"): ApiResult<ByteArray> = try {
+        val response = client.request(if (path.startsWith("http")) path else "$baseUrl$path") {
+            method = HttpMethod.Get
+            header(HttpHeaders.Accept, accept)
+        }
+        if (response.status.isSuccess()) {
+            ApiResult.Ok(response.bodyAsBytes())
+        } else {
+            ApiResult.Err(parseError(response.status.value, response.bodyAsText()))
+        }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: ResponseException) {
+        ApiResult.Err(parseError(e.response.status.value, runCatching { e.response.bodyAsText() }.getOrDefault("")))
+    } catch (e: Exception) {
+        ApiResult.Err(ApiError(if (e is java.io.IOException) 0 else -1, null, e.message ?: e.javaClass.simpleName))
+    }
 
     /** PUT raw bytes to a presigned upload URL with a client that sends no auth header. */
     suspend fun upload(url: String, bytes: ByteArray, contentType: String = "image/jpeg"): ApiResult<Unit> {

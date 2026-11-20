@@ -213,6 +213,7 @@ class V2RentalAccountsRepository @Inject constructor(
                 reference = r.strOrNull("reference"),
                 notes = r.strOrNull("notes"),
                 cardBrand = r.strOrNull("card_brand"),
+                cardLast4 = r.strOrNull("card_last4"),
                 cardExpiry = r.longOrNull("card_exp_month")?.let { m ->
                     r.longOrNull("card_exp_year")?.let { y -> "%02d/%02d".format(m, y % 100) }
                 },

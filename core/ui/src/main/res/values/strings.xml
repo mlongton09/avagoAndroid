@@ -2,15 +2,8 @@
 <resources>
     <!-- Common / Core UI -->
     <string name="offline_banner">Offline — changes will sync when reconnected</string>
-    <string name="open_settings">Open Settings</string>
-    <string name="untitled">Untitled</string>
-    <string name="not_now">Not Now</string>
     <string name="date_today">today</string>
     <string name="date_yesterday">yesterday</string>
-    <plurals name="days_ago">
-        <item quantity="one">%d day ago</item>
-        <item quantity="other">%d days ago</item>
-    </plurals>
     <string name="photo_camera">Camera</string>
     <string name="photo_library">Photo Library</string>
 
@@ -18,7 +11,6 @@
     <string name="common_save">Save</string>
     <string name="common_cancel">Cancel</string>
     <string name="common_done">Done</string>
-    <string name="common_clear">Clear</string>
     <string name="common_none">None</string>
     <string name="common_search">Search</string>
     <string name="common_delete">Delete</string>
@@ -77,4 +69,21 @@
     <string name="custom_fields_gone">This field no longer exists.</string>
     <string name="custom_fields_invalid">That value isn\'t valid for this field.</string>
     <string name="custom_fields_save_failed">The value couldn\'t be saved.</string>
+    <string name="part_identity_title">Part identity</string>
+    <string name="part_identity_part_number">Part number</string>
+    <string name="part_identity_serial_number">Serial number</string>
+    <string name="part_identity_lot_number">Lot / batch</string>
+    <string name="part_identity_gtin">GTIN</string>
+    <string name="part_identity_production_date">Production date</string>
+    <string name="part_identity_manufacturer_id">Manufacturer ID</string>
+    <string name="part_identity_revision">Revision</string>
+    <string name="part_identity_model_number">Model number</string>
+    <string name="part_identity_country">Country of origin</string>
+    <string name="part_identity_error_length">At most %1$d characters</string>
+    <string name="part_identity_error_gtin">Enter a GTIN-8, 12, 13 or 14 with a valid check digit</string>
+    <string name="part_identity_error_country">Use a 2-letter ISO country code</string>
+    <string name="part_photos_title">Part photos</string>
+    <string name="part_photos_after_save">Save the line to add photos.</string>
+    <string name="attachment_add_photo">Add photo</string>
+    <string name="attachment_remove">Remove photo</string>
 </resources>

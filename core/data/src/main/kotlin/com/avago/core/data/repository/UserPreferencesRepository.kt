@@ -29,8 +29,9 @@ private val Context.userPreferencesDataStore by preferencesDataStore(name = "use
  *
  * Currency, distance unit, fuel volume unit, disable_quotes and enable_human_in_loop are also the
  * signed-in user's synced `user_preferences` ([AccountPreferencesRepository]): a value stored there
- * wins over the device value, and setting one also queues `core.user_preferences.update`, so web
- * and the user's other devices follow. Signed out, the device value is used alone.
+ * wins, then the account default (synced `account_preferences`), then the device value. Setting one
+ * also queues `core.user_preferences.update`, so web and the user's other devices follow. Signed
+ * out, the device value is used alone.
  *
  * Mirrors the preference keys used by the iOS app:
  *   - AVDefaultsKeyThemeOverride
@@ -201,7 +202,9 @@ class UserPreferencesRepository @Inject constructor(
     }
 
     private fun <T : Any> synced(device: (Preferences) -> T, synced: (UserPreferenceOverrides) -> T?): Flow<T> =
-        combine(dataStore.data.map(device), account.observeMine()) { local, mine -> mine?.let(synced) ?: local }
+        combine(dataStore.data.map(device), account.observeMine(), account.observeAccountDefaults()) { local, mine, defaults ->
+            mine?.let(synced) ?: defaults?.let(synced) ?: local
+        }
 
     /** Queues the change for the signed-in user; signed out it stays on this device only. */
     private suspend fun share(change: UserPreferenceChange) {

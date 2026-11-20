@@ -296,6 +296,7 @@ class V2AssetRepository @Inject constructor(
             is AttachmentTarget.ToAsset -> "asset_id" to assetId
             is AttachmentTarget.ToActivity -> "activity_id" to activityId
             is AttachmentTarget.ToWorkOrder -> "work_order_id" to workOrderId
+            is AttachmentTarget.ToCostLine -> "cost_line_id" to costLineId
         }
 
         fun reading(r: V2Row) = MeterReading(

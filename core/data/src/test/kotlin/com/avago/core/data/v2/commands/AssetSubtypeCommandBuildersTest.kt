@@ -31,7 +31,7 @@ class AssetSubtypeCommandBuildersTest {
 
     private fun draftOf(t: AssetToolDetails) = ToolDetailsDraft(
         calibratedOn = t.calibratedOn?.let(LocalDate::parse), calibrationIntervalDays = t.calibrationIntervalDays,
-        calibrationDueOn = t.calibrationDueOn?.let(LocalDate::parse), usageUnit = t.usageUnit ?: "days",
+        calibrationDueOn = t.calibrationDueOn?.let(LocalDate::parse), usageUnit = t.usageUnit,
         usageValue = t.usageValue, replacementValue = t.replacementValue, currency = t.currency,
         trackerTagId = t.trackerTagId, trackerKind = t.trackerKind,
     )
@@ -81,6 +81,17 @@ class AssetSubtypeCommandBuildersTest {
         assertEquals("cycles", row["usage_unit"])
         assertEquals(12_000_000L, (row["usage_value_micros"] as Number).toLong())
         assertTrue(row.containsKey("created_at"))
+    }
+
+    @Test
+    fun `an emptied usage counter and unit are cleared and the counter resets to zero`() {
+        val counted = tool.copy(usageValue = BigDecimal("40"))
+        val command = MaintCommands.updateToolDetails(assetId, counted, draftOf(counted).copy(usageUnit = null, usageValue = null), 1, "u")!!
+        val clear = command.payload.jsonObject["clear"]!!.jsonArray.map { it.jsonPrimitive.content }.toSet()
+        assertEquals(setOf("usage_unit", "usage_value"), clear)
+        val row = V2OverlayPatch.parse(command.overlayPatch!!)!!.ops.single().set
+        assertEquals(0L, (row["usage_value_micros"] as Number).toLong())
+        assertTrue(row.containsKey("usage_unit") && row["usage_unit"] == null)
     }
 
     @Test

@@ -196,7 +196,9 @@ data class CostLine(
     val taxAmountMinor: Long?,
     val glAccountId: String?,
     val costStatus: String,
-    val partNumber: String?,
+    val identity: PartIdentity,
+    /** Raw `part_snapshot` JSON; keys other than the identity ones are kept on edits. */
+    val partSnapshot: String?,
     val notes: String?,
     val version: Long,
 ) {
@@ -219,7 +221,84 @@ data class CostLineDraft(
     val glAccountId: String? = null,
     val estimate: Boolean = false,
     val notes: String? = null,
+    /** Part identity as fitted; emptied fields are cleared on update. */
+    val identity: PartIdentity = PartIdentity(),
 )
+
+/**
+ * Identity of a fitted part: `part_number`, `serial_number` and `lot_number` columns plus the
+ * identifiers the server keeps in `part_snapshot`. Blank = none.
+ */
+data class PartIdentity(
+    val partNumber: String? = null,
+    val serialNumber: String? = null,
+    val lotNumber: String? = null,
+    /** GS1 GTIN-8/12/13/14 with a valid check digit. */
+    val gtin: String? = null,
+    /** Production date as printed or scanned (free text). */
+    val productionDate: String? = null,
+    val manufacturerId: String? = null,
+    val revision: String? = null,
+    val modelNumber: String? = null,
+    /** Country of origin, ISO 3166-1 alpha-2. */
+    val country: String? = null,
+) {
+    /** Fields that break the server's rules (length, GTIN check digit, alpha-2 country). */
+    fun invalidFields(): Set<Field> = Field.entries.filterTo(linkedSetOf()) { f ->
+        val v = f.of(this)?.trim()?.takeIf { it.isNotEmpty() } ?: return@filterTo false
+        v.length > f.maxLength || v.any(Char::isISOControl) || when (f) {
+            Field.GTIN -> !isValidGtin(v)
+            Field.COUNTRY -> !(v.length == 2 && v.all { it in 'a'..'z' || it in 'A'..'Z' })
+            else -> false
+        }
+    }
+
+    /** Trimmed (blank = null), country upper-cased. */
+    fun normalized(): PartIdentity = PartIdentity(
+        partNumber = partNumber.clean(), serialNumber = serialNumber.clean(), lotNumber = lotNumber.clean(),
+        gtin = gtin.clean(), productionDate = productionDate.clean(), manufacturerId = manufacturerId.clean(),
+        revision = revision.clean(), modelNumber = modelNumber.clean(), country = country.clean()?.uppercase(),
+    )
+
+    val isEmpty: Boolean get() = Field.entries.all { it.of(normalized()) == null }
+
+    fun with(field: Field, value: String?): PartIdentity = when (field) {
+        Field.PART_NUMBER -> copy(partNumber = value)
+        Field.SERIAL_NUMBER -> copy(serialNumber = value)
+        Field.LOT_NUMBER -> copy(lotNumber = value)
+        Field.GTIN -> copy(gtin = value)
+        Field.PRODUCTION_DATE -> copy(productionDate = value)
+        Field.MANUFACTURER_ID -> copy(manufacturerId = value)
+        Field.REVISION -> copy(revision = value)
+        Field.MODEL_NUMBER -> copy(modelNumber = value)
+        Field.COUNTRY -> copy(country = value)
+    }
+
+    /** Wire name (column or `part_snapshot` key) and server length limit of each field. */
+    enum class Field(val wire: String, val maxLength: Int, val inSnapshot: Boolean, val of: (PartIdentity) -> String?) {
+        PART_NUMBER("part_number", 50, false, { it.partNumber }),
+        SERIAL_NUMBER("serial_number", 100, false, { it.serialNumber }),
+        LOT_NUMBER("lot_number", 100, false, { it.lotNumber }),
+        GTIN("gtin", 14, true, { it.gtin }),
+        PRODUCTION_DATE("production_date", 50, true, { it.productionDate }),
+        MANUFACTURER_ID("manufacturer_id", 100, true, { it.manufacturerId }),
+        REVISION("revision", 50, true, { it.revision }),
+        MODEL_NUMBER("model_number", 100, true, { it.modelNumber }),
+        COUNTRY("country", 2, true, { it.country }),
+    }
+
+    companion object {
+        /** GS1 check digit over 8, 12, 13 or 14 digits. */
+        fun isValidGtin(v: String): Boolean {
+            if (v.length !in setOf(8, 12, 13, 14) || !v.all { it in '0'..'9' }) return false
+            val digits = v.map { it - '0' }
+            val sum = digits.dropLast(1).asReversed().withIndex().sumOf { (i, d) -> if (i % 2 == 0) d * 3 else d }
+            return (10 - sum % 10) % 10 == digits.last()
+        }
+
+        private fun String?.clean(): String? = this?.trim()?.ifEmpty { null }
+    }
+}
 
 data class WorkPermit(
     val id: String,

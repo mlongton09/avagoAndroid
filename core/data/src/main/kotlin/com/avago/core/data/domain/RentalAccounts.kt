@@ -84,6 +84,8 @@ data class LedgerEntry(
     val reference: String?,
     val notes: String?,
     val cardBrand: String?,
+    /** The last four digits of the card, when the entry is a card payment. */
+    val cardLast4: String?,
     /** The card expiry ("MM/YY"), when the entry is a card payment. */
     val cardExpiry: String?,
     val payerName: String?,

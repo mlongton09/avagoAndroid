@@ -17,7 +17,7 @@ class CoreCommandsTest {
     private val stored = Document(
         id = "d1", version = 4, kind = DocumentKind.RECEIPT, status = "issued", title = "Tyres", issuedOn = LocalDate.of(2026, 3, 1),
         issuerName = "ACME", total = BigDecimal("12.50"), currency = "EUR", warrantyEndsOn = null, notes = null, file = null,
-        revisionNo = 1, assetId = "a1", workOrderId = null, linkIds = listOf("l1"), createdAt = 1, createdBy = null, updatedAt = 1, updatedBy = null,
+        revisionNo = 1, assetId = "a1", activityId = null, workOrderId = null, linkIds = listOf("l1"), createdAt = 1, createdBy = null, updatedAt = 1, updatedBy = null,
     )
     private val same = DocumentEdit(stored.kind, " Tyres ", stored.issuedOn, "ACME", BigDecimal("12.5"), "eur", null, "")
 

@@ -28,10 +28,10 @@ object CoreCommands {
         nowMillis: Long,
         userId: String?,
     ): V2NewCommand {
-        val (assetId, workOrderId) = when (val owner = draft.owner) {
-            is DocumentOwner.Asset -> owner.assetId to null
-            is DocumentOwner.WorkOrder -> null to owner.workOrderId
-        }
+        val owner = draft.owner
+        val assetId = (owner as? DocumentOwner.Asset)?.assetId
+        val activityId = (owner as? DocumentOwner.Activity)?.activityId
+        val workOrderId = (owner as? DocumentOwner.WorkOrder)?.workOrderId
         val currency = draft.currency.clean()?.uppercase()
         require(draft.total == null || currency != null) { "a document total needs a currency" }
         val payload = CoreDocumentsCreate(
@@ -39,6 +39,7 @@ object CoreCommands {
             kind = draft.kind.wire,
             title = draft.title.clean(),
             assetId = assetId,
+            activityId = activityId,
             workOrderId = workOrderId,
             fileObjectId = file.fileId,
             issuedOn = draft.issuedOn,
@@ -64,7 +65,7 @@ object CoreCommands {
                 "attachments", linkId,
                 mapOf(
                     "file_object_id" to file.fileId, "document_id" to id, "asset_id" to assetId,
-                    "work_order_id" to workOrderId,
+                    "activity_id" to activityId, "work_order_id" to workOrderId,
                 ) + created(nowMillis, userId),
             ),
         )

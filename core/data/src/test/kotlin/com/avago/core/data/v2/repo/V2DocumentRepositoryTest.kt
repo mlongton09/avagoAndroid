@@ -12,6 +12,8 @@ import com.avago.core.data.v2.V2StagedFile
 import com.avago.core.data.v2.V2Stores
 import com.avago.core.data.v2.commands.CoreCommands
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -59,6 +61,22 @@ class V2DocumentRepositoryTest {
         assertTrue(documents(DocumentOwner.WorkOrder("00000000-0000-4000-8000-0000000000b1")).isEmpty())
         val revision = business.read { V2DocumentRepository.revisions(it, doc) { null } }.single()
         assertEquals(1, revision.revisionNo)
+    }
+
+    @Test
+    fun `a document on a service record carries activity_id and lists under the activity`() = runTest {
+        val activity = "00000000-0000-4000-8000-0000000000b7"
+        val draft = DocumentDraft(DocumentOwner.Activity(activity), DocumentKind.RECEIPT, LocalFileRef("content://x", "image/jpeg"), title = "Oil receipt")
+        val command = CoreCommands.createDocument(doc, "00000000-0000-4000-8000-0000000000e1", "00000000-0000-4000-8000-0000000000f1", draft, staged("00000000-0000-4000-8000-0000000000c1"), 10, null)
+        val payload = command.payload.jsonObject
+        assertEquals(activity, payload["activity_id"]?.jsonPrimitive?.content)
+        assertNull(payload["asset_id"])
+        assertNull(payload["work_order_id"])
+
+        commands.submit(command)
+        val listed = documents(DocumentOwner.Activity(activity)).single()
+        assertEquals(activity, listed.activityId)
+        assertTrue(documents(DocumentOwner.Asset(asset)).isEmpty())
     }
 
     @Test

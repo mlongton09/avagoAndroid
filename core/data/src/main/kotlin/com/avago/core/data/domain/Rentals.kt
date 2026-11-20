@@ -62,6 +62,8 @@ data class RentalOrder(
     val cancelReason: String?,
     val needsReview: Boolean,
     val sync: RecordSyncState,
+    /** Last day covered by the order's cycle billing (ental_billing_cycles); null before the first cycle. */
+    val billedThrough: LocalDate? = null,
 )
 
 data class RentalOrderLine(

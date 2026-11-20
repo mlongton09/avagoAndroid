@@ -723,6 +723,7 @@ object RentalCommands {
                 "method" to payload.method?.wire, "amount_minor" to draft.amountMinor, "currency" to payload.currency,
                 "state" to if (draft.isAuthorization) "authorized" else "settled", "received_at" to draft.receivedAt.toEpochMilli(),
                 "reference" to payload.reference, "notes" to payload.notes,
+                "card_brand" to payload.cardBrand, "card_last4" to payload.cardLast4,
                 "payer_name" to payload.payerName, "payer_email" to email, "recorded_by" to userId,
             ) + created(nowMillis, userId),
         )

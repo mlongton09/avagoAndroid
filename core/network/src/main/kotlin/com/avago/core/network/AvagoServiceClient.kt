@@ -8,21 +8,14 @@ import com.avago.core.network.model.AiSkillResponse
 import com.avago.core.network.model.AiSkillsEnvelope
 import com.avago.core.network.model.AuthResponse
 import com.avago.core.network.model.BulkInvitation
-import com.avago.core.network.model.CreateRentalRequest
-import com.avago.core.network.model.EndRentalRequest
+import com.avago.core.network.model.DocOcrReextractResponse
 import com.avago.core.network.model.DocOcrResponse
 import com.avago.core.network.model.GeocodeRequest
 import com.avago.core.network.model.GeocodeResponse
 import com.avago.core.network.model.PhotoUploadUrlResponse
-import com.avago.core.network.model.RentalResponse
-import com.avago.core.network.model.RentalsEnvelope
-import com.avago.core.network.model.StartReservationEnvelope
 import com.avago.core.network.model.RolePermissionsSyncData
 import com.avago.core.network.model.RolePermissionsSyncEnvelope
 import com.avago.core.network.model.VinDecodeResponse
-import com.avago.core.network.model.FileUploadResponse
-import com.avago.core.network.model.PresignedUploadRequest
-import com.avago.core.network.model.PresignedUploadResponse
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -60,6 +53,7 @@ import com.avago.core.network.model.UserResponse
 import com.avago.core.network.model.SkipOccurrenceRequest
 import com.avago.core.network.model.KpiSummaryResponse
 import com.avago.core.network.model.WorkOrderBudgetsResponse
+import com.avago.core.network.model.EffortStats
 import com.avago.core.network.model.WorkOrderAuditResponse
 import com.avago.core.network.model.InspectionDraftRow
 import com.avago.core.network.model.PutInspectionDraftRequest
@@ -516,191 +510,30 @@ class AvagoServiceClient @Inject constructor(
         }
 
     /**
-     * POST /accounts/{accountId}/rentals — create a new rental for an asset.
-     */
-    suspend fun createRental(
-        accountId: String,
-        request: CreateRentalRequest,
-    ): NetworkResult<RentalResponse> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/rentals") {
-                setBody(request)
-            }.body()
-        }
-
-    /**
-     * GET /accounts/{accountId}/assets/{assetId}/rentals — list rentals for an asset.
-     */
-    suspend fun getRentalsForAsset(
-        accountId: String,
-        assetId: String,
-    ): NetworkResult<List<RentalResponse>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/assets/$assetId/rentals")
-                .body<RentalsEnvelope>().rentals
-        }
-
-    /**
-     * POST /accounts/{accountId}/rentals/{rentalId}/end — end an active rental.
+     * POST /accounts/{accountId}/docs/{docId}/ocr-extract: re-runs field extraction for a stored
+     * document (online action). The text and fields are stored on its current revision; the
+     * revision's OCR status syncs.
      *
-     * @param endAt ISO-8601 timestamp of when the rental ended.
+     * @param ocrRawText   Fresh text (a re-scan); null re-uses the text of the last run.
+     * @param documentType Extraction type; null derives it from the document's kind.
      */
-    suspend fun endRental(
+    suspend fun reextractDocOcr(
         accountId: String,
-        rentalId: String,
-        endAt: String,
-        meterEnd: Double? = null,
-        condition: String? = null,
-        conditionNotes: String? = null,
-    ): NetworkResult<Unit> =
+        docId: String,
+        ocrRawText: String?,
+        documentType: String?,
+        locale: String,
+    ): NetworkResult<DocOcrReextractResponse> =
         safeNetworkCall {
-            val response: HttpResponse =
-                client.post("$baseUrl/accounts/$accountId/rentals/$rentalId/end") {
-                    setBody(EndRentalRequest(end_at = endAt, meter_end = meterEnd, condition = condition, condition_notes = conditionNotes))
-                }
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-
-    // ---------------------------------------------------------------------------
-    // Rental Customers
-    // ---------------------------------------------------------------------------
-
-    /** GET /accounts/{accountId}/rental-customers */
-    suspend fun getRentalCustomers(accountId: String): NetworkResult<List<com.avago.core.network.model.RentalCustomer>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/rental-customers")
-                .body<com.avago.core.network.model.RentalCustomersEnvelope>().customers
-        }
-
-    /** POST /accounts/{accountId}/rental-customers */
-    suspend fun createRentalCustomer(
-        accountId: String,
-        request: com.avago.core.network.model.CreateRentalCustomerRequest,
-    ): NetworkResult<com.avago.core.network.model.RentalCustomer> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/rental-customers") {
-                setBody(request)
-            }.body<com.avago.core.network.model.RentalCustomerEnvelope>().customer
-        }
-
-    /** GET /accounts/{accountId}/rental-customers/{customerId} */
-    suspend fun getRentalCustomer(accountId: String, customerId: String): NetworkResult<com.avago.core.network.model.RentalCustomer> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/rental-customers/$customerId")
-                .body<com.avago.core.network.model.RentalCustomerEnvelope>().customer
-        }
-
-    /** PUT /accounts/{accountId}/rental-customers/{customerId} */
-    suspend fun updateRentalCustomer(
-        accountId: String,
-        customerId: String,
-        request: com.avago.core.network.model.CreateRentalCustomerRequest,
-    ): NetworkResult<com.avago.core.network.model.RentalCustomer> =
-        safeNetworkCall {
-            client.put("$baseUrl/accounts/$accountId/rental-customers/$customerId") {
-                setBody(request)
-            }.body<com.avago.core.network.model.RentalCustomerEnvelope>().customer
-        }
-
-    /** DELETE /accounts/{accountId}/rental-customers/{customerId} */
-    suspend fun deleteRentalCustomer(accountId: String, customerId: String): NetworkResult<Unit> =
-        safeNetworkCall {
-            val response: HttpResponse =
-                client.delete("$baseUrl/accounts/$accountId/rental-customers/$customerId")
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
-        }
-
-    // ---------------------------------------------------------------------------
-    // Rental Invoices
-    // ---------------------------------------------------------------------------
-
-    /** POST /accounts/{accountId}/rental-periods/{rentalId}/invoice */
-    suspend fun createRentalInvoice(
-        accountId: String,
-        rentalId: String,
-    ): NetworkResult<com.avago.core.network.model.RentalInvoice> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/rental-periods/$rentalId/invoice")
-                .body<com.avago.core.network.model.RentalInvoiceEnvelope>().invoice
-        }
-
-    /** GET /accounts/{accountId}/rental-invoices/{invoiceId} */
-    suspend fun getRentalInvoice(accountId: String, invoiceId: String): NetworkResult<com.avago.core.network.model.RentalInvoice> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/rental-invoices/$invoiceId")
-                .body<com.avago.core.network.model.RentalInvoiceEnvelope>().invoice
-        }
-
-    /** POST /accounts/{accountId}/rental-invoices/{invoiceId}/send */
-    suspend fun sendRentalInvoice(accountId: String, invoiceId: String): NetworkResult<com.avago.core.network.model.RentalInvoice> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/rental-invoices/$invoiceId/send")
-                .body<com.avago.core.network.model.RentalInvoiceEnvelope>().invoice
-        }
-
-    /** POST /accounts/{accountId}/rental-invoices/{invoiceId}/pay */
-    suspend fun payRentalInvoice(
-        accountId: String,
-        invoiceId: String,
-        request: com.avago.core.network.model.PayInvoiceRequest,
-    ): NetworkResult<com.avago.core.network.model.RentalInvoice> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/rental-invoices/$invoiceId/pay") {
-                setBody(request)
-            }.body<com.avago.core.network.model.RentalInvoiceEnvelope>().invoice
-        }
-
-    /** POST /accounts/{accountId}/rental-invoices/{invoiceId}/void */
-    suspend fun voidRentalInvoice(accountId: String, invoiceId: String): NetworkResult<com.avago.core.network.model.RentalInvoice> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/rental-invoices/$invoiceId/void")
-                .body<com.avago.core.network.model.RentalInvoiceEnvelope>().invoice
-        }
-
-    // ---------------------------------------------------------------------------
-    // Reservations
-    // ---------------------------------------------------------------------------
-
-    /** GET /accounts/{accountId}/assets/{assetId}/reservations */
-    suspend fun getReservationsForAsset(
-        accountId: String,
-        assetId: String,
-    ): NetworkResult<List<com.avago.core.network.model.RentalReservation>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/assets/$assetId/reservations")
-                .body<com.avago.core.network.model.ReservationsEnvelope>().reservations
-        }
-
-    /** POST /accounts/{accountId}/reservations */
-    suspend fun createReservation(
-        accountId: String,
-        request: com.avago.core.network.model.CreateReservationRequest,
-    ): NetworkResult<com.avago.core.network.model.RentalReservation> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/reservations") {
-                setBody(request)
-            }.body<com.avago.core.network.model.ReservationEnvelope>().reservation
-        }
-
-    /** POST /accounts/{accountId}/reservations/{reservationId}/start — convert reservation to rental */
-    suspend fun startReservation(
-        accountId: String,
-        reservationId: String,
-        rate: Double,
-        rateUnit: String,
-        meterStart: Double? = null,
-        meterUnit: String? = null,
-        condition: String? = null,
-        conditionNotes: String? = null,
-    ): NetworkResult<RentalResponse> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/reservations/$reservationId/start") {
-                setBody(com.avago.core.network.model.StartReservationRequest(rate = rate, rate_unit = rateUnit, meter_start = meterStart, meter_unit = meterUnit, condition = condition, condition_notes = conditionNotes))
-            }.body<StartReservationEnvelope>().rental
+            client.post("$baseUrl/accounts/$accountId/docs/$docId/ocr-extract") {
+                setBody(
+                    buildMap {
+                        ocrRawText?.let { put("ocr_raw_text", it) }
+                        documentType?.let { put("document_type", it) }
+                        put("locale", locale)
+                    },
+                )
+            }.body()
         }
 
     // ---------------------------------------------------------------------------
@@ -1269,20 +1102,6 @@ class AvagoServiceClient @Inject constructor(
         return match.groupValues[1].toLongOrNull()
     }
 
-    suspend fun getPresignedUploadUrl(accountId: String, request: PresignedUploadRequest): NetworkResult<PresignedUploadResponse> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/attachments/presigned-url") {
-                setBody(request)
-            }.body<PresignedUploadResponse>()
-        }
-
-    suspend fun finalizeFileUpload(accountId: String, fileUploadId: String, fileSizeBytes: Long? = null): NetworkResult<FileUploadResponse> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/attachments/$fileUploadId/finalize") {
-                setBody(mapOf("file_size_bytes" to fileSizeBytes))
-            }.body<Map<String, FileUploadResponse>>()?.get("file_upload") ?: throw IllegalStateException("Missing file_upload in response")
-        }
-
     // ---------------------------------------------------------------------------
     // Occurrence Skip with reason (Change 72)
     // ---------------------------------------------------------------------------
@@ -1370,6 +1189,30 @@ class AvagoServiceClient @Inject constructor(
         safeNetworkCall {
             val response: HttpResponse = client.delete("$baseUrl/accounts/$accountId/inspection-drafts/$draftId")
             if (!response.status.isSuccess()) throw NetworkException(response.status.value, response.status.description)
+        }
+
+    /**
+     * GET /accounts/{accountId}/work-orders/{woId}/effort-stats: the effort benchmark for the work
+     * order's asset type and category; `null` when the server has none (204).
+     */
+    suspend fun getEffortStats(
+        accountId: String,
+        woId: String,
+        category: String,
+        assetType: String,
+        complexity: String,
+    ): NetworkResult<EffortStats?> =
+        safeNetworkCall {
+            val response: HttpResponse = client.get("$baseUrl/accounts/$accountId/work-orders/$woId/effort-stats") {
+                parameter("category", category)
+                parameter("asset_type", assetType)
+                parameter("complexity", complexity)
+            }
+            when {
+                response.status == HttpStatusCode.NoContent -> null
+                response.status.isSuccess() -> response.body<EffortStats>()
+                else -> throw NetworkException(response.status.value, response.status.description)
+            }
         }
 
     /** GET /accounts/{accountId}/work-orders/{woId}/budget-pill: active budgets whose scope covers the work order. */

@@ -16,6 +16,7 @@ import com.avago.core.data.domain.DefectState
 import com.avago.core.data.domain.DowntimeKind
 import com.avago.core.data.domain.InspectionDefect
 import com.avago.core.data.domain.MeterReading
+import com.avago.core.data.domain.PartIdentity
 import com.avago.core.data.domain.PmOccurrence
 import com.avago.core.data.domain.ToolDetailsDraft
 import com.avago.core.data.domain.VehicleDetailsDraft
@@ -183,7 +184,7 @@ object MaintCommands {
         userId: String?,
     ): V2NewCommand? {
         draft.calibrationIntervalDays?.let { require(it in 1..3650) { "a calibration interval is 1 to 3650 days" } }
-        require(draft.usageUnit in TOOL_USAGE_UNITS) { "unknown usage unit ${draft.usageUnit}" }
+        draft.usageUnit?.let { require(it in TOOL_USAGE_UNITS) { "unknown usage unit $it" } }
         draft.usageValue?.let { require(it.signum() >= 0) { "usage cannot be negative" } }
         draft.replacementValue?.let { require(it.signum() >= 0) { "a replacement value cannot be negative" } }
         draft.trackerKind?.let { require(it in TRACKER_KINDS) { "unknown tracker kind $it" } }
@@ -198,8 +199,11 @@ object MaintCommands {
             draft.calibrationDueOn ?: derivedCalibrationDue(draft.calibratedOn, draft.calibrationIntervalDays),
             toColumn = LocalDate::toString,
         )
-        val unit = d.text("usage_unit", stored?.usageUnit ?: TOOL_USAGE_UNITS.first(), draft.usageUnit)
+        val unit = d.text("usage_unit", stored?.usageUnit, draft.usageUnit)
         val usage = d.decimal("usage_value", stored?.usageValue, draft.usageValue, column = "usage_value_micros", toColumn = V2Micros::fromDecimal)
+        // A cleared counter resets to 0 (NOT NULL on the server); a cleared unit takes the asset
+        // type's usage meter, which the next sync delivers.
+        if (MaintAssetToolDetailsUpdate.Clear.USAGE_VALUE in d.clear) d.overlay["usage_value_micros"] = 0L
         val storedCurrency = stored?.currency
         val newCurrency = d.text("currency", storedCurrency, currency)
         val storedMinor = stored?.replacementValue?.let { V2Money.toMinor(it, storedCurrency) }
@@ -215,11 +219,7 @@ object MaintCommands {
             usageUnit = unit, usageValue = usage, replacementValueMinor = minor, currency = newCurrency,
             trackerTagId = tag, trackerKind = kind, clear = d.clear,
         )
-        val base = if (stored == null) {
-            mapOf("usage_unit" to draft.usageUnit) + created(nowMillis, userId)
-        } else {
-            updated(nowMillis)
-        }
+        val base = if (stored == null) created(nowMillis, userId) else updated(nowMillis)
         return payload.toNewCommand(
             overlay = V2OverlayPatch.of(V2RowOp.upsert("asset_tool_details", mapOf("asset_id" to assetId), base + d.overlay)),
         )
@@ -348,13 +348,12 @@ object MaintCommands {
         userId: String?,
         dependsOn: List<String> = emptyList(),
     ): V2NewCommand {
-        val (assetId, activityId, workOrderId) = when (target) {
-            is AttachmentTarget.ToAsset -> Triple(target.assetId, null, null)
-            is AttachmentTarget.ToActivity -> Triple(null, target.activityId, null)
-            is AttachmentTarget.ToWorkOrder -> Triple(null, null, target.workOrderId)
-        }
         val payload = MaintAttachmentsCreate(
-            id = id, fileObjectId = file.fileId, assetId = assetId, activityId = activityId, workOrderId = workOrderId,
+            id = id, fileObjectId = file.fileId,
+            assetId = (target as? AttachmentTarget.ToAsset)?.assetId,
+            activityId = (target as? AttachmentTarget.ToActivity)?.activityId,
+            workOrderId = (target as? AttachmentTarget.ToWorkOrder)?.workOrderId,
+            costLineId = (target as? AttachmentTarget.ToCostLine)?.costLineId,
             sortOrder = sortOrder,
         )
         val ops = listOf(
@@ -362,8 +361,8 @@ object MaintCommands {
             V2RowOp.upsert(
                 "attachments", id,
                 mapOf(
-                    "file_object_id" to file.fileId, "asset_id" to assetId, "activity_id" to activityId,
-                    "work_order_id" to workOrderId, "sort_order" to sortOrder,
+                    "file_object_id" to file.fileId, "asset_id" to payload.assetId, "activity_id" to payload.activityId,
+                    "work_order_id" to payload.workOrderId, "cost_line_id" to payload.costLineId, "sort_order" to sortOrder,
                 ) + created(nowMillis, userId),
             ),
         )
@@ -494,6 +493,7 @@ object MaintCommands {
         dependsOn: List<String> = emptyList(),
     ): V2NewCommand {
         require((activityId == null) != (workOrderId == null)) { "a cost line belongs to an activity or a work order" }
+        val identity = validIdentity(draft.identity)
         val payload = MaintActivityCostLinesCreate(
             id = id,
             activityId = activityId,
@@ -508,6 +508,15 @@ object MaintCommands {
             taxAmountMinor = draft.taxAmountMinor,
             glAccountId = draft.glAccountId,
             costStatus = if (draft.estimate) CostStatus.ESTIMATE else CostStatus.ACTUAL,
+            partNumber = identity.partNumber,
+            serialNumber = identity.serialNumber,
+            lotNumber = identity.lotNumber,
+            gtin = identity.gtin,
+            productionDate = identity.productionDate,
+            manufacturerId = identity.manufacturerId,
+            revision = identity.revision,
+            modelNumber = identity.modelNumber,
+            country = identity.country,
             notes = draft.notes.clean(),
         )
         val row = mapOf(
@@ -524,6 +533,10 @@ object MaintCommands {
             "gl_account_id" to draft.glAccountId,
             "overtime" to 0L,
             "cost_status" to payload.costStatus?.wire,
+            "part_number" to identity.partNumber,
+            "serial_number" to identity.serialNumber,
+            "lot_number" to identity.lotNumber,
+            "part_snapshot" to partSnapshot(null, identity),
             "notes" to payload.notes,
         ) + created(nowMillis, userId)
         return payload.toNewCommand(
@@ -532,10 +545,10 @@ object MaintCommands {
         )
     }
 
-    /** Null when nothing changed. The kind is fixed after creation. */
     /**
      * Null when nothing changed. The kind is fixed after creation. [storedPerformerUserId] is the
      * user behind `performer_worker_id`; [performerWorkerId] the worker of the new performer.
+     * Emptied identity fields and tax are cleared; `part_snapshot` keeps its other keys.
      */
     fun updateCostLine(
         stored: CostLine,
@@ -544,6 +557,8 @@ object MaintCommands {
         storedPerformerUserId: String?,
         performerWorkerId: String?,
     ): V2NewCommand? {
+        val identity = validIdentity(draft.identity)
+        val storedIdentity = stored.identity.normalized()
         val d = V2UpdateDiff(MaintActivityCostLinesUpdate.Clear.entries)
         val product = d.text("product_id", stored.productId, draft.productId)
         val performer = d.text("performer_user_id", storedPerformerUserId, draft.performerUserId, column = null)
@@ -557,17 +572,42 @@ object MaintCommands {
         val glAccount = d.text("gl_account_id", stored.glAccountId, draft.glAccountId)
         val status = d.text("cost_status", stored.costStatus, if (draft.estimate) CostStatus.ESTIMATE.wire else CostStatus.ACTUAL.wire)
         val notes = d.text("notes", stored.notes, draft.notes)
+        val ids = PartIdentity.Field.entries.associateWith { f ->
+            d.text(f.wire, f.of(storedIdentity), f.of(identity), column = f.wire.takeUnless { f.inSnapshot })
+        }
+        if (PartIdentity.Field.entries.any { it.inSnapshot && it.of(storedIdentity) != it.of(identity) }) {
+            d.overlay["part_snapshot"] = partSnapshot(stored.partSnapshot, identity)
+        }
         d.check()
         if (d.isEmpty) return null
         val payload = MaintActivityCostLinesUpdate(
             id = stored.id, productId = product, performerUserId = performer, description = description, quantity = quantity,
             unitCost = unitCost, taxAmountMinor = tax, glAccountId = glAccount, costStatus = status?.let { s -> CostStatus.entries.first { it.wire == s } },
-            notes = notes, clear = d.clear,
+            notes = notes, partNumber = ids[PartIdentity.Field.PART_NUMBER], serialNumber = ids[PartIdentity.Field.SERIAL_NUMBER],
+            lotNumber = ids[PartIdentity.Field.LOT_NUMBER], gtin = ids[PartIdentity.Field.GTIN],
+            productionDate = ids[PartIdentity.Field.PRODUCTION_DATE], manufacturerId = ids[PartIdentity.Field.MANUFACTURER_ID],
+            revision = ids[PartIdentity.Field.REVISION], modelNumber = ids[PartIdentity.Field.MODEL_NUMBER],
+            country = ids[PartIdentity.Field.COUNTRY], clear = d.clear,
         )
         return payload.toNewCommand(
             baseVersion = stored.version,
             overlay = V2OverlayPatch.of(V2RowOp.upsert("activity_cost_lines", stored.id, d.overlay + updated(nowMillis))),
         )
+    }
+
+    private fun validIdentity(identity: PartIdentity): PartIdentity {
+        val invalid = identity.invalidFields()
+        require(invalid.isEmpty()) { "invalid part identity: ${invalid.joinToString { it.wire }}" }
+        return identity.normalized()
+    }
+
+    /** [stored] `part_snapshot` with the identity keys replaced by [identity]'s; null when empty. */
+    private fun partSnapshot(stored: String?, identity: PartIdentity): String? {
+        val kept = stored?.let { runCatching { Json.parseToJsonElement(it) as? JsonObject }.getOrNull() }.orEmpty()
+        val snapshotFields = PartIdentity.Field.entries.filter { it.inSnapshot }
+        val merged = kept.filterKeys { key -> snapshotFields.none { it.wire == key } } +
+            snapshotFields.mapNotNull { f -> f.of(identity)?.let { f.wire to JsonPrimitive(it) } }
+        return merged.takeIf { it.isNotEmpty() }?.let { JsonObject(it).toString() }
     }
 
     fun deleteCostLine(stored: CostLine): V2NewCommand =
@@ -620,6 +660,7 @@ object MaintCommands {
     /**
      * Null when nothing changed. A new hourly rate or currency mirrors the server: today's rate row
      * is edited in place, an older one is closed today and a new row ([newRateId]) starts today.
+     * An emptied rate clears it: the current row ends today (one that starts today is dropped).
      */
     fun updateWorker(stored: Worker, draft: WorkerDraft, nowMillis: Long, today: LocalDate, newRateId: String, userId: String?): V2NewCommand? {
         val d = V2UpdateDiff(MaintWorkersUpdate.Clear.entries)
@@ -632,23 +673,31 @@ object MaintCommands {
         val certifications = draft.certifications?.map { it.copy(name = it.name.trim()) }?.filter { it.name.isNotEmpty() }
             ?.takeIf { it != stored.certifications }
         val current = stored.hourlyRate
+        val endRate = draft.hourlyRate == null && current != null
         val rate = draft.hourlyRate?.also { require(it.signum() >= 0) { "an hourly rate cannot be negative" } }
             ?.takeIf { current?.costRate == null || it.compareTo(current.costRate) != 0 }
         val currency = draft.rateCurrency?.trim()?.uppercase()?.ifEmpty { null }
             ?.also { require(it.length == 3 && it.all { c -> c in 'A'..'Z' }) { "a currency is a 3-letter ISO code" } }
+            ?.takeUnless { endRate }
             ?.takeIf { it != (current?.currency ?: DEFAULT_RATE_CURRENCY) || (current == null && rate != null) }
-        if (d.isEmpty && certifications == null && rate == null && currency == null) return null
+        if (d.isEmpty && certifications == null && rate == null && currency == null && !endRate) return null
         val certificationsJson = certifications?.let { list -> JsonArray(list.map(::certificationJson)) }
         val payload = MaintWorkersUpdate(
             id = stored.id, displayName = name, skills = skills, maxActiveWorkOrders = max, available = available,
             homeLocationId = home, certifications = certificationsJson, hourlyRate = rate, rateCurrency = currency,
-            clear = d.clear,
+            clear = d.clear + listOfNotNull(MaintWorkersUpdate.Clear.HOURLY_RATE.takeIf { endRate }),
         )
         val workerSet = d.overlay + updated(nowMillis) + listOfNotNull(
             certificationsJson?.let { "attributes" to withCertifications(stored.attributes, it) },
         )
         val ops = mutableListOf(V2RowOp.upsert("workers", stored.id, workerSet))
-        if (rate != null || currency != null) {
+        if (endRate && current != null) {
+            ops += if (current.validFrom >= today) {
+                V2RowOp.delete("worker_rates", current.id)
+            } else {
+                V2RowOp.upsert("worker_rates", current.id, mapOf("valid_during_end" to today.toString()) + updated(nowMillis))
+            }
+        } else if (rate != null || currency != null) {
             val newRate = rate ?: current?.costRate
             val newCurrency = currency ?: current?.currency ?: DEFAULT_RATE_CURRENCY
             if (current != null && current.validFrom == today) {

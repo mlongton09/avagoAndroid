@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.time.Instant
+import java.time.LocalDate
 
 /** The rental money projections read through the overlay: optimistic rows, then rollback on rejection. */
 class V2RentalAccountsRepositoryTest {
@@ -84,8 +85,8 @@ class V2RentalAccountsRepositoryTest {
     @Test
     fun `a recorded payment is in the order ledger until the server refuses it`() = runTest {
         val draft = PaymentDraft(
-            orderId = order, kind = "deposit_received", method = "cash", amountMinor = 5000, currency = "EUR", reference = "R1",
-            cardBrand = null, cardLast4 = null, payerName = "Ada", isAuthorization = false, notes = null,
+            orderId = order, kind = "payment", method = "card_external", amountMinor = 5000, currency = "EUR", reference = "R1",
+            cardBrand = "visa", cardLast4 = "4242", payerName = "Ada", isAuthorization = false, notes = null,
             receivedAt = Instant.ofEpochMilli(3_000), payerEmail = "ada@example.com",
         )
         val entryId = V2Uuid.v7()
@@ -95,11 +96,28 @@ class V2RentalAccountsRepositoryTest {
         assertEquals(entryId, entry.id)
         assertEquals(LedgerEntry.STATE_SETTLED, entry.state)
         assertEquals("ada@example.com", entry.payerEmail)
+        assertEquals("visa", entry.cardBrand)
+        assertEquals("4242", entry.cardLast4)
         assertEquals(RecordSyncState.PENDING, entry.sync)
         assertFalse(entry.viaGateway)
 
         reject(commandId)
         assertTrue(ledger().isEmpty())
+    }
+
+    @Test
+    fun `an order is billed through the day before the end of its latest cycle`() = runTest {
+        business.writeWithoutForeignKeys { tx ->
+            for ((start, end) in listOf("2026-01-01" to "2026-01-29", "2026-01-29" to "2026-02-26")) {
+                tx.execute(
+                    "INSERT INTO rental_billing_cycles (id, created_at, updated_at, order_id, cycle, period_start, period_end, status) " +
+                        "VALUES (?, 1, 1, ?, 'every_28_days', ?, ?, 'invoiced')",
+                    listOf(V2Uuid.v7(), order, start, end),
+                )
+            }
+        }
+        val through = business.read { V2RentalRepository.billedThrough(it) }
+        assertEquals(mapOf(order to LocalDate.of(2026, 2, 25)), through)
     }
 
     private suspend fun reject(commandId: String) {

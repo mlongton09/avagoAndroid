@@ -87,6 +87,7 @@ class V2DocumentRepository @Inject constructor(
             val ownerIds = owner?.let { o ->
                 val (column, ownerId) = when (o) {
                     is DocumentOwner.Asset -> "asset_id" to o.assetId
+                    is DocumentOwner.Activity -> "activity_id" to o.activityId
                     is DocumentOwner.WorkOrder -> "work_order_id" to o.workOrderId
                 }
                 links.filterValues { rows -> rows.any { it.strOrNull(column) == ownerId } }.keys
@@ -160,6 +161,7 @@ class V2DocumentRepository @Inject constructor(
                 file = file,
                 revisionNo = revision?.intOrNull("revision_no"),
                 assetId = links.firstNotNullOfOrNull { it.strOrNull("asset_id") },
+                activityId = links.firstNotNullOfOrNull { it.strOrNull("activity_id") },
                 workOrderId = links.firstNotNullOfOrNull { it.strOrNull("work_order_id") },
                 linkIds = links.map { it.str("id") },
                 createdAt = r.longOrNull("created_at") ?: 0L,

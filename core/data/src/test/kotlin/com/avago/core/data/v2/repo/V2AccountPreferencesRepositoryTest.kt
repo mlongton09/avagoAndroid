@@ -46,6 +46,21 @@ class V2AccountPreferencesRepositoryTest {
     }
 
     @Test
+    fun `account defaults are read from the synced account row`() = runTest {
+        assertNull(repo.observeAccountDefaults().first())
+        business.writeWithoutForeignKeys { tx ->
+            tx.execute(
+                "INSERT INTO account_preferences (singleton, created_at, updated_at, currency, fuel_volume_unit, enable_human_in_loop) " +
+                    "VALUES (1, 1, 1, 'NOK', 'liter', 0)",
+            )
+        }
+        assertEquals(
+            UserPreferenceOverrides(currency = "NOK", fuelVolumeUnit = "liter", enableHumanInLoop = false),
+            repo.observeAccountDefaults().first(),
+        )
+    }
+
+    @Test
     fun `a notification switch is stored for the user at once`() = runTest {
         repo.setNotification("rental.overdue", NotificationChannel.PUSH, false)
 

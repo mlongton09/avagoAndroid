@@ -11,6 +11,7 @@ import com.avago.core.data.domain.CostLineType
 import com.avago.core.data.domain.DefectState
 import com.avago.core.data.domain.DowntimeKind
 import com.avago.core.data.domain.InspectionDefect
+import com.avago.core.data.domain.PartIdentity
 import com.avago.core.data.domain.ReferenceValue
 import com.avago.core.data.domain.StoredFile
 import com.avago.core.data.domain.TimeEntry
@@ -136,6 +137,7 @@ internal object V2MaintRows {
                 assetId = r.strOrNull("asset_id"),
                 activityId = r.strOrNull("activity_id"),
                 workOrderId = r.strOrNull("work_order_id"),
+                costLineId = r.strOrNull("cost_line_id"),
                 sortOrder = r.intOrNull("sort_order") ?: 0,
                 createdAt = r.longOrNull("created_at") ?: 0L,
             )
@@ -294,10 +296,24 @@ internal object V2MaintRows {
         taxAmountMinor = r.longOrNull("tax_amount_minor"),
         glAccountId = r.strOrNull("gl_account_id"),
         costStatus = r.strOrNull("cost_status") ?: "actual",
-        partNumber = r.strOrNull("part_number"),
+        identity = partIdentity(r),
+        partSnapshot = r.strOrNull("part_snapshot"),
         notes = r.strOrNull("notes"),
         version = r.longOrNull("version") ?: 0L,
     )
+
+    private fun partIdentity(r: V2Row): PartIdentity {
+        val snapshot = r.strOrNull("part_snapshot")
+            ?.let { runCatching { Json.parseToJsonElement(it) as? JsonObject }.getOrNull() }
+            ?: JsonObject(emptyMap())
+        fun snap(key: String) = (snapshot[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
+        return PartIdentity(
+            partNumber = r.strOrNull("part_number"), serialNumber = r.strOrNull("serial_number"),
+            lotNumber = r.strOrNull("lot_number"), gtin = snap("gtin"), productionDate = snap("production_date"),
+            manufacturerId = snap("manufacturer_id"), revision = snap("revision"), modelNumber = snap("model_number"),
+            country = snap("country"),
+        )
+    }
 
     fun defect(r: V2Row) = InspectionDefect(
         id = r.str("id"),
