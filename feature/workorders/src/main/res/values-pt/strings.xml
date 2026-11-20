@@ -81,4 +81,7 @@
     <string name="wo_project_none">Sem projeto</string>
     <string name="cost_lines_gl_none">Sem conta contabilística</string>
     <string name="cost_lines_field_gl_account">Conta contabilística</string>
+    <string name="tech_profile_certifications_header">Certificações</string>
+    <string name="tech_profile_cert_expires_on">Expira em %1$s</string>
+    <string name="tech_profile_cert_expired_on">Expirou em %1$s</string>
 </resources>

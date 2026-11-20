@@ -81,4 +81,7 @@
     <string name="wo_project_none">Geen project</string>
     <string name="cost_lines_gl_none">Geen grootboekrekening</string>
     <string name="cost_lines_field_gl_account">Grootboekrekening</string>
+    <string name="tech_profile_certifications_header">Certificeringen</string>
+    <string name="tech_profile_cert_expires_on">Verloopt op %1$s</string>
+    <string name="tech_profile_cert_expired_on">Verlopen op %1$s</string>
 </resources>

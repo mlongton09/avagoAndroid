@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -26,7 +27,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -35,18 +35,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.avago.feature.workorders.R
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.avago.core.data.domain.Certification
 import com.avago.core.data.domain.WorkOrder
 import com.avago.core.data.domain.WorkOrderFilter
 import com.avago.core.data.domain.WorkOrderRepository
 import com.avago.core.data.domain.WorkOrderStatus
 import com.avago.core.data.domain.Worker
 import com.avago.core.data.domain.WorkerRepository
+import com.avago.feature.workorders.R
 import com.avago.feature.workorders.ui.components.WoCard
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -56,6 +57,9 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import javax.inject.Inject
 
 // ---------------------------------------------------------------------------
@@ -216,6 +220,10 @@ fun TechProfileScreen(
                 }
             }
 
+            if (currentTech.certifications.isNotEmpty()) {
+                item { CertificationsCard(currentTech.certifications) }
+            }
+
             // ── Stats row ──
             item {
                 Row(
@@ -281,6 +289,40 @@ fun TechProfileScreen(
 // ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------
+
+@Composable
+private fun CertificationsCard(certifications: List<Certification>) {
+    val today = LocalDate.now()
+    val format = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = stringResource(R.string.tech_profile_certifications_header),
+                style = MaterialTheme.typography.titleSmall,
+            )
+            certifications.forEach { c ->
+                val expired = c.isExpired(today)
+                Column {
+                    Text(text = c.name, style = MaterialTheme.typography.bodyLarge)
+                    val expiry = c.expiresOn?.let {
+                        stringResource(
+                            if (expired) R.string.tech_profile_cert_expired_on else R.string.tech_profile_cert_expires_on,
+                            it.format(format),
+                        )
+                    }
+                    val details = listOfNotNull(c.issuer, c.number, expiry)
+                    if (details.isNotEmpty()) {
+                        Text(
+                            text = details.joinToString(" \u00b7 "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (expired) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
 
 @Composable
 private fun StatCard(

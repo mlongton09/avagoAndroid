@@ -9,8 +9,10 @@ import com.avago.core.data.domain.WorkerDraft
 import com.avago.core.data.domain.WorkerRepository
 import com.avago.core.data.v2.V2CommandService
 import com.avago.core.data.v2.V2StoreAccess
+import com.avago.core.data.v2.V2Uuid
 import com.avago.core.data.v2.commands.MaintCommands
 import kotlinx.coroutines.flow.Flow
+import java.time.LocalDate
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -21,18 +23,27 @@ class V2WorkerRepository @Inject constructor(
 ) : WorkerRepository {
 
     override fun observeWorkers(): Flow<List<Worker>> =
-        store.observe(setOf("workers", "work_orders"), emptyList()) { conn -> V2MaintRows.workers(conn).filter { it.status == "active" } }
+        store.observe(TABLES, emptyList()) { conn -> V2MaintRows.workers(conn).filter { it.status == "active" } }
 
-    override fun observeMe(): Flow<Worker?> = store.observe(setOf("workers", "work_orders"), null) { conn ->
+    override fun observeMe(): Flow<Worker?> = store.observe(TABLES, null) { conn ->
         val me = commands.currentUserId() ?: return@observe null
         V2MaintRows.workers(conn).firstOrNull { it.userId == me }
     }
 
     override suspend fun worker(id: String): Worker? = store.read(null) { conn -> V2MaintRows.workers(conn).firstOrNull { it.id == id } }
 
+    override fun observeWorker(id: String): Flow<Worker?> =
+        store.observe(TABLES, null) { conn -> V2MaintRows.workers(conn).firstOrNull { it.id == id } }
+
     override suspend fun update(id: String, draft: WorkerDraft) {
         val stored = worker(id) ?: throw RecordNotFoundException("worker", id)
-        MaintCommands.updateWorker(stored, draft, System.currentTimeMillis())?.let { commands.submit(it) }
+        val now = System.currentTimeMillis()
+        MaintCommands.updateWorker(stored, draft, now, LocalDate.now(), V2Uuid.v7(now), commands.currentUserId())
+            ?.let { commands.submit(it) }
+    }
+
+    private companion object {
+        val TABLES = setOf("workers", "worker_rates", "work_orders")
     }
 }
 

@@ -220,4 +220,18 @@
         <item quantity="one">%d medlem</item>
         <item quantity="other">%d medlemmar</item>
     </plurals>
+    <string name="tech_profile_cert_add">Lägg till certifiering</string>
+    <string name="tech_profile_cert_edit">Redigera certifiering</string>
+    <string name="tech_profile_cert_name">Namn</string>
+    <string name="tech_profile_cert_issuer">Utfärdare</string>
+    <string name="tech_profile_cert_number">Certifikatnummer</string>
+    <string name="tech_profile_cert_no_expiry">Utan utgång</string>
+    <string name="tech_profile_cert_expires_on">Går ut %1$s</string>
+    <string name="tech_profile_cert_expired_on">Gick ut %1$s</string>
+    <string name="tech_profile_cert_none">Inga certifieringar</string>
+    <string name="tech_profile_cert_remove">Ta bort certifiering</string>
+    <string name="tech_profile_cert_clear_expiry">Rensa</string>
+    <string name="tech_profile_rate_currency">Valuta</string>
+    <string name="tech_profile_rate_hint">En ny taxa gäller från i dag.</string>
+    <string name="tech_profile_rate_invalid">Ange en giltig timtaxa och en valutakod med 3 bokstäver.</string>
 </resources>

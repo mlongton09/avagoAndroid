@@ -5,6 +5,7 @@ import com.avago.core.data.domain.ActivityType
 import com.avago.core.data.domain.Asset
 import com.avago.core.data.domain.AssetStatusCode
 import com.avago.core.data.domain.Attachment
+import com.avago.core.data.domain.Certification
 import com.avago.core.data.domain.CostLine
 import com.avago.core.data.domain.CostLineType
 import com.avago.core.data.domain.DefectState
@@ -14,10 +15,12 @@ import com.avago.core.data.domain.ReferenceValue
 import com.avago.core.data.domain.StoredFile
 import com.avago.core.data.domain.TimeEntry
 import com.avago.core.data.domain.Worker
+import com.avago.core.data.domain.WorkerRate
 import com.avago.core.data.v2.V2Connection
 import com.avago.core.data.v2.V2OverlayMerge
 import com.avago.core.data.v2.V2Row
 import com.avago.core.data.v2.bool
+import com.avago.core.data.v2.commands.parseJsonList
 import com.avago.core.data.v2.decimalOrNull
 import com.avago.core.data.v2.intOrNull
 import com.avago.core.data.v2.long
@@ -26,9 +29,14 @@ import com.avago.core.data.v2.micros
 import com.avago.core.data.v2.microsOrNull
 import com.avago.core.data.v2.str
 import com.avago.core.data.v2.strOrNull
-import com.avago.core.data.v2.commands.parseJsonList
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
 import java.io.File
 import java.math.BigDecimal
+import java.time.LocalDate
 
 /** Row mappers and shared queries of the maintenance tables (overlays applied). */
 internal object V2MaintRows {
@@ -141,8 +149,9 @@ internal object V2MaintRows {
             "SELECT assigned_worker_id, COUNT(*) AS n FROM work_orders WHERE assigned_worker_id IS NOT NULL " +
                 "AND status NOT IN ('completed','closed','cancelled','skipped') GROUP BY assigned_worker_id",
         ).associate { it.str("assigned_worker_id") to it.long("n").toInt() }
+        val rates = currentRates(conn)
         return V2OverlayMerge.query(conn, "workers", "status != 'removed'") { it["status"] != "removed" }
-            .map { worker(it).copy(activeWorkOrders = active[it.str("id")] ?: 0) }
+            .map { worker(it).copy(activeWorkOrders = active[it.str("id")] ?: 0, hourlyRate = rates[it.str("id")]) }
             .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER, Worker::displayName).thenBy(Worker::id))
     }
 
@@ -159,10 +168,49 @@ internal object V2MaintRows {
         homeLocationId = r.strOrNull("home_location_id"),
         notes = r.strOrNull("notes"),
         version = r.longOrNull("version") ?: 0L,
+        certifications = certifications(r.strOrNull("attributes")),
+        attributes = r.strOrNull("attributes") ?: "{}",
     )
 
     fun workerByUser(conn: V2Connection, userId: String?): Worker? = userId?.let { uid ->
-        V2OverlayMerge.query(conn, "workers", "user_id = ?", listOf(uid)) { it["user_id"] == uid }.firstOrNull()?.let(::worker)
+        V2OverlayMerge.query(conn, "workers", "user_id = ?", listOf(uid)) { it["user_id"] == uid }.firstOrNull()
+            ?.let { r -> worker(r).copy(hourlyRate = currentRates(conn)[r.str("id")]) }
+    }
+
+    /** Worker id to the hourly cost rate valid today (role "", kind hourly; the latest start wins). */
+    fun currentRates(conn: V2Connection, today: LocalDate = LocalDate.now()): Map<String, WorkerRate> {
+        val day = today.toString()
+        return V2OverlayMerge.query(conn, "worker_rates", "role = '' AND rate_kind = 'hourly'") { it["role"] == "" && it["rate_kind"] == "hourly" }
+            .filter { r -> r.str("valid_during_start") <= day && r.strOrNull("valid_during_end").let { it == null || it > day } }
+            .groupBy { it.str("worker_id") }
+            .mapValues { (_, rows) ->
+                rows.maxBy { it.str("valid_during_start") }.let { r ->
+                    WorkerRate(
+                        id = r.str("id"),
+                        costRate = r.decimalOrNull("cost_rate"),
+                        currency = r.str("currency"),
+                        validFrom = LocalDate.parse(r.str("valid_during_start")),
+                        version = r.longOrNull("version") ?: 0L,
+                    )
+                }
+            }
+    }
+
+    /** Certifications in a worker's `attributes` JSON; entries without a name are skipped. */
+    fun certifications(attributes: String?): List<Certification> {
+        val array = attributes?.let { runCatching { Json.parseToJsonElement(it).jsonObject["certifications"] as? JsonArray }.getOrNull() }
+            ?: return emptyList()
+        return array.mapNotNull { e ->
+            val o = e as? JsonObject ?: return@mapNotNull null
+            fun text(k: String) = (o[k] as? JsonPrimitive)?.takeIf { it.isString }?.content?.trim()?.ifEmpty { null }
+            val name = text("name") ?: return@mapNotNull null
+            Certification(
+                name = name,
+                issuer = text("issuer"),
+                number = text("number"),
+                expiresOn = text("expires_on")?.let { runCatching { LocalDate.parse(it.take(10)) }.getOrNull() },
+            )
+        }
     }
 
     fun referenceValues(conn: V2Connection, kind: String): List<ReferenceValue> =

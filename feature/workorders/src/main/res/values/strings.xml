@@ -451,4 +451,7 @@
     <string name="wo_project_none">No project</string>
     <string name="cost_lines_gl_none">No GL account</string>
     <string name="cost_lines_field_gl_account">GL account</string>
+    <string name="tech_profile_certifications_header">Certifications</string>
+    <string name="tech_profile_cert_expires_on">Expires %1$s</string>
+    <string name="tech_profile_cert_expired_on">Expired %1$s</string>
 </resources>

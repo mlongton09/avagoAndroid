@@ -81,4 +81,7 @@
     <string name="wo_project_none">Aucun projet</string>
     <string name="cost_lines_gl_none">Aucun compte GL</string>
     <string name="cost_lines_field_gl_account">Compte GL</string>
+    <string name="tech_profile_certifications_header">Certifications</string>
+    <string name="tech_profile_cert_expires_on">Expire le %1$s</string>
+    <string name="tech_profile_cert_expired_on">Expirée le %1$s</string>
 </resources>

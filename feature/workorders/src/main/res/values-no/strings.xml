@@ -81,4 +81,7 @@
     <string name="wo_project_none">Ingen prosjekt</string>
     <string name="cost_lines_gl_none">Ingen hovedbokskonto</string>
     <string name="cost_lines_field_gl_account">Hovedbokskonto</string>
+    <string name="tech_profile_certifications_header">Sertifiseringer</string>
+    <string name="tech_profile_cert_expires_on">Utløper %1$s</string>
+    <string name="tech_profile_cert_expired_on">Utløpt %1$s</string>
 </resources>

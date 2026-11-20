@@ -224,4 +224,18 @@
         <item quantity="other">%d membri</item>
         <item quantity="many">%d membri</item>
     </plurals>
+    <string name="tech_profile_cert_add">Aggiungi certificazione</string>
+    <string name="tech_profile_cert_edit">Modifica certificazione</string>
+    <string name="tech_profile_cert_name">Nome</string>
+    <string name="tech_profile_cert_issuer">Ente</string>
+    <string name="tech_profile_cert_number">Numero certificato</string>
+    <string name="tech_profile_cert_no_expiry">Nessuna scadenza</string>
+    <string name="tech_profile_cert_expires_on">Scade il %1$s</string>
+    <string name="tech_profile_cert_expired_on">Scaduta il %1$s</string>
+    <string name="tech_profile_cert_none">Nessuna certificazione</string>
+    <string name="tech_profile_cert_remove">Rimuovi certificazione</string>
+    <string name="tech_profile_cert_clear_expiry">Cancella</string>
+    <string name="tech_profile_rate_currency">Valuta</string>
+    <string name="tech_profile_rate_hint">Una nuova tariffa vale da oggi.</string>
+    <string name="tech_profile_rate_invalid">Inserisci una tariffa oraria valida e un codice valuta di 3 lettere.</string>
 </resources>

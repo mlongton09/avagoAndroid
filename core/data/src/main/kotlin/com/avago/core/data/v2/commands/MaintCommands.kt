@@ -6,6 +6,7 @@ import com.avago.core.data.domain.Asset
 import com.avago.core.data.domain.AssetDraft
 import com.avago.core.data.domain.AssetStatusCode
 import com.avago.core.data.domain.AttachmentTarget
+import com.avago.core.data.domain.Certification
 import com.avago.core.data.domain.CostLine
 import com.avago.core.data.domain.CostLineDraft
 import com.avago.core.data.domain.DefectState
@@ -27,6 +28,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import java.math.BigDecimal
 import java.time.Instant
+import java.time.LocalDate
 
 /**
  * Builders for the `maint.*` catalog commands other than work orders ([WorkOrderCommands]):
@@ -461,8 +463,11 @@ object MaintCommands {
         MaintPmOccurrencesDefer(id = stored.id, dueAt = Instant.ofEpochMilli(dueAtMillis))
             .toNewCommand(overlay = occurrencePatch(stored.id, mapOf("due_at" to dueAtMillis), nowMillis))
 
-    /** Null when nothing changed. */
-    fun updateWorker(stored: Worker, draft: WorkerDraft, nowMillis: Long): V2NewCommand? {
+    /**
+     * Null when nothing changed. A new hourly rate or currency mirrors the server: today's rate row
+     * is edited in place, an older one is closed today and a new row ([newRateId]) starts today.
+     */
+    fun updateWorker(stored: Worker, draft: WorkerDraft, nowMillis: Long, today: LocalDate, newRateId: String, userId: String?): V2NewCommand? {
         val d = V2UpdateDiff(MaintWorkersUpdate.Clear.entries)
         val name = d.text("display_name", stored.displayName, draft.displayName)
         val skills = d.field("skills", stored.skills.cleanList(), draft.skills.cleanList(), toColumn = ::jsonList)
@@ -470,15 +475,66 @@ object MaintCommands {
         val available = d.field("available", stored.available, draft.available)
         val home = d.text("home_location_id", stored.homeLocationId, draft.homeLocationId)
         d.check()
-        if (d.isEmpty) return null
+        val certifications = draft.certifications?.map { it.copy(name = it.name.trim()) }?.filter { it.name.isNotEmpty() }
+            ?.takeIf { it != stored.certifications }
+        val current = stored.hourlyRate
+        val rate = draft.hourlyRate?.also { require(it.signum() >= 0) { "an hourly rate cannot be negative" } }
+            ?.takeIf { current?.costRate == null || it.compareTo(current.costRate) != 0 }
+        val currency = draft.rateCurrency?.trim()?.uppercase()?.ifEmpty { null }
+            ?.also { require(it.length == 3 && it.all { c -> c in 'A'..'Z' }) { "a currency is a 3-letter ISO code" } }
+            ?.takeIf { it != (current?.currency ?: DEFAULT_RATE_CURRENCY) || (current == null && rate != null) }
+        if (d.isEmpty && certifications == null && rate == null && currency == null) return null
+        val certificationsJson = certifications?.let { list -> JsonArray(list.map(::certificationJson)) }
         val payload = MaintWorkersUpdate(
             id = stored.id, displayName = name, skills = skills, maxActiveWorkOrders = max, available = available,
-            homeLocationId = home, clear = d.clear,
+            homeLocationId = home, certifications = certificationsJson, hourlyRate = rate, rateCurrency = currency,
+            clear = d.clear,
         )
-        return payload.toNewCommand(
-            baseVersion = stored.version,
-            overlay = V2OverlayPatch.of(V2RowOp.upsert("workers", stored.id, d.overlay + updated(nowMillis))),
+        val workerSet = d.overlay + updated(nowMillis) + listOfNotNull(
+            certificationsJson?.let { "attributes" to withCertifications(stored.attributes, it) },
         )
+        val ops = mutableListOf(V2RowOp.upsert("workers", stored.id, workerSet))
+        if (rate != null || currency != null) {
+            val newRate = rate ?: current?.costRate
+            val newCurrency = currency ?: current?.currency ?: DEFAULT_RATE_CURRENCY
+            if (current != null && current.validFrom == today) {
+                ops += V2RowOp.upsert(
+                    "worker_rates", current.id,
+                    mapOf("cost_rate" to newRate?.toPlainString(), "currency" to newCurrency) + updated(nowMillis),
+                )
+            } else {
+                if (current != null) {
+                    ops += V2RowOp.upsert("worker_rates", current.id, mapOf("valid_during_end" to today.toString()) + updated(nowMillis))
+                }
+                ops += V2RowOp.upsert(
+                    "worker_rates", newRateId,
+                    mapOf(
+                        "worker_id" to stored.id, "role" to "", "rate_kind" to "hourly", "currency" to newCurrency,
+                        "cost_rate" to newRate?.toPlainString(), "valid_during_start" to today.toString(),
+                        "valid_during_end" to null,
+                    ) + created(nowMillis, userId),
+                )
+            }
+        }
+        return payload.toNewCommand(baseVersion = stored.version, overlay = V2OverlayPatch(ops))
+    }
+
+    /** The server's rate currency when a worker has no rate yet. */
+    const val DEFAULT_RATE_CURRENCY = "USD"
+
+    private fun certificationJson(c: Certification): JsonObject = JsonObject(
+        buildMap {
+            put("name", JsonPrimitive(c.name))
+            c.issuer.clean()?.let { put("issuer", JsonPrimitive(it)) }
+            c.number.clean()?.let { put("number", JsonPrimitive(it)) }
+            c.expiresOn?.let { put("expires_on", JsonPrimitive(it.toString())) }
+        },
+    )
+
+    /** [attributes] with `certifications` replaced. */
+    private fun withCertifications(attributes: String, certifications: JsonArray): String {
+        val base = runCatching { Json.parseToJsonElement(attributes) as? JsonObject }.getOrNull() ?: JsonObject(emptyMap())
+        return JsonObject(base + ("certifications" to certifications)).toString()
     }
 
     // ------------------------------------------------------------------ helpers

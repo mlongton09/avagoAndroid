@@ -81,4 +81,7 @@
     <string name="wo_project_none">Inget projekt</string>
     <string name="cost_lines_gl_none">Inget bokföringskonto</string>
     <string name="cost_lines_field_gl_account">Bokföringskonto</string>
+    <string name="tech_profile_certifications_header">Certifieringar</string>
+    <string name="tech_profile_cert_expires_on">Går ut %1$s</string>
+    <string name="tech_profile_cert_expired_on">Gick ut %1$s</string>
 </resources>

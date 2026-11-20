@@ -221,4 +221,18 @@
         <item quantity="one">%d member</item>
         <item quantity="other">%d members</item>
     </plurals>
+    <string name="tech_profile_cert_add">Add certification</string>
+    <string name="tech_profile_cert_edit">Edit certification</string>
+    <string name="tech_profile_cert_name">Name</string>
+    <string name="tech_profile_cert_issuer">Issuer</string>
+    <string name="tech_profile_cert_number">Certificate number</string>
+    <string name="tech_profile_cert_no_expiry">No expiry</string>
+    <string name="tech_profile_cert_expires_on">Expires %1$s</string>
+    <string name="tech_profile_cert_expired_on">Expired %1$s</string>
+    <string name="tech_profile_cert_none">No certifications</string>
+    <string name="tech_profile_cert_remove">Remove certification</string>
+    <string name="tech_profile_cert_clear_expiry">Clear</string>
+    <string name="tech_profile_rate_currency">Currency</string>
+    <string name="tech_profile_rate_hint">A new rate applies from today.</string>
+    <string name="tech_profile_rate_invalid">Enter a valid hourly rate and a 3-letter currency code.</string>
 </resources>

@@ -267,14 +267,45 @@ data class Worker(
     val notes: String?,
     val version: Long,
     val activeWorkOrders: Int = 0,
+    val certifications: List<Certification> = emptyList(),
+    /** Current hourly cost rate (`worker_rates`, role "", kind hourly). */
+    val hourlyRate: WorkerRate? = null,
+    /** Raw `attributes` JSON (certifications live under `certifications`). */
+    val attributes: String = "{}",
 )
 
+/** A technician certification (kept in `workers.attributes.certifications`). */
+data class Certification(
+    val name: String,
+    val issuer: String? = null,
+    val number: String? = null,
+    val expiresOn: java.time.LocalDate? = null,
+) {
+    fun isExpired(today: java.time.LocalDate): Boolean = expiresOn != null && expiresOn < today
+}
+
+/** A worker's current hourly cost rate row (`worker_rates`). */
+data class WorkerRate(
+    val id: String,
+    val costRate: BigDecimal?,
+    val currency: String,
+    val validFrom: java.time.LocalDate,
+    val version: Long,
+)
+
+/**
+ * A worker profile edit. [certifications] replaces the list when not null; [hourlyRate] /
+ * [rateCurrency] start a new rate today when they differ from the current one.
+ */
 data class WorkerDraft(
     val displayName: String?,
     val skills: List<String>,
     val maxActiveWorkOrders: Int?,
     val available: Boolean,
     val homeLocationId: String?,
+    val certifications: List<Certification>? = null,
+    val hourlyRate: BigDecimal? = null,
+    val rateCurrency: String? = null,
 )
 
 interface WorkerRepository {
@@ -285,6 +316,8 @@ interface WorkerRepository {
     fun observeMe(): Flow<Worker?>
 
     suspend fun worker(id: String): Worker?
+
+    fun observeWorker(id: String): Flow<Worker?>
 
     suspend fun update(id: String, draft: WorkerDraft)
 }

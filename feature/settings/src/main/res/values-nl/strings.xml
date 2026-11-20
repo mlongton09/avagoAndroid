@@ -220,4 +220,18 @@
         <item quantity="one">%d lid</item>
         <item quantity="other">%d leden</item>
     </plurals>
+    <string name="tech_profile_cert_add">Certificering toevoegen</string>
+    <string name="tech_profile_cert_edit">Certificering bewerken</string>
+    <string name="tech_profile_cert_name">Naam</string>
+    <string name="tech_profile_cert_issuer">Uitgever</string>
+    <string name="tech_profile_cert_number">Certificaatnummer</string>
+    <string name="tech_profile_cert_no_expiry">Verloopt niet</string>
+    <string name="tech_profile_cert_expires_on">Verloopt op %1$s</string>
+    <string name="tech_profile_cert_expired_on">Verlopen op %1$s</string>
+    <string name="tech_profile_cert_none">Geen certificeringen</string>
+    <string name="tech_profile_cert_remove">Certificering verwijderen</string>
+    <string name="tech_profile_cert_clear_expiry">Wissen</string>
+    <string name="tech_profile_rate_currency">Valuta</string>
+    <string name="tech_profile_rate_hint">Een nieuw tarief geldt vanaf vandaag.</string>
+    <string name="tech_profile_rate_invalid">Voer een geldig uurtarief en een valutacode van 3 letters in.</string>
 </resources>

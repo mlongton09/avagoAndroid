@@ -81,4 +81,7 @@
     <string name="wo_project_none">Nessun progetto</string>
     <string name="cost_lines_gl_none">Nessun conto CoGe</string>
     <string name="cost_lines_field_gl_account">Conto CoGe</string>
+    <string name="tech_profile_certifications_header">Certificazioni</string>
+    <string name="tech_profile_cert_expires_on">Scade il %1$s</string>
+    <string name="tech_profile_cert_expired_on">Scaduta il %1$s</string>
 </resources>

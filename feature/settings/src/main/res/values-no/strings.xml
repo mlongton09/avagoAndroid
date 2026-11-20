@@ -220,4 +220,18 @@
         <item quantity="one">%d medlem</item>
         <item quantity="other">%d medlemmer</item>
     </plurals>
+    <string name="tech_profile_cert_add">Legg til sertifisering</string>
+    <string name="tech_profile_cert_edit">Rediger sertifisering</string>
+    <string name="tech_profile_cert_name">Navn</string>
+    <string name="tech_profile_cert_issuer">Utsteder</string>
+    <string name="tech_profile_cert_number">Sertifikatnummer</string>
+    <string name="tech_profile_cert_no_expiry">Utløper ikke</string>
+    <string name="tech_profile_cert_expires_on">Utløper %1$s</string>
+    <string name="tech_profile_cert_expired_on">Utløpt %1$s</string>
+    <string name="tech_profile_cert_none">Ingen sertifiseringer</string>
+    <string name="tech_profile_cert_remove">Fjern sertifisering</string>
+    <string name="tech_profile_cert_clear_expiry">Tøm</string>
+    <string name="tech_profile_rate_currency">Valuta</string>
+    <string name="tech_profile_rate_hint">En ny sats gjelder fra i dag.</string>
+    <string name="tech_profile_rate_invalid">Angi en gyldig timesats og en valutakode på 3 bokstaver.</string>
 </resources>

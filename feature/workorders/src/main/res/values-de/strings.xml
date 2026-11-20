@@ -360,4 +360,7 @@
     <string name="wo_project_none">Kein Projekt</string>
     <string name="cost_lines_gl_none">Kein Sachkonto</string>
     <string name="cost_lines_field_gl_account">Sachkonto</string>
+    <string name="tech_profile_certifications_header">Zertifizierungen</string>
+    <string name="tech_profile_cert_expires_on">Läuft ab am %1$s</string>
+    <string name="tech_profile_cert_expired_on">Abgelaufen am %1$s</string>
 </resources>
