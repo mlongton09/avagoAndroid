@@ -27,6 +27,7 @@ import com.avago.core.data.domain.RentalOrderLine
 import com.avago.core.data.domain.RentalRates
 import com.avago.core.data.domain.RentalRepository
 import com.avago.core.data.domain.RentalSignature
+import com.avago.core.data.domain.StoredFile
 import com.avago.core.data.domain.SwapDraft
 import com.avago.core.data.rental.ClassAvailability
 import com.avago.core.data.rental.FleetFacts
@@ -127,13 +128,21 @@ class V2RentalRepository @Inject constructor(
         }
 
     override fun observeReadinessChecks(assetId: String): Flow<List<ReadinessCheck>> =
-        store.observe(setOf("rental_handovers", "rental_handover_files", "pending_commands"), emptyList()) { conn ->
+        store.observe(setOf("rental_handovers", "rental_handover_files", "files", "pending_commands"), emptyList()) { conn ->
             val sync = syncStates(conn, "rental_handovers")
             val rows = V2OverlayMerge.query(conn, "rental_handovers", "kind = 'readiness' AND asset_id = ?", listOf(assetId)) {
                 it["kind"] == "readiness" && it["asset_id"] == assetId
             }.filter { it["voided_at"] == null }
             val photos = handoverPhotos(conn, rows.map { it.str("id") }.toSet())
-            rows.map { readiness(it, sync, photos) }.sortedByDescending { it.at }
+            val ids = photos.values.flatten().toSet()
+            val files = if (ids.isEmpty()) {
+                emptyMap()
+            } else {
+                V2OverlayMerge.query(conn, "files") { it["id"] in ids }
+                    .filter { it.str("id") in ids }
+                    .associate { it.str("id") to V2MaintRows.file(it, stager::localFile) }
+            }
+            rows.map { readiness(it, sync, photos, files) }.sortedByDescending { it.at }
         }
 
     override fun observeBulkReturns(orderId: String): Flow<List<RentalBulkReturn>> =
@@ -684,8 +693,14 @@ class V2RentalRepository @Inject constructor(
                     .groupBy({ it.str("handover_id") }, { it.str("file_object_id") })
             }
 
-        private fun readiness(r: V2Row, sync: Map<String, RecordSyncState>, photos: Map<String, List<String>>): ReadinessCheck {
+        private fun readiness(
+            r: V2Row,
+            sync: Map<String, RecordSyncState>,
+            photos: Map<String, List<String>>,
+            files: Map<String, StoredFile> = emptyMap(),
+        ): ReadinessCheck {
             val id = r.str("id")
+            val photoIds = photos[id].orEmpty()
             return ReadinessCheck(
                 id = id,
                 version = r.longOrNull("version") ?: 0L,
@@ -696,7 +711,8 @@ class V2RentalRepository @Inject constructor(
                 notes = r.strOrNull("notes"),
                 at = r.instant("at") ?: Instant.EPOCH,
                 sync = sync[id] ?: RecordSyncState.SAVED,
-                photoFileIds = photos[id].orEmpty(),
+                photoFileIds = photoIds,
+                photos = photoIds.mapNotNull { files[it] },
             )
         }
 

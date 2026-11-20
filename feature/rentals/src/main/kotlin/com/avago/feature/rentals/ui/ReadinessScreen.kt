@@ -1,8 +1,14 @@
 package com.avago.feature.rentals.ui
 
-import androidx.compose.runtime.setValue
+import android.Manifest
+import android.content.pm.PackageManager
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
@@ -15,11 +21,14 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
@@ -40,29 +49,44 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import coil3.compose.AsyncImage
+import com.avago.core.data.domain.LocalFileRef
 import com.avago.core.data.domain.ReadinessCheck
 import com.avago.core.data.domain.RecordSyncState
 import com.avago.core.data.domain.RentalRepository
+import com.avago.core.data.domain.StoredFile
+import com.avago.core.design.theme.AvagoSpacing
 import com.avago.core.permissions.PermissionsManager
 import com.avago.core.ui.components.BottomActionBar
 import com.avago.core.ui.components.CardDivider
@@ -70,6 +94,7 @@ import com.avago.core.ui.components.SectionCard
 import com.avago.core.ui.components.SkeletonList
 import com.avago.core.ui.components.StatusPill
 import com.avago.core.ui.components.StatusTone
+import com.avago.core.ui.components.StoredFileThumbnail
 import com.avago.core.ui.components.cardListItemColors
 import com.avago.core.ui.components.rememberHaptics
 import com.avago.core.ui.components.toneColors
@@ -86,7 +111,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.io.File
 import java.time.ZoneId
+import java.util.UUID
 import javax.inject.Inject
 
 /**
@@ -136,6 +163,13 @@ class ReadinessViewModel @Inject constructor(
 
     val items = MutableStateFlow(Readiness.DEFAULT_ITEMS)
     val notes = MutableStateFlow("")
+
+    /** Condition photos taken on this device for the check being decided (added to its saved ones). */
+    val photos = MutableStateFlow<List<File>>(emptyList())
+
+    fun addPhoto(file: File) {
+        photos.value = photos.value + file
+    }
     private var loadedFor: String? = "\u0000"
 
     private val _problems = MutableSharedFlow<Readiness.Problem>(extraBufferCapacity = 2)
@@ -177,8 +211,17 @@ class ReadinessViewModel @Inject constructor(
         }
         try {
             val text = notes.value.takeIf { it.isNotBlank() }
-            val id = u.check?.id ?: repo.startReadinessCheck(assetId, items.value, text)
-            if (status != Readiness.PENDING) repo.decideReadiness(id, status, items.value, text)
+            val taken = photos.value.map { LocalFileRef(Uri.fromFile(it).toString(), "image/jpeg") }
+            val existing = u.check?.id
+            val id = if (existing == null) {
+                // New photos go with the create; the decision then only changes status and items.
+                repo.startReadinessCheck(assetId, items.value, text, taken).also { created ->
+                    if (status != Readiness.PENDING) repo.decideReadiness(created, status, items.value, text)
+                }
+            } else {
+                existing.also { repo.decideReadiness(it, status, items.value, text, taken) }
+            }
+            photos.value = emptyList()
             startNew.value = false
             _done.emit(id)
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -232,12 +275,44 @@ fun ReadinessScreen(
     val items by viewModel.items.collectAsStateWithLifecycle()
     val notes by viewModel.notes.collectAsStateWithLifecycle()
     val unitName by viewModel.unitName.collectAsStateWithLifecycle()
+    val taken by viewModel.photos.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val cameraDenied = stringResource(R.string.rentals_readiness_camera_denied)
+    // The pending capture file survives the camera activity / process death.
+    var capturePath by rememberSaveable { mutableStateOf<String?>(null) }
     val problemTexts = Readiness.Problem.entries.associateWith { stringResource(problemLabel(it)) }
     val haptics = rememberHaptics()
     LaunchedEffect(Unit) { viewModel.problems.collect { haptics.error(); snackbar.showSnackbar(problemTexts.getValue(it)) } }
     LaunchedEffect(Unit) { viewModel.errors.collect { haptics.error(); snackbar.showSnackbar(it) } }
     LaunchedEffect(Unit) { viewModel.done.collect { haptics.success(); onDone() } }
+    val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        val file = capturePath?.let(::File)
+        capturePath = null
+        if (ok && file != null && file.length() > 0) {
+            haptics.tick()
+            viewModel.addPhoto(file)
+        } else {
+            file?.delete()
+        }
+    }
+    fun launchCamera() {
+        val dir = File(context.filesDir, "rental_photos").apply { mkdirs() }
+        val file = File(dir, "readiness_${UUID.randomUUID()}.jpg")
+        capturePath = file.absolutePath
+        takePicture.launch(FileProvider.getUriForFile(context, "${context.packageName}.provider", file))
+    }
+    val requestCamera = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) launchCamera() else scope.launch { snackbar.showSnackbar(cameraDenied) }
+    }
+    val takePhoto: () -> Unit = {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            launchCamera()
+        } else {
+            requestCamera.launch(Manifest.permission.CAMERA)
+        }
+    }
 
     val u = ui
     val doneCount = items.count { it.done }
@@ -342,6 +417,7 @@ fun ReadinessScreen(
                             Text(n, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(16.dp))
                         }
                     }
+                    if (c.photos.isNotEmpty()) ReadinessPhotoStrip(saved = c.photos, taken = emptyList(), onAdd = null)
                 }
                 return@Column
             }
@@ -376,6 +452,7 @@ fun ReadinessScreen(
                     }
                 }
             }
+            ReadinessPhotoStrip(saved = u.check?.photos.orEmpty(), taken = taken, onAdd = takePhoto)
             SectionCard(title = stringResource(R.string.rentals_readiness_notes), contentPadding = true) {
                 OutlinedTextField(
                     value = notes,
@@ -393,6 +470,54 @@ fun ReadinessScreen(
                 }
                 if (!viewModel.canWaive) {
                     HintLine(Icons.Outlined.Lock, stringResource(R.string.rentals_readiness_waive_needs_permission))
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Condition photos of a readiness check: the saved ones (`rental_handover_files`, bytes via
+ * `files/{id}/download`) then the ones taken here, which upload with the next save. [onAdd] null
+ * = read-only.
+ */
+@Composable
+private fun ReadinessPhotoStrip(saved: List<StoredFile>, taken: List<File>, onAdd: (() -> Unit)?) {
+    val count = saved.size + taken.size
+    SectionCard(
+        title = stringResource(R.string.rentals_condition_photos),
+        trailing = if (count > 0) {
+            { StatusPill(count.toString(), StatusTone.Neutral) }
+        } else {
+            null
+        },
+        contentPadding = true,
+    ) {
+        val tile = Modifier
+            .size(AvagoSpacing.photoTile)
+            .clip(MaterialTheme.shapes.small)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm)) {
+            items(saved, key = { "s:" + it.id }) { f -> StoredFileThumbnail(f, tile) }
+            items(taken, key = { "t:" + it.absolutePath }) { f ->
+                Box(tile) {
+                    AsyncImage(model = f, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                }
+            }
+            if (onAdd != null) {
+                item(key = "add") {
+                    val label = stringResource(R.string.rentals_add_photo)
+                    Surface(
+                        onClick = onAdd,
+                        shape = MaterialTheme.shapes.small,
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.size(AvagoSpacing.photoTile).semantics { contentDescription = label },
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.AddAPhoto, contentDescription = null)
+                        }
+                    }
                 }
             }
         }

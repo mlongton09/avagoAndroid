@@ -1,7 +1,5 @@
 package com.avago.feature.rentals.ui
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -35,10 +34,12 @@ import androidx.compose.material.icons.filled.EventBusy
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -46,9 +47,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -73,10 +76,13 @@ import androidx.lifecycle.viewModelScope
 import com.avago.core.data.domain.ActivityFilter
 import com.avago.core.data.domain.ActivityRepository
 import com.avago.core.data.domain.Asset
+import com.avago.core.data.domain.AssetMeter
 import com.avago.core.data.domain.AssetRepository
 import com.avago.core.data.domain.RecordSyncState
 import com.avago.core.data.domain.RentalRates
 import com.avago.core.data.domain.RentalRepository
+import com.avago.core.data.domain.RentalSettings
+import com.avago.core.data.domain.RentalSettingsRepository
 import com.avago.core.data.rental.FleetStatus
 import com.avago.core.data.rental.LocalFleet
 import com.avago.core.data.rental.MoneyFormatter
@@ -97,6 +103,7 @@ import com.avago.feature.rentals.domain.AssetProfit
 import com.avago.feature.rentals.domain.HandoverTarget
 import com.avago.feature.rentals.domain.LineView
 import com.avago.feature.rentals.domain.OrderView
+import com.avago.feature.rentals.domain.RentalMeters
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -111,8 +118,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.time.Instant
-import java.util.Currency
-import java.util.Locale
 import javax.inject.Inject
 
 data class AssetBooking(val order: OrderView, val line: LineView)
@@ -120,8 +125,9 @@ data class AssetBooking(val order: OrderView, val line: LineView)
 @HiltViewModel
 class AssetRentalViewModel @Inject constructor(
     private val repo: RentalRepository,
-    assets: AssetRepository,
+    private val assets: AssetRepository,
     activities: ActivityRepository,
+    settings: RentalSettingsRepository,
     savedState: SavedStateHandle,
 ) : ViewModel() {
     val assetId: String = requireNotNull(savedState["assetId"])
@@ -159,9 +165,47 @@ class AssetRentalViewModel @Inject constructor(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    /** The unit's meters; hand-over readings land on the one of the class meter kind. */
+    val meters: StateFlow<List<AssetMeter>> = assets.observeMeters(assetId)
+        .map(RentalMeters::ordered)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    private val rentalSettings: StateFlow<RentalSettings> = settings.observeSettings()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, RentalSettings())
+
+    /** Account distance unit (`rental` settings), the default for a new distance meter. */
+    val distanceUnit: StateFlow<String> = rentalSettings.map { it.distanceUnit }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RentalSettings().distanceUnit)
+
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 2)
     val messages: SharedFlow<String> = _messages
-    val currency = MutableStateFlow(runCatching { Currency.getInstance(Locale.getDefault()).currencyCode }.getOrDefault("USD"))
+
+    /** Rates currency; the account default until the user types one. */
+    val currency = MutableStateFlow(RentalSettings().defaultCurrency)
+    private var currencyEdited = false
+
+    init {
+        viewModelScope.launch {
+            rentalSettings.collect { if (!currencyEdited) currency.value = it.defaultCurrency }
+        }
+    }
+
+    fun editCurrency(value: String) {
+        currencyEdited = true
+        currency.value = value.uppercase().take(3)
+    }
+
+    /** `maint.asset_meters.create` (optimistic; the first meter becomes the default). */
+    fun addMeter(kind: String, unit: String) = viewModelScope.launch {
+        try {
+            assets.createMeter(assetId, kind, unit)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w(e, "addMeter failed")
+            _messages.emit(MSG_METER_FAILED)
+        }
+    }
 
     /** `rental.assets.enable_rental` with the entered rates, or `disable_rental`. */
     fun setRentable(enabled: Boolean, day: String, week: String, deposit: String) = viewModelScope.launch {
@@ -209,7 +253,20 @@ fun AssetRentalScreen(
     val currency by viewModel.currency.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val dayRequired = stringResource(R.string.rentals_day_rate_required)
-    LaunchedEffect(Unit) { viewModel.messages.collect { snackbar.showSnackbar(if (it == "day rate") dayRequired else it) } }
+    val meterFailed = stringResource(R.string.rentals_meter_add_failed)
+    LaunchedEffect(Unit) {
+        viewModel.messages.collect {
+            snackbar.showSnackbar(
+                when (it) {
+                    "day rate" -> dayRequired
+                    MSG_METER_FAILED -> meterFailed
+                    else -> it
+                },
+            )
+        }
+    }
+    val meters by viewModel.meters.collectAsStateWithLifecycle()
+    val distanceUnit by viewModel.distanceUnit.collectAsStateWithLifecycle()
     var day by rememberSaveable { mutableStateOf("") }
     var week by rememberSaveable { mutableStateOf("") }
     var deposit by rememberSaveable { mutableStateOf("") }
@@ -326,7 +383,7 @@ fun AssetRentalScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         OutlinedTextField(
-                            currency, { viewModel.currency.value = it.uppercase().take(3) },
+                            currency, viewModel::editCurrency,
                             label = { Text(stringResource(R.string.rentals_currency)) },
                             singleLine = true,
                             isError = currency.length != 3,
@@ -341,6 +398,10 @@ fun AssetRentalScreen(
                         MoneyField(deposit, stringResource(R.string.rentals_deposit_amount, currency), currency, last = true) { deposit = it }
                     }
                 }
+            }
+
+            if (s != null) {
+                MetersCard(meters, distanceUnit, onAdd = { kind, unit -> haptics.tick(); viewModel.addMeter(kind, unit) })
             }
 
             profit?.let { p -> ProfitCard(p) }
@@ -400,6 +461,103 @@ fun AssetRentalScreen(
             },
             dismissButton = {
                 TextButton(onClick = { confirmStop = false }, modifier = Modifier.heightIn(min = MinTouch)) {
+                    Text(stringResource(R.string.rentals_cancel))
+                }
+            },
+        )
+    }
+}
+
+private const val MSG_METER_FAILED = "meter"
+
+@Composable
+private fun meterKindLabel(kind: String): String = stringResource(
+    if (kind == RentalMeters.HOURS) R.string.rentals_meter_hours else R.string.rentals_meter_distance,
+)
+
+/** The unit's meters, with "Add meter" for a rental meter kind it does not track yet. */
+@Composable
+private fun MetersCard(meters: List<AssetMeter>, distanceUnit: String, onAdd: (kind: String, unit: String) -> Unit) {
+    val missing = RentalMeters.missing(meters)
+    var adding by rememberSaveable { mutableStateOf(false) }
+    SectionCard(title = stringResource(R.string.rentals_meters_title)) {
+        Text(
+            stringResource(R.string.rentals_meters_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = AvagoSpacing.lg, vertical = AvagoSpacing.sm),
+        )
+        meters.forEach { m ->
+            CardDivider()
+            ListItem(
+                colors = cardListItemColors(),
+                headlineContent = { Text(if (m.kind in RentalMeters.KINDS) meterKindLabel(m.kind) else m.kind) },
+                supportingContent = {
+                    Text(
+                        m.lastValue?.let { "${formatReading(it)} ${meterUnitLabel(m.unit)}" }
+                            ?: stringResource(R.string.rentals_meter_no_reading),
+                    )
+                },
+                trailingContent = if (m.isDefault) {
+                    { StatusPill(stringResource(R.string.rentals_meter_default), StatusTone.Neutral) }
+                } else {
+                    null
+                },
+            )
+        }
+        if (missing.isNotEmpty()) {
+            CardDivider()
+            TextButton(
+                onClick = { adding = true },
+                modifier = Modifier.padding(horizontal = AvagoSpacing.sm).heightIn(min = MinTouch),
+            ) { Text(stringResource(R.string.rentals_meter_add)) }
+        }
+    }
+    if (adding && missing.isNotEmpty()) {
+        var kind by rememberSaveable { mutableStateOf(missing.first()) }
+        var unit by rememberSaveable { mutableStateOf(RentalMeters.unitFor(RentalMeters.DISTANCE, distanceUnit)) }
+        AlertDialog(
+            onDismissRequest = { adding = false },
+            title = { Text(stringResource(R.string.rentals_meter_add)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(AvagoSpacing.xs)) {
+                    missing.forEach { k ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = MinTouch)
+                                .selectable(selected = kind == k, role = Role.RadioButton, onClick = { kind = k }),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(selected = kind == k, onClick = null)
+                            Text(meterKindLabel(k), modifier = Modifier.padding(start = AvagoSpacing.sm))
+                        }
+                    }
+                    if (kind == RentalMeters.DISTANCE) {
+                        Text(
+                            stringResource(R.string.rentals_meter_unit_title),
+                            style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.padding(top = AvagoSpacing.sm),
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(AvagoSpacing.sm)) {
+                            RentalMeters.DISTANCE_UNITS.forEach { u ->
+                                FilterChip(unit == u, { unit = u }, { Text(u) }, Modifier.heightIn(min = MinTouch))
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        adding = false
+                        onAdd(kind, RentalMeters.unitFor(kind, unit))
+                    },
+                    modifier = Modifier.heightIn(min = MinTouch),
+                ) { Text(stringResource(R.string.rentals_meter_add)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { adding = false }, modifier = Modifier.heightIn(min = MinTouch)) {
                     Text(stringResource(R.string.rentals_cancel))
                 }
             },

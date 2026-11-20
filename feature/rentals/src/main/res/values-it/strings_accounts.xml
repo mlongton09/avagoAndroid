@@ -76,4 +76,11 @@
     <string name="rentals_site_pickup">Ritiro</string>
     <string name="rentals_site_other">Altro</string>
     <string name="rentals_contracts_title">Contratti</string>
+    <string name="rentals_meters_title">Contatori</string>
+    <string name="rentals_meter_add">Aggiungi contatore</string>
+    <string name="rentals_meters_hint">Le letture di consegna e rientro vengono registrate su questi contatori.</string>
+    <string name="rentals_meter_default">Predefinito</string>
+    <string name="rentals_meter_no_reading">Nessuna lettura</string>
+    <string name="rentals_meter_unit_title">Unità</string>
+    <string name="rentals_meter_add_failed">Impossibile aggiungere il contatore.</string>
 </resources>

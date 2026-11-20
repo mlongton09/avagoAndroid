@@ -76,4 +76,11 @@
     <string name="rentals_site_pickup">Abholung</string>
     <string name="rentals_site_other">Sonstige</string>
     <string name="rentals_contracts_title">Verträge</string>
+    <string name="rentals_meters_title">Zähler</string>
+    <string name="rentals_meter_add">Zähler hinzufügen</string>
+    <string name="rentals_meters_hint">Ausgabe- und Rücknahmestände werden auf diesen Zählern erfasst.</string>
+    <string name="rentals_meter_default">Standard</string>
+    <string name="rentals_meter_no_reading">Noch keine Ablesungen</string>
+    <string name="rentals_meter_unit_title">Einheit</string>
+    <string name="rentals_meter_add_failed">Der Zähler konnte nicht hinzugefügt werden.</string>
 </resources>

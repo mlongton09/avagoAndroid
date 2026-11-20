@@ -76,4 +76,11 @@
     <string name="rentals_site_pickup">Pickup</string>
     <string name="rentals_site_other">Other</string>
     <string name="rentals_contracts_title">Contracts</string>
+    <string name="rentals_meters_title">Meters</string>
+    <string name="rentals_meter_add">Add meter</string>
+    <string name="rentals_meters_hint">Check-out and check-in readings are recorded on these meters.</string>
+    <string name="rentals_meter_default">Default</string>
+    <string name="rentals_meter_no_reading">No readings yet</string>
+    <string name="rentals_meter_unit_title">Unit</string>
+    <string name="rentals_meter_add_failed">The meter could not be added.</string>
 </resources>

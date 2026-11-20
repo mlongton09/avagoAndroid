@@ -76,4 +76,11 @@
     <string name="rentals_site_pickup">Ophalen</string>
     <string name="rentals_site_other">Overig</string>
     <string name="rentals_contracts_title">Contracten</string>
+    <string name="rentals_meters_title">Meters</string>
+    <string name="rentals_meter_add">Meter toevoegen</string>
+    <string name="rentals_meters_hint">Uitgifte- en innamestanden worden op deze meters vastgelegd.</string>
+    <string name="rentals_meter_default">Standaard</string>
+    <string name="rentals_meter_no_reading">Nog geen standen</string>
+    <string name="rentals_meter_unit_title">Eenheid</string>
+    <string name="rentals_meter_add_failed">De meter kon niet worden toegevoegd.</string>
 </resources>

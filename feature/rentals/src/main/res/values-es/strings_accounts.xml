@@ -76,4 +76,11 @@
     <string name="rentals_site_pickup">Recogida</string>
     <string name="rentals_site_other">Otro</string>
     <string name="rentals_contracts_title">Contratos</string>
+    <string name="rentals_meters_title">Contadores</string>
+    <string name="rentals_meter_add">Añadir contador</string>
+    <string name="rentals_meters_hint">Las lecturas de entrega y devolución se registran en estos contadores.</string>
+    <string name="rentals_meter_default">Predeterminado</string>
+    <string name="rentals_meter_no_reading">Aún sin lecturas</string>
+    <string name="rentals_meter_unit_title">Unidad</string>
+    <string name="rentals_meter_add_failed">No se pudo añadir el contador.</string>
 </resources>

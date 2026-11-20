@@ -163,6 +163,8 @@ data class ReadinessCheck(
     val sync: RecordSyncState,
     /** Condition photos (file ids, oldest first). */
     val photoFileIds: List<String> = emptyList(),
+    /** The `files` rows of [photoFileIds] known on this device (bytes via [FileRepository]). */
+    val photos: List<StoredFile> = emptyList(),
 ) {
     val open: Boolean get() = status == "pending" || status == "failed"
 }

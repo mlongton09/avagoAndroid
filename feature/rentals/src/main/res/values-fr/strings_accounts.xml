@@ -76,4 +76,11 @@
     <string name="rentals_site_pickup">Retrait</string>
     <string name="rentals_site_other">Autre</string>
     <string name="rentals_contracts_title">Contrats</string>
+    <string name="rentals_meters_title">Compteurs</string>
+    <string name="rentals_meter_add">Ajouter un compteur</string>
+    <string name="rentals_meters_hint">Les relevés de départ et de retour sont enregistrés sur ces compteurs.</string>
+    <string name="rentals_meter_default">Par défaut</string>
+    <string name="rentals_meter_no_reading">Aucun relevé</string>
+    <string name="rentals_meter_unit_title">Unité</string>
+    <string name="rentals_meter_add_failed">Impossible d\'ajouter le compteur.</string>
 </resources>

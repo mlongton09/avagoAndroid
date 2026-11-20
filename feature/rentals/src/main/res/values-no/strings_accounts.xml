@@ -76,4 +76,11 @@
     <string name="rentals_site_pickup">Henting</string>
     <string name="rentals_site_other">Annet</string>
     <string name="rentals_contracts_title">Kontrakter</string>
+    <string name="rentals_meters_title">Målere</string>
+    <string name="rentals_meter_add">Legg til måler</string>
+    <string name="rentals_meters_hint">Avlesninger ved utlevering og innlevering registreres på disse målerne.</string>
+    <string name="rentals_meter_default">Standard</string>
+    <string name="rentals_meter_no_reading">Ingen avlesninger ennå</string>
+    <string name="rentals_meter_unit_title">Enhet</string>
+    <string name="rentals_meter_add_failed">Måleren kunne ikke legges til.</string>
 </resources>

@@ -159,10 +159,12 @@ class RentalPricingTest {
 
     @Test fun `settings payloads take server defaults`() {
         val s = RentalSettings.parse(
-            """{"default_currency":"eur","day_mode":"calendar","grace_minutes":30,"month_mode":"calendar",
+            """{"default_currency":"eur","day_mode":"calendar","grace_minutes":30,"month_mode":"calendar","distance_unit":"mi",
                "weekend_window":{"start":{"dow":5,"time":"12:00"},"end":{"dow":1,"time":"09:00"}}}""",
         )
         assertEquals("EUR", s.defaultCurrency)
+        assertEquals("mi", s.distanceUnit)
+        assertEquals("km", RentalSettings.parse("""{"distance_unit":"yards"}""").distanceUnit)
         assertEquals(RatePolicy.WeekPoint(5, LocalTime.NOON), s.weekend?.start)
         val policy = s.pricingPolicy(ZoneId.of("UTC"))
         assertTrue(policy.calendarDays && policy.calendarMonths)

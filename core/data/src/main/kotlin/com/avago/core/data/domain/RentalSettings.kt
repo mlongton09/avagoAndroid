@@ -30,6 +30,8 @@ data class RentalSettings(
     val holdMinutes: Int = 1440,
     val maxDiscountBp: Int = 1500,
     val defaultBufferMinutes: Int = 0,
+    /** Unit of distance meters (`km` | `mi`); the server records hand-over distance readings in it. */
+    val distanceUnit: String = "km",
 ) {
     /** The pricing policy in [zone] (the location's time zone, UTC without one). */
     fun pricingPolicy(zone: ZoneId): RatePolicy = RatePolicy(
@@ -56,6 +58,7 @@ data class RentalSettings(
                 holdMinutes = p.int("hold_minutes") ?: d.holdMinutes,
                 maxDiscountBp = p.int("max_discount_bp") ?: d.maxDiscountBp,
                 defaultBufferMinutes = p.int("default_buffer_minutes") ?: d.defaultBufferMinutes,
+                distanceUnit = if (p.str("distance_unit") == "mi") "mi" else d.distanceUnit,
             )
         }
     }
