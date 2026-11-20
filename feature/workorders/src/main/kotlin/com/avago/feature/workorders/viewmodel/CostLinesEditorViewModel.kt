@@ -3,8 +3,10 @@ package com.avago.feature.workorders.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.avago.core.data.domain.ActivityRepository
 import com.avago.core.data.domain.CostLine
 import com.avago.core.data.domain.CostLineDraft
+import com.avago.core.data.domain.GlAccount
 import com.avago.core.data.domain.WorkOrderRepository
 import com.avago.core.data.domain.WorkerRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -25,6 +27,7 @@ class CostLinesEditorViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: WorkOrderRepository,
     workers: WorkerRepository,
+    activities: ActivityRepository,
 ) : ViewModel() {
 
     private val woId: String = requireNotNull(savedStateHandle["woId"]) {
@@ -51,6 +54,11 @@ class CostLinesEditorViewModel @Inject constructor(
         .map { list -> list.mapNotNull { w -> w.userId?.let { w.id to it } }.toMap() }
         .catch { emit(emptyMap()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    /** Active general-ledger accounts a line can be booked to. */
+    val glAccounts: StateFlow<List<GlAccount>> = activities.observeGlAccounts()
+        .catch { e -> Timber.e(e, "[CostLinesVM] gl accounts flow error"); emit(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _isSaving = MutableStateFlow(false)
     val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()

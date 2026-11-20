@@ -9,6 +9,7 @@ import com.avago.core.data.domain.AttachmentTarget
 import com.avago.core.data.domain.CostLine
 import com.avago.core.data.domain.CostLineDraft
 import com.avago.core.data.domain.DefectState
+import com.avago.core.data.domain.GlAccount
 import com.avago.core.data.domain.InspectionDefect
 import com.avago.core.data.domain.LocalFileRef
 import com.avago.core.data.domain.RecordNotFoundException
@@ -18,8 +19,10 @@ import com.avago.core.data.v2.V2FileStager
 import com.avago.core.data.v2.V2OverlayMerge
 import com.avago.core.data.v2.V2StoreAccess
 import com.avago.core.data.v2.V2Uuid
+import com.avago.core.data.v2.bool
 import com.avago.core.data.v2.commands.MaintCommands
 import com.avago.core.data.v2.str
+import com.avago.core.data.v2.strOrNull
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -124,6 +127,13 @@ class V2ActivityRepository @Inject constructor(
         } ?: throw RecordNotFoundException("defect", id)
         MaintCommands.updateDefect(stored, status, resolutionNote, System.currentTimeMillis(), commands.currentUserId())
             ?.let { commands.submit(it) }
+    }
+
+    override fun observeGlAccounts(): Flow<List<GlAccount>> = store.observe(setOf("gl_accounts"), emptyList()) { conn ->
+        V2OverlayMerge.query(conn, "gl_accounts")
+            .filter { it.bool("is_active") }
+            .map { GlAccount(id = it.str("id"), code = it.str("code"), name = it.str("name"), accountType = it.strOrNull("account_type")) }
+            .sortedBy { it.code }
     }
 
     private suspend fun performerWorkers(lines: List<CostLineDraft>): Map<String, String> {

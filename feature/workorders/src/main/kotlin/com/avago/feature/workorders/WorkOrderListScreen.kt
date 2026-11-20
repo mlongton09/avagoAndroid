@@ -366,10 +366,12 @@ fun WorkOrderListScreen(
                                     }
                                     RescheduleSheet(
                                         currentDueDate = currentDue,
+                                        currentPlannedStart = wo.plannedStart,
+                                        currentPlannedEnd = wo.plannedEnd,
                                         onDismiss = { rescheduleTarget = null },
-                                        onConfirm = { newDate ->
+                                        onConfirm = { newDate, window ->
                                             val ms = newDate.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-                                            viewModel.rescheduleWo(wo.id, ms)
+                                            viewModel.rescheduleWo(wo.id, ms, window)
                                             rescheduleTarget = null
                                         },
                                     )

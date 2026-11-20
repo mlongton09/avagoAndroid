@@ -1,14 +1,18 @@
 package com.avago.core.data.v2.commands
 
+import com.avago.core.data.domain.ApprovalRequest
 import com.avago.core.data.domain.ChecklistItem
 import com.avago.core.data.domain.RcaDraft
 import com.avago.core.data.domain.RcaReport
+import com.avago.core.data.domain.RecurrenceRule
 import com.avago.core.data.domain.TimeEntry
+import com.avago.core.data.domain.TimeEntryDraft
 import com.avago.core.data.domain.TimerAction
 import com.avago.core.data.domain.WorkOrder
 import com.avago.core.data.domain.WorkOrderAssignment
 import com.avago.core.data.domain.WorkOrderCompletion
 import com.avago.core.data.domain.WorkOrderDraft
+import com.avago.core.data.domain.WorkOrderRecurrence
 import com.avago.core.data.domain.WorkOrderStatus
 import com.avago.core.data.domain.WorkOrderTemplate
 import com.avago.core.data.domain.WorkOrderTemplateDraft
@@ -26,6 +30,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import java.math.BigDecimal
 import java.time.Instant
+import java.time.LocalDate
 
 /**
  * Local ids the overlays need for names the commands carry: category names, failure/cause/remedy
@@ -107,6 +112,8 @@ object WorkOrderCommands {
         val skills = d.field("required_skills", stored.requiredSkills.cleanList(), draft.requiredSkills.cleanList(), toColumn = ::jsonList)
         val effort = d.field("estimated_effort_minutes", stored.estimatedEffortMinutes, draft.estimatedEffortMinutes)
         val due = d.field("due_at", stored.dueAt, draft.dueAt)
+        val project = d.text("project_id", stored.projectId, draft.projectId)
+        val window = plannedWindow(d, stored, draft)
         val notes = d.text("dispatcher_notes", stored.dispatcherNotes, draft.dispatcherNotes)
         d.check()
         if (d.isEmpty) return null
@@ -114,7 +121,8 @@ object WorkOrderCommands {
             id = stored.id, title = title, description = description, assetIds = assets, locationId = location,
             category = category, priority = priority?.let { p -> WoPriority.entries.first { it.wire == p } },
             complexity = complexity?.let { c -> WoComplexity.entries.first { it.wire == c } }, assignedUserId = assignee,
-            requiredSkills = skills, estimatedEffortMinutes = effort, dueAt = due?.let(Instant::ofEpochMilli),
+            projectId = project, requiredSkills = skills, estimatedEffortMinutes = effort, dueAt = due?.let(Instant::ofEpochMilli),
+            plannedStart = window?.first?.let(Instant::ofEpochMilli), plannedEnd = window?.second?.let(Instant::ofEpochMilli),
             dispatcherNotes = notes, clear = d.clear,
         )
         val ops = mutableListOf(V2RowOp.upsert("work_orders", stored.id, d.overlay + updated(nowMillis)))
@@ -125,6 +133,205 @@ object WorkOrderCommands {
             ops += assetLinks(stored.id, assets, nowMillis, userId)
         }
         return payload.toNewCommand(baseVersion = stored.version, overlay = V2OverlayPatch(ops))
+    }
+
+    /**
+     * The planned window is set or cleared as a pair: a changed bound sends both. Returns the new
+     * window when it is set, null when unchanged or cleared (the clear is recorded in [d]).
+     */
+    private fun plannedWindow(d: V2UpdateDiff<MaintWorkOrdersUpdate.Clear>, stored: WorkOrder, draft: WorkOrderDraft): Pair<Long, Long>? {
+        val start = draft.plannedStart
+        val end = draft.plannedEnd
+        require((start == null) == (end == null)) { "the planned window needs a start and an end" }
+        require(start == null || end!! > start) { "the planned window must end after it starts" }
+        if (start == stored.plannedStart && end == stored.plannedEnd) return null
+        if (start == null || end == null) {
+            d.clear += MaintWorkOrdersUpdate.Clear.PLANNED_START
+            d.clear += MaintWorkOrdersUpdate.Clear.PLANNED_END
+            d.overlay["planned_during_start"] = null
+            d.overlay["planned_during_end"] = null
+            return null
+        }
+        d.overlay["planned_during_start"] = start
+        d.overlay["planned_during_end"] = end
+        return start to end
+    }
+
+    /** Self-assignment by the caller's worker [myWorkerId]: the server makes it owner and lead. */
+    fun claim(stored: WorkOrder, myWorkerId: String?, nowMillis: Long): V2NewCommand {
+        val set = mutableMapOf<String, Any?>("status" to WorkOrderStatus.ASSIGNED.wire)
+        if (myWorkerId != null) set["assigned_worker_id"] = myWorkerId
+        return MaintWorkOrdersClaim(id = stored.id).toNewCommand(
+            overlay = V2OverlayPatch.of(V2RowOp.upsert("work_orders", stored.id, set + updated(nowMillis))),
+        )
+    }
+
+    /**
+     * Sets (or, with an empty rule, stops) the calendar recurrence. With an existing plan
+     * ([current]) the overlay mirrors the server: plan activation and end fields, and the calendar
+     * trigger's rule; a new plan is created server-side and arrives by sync.
+     */
+    fun setRecurrence(workOrderId: String, rule: RecurrenceRule, current: WorkOrderRecurrence?, nowMillis: Long): V2NewCommand {
+        val rrule = rule.rrule.trim()
+        val stop = rrule.isEmpty()
+        val endType = rule.endType.takeUnless { stop }
+        require(endType == null || endType in END_TYPES) { "end type must be never, count or date" }
+        require(endType != "count" || (rule.endCount ?: 0) > 0) { "a count end needs a positive count" }
+        require(endType != "date" || rule.endOnEpochDay != null) { "a date end needs a date" }
+        val payload = MaintWorkOrdersSetRecurrence(
+            id = workOrderId,
+            rrule = rrule,
+            endType = endType,
+            endCount = rule.endCount.takeIf { endType == "count" },
+            endOn = rule.endOnEpochDay.takeIf { endType == "date" }?.let(LocalDate::ofEpochDay),
+            timezone = rule.timezone.clean().takeUnless { stop },
+        )
+        val ops = mutableListOf<V2RowOp>()
+        if (current != null) {
+            val plan = mutableMapOf<String, Any?>("active" to !stop)
+            if (endType != null) {
+                plan["end_type"] = endType
+                plan["end_count"] = payload.endCount?.toLong()
+                plan["end_on"] = payload.endOn?.toString()
+            }
+            payload.timezone?.let { plan["timezone"] = it }
+            ops += V2RowOp.upsert("pm_plans", current.planId, plan + updated(nowMillis))
+            if (!stop && current.triggerId != null) {
+                ops += V2RowOp.upsert("pm_triggers", current.triggerId, mapOf("rrule" to rrule) + updated(nowMillis))
+            }
+        }
+        return payload.toNewCommand(overlay = V2OverlayPatch(ops))
+    }
+
+    // ------------------------------------------------------------------ approvals
+
+    /**
+     * Records the caller's decision ([decisionId] is the overlay's row id). A rejection decides
+     * the request and the work order's approval; an approval may need further approvers, so the
+     * request status is left to the server.
+     */
+    fun decideApproval(
+        request: ApprovalRequest,
+        approve: Boolean,
+        notes: String?,
+        decisionId: String,
+        nowMillis: Long,
+        userId: String?,
+    ): V2NewCommand {
+        val comment = notes.clean()
+        val decision = if (approve) "approved" else "rejected"
+        val ops = mutableListOf<V2RowOp>()
+        if (userId != null) {
+            ops += V2RowOp.upsert(
+                "approval_decisions", decisionId,
+                mapOf(
+                    "request_id" to request.id, "approver_user_id" to userId, "decision" to decision, "comment" to comment,
+                    "decided_at" to nowMillis, "created_at" to nowMillis,
+                ),
+            )
+        }
+        if (!approve) {
+            ops += V2RowOp.upsert("approval_requests", request.id, mapOf("status" to decision, "decided_at" to nowMillis) + updated(nowMillis))
+            request.workOrderId?.let { wo ->
+                ops += V2RowOp.upsert("work_orders", wo, mapOf("approval_state" to decision) + updated(nowMillis))
+            }
+        }
+        val payload: V2CommandPayload = if (approve) {
+            MaintApprovalRequestsApprove(id = request.id, notes = comment)
+        } else {
+            MaintApprovalRequestsReject(id = request.id, notes = comment)
+        }
+        return payload.toNewCommand(overlay = V2OverlayPatch(ops))
+    }
+
+    // ------------------------------------------------------------------ time entries
+
+    /** A finished stretch of the caller's work (status submitted). */
+    fun logTime(id: String, workOrderId: String, draft: TimeEntryDraft, myWorkerId: String?, nowMillis: Long, userId: String?): V2NewCommand {
+        checkTimeEntry(draft, nowMillis)
+        val payload = MaintTimeEntriesCreate(
+            id = id, workOrderId = workOrderId, start = Instant.ofEpochMilli(draft.start), end = Instant.ofEpochMilli(draft.end),
+            breakMinutes = draft.breakMinutes.takeIf { it > 0 }, notes = draft.notes.clean(),
+        )
+        val ops = listOfNotNull(
+            myWorkerId?.let { worker ->
+                V2RowOp.upsert(
+                    "time_entries", id,
+                    mapOf(
+                        "worker_id" to worker, "calendar_id" to "", "work_order_id" to workOrderId, "during_start" to draft.start,
+                        "during_end" to draft.end, "break_minutes" to draft.breakMinutes.toLong(), "status" to TimeEntry.STATUS_SUBMITTED,
+                        "notes" to payload.notes,
+                    ) + created(nowMillis, userId),
+                )
+            },
+        )
+        return payload.toNewCommand(overlay = V2OverlayPatch(ops))
+    }
+
+    /** Null when nothing changed; a rejected entry goes back to submitted. */
+    fun updateTimeEntry(stored: TimeEntry, draft: TimeEntryDraft, nowMillis: Long): V2NewCommand? {
+        require(stored.isEditable) { "only a stopped, unapproved time entry can be corrected" }
+        checkTimeEntry(draft, nowMillis)
+        val d = V2UpdateDiff(MaintTimeEntriesUpdate.Clear.entries)
+        val start = d.field("start", stored.start, draft.start, column = "during_start")
+        val end = d.field("end", stored.end, draft.end, column = "during_end")
+        val breakMinutes = d.field("break_minutes", stored.breakMinutes, draft.breakMinutes) { it.toLong() }
+        val notes = d.text("notes", stored.notes, draft.notes)
+        d.check()
+        if (d.isEmpty) return null
+        if (stored.status == TimeEntry.STATUS_REJECTED) {
+            d.overlay["status"] = TimeEntry.STATUS_SUBMITTED
+            d.overlay["reject_reason"] = null
+        }
+        val payload = MaintTimeEntriesUpdate(
+            id = stored.id, start = start?.let(Instant::ofEpochMilli), end = end?.let(Instant::ofEpochMilli),
+            breakMinutes = breakMinutes, notes = notes, clear = d.clear,
+        )
+        return payload.toNewCommand(
+            baseVersion = stored.version,
+            overlay = V2OverlayPatch.of(V2RowOp.upsert("time_entries", stored.id, d.overlay + updated(nowMillis))),
+        )
+    }
+
+    fun deleteTimeEntry(stored: TimeEntry): V2NewCommand {
+        require(stored.isEditable) { "only a stopped, unapproved time entry can be deleted" }
+        return MaintTimeEntriesDelete(id = stored.id).toNewCommand(
+            baseVersion = stored.version,
+            overlay = V2OverlayPatch.of(V2RowOp.delete("time_entries", stored.id)),
+        )
+    }
+
+    fun approveTimeEntry(stored: TimeEntry, nowMillis: Long, userId: String?): V2NewCommand {
+        require(stored.isDecidable) { "only a submitted or rejected time entry can be approved" }
+        return MaintTimeEntriesApprove(id = stored.id).toNewCommand(
+            baseVersion = stored.version,
+            overlay = V2OverlayPatch.of(
+                V2RowOp.upsert(
+                    "time_entries", stored.id,
+                    mapOf(
+                        "status" to TimeEntry.STATUS_APPROVED, "approved_by" to userId, "approved_at" to nowMillis, "reject_reason" to null,
+                    ) + updated(nowMillis),
+                ),
+            ),
+        )
+    }
+
+    fun rejectTimeEntry(stored: TimeEntry, reason: String, nowMillis: Long): V2NewCommand {
+        require(stored.isDecidable) { "only a submitted or rejected time entry can be rejected" }
+        val why = requireNotNull(reason.clean()) { "a rejection needs a reason" }
+        return MaintTimeEntriesReject(id = stored.id, reason = why).toNewCommand(
+            baseVersion = stored.version,
+            overlay = V2OverlayPatch.of(
+                V2RowOp.upsert("time_entries", stored.id, mapOf("status" to TimeEntry.STATUS_REJECTED, "reject_reason" to why) + updated(nowMillis)),
+            ),
+        )
+    }
+
+    private fun checkTimeEntry(draft: TimeEntryDraft, nowMillis: Long) {
+        require(draft.end > draft.start) { "a time entry must end after it starts" }
+        require(draft.end <= nowMillis) { "a time entry cannot end in the future" }
+        require(draft.breakMinutes in 0..MAX_BREAK_MINUTES) { "the break must be 0 to $MAX_BREAK_MINUTES minutes" }
+        require(draft.breakMinutes * 60_000L < draft.end - draft.start) { "the break must fit the time span" }
     }
 
     /**
@@ -559,6 +766,8 @@ object WorkOrderCommands {
     // ------------------------------------------------------------------ helpers
 
     private const val STEP_ROW = "step"
+    private const val MAX_BREAK_MINUTES = 1440
+    private val END_TYPES = setOf("never", "count", "date")
     private val SIGNER_ROLES = setOf("customer", "staff", "driver", "witness", "permit_holder", "approver")
 
     private fun assetLinks(workOrderId: String, assetIds: List<String>, nowMillis: Long, userId: String?): List<V2RowOp> =

@@ -53,6 +53,9 @@ data class WorkOrder(
     val assignedTeamId: String?,
     val locationId: String?,
     val locationName: String?,
+    /** The job (`projects`) the work is booked to. */
+    val projectId: String?,
+    val projectName: String?,
     /** Covered assets, primary first. */
     val assetIds: List<String>,
     val primaryAssetName: String?,
@@ -99,6 +102,11 @@ data class WorkOrderDraft(
     val requiredSkills: List<String> = emptyList(),
     val estimatedEffortMinutes: Int? = null,
     val dueAt: Long? = null,
+    /** Planned work window; both or neither (edit only, `maint.work_orders.create` has no window). */
+    val plannedStart: Long? = null,
+    val plannedEnd: Long? = null,
+    /** The job (`projects`) the work is booked to (edit only). */
+    val projectId: String? = null,
     val dispatcherNotes: String? = null,
 ) {
     companion object {
@@ -107,6 +115,7 @@ data class WorkOrderDraft(
             title = wo.title, description = wo.description, assetIds = wo.assetIds, locationId = wo.locationId,
             category = wo.categoryName, priority = wo.priority, complexity = wo.complexity, assignedUserId = assignedUserId,
             requiredSkills = wo.requiredSkills, estimatedEffortMinutes = wo.estimatedEffortMinutes, dueAt = wo.dueAt,
+            plannedStart = wo.plannedStart, plannedEnd = wo.plannedEnd, projectId = wo.projectId,
             dispatcherNotes = wo.dispatcherNotes,
         )
     }
@@ -185,12 +194,16 @@ data class CostLine(
     val uomCode: String?,
     val unitCost: BigDecimal?,
     val taxAmountMinor: Long?,
+    val glAccountId: String?,
     val costStatus: String,
     val partNumber: String?,
     val notes: String?,
     val version: Long,
 ) {
     val total: BigDecimal get() = unitCost?.multiply(quantity) ?: BigDecimal.ZERO
+
+    /** An estimate line (`cost_status = estimate`) rather than an actual cost. */
+    val isEstimate: Boolean get() = costStatus == "estimate"
 }
 
 data class CostLineDraft(
@@ -202,6 +215,8 @@ data class CostLineDraft(
     val quantity: BigDecimal = BigDecimal.ONE,
     val unitCost: BigDecimal? = null,
     val taxAmountMinor: Long? = null,
+    /** General-ledger account (`gl_accounts`) the cost is booked to. */
+    val glAccountId: String? = null,
     val estimate: Boolean = false,
     val notes: String? = null,
 )
@@ -286,11 +301,104 @@ data class TimeEntry(
     val end: Long?,
     val breakMinutes: Int,
     val status: String,
+    val workerName: String? = null,
+    val notes: String? = null,
+    val rejectReason: String? = null,
+    val approvedAt: Long? = null,
+    val version: Long = 0L,
 ) {
     val isRunning: Boolean get() = end == null
 
+    /** Stopped and not approved: its worker can still correct or delete it. */
+    val isEditable: Boolean get() = !isRunning && status != STATUS_APPROVED
+
+    /** Submitted or rejected: a manager can decide it. */
+    val isDecidable: Boolean get() = !isRunning && (status == STATUS_SUBMITTED || status == STATUS_REJECTED)
+
     fun minutes(now: Long): Long = (((end ?: now) - start) / 60_000L - breakMinutes).coerceAtLeast(0)
+
+    companion object {
+        const val STATUS_SUBMITTED = "submitted"
+        const val STATUS_APPROVED = "approved"
+        const val STATUS_REJECTED = "rejected"
+    }
 }
+
+/** A manual time entry (`maint.time_entries.create` / `.update`). */
+data class TimeEntryDraft(
+    val start: Long,
+    val end: Long,
+    val breakMinutes: Int = 0,
+    val notes: String? = null,
+)
+
+/** A pending or decided approval (`approval_requests`) with its decisions. */
+data class ApprovalRequest(
+    val id: String,
+    val subjectKind: String,
+    val workOrderId: String?,
+    val purchaseOrderId: String?,
+    val requestedAmountMinor: Long?,
+    val currency: String?,
+    val status: String,
+    val requestedBy: String?,
+    val requestedAt: Long?,
+    val assignedApproverUserId: String?,
+    val decidedAt: Long?,
+    val decisions: List<ApprovalDecision>,
+) {
+    val isPending: Boolean get() = status == STATUS_PENDING
+
+    companion object {
+        const val STATUS_PENDING = "pending"
+    }
+}
+
+data class ApprovalDecision(
+    val id: String,
+    val approverUserId: String,
+    val decision: String,
+    val comment: String?,
+    val decidedAt: Long,
+)
+
+/** A work order's calendar recurrence: the calendar trigger of its PM plan. */
+data class WorkOrderRecurrence(
+    val planId: String,
+    /** The plan's calendar trigger; null when the plan has none yet. */
+    val triggerId: String?,
+    /** RFC 5545 rule, e.g. `FREQ=WEEKLY;BYDAY=MO`. */
+    val rrule: String,
+    val endType: String,
+    val endCount: Int?,
+    /** Last day (epoch day) when [endType] is `date`. */
+    val endOnEpochDay: Long?,
+    val timezone: String?,
+    val active: Boolean,
+)
+
+/** What `maint.work_orders.set_recurrence` sets; an empty [rrule] stops the recurrence. */
+data class RecurrenceRule(
+    val rrule: String,
+    val endType: String = "never",
+    val endCount: Int? = null,
+    val endOnEpochDay: Long? = null,
+    val timezone: String? = null,
+)
+
+/** A job (`projects`) work and costs are booked to. */
+data class Project(
+    val id: String,
+    val number: String?,
+    val name: String,
+    val customerName: String?,
+    val status: String,
+    val budgetMinor: Long?,
+    val currency: String?,
+)
+
+/** Target response / resolution hours per priority (`work_order_sla_policies`). */
+data class SlaPolicy(val priority: WorkOrderPriority, val respondHours: Int?, val resolveHours: Int?)
 
 /** Everything the work-order detail screen shows. */
 data class WorkOrderDetail(
@@ -307,6 +415,10 @@ data class WorkOrderDetail(
     val timeEntries: List<TimeEntry>,
     /** The signed-in user's running timer on this work order. */
     val myRunningTimer: TimeEntry?,
+    /** The signed-in user's worker id, for "own time entry" checks. */
+    val myWorkerId: String? = null,
+    val approvalRequests: List<ApprovalRequest> = emptyList(),
+    val recurrence: WorkOrderRecurrence? = null,
 )
 
 data class WorkOrderFilter(
@@ -398,4 +510,27 @@ interface WorkOrderRepository {
     suspend fun deleteTemplate(id: String)
 
     suspend fun attach(workOrderId: String, file: LocalFileRef): String
+
+    /** Self-assigns an open work order; of two concurrent claims one is rejected (`wo_already_claimed`). */
+    suspend fun claim(id: String)
+
+    /** Makes the work order recurring, changes its rule or (empty rule) stops it. */
+    suspend fun setRecurrence(id: String, rule: RecurrenceRule)
+
+    suspend fun decideApproval(requestId: String, approve: Boolean, notes: String?)
+
+    /** Logs a finished stretch of work for the signed-in user. */
+    suspend fun logTime(workOrderId: String, draft: TimeEntryDraft): String
+
+    suspend fun updateTimeEntry(id: String, draft: TimeEntryDraft)
+
+    suspend fun deleteTimeEntry(id: String)
+
+    suspend fun approveTimeEntry(id: String)
+
+    suspend fun rejectTimeEntry(id: String, reason: String)
+
+    fun observeProjects(): Flow<List<Project>>
+
+    fun observeSlaPolicies(): Flow<List<SlaPolicy>>
 }

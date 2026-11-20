@@ -59,6 +59,8 @@ import com.avago.core.network.model.UpgradeRequest
 import com.avago.core.network.model.UserResponse
 import com.avago.core.network.model.SkipOccurrenceRequest
 import com.avago.core.network.model.KpiSummaryResponse
+import com.avago.core.network.model.WorkOrderBudgetsResponse
+import com.avago.core.network.model.WorkOrderAuditResponse
 import com.avago.core.network.model.SampleWorkspaceJson
 import com.avago.core.network.model.SampleWorkspacesResponse
 import com.avago.core.network.model.SwitchSampleWorkspaceRequest
@@ -1338,6 +1340,18 @@ class AvagoServiceClient @Inject constructor(
     suspend fun getReportKPIs(accountId: String): NetworkResult<KpiSummaryResponse> =
         safeNetworkCall {
             client.get("$baseUrl/accounts/$accountId/reports/kpis").body()
+        }
+
+    /** GET /accounts/{accountId}/work-orders/{woId}/audit: the work order's history, newest first. */
+    suspend fun getWorkOrderAudit(accountId: String, woId: String): NetworkResult<WorkOrderAuditResponse> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/work-orders/$woId/audit").body()
+        }
+
+    /** GET /accounts/{accountId}/work-orders/{woId}/budget-pill: active budgets whose scope covers the work order. */
+    suspend fun getWorkOrderBudgets(accountId: String, woId: String): NetworkResult<WorkOrderBudgetsResponse> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/work-orders/$woId/budget-pill").body()
         }
 
 }

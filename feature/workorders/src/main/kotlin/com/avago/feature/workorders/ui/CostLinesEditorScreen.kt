@@ -18,11 +18,12 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,7 +37,6 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -54,11 +54,12 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.avago.feature.workorders.R
 import com.avago.core.data.Formatters
 import com.avago.core.data.domain.CostLine
 import com.avago.core.data.domain.CostLineDraft
 import com.avago.core.data.domain.CostLineType
+import com.avago.core.data.domain.GlAccount
+import com.avago.feature.workorders.R
 import com.avago.feature.workorders.ui.sheets.TechPickerSheet
 import com.avago.feature.workorders.viewmodel.CostLinesEditorViewModel
 import java.math.BigDecimal
@@ -75,6 +76,7 @@ fun CostLinesEditorScreen(
     val total by viewModel.total.collectAsStateWithLifecycle()
     val workerNames by viewModel.workerNames.collectAsStateWithLifecycle()
     val workerUserIds by viewModel.workerUserIds.collectAsStateWithLifecycle()
+    val glAccounts by viewModel.glAccounts.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
 
@@ -93,6 +95,7 @@ fun CostLinesEditorScreen(
             initial = editingLine,
             initialPerformerUserId = editingLine?.performerWorkerId?.let(workerUserIds::get),
             workerNameByUserId = workerUserIds.entries.associate { (workerId, userId) -> userId to (workerNames[workerId] ?: userId) },
+            glAccounts = glAccounts,
             onConfirm = { draft ->
                 val existing = editingLine
                 if (existing == null) viewModel.addLine(draft) else viewModel.updateLine(existing.id, draft)
@@ -267,6 +270,7 @@ private fun CostLineDialog(
     initial: CostLine?,
     initialPerformerUserId: String?,
     workerNameByUserId: Map<String, String>,
+    glAccounts: List<GlAccount>,
     onConfirm: (CostLineDraft) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -276,6 +280,8 @@ private fun CostLineDialog(
     var unitCostText by rememberSaveable { mutableStateOf(initial?.unitCost?.toPlainString() ?: "") }
     var performerUserId by rememberSaveable { mutableStateOf(initialPerformerUserId) }
     var kindMenuExpanded by remember { mutableStateOf(false) }
+    var glAccountId by rememberSaveable { mutableStateOf(initial?.glAccountId) }
+    var glMenuExpanded by remember { mutableStateOf(false) }
     var showTechPicker by remember { mutableStateOf(false) }
     val quantity = quantityText.trim().replace(',', '.').toBigDecimalOrNull()
     val unitCost = unitCostText.trim().replace(',', '.').takeIf { it.isNotEmpty() }?.toBigDecimalOrNull()
@@ -355,6 +361,39 @@ private fun CostLineDialog(
                         singleLine = true,
                     )
                 }
+                if (glAccounts.isNotEmpty() || glAccountId != null) {
+                    ExposedDropdownMenuBox(expanded = glMenuExpanded, onExpandedChange = { glMenuExpanded = it }) {
+                        OutlinedTextField(
+                            value = glAccountId?.let { id -> glAccounts.firstOrNull { it.id == id }?.label ?: id }
+                                ?: stringResource(R.string.cost_lines_gl_none),
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text(stringResource(R.string.cost_lines_field_gl_account)) },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(glMenuExpanded) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+                        )
+                        ExposedDropdownMenu(expanded = glMenuExpanded, onDismissRequest = { glMenuExpanded = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.cost_lines_gl_none)) },
+                                onClick = {
+                                    glAccountId = null
+                                    glMenuExpanded = false
+                                },
+                            )
+                            glAccounts.forEach { account ->
+                                DropdownMenuItem(
+                                    text = { Text(account.label) },
+                                    onClick = {
+                                        glAccountId = account.id
+                                        glMenuExpanded = false
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
                 if (kind == CostLineType.LABOR) {
                     OutlinedTextField(
                         value = performerUserId?.let { workerNameByUserId[it] ?: it }.orEmpty(),
@@ -376,12 +415,18 @@ private fun CostLineDialog(
                 enabled = quantity != null && quantity.signum() > 0 && !unitCostInvalid,
                 onClick = {
                     onConfirm(
+                        // Fields this dialog does not edit keep their stored values.
                         CostLineDraft(
                             kind = kind,
                             description = description.trim().ifBlank { null },
+                            productId = initial?.productId,
                             performerUserId = performerUserId.takeIf { kind == CostLineType.LABOR },
                             quantity = quantity ?: BigDecimal.ONE,
                             unitCost = unitCost,
+                            taxAmountMinor = initial?.taxAmountMinor,
+                            glAccountId = glAccountId,
+                            estimate = initial?.isEstimate == true,
+                            notes = initial?.notes,
                         ),
                     )
                 },

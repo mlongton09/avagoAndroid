@@ -1,6 +1,8 @@
 package com.avago.feature.workorders.model
 
+import com.avago.core.data.domain.SlaPolicy
 import com.avago.core.data.domain.TimeEntry
+import com.avago.core.data.domain.WorkOrderPriority
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -141,6 +143,19 @@ class WoV3Test {
         val p = parseSlaPolicy(kotlinx.serialization.json.Json.parseToJsonElement("""{"policy":{"high":{"respond_hours":2}}}"""))
         assertEquals(SlaWindow(2.0, 24.0), p["high"])
         assertEquals(DEFAULT_SLA_POLICY["low"], p["low"])
+    }
+
+    @Test
+    fun `synced sla policies override defaults per priority`() {
+        val p = slaPolicyOf(
+            listOf(
+                SlaPolicy(WorkOrderPriority.HIGH, respondHours = 2, resolveHours = null),
+                SlaPolicy(WorkOrderPriority.LOW, respondHours = 48, resolveHours = 120),
+            ),
+        )
+        assertEquals(SlaWindow(2.0, 24.0), p["high"])
+        assertEquals(SlaWindow(48.0, 120.0), p["low"])
+        assertEquals(DEFAULT_SLA_POLICY["critical"], p["critical"])
     }
 
     @Test

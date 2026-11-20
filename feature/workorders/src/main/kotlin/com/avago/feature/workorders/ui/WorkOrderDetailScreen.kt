@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -68,42 +69,43 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.foundation.layout.Column
-import androidx.compose.material.icons.filled.AutoAwesome
 import com.avago.core.ai.ui.ScoutPaletteSheet
-import com.avago.core.ui.CustomFieldsCard
+import com.avago.core.data.Formatters
+import com.avago.core.data.domain.CostLineType
+import com.avago.core.data.domain.CustomFieldEntity
+import com.avago.core.data.domain.WorkOrderStatus
 import com.avago.core.ui.CategoryBadge
+import com.avago.core.ui.CustomFieldsCard
 import com.avago.feature.workorders.R
-import com.avago.feature.workorders.model.WoPriority
-import com.avago.feature.workorders.model.WoStatus
-import com.avago.feature.workorders.model.WoTransition
-import com.avago.feature.workorders.model.availableTransitions
 import com.avago.feature.workorders.model.ChecklistRowState
 import com.avago.feature.workorders.model.WoCloseout
 import com.avago.feature.workorders.model.WoHold
+import com.avago.feature.workorders.model.WoPriority
+import com.avago.feature.workorders.model.WoStatus
+import com.avago.feature.workorders.model.WoTransition
 import com.avago.feature.workorders.model.WoVendor
+import com.avago.feature.workorders.model.availableTransitions
 import com.avago.feature.workorders.model.downtimeMinutes
 import com.avago.feature.workorders.model.isChecklistRowRequired
 import com.avago.feature.workorders.model.parseWoAttributes
+import com.avago.feature.workorders.ui.components.AssigneeAvatar
+import com.avago.feature.workorders.ui.components.WoEstimateVsActual
 import com.avago.feature.workorders.ui.components.WoHoldEditor
 import com.avago.feature.workorders.ui.components.WoSlaChip
 import com.avago.feature.workorders.ui.components.WoVendorEditor
-import com.avago.feature.workorders.ui.components.WoEstimateVsActual
-import com.avago.feature.workorders.ui.components.woStatusLabel
-import com.avago.feature.workorders.ui.sheets.WoCloseoutSheet
-import com.avago.feature.workorders.ui.components.AssigneeAvatar
 import com.avago.feature.workorders.ui.components.priorityBarColor
+import com.avago.feature.workorders.ui.components.woStatusLabel
+import com.avago.feature.workorders.ui.sheets.RepeatsSheet
 import com.avago.feature.workorders.ui.sheets.RescheduleSheet
 import com.avago.feature.workorders.ui.sheets.TechPickerSheet
-import com.avago.core.data.Formatters
-import com.avago.core.data.domain.CustomFieldEntity
-import com.avago.core.data.domain.CostLineType
-import com.avago.core.data.domain.WorkOrderStatus
+import com.avago.feature.workorders.ui.sheets.WoCloseoutSheet
+import com.avago.feature.workorders.ui.sheets.recurrenceSummary
 import com.avago.feature.workorders.viewmodel.WorkOrderDetailViewModel
 import com.avago.feature.workorders.viewmodel.WorkOrderMapPreview
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 @androidx.compose.material3.ExperimentalMaterial3Api
 @Composable
@@ -140,12 +142,18 @@ fun WorkOrderDetailScreen(
     val canApprove by viewModel.canApprove.collectAsStateWithLifecycle()
     val canDelete by viewModel.canDelete.collectAsStateWithLifecycle()
     val mapPreview by viewModel.mapPreview.collectAsStateWithLifecycle()
+    val pendingApproval by viewModel.pendingApproval.collectAsStateWithLifecycle()
+    val timeEntries by viewModel.timeEntries.collectAsStateWithLifecycle()
+    val myWorkerId by viewModel.myWorkerId.collectAsStateWithLifecycle()
+    val history by viewModel.history.collectAsStateWithLifecycle()
+    val budgets by viewModel.budgets.collectAsStateWithLifecycle()
 
     var showScoutSheet by remember { mutableStateOf(false) }
     var showOverflowMenu by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showTechPicker by remember { mutableStateOf(false) }
     var showRescheduleSheet by remember { mutableStateOf(false) }
+    var showRepeatsSheet by remember { mutableStateOf(false) }
     var showSkipDialog by remember { mutableStateOf(false) }
     var skipReason by remember { mutableStateOf("") }
     var commentText by rememberSaveable { mutableStateOf("") }
@@ -234,10 +242,27 @@ fun WorkOrderDetailScreen(
         }
         RescheduleSheet(
             currentDueDate = currentDueDate,
+            currentPlannedStart = wo?.plannedStart,
+            currentPlannedEnd = wo?.plannedEnd,
             onDismiss = { showRescheduleSheet = false },
-            onConfirm = { newDate ->
-                viewModel.reschedule(newDate)
+            onConfirm = { newDate, window ->
+                viewModel.reschedule(newDate, window)
                 showRescheduleSheet = false
+            },
+        )
+    }
+
+    if (showRepeatsSheet) {
+        RepeatsSheet(
+            current = detail?.recurrence,
+            onDismiss = { showRepeatsSheet = false },
+            onSave = { rule ->
+                viewModel.setRecurrence(rule)
+                showRepeatsSheet = false
+            },
+            onStop = {
+                viewModel.stopRecurrence()
+                showRepeatsSheet = false
             },
         )
     }
@@ -436,9 +461,20 @@ fun WorkOrderDetailScreen(
             ) {
                 if (canApprove) {
                     ApprovalBanner(
-                        pending = currentWo.status == WorkOrderStatus.PENDING_APPROVAL || currentWo.approvalState == "pending",
+                        pending = currentWo.status == WorkOrderStatus.PENDING_APPROVAL,
                         onApprove = viewModel::approveWorkOrder,
                         onReject = viewModel::rejectWorkOrder,
+                    )
+                }
+                pendingApproval?.let { request ->
+                    val myUserId = viewModel.myUserId
+                    CostApprovalCard(
+                        request = request,
+                        canDecide = canApprove &&
+                            request.decisions.none { it.approverUserId == myUserId } &&
+                            (request.assignedApproverUserId == null || request.assignedApproverUserId == myUserId),
+                        enabled = !isSaving,
+                        onDecide = viewModel::decideApproval,
                     )
                 }
 
@@ -475,6 +511,7 @@ fun WorkOrderDetailScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
                     WoSlaChip(wo = currentWo, policy = slaPolicy)
+                    BudgetsCard(budgets = budgets, modifier = Modifier.padding(top = 8.dp))
 
                     val v3Attrs = remember(currentWo.attributes) { parseWoAttributes(currentWo.attributes) }
                     if (currentWo.status in setOf(WorkOrderStatus.ASSIGNED, WorkOrderStatus.IN_PROGRESS, WorkOrderStatus.ON_HOLD)) {
@@ -533,6 +570,25 @@ fun WorkOrderDetailScreen(
                             onClick = { showRescheduleSheet = true },
                             enabled = canEdit,
                         )
+                        val plannedStart = currentWo.plannedStart
+                        val plannedEnd = currentWo.plannedEnd
+                        if (plannedStart != null && plannedEnd != null) {
+                            LabeledRow(
+                                label = stringResource(R.string.wo_detail_planned_label),
+                                value = formatWindow(plannedStart, plannedEnd),
+                                onClick = { showRescheduleSheet = true },
+                                enabled = canEdit,
+                            )
+                        }
+                        LabeledRow(
+                            label = stringResource(R.string.wo_detail_repeats_label),
+                            value = recurrenceSummary(detail?.recurrence),
+                            onClick = { showRepeatsSheet = true },
+                            enabled = canEdit,
+                        )
+                        currentWo.projectName?.let { project ->
+                            LabeledRow(label = stringResource(R.string.wo_detail_project_label), value = project)
+                        }
                         LabeledRow(
                             label = stringResource(R.string.wo_detail_created_label),
                             value = formatDate(currentWo.createdAt),
@@ -614,8 +670,8 @@ fun WorkOrderDetailScreen(
                                     }
                                 }
                             }
-                            if (assignments.isEmpty()) {
-                                TextButton(onClick = { viewModel.claimWorkOrder() }) {
+                            if (assignments.isEmpty() && currentWo.status == WorkOrderStatus.OPEN) {
+                                TextButton(onClick = { viewModel.claimWorkOrder() }, enabled = !isSaving) {
                                     Text(stringResource(R.string.wo_detail_claim))
                                 }
                             }
@@ -734,6 +790,24 @@ fun WorkOrderDetailScreen(
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
+                    CollapsibleDetailSection(
+                        title = stringResource(R.string.wo_detail_section_time),
+                        initiallyExpanded = false,
+                    ) {
+                        TimeEntriesContent(
+                            entries = timeEntries,
+                            myWorkerId = myWorkerId,
+                            canApprove = canApprove,
+                            enabled = !isSaving,
+                            onLog = viewModel::logTime,
+                            onUpdate = viewModel::updateTimeEntry,
+                            onDelete = viewModel::deleteTimeEntry,
+                            onApprove = viewModel::approveTimeEntry,
+                            onReject = viewModel::rejectTimeEntry,
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     if (currentWo.status == WorkOrderStatus.COMPLETED || currentWo.status == WorkOrderStatus.CLOSED) {
                         val closeout = WoCloseout.from(parseWoAttributes(currentWo.attributes))
@@ -821,6 +895,14 @@ fun WorkOrderDetailScreen(
                                 }
                             }
                         }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    CollapsibleDetailSection(
+                        title = stringResource(R.string.wo_detail_section_history),
+                        initiallyExpanded = false,
+                    ) {
+                        HistoryContent(history)
                     }
 
                     if (chatThreadId != null && onOpenChat != null) {
@@ -1221,6 +1303,15 @@ private fun TeamChatCard(
             )
         }
     }
+}
+
+private fun formatWindow(start: Long, end: Long): String {
+    val zone = ZoneId.systemDefault()
+    val f = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT)
+    val s = Instant.ofEpochMilli(start).atZone(zone)
+    val e = Instant.ofEpochMilli(end).atZone(zone)
+    val endText = if (s.toLocalDate() == e.toLocalDate()) e.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)) else e.format(f)
+    return "${s.format(f)} \u2013 $endText"
 }
 
 private fun formatDate(ms: Long): String {

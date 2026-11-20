@@ -241,6 +241,7 @@ internal object V2MaintRows {
         uomCode = r.strOrNull("uom_code"),
         unitCost = r.decimalOrNull("unit_cost"),
         taxAmountMinor = r.longOrNull("tax_amount_minor"),
+        glAccountId = r.strOrNull("gl_account_id"),
         costStatus = r.strOrNull("cost_status") ?: "actual",
         partNumber = r.strOrNull("part_number"),
         notes = r.strOrNull("notes"),
@@ -270,7 +271,7 @@ internal object V2MaintRows {
         version = r.longOrNull("version") ?: 0L,
     )
 
-    fun timeEntry(r: V2Row) = TimeEntry(
+    fun timeEntry(r: V2Row, workerName: String? = null) = TimeEntry(
         id = r.str("id"),
         workerId = r.str("worker_id"),
         workOrderId = r.strOrNull("work_order_id"),
@@ -278,6 +279,11 @@ internal object V2MaintRows {
         end = r.longOrNull("during_end"),
         breakMinutes = r.intOrNull("break_minutes") ?: 0,
         status = r.strOrNull("status") ?: "open",
+        workerName = workerName,
+        notes = r.strOrNull("notes"),
+        rejectReason = r.strOrNull("reject_reason"),
+        approvedAt = r.longOrNull("approved_at"),
+        version = r.longOrNull("version") ?: 0L,
     )
 
     fun downtime(raw: String?): DowntimeKind? = DowntimeKind.fromWire(raw)

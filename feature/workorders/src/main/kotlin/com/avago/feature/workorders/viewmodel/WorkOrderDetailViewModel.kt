@@ -1,6 +1,5 @@
 package com.avago.feature.workorders.viewmodel
 
-import com.avago.core.data.domain.SyncRepository
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -16,14 +15,17 @@ import com.avago.core.ai.ScreenContextStore
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.FormFillRouter
 import com.avago.core.data.Formatters
+import com.avago.core.data.domain.ApprovalRequest
 import com.avago.core.data.domain.ChecklistItem
 import com.avago.core.data.domain.Location
 import com.avago.core.data.domain.LocationRepository
 import com.avago.core.data.domain.PmFilter
 import com.avago.core.data.domain.PmOccurrence
 import com.avago.core.data.domain.PmRepository
-import com.avago.core.data.domain.Worker
-import com.avago.core.data.domain.WorkerRepository
+import com.avago.core.data.domain.RecurrenceRule
+import com.avago.core.data.domain.SyncRepository
+import com.avago.core.data.domain.TimeEntry
+import com.avago.core.data.domain.TimeEntryDraft
 import com.avago.core.data.domain.WorkOrder
 import com.avago.core.data.domain.WorkOrderAssignment
 import com.avago.core.data.domain.WorkOrderComment
@@ -31,8 +33,12 @@ import com.avago.core.data.domain.WorkOrderDetail
 import com.avago.core.data.domain.WorkOrderRepository
 import com.avago.core.data.domain.WorkOrderStatus
 import com.avago.core.data.domain.WorkOrderTemplateDraft
+import com.avago.core.data.domain.Worker
+import com.avago.core.data.domain.WorkerRepository
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
+import com.avago.core.network.model.WorkOrderAuditEntry
+import com.avago.core.network.model.WorkOrderBudget
 import com.avago.core.permissions.Permissions
 import com.avago.core.permissions.PermissionsManager
 import com.avago.feature.workorders.R
@@ -50,6 +56,7 @@ import com.avago.feature.workorders.model.WoStatus
 import com.avago.feature.workorders.model.WoVendor
 import com.avago.feature.workorders.model.isChecklistRowRequired
 import com.avago.feature.workorders.model.parseWoAttributes
+import com.avago.feature.workorders.model.slaPolicyOf
 import com.avago.feature.workorders.model.validateCloseout
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -197,8 +204,11 @@ class WorkOrderDetailViewModel @Inject constructor(
     val codes: StateFlow<Map<WoCodeKind, List<WoCode>>> = closeoutSupport.codes
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WoCloseoutSupport.DEFAULT_CODES)
 
-    /** Default SLA windows; per-work-order overrides live in `attributes.sla`. */
-    val slaPolicy: StateFlow<Map<String, SlaWindow>> = MutableStateFlow(DEFAULT_SLA_POLICY).asStateFlow()
+    /** The account's SLA windows over defaults; per-work-order overrides live in `attributes.sla`. */
+    val slaPolicy: StateFlow<Map<String, SlaWindow>> = repository.observeSlaPolicies()
+        .map(::slaPolicyOf)
+        .catch { e -> Timber.e(e, "[WoDetailVM] sla policies flow error"); emit(DEFAULT_SLA_POLICY) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DEFAULT_SLA_POLICY)
 
     val closeoutOptions: StateFlow<WoCloseoutOptions> = closeoutSupport.options
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), WoCloseoutOptions())
@@ -253,12 +263,13 @@ class WorkOrderDetailViewModel @Inject constructor(
             try { sync.syncNow() } catch (e: Exception) {
                 Timber.e(e, "[WoDetailVM] sync failed")
             }
+            loadOnlineDetails()
             _isRefreshing.value = false
         }
     }
 
     // ---------------------------------------------------------------------------
-    // Approval workflow: pending_approval -> open (approve) or cancelled (reject)
+    // Intake approval: pending_approval -> open (approve) or cancelled (reject)
     // ---------------------------------------------------------------------------
 
     fun approveWorkOrder() = launchAction("approve", R.string.wo_error_approve_failed) {
@@ -267,6 +278,84 @@ class WorkOrderDetailViewModel @Inject constructor(
 
     fun rejectWorkOrder() = launchAction("reject", R.string.wo_error_reject_failed) {
         repository.transition(woId, WorkOrderStatus.CANCELLED)
+    }
+
+    // ---------------------------------------------------------------------------
+    // Cost approvals (approval_requests): one decision per approver
+    // ---------------------------------------------------------------------------
+
+    /** The signed-in user, to hide decide buttons after their own decision. */
+    val myUserId: String? get() = identityManager.getActiveUserId()
+
+    /** The open cost-approval request on this work order, if any. */
+    val pendingApproval: StateFlow<ApprovalRequest?> = detail.map { d -> d?.approvalRequests?.firstOrNull { it.isPending } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun decideApproval(approve: Boolean, notes: String) {
+        val request = pendingApproval.value ?: return
+        launchSaving("decideApproval", if (approve) R.string.wo_error_approve_failed else R.string.wo_error_reject_failed) {
+            repository.decideApproval(request.id, approve, notes.trim().ifBlank { null })
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Recurrence
+    // ---------------------------------------------------------------------------
+
+    fun setRecurrence(rule: RecurrenceRule) =
+        launchSaving("setRecurrence", R.string.wo_error_save_failed) { repository.setRecurrence(woId, rule) }
+
+    fun stopRecurrence() = setRecurrence(RecurrenceRule(rrule = ""))
+
+    // ---------------------------------------------------------------------------
+    // Time entries
+    // ---------------------------------------------------------------------------
+
+    val timeEntries: StateFlow<List<TimeEntry>> = detail.map { d -> d?.timeEntries.orEmpty().sortedByDescending { it.start } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val myWorkerId: StateFlow<String?> = detail.map { it?.myWorkerId }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun logTime(draft: TimeEntryDraft) =
+        launchSaving("logTime", R.string.wo_error_save_failed) { repository.logTime(woId, draft) }
+
+    fun updateTimeEntry(id: String, draft: TimeEntryDraft) =
+        launchSaving("updateTimeEntry", R.string.wo_error_save_failed) { repository.updateTimeEntry(id, draft) }
+
+    fun deleteTimeEntry(id: String) =
+        launchAction("deleteTimeEntry", R.string.wo_error_save_failed) { repository.deleteTimeEntry(id) }
+
+    fun approveTimeEntry(id: String) =
+        launchAction("approveTimeEntry", R.string.wo_error_approve_failed) { repository.approveTimeEntry(id) }
+
+    fun rejectTimeEntry(id: String, reason: String) {
+        if (reason.isBlank()) return
+        launchAction("rejectTimeEntry", R.string.wo_error_reject_failed) { repository.rejectTimeEntry(id, reason.trim()) }
+    }
+
+    // ---------------------------------------------------------------------------
+    // History and budgets (online reads, not synced)
+    // ---------------------------------------------------------------------------
+
+    private val _history = MutableStateFlow<List<WorkOrderAuditEntry>>(emptyList())
+    val history: StateFlow<List<WorkOrderAuditEntry>> = _history.asStateFlow()
+
+    private val _budgets = MutableStateFlow<List<WorkOrderBudget>>(emptyList())
+    val budgets: StateFlow<List<WorkOrderBudget>> = _budgets.asStateFlow()
+
+    private fun loadOnlineDetails() {
+        viewModelScope.launch {
+            val accountId = identityManager.getActiveAccountId() ?: return@launch
+            when (val r = serviceClient.getWorkOrderAudit(accountId, woId)) {
+                is NetworkResult.Success -> _history.value = r.data.entries
+                else -> Timber.w("[WoDetailVM] audit unavailable: %s", r)
+            }
+            when (val r = serviceClient.getWorkOrderBudgets(accountId, woId)) {
+                is NetworkResult.Success -> _budgets.value = r.data.budgets
+                else -> Timber.w("[WoDetailVM] budgets unavailable: %s", r)
+            }
+        }
     }
 
     // ---------------------------------------------------------------------------
@@ -337,11 +426,8 @@ class WorkOrderDetailViewModel @Inject constructor(
         launchSaving("transitionStatus") { repository.transition(woId, targetStatus.domain) }
     }
 
-    /** Assigns the work order to the signed-in user as lead; the server rejects the claim if someone else got it first. */
-    fun claimWorkOrder() {
-        val userId = identityManager.getActiveUserId() ?: return
-        launchSaving("claim", R.string.wo_error_claim_failed) { repository.assign(woId, userId, lead = true) }
-    }
+    /** Claims the open work order for the signed-in worker; the server rejects the claim if someone else got it first. */
+    fun claimWorkOrder() = launchSaving("claim", R.string.wo_error_claim_failed) { repository.claim(woId) }
 
     /** Assigns the technician with user id [techUserId]. */
     fun assignTech(techUserId: String, lead: Boolean = true) =
@@ -400,9 +486,14 @@ class WorkOrderDetailViewModel @Inject constructor(
         }
     }
 
-    fun reschedule(newDate: java.time.LocalDate) {
+    /** Moves the due date and sets (or clears, when null) the planned work window. */
+    fun reschedule(newDate: java.time.LocalDate, plannedWindow: Pair<Long, Long>?) {
         val dueMs = newDate.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-        launchSaving("reschedule") { repository.edit(woId) { it.copy(dueAt = dueMs) } }
+        launchSaving("reschedule", R.string.wo_error_save_failed) {
+            repository.edit(woId) {
+                it.copy(dueAt = dueMs, plannedStart = plannedWindow?.first, plannedEnd = plannedWindow?.second)
+            }
+        }
     }
 
     fun exportPdf(context: Context) {
@@ -470,6 +561,7 @@ class WorkOrderDetailViewModel @Inject constructor(
             changed
         }
         resolveWorkOrderThread()
+        loadOnlineDetails()
     }
 
     override fun onCleared() {

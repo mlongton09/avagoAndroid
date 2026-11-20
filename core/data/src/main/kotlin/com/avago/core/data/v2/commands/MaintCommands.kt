@@ -350,6 +350,7 @@ object MaintCommands {
             quantity = draft.quantity,
             unitCost = draft.unitCost,
             taxAmountMinor = draft.taxAmountMinor,
+            glAccountId = draft.glAccountId,
             costStatus = if (draft.estimate) CostStatus.ESTIMATE else CostStatus.ACTUAL,
             notes = draft.notes.clean(),
         )
@@ -364,6 +365,7 @@ object MaintCommands {
             "quantity_micros" to V2Micros.fromDecimal(draft.quantity),
             "unit_cost" to draft.unitCost?.toPlainString(),
             "tax_amount_minor" to draft.taxAmountMinor,
+            "gl_account_id" to draft.glAccountId,
             "overtime" to 0L,
             "cost_status" to payload.costStatus?.wire,
             "notes" to payload.notes,
@@ -396,13 +398,14 @@ object MaintCommands {
         val quantity = d.decimal("quantity", stored.quantity, draft.quantity, column = "quantity_micros", toColumn = V2Micros::fromDecimal)
         val unitCost = d.decimal("unit_cost", stored.unitCost, draft.unitCost)
         val tax = d.field("tax_amount_minor", stored.taxAmountMinor, draft.taxAmountMinor)
+        val glAccount = d.text("gl_account_id", stored.glAccountId, draft.glAccountId)
         val status = d.text("cost_status", stored.costStatus, if (draft.estimate) CostStatus.ESTIMATE.wire else CostStatus.ACTUAL.wire)
         val notes = d.text("notes", stored.notes, draft.notes)
         d.check()
         if (d.isEmpty) return null
         val payload = MaintActivityCostLinesUpdate(
             id = stored.id, productId = product, performerUserId = performer, description = description, quantity = quantity,
-            unitCost = unitCost, taxAmountMinor = tax, costStatus = status?.let { s -> CostStatus.entries.first { it.wire == s } },
+            unitCost = unitCost, taxAmountMinor = tax, glAccountId = glAccount, costStatus = status?.let { s -> CostStatus.entries.first { it.wire == s } },
             notes = notes, clear = d.clear,
         )
         return payload.toNewCommand(

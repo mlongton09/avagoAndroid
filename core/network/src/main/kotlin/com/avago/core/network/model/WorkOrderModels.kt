@@ -64,3 +64,34 @@ data class KpiSummaryResponse(
     val open_wo_by_priority: List<OpenWoByPriority>,
     val generated_at: String,
 )
+
+/** One `platform.audit_events` row of a work order (`GET .../work-orders/{id}/audit`). */
+@Serializable
+data class WorkOrderAuditEntry(
+    val audit_id: String,
+    val created_at: String,
+    val actor_type: String? = null,
+    val actor_id: String? = null,
+    val action_type: String? = null,
+    val description: String? = null,
+)
+
+@Serializable
+data class WorkOrderAuditResponse(val entries: List<WorkOrderAuditEntry> = emptyList())
+
+/** An active budget covering a work order (`GET .../work-orders/{id}/budget-pill`). */
+@Serializable
+data class WorkOrderBudget(
+    val budget_id: String,
+    val name: String,
+    val amount: Double,
+    val actual: Double,
+    val remaining: Double,
+    val currency: String,
+    val percent_used: Double,
+    val period_start: String? = null,
+    val period_end: String? = null,
+)
+
+@Serializable
+data class WorkOrderBudgetsResponse(val budgets: List<WorkOrderBudget> = emptyList())

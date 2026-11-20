@@ -2,24 +2,32 @@ package com.avago.core.data.v2.repo
 
 import android.net.Uri
 import com.avago.core.data.domain.ActivityFilter
+import com.avago.core.data.domain.ApprovalDecision
+import com.avago.core.data.domain.ApprovalRequest
 import com.avago.core.data.domain.AttachmentTarget
 import com.avago.core.data.domain.ChecklistItem
 import com.avago.core.data.domain.CostLineDraft
 import com.avago.core.data.domain.LocalFileRef
 import com.avago.core.data.domain.PermitSignature
+import com.avago.core.data.domain.Project
 import com.avago.core.data.domain.RcaDraft
 import com.avago.core.data.domain.RcaReport
 import com.avago.core.data.domain.RecordNotFoundException
+import com.avago.core.data.domain.RecurrenceRule
+import com.avago.core.data.domain.SlaPolicy
+import com.avago.core.data.domain.TimeEntry
+import com.avago.core.data.domain.TimeEntryDraft
 import com.avago.core.data.domain.TimerAction
 import com.avago.core.data.domain.WorkOrder
 import com.avago.core.data.domain.WorkOrderAssignment
 import com.avago.core.data.domain.WorkOrderComment
-import com.avago.core.data.domain.WorkOrderComplexity
 import com.avago.core.data.domain.WorkOrderCompletion
+import com.avago.core.data.domain.WorkOrderComplexity
 import com.avago.core.data.domain.WorkOrderDetail
 import com.avago.core.data.domain.WorkOrderDraft
 import com.avago.core.data.domain.WorkOrderFilter
 import com.avago.core.data.domain.WorkOrderPriority
+import com.avago.core.data.domain.WorkOrderRecurrence
 import com.avago.core.data.domain.WorkOrderRepository
 import com.avago.core.data.domain.WorkOrderStatus
 import com.avago.core.data.domain.WorkOrderTemplate
@@ -52,6 +60,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import java.io.File
 import java.math.BigDecimal
+import java.time.LocalDate
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -290,7 +299,70 @@ class V2WorkOrderRepository @Inject constructor(
         return id
     }
 
+    override suspend fun claim(id: String) {
+        val userId = commands.currentUserId()
+        val (stored, me) = store.read(null) { conn ->
+            val wo = byId(conn, id) ?: return@read null
+            wo to V2MaintRows.workerByUser(conn, userId)?.id
+        } ?: throw RecordNotFoundException("work order", id)
+        commands.submit(WorkOrderCommands.claim(stored, me, System.currentTimeMillis()))
+    }
+
+    override suspend fun setRecurrence(id: String, rule: RecurrenceRule) {
+        val current = store.read(null) { conn -> recurrence(conn, id) }
+        commands.submit(WorkOrderCommands.setRecurrence(id, rule, current, System.currentTimeMillis()))
+    }
+
+    override suspend fun decideApproval(requestId: String, approve: Boolean, notes: String?) {
+        val request = store.read(null) { conn ->
+            approvalRequests(conn, "id = ?", listOf(requestId)) { it["id"] == requestId }.firstOrNull()
+        } ?: throw RecordNotFoundException("approval request", requestId)
+        val now = System.currentTimeMillis()
+        commands.submit(WorkOrderCommands.decideApproval(request, approve, notes, V2Uuid.v7(now), now, commands.currentUserId()))
+    }
+
+    override suspend fun logTime(workOrderId: String, draft: TimeEntryDraft): String {
+        val userId = commands.currentUserId()
+        val me = store.read(null) { conn -> V2MaintRows.workerByUser(conn, userId)?.id }
+        val now = System.currentTimeMillis()
+        val id = V2Uuid.v7(now)
+        commands.submit(WorkOrderCommands.logTime(id, workOrderId, draft, me, now, userId))
+        return id
+    }
+
+    override suspend fun updateTimeEntry(id: String, draft: TimeEntryDraft) {
+        WorkOrderCommands.updateTimeEntry(timeEntry(id), draft, System.currentTimeMillis())?.let { commands.submit(it) }
+    }
+
+    override suspend fun deleteTimeEntry(id: String) {
+        commands.submit(WorkOrderCommands.deleteTimeEntry(timeEntry(id)))
+    }
+
+    override suspend fun approveTimeEntry(id: String) {
+        commands.submit(WorkOrderCommands.approveTimeEntry(timeEntry(id), System.currentTimeMillis(), commands.currentUserId()))
+    }
+
+    override suspend fun rejectTimeEntry(id: String, reason: String) {
+        commands.submit(WorkOrderCommands.rejectTimeEntry(timeEntry(id), reason, System.currentTimeMillis()))
+    }
+
+    override fun observeProjects(): Flow<List<Project>> = store.observe(setOf("projects"), emptyList()) { conn -> projects(conn) }
+
+    override fun observeSlaPolicies(): Flow<List<SlaPolicy>> = store.observe(setOf("work_order_sla_policies"), emptyList()) { conn ->
+        V2OverlayMerge.query(conn, "work_order_sla_policies").map {
+            SlaPolicy(
+                priority = WorkOrderPriority.fromWire(it.strOrNull("priority")),
+                respondHours = it.intOrNull("respond_hours"),
+                resolveHours = it.intOrNull("resolve_hours"),
+            )
+        }
+    }
+
     // ------------------------------------------------------------------ helpers
+
+    private suspend fun timeEntry(id: String): TimeEntry = store.read(null) { conn ->
+        V2OverlayMerge.query(conn, "time_entries", "id = ?", listOf(id)) { it["id"] == id }.firstOrNull()?.let { V2MaintRows.timeEntry(it) }
+    } ?: throw RecordNotFoundException("time entry", id)
 
     private class Context(val stored: WorkOrder, val attributes: String?, val assignedUserId: String?, val lookups: WorkOrderLookups)
 
@@ -317,11 +389,80 @@ class V2WorkOrderRepository @Inject constructor(
     } ?: throw RecordNotFoundException("work permit", id)
 
     internal companion object {
-        val LIST_TABLES = setOf("work_orders", "work_order_assets", "assets", "locations", "categories", "workers", "reference_values", "activity_records")
+        val LIST_TABLES = setOf(
+            "work_orders", "work_order_assets", "assets", "locations", "categories", "workers", "reference_values", "activity_records", "projects",
+        )
         val DETAIL_TABLES = LIST_TABLES + setOf(
             "work_order_assignments", "procedure_instances", "procedure_responses", "procedure_template_rows", "comments",
             "activity_cost_lines", "meter_readings", "work_permits", "signatures", "rca_reports", "attachments", "files", "time_entries",
+            "approval_requests", "approval_decisions", "pm_occurrences", "pm_plans", "pm_triggers",
         )
+
+        fun projects(conn: V2Connection): List<Project> = V2OverlayMerge.query(conn, "projects").map { r ->
+            Project(
+                id = r.str("id"),
+                number = r.strOrNull("number"),
+                name = r.str("name"),
+                customerName = r.strOrNull("customer_name_snapshot"),
+                status = r.strOrNull("status") ?: "active",
+                budgetMinor = r.longOrNull("budget_minor"),
+                currency = r.strOrNull("currency"),
+            )
+        }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.number ?: it.name })
+
+        fun approvalRequests(conn: V2Connection, where: String, args: List<Any?>, predicate: (V2Row) -> Boolean): List<ApprovalRequest> {
+            val rows = V2OverlayMerge.query(conn, "approval_requests", where, args, predicate)
+            if (rows.isEmpty()) return emptyList()
+            val ids = rows.map { it.str("id") }.toSet()
+            val decisions = V2OverlayMerge.query(conn, "approval_decisions") { it["request_id"] in ids }
+                .filter { it.str("request_id") in ids }
+                .groupBy { it.str("request_id") }
+            return rows.map { r ->
+                ApprovalRequest(
+                    id = r.str("id"),
+                    subjectKind = r.str("subject_kind"),
+                    workOrderId = r.strOrNull("work_order_id"),
+                    purchaseOrderId = r.strOrNull("purchase_order_id"),
+                    requestedAmountMinor = r.longOrNull("requested_amount_minor"),
+                    currency = r.strOrNull("currency"),
+                    status = r.strOrNull("status") ?: ApprovalRequest.STATUS_PENDING,
+                    requestedBy = r.strOrNull("requested_by"),
+                    requestedAt = r.longOrNull("requested_at"),
+                    assignedApproverUserId = r.strOrNull("assigned_approver_user_id"),
+                    decidedAt = r.longOrNull("decided_at"),
+                    decisions = decisions[r.str("id")].orEmpty().map { d ->
+                        ApprovalDecision(
+                            id = d.str("id"),
+                            approverUserId = d.str("approver_user_id"),
+                            decision = d.str("decision"),
+                            comment = d.strOrNull("comment"),
+                            decidedAt = d.longOrNull("decided_at") ?: 0L,
+                        )
+                    }.sortedBy { it.decidedAt },
+                )
+            }.sortedByDescending { it.requestedAt ?: 0L }
+        }
+
+        /** The calendar recurrence of the PM plan whose occurrence [workOrderId] is. */
+        fun recurrence(conn: V2Connection, workOrderId: String): WorkOrderRecurrence? {
+            val planId = V2OverlayMerge.query(conn, "pm_occurrences", "work_order_id = ?", listOf(workOrderId)) { it["work_order_id"] == workOrderId }
+                .firstOrNull()?.strOrNull("pm_plan_id") ?: return null
+            val plan = V2OverlayMerge.query(conn, "pm_plans", "id = ?", listOf(planId)) { it["id"] == planId }.firstOrNull() ?: return null
+            val trigger = V2OverlayMerge.query(conn, "pm_triggers", "pm_plan_id = ? AND kind = 'calendar'", listOf(planId)) {
+                it["pm_plan_id"] == planId && it["kind"] == "calendar"
+            }.minByOrNull { it.longOrNull("created_at") ?: 0L }
+            val rrule = trigger?.strOrNull("rrule").orEmpty()
+            return WorkOrderRecurrence(
+                planId = planId,
+                triggerId = trigger?.str("id"),
+                rrule = rrule,
+                endType = plan.strOrNull("end_type") ?: "never",
+                endCount = plan.intOrNull("end_count"),
+                endOnEpochDay = plan.strOrNull("end_on")?.let { runCatching { LocalDate.parse(it).toEpochDay() }.getOrNull() },
+                timezone = plan.strOrNull("timezone"),
+                active = plan.bool("active") && rrule.isNotEmpty(),
+            )
+        }
 
         fun lookups(conn: V2Connection): WorkOrderLookups {
             val categories = V2OverlayMerge.query(conn, "categories", "kind = 'work_order'") { it["kind"] == "work_order" }
@@ -367,6 +508,7 @@ class V2WorkOrderRepository @Inject constructor(
             val locations = conn.query("SELECT id, name FROM locations").associate { it.str("id") to it.str("name") }
             val categories = V2OverlayMerge.query(conn, "categories").associate { it.str("id") to it.str("name") }
             val workers = V2MaintRows.workers(conn).associate { it.id to it.displayName }
+            val projects = V2OverlayMerge.query(conn, "projects").associate { it.str("id") to it.str("name") }
             val codes = V2OverlayMerge.query(conn, "reference_values").associate { it.str("id") to it.str("code") }
             val completionIds = rows.mapNotNull { it.strOrNull("completion_activity_id") }.toSet()
             val completionNotes = if (completionIds.isEmpty()) {
@@ -396,6 +538,8 @@ class V2WorkOrderRepository @Inject constructor(
                     assignedTeamId = r.strOrNull("assigned_team_id"),
                     locationId = r.strOrNull("location_id"),
                     locationName = r.strOrNull("location_id")?.let(locations::get),
+                    projectId = r.strOrNull("project_id"),
+                    projectName = r.strOrNull("project_id")?.let(projects::get),
                     assetIds = assetIds,
                     primaryAssetName = assetIds.firstOrNull()?.let(assetNames::get),
                     dueAt = r.longOrNull("due_at"),
@@ -442,7 +586,8 @@ class V2WorkOrderRepository @Inject constructor(
             }
             val lines = V2MaintRows.costLines(conn, null, emptyList()) { true }
                 .filter { it.workOrderId == id || (wo.completionActivityId != null && it.activityId == wo.completionActivityId) }
-            val entries = timeEntries(conn, id)
+            val workerNames = workers.associate { it.id to it.displayName }
+            val entries = timeEntries(conn, id, workerNames)
             val me = workers.firstOrNull { userId != null && it.userId == userId }
             return WorkOrderDetail(
                 workOrder = wo,
@@ -459,6 +604,9 @@ class V2WorkOrderRepository @Inject constructor(
                 attachments = V2MaintRows.attachments(conn, "work_order_id = ?", listOf(id), { it["work_order_id"] == id }, localFile),
                 timeEntries = entries.sortedByDescending { it.start },
                 myRunningTimer = me?.let { m -> entries.firstOrNull { it.workerId == m.id && it.isRunning } },
+                myWorkerId = me?.id,
+                approvalRequests = approvalRequests(conn, "work_order_id = ?", listOf(id)) { it["work_order_id"] == id },
+                recurrence = recurrence(conn, id),
             )
         }
 
@@ -582,9 +730,9 @@ class V2WorkOrderRepository @Inject constructor(
             version = r.longOrNull("version") ?: 0L,
         )
 
-        fun timeEntries(conn: V2Connection, workOrderId: String) =
+        fun timeEntries(conn: V2Connection, workOrderId: String, workerNames: Map<String, String> = emptyMap()) =
             V2OverlayMerge.query(conn, "time_entries", "work_order_id = ?", listOf(workOrderId)) { it["work_order_id"] == workOrderId }
-                .map(V2MaintRows::timeEntry)
+                .map { V2MaintRows.timeEntry(it, workerNames[it.strOrNull("worker_id")]) }
 
         fun templates(conn: V2Connection): List<WorkOrderTemplate> {
             val categories = V2OverlayMerge.query(conn, "categories").associate { it.str("id") to it.str("name") }

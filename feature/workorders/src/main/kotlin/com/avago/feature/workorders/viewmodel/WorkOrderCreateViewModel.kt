@@ -7,14 +7,15 @@ import com.avago.core.data.FormFillRouter
 import com.avago.core.data.domain.Asset
 import com.avago.core.data.domain.AssetRepository
 import com.avago.core.data.domain.LocationRepository
+import com.avago.core.data.domain.Project
 import com.avago.core.data.domain.ReferenceRepository
-import com.avago.core.data.domain.Worker
-import com.avago.core.data.domain.WorkerRepository
 import com.avago.core.data.domain.WorkOrderDraft
 import com.avago.core.data.domain.WorkOrderFilter
 import com.avago.core.data.domain.WorkOrderPriority
 import com.avago.core.data.domain.WorkOrderRepository
 import com.avago.core.data.domain.WorkOrderTemplate
+import com.avago.core.data.domain.Worker
+import com.avago.core.data.domain.WorkerRepository
 import com.avago.feature.workorders.model.WO_KEY_SOURCE
 import com.avago.feature.workorders.model.WoPriority
 import com.avago.feature.workorders.model.woSourceJson
@@ -23,6 +24,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -91,6 +93,12 @@ class WorkOrderCreateViewModel @Inject constructor(
     val assignedTechIds = MutableStateFlow<List<String>>(emptyList())
     val checklistDrafts = MutableStateFlow<List<ChecklistDraft>>(emptyList())
     val selectedTemplateId = MutableStateFlow<String?>(null)
+    val projectId = MutableStateFlow<String?>(null)
+
+    /** Active jobs a work order can be booked to; the current one stays listed whatever its status. */
+    val projects: StateFlow<List<Project>> = combine(repository.observeProjects(), projectId) { list, selected ->
+        list.filter { it.status == PROJECT_ACTIVE || it.id == selected }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val availableCategories: StateFlow<List<String>> = references.observeCategories("work_order")
         .map { list -> list.map { it.name }.distinct() }
@@ -153,6 +161,7 @@ class WorkOrderCreateViewModel @Inject constructor(
         extraAssetIds.value = wo.assetIds.drop(1)
         locationId.value = wo.locationId
         locationName.value = wo.locationName
+        projectId.value = wo.projectId
         dueDateMs.value = wo.dueAt
         priority.value = WoPriority.fromKey(wo.priority.wire)
         estimatedHours.value = wo.estimatedEffortMinutes?.let(::minutesToHoursText).orEmpty()
@@ -297,9 +306,17 @@ class WorkOrderCreateViewModel @Inject constructor(
                     requiredSkills = requiredSkills.value,
                     estimatedEffortMinutes = hoursTextToMinutes(estimatedHours.value),
                     dueAt = dueDateMs.value,
+                    projectId = projectId.value,
                 )
                 val woId = editingWoId?.also { id ->
-                    repository.edit(id) { stored -> draft.copy(complexity = stored.complexity, dispatcherNotes = stored.dispatcherNotes) }
+                    repository.edit(id) { stored ->
+                        draft.copy(
+                            complexity = stored.complexity,
+                            dispatcherNotes = stored.dispatcherNotes,
+                            plannedStart = stored.plannedStart,
+                            plannedEnd = stored.plannedEnd,
+                        )
+                    }
                 } ?: repository.create(draft, pendingSource?.let { mapOf(WO_KEY_SOURCE to it) }.orEmpty())
 
                 // Further assignees (the lead goes with the work order itself).
@@ -332,6 +349,8 @@ class WorkOrderCreateViewModel @Inject constructor(
 }
 
 /** "1.5" hours ? 90 minutes; blank or invalid ? null. */
+private const val PROJECT_ACTIVE = "active"
+
 internal fun hoursTextToMinutes(text: String): Int? =
     text.trim().replace(',', '.').toBigDecimalOrNull()
         ?.takeIf { it.signum() > 0 }

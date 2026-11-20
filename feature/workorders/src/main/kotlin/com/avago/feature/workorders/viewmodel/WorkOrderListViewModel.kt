@@ -331,10 +331,11 @@ class WorkOrderListViewModel @Inject constructor(
         }
     }
 
-    fun rescheduleWo(woId: String, newDueDateMs: Long) {
+    /** Moves the due date and sets (or clears, when null) the planned work window. */
+    fun rescheduleWo(woId: String, newDueDateMs: Long, plannedWindow: Pair<Long, Long>?) {
         viewModelScope.launch {
             try {
-                repository.edit(woId) { it.copy(dueAt = newDueDateMs) }
+                repository.edit(woId) { it.copy(dueAt = newDueDateMs, plannedStart = plannedWindow?.first, plannedEnd = plannedWindow?.second) }
             } catch (e: Exception) {
                 Timber.e(e, "[WoListVM] reschedule failed")
                 _syncError.value = appContext.getString(R.string.wo_error_save_failed)

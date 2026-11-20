@@ -156,4 +156,12 @@ interface ActivityRepository {
     suspend fun deleteCostLine(lineId: String)
 
     suspend fun updateDefect(id: String, status: DefectState, resolutionNote: String?)
+
+    /** Active general-ledger accounts for cost-line coding. */
+    fun observeGlAccounts(): Flow<List<GlAccount>>
+}
+
+/** A general-ledger account (`gl_accounts`). */
+data class GlAccount(val id: String, val code: String, val name: String, val accountType: String?) {
+    val label: String get() = "$code \u00b7 $name"
 }

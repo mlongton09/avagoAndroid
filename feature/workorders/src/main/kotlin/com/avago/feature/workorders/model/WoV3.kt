@@ -1,6 +1,7 @@
 package com.avago.feature.workorders.model
 
 import com.avago.core.data.domain.ReferenceValue
+import com.avago.core.data.domain.SlaPolicy
 import com.avago.core.data.domain.TimeEntry
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -379,6 +380,17 @@ fun parseSlaPolicy(body: JsonElement?): Map<String, SlaWindow> {
         val base = out[prio] ?: SlaWindow(Double.NaN, Double.NaN)
         val w = SlaWindow(o.num("respond_hours") ?: base.respondHours, o.num("resolve_hours") ?: base.resolveHours)
         if (!w.respondHours.isNaN() && !w.resolveHours.isNaN()) out[prio] = w
+    }
+    return out
+}
+
+/** Merges the account's synced `work_order_sla_policies` over defaults; null hours keep the default. */
+fun slaPolicyOf(policies: List<SlaPolicy>): Map<String, SlaWindow> {
+    val out = DEFAULT_SLA_POLICY.toMutableMap()
+    for (p in policies) {
+        val base = out[p.priority.wire] ?: SlaWindow(Double.NaN, Double.NaN)
+        val w = SlaWindow(p.respondHours?.toDouble() ?: base.respondHours, p.resolveHours?.toDouble() ?: base.resolveHours)
+        if (!w.respondHours.isNaN() && !w.resolveHours.isNaN()) out[p.priority.wire] = w
     }
     return out
 }
