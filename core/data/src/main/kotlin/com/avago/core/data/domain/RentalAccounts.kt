@@ -141,10 +141,13 @@ data class RentalContract(
     val terminationReason: String?,
     val notes: String?,
 ) {
-    /** Rent-to-own contracts have a buy-out and an equity statement. */
-    val ownsEquity: Boolean get() = purchasePriceMinor != null && equityBp != null
+    /** Rent-to-own contracts have a buy-out quote and an equity statement. */
+    val ownsEquity: Boolean get() = kind == "rent_to_own"
 
-    val buyable: Boolean get() = ownsEquity && boughtOutAt == null && terminatedAt == null && status == "active"
+    /** Still running (server `LIVE`): active or under notice. */
+    val live: Boolean get() = status == "active" || status == "notice_given"
+
+    val buyable: Boolean get() = ownsEquity && boughtOutAt == null && terminatedAt == null && live
 }
 
 data class SignatureSigner(

@@ -307,4 +307,7 @@
     <string name="rentals_reason_open_work_order">Åpen arbeidsordre</string>
     <string name="rentals_reason_readiness_checklist">Klarsjekk åpen</string>
     <string name="rentals_reason_maintenance_open">Under vedlikehold</string>
+    <string name="rentals_payer_email">Betalers e-post</string>
+    <string name="rentals_readiness_add_photo_for">Legg til bilde for %1$s</string>
+    <string name="rentals_readiness_photo_count">Bilder: %1$d</string>
 </resources>

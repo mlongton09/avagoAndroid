@@ -307,4 +307,7 @@
     <string name="rentals_reason_open_work_order">Orden de trabajo abierta</string>
     <string name="rentals_reason_readiness_checklist">Control de disponibilidad pendiente</string>
     <string name="rentals_reason_maintenance_open">En mantenimiento</string>
+    <string name="rentals_payer_email">Correo del pagador</string>
+    <string name="rentals_readiness_add_photo_for">Añadir foto de %1$s</string>
+    <string name="rentals_readiness_photo_count">Fotos: %1$d</string>
 </resources>

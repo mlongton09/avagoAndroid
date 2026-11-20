@@ -1,6 +1,5 @@
 package com.avago.feature.rentals.ui
 
-import androidx.compose.runtime.setValue
 import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -46,6 +45,7 @@ import androidx.compose.material.icons.filled.PauseCircle
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonOff
+import androidx.compose.material.icons.filled.PriceChange
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.TaskAlt
@@ -77,6 +77,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
@@ -137,6 +139,7 @@ import com.avago.feature.rentals.domain.OrderStatus
 import com.avago.feature.rentals.domain.OrderView
 import com.avago.feature.rentals.domain.OrderWorklist
 import com.avago.feature.rentals.domain.OrderWorklistState
+import com.avago.feature.rentals.domain.Subrentals
 import com.avago.feature.rentals.domain.observeOrderWorklist
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -159,7 +162,7 @@ import java.time.Instant
 import java.time.ZoneId
 import javax.inject.Inject
 
-// â”€â”€ Orders list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Orders list ──────────────────────────────────────────────────────────────────────
 
 @HiltViewModel
 class RentalOrdersViewModel @Inject constructor(
@@ -308,7 +311,7 @@ fun RentalOrdersScreen(
                             modifier = Modifier.padding(horizontal = AvagoSpacing.cardHorizontal, vertical = AvagoSpacing.cardVertical),
                         ) {
                             Text(
-                                balances.joinToString(" Â· ") { "${it.currency} ${formatMoney(it)}" },
+                                balances.joinToString(" · ") { "${it.currency} ${formatMoney(it)}" },
                                 modifier = Modifier.padding(AvagoSpacing.md),
                                 style = MaterialTheme.typography.titleMedium,
                             )
@@ -413,7 +416,7 @@ private fun OrderRow(o: OrderView, zone: ZoneId, modifier: Modifier = Modifier, 
                     Text(formatMoney(o.total), style = MaterialTheme.typography.titleSmall, textAlign = TextAlign.End)
                 }
                 Text(
-                    "${formatDateTime(o.startAt, zone)} â†’ ${formatDateTime(o.endAt, zone)}",
+                    "${formatDateTime(o.startAt, zone)} → ${formatDateTime(o.endAt, zone)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -429,7 +432,7 @@ private fun OrderRow(o: OrderView, zone: ZoneId, modifier: Modifier = Modifier, 
     }
 }
 
-// â”€â”€ Order detail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Order detail ─────────────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -537,6 +540,7 @@ fun RentalOrderScreen(
     onAddDocument: ((customerId: String) -> Unit)? = null,
     viewModel: RentalOrderViewModel = hiltViewModel(),
     wave2: OrderWave2ViewModel = hiltViewModel(),
+    accounts: OrderAccountsViewModel = hiltViewModel(),
 ) {
     val order by viewModel.order.collectAsStateWithLifecycle()
     val allowedActions by viewModel.allowedActions.collectAsStateWithLifecycle()
@@ -553,6 +557,18 @@ fun RentalOrderScreen(
     val paymentUnavailable by wave2.paymentUnavailable.collectAsStateWithLifecycle()
     val bulkReturns by wave2.bulkReturns.collectAsStateWithLifecycle()
     val wave2Busy by wave2.busy.collectAsStateWithLifecycle()
+    val postCharges by accounts.postCharges.collectAsStateWithLifecycle()
+    val ledger by accounts.ledger.collectAsStateWithLifecycle()
+    val contracts by accounts.contracts.collectAsStateWithLifecycle()
+    val buyouts by accounts.buyouts.collectAsStateWithLifecycle()
+    val signatureRequests by accounts.signatureRequests.collectAsStateWithLifecycle()
+    val subrentals by accounts.subrentals.collectAsStateWithLifecycle()
+    val abilities by accounts.abilities.collectAsStateWithLifecycle()
+    val postChargeForm by accounts.form.collectAsStateWithLifecycle()
+    val postChargeErrors by accounts.formErrors.collectAsStateWithLifecycle()
+    val accountsBusy by accounts.busy.collectAsStateWithLifecycle()
+    var showAdjust by rememberSaveable { mutableStateOf(false) }
+    val subrentedLineIds = remember(subrentals, lines) { Subrentals.lineIds(subrentals, lines) }
     var bulkReturn by remember { mutableStateOf<Pair<LineView, java.math.BigDecimal>?>(null) }
     val context = LocalContext.current
     val fees by viewModel.fees.collectAsStateWithLifecycle()
@@ -573,6 +589,24 @@ fun RentalOrderScreen(
         OrderWave2ViewModel.Msg.OFFLINE to stringResource(R.string.rentals_online_offline),
         OrderWave2ViewModel.Msg.BULK_SAVED to stringResource(R.string.rentals_bulk_queued),
         OrderWave2ViewModel.Msg.FAILED to stringResource(R.string.rentals_online_failed_generic),
+        OrderWave2ViewModel.Msg.LINK_SENT to stringResource(R.string.rentals_pay_link_sent),
+        OrderWave2ViewModel.Msg.LINK_READY to stringResource(R.string.rentals_pay_link_ready),
+        OrderWave2ViewModel.Msg.CHARGED to stringResource(R.string.rentals_gw_charged),
+        OrderWave2ViewModel.Msg.HOLD_PLACED to stringResource(R.string.rentals_gw_hold_placed),
+        OrderWave2ViewModel.Msg.PROCESSING to stringResource(R.string.rentals_gw_processing),
+        OrderWave2ViewModel.Msg.ACTION_REQUIRED to stringResource(R.string.rentals_gw_action_required),
+        OrderWave2ViewModel.Msg.CAPTURED to stringResource(R.string.rentals_gw_captured),
+        OrderWave2ViewModel.Msg.RELEASED to stringResource(R.string.rentals_gw_released),
+        OrderWave2ViewModel.Msg.REFUNDED to stringResource(R.string.rentals_gw_refunded),
+        OrderWave2ViewModel.Msg.UNCERTAIN to stringResource(R.string.rentals_gw_uncertain),
+        OrderWave2ViewModel.Msg.PENDING_OTHER to stringResource(R.string.rentals_gw_pending_other_generic),
+        OrderWave2ViewModel.Msg.ACCOUNT_CHANGED to stringResource(R.string.rentals_gw_account_changed),
+    )
+    val pendingOther = stringResource(R.string.rentals_gw_pending_other, "%s")
+    val okMessages = setOf(
+        OrderWave2ViewModel.Msg.BULK_SAVED, OrderWave2ViewModel.Msg.LINK_SENT, OrderWave2ViewModel.Msg.LINK_READY,
+        OrderWave2ViewModel.Msg.CHARGED, OrderWave2ViewModel.Msg.HOLD_PLACED, OrderWave2ViewModel.Msg.CAPTURED,
+        OrderWave2ViewModel.Msg.RELEASED, OrderWave2ViewModel.Msg.REFUNDED,
     )
     val failedWith = stringResource(R.string.rentals_online_failed, "%s")
     val shareTitle = stringResource(R.string.rentals_pay_share)
@@ -580,17 +614,21 @@ fun RentalOrderScreen(
         wave2.events.collect { e ->
             when (e) {
                 is OrderWave2ViewModel.Event.Message -> {
-                    if (e.msg == OrderWave2ViewModel.Msg.BULK_SAVED) haptics.success() else haptics.error()
-                    val text = if (e.msg == OrderWave2ViewModel.Msg.FAILED && !e.detail.isNullOrBlank()) {
-                        failedWith.replace("%s", e.detail)
-                    } else {
-                        w2Texts.getValue(e.msg)
+                    if (e.msg in okMessages) haptics.success() else haptics.error()
+                    val text = when {
+                        e.msg == OrderWave2ViewModel.Msg.FAILED && !e.detail.isNullOrBlank() -> failedWith.replace("%s", e.detail)
+                        e.msg == OrderWave2ViewModel.Msg.PENDING_OTHER && !e.detail.isNullOrBlank() -> pendingOther.replace("%s", e.detail)
+                        else -> w2Texts.getValue(e.msg)
                     }
                     snackbar.showSnackbar(text)
                 }
                 is OrderWave2ViewModel.Event.Share -> runCatching { sharePayLink(context, e.url, shareTitle) }
             }
         }
+    }
+    OrderAccountsEvents(accounts) { text, ok ->
+        if (ok) haptics.success() else haptics.error()
+        snackbar.showSnackbar(text)
     }
     LaunchedEffect(Unit) {
         delay(1_500)
@@ -628,6 +666,7 @@ fun RentalOrderScreen(
                             o, canSwap = onSwap != null, onAction = onOrderAction,
                             onPayment = { showPayment = true }, onInvoice = viewModel::createInvoice,
                             allowedActions = allowedActions, canRecordPayment = canRecordPayment, canInvoice = canInvoice,
+                            onAdjustPrice = if (abilities.adjustPrice) ({ showAdjust = true }) else null,
                         ),
                     )
                 }
@@ -690,16 +729,76 @@ fun RentalOrderScreen(
                     zone = zone,
                     bulkReturns = bulkReturns,
                     onBulkReturn = if (o.isLegacy) null else { l, out -> bulkReturn = l to out },
+                    subrentedLineIds = subrentedLineIds,
                 )
+            }
+            if (!o.isLegacy && subrentals.isNotEmpty()) {
+                item(key = "subrentals", contentType = "section") { SubrentalsCard(subrentals, zone) }
+            }
+            contracts.forEach { c ->
+                item(key = "contract_" + c.id, contentType = "section") {
+                    ContractCard(
+                        contract = c,
+                        quote = buyouts[c.id],
+                        canBuyout = abilities.buyout,
+                        busy = accountsBusy,
+                        zone = zone,
+                        onLoadQuote = { accounts.loadBuyout(c.id) },
+                        onBuyout = { q -> accounts.buyout(c, q) },
+                        onEquityStatement = { accounts.equityStatement(c.id) },
+                    )
+                }
+            }
+            if (!o.isLegacy && signatureRequests.isNotEmpty()) {
+                item(key = "signature_requests", contentType = "section") {
+                    SignatureRequestsCard(signatureRequests, accountsBusy, zone) { r -> accounts.signedDocument(r.id) }
+                }
             }
             payments?.takeIf { !o.isLegacy }?.let { pay ->
                 item(key = "pay_links", contentType = "section") {
+                    val record = wave2.can(OrderWave2ViewModel.PERMISSION_PAYMENT_RECORD)
                     OnlinePaymentsCard(
                         payments = pay,
+                        owes = (o.balance?.minor ?: 0) > 0 && o.status != OrderStatus.DRAFT,
+                        busy = wave2Busy,
                         zone = zone,
+                        onRequest = if (record) ({ wave2.requestPayLink() }) else null,
                         onShare = { url -> runCatching { sharePayLink(context, url, shareTitle) } },
+                        onEmail = if (record) ({ id -> wave2.emailLink(id) }) else null,
+                        onNewLink = if (record) ({ id -> wave2.rotateLink(id) }) else null,
+                        gatewayActions = GatewayActions(
+                            orderId = o.id,
+                            currency = o.currency,
+                            suggestedChargeMinor = o.balance?.minor?.takeIf { it > 0 },
+                            allowCharge = o.status != OrderStatus.DRAFT && o.status != OrderStatus.CANCELLED,
+                            canCharge = wave2.can(OrderWave2ViewModel.PERMISSION_PAYMENT_CHARGE),
+                            canRefund = wave2.can(OrderWave2ViewModel.PERMISSION_REFUND),
+                            pendingAmount = wave2::pendingAmount,
+                            onCharge = wave2::chargeSavedCard,
+                            onCapture = wave2::captureHold,
+                            onRelease = wave2::releaseHold,
+                            onRefund = wave2::refundPayment,
+                        ),
                     )
                 }
+            }
+            if (!o.isLegacy) {
+                item(key = "post_charges", contentType = "section") {
+                    PostChargesCard(
+                        charges = postCharges,
+                        orderStatus = o.status,
+                        abilities = abilities,
+                        busy = accountsBusy,
+                        zone = zone,
+                        onAdd = { accounts.openPostCharge() },
+                        onCharge = accounts::chargePostCharge,
+                        onVoid = accounts::voidPostCharge,
+                        onOpenPayLink = accounts::openPostChargePayLink,
+                    )
+                }
+            }
+            if (!o.isLegacy && ledger.isNotEmpty()) {
+                item(key = "ledger", contentType = "section") { OrderLedgerCard(ledger, zone) }
             }
             paymentUnavailable?.takeIf { !o.isLegacy }?.let { unavailable ->
                 item(key = "manual_payments", contentType = "section") {
@@ -767,6 +866,27 @@ fun RentalOrderScreen(
     if (showExtend && o != null && !o.isLegacy) {
         ExtendDialog(o.endAt ?: Instant.now(), zone, onDismiss = { showExtend = false }) { end ->
             viewModel.action("extend", endAt = end); showExtend = false
+        }
+    }
+    postChargeForm?.let { f ->
+        if (o != null) {
+            AddPostChargeDialog(
+                form = f,
+                errors = postChargeErrors,
+                orderStatus = o.status,
+                canChargeNow = abilities.chargeCard,
+                busy = accountsBusy,
+                zone = zone,
+                onChange = accounts::updatePostCharge,
+                onDismiss = accounts::closePostCharge,
+                onSave = { accounts.submitPostCharge() },
+            )
+        }
+    }
+    if (showAdjust && o != null && !o.isLegacy) {
+        PriceAdjustmentDialog(o.id, o.currency, onDismiss = { showAdjust = false }) { draft ->
+            showAdjust = false
+            accounts.addPriceAdjustment(draft)
         }
     }
     bulkReturn?.let { (line, out) ->
@@ -841,7 +961,7 @@ private fun OrderSummaryCard(o: OrderView, zone: ZoneId, onOpenCustomer: (String
             o.holdExpiresAt?.let { LabelValue(stringResource(R.string.rentals_hold_expires), formatDateTime(it, zone)) }
         }
         CardDivider()
-        // The one place money is shown on this screen: Total Â· Paid Â· Balance (+ deposit).
+        // The one place money is shown on this screen: Total · Paid · Balance (+ deposit).
         MoneyStats(
             listOf(
                 Triple(stringResource(R.string.rentals_total), formatMoney(o.total) + if (o.isPending) " *" else "", null),
@@ -933,6 +1053,7 @@ private fun orderOwes(o: OrderView): Boolean = OrderWorklist.canRecordPayment(o)
 private fun orderOverflow(
     o: OrderView, canSwap: Boolean, onAction: (String) -> Unit, onPayment: () -> Unit, onInvoice: () -> Unit,
     allowedActions: List<String>, canRecordPayment: Boolean, canInvoice: Boolean,
+    onAdjustPrice: (() -> Unit)? = null,
 ): List<MenuAction> {
     if (o.isLegacy) return emptyList()
     val all = allowedActions.filter { it != "swap" || canSwap }
@@ -943,6 +1064,7 @@ private fun orderOverflow(
         secondary.forEach { a -> add(MenuAction(stringResource(actionLabel(a)), orderActionIcon(a)) { onAction(a) }) }
         if (canRecordPayment && !orderOwes(o)) add(MenuAction(stringResource(R.string.rentals_record_payment), Icons.Default.Payments, onClick = onPayment))
         if (canInvoice) add(MenuAction(stringResource(R.string.rentals_create_invoice), Icons.Default.Description, onClick = onInvoice))
+        onAdjustPrice?.let { add(MenuAction(stringResource(R.string.rentals_adjust_add), Icons.Default.PriceChange, onClick = it)) }
         destructive.forEach { a -> add(MenuAction(stringResource(actionLabel(a)), orderActionIcon(a), destructive = true) { onAction(a) }) }
     }
 }
@@ -1036,6 +1158,8 @@ internal fun ledgerKindLabel(kind: String): Int = when (kind) {
     "deposit_refunded" -> R.string.rentals_kind_deposit_refunded
     "deposit_applied" -> R.string.rentals_kind_deposit_applied
     "deposit_forfeited" -> R.string.rentals_kind_deposit_forfeited
+    "chargeback" -> R.string.rentals_ledger_kind_chargeback
+    "write_off" -> R.string.rentals_ledger_kind_write_off
     else -> R.string.rentals_kind_other
 }
 
@@ -1052,8 +1176,8 @@ internal fun methodLabel(method: String): Int = when (method) {
 }
 
 /**
- * Manual payment capture (Â§5.1): kind, method, amount, reference, external-terminal card brand
- * and last 4 (never a card number), payer. `provider` stays null â€” gateway-ready, no Stripe.
+ * Manual payment capture (§5.1): kind, method, amount, reference, external-terminal card brand
+ * and last 4 (never a card number), payer. `provider` stays null — gateway-ready, no Stripe.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -1072,11 +1196,13 @@ internal fun PaymentSheet(
     var brand by remember { mutableStateOf("") }
     var last4 by remember { mutableStateOf("") }
     var payerName by remember { mutableStateOf("") }
+    var payerEmail by remember { mutableStateOf("") }
     var authorization by remember { mutableStateOf(false) }
     var notes by remember { mutableStateOf("") }
     var attempted by remember { mutableStateOf(false) }
     val parsed = MoneyFormatter.parse(amount, currency)?.takeIf { it.minor > 0 }
     val last4Ok = last4.isEmpty() || last4.matches(Regex("\\d{4}"))
+    val emailOk = PaymentDraft.isValidPayerEmail(payerEmail)
     val card = method == "card_external"
     val amountError = (attempted || amount.isNotEmpty()) && parsed == null
     val haptics = rememberHaptics()
@@ -1084,7 +1210,7 @@ internal fun PaymentSheet(
     val next = KeyboardActions(onNext = { focus.moveFocus(FocusDirection.Down) })
     val save: () -> Unit = {
         attempted = true
-        if (parsed != null && last4Ok) {
+        if (parsed != null && last4Ok && emailOk) {
             onSave(
                 PaymentDraft(
                     orderId = orderId,
@@ -1099,6 +1225,7 @@ internal fun PaymentSheet(
                     isAuthorization = card && authorization,
                     notes = notes.trim().ifEmpty { null },
                     receivedAt = Instant.now(),
+                    payerEmail = payerEmail.trim().ifEmpty { null },
                 ),
             )
         } else {
@@ -1196,6 +1323,20 @@ internal fun PaymentSheet(
                 payerName, { payerName = it },
                 label = { Text(stringResource(R.string.rentals_payer_name)) },
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
+                keyboardActions = next,
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                payerEmail, { payerEmail = it },
+                label = { Text(stringResource(R.string.rentals_payer_email)) },
+                isError = !emailOk,
+                supportingText = if (!emailOk) {
+                    { Text(stringResource(R.string.rentals_payer_email_invalid)) }
+                } else {
+                    null
+                },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
                 keyboardActions = next,
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),

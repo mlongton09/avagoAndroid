@@ -386,7 +386,7 @@ class AddEditAssetViewModel @Inject constructor(
     }
 
     // ---------------------------------------------------------------------------
-    // Geocode (real-estate address section â€” mirrors iOS geocodeLookupTapped)
+    // Geocode (real-estate address section — mirrors iOS geocodeLookupTapped)
     // ---------------------------------------------------------------------------
 
     private val _geocodeResult = MutableStateFlow<GeocodeResult?>(null)
@@ -444,7 +444,7 @@ class AddEditAssetViewModel @Inject constructor(
                                 formattedAddress = response.formatted_address,
                             )
                             // Store coordinates in customAttributes so they round-trip through
-                            // the attributes JSON (mirrors iOS attributeValues["latitude"] = â€¦).
+                            // the attributes JSON (mirrors iOS attributeValues["latitude"] = …).
                             val updated = _form.value.customAttributes.toMutableMap()
                             updated["latitude"] = lat.toString()
                             updated["longitude"] = lon.toString()

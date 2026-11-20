@@ -5496,11 +5496,11 @@
     <ID>MaxLineLength:PhotoUploader.kt$PhotoUploader$Timber.w("[PhotoUploader] Binary upload failed for $photoId: ${uploadResult.code} ${uploadResult.message}")</ID>
     <ID>MaxLineLength:PhotoUploader.kt$PhotoUploader$Timber.w("[PhotoUploader] getPhotoUploadUrl failed for $photoId: ${urlResult.code} ${urlResult.message}")</ID>
     <ID>MaxLineLength:PoLineDao.kt$PoLineDao$@Query("SELECT pl.* FROM po_lines pl INNER JOIN purchase_orders po ON pl.po_id = po.po_id WHERE po.account_id = :accountId")</ID>
-    <ID>MaxLineLength:PositionReadings.kt$PositionReadings$// â”€â”€ Asset profile / thresholds (web thresholds.ts) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€</ID>
-    <ID>MaxLineLength:PositionReadings.kt$PositionReadings$// â”€â”€ Pack wiring (tire / brake) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€</ID>
-    <ID>MaxLineLength:PositionReadings.kt$PositionReadings$// â”€â”€ Positions (web fieldPacks.ts) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€</ID>
-    <ID>MaxLineLength:PositionReadings.kt$PositionReadings$// â”€â”€ Sketch hit targets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€</ID>
-    <ID>MaxLineLength:PositionReadings.kt$PositionReadings$// â”€â”€ States â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€</ID>
+    <ID>MaxLineLength:PositionReadings.kt$PositionReadings$// ── Asset profile / thresholds (web thresholds.ts) ─────────────────────────</ID>
+    <ID>MaxLineLength:PositionReadings.kt$PositionReadings$// ── Pack wiring (tire / brake) ─────────────────────────────────────────────</ID>
+    <ID>MaxLineLength:PositionReadings.kt$PositionReadings$// ── Positions (web fieldPacks.ts) ──────────────────────────────────────────</ID>
+    <ID>MaxLineLength:PositionReadings.kt$PositionReadings$// ── Sketch hit targets ─────────────────────────────────────────────────────</ID>
+    <ID>MaxLineLength:PositionReadings.kt$PositionReadings$// ── States ─────────────────────────────────────────────────────────────────</ID>
     <ID>MaxLineLength:PositionReadings.kt$PositionReadings$fun</ID>
     <ID>MaxLineLength:PositionReadings.kt$PositionReadings.Target$data</ID>
     <ID>MaxLineLength:PositionReadingsTest.kt$PositionReadingsTest$PositionReadings.Metric("psi", mapOf("fl" to 32.0, "rl" to 32.0)) { v, _ -&gt; PositionReadings.pressureState(v, "psi", "car") }</ID>

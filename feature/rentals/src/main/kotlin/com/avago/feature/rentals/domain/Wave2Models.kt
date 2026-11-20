@@ -3,6 +3,8 @@ package com.avago.feature.rentals.domain
 import com.avago.core.data.domain.RentalBulkReturn
 import com.avago.core.data.rental.Money
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.math.BigDecimal
 import java.time.Instant
 
@@ -145,7 +147,11 @@ object OnlinePayments {
 
     data class OrderPayments(
         val enabled: Boolean,
+        /** `can.request` (rental.payment_record): a pay link may be requested. */
+        val canRequest: Boolean,
         val requests: List<PayRequest>,
+        /** Saved card, holds and refundable gateway payments ([GatewayPayments.Gateway.NONE] while off/unknown). */
+        val gateway: GatewayPayments.Gateway = GatewayPayments.Gateway.NONE,
     )
 
     /** `online_payments_enabled` of `/payments/status` (false when unknown — never require Stripe). */
@@ -172,8 +178,64 @@ object OnlinePayments {
         val enabled = o.bool("online_payments_enabled") == true
         return OrderPayments(
             enabled = enabled,
+            canRequest = enabled && o.obj("can")?.bool("request") != false,
             requests = o.objs("payment_requests").mapNotNull { parseRequest(it, currency) },
+            gateway = GatewayPayments.parse(o, currency, enabled),
         )
+    }
+
+    /**
+     * What the pay-links card shows: nothing while online payments are off (or unknown);
+     * otherwise the order's requests (an empty, requestable list until they load).
+     */
+    fun visible(enabled: Boolean, orderPayments: JsonObject?, currency: String?): OrderPayments? {
+        if (!enabled) return null
+        val parsed = parseOrder(orderPayments, currency)
+        return when {
+            parsed == null -> OrderPayments(enabled = true, canRequest = true, requests = emptyList())
+            // The order answer carries its own flag; a later "off" wins over the cached status.
+            orderPayments?.containsKey("online_payments_enabled") == true && !parsed.enabled -> null
+            else -> parsed.copy(enabled = true, canRequest = orderPayments?.obj("can")?.let { parsed.canRequest } ?: true)
+        }
+    }
+
+    /** `POST /payment-requests` for the order balance (the amount defaults server-side). */
+    fun requestBody(orderId: String, kind: String = "balance"): JsonObject = buildJsonObject {
+        put("order_id", orderId)
+        put("kind", kind)
+    }
+
+    /** The pay URL of a create / link answer (`pay_url`, or nested under `payment_request`). */
+    fun payUrlOf(o: JsonObject): String? =
+        (o.str("pay_url") ?: o.obj("payment_request")?.str("pay_url"))?.takeIf { it.isNotBlank() }
+}
+
+/** Buy-out quote of a rent-to-own contract (`GET /contracts/{id}/buyout-quote`). */
+data class BuyoutQuote(val quote: Money?, val equity: Money?, val paidRent: Money?, val floor: Money?, val asOf: Instant?) {
+    companion object {
+        fun parse(o: JsonObject?): BuyoutQuote? {
+            o ?: return null
+            val cur = o.str("currency")?.trim()
+            return BuyoutQuote(
+                quote = o.money("quote_minor", cur),
+                equity = o.money("equity_minor", cur),
+                paidRent = o.money("paid_rent_minor", cur),
+                floor = o.money("buyout_floor_minor", cur),
+                asOf = o.instant("as_of"),
+            )
+        }
+    }
+}
+
+/** Server outcome of a post-charge REST call (`charge_now` create or charge). */
+data class PostChargeOutcome(val status: String?, val payUrl: String?, val chargeError: String?) {
+    val failed: Boolean get() = status == "charge_failed" || status == "failed"
+
+    companion object {
+        fun parse(root: JsonObject): PostChargeOutcome {
+            val o = root.obj("data") ?: root
+            return PostChargeOutcome(o.str("status"), o.str("pay_url")?.takeIf { it.isNotBlank() }, o.str("charge_error"))
+        }
     }
 }
 

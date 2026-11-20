@@ -532,7 +532,7 @@ fun AddEditAssetScreen(
                 )
             }
 
-            // Change 106: Tags section â€” chips-with-add-button pattern
+            // Change 106: Tags section — chips-with-add-button pattern
             item {
                 TagsInputSection(
                     tags = form.tags,
@@ -916,7 +916,7 @@ private fun FloorMapSection(
     val attrKey = floorAttributeKeyFor(assetType)
     val unitLabel = floorUnitLabelFor(assetType)
 
-    // Local state â€” parsed from currentJson on first load
+    // Local state — parsed from currentJson on first load
     var mode by rememberSaveable { mutableStateOf("numeric") }
     var floorCount by rememberSaveable { mutableIntStateOf(1) }
     // Store range strings for up to 50 floors; list grows with floorCount
@@ -1153,7 +1153,7 @@ private fun FieldRow(
 }
 
 // ---------------------------------------------------------------------------
-// Change 106: Tags input section â€” chips-with-add-button pattern
+// Change 106: Tags input section — chips-with-add-button pattern
 // ---------------------------------------------------------------------------
 
 @Composable

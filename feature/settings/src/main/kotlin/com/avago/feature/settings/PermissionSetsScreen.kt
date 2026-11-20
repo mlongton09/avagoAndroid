@@ -159,7 +159,7 @@ private fun PermissionSetRow(set: PermissionSet, canDelete: Boolean, onOpen: () 
         headlineContent = { Text(set.name) },
         supportingContent = {
             val counts = pluralStringResource(R.plurals.admin_permissions_count, set.permissionKeys.size, set.permissionKeys.size) +
-                " Â· " + pluralStringResource(R.plurals.admin_members_count, set.memberCount, set.memberCount)
+                " · " + pluralStringResource(R.plurals.admin_members_count, set.memberCount, set.memberCount)
             Text(listOfNotNull(set.description?.takeIf { it.isNotBlank() }, counts).joinToString("\n"))
         },
         trailingContent = {

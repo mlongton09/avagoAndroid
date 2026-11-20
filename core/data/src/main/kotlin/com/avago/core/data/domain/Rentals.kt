@@ -450,7 +450,14 @@ data class PaymentDraft(
     val receivedAt: Instant,
     /** Where the receipt is e-mailed. */
     val payerEmail: String? = null,
-)
+) {
+    companion object {
+        private val EMAIL = Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")
+
+        /** Whether [email] is acceptable as the payer e-mail (blank means none). */
+        fun isValidPayerEmail(email: String?): Boolean = email.isNullOrBlank() || EMAIL.matches(email.trim())
+    }
+}
 
 data class RentalRates(
     val dayMinor: Long,

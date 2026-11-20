@@ -9,13 +9,13 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * Per-position (wheel) readings around the vehicle sketch â€” port of web
+ * Per-position (wheel) readings around the vehicle sketch — port of web
  * `components/log/forms/PositionReadings.tsx` + the position / threshold helpers in
  * `lib/log/fieldPacks.ts` and `lib/log/thresholds.ts`.
  *
  * Data contract is unchanged (identical keys on web / iOS / Android): `tire_positions` (string
  * list), `tire_tread` / `tire_psi` / `brake_pad_mm` / `brake_rotor_mm` (`{position: number}`),
- * `tire_tread_unit`, `tire_pressure_unit`, `brake_axle`. Nothing here is persisted â€” states are
+ * `tire_tread_unit`, `tire_pressure_unit`, `brake_axle`. Nothing here is persisted — states are
  * derived for display only.
  */
 object PositionReadings {
@@ -36,7 +36,7 @@ object PositionReadings {
     /** Left-hand column of the layout (web `LEFT`). */
     private val LEFT = setOf("fl", "rl", "rlo", "rli")
 
-    // â”€â”€ Asset profile / thresholds (web thresholds.ts) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Asset profile / thresholds (web thresholds.ts) ─────────────────────────
 
     enum class Profile { LIGHT, PICKUP, HEAVY, RV, TRAILER, FORKLIFT, MOTORCYCLE, ATV, GOLF, EQUIPMENT, GENERIC }
 
@@ -138,7 +138,7 @@ object PositionReadings {
         return if (value < BRAKE_PAD_MIN_MM) ReadingState.OUT else ReadingState.OK
     }
 
-    // â”€â”€ Positions (web fieldPacks.ts) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Positions (web fieldPacks.ts) ──────────────────────────────────────────
 
     /** Dual rear wheels on heavy trucks and buses, four corners otherwise. */
     fun positionsFor(assetType: String?, withSpare: Boolean = false): List<String> {
@@ -152,7 +152,7 @@ object PositionReadings {
         else -> all.filter { it != SPARE }
     }
 
-    /** Sketch corner a position tints (duals share their side's corner); spare â†’ null. */
+    /** Sketch corner a position tints (duals share their side's corner); spare → null. */
     fun cornerOf(pos: String): String? = when (pos) {
         "fl", "fr", "rl", "rr" -> pos
         "rlo", "rli" -> "rl"
@@ -184,7 +184,7 @@ object PositionReadings {
         )
     }
 
-    // â”€â”€ States â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── States ─────────────────────────────────────────────────────────────────
 
     /** One measured quantity per position (tread, pressure, pad, rotor). */
     class Metric(
@@ -236,16 +236,16 @@ object PositionReadings {
         }
     }
 
-    /** Positions drawn at a sketch corner (duals â†’ both). */
+    /** Positions drawn at a sketch corner (duals → both). */
     fun positionsAt(corner: String, positions: List<String>): List<String> = positions.filter { cornerOf(it) == corner }
 
-    /** Form text â†’ number (comma decimal accepted); blank / invalid â†’ null (web `setRecordValue`). */
+    /** Form text → number (comma decimal accepted); blank / invalid → null (web `setRecordValue`). */
     fun parse(raw: String?): Double? = raw?.trim()?.replace(',', '.')?.takeIf { it.isNotEmpty() }?.toDoubleOrNull()?.takeIf { it.isFinite() }
 
     fun parseAll(values: Map<String, String>?): Map<String, Double> =
         values.orEmpty().mapNotNull { (k, v) -> parse(v)?.let { k to it } }.toMap()
 
-    /** Display unit (web `tUnit`/`displayUnit`): `32nds` â†’ `/32"`, `kpa` â†’ `kPa`. */
+    /** Display unit (web `tUnit`/`displayUnit`): `32nds` → `/32"`, `kpa` → `kPa`. */
     fun displayUnit(raw: String?): String = when (normalizeUnit(raw)) {
         "psi" -> "psi"
         "kpa" -> "kPa"
@@ -257,7 +257,7 @@ object PositionReadings {
         else -> raw.orEmpty()
     }
 
-    // â”€â”€ Pack wiring (tire / brake) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Pack wiring (tire / brake) ─────────────────────────────────────────────
 
     enum class PackKind { TIRE, BRAKE }
 
@@ -364,7 +364,7 @@ object PositionReadings {
         return brakePanel(assetType, attrs.text("brake_axle"), pads, rotors)
     }
 
-    // â”€â”€ Sketch hit targets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Sketch hit targets ─────────────────────────────────────────────────────
 
     /** Tap / TalkBack target for one sketch corner, in viewBox units. */
     data class Target(val corner: String, val corners: List<String>, val x: Float, val y: Float, val w: Float, val h: Float) {

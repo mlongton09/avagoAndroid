@@ -307,4 +307,7 @@
     <string name="rentals_reason_open_work_order">Ordem de serviço aberta</string>
     <string name="rentals_reason_readiness_checklist">Verificação de prontidão pendente</string>
     <string name="rentals_reason_maintenance_open">Em manutenção</string>
+    <string name="rentals_payer_email">E-mail do pagador</string>
+    <string name="rentals_readiness_add_photo_for">Adicionar foto de %1$s</string>
+    <string name="rentals_readiness_photo_count">Fotos: %1$d</string>
 </resources>

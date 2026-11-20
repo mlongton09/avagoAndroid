@@ -114,6 +114,8 @@ data class LineView(
     val kitInstanceId: String? = null,
     val productId: String? = null,
     val isBulk: Boolean = false,
+    /** Line discount (null when none). */
+    val discount: Money? = null,
 ) {
     val isKitHeader: Boolean get() = kind == "kit"
 
@@ -135,6 +137,7 @@ data class LineView(
             kitInstanceId = l.kitInstanceId,
             productId = l.productId,
             isBulk = l.isBulk,
+            discount = l.discountMinor.takeIf { it > 0 }?.let { Money.of(it, currency) },
         )
     }
 }

@@ -698,7 +698,7 @@ object RentalCommands {
     fun recordPayment(entryId: String, draft: PaymentDraft, customerPartyId: String?, nowMillis: Long, userId: String?): V2NewCommand {
         require(draft.amountMinor > 0) { "the amount must be positive" }
         val email = draft.payerEmail.clean()?.lowercase()
-        require(email == null || EMAIL.matches(email)) { "the payer e-mail is not valid" }
+        require(PaymentDraft.isValidPayerEmail(email)) { "the payer e-mail is not valid" }
         val payload = RentalRentalOrdersRecordPayment(
             id = draft.orderId,
             entryId = entryId,
@@ -728,8 +728,6 @@ object RentalCommands {
         // An authorization row needs its expiry (store CHECK); the server's row brings it.
         return payload.toNewCommand(overlay = if (draft.isAuthorization) null else V2OverlayPatch.of(row))
     }
-
-    private val EMAIL = Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")
 
     fun createInvoiceDraft(id: String, order: RentalOrder, nowMillis: Long, userId: String?): V2NewCommand {
         val customer = requireNotNull(order.customerPartyId) { "a walk-in order cannot be invoiced; add a customer first" }
