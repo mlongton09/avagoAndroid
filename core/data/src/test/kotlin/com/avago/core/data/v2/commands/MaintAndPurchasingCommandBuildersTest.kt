@@ -1,5 +1,8 @@
 package com.avago.core.data.v2.commands
 
+import com.avago.core.data.domain.Activity
+import com.avago.core.data.domain.ActivityDraft
+import com.avago.core.data.domain.ActivityType
 import com.avago.core.data.domain.Asset
 import com.avago.core.data.domain.AssetDraft
 import com.avago.core.data.domain.AssetStatusCode
@@ -109,5 +112,36 @@ class MaintAndPurchasingCommandBuildersTest {
         assertThrows(IllegalArgumentException::class.java) {
             PurchasingCommands.transition(po(PurchaseOrderStatus.DRAFT), PurchasingCommands.Transition.REJECT, 1, "u")
         }
+    }
+
+    private val activity = Activity(
+        id = "act", assetId = "asset", assetName = null, workOrderId = "wo1", parentActivityId = null,
+        type = ActivityType.REPAIR, categoryLabel = "repair", title = "Brakes", occurredAt = 5_000, performedByUserId = null,
+        performedByName = null, providerName = null, currency = "EUR", overtimeMultiplier = null, notes = null,
+        payload = "{}", attributes = "{}", meterValue = null, totalCost = BigDecimal.ZERO, createdAt = 0, version = 3,
+    )
+
+    private fun draftOf(a: Activity) = ActivityDraft(
+        assetId = a.assetId, workOrderId = a.workOrderId, type = a.type, categoryLabel = a.categoryLabel, title = a.title,
+        occurredAt = a.occurredAt, currency = a.currency, payload = a.payload, attributes = a.attributes,
+    )
+
+    @Test
+    fun `moving an activity to another work order moves its cost lines in the overlay`() {
+        val command = MaintCommands.updateActivity(activity, draftOf(activity).copy(workOrderId = "wo2"), 10_000, listOf("l1", "l2"))!!
+        assertEquals("maint.activity_records.update", command.operation)
+        assertEquals("wo2", command.payload.jsonObject["set"]!!.jsonObject["work_order_id"]!!.jsonPrimitive.content)
+        val ops = V2OverlayPatch.parse(command.overlayPatch!!)!!.ops
+        assertEquals(listOf("activity_records", "activity_cost_lines", "activity_cost_lines"), ops.map { it.table })
+        assertTrue(ops.drop(1).all { it.set == mapOf("work_order_id" to "wo2") })
+    }
+
+    @Test
+    fun `detaching an activity clears the work order and leaves lines untouched when not moved`() {
+        val detached = MaintCommands.updateActivity(activity, draftOf(activity).copy(workOrderId = null), 10_000, listOf("l1"))!!
+        assertEquals(listOf("work_order_id"), detached.payload.jsonObject["clear"]!!.jsonArray.map { it.jsonPrimitive.content })
+        assertNull(V2OverlayPatch.parse(detached.overlayPatch!!)!!.ops.last().set["work_order_id"])
+        val retitled = MaintCommands.updateActivity(activity, draftOf(activity).copy(title = "Pads"), 10_000, listOf("l1"))!!
+        assertEquals(listOf("activity_records"), V2OverlayPatch.parse(retitled.overlayPatch!!)!!.ops.map { it.table })
     }
 }

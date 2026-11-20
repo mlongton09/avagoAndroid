@@ -61,6 +61,8 @@ import com.avago.core.network.model.SkipOccurrenceRequest
 import com.avago.core.network.model.KpiSummaryResponse
 import com.avago.core.network.model.WorkOrderBudgetsResponse
 import com.avago.core.network.model.WorkOrderAuditResponse
+import com.avago.core.network.model.InspectionDraftRow
+import com.avago.core.network.model.PutInspectionDraftRequest
 import com.avago.core.network.model.SampleWorkspaceJson
 import com.avago.core.network.model.SampleWorkspacesResponse
 import com.avago.core.network.model.SwitchSampleWorkspaceRequest
@@ -1346,6 +1348,28 @@ class AvagoServiceClient @Inject constructor(
     suspend fun getWorkOrderAudit(accountId: String, woId: String): NetworkResult<WorkOrderAuditResponse> =
         safeNetworkCall {
             client.get("$baseUrl/accounts/$accountId/work-orders/$woId/audit").body()
+        }
+
+    /** GET /accounts/{accountId}/inspection-drafts?asset_id=&log_id=: the caller's server drafts. */
+    suspend fun getInspectionDrafts(accountId: String, assetId: String, logId: String?): NetworkResult<List<InspectionDraftRow>> =
+        safeNetworkCall {
+            client.get("$baseUrl/accounts/$accountId/inspection-drafts") {
+                parameter("asset_id", assetId)
+                if (logId != null) parameter("log_id", logId)
+            }.body()
+        }
+
+    /** PUT /accounts/{accountId}/inspection-drafts: upserts the caller's draft for (asset, log). */
+    suspend fun putInspectionDraft(accountId: String, body: PutInspectionDraftRequest): NetworkResult<InspectionDraftRow> =
+        safeNetworkCall {
+            client.put("$baseUrl/accounts/$accountId/inspection-drafts") { setBody(body) }.body()
+        }
+
+    /** DELETE /accounts/{accountId}/inspection-drafts/{draftId} (own drafts only). */
+    suspend fun deleteInspectionDraft(accountId: String, draftId: String): NetworkResult<Unit> =
+        safeNetworkCall {
+            val response: HttpResponse = client.delete("$baseUrl/accounts/$accountId/inspection-drafts/$draftId")
+            if (!response.status.isSuccess()) throw NetworkException(response.status.value, response.status.description)
         }
 
     /** GET /accounts/{accountId}/work-orders/{woId}/budget-pill: active budgets whose scope covers the work order. */

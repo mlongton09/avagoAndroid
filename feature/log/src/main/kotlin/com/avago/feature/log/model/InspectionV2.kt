@@ -506,6 +506,16 @@ object InspectionV2 {
         cleared = original.keys.filter { it !in current }.toSet(),
     )
 
+    data class ConflictKey(val key: String, val original: String?, val mine: String?, val theirs: String?)
+
+    /** Keys [mine] changed that the other side also changed to a different value. */
+    fun conflictingKeys(original: Map<String, String>, mine: ValueEdits, theirs: Map<String, String>): List<ConflictKey> =
+        mine.keys.mapNotNull { k ->
+            val theirsV = theirs[k]
+            val mineV = mine.changed[k]
+            if (theirsV == original[k] || theirsV == mineV) null else ConflictKey(k, original[k], mineV, theirsV)
+        }.sortedBy { it.key }
+
     /** Re-applies [mine] on top of the server's current values (the "keep mine" merge). */
     fun rebaseValues(theirs: Map<String, String>, mine: ValueEdits): Map<String, String> =
         mergeValues(theirs, mine.changed, mine.cleared)

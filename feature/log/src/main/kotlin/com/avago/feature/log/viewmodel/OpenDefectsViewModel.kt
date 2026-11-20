@@ -3,13 +3,17 @@ package com.avago.feature.log.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.PermissionStore
+import com.avago.core.data.domain.Activity
+import com.avago.core.data.domain.ActivityFilter
 import com.avago.core.data.domain.ActivityRepository
+import com.avago.core.data.domain.ActivityType
 import com.avago.core.data.domain.ConfigDocuments
 import com.avago.core.data.domain.ConfigRepository
 import com.avago.core.data.domain.DefectState
 import com.avago.core.data.domain.InspectionDefect
 import com.avago.core.ui.AvagoToast
 import com.avago.feature.log.model.InspectionV2
+import com.avago.feature.log.model.OpenDefects
 import com.avago.feature.log.model.humanizeIfKey
 import com.avago.feature.log.model.parseInspectionLocaleStrings
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -89,10 +93,19 @@ class OpenDefectsViewModel @Inject constructor(
         }
         viewModelScope.launch {
             assetId.filterNotNull()
-                .flatMapLatest { id -> activities.observeDefects(id, openOnly = false) }
+                .flatMapLatest { id ->
+                    combine(
+                        activities.observeDefects(id, openOnly = false),
+                        activities.observeActivities(ActivityFilter(assetId = id, types = setOf(ActivityType.INSPECTION)))
+                            .map { it.maxByOrNull(Activity::occurredAt) },
+                    ) { rows, latest -> rows to latest }
+                }
                 .catch { e -> Timber.e(e, "[OpenDefectsViewModel] defects flow failed") }
-                .collect { rows ->
-                    val defects = InspectionV2.sortOpen(rows.filter { it.status != DefectState.REPAIRED }.map(::toOpenDefect))
+                .collect { (rows, latest) ->
+                    val defects = InspectionV2.sortOpen(
+                        rows.filter { it.status != DefectState.REPAIRED }.map(::toOpenDefect) +
+                            OpenDefects.pendingFromInspection(rows, latest),
+                    )
                     _state.update { s ->
                         s.copy(
                             defects = defects,
@@ -112,7 +125,7 @@ class OpenDefectsViewModel @Inject constructor(
 
     /** Web panel lifecycle: repaired (+ optional note), deferred or reopened. */
     fun updateStatus(defect: InspectionV2.OpenDefect, status: String, note: String? = null) {
-        if (!_state.value.canEdit) return
+        if (!_state.value.canEdit || OpenDefects.isPending(defect)) return
         val target = stateFor(status, defect.bucket)
         viewModelScope.launch {
             val ok = try {

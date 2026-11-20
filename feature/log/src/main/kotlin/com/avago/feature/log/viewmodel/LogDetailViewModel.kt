@@ -10,6 +10,7 @@ import com.avago.core.data.domain.AttachmentTarget
 import com.avago.core.data.domain.ConfigDocuments
 import com.avago.core.data.domain.ConfigRepository
 import com.avago.core.data.domain.CostLine
+import com.avago.core.data.domain.WorkerRepository
 import com.avago.core.data.repository.UserPreferencesRepository
 import com.avago.feature.log.model.parseInspectionLocaleStrings
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -34,10 +35,35 @@ import java.util.Currency
 import java.util.Locale
 import javax.inject.Inject
 
+/** Who recorded and who last edited an entry; names resolve through the account's workers. */
+data class LogAudit(
+    val createdAt: Long,
+    val createdBy: String?,
+    val editedAt: Long?,
+    val editedBy: String?,
+) {
+    companion object {
+        /** Saves within this window of creation count as part of recording the entry. */
+        const val EDIT_GRACE_MS = 60_000L
+
+        fun of(log: Activity, namesByUserId: Map<String, String>): LogAudit {
+            val updatedAt = log.updatedAt
+            val edited = updatedAt != null && updatedAt - log.createdAt > EDIT_GRACE_MS
+            return LogAudit(
+                createdAt = log.createdAt,
+                createdBy = log.createdByUserId?.let(namesByUserId::get),
+                editedAt = updatedAt.takeIf { edited },
+                editedBy = log.updatedByUserId?.takeIf { edited }?.let(namesByUserId::get),
+            )
+        }
+    }
+}
+
 data class LogDetailUiState(
     val log: Activity? = null,
     val costLines: List<CostLine> = emptyList(),
     val photos: List<Attachment> = emptyList(),
+    val audit: LogAudit? = null,
     val isLoading: Boolean = true,
     val error: String? = null,
 ) {
@@ -60,6 +86,7 @@ class LogDetailViewModel @Inject constructor(
     private val activities: ActivityRepository,
     private val assets: AssetRepository,
     private val config: ConfigRepository,
+    workers: WorkerRepository,
     userPrefsRepository: UserPreferencesRepository,
 ) : ViewModel() {
 
@@ -76,11 +103,14 @@ class LogDetailViewModel @Inject constructor(
                 activities.observeActivity(id),
                 activities.observeCostLines(id),
                 assets.observeAttachments(AttachmentTarget.ToActivity(id)),
-            ) { log, lines, files ->
+                workers.observeWorkers(),
+            ) { log, lines, files, people ->
+                val names = people.mapNotNull { w -> w.userId?.let { it to w.displayName } }.toMap()
                 LogDetailUiState(
                     log = log,
                     costLines = lines,
                     photos = files.filter { it.file?.isImage != false },
+                    audit = log?.let { LogAudit.of(it, names) },
                     isLoading = false,
                 )
             }
@@ -130,6 +160,18 @@ class LogDetailViewModel @Inject constructor(
 
     fun setEntryId(entryId: String) {
         _entryId.value = entryId
+    }
+
+    /** Makes [attachmentId] the entry's primary photo (first in sort order). */
+    fun setPrimaryPhoto(attachmentId: String) {
+        val entryId = _entryId.value ?: return
+        viewModelScope.launch {
+            runCatching { assets.setPrimaryAttachment(AttachmentTarget.ToActivity(entryId), attachmentId) }
+                .onFailure { e ->
+                    Timber.e(e, "[LogDetailViewModel] set primary photo failed for $entryId")
+                    _errors.tryEmit(e.message ?: e.javaClass.simpleName)
+                }
+        }
     }
 
     fun deleteLog(onDeleted: () -> Unit) {

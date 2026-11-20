@@ -191,6 +191,7 @@ fun AddEditLogScreen(
     }
 
     val form by viewModel.form.collectAsStateWithLifecycle()
+    val glAccounts by viewModel.glAccounts.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -369,6 +370,15 @@ fun AddEditLogScreen(
             issue = issue,
             onSaveAnyway = { viewModel.saveIgnoringMeter() },
             onEdit = { viewModel.dismissMeterIssue() },
+        )
+    }
+    if (form.editConflicts.isNotEmpty()) {
+        EditConflictDialog(
+            conflicts = form.editConflicts,
+            label = viewModel::conflictKeyLabel,
+            onKeepMine = { viewModel.resolveEditConflictKeepMine() },
+            onReload = { viewModel.resolveEditConflictReload() },
+            onDismiss = { viewModel.dismissEditConflict() },
         )
     }
     val checklist = form.inspectionChecklist
@@ -556,6 +566,7 @@ fun AddEditLogScreen(
             onRemove = { viewModel.removeCostLine(it) },
             onDismiss = { showCostSheet = false },
             technicians = form.technicians,
+            glAccounts = glAccounts,
             sheetState = costSheetState,
         )
     }
@@ -704,8 +715,11 @@ fun AddEditLogScreen(
         }
         DraftBanner(
             restoredAt = form.restoredDraftAt,
+            serverOffer = form.serverDraftOffer,
             onDiscard = { viewModel.discardDraft() },
             onKeep = { viewModel.dismissRestoredDraftBanner() },
+            onRestoreServer = { viewModel.acceptServerDraft() },
+            onDismissServer = { viewModel.dismissServerDraft() },
         )
         Column(
             modifier = Modifier

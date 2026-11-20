@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MoreVert
@@ -206,7 +207,9 @@ internal fun OpenDefectsPanelContent(
                     dark = dark,
                     target = state.openTargets[d.id],
                     onOpenLog = onOpenLog,
-                    hasActions = (onCreateWorkOrder != null && d.status != InspectionV2.RESOLUTION_REPAIRED) || onSetStatus != null,
+                    // Rows not in the register yet have no id to act on until their inspection syncs.
+                    hasActions = !OpenDefects.isPending(d) &&
+                        ((onCreateWorkOrder != null && d.status != InspectionV2.RESOLUTION_REPAIRED) || onSetStatus != null),
                     onMore = { menuFor = d },
                 )
             }
@@ -328,6 +331,21 @@ private fun DefectRow(
                         modifier = Modifier.size(14.dp),
                     )
                     Text(age, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if (OpenDefects.isPending(d)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(
+                            Icons.Default.CloudUpload,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(14.dp),
+                        )
+                        Text(
+                            stringResource(R.string.log_open_defects_pending_sync),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
             }
             if (!d.note.isNullOrBlank()) {

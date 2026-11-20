@@ -434,10 +434,16 @@ object MaintCommands {
     }
 
     /** Null when nothing changed. Kind, asset and work order are fixed after creation. */
-    fun updateActivity(stored: Activity, draft: ActivityDraft, nowMillis: Long): V2NewCommand? {
+    /**
+     * Diffs [draft] against [stored]. Changing `work_order_id` moves the activity and its cost lines
+     * ([costLineIds]) to the work order, or detaches them when cleared.
+     */
+    fun updateActivity(stored: Activity, draft: ActivityDraft, nowMillis: Long, costLineIds: List<String> = emptyList()): V2NewCommand? {
         val d = V2UpdateDiff(MaintActivityRecordsUpdate.Clear.entries)
         val category = d.text("category_label", stored.categoryLabel, draft.categoryLabel)
         val title = d.text("title", stored.title, draft.title)
+        val workOrder = d.text("work_order_id", stored.workOrderId, draft.workOrderId)
+        val moved = "work_order_id" in d.overlay
         val occurred = d.field("occurred_at", stored.occurredAt, draft.occurredAt)
         val meter = d.decimal("meter_value", stored.meterValue, draft.meterValue, column = null)
         val performerId = d.text("performed_by_user_id", stored.performedByUserId, draft.performedByUserId)
@@ -451,14 +457,17 @@ object MaintCommands {
         d.check()
         if (d.isEmpty) return null
         val payload = MaintActivityRecordsUpdate(
-            id = stored.id, categoryLabel = category, title = title, occurredAt = occurred?.let(Instant::ofEpochMilli),
+            id = stored.id, categoryLabel = category, title = title, workOrderId = workOrder, occurredAt = occurred?.let(Instant::ofEpochMilli),
             meterValue = meter, performedByUserId = performerId, performedByName = performer, providerName = provider,
             currency = currency, overtimeMultiplier = overtime, notes = notes, payload = payloadJson,
             attributes = attributes, clear = d.clear,
         )
         return payload.toNewCommand(
             baseVersion = stored.version,
-            overlay = V2OverlayPatch.of(V2RowOp.upsert("activity_records", stored.id, d.overlay + updated(nowMillis))),
+            overlay = V2OverlayPatch(
+                listOf(V2RowOp.upsert("activity_records", stored.id, d.overlay + updated(nowMillis))) +
+                    if (moved) costLineIds.map { V2RowOp.upsert("activity_cost_lines", it, mapOf("work_order_id" to workOrder)) } else emptyList(),
+            ),
         )
     }
 

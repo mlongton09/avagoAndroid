@@ -91,7 +91,12 @@ class V2ActivityRepository @Inject constructor(
 
     override suspend fun update(id: String, draft: ActivityDraft) {
         val stored = activity(id) ?: throw RecordNotFoundException("activity", id)
-        MaintCommands.updateActivity(stored, draft, System.currentTimeMillis())?.let { commands.submit(it) }
+        val lineIds = if (stored.workOrderId != draft.workOrderId) {
+            store.read(emptyList()) { conn -> V2MaintRows.costLines(conn, "activity_id = ?", listOf(id)) { it["activity_id"] == id }.map { it.id } }
+        } else {
+            emptyList()
+        }
+        MaintCommands.updateActivity(stored, draft, System.currentTimeMillis(), lineIds)?.let { commands.submit(it) }
     }
 
     override suspend fun delete(id: String) {

@@ -3,6 +3,7 @@ package com.avago.feature.log.ui
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,11 +15,13 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,8 +32,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -43,11 +47,9 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,31 +58,33 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.data.domain.Activity
 import com.avago.core.data.domain.ActivityType
 import com.avago.core.data.domain.CostLine
 import com.avago.core.data.domain.CostLineType
-import com.avago.core.ui.components.StoredFileImage
-import com.avago.feature.log.viewmodel.LogDetailUiState
-import java.math.BigDecimal
 import com.avago.core.ui.categoryBadgeColor
 import com.avago.core.ui.categoryIconName
+import com.avago.core.ui.components.StoredFileImage
+import com.avago.feature.log.R
 import com.avago.feature.log.model.InspectionV2
 import com.avago.feature.log.model.LogPacks
 import com.avago.feature.log.model.PackDisplay
 import com.avago.feature.log.model.PositionReadings
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
+import com.avago.feature.log.viewmodel.LogAudit
+import com.avago.feature.log.viewmodel.LogDetailUiState
 import com.avago.feature.log.viewmodel.LogDetailViewModel
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.res.stringResource
-import com.avago.feature.log.R
 import kotlinx.serialization.json.JsonPrimitive
+import java.math.BigDecimal
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -496,15 +500,33 @@ fun LogDetailScreen(
                                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                             ) {
-                                items(state.photos, key = { it.id }) { photo ->
-                                    StoredFileImage(
-                                        file = photo.file,
+                                itemsIndexed(state.photos, key = { _, p -> p.id }) { index, photo ->
+                                    // The first photo (lowest sort order) is the entry's primary; long-press promotes another.
+                                    val setPrimaryLabel = stringResource(R.string.log_detail_photo_set_primary)
+                                    Box(
                                         modifier = Modifier
                                             .size(width = 140.dp, height = 105.dp)
-                                            .clip(RoundedCornerShape(8.dp)),
-                                        contentScale = ContentScale.Crop,
-                                        contentDescription = stringResource(R.string.log_detail_photo_cd),
-                                    )
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .combinedClickable(
+                                                onClick = {},
+                                                onLongClickLabel = setPrimaryLabel,
+                                                onLongClick = { viewModel.setPrimaryPhoto(photo.id) },
+                                            ),
+                                    ) {
+                                        StoredFileImage(
+                                            file = photo.file,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop,
+                                            contentDescription = stringResource(R.string.log_detail_photo_cd),
+                                        )
+                                        if (index == 0 && state.photos.size > 1) {
+                                            Badge(
+                                                modifier = Modifier
+                                                    .align(Alignment.TopEnd)
+                                                    .padding(6.dp),
+                                            ) { Text("\u2605") }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -602,6 +624,11 @@ fun LogDetailScreen(
                         }
                     }
 
+                    state.audit?.let { audit ->
+                        Spacer(Modifier.height(16.dp))
+                        AuditFooter(audit = audit, modifier = Modifier.padding(horizontal = 16.dp))
+                    }
+
                     Spacer(Modifier.height(24.dp))
 
                     // ── Prev / Next navigation row (mirrors iOS vertical-pan gesture) ─────
@@ -654,6 +681,30 @@ fun LogDetailScreen(
 // ---------------------------------------------------------------------------
 // Sub-composables
 // ---------------------------------------------------------------------------
+
+/** "Created by ? on ?" and "Last edited by ? on ?" lines. */
+@Composable
+private fun AuditFooter(audit: LogAudit, modifier: Modifier = Modifier) {
+    val format = remember { java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT) }
+    val created = format.format(Date(audit.createdAt))
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = audit.createdBy?.let { stringResource(R.string.log_detail_audit_created_by, it, created) }
+                ?: stringResource(R.string.log_detail_audit_created, created),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        audit.editedAt?.let { at ->
+            val edited = format.format(Date(at))
+            Text(
+                text = audit.editedBy?.let { stringResource(R.string.log_detail_audit_edited_by, it, edited) }
+                    ?: stringResource(R.string.log_detail_audit_edited, edited),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
 
 /** Uppercase, letter-spaced section header row + hairline divider (iOS section style). */
 @Composable

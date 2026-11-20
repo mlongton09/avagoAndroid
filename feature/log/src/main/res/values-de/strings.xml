@@ -169,6 +169,8 @@
     <string name="log_insp_draft_discard">Verwerfen</string>
     <string name="log_insp_draft_keep">Behalten</string>
     <string name="log_insp_server_draft">Ein neuerer Entwurf von einem anderen Gerät (%1$s) ist verfügbar.</string>
+    <string name="log_insp_server_draft_restore">Wiederherstellen</string>
+    <string name="log_insp_dismiss">Ausblenden</string>
     <string name="log_sync_saved">Gespeichert</string>
     <string name="log_sync_pending">Synchronisierung ausstehend</string>
     <string name="log_sync_conflict">Synchronisierungskonflikt</string>
@@ -467,4 +469,27 @@
     <string name="log_readings_pos_rro">Hinten rechts außen</string>
     <string name="log_readings_pos_rri">Hinten rechts innen</string>
     <string name="log_readings_pos_spare">Ersatzrad</string>
+    <string name="log_cost_lines_gl_account">Sachkonto</string>
+    <string name="log_cost_lines_no_gl_account">Kein Sachkonto</string>
+    <string name="log_detail_audit_created_by">Erstellt von %1$s am %2$s</string>
+    <string name="log_detail_audit_created">Erstellt am %1$s</string>
+    <string name="log_detail_audit_edited_by">Zuletzt bearbeitet von %1$s am %2$s</string>
+    <string name="log_detail_audit_edited">Zuletzt bearbeitet am %1$s</string>
+    <string name="log_detail_photo_set_primary">Als Hauptfoto festlegen</string>
+    <string name="log_edit_conflict_title">Dieser Eintrag wurde von jemand anderem ge?ndert</string>
+    <string name="log_edit_conflict_message">Jemand hat diesen Eintrag gespeichert, nachdem Sie ihn ge?ffnet haben. Behalten Sie Ihre Version, um Ihre ?nderungen auf deren Version anzuwenden (alle anderen ?nderungen bleiben erhalten), oder laden Sie deren Version und verwerfen Ihre ?nderungen.</string>
+    <string name="log_edit_conflict_both_changed">Auf beiden Seiten ge?ndert. ?Meine behalten? ersetzt deren Werte:</string>
+    <string name="log_edit_conflict_mine_theirs">Ihre: %1$s ? Deren: %2$s</string>
+    <string name="log_edit_conflict_empty_value">(leer)</string>
+    <string name="log_edit_conflict_keep_mine">Meine behalten</string>
+    <string name="log_edit_conflict_reload">Deren Version laden</string>
+    <string name="log_edit_conflict_field_work_order">Arbeitsauftrag</string>
+    <string name="log_edit_conflict_field_category">Kategorie</string>
+    <string name="log_edit_conflict_field_title">Titel</string>
+    <string name="log_edit_conflict_field_date">Datum</string>
+    <string name="log_edit_conflict_field_meter">Z?hlerstand</string>
+    <string name="log_edit_conflict_field_performer">Durchgef?hrt von</string>
+    <string name="log_edit_conflict_field_provider">Werkstatt</string>
+    <string name="log_edit_conflict_field_notes">Notizen</string>
+    <string name="log_open_defects_pending_sync">Wartet auf Synchronisierung</string>
 </resources>

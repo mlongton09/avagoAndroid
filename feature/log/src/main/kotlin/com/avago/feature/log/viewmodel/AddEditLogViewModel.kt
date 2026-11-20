@@ -20,6 +20,7 @@ import com.avago.core.data.domain.ConfigRepository
 import com.avago.core.data.domain.CostLine
 import com.avago.core.data.domain.CostLineDraft
 import com.avago.core.data.domain.CostLineType
+import com.avago.core.data.domain.GlAccount
 import com.avago.core.data.domain.InventoryRepository
 import com.avago.core.data.domain.LocalFileRef
 import com.avago.core.data.domain.RecordSyncState
@@ -42,6 +43,8 @@ import com.avago.feature.log.model.InspectionSection
 import com.avago.feature.log.model.InspectionV2
 import com.avago.feature.log.model.InspectionValidation
 import com.avago.feature.log.model.LogCostLineDraft
+import com.avago.feature.log.model.LogEditConflict
+import com.avago.feature.log.model.LogRebase
 import com.avago.feature.log.model.LogPacks
 import com.avago.feature.log.model.LogPacks.readBool
 import com.avago.feature.log.model.LogPacks.readDouble
@@ -58,10 +61,12 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonElement
@@ -166,6 +171,8 @@ data class AddEditLogFormState(
     val linkedWoId: String? = null,
     val woOptions: List<LogWoOption> = emptyList(),
     val woLinkLocked: Boolean = false,
+    /** Fields changed both here and elsewhere since the form was opened (review before saving). */
+    val editConflicts: List<LogEditConflict> = emptyList(),
 
     // People selectable as labor technician
     val technicians: List<LogPersonOption> = emptyList(),
@@ -223,8 +230,9 @@ data class AddEditLogFormState(
     val meterIssue: InspectionValidation.MeterIssue? = null,
     // Latest earlier meter reading of this asset (hint + sanity check).
     val lastMeter: InspectionValidation.MeterPoint? = null,
-    // Draft autosave: epoch millis of the restored draft (banner).
+    // Draft autosave: epoch millis of the restored draft (banner) and a newer server draft offer.
     val restoredDraftAt: Long? = null,
+    val serverDraftOffer: InspectionDraft? = null,
     /** Result of the last defect status change (snackbar), null when shown. */
     val defectUpdateOk: Boolean? = null,
     val syncStatus: LogSyncStatus? = null,
@@ -286,7 +294,6 @@ class AddEditLogViewModel @Inject constructor(
 
     /** Attributes as last stored (edit mode). Every key not edited by this form is preserved on save. */
     private var storedAttributes: JsonObject = JsonObject(emptyMap())
-    private var storedWoId: String? = null
     private var fuelHistory: List<LogPacks.FuelFill> = emptyList()
 
     init {
@@ -337,6 +344,10 @@ class AddEditLogViewModel @Inject constructor(
         savedStateHandle.get<String>(KEY_NEW_ENTRY_ID)?.let { AddEditLogFormState(entryId = it) } ?: AddEditLogFormState(),
     )
     val form: StateFlow<AddEditLogFormState> = _form.asStateFlow()
+
+    /** Active GL accounts for coding cost lines. */
+    val glAccounts: StateFlow<List<GlAccount>> = activities.observeGlAccounts()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
 
     init {
         loadVendors()
@@ -414,7 +425,9 @@ class AddEditLogViewModel @Inject constructor(
                 // Restore §1 attributes (typed; unknown keys kept in storedAttributes)
                 val attrs = LogPacks.parse(entity.attributes)
                 storedAttributes = attrs
-                storedWoId = entity.workOrderId
+                // A work order's completion record cannot move (server conflict completion_activity).
+                val isCompletionRecord = entity.workOrderId
+                    ?.let { workOrders.workOrder(it) }?.completionActivityId == entity.id
                 val savedFuelVolume = attrs.readString("fuel_volume") ?: ""
                 val savedFuelUnit = attrs.readString("fuel_volume_unit")?.let(::fromContractVolumeUnit)
                     ?: userPrefsRepository.fuelVolumeUnitFlow.first()
@@ -453,7 +466,7 @@ class AddEditLogViewModel @Inject constructor(
                         vendorId = attrs.readString("vendor_id"),
                         vendorName = entity.providerName ?: attrs.readString("vendor_name") ?: "",
                         linkedWoId = entity.workOrderId,
-                        woLinkLocked = true,
+                        woLinkLocked = isCompletionRecord,
                         costMode = if (drafts.isNotEmpty()) CostMode.ITEMIZED else CostMode.TOTAL,
                         totalCost = totalLine?.unitCost?.stripTrailingZeros()?.toPlainString() ?: "",
                         pendingCostLines = drafts,
@@ -1192,6 +1205,9 @@ class AddEditLogViewModel @Inject constructor(
     // ---------------------------------------------------------------------------
 
     private var draftJob: Job? = null
+    private var serverDraftJob: Job? = null
+    /** (account, asset, log) scopes whose server draft this form may have written or restored. */
+    private val serverDraftScopes = mutableSetOf<Triple<String, String, String?>>()
     private var draftRestoreAttempted = false
     private val draftKeysToClear = mutableSetOf<String>()
 
@@ -1243,6 +1259,14 @@ class AddEditLogViewModel @Inject constructor(
             draftKeysToClear += d.key
             draftStore.save(d)
         }
+        serverDraftJob?.cancel()
+        serverDraftJob = viewModelScope.launch {
+            delay(SERVER_DRAFT_DEBOUNCE_MS)
+            val d = currentDraft()?.takeIf { isMeaningful(it) } ?: return@launch
+            val assetId = d.assetId ?: return@launch
+            serverDraftScopes += Triple(d.acct, assetId, d.logId)
+            draftStore.pushServer(d)
+        }
     }
 
     /** New entries: restores a local draft for this account / asset (called once from the screen). */
@@ -1261,6 +1285,12 @@ class AddEditLogViewModel @Inject constructor(
         }?.takeIf { it.key == key }
         val local = listOfNotNull(fromState, draftStore.load(key)).maxByOrNull { it.savedAt }
         if (local != null && isMeaningful(local)) applyDraft(local)
+        if (assetId == null) return
+        serverDraftScopes += Triple(acct, assetId, logId)
+        val server = draftStore.fetchServer(acct, assetId, logId) ?: return
+        if (server.savedAt > (local?.savedAt ?: 0L) + SERVER_DRAFT_NEWER_MS && isMeaningful(server)) {
+            _form.update { it.copy(serverDraftOffer = server) }
+        }
     }
 
     private fun applyDraft(d: InspectionDraft) {
@@ -1286,6 +1316,7 @@ class AddEditLogViewModel @Inject constructor(
                 notes = d.form["notes"] ?: s.notes,
                 meterReading = d.form["meter"] ?: s.meterReading,
                 restoredDraftAt = d.savedAt,
+                serverDraftOffer = null,
             )
         }
         val subtype = d.subtype
@@ -1296,9 +1327,17 @@ class AddEditLogViewModel @Inject constructor(
 
     fun dismissRestoredDraftBanner() = _form.update { it.copy(restoredDraftAt = null) }
 
+    /** Takes the newer draft saved on another device (or the web) over this form. */
+    fun acceptServerDraft() {
+        _form.value.serverDraftOffer?.let { applyDraft(it); scheduleDraftSave() }
+    }
+
+    fun dismissServerDraft() = _form.update { it.copy(serverDraftOffer = null) }
+
     /** Drops the restored draft and returns the form to the stored entry (or a blank inspection). */
     fun discardDraft() {
         draftJob?.cancel()
+        serverDraftJob?.cancel()
         clearStoredDrafts()
         signOffDirty = false
         certificationDirty = false
@@ -1309,6 +1348,7 @@ class AddEditLogViewModel @Inject constructor(
                 signOff = storedSignOff,
                 certification = storedCertification,
                 restoredDraftAt = null,
+                serverDraftOffer = null,
             )
         }
     }
@@ -1319,7 +1359,12 @@ class AddEditLogViewModel @Inject constructor(
         currentDraft()?.key?.let { draftKeysToClear += it }
         val keys = draftKeysToClear.toList()
         draftKeysToClear.clear()
-        viewModelScope.launch { keys.forEach { draftStore.remove(it) } }
+        val scopes = serverDraftScopes.toList()
+        serverDraftScopes.clear()
+        viewModelScope.launch {
+            keys.forEach { draftStore.remove(it) }
+            scopes.forEach { (acct, assetId, logId) -> draftStore.removeServer(acct, assetId, logId) }
+        }
     }
 
     // ---------------------------------------------------------------------------
@@ -1402,7 +1447,12 @@ class AddEditLogViewModel @Inject constructor(
     // Save
     // ---------------------------------------------------------------------------
 
-    fun save(onSuccess: (entryId: String) -> Unit, skipMeterCheck: Boolean = false) {
+    /**
+     * Saves the form. When the entry changed through sync while the form was open, the user's edits
+     * are rebased onto the latest version; fields both sides changed differently are listed in
+     * [AddEditLogFormState.editConflicts] first unless [keepMine] confirms overwriting them.
+     */
+    fun save(onSuccess: (entryId: String) -> Unit, skipMeterCheck: Boolean = false, keepMine: Boolean = false) {
         val current = _form.value
         val accountId = identity.getActiveAccountId()
 
@@ -1447,11 +1497,13 @@ class AddEditLogViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                val existing = stored
+                var existing = stored
+                var current = current
                 val currency = existing?.currency ?: userPrefsRepository.currencyFlow.firstOrNull() ?: DEFAULT_CURRENCY
-                val draft = ActivityDraft(
+                var draft = ActivityDraft(
                     assetId = current.assetId,
-                    workOrderId = current.linkedWoId ?: current.workOrderId ?: storedWoId,
+                    // An existing entry's picker starts at its stored work order; "none" detaches it.
+                    workOrderId = if (existing != null) current.linkedWoId else current.linkedWoId ?: current.workOrderId,
                     type = activityTypeOf(current.logType, current.category),
                     categoryLabel = current.category,
                     title = current.title.trim(),
@@ -1466,6 +1518,39 @@ class AddEditLogViewModel @Inject constructor(
                     payload = buildDataJson(current),
                     attributes = buildAttributesJson(current),
                 )
+                val latest = existing?.let { activities.activity(it.id) }
+                if (existing != null && latest != null && latest.version != existing.version) {
+                    val rebase = LogRebase.rebase(existing, latest, draft, ::formatConflictDate)
+                    val isInspection = current.logType == "inspection"
+                    val theirsValues = if (isInspection) {
+                        InspectionV2.parseEnvelope(InspectionV2.parseDataObject(latest.payload)).values
+                    } else {
+                        emptyMap()
+                    }
+                    val mine = InspectionV2.diffValues(originalValues, current.inspectionAnswers)
+                    val conflicts = rebase.conflicts + if (isInspection) {
+                        InspectionV2.conflictingKeys(originalValues, mine, theirsValues).map { LogEditConflict(it.key, it.mine, it.theirs) }
+                    } else {
+                        emptyList()
+                    }
+                    if (conflicts.isNotEmpty() && !keepMine) {
+                        conflictPendingOnSuccess = onSuccess
+                        _form.update { it.copy(isSaving = false, editConflicts = conflicts) }
+                        return@launch
+                    }
+                    // Adopt the latest version as the base this save diffs against.
+                    stored = latest
+                    existing = latest
+                    storedData = InspectionV2.parseDataObject(latest.payload)
+                    draft = rebase.draft
+                    if (isInspection) {
+                        originalValues = theirsValues
+                        val rebased = InspectionV2.rebaseValues(theirsValues, mine)
+                        _form.update { it.copy(inspectionAnswers = rebased) }
+                        current = current.copy(inspectionAnswers = rebased)
+                        draft = draft.copy(payload = buildDataJson(current))
+                    }
+                }
                 val lines = linesFor(current)
                 val files = current.photoUris.map { LocalFileRef(it.toString(), "image/jpeg") }
                 val entryId = if (existing == null) {
@@ -1478,6 +1563,7 @@ class AddEditLogViewModel @Inject constructor(
                 }
 
                 draftJob?.cancel()
+                serverDraftJob?.cancel()
                 clearStoredDrafts()
                 _form.update { it.copy(isSaving = false, savedEntryId = entryId) }
                 Timber.d("[AddEditLogViewModel] Saved log $entryId")
@@ -1490,6 +1576,39 @@ class AddEditLogViewModel @Inject constructor(
             }
         }
     }
+
+    private var conflictPendingOnSuccess: ((String) -> Unit)? = null
+
+    /** Edit conflict ? "Keep mine": applies this device's edits on top of the latest version. */
+    fun resolveEditConflictKeepMine() {
+        val onSuccess = conflictPendingOnSuccess ?: return
+        conflictPendingOnSuccess = null
+        _form.update { it.copy(editConflicts = emptyList()) }
+        save(onSuccess, skipMeterCheck = true, keepMine = true)
+    }
+
+    /** Edit conflict ? "Reload theirs": discards this device's edits and reloads the latest version. */
+    fun resolveEditConflictReload() {
+        val entryId = _form.value.entryId ?: return
+        conflictPendingOnSuccess = null
+        _form.update { it.copy(editConflicts = emptyList()) }
+        snapshotChecklistApplied = false
+        loadForEdit(entryId)
+    }
+
+    fun dismissEditConflict() {
+        conflictPendingOnSuccess = null
+        _form.update { it.copy(editConflicts = emptyList()) }
+    }
+
+    /** Label for a conflicting inspection value or attribute key. */
+    fun conflictKeyLabel(key: String): String = when {
+        key.startsWith(LogEditConflict.ATTRIBUTE_PREFIX) -> humanizeIfKey(key.removePrefix(LogEditConflict.ATTRIBUTE_PREFIX))
+        else -> InspectionV2.keyLabel(_form.value.inspectionChecklist, key)
+    }
+
+    private fun formatConflictDate(millis: Long): String =
+        java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM).format(java.util.Date(millis))
 
     /** The form's cost as lines: the itemized lines, or one misc line holding the total. */
     private fun linesFor(form: AddEditLogFormState): List<LogCostLineDraft> = when (form.costMode) {
@@ -1505,6 +1624,7 @@ class AddEditLogViewModel @Inject constructor(
                         kind = CostLineType.MISC.wire,
                         quantity = 1.0,
                         unitCost = total.toDouble(),
+                        glAccountId = totalLineOf(storedLines)?.glAccountId,
                     ),
                 )
             }
@@ -1777,6 +1897,7 @@ class AddEditLogViewModel @Inject constructor(
                 quantity = line.quantity.toDouble(),
                 unitCost = line.unitCost?.toDouble() ?: 0.0,
                 taxAmount = line.taxAmountMinor?.let { minorToMajor(it, currency).toDouble() },
+                glAccountId = line.glAccountId,
                 displayOrder = idx,
             )
         }
@@ -1787,6 +1908,7 @@ class AddEditLogViewModel @Inject constructor(
         const val DEFAULT_CURRENCY = "USD"
         const val DEFAULT_ASSET_TYPE = "light_vehicle"
         private const val METER_HISTORY_LIMIT = 500
+        private const val STOP_TIMEOUT_MS = 5_000L
 
         /** A lone, unlabeled misc line is how the "total" cost mode is stored. */
         fun totalLineOf(lines: List<CostLine>): CostLine? = lines.singleOrNull()?.takeIf {
@@ -1804,6 +1926,7 @@ class AddEditLogViewModel @Inject constructor(
                 quantity = BigDecimal.valueOf(line.quantity),
                 unitCost = BigDecimal.valueOf(line.unitCost),
                 taxAmountMinor = line.taxAmount?.takeIf { it != 0.0 }?.let { majorToMinor(BigDecimal.valueOf(it), currency) },
+                glAccountId = line.glAccountId,
             )
         }
 
@@ -1893,5 +2016,11 @@ internal fun toContractVolumeUnit(u: String): String = LogPacks.normalizeVolumeU
 internal fun fromContractVolumeUnit(u: String): String = LogPacks.normalizeVolumeUnit(u) ?: u
 
 private const val KEY_DRAFT = "inspection_draft"
+
+/** Server drafts are pushed after this much quiet time (the device copy is written at once). */
+private const val SERVER_DRAFT_DEBOUNCE_MS = 10_000L
+
+/** A server draft is offered only when saved this much later than the device copy. */
+private const val SERVER_DRAFT_NEWER_MS = 5_000L
 private const val KEY_NEW_ENTRY_ID = "inspection_new_entry_id"
 private val draftJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true; isLenient = true }

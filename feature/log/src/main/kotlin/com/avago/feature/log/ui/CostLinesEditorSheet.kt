@@ -15,10 +15,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetState
@@ -32,22 +38,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import com.avago.feature.log.model.LogCostLineDraft
-import com.avago.feature.log.model.LogPersonOption
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExposedDropdownMenuAnchorType
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.ImeAction
+import com.avago.core.data.domain.GlAccount
 import com.avago.feature.log.R
+import com.avago.feature.log.model.LogCostLineDraft
 import com.avago.feature.log.model.LogPacks
+import com.avago.feature.log.model.LogPersonOption
 import java.util.UUID
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.HorizontalDivider
 
 /**
  * ModalBottomSheet for managing a list of cost line drafts.
@@ -70,6 +71,7 @@ fun CostLinesEditorSheet(
     onRemove: (lineId: String) -> Unit,
     onDismiss: () -> Unit,
     technicians: List<LogPersonOption> = emptyList(),
+    glAccounts: List<GlAccount> = emptyList(),
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
 ) {
     ModalBottomSheet(
@@ -99,6 +101,7 @@ fun CostLinesEditorSheet(
                     CostLineDraftRow(
                         draft = draft,
                         technicians = technicians,
+                        glAccounts = glAccounts,
                         onUpdate = onUpdate,
                         onRemove = { onRemove(draft.lineId) },
                     )
@@ -157,6 +160,7 @@ fun CostLinesEditorSheet(
 private fun CostLineDraftRow(
     draft: LogCostLineDraft,
     technicians: List<LogPersonOption>,
+    glAccounts: List<GlAccount>,
     onUpdate: (LogCostLineDraft) -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
@@ -250,6 +254,14 @@ private fun CostLineDraftRow(
                 label = stringResource(R.string.log_cost_lines_tax),
                 modifier = Modifier.fillMaxWidth(),
             )
+            if (glAccounts.isNotEmpty() || draft.glAccountId != null) {
+                Spacer(Modifier.height(6.dp))
+                GlAccountField(
+                    selectedId = draft.glAccountId,
+                    accounts = glAccounts,
+                    onSelect = { onUpdate(draft.copy(glAccountId = it)) },
+                )
+            }
         }
     }
 }
@@ -284,6 +296,43 @@ private fun TechnicianField(
                 DropdownMenuItem(
                     text = { Text(person.name) },
                     onClick = { onSelect(person.userId); expanded = false },
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun GlAccountField(
+    selectedId: String?,
+    accounts: List<GlAccount>,
+    onSelect: (String?) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selected = selectedId?.let { id -> accounts.firstOrNull { it.id == id }?.label ?: id }
+        ?: stringResource(R.string.log_cost_lines_no_gl_account)
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+        OutlinedTextField(
+            value = selected,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(stringResource(R.string.log_cost_lines_gl_account)) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+            singleLine = true,
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.log_cost_lines_no_gl_account)) },
+                onClick = { onSelect(null); expanded = false },
+            )
+            accounts.forEach { account ->
+                DropdownMenuItem(
+                    text = { Text(account.label) },
+                    onClick = { onSelect(account.id); expanded = false },
                 )
             }
         }

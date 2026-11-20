@@ -269,6 +269,9 @@ internal object V2MaintRows {
         totalCost = total,
         createdAt = r.longOrNull("created_at") ?: 0L,
         version = r.longOrNull("version") ?: 0L,
+        createdByUserId = r.strOrNull("created_by"),
+        updatedAt = r.longOrNull("updated_at"),
+        updatedByUserId = r.strOrNull("updated_by"),
     )
 
     fun costLines(conn: V2Connection, where: String?, args: List<Any?>, predicate: (V2Row) -> Boolean): List<CostLine> =

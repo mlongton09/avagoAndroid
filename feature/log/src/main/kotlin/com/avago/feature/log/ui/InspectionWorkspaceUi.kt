@@ -461,16 +461,19 @@ fun LastMeterHint(last: InspectionValidation.MeterPoint?) {
 @Composable
 fun DraftBanner(
     restoredAt: Long?,
+    serverOffer: InspectionDraft?,
     onDiscard: () -> Unit,
     onKeep: () -> Unit,
+    onRestoreServer: () -> Unit,
+    onDismissServer: () -> Unit,
 ) {
-    if (restoredAt == null) return
+    if (restoredAt == null && serverOffer == null) return
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
     ) {
         Column(Modifier.padding(12.dp).semantics { liveRegion = LiveRegionMode.Polite }) {
-            run {
+            if (restoredAt != null) {
                 Text(
                     stringResource(R.string.log_insp_draft_restored, DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(restoredAt))),
                     style = MaterialTheme.typography.bodyMedium,
@@ -481,6 +484,20 @@ fun DraftBanner(
                     }
                     TextButton(onClick = onKeep, modifier = Modifier.heightIn(min = 48.dp)) {
                         Text(stringResource(R.string.log_insp_draft_keep))
+                    }
+                }
+            }
+            if (serverOffer != null) {
+                Text(
+                    stringResource(R.string.log_insp_server_draft, DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(serverOffer.savedAt))),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = onRestoreServer, modifier = Modifier.heightIn(min = 48.dp)) {
+                        Text(stringResource(R.string.log_insp_server_draft_restore))
+                    }
+                    TextButton(onClick = onDismissServer, modifier = Modifier.heightIn(min = 48.dp)) {
+                        Text(stringResource(R.string.log_insp_dismiss))
                     }
                 }
             }

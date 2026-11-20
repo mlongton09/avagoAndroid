@@ -15,6 +15,8 @@ data class LogCostLineDraft(
     val quantity: Double = 1.0,
     val unitCost: Double = 0.0,
     val taxAmount: Double? = null,
+    /** General-ledger account the cost is booked to (`gl_accounts`). */
+    val glAccountId: String? = null,
     val displayOrder: Int = 0,
 ) {
     val lineTotal: Double get() = quantity * unitCost + (taxAmount ?: 0.0)

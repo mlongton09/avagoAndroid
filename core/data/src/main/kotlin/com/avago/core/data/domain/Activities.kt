@@ -53,6 +53,11 @@ data class Activity(
     val totalCost: BigDecimal,
     val createdAt: Long,
     val version: Long,
+    /** Who recorded the entry (`created_by`); null for system-created rows. */
+    val createdByUserId: String? = null,
+    val updatedAt: Long? = null,
+    /** Who last changed the entry (`updated_by`). */
+    val updatedByUserId: String? = null,
 ) {
     val displayTitle: String
         get() = title?.takeIf { it.isNotBlank() } ?: categoryLabel?.takeIf { it.isNotBlank() } ?: type.wire
