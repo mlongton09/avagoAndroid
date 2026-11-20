@@ -313,12 +313,14 @@ def commands_kotlin(catalog: dict, source: str) -> str:
             out += param_lines(fields, enums)
             out.append(") : V2CommandPayload {")
             out.append(f"    override fun toJson(): JsonObject = V2PayloadJson.objectOf({pairs(fields)})")
-        key = kt_name(c["key"])
+        if c["key"] is None and (c["kind"] == "update" or c["concurrency"] == "version"):
+            sys.exit(f"{c['name']}: a keyless command cannot be an update or carry a base version")
+        key = kt_name(c["key"]) if c["key"] is not None else "null"
         out += [
             "",
             f'    override val commandName: String get() = "{c["name"]}"',
             f'    override val commandEntityType: String get() = "{c["entity"]}"',
-            f"    override val commandEntityKey: String get() = {key}",
+            f"    override val commandEntityKey: String? get() = {key}",
             f"    override val commandKind: V2CommandKind get() = V2CommandKind.{c['kind'].upper()}",
             f"    override val requiresBaseVersion: Boolean get() = {'true' if c['concurrency'] == 'version' else 'false'}",
             "}",

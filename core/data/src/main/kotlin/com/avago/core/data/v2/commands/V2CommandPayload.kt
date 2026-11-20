@@ -23,8 +23,12 @@ interface V2CommandPayload {
     val commandName: String
     val commandEntityType: String
 
-    /** The payload `id`: the row a create writes or the row an update/delete/action targets. */
-    val commandEntityKey: String
+    /**
+     * The payload `id`: the row a create writes or the row an update/delete/action targets. Null for
+     * keyless commands (upserts keyed by natural columns such as `stock.stocking_policies.set`); they
+     * use no base version, so the server ignores the envelope key (sync-wire.md "Concurrency").
+     */
+    val commandEntityKey: String?
     val commandKind: V2CommandKind
 
     /** `base_version: required` commands (updates, deletes, PO transitions). */
