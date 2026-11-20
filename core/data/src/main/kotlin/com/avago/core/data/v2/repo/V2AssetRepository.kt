@@ -1,6 +1,6 @@
 package com.avago.core.data.v2.repo
 
-import android.net.Uri
+import androidx.core.net.toUri
 import com.avago.core.data.domain.Asset
 import com.avago.core.data.domain.AssetDraft
 import com.avago.core.data.domain.AssetFilter
@@ -161,7 +161,7 @@ class V2AssetRepository @Inject constructor(
     }
 
     override suspend fun attach(target: AttachmentTarget, file: LocalFileRef): String {
-        val staged = stager.stage(Uri.parse(file.uri), file.fallbackMediaType)
+        val staged = stager.stage(file.uri.toUri(), file.fallbackMediaType)
         val now = System.currentTimeMillis()
         val id = V2Uuid.v7(now)
         commands.submit(MaintCommands.attach(id, target, staged, null, now, commands.currentUserId()))

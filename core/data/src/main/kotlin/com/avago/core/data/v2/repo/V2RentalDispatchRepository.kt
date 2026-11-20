@@ -1,6 +1,6 @@
 package com.avago.core.data.v2.repo
 
-import android.net.Uri
+import androidx.core.net.toUri
 import com.avago.core.data.domain.LocalFileRef
 import com.avago.core.data.domain.RecordNotFoundException
 import com.avago.core.data.domain.RecordSyncState
@@ -78,7 +78,7 @@ class V2RentalDispatchRepository @Inject constructor(
         signedName: String?,
     ) {
         task(taskId)
-        val staged = photos.map { stager.stage(Uri.parse(it.uri), it.fallbackMediaType) }
+        val staged = photos.map { stager.stage(it.uri.toUri(), it.fallbackMediaType) }
         val signature = signaturePng?.let { stager.stage(it, "image/png", "proof-signature.png") }
         val now = System.currentTimeMillis()
         val proof = RentalCommands.StopProof(reason, notes, staged, signature, signedName)

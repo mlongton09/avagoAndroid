@@ -4,7 +4,6 @@
     <string name="rentals_pc_add">Toevoegen</string>
     <string name="rentals_pc_add_title">Kosten na huur toevoegen</string>
     <string name="rentals_pc_empty">Geen tol of boetes op deze order.</string>
-    <string name="rentals_pc_window">Kosten kunnen tot %1$d dagen na de retour worden toegevoegd.</string>
     <string name="rentals_pc_retry">Opnieuw</string>
     <string name="rentals_pc_kind_toll">Tol</string>
     <string name="rentals_pc_kind_ticket">Boete</string>

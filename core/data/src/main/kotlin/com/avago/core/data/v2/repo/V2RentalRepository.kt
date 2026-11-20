@@ -1,6 +1,6 @@
 package com.avago.core.data.v2.repo
 
-import android.net.Uri
+import androidx.core.net.toUri
 import com.avago.core.data.domain.BulkCountsDraft
 import com.avago.core.data.domain.CustomerDocumentDraft
 import com.avago.core.data.domain.HandoverDraft
@@ -475,7 +475,7 @@ class V2RentalRepository @Inject constructor(
     // ---------------------------------------------------------------------------------- helpers
 
     private suspend fun stage(files: List<LocalFileRef>): List<V2StagedFile> =
-        files.map { stager.stage(Uri.parse(it.uri), it.fallbackMediaType) }
+        files.map { stager.stage(it.uri.toUri(), it.fallbackMediaType) }
 
     private suspend fun lineContext(lineId: String): RentalCommands.LineContext = store.read(null) { conn ->
         val line = lineById(conn, lineId) ?: return@read null

@@ -4,7 +4,6 @@
     <string name="rentals_pc_add">Añadir</string>
     <string name="rentals_pc_add_title">Añadir cargo posterior al alquiler</string>
     <string name="rentals_pc_empty">No hay peajes ni multas en este pedido.</string>
-    <string name="rentals_pc_window">Se pueden añadir cargos hasta %1$d días después de la devolución.</string>
     <string name="rentals_pc_retry">Reintentar</string>
     <string name="rentals_pc_kind_toll">Peaje</string>
     <string name="rentals_pc_kind_ticket">Multa</string>

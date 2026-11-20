@@ -344,7 +344,6 @@
     <string name="rentals_pc_add">Hinzufügen</string>
     <string name="rentals_pc_add_title">Nachträgliche Gebühr hinzufügen</string>
     <string name="rentals_pc_empty">Keine Maut oder Strafzettel zu diesem Auftrag.</string>
-    <string name="rentals_pc_window">Gebühren können bis %1$d Tage nach der Rückgabe hinzugefügt werden.</string>
     <string name="rentals_pc_retry">Erneut versuchen</string>
     <string name="rentals_pc_kind_toll">Maut</string>
     <string name="rentals_pc_kind_ticket">Strafzettel</string>

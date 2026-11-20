@@ -4,7 +4,6 @@
     <string name="rentals_pc_add">Adicionar</string>
     <string name="rentals_pc_add_title">Adicionar cobrança pós-aluguer</string>
     <string name="rentals_pc_empty">Sem portagens ou multas nesta encomenda.</string>
-    <string name="rentals_pc_window">As cobranças podem ser adicionadas até %1$d dias após a devolução.</string>
     <string name="rentals_pc_retry">Tentar novamente</string>
     <string name="rentals_pc_kind_toll">Portagem</string>
     <string name="rentals_pc_kind_ticket">Multa</string>

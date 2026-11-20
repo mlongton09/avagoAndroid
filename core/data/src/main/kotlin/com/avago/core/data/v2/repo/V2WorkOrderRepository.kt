@@ -1,6 +1,6 @@
 package com.avago.core.data.v2.repo
 
-import android.net.Uri
+import androidx.core.net.toUri
 import com.avago.core.data.domain.ActivityFilter
 import com.avago.core.data.domain.ApprovalDecision
 import com.avago.core.data.domain.ApprovalRequest
@@ -137,7 +137,7 @@ class V2WorkOrderRepository @Inject constructor(
     }
 
     override suspend fun addComment(workOrderId: String, body: String, photo: LocalFileRef?): String {
-        val staged = photo?.let { stager.stage(Uri.parse(it.uri), it.fallbackMediaType) }
+        val staged = photo?.let { stager.stage(it.uri.toUri(), it.fallbackMediaType) }
         val now = System.currentTimeMillis()
         val id = V2Uuid.v7(now)
         commands.submit(WorkOrderCommands.comment(id, workOrderId, body, staged, now, commands.currentUserId()))
@@ -292,7 +292,7 @@ class V2WorkOrderRepository @Inject constructor(
     }
 
     override suspend fun attach(workOrderId: String, file: LocalFileRef): String {
-        val staged = stager.stage(Uri.parse(file.uri), file.fallbackMediaType)
+        val staged = stager.stage(file.uri.toUri(), file.fallbackMediaType)
         val now = System.currentTimeMillis()
         val id = V2Uuid.v7(now)
         commands.submit(MaintCommands.attach(id, AttachmentTarget.ToWorkOrder(workOrderId), staged, null, now, commands.currentUserId()))

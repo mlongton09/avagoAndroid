@@ -4,7 +4,6 @@
     <string name="rentals_pc_add">Legg til</string>
     <string name="rentals_pc_add_title">Legg til etterbelastning</string>
     <string name="rentals_pc_empty">Ingen bompenger eller bøter på denne ordren.</string>
-    <string name="rentals_pc_window">Belastninger kan legges til inntil %1$d dager etter retur.</string>
     <string name="rentals_pc_retry">Prøv igjen</string>
     <string name="rentals_pc_kind_toll">Bompenger</string>
     <string name="rentals_pc_kind_ticket">Bot</string>

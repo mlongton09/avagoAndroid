@@ -4,7 +4,6 @@
     <string name="rentals_pc_add">Ajouter</string>
     <string name="rentals_pc_add_title">Ajouter une charge après location</string>
     <string name="rentals_pc_empty">Aucun péage ni amende sur cette commande.</string>
-    <string name="rentals_pc_window">Les charges peuvent être ajoutées jusqu\'à %1$d jours après le retour.</string>
     <string name="rentals_pc_retry">Réessayer</string>
     <string name="rentals_pc_kind_toll">Péage</string>
     <string name="rentals_pc_kind_ticket">Amende</string>

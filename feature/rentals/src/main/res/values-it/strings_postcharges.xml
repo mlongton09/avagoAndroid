@@ -4,7 +4,6 @@
     <string name="rentals_pc_add">Aggiungi</string>
     <string name="rentals_pc_add_title">Aggiungi addebito post-noleggio</string>
     <string name="rentals_pc_empty">Nessun pedaggio o multa su questo ordine.</string>
-    <string name="rentals_pc_window">Gli addebiti possono essere aggiunti fino a %1$d giorni dopo la restituzione.</string>
     <string name="rentals_pc_retry">Riprova</string>
     <string name="rentals_pc_kind_toll">Pedaggio</string>
     <string name="rentals_pc_kind_ticket">Multa</string>

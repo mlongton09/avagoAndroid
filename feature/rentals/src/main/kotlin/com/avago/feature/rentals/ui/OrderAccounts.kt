@@ -50,9 +50,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -428,6 +430,7 @@ internal fun postChargeErrorRes(code: String?, status: Int): Int? = when (code) 
 @Composable
 internal fun OrderAccountsEvents(vm: OrderAccountsViewModel, onMessage: suspend (String, Boolean) -> Unit) {
     val ctx = LocalContext.current
+    val res = LocalResources.current
     val offline = stringResource(R.string.rentals_online_offline)
     val generic = stringResource(R.string.rentals_online_failed_generic)
     val pdfFailed = stringResource(R.string.rentals_sign_pdf_failed)
@@ -435,12 +438,12 @@ internal fun OrderAccountsEvents(vm: OrderAccountsViewModel, onMessage: suspend 
         vm.events.collect { e ->
             when (e) {
                 is OrderAccountsViewModel.Event.Message ->
-                    onMessage(if (e.arg != null) ctx.getString(e.res, e.arg) else ctx.getString(e.res), true)
+                    onMessage(if (e.arg != null) res.getString(e.res, e.arg) else res.getString(e.res), true)
                 is OrderAccountsViewModel.Event.Failed ->
-                    onMessage(e.detail?.takeIf { it.isNotBlank() }?.let { ctx.getString(R.string.rentals_online_failed, it) } ?: generic, false)
+                    onMessage(e.detail?.takeIf { it.isNotBlank() }?.let { res.getString(R.string.rentals_online_failed, it) } ?: generic, false)
                 OrderAccountsViewModel.Event.Offline -> onMessage(offline, false)
                 is OrderAccountsViewModel.Event.OpenUrl ->
-                    runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(e.url))) }
+                    runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, e.url.toUri())) }
                 is OrderAccountsViewModel.Event.OpenPdf -> if (!openPdfFile(ctx, e.file)) onMessage(pdfFailed, false)
             }
         }
@@ -607,6 +610,7 @@ internal fun AddPostChargeDialog(
     onSave: () -> Unit,
 ) {
     val ctx = LocalContext.current
+    val res = LocalResources.current
     val scope = rememberCoroutineScope()
     var pickError by rememberSaveable { mutableStateOf(false) }
     val closed = orderStatus == OrderStatus.CLOSED
@@ -621,10 +625,10 @@ internal fun AddPostChargeDialog(
     }
     fun err(key: String): String? = when (errors[key]) {
         null -> null
-        "required" -> ctx.getString(R.string.rentals_pc_err_required)
-        "amount" -> ctx.getString(R.string.rentals_pc_err_amount)
-        "future" -> ctx.getString(R.string.rentals_pc_err_future)
-        else -> ctx.getString(R.string.rentals_pc_err_evidence)
+        "required" -> res.getString(R.string.rentals_pc_err_required)
+        "amount" -> res.getString(R.string.rentals_pc_err_amount)
+        "future" -> res.getString(R.string.rentals_pc_err_future)
+        else -> res.getString(R.string.rentals_pc_err_evidence)
     }
     val decimal = KeyboardOptions(keyboardType = KeyboardType.Decimal)
     AlertDialog(

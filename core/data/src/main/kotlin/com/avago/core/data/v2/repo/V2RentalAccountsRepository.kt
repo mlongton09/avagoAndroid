@@ -1,6 +1,6 @@
 package com.avago.core.data.v2.repo
 
-import android.net.Uri
+import androidx.core.net.toUri
 import com.avago.core.data.domain.CustomerSite
 import com.avago.core.data.domain.LedgerEntry
 import com.avago.core.data.domain.PartyDocument
@@ -117,7 +117,7 @@ class V2RentalAccountsRepository @Inject constructor(
     override suspend fun createPostCharge(draft: PostChargeDraft): String {
         val order = store.read(null) { conn -> V2RentalRepository.orders(conn, "id = ?" to listOf(draft.orderId)) { it["id"] == draft.orderId }.firstOrNull() }
             ?: throw RecordNotFoundException("rental order", draft.orderId)
-        val evidence = stager.stage(Uri.parse(draft.evidence.uri), draft.evidence.fallbackMediaType)
+        val evidence = stager.stage(draft.evidence.uri.toUri(), draft.evidence.fallbackMediaType)
         val now = System.currentTimeMillis()
         val id = V2Uuid.v7(now)
         commands.submit(RentalAccountCommands.createPostCharge(id, draft, order, evidence, now, commands.currentUserId()))

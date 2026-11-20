@@ -1,6 +1,6 @@
 package com.avago.core.data.v2.repo
 
-import android.net.Uri
+import androidx.core.net.toUri
 import com.avago.core.data.domain.Document
 import com.avago.core.data.domain.DocumentDraft
 import com.avago.core.data.domain.DocumentEdit
@@ -48,7 +48,7 @@ class V2DocumentRepository @Inject constructor(
         }
 
     override suspend fun create(draft: DocumentDraft): String {
-        val staged = stager.stage(Uri.parse(draft.file.uri), draft.file.fallbackMediaType)
+        val staged = stager.stage(draft.file.uri.toUri(), draft.file.fallbackMediaType)
         val now = System.currentTimeMillis()
         val id = V2Uuid.v7(now)
         commands.submit(
@@ -62,7 +62,7 @@ class V2DocumentRepository @Inject constructor(
     }
 
     override suspend fun replaceFile(stored: Document, file: LocalFileRef) {
-        val staged = stager.stage(Uri.parse(file.uri), file.fallbackMediaType)
+        val staged = stager.stage(file.uri.toUri(), file.fallbackMediaType)
         val now = System.currentTimeMillis()
         commands.submit(CoreCommands.replaceDocumentFile(stored, V2Uuid.v7(now), staged, now, commands.currentUserId()))
     }

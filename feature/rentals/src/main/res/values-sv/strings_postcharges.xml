@@ -4,7 +4,6 @@
     <string name="rentals_pc_add">Lägg till</string>
     <string name="rentals_pc_add_title">Lägg till efterdebitering</string>
     <string name="rentals_pc_empty">Inga vägtullar eller böter på den här ordern.</string>
-    <string name="rentals_pc_window">Debiteringar kan läggas till upp till %1$d dagar efter returen.</string>
     <string name="rentals_pc_retry">Försök igen</string>
     <string name="rentals_pc_kind_toll">Vägtull</string>
     <string name="rentals_pc_kind_ticket">Böter</string>

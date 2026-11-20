@@ -13,12 +13,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Block
-import androidx.compose.material.icons.filled.EventBusy
-import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.EventBusy
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -35,6 +35,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import com.avago.core.data.rental.MoneyFormatter
 import com.avago.core.ui.components.StatusTone
 import com.avago.feature.rentals.R
@@ -288,5 +289,5 @@ internal fun rememberLocationRequest(precise: Boolean, onGranted: () -> Unit): (
 
 /** Opens [uri] (tel:, mailto:, geo:) if any app handles it. */
 internal fun Context.openUri(uri: String) {
-    runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uri)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+    runCatching { startActivity(Intent(Intent.ACTION_VIEW, uri.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
 }

@@ -1,6 +1,6 @@
 package com.avago.core.data.v2.repo
 
-import android.net.Uri
+import androidx.core.net.toUri
 import com.avago.core.data.domain.Activity
 import com.avago.core.data.domain.ActivityDraft
 import com.avago.core.data.domain.ActivityFilter
@@ -70,7 +70,7 @@ class V2ActivityRepository @Inject constructor(
         val now = System.currentTimeMillis()
         val id = V2Uuid.v7(now)
         val userId = commands.currentUserId()
-        val staged = files.map { stager.stage(Uri.parse(it.uri), it.fallbackMediaType) }
+        val staged = files.map { stager.stage(it.uri.toUri(), it.fallbackMediaType) }
         val workers = performerWorkers(lines)
         val createId = commands.submit(MaintCommands.createActivity(id, draft, now, userId))
         lines.forEachIndexed { index, line ->
