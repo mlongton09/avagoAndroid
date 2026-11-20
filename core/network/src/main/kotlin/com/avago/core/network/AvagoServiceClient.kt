@@ -19,8 +19,6 @@ import com.avago.core.network.model.RentalsEnvelope
 import com.avago.core.network.model.StartReservationEnvelope
 import com.avago.core.network.model.RolePermissionsSyncData
 import com.avago.core.network.model.RolePermissionsSyncEnvelope
-import com.avago.core.network.model.UpdatePreferencesRequest
-import com.avago.core.network.model.UserPreferencesResponse
 import com.avago.core.network.model.VinDecodeResponse
 import com.avago.core.network.model.FileUploadResponse
 import com.avago.core.network.model.PresignedUploadRequest
@@ -414,29 +412,6 @@ class AvagoServiceClient @Inject constructor(
             client.post("$baseUrl/accounts/$accountId/geocode") {
                 setBody(request)
             }.body()
-        }
-
-    // ---------------------------------------------------------------------------
-    // User Preferences
-    // ---------------------------------------------------------------------------
-
-    /** GET /accounts/{accountId}/preferences/me — fetch the current user's preferences. */
-    suspend fun getMyPreferences(accountId: String): NetworkResult<UserPreferencesResponse> =
-        safeNetworkCall { client.get("$baseUrl/accounts/$accountId/preferences/me").body() }
-
-    /** PUT /accounts/{accountId}/preferences/me — update the current user's preferences. */
-    suspend fun updateMyPreferences(
-        accountId: String,
-        request: UpdatePreferencesRequest,
-    ): NetworkResult<Unit> =
-        safeNetworkCall {
-            val response: HttpResponse =
-                client.put("$baseUrl/accounts/$accountId/preferences/me") {
-                    setBody(request)
-                }
-            if (!response.status.isSuccess()) {
-                throw NetworkException(response.status.value, response.status.description)
-            }
         }
 
     /**

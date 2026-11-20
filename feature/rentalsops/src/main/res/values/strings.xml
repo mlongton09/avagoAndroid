@@ -217,4 +217,5 @@
     <string name="rentalops_not_saved">This change couldn\'t be saved on this device. Try again.</string>
     <string name="rentalops_transfer_cancel">Cancel transfer</string>
     <string name="rentalops_kind_swap">Swap</string>
+    <string name="rentalops_push_intro_synced">Choose which rental events notify you. Your choices apply on all your devices.</string>
 </resources>

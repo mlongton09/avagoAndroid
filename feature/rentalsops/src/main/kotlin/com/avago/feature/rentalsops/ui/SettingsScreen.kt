@@ -45,7 +45,6 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
 import com.avago.core.design.theme.AvagoSpacing
 import com.avago.core.ui.components.CardDivider
 import com.avago.core.ui.components.ErrorBanner
@@ -56,8 +55,6 @@ import com.avago.feature.rentalsops.push.RentalOpsPushPrefs
 import com.avago.feature.rentalsops.push.RentalPushRouter
 import com.avago.feature.rentalsops.R
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -67,22 +64,25 @@ import kotlinx.coroutines.launch
 data class PrefsState(
     val events: List<String> = RentalPushRouter.EVENTS,
     val enabled: Map<String, Boolean> = emptyMap(),
+    /** True when the switches are the user's synced preferences; false: this device only. */
+    val synced: Boolean = true,
 )
 
-@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class RentalOpsSettingsViewModel @Inject constructor(
     private val prefs: RentalOpsPushPrefs,
-    identity: IdentityManager,
 ) : ViewModel() {
-    val state: StateFlow<PrefsState> = identity.activeAccountId.flatMapLatest { prefs.local(it) }
-        .map { PrefsState(enabled = it) }
+    val state: StateFlow<PrefsState> = prefs.observe()
+        .map { PrefsState(enabled = it.enabled, synced = it.synced) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PrefsState())
 
     fun set(event: String, on: Boolean) = viewModelScope.launch { prefs.set(event, on) }
 }
 
-/** Push switches per rental event; they apply on this device only. */
+/**
+ * Push switches per rental event: the user's synced notification preferences, or device-only
+ * mutes for users who cannot store preferences.
+ */
 @Composable
 fun RentalOpsSettingsScreen(onBack: () -> Unit, vm: RentalOpsSettingsViewModel = hiltViewModel()) {
     val s by vm.state.collectAsStateWithLifecycle()
@@ -109,9 +109,11 @@ fun RentalOpsSettingsScreen(onBack: () -> Unit, vm: RentalOpsSettingsViewModel =
                     },
                 )
             }
-            OfflineBanner(stringResource(R.string.rentalops_prefs_device_only), icon = Icons.Filled.PhoneAndroid)
+            if (!s.synced) {
+                OfflineBanner(stringResource(R.string.rentalops_prefs_device_only), icon = Icons.Filled.PhoneAndroid)
+            }
             Text(
-                stringResource(R.string.rentalops_push_intro),
+                stringResource(if (s.synced) R.string.rentalops_push_intro_synced else R.string.rentalops_push_intro),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = AvagoSpacing.lg),

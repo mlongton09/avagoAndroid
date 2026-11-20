@@ -25,14 +25,6 @@
     <ID>ComplexCondition:VoiceFill.kt$VoiceFill$ans.phrase in DESCRIPTIVE &amp;&amp; (ans.bucket == Bucket.NR || ans.bucket == Bucket.M) &amp;&amp; noteText.isEmpty()</ID>
     <ID>ConstructorParameterNaming:AccountFeatureModels.kt$AccountFeaturesResponse$@SerialName("rentals_enabled") val rentals_enabled: Boolean = true</ID>
     <ID>ConstructorParameterNaming:AccountFeatureModels.kt$PutAccountFeaturesRequest$@SerialName("rentals_enabled") val rentals_enabled: Boolean? = null</ID>
-    <ID>ConstructorParameterNaming:ApiResponse.kt$UpdatePreferencesRequest$/** "gallon" | "liter" — mirrors iOS AVDefaultsKeyFuelVolumeUnit */ val fuel_volume_unit: String? = null</ID>
-    <ID>ConstructorParameterNaming:ApiResponse.kt$UpdatePreferencesRequest$/** When true the Scout AI populates a form for user review before saving. */ val enable_human_in_loop: Boolean? = null</ID>
-    <ID>ConstructorParameterNaming:ApiResponse.kt$UpdatePreferencesRequest$val disable_quotes: Boolean? = null</ID>
-    <ID>ConstructorParameterNaming:ApiResponse.kt$UpdatePreferencesRequest$val distance_unit: String? = null</ID>
-    <ID>ConstructorParameterNaming:ApiResponse.kt$UserPreferencesResponse$val disable_quotes: Boolean? = null</ID>
-    <ID>ConstructorParameterNaming:ApiResponse.kt$UserPreferencesResponse$val distance_unit: String? = null</ID>
-    <ID>ConstructorParameterNaming:ApiResponse.kt$UserPreferencesResponse$val notifications_enabled: Boolean? = null</ID>
-    <ID>ConstructorParameterNaming:ApiResponse.kt$UserPreferencesResponse$val rental_default_rate_unit: String? = null</ID>
     <ID>ConstructorParameterNaming:ApprovalModels.kt$ApprovalRequestResponse$val account_id: String</ID>
     <ID>ConstructorParameterNaming:ApprovalModels.kt$ApprovalRequestResponse$val approval_source: String? = null</ID>
     <ID>ConstructorParameterNaming:ApprovalModels.kt$ApprovalRequestResponse$val approved_count: Int? = null</ID>
@@ -3809,7 +3801,6 @@
     <ID>MatchingDeclarationName:MainScaffold.kt$BottomNavItem</ID>
     <ID>MatchingDeclarationName:MyTechProfileScreen.kt$MyTechProfileViewModel : ViewModel</ID>
     <ID>MatchingDeclarationName:NewThreadScreen.kt$NewThreadViewModel : ViewModel</ID>
-    <ID>MatchingDeclarationName:PreferencesSync.kt$AccountPreferencesSync</ID>
     <ID>MatchingDeclarationName:ProviderNavGraph.kt$ProviderRoutes</ID>
     <ID>MatchingDeclarationName:RecordScreens.kt$OperatorRecordViewModel : NoticeViewModel</ID>
     <ID>MatchingDeclarationName:RentalsHomeScreen.kt$RentalsHomeActions</ID>
@@ -6883,7 +6874,6 @@
     <ID>TooGenericExceptionCaught:PhotoCacheSweeper.kt$PhotoCacheSweeper$e: Exception</ID>
     <ID>TooGenericExceptionCaught:PhotoUploader.kt$PhotoUploader$e: Exception</ID>
     <ID>TooGenericExceptionCaught:PmPlansViewModel.kt$PmPlansViewModel$e: Exception</ID>
-    <ID>TooGenericExceptionCaught:PreferencesSync.kt$PreferencesSync$e: Exception</ID>
     <ID>TooGenericExceptionCaught:PurchaseOrderViewModel.kt$PurchaseOrderCreateViewModel$e: Exception</ID>
     <ID>TooGenericExceptionCaught:PurchaseOrderViewModel.kt$PurchaseOrderViewModel$e: Exception</ID>
     <ID>TooGenericExceptionCaught:QuickBookScreen.kt$QuickBookViewModel$e: Exception</ID>

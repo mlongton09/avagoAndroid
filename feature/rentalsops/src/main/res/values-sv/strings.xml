@@ -212,4 +212,5 @@
     <string name="rentalops_not_saved">Ändringen kunde inte sparas på enheten. Försök igen.</string>
     <string name="rentalops_transfer_cancel">Avbryt överföring</string>
     <string name="rentalops_kind_swap">Byte</string>
+    <string name="rentalops_push_intro_synced">Välj vilka uthyrningshändelser du ska aviseras om. Dina val gäller på alla dina enheter.</string>
 </resources>

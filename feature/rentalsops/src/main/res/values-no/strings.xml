@@ -212,4 +212,5 @@
     <string name="rentalops_not_saved">Endringen kunne ikke lagres på enheten. Prøv igjen.</string>
     <string name="rentalops_transfer_cancel">Avbryt overføring</string>
     <string name="rentalops_kind_swap">Bytte</string>
+    <string name="rentalops_push_intro_synced">Velg hvilke utleiehendelser du skal varsles om. Valgene gjelder på alle enhetene dine.</string>
 </resources>

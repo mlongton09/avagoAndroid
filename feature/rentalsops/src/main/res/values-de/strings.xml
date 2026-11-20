@@ -212,4 +212,5 @@
     <string name="rentalops_not_saved">Diese Änderung konnte auf dem Gerät nicht gespeichert werden. Erneut versuchen.</string>
     <string name="rentalops_transfer_cancel">Transfer abbrechen</string>
     <string name="rentalops_kind_swap">Austausch</string>
+    <string name="rentalops_push_intro_synced">Wählen Sie, über welche Mietereignisse Sie benachrichtigt werden. Ihre Auswahl gilt auf allen Ihren Geräten.</string>
 </resources>

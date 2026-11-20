@@ -212,4 +212,5 @@
     <string name="rentalops_not_saved">Deze wijziging kon niet op het apparaat worden opgeslagen. Probeer het opnieuw.</string>
     <string name="rentalops_transfer_cancel">Overdracht annuleren</string>
     <string name="rentalops_kind_swap">Omruil</string>
+    <string name="rentalops_push_intro_synced">Kies over welke verhuurgebeurtenissen je meldingen krijgt. Je keuzes gelden op al je apparaten.</string>
 </resources>

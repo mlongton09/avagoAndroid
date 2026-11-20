@@ -2,11 +2,17 @@ package com.avago.core.data.repository
 
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.avago.core.data.domain.AccountPreferencesRepository
+import com.avago.core.data.domain.StoreNotReadyException
+import com.avago.core.data.domain.UserPreferenceChange
+import com.avago.core.data.domain.UserPreferenceOverrides
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -21,6 +27,11 @@ private val Context.userPreferencesDataStore by preferencesDataStore(name = "use
  * All flows emit the current value immediately and on every subsequent change,
  * making them safe to collect inside [androidx.lifecycle.ViewModel.viewModelScope].
  *
+ * Currency, distance unit, fuel volume unit, disable_quotes and enable_human_in_loop are also the
+ * signed-in user's synced `user_preferences` ([AccountPreferencesRepository]): a value stored there
+ * wins over the device value, and setting one also queues `core.user_preferences.update`, so web
+ * and the user's other devices follow. Signed out, the device value is used alone.
+ *
  * Mirrors the preference keys used by the iOS app:
  *   - AVDefaultsKeyThemeOverride
  *   - AVDefaultsKeyDefaultOdometerUnit
@@ -32,6 +43,7 @@ private val Context.userPreferencesDataStore by preferencesDataStore(name = "use
 @Singleton
 class UserPreferencesRepository @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val account: AccountPreferencesRepository,
 ) {
 
     private val dataStore = context.userPreferencesDataStore
@@ -42,17 +54,13 @@ class UserPreferencesRepository @Inject constructor(
         prefs[THEME_KEY] ?: "system"
     }
 
-    val distanceUnitFlow: Flow<String> = dataStore.data.map { prefs ->
-        prefs[DISTANCE_UNIT_KEY] ?: "mi"
-    }
+    val distanceUnitFlow: Flow<String> = synced({ it[DISTANCE_UNIT_KEY] ?: "mi" }) { it.distanceUnit?.let(::deviceDistanceUnit) }
 
     val languageFlow: Flow<String> = dataStore.data.map { prefs ->
         prefs[LANGUAGE_KEY] ?: ""
     }
 
-    val currencyFlow: Flow<String> = dataStore.data.map { prefs ->
-        prefs[CURRENCY_KEY] ?: "USD"
-    }
+    val currencyFlow: Flow<String> = synced({ it[CURRENCY_KEY] ?: "USD" }) { it.currency }
 
     val notificationsEnabledFlow: Flow<Boolean> = dataStore.data.map { prefs ->
         prefs[NOTIFICATIONS_ENABLED_KEY] ?: true
@@ -70,9 +78,7 @@ class UserPreferencesRepository @Inject constructor(
      * Fuel volume unit — "gallon" (default) or "liter".
      * Mirrors iOS AVDefaultsKeyFuelVolumeUnit.
      */
-    val fuelVolumeUnitFlow: Flow<String> = dataStore.data.map { prefs ->
-        prefs[FUEL_VOLUME_UNIT_KEY] ?: "gallon"
-    }
+    val fuelVolumeUnitFlow: Flow<String> = synced({ it[FUEL_VOLUME_UNIT_KEY] ?: "gallon" }) { it.fuelVolumeUnit }
 
     /**
      * Temperature unit — "F" (default) or "C".
@@ -86,18 +92,14 @@ class UserPreferencesRepository @Inject constructor(
      * When `true` the "daily quotes" banner is hidden.
      * Mirrors iOS AVDefaultsKeyDisableQuotes.
      */
-    val disableQuotesFlow: Flow<Boolean> = dataStore.data.map { prefs ->
-        prefs[DISABLE_QUOTES_KEY] ?: false
-    }
+    val disableQuotesFlow: Flow<Boolean> = synced({ it[DISABLE_QUOTES_KEY] ?: false }) { it.disableQuotes }
 
     /**
      * AI Human-in-the-Loop — when `true` Scout populates a form for the user to
      * review before committing (default).  When `false` Scout acts directly.
      * Mirrors iOS AVDefaultsKeyEnableHumanInLoop.
      */
-    val enableHumanInLoopFlow: Flow<Boolean> = dataStore.data.map { prefs ->
-        prefs[ENABLE_HUMAN_IN_LOOP_KEY] ?: true
-    }
+    val enableHumanInLoopFlow: Flow<Boolean> = synced({ it[ENABLE_HUMAN_IN_LOOP_KEY] ?: true }) { it.enableHumanInLoop }
 
     /** Forces service clients to read only cached/local data and block network calls. */
     val forceOfflineFlow: Flow<Boolean> = dataStore.data.map { prefs ->
@@ -121,6 +123,7 @@ class UserPreferencesRepository @Inject constructor(
 
     suspend fun setDistanceUnit(value: String) {
         dataStore.edit { prefs -> prefs[DISTANCE_UNIT_KEY] = value }
+        share(UserPreferenceChange.DistanceUnit(serverDistanceUnit(value)))
     }
 
     suspend fun setLanguage(value: String) {
@@ -129,6 +132,7 @@ class UserPreferencesRepository @Inject constructor(
 
     suspend fun setCurrency(value: String) {
         dataStore.edit { prefs -> prefs[CURRENCY_KEY] = value }
+        share(UserPreferenceChange.Currency(value))
     }
 
     suspend fun setNotificationsEnabled(value: Boolean) {
@@ -145,6 +149,7 @@ class UserPreferencesRepository @Inject constructor(
 
     suspend fun setFuelVolumeUnit(value: String) {
         dataStore.edit { prefs -> prefs[FUEL_VOLUME_UNIT_KEY] = value }
+        share(UserPreferenceChange.FuelVolumeUnit(value))
     }
 
     suspend fun setTemperatureUnit(value: String) {
@@ -153,10 +158,12 @@ class UserPreferencesRepository @Inject constructor(
 
     suspend fun setDisableQuotes(value: Boolean) {
         dataStore.edit { prefs -> prefs[DISABLE_QUOTES_KEY] = value }
+        share(UserPreferenceChange.DisableQuotes(value))
     }
 
     suspend fun setEnableHumanInLoop(value: Boolean) {
         dataStore.edit { prefs -> prefs[ENABLE_HUMAN_IN_LOOP_KEY] = value }
+        share(UserPreferenceChange.EnableHumanInLoop(value))
     }
 
     suspend fun setForceOffline(value: Boolean) {
@@ -193,6 +200,18 @@ class UserPreferencesRepository @Inject constructor(
         }
     }
 
+    private fun <T : Any> synced(device: (Preferences) -> T, synced: (UserPreferenceOverrides) -> T?): Flow<T> =
+        combine(dataStore.data.map(device), account.observeMine()) { local, mine -> mine?.let(synced) ?: local }
+
+    /** Queues the change for the signed-in user; signed out it stays on this device only. */
+    private suspend fun share(change: UserPreferenceChange) {
+        try {
+            account.update(listOf(change))
+        } catch (_: StoreNotReadyException) {
+            // Nobody signed in (or the v2 store is still opening): the device value is the preference.
+        }
+    }
+
     // ── Keys ──────────────────────────────────────────────────────────────────
 
     companion object {
@@ -212,5 +231,11 @@ class UserPreferencesRepository @Inject constructor(
         const val FORCE_OFFLINE_PREF_KEY = "force_offline"
         val ENABLE_HUMAN_IN_LOOP_KEY = booleanPreferencesKey("enable_human_in_loop")
         val FORCE_OFFLINE_KEY = booleanPreferencesKey(FORCE_OFFLINE_PREF_KEY)
+
+        /** Device code (`mi` / `km`) of a synced `distance_unit` (`miles` / `km`). */
+        fun deviceDistanceUnit(server: String): String = if (server == "miles") "mi" else server
+
+        /** Synced `distance_unit` code of a device value. */
+        fun serverDistanceUnit(device: String): String = if (device == "mi") "miles" else device
     }
 }

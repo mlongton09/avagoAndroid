@@ -212,4 +212,5 @@
     <string name="rentalops_not_saved">Não foi possível guardar esta alteração no dispositivo. Tente novamente.</string>
     <string name="rentalops_transfer_cancel">Cancelar transferência</string>
     <string name="rentalops_kind_swap">Troca</string>
+    <string name="rentalops_push_intro_synced">Escolha quais eventos de aluguel notificam você. Suas escolhas valem em todos os seus dispositivos.</string>
 </resources>

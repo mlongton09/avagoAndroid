@@ -212,4 +212,5 @@
     <string name="rentalops_not_saved">Impossibile salvare questa modifica sul dispositivo. Riprova.</string>
     <string name="rentalops_transfer_cancel">Annulla trasferimento</string>
     <string name="rentalops_kind_swap">Sostituzione</string>
+    <string name="rentalops_push_intro_synced">Scegli quali eventi di noleggio ti inviano notifiche. Le tue scelte valgono su tutti i tuoi dispositivi.</string>
 </resources>

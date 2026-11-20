@@ -7,7 +7,6 @@ import com.avago.core.data.domain.SyncRepository
 import com.avago.core.data.repository.UserPreferencesRepository
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
-import com.avago.core.network.model.UpdatePreferencesRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -23,9 +22,9 @@ import javax.inject.Inject
  * Owns all user-preference state (theme, distance unit, fuel unit, currency,
  * language, AI HITL toggle) and delegates account mutations to [IdentityManager].
  *
- * Mirrors the iOS SettingsViewController behaviour of persisting preference changes
- * both locally (DataStore) and to the server (PUT /accounts/{id}/preferences/me),
- * so that web + other devices pick up the change on their next sync.
+ * Currency, units, quotes and the AI human-in-the-loop switch are the user's synced
+ * preferences: [UserPreferencesRepository] queues `core.user_preferences.update` for them, so
+ * web and the user's other devices pick the change up through sync.
  *
  * All state is exposed as [StateFlow] so Compose can collect it safely across
  * recompositions.
@@ -120,27 +119,20 @@ class SettingsViewModel @Inject constructor(
     }
 
     /**
-     * Persists the distance unit locally and mirrors it to the server so that
-     * web + other devices pick up the change on their next sync.
-     *
-     * Mirrors iOS distanceUnitSegmentChanged → PreferencesSync.shared.save(patch:).
+     * Persists the distance unit locally and as the user's synced preference.
      */
     fun setDistanceUnit(value: String) {
         viewModelScope.launch {
             prefs.setDistanceUnit(value)
-            syncPreferences(UpdatePreferencesRequest(distance_unit = value))
         }
     }
 
     /**
-     * Persists the currency locally and mirrors it to the server.
-     *
-     * Mirrors iOS showCurrencyPicker → PreferencesSync.shared.save(patch:).
+     * Persists the currency locally and as the user's synced preference.
      */
     fun setCurrency(value: String) {
         viewModelScope.launch {
             prefs.setCurrency(value)
-            syncPreferences(UpdatePreferencesRequest(currency = value))
         }
     }
 
@@ -150,14 +142,11 @@ class SettingsViewModel @Inject constructor(
     }
 
     /**
-     * Persists the fuel volume unit locally and mirrors it to the server.
-     *
-     * Mirrors iOS fuelUnitSegmentChanged → PreferencesSync.shared.save(patch:).
+     * Persists the fuel volume unit locally and as the user's synced preference.
      */
     fun setFuelVolumeUnit(value: String) {
         viewModelScope.launch {
             prefs.setFuelVolumeUnit(value)
-            syncPreferences(UpdatePreferencesRequest(fuel_volume_unit = value))
         }
     }
 
@@ -168,26 +157,20 @@ class SettingsViewModel @Inject constructor(
     }
 
     /**
-     * Persists the "disable quotes" toggle locally and mirrors it to the server.
-     *
-     * Mirrors iOS quotesToggleChanged → PreferencesSync.shared.save(patch:).
+     * Persists the "disable quotes" toggle locally and as the user's synced preference.
      */
     fun setDisableQuotes(value: Boolean) {
         viewModelScope.launch {
             prefs.setDisableQuotes(value)
-            syncPreferences(UpdatePreferencesRequest(disable_quotes = value))
         }
     }
 
     /**
-     * Persists the AI Human-in-the-Loop toggle locally and mirrors it to the server.
-     *
-     * Mirrors iOS humanInLoopToggleChanged → PreferencesSync.shared.save(patch:).
+     * Persists the AI Human-in-the-Loop toggle locally and as the user's synced preference.
      */
     fun setEnableHumanInLoop(value: Boolean) {
         viewModelScope.launch {
             prefs.setEnableHumanInLoop(value)
-            syncPreferences(UpdatePreferencesRequest(enable_human_in_loop = value))
         }
     }
 
@@ -236,23 +219,6 @@ class SettingsViewModel @Inject constructor(
             } catch (e: Exception) {
                 Timber.e(e, "SettingsViewModel: deleteCustomerContent failed for $id")
             }
-        }
-    }
-
-    // ── Internal helpers ──────────────────────────────────────────────────────
-
-    /**
-     * Fire-and-forget server sync for a preference patch.  Failures are logged but
-     * do not surface to the UI — the local DataStore value is already committed.
-     */
-    private suspend fun syncPreferences(request: UpdatePreferencesRequest) {
-        val accountId = activeAccountId.value ?: return
-        when (val result = serviceClient.updateMyPreferences(accountId, request)) {
-            is NetworkResult.Success -> Timber.d("SettingsViewModel: prefs synced to server")
-            is NetworkResult.Error ->
-                Timber.w("SettingsViewModel: pref sync failed (${result.code}) — ${result.message}")
-            NetworkResult.Unauthorized ->
-                Timber.w("SettingsViewModel: pref sync unauthorized")
         }
     }
 }

@@ -20,8 +20,7 @@ import javax.inject.Singleton
  *
  * The server sends data-only messages, so the banner is built here: the localized string for
  * `title_loc_key` / `body_loc_key` when the app ships it, else the server's English
- * `title` / `body`. Always nudges sync so the local store catches up, even when the event is
- * muted on this device.
+ * `title` / `body`. Always nudges sync so the local store catches up, even when the event is muted.
  */
 @Singleton
 class RentalOpsPushHandler @Inject constructor(
@@ -40,7 +39,7 @@ class RentalOpsPushHandler @Inject constructor(
         val spec = RentalPushRouter.route(data) ?: return
         scope.launch {
             try {
-                // Events muted on this device (RentalOpsPushPrefs) are dropped here.
+                // Muted events (RentalOpsPushPrefs) are dropped here: the server may have sent one before the switch synced.
                 if (!prefs.isEnabled(spec.event)) return@launch
                 val text = PushText.resolve(spec)
                 val title = text.titleRes?.let(ctx::getString) ?: spec.title ?: ctx.getString(R.string.rentalops_push_fallback_title)

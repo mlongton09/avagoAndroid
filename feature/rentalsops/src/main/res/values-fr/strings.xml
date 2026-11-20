@@ -212,4 +212,5 @@
     <string name="rentalops_not_saved">Impossible d\'enregistrer cette modification sur l\'appareil. Réessayez.</string>
     <string name="rentalops_transfer_cancel">Annuler le transfert</string>
     <string name="rentalops_kind_swap">Échange</string>
+    <string name="rentalops_push_intro_synced">Choisissez les événements de location qui vous notifient. Vos choix s\'appliquent sur tous vos appareils.</string>
 </resources>
