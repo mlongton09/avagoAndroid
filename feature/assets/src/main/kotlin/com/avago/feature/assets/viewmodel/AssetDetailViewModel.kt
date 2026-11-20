@@ -22,8 +22,10 @@ import com.avago.core.data.domain.AttachmentTarget
 import com.avago.core.data.repository.UserPreferencesRepository
 import com.avago.core.permissions.Permissions
 import com.avago.core.permissions.PermissionsManager
+import com.avago.feature.assets.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -92,6 +94,14 @@ class AssetDetailViewModel @Inject constructor(
 
     val canEditAsset: StateFlow<Boolean> = permissionsManager.observeCan(Permissions.ASSETS_EDIT)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), permissionsManager.can(Permissions.ASSETS_EDIT))
+
+    /** Adding a meter (and logging readings) needs `assets.log_meter_reading`. */
+    val canAddMeter: StateFlow<Boolean> = permissionsManager.observeCan(Permissions.ASSETS_LOG_METER_READING)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), permissionsManager.can(Permissions.ASSETS_LOG_METER_READING))
+
+    /** The distance unit (`mi` / `km`) a new odometer is created with. */
+    val distanceUnit: StateFlow<String> = userPrefsRepository.distanceUnitFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "mi")
 
     val currencyCode: StateFlow<String> = userPrefsRepository.currencyFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "USD")
@@ -182,6 +192,26 @@ class AssetDetailViewModel @Inject constructor(
             } catch (e: Exception) {
                 Timber.e(e, "[AssetDetailViewModel] meter reading failed")
                 _errors.tryEmit(e.message ?: "Could not save the reading")
+            } finally {
+                _isSavingMeter.value = false
+            }
+        }
+    }
+
+    /** Starts tracking a [kind] meter in [unit]; the first meter of an asset becomes its default. */
+    fun addMeter(kind: String, unit: String) {
+        viewModelScope.launch {
+            _isSavingMeter.value = true
+            try {
+                assets.createMeter(assetId, kind, unit)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: IllegalArgumentException) {
+                Timber.w(e, "[AssetDetailViewModel] meter rejected")
+                _errors.tryEmit(appContext.getString(R.string.asset_meter_add_failed))
+            } catch (e: IllegalStateException) {
+                Timber.e(e, "[AssetDetailViewModel] meter not queued")
+                _errors.tryEmit(appContext.getString(R.string.asset_meter_add_failed))
             } finally {
                 _isSavingMeter.value = false
             }

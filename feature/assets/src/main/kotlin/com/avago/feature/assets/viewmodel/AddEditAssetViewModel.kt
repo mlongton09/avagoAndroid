@@ -7,36 +7,37 @@ import com.avago.core.data.FormFillRouter
 import com.avago.core.data.domain.Asset
 import com.avago.core.data.domain.AssetDraft
 import com.avago.core.data.domain.AssetRepository
+import com.avago.core.data.repository.UserPreferencesRepository
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
+import com.avago.core.network.json.ApiResult
 import com.avago.core.network.model.GeocodeRequest
+import com.avago.feature.assets.data.AssetScopeRepository
+import com.avago.feature.assets.data.AssetTaxonomyRepository
+import com.avago.feature.assets.model.AssetScope
+import com.avago.feature.assets.model.AssetSuggestionTarget
+import com.avago.feature.assets.model.AssetTaxonomy
+import com.avago.feature.assets.model.AssetTypeCatalog
+import com.avago.feature.assets.model.AssetTypeInfo
+import com.avago.feature.assets.model.decodeAssetAttributes
+import com.avago.feature.assets.model.mergeAssetAttributes
+import com.avago.feature.assets.model.text
+import com.avago.feature.assets.model.validAssetMetadata
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
-import timber.log.Timber
 import kotlinx.coroutines.flow.first
-import kotlinx.serialization.json.longOrNull
-import com.avago.feature.assets.model.AssetScope
-import javax.inject.Inject
-import com.avago.feature.assets.data.AssetTaxonomyRepository
-import com.avago.feature.assets.data.AssetScopeRepository
-import com.avago.feature.assets.model.AssetTaxonomy
-import com.avago.feature.assets.model.text
-import com.avago.feature.assets.model.validAssetMetadata
-import com.avago.feature.assets.model.mergeAssetAttributes
-import com.avago.feature.assets.model.AssetTypeInfo
-import com.avago.feature.assets.model.AssetTypeCatalog
-import com.avago.feature.assets.model.AssetSuggestionTarget
-import com.avago.feature.assets.model.decodeAssetAttributes
-import com.avago.core.network.json.ApiResult
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
+import timber.log.Timber
+import javax.inject.Inject
 
 /**
  * Result of a geocode lookup triggered from the address section of the add/edit form.
@@ -62,7 +63,7 @@ data class AssetFormState(
     val vinSerial: String = "",
     /** Current odometer reading for road vehicles, recorded on the asset's meter. */
     val mileage: String = "",
-    /** Readings need an existing asset meter (the catalog cannot create one). */
+    /** False when the asset has no meter yet: saving a mileage first adds an odometer meter. */
     val hasMeter: Boolean = false,
     val purchaseDate: Long? = null,
     val purchasePrice: String = "",
@@ -114,6 +115,7 @@ class AddEditAssetViewModel @Inject constructor(
     private val formFillRouter: FormFillRouter,
     private val taxonomyRepository: AssetTaxonomyRepository,
     private val scopeRepository: AssetScopeRepository,
+    private val userPrefs: UserPreferencesRepository,
 ) : ViewModel() {
 
     init {
@@ -541,8 +543,14 @@ class AddEditAssetViewModel @Inject constructor(
                     repository.update(editing, draft.copy(locationId = stored.locationId, conditionScore = stored.conditionScore))
                     editing
                 }
-                if (current.hasMeter && AssetScope.tracksMileage(current.assetType, catalog) && current.mileage != originalMileage) {
-                    current.mileage.toBigDecimalOrNull()?.let { repository.recordReading(assetId, it) }
+                val mileage = current.mileage.toBigDecimalOrNull()
+                if (mileage != null && AssetScope.tracksMileage(current.assetType, catalog) && current.mileage != originalMileage) {
+                    val meterId = if (current.hasMeter) {
+                        null
+                    } else {
+                        repository.createMeter(assetId, ODOMETER_KIND, userPrefs.distanceUnitFlow.first())
+                    }
+                    repository.recordReading(assetId, mileage, meterId = meterId)
                 }
                 if (accountId != identityManager.getActiveAccountId()) return@launch
 
@@ -583,6 +591,9 @@ class AddEditAssetViewModel @Inject constructor(
         }).toString()
     }
 }
+
+/** The meter kind a mileage entry creates on an asset without meters. */
+internal const val ODOMETER_KIND = "odometer"
 
 /** Whole-unit odometer input: digits only, no leading zeros, at most 9 digits ("12,345 mi" -> "12345"). */
 internal fun normalizeMileage(input: String): String {

@@ -1,7 +1,6 @@
 package com.avago.core.data.v2.repo
 
 import android.net.Uri
-import com.avago.core.data.domain.NoMeterException
 import com.avago.core.data.domain.Asset
 import com.avago.core.data.domain.AssetDraft
 import com.avago.core.data.domain.AssetFilter
@@ -16,7 +15,10 @@ import com.avago.core.data.domain.AttachmentTarget
 import com.avago.core.data.domain.DowntimeKind
 import com.avago.core.data.domain.LocalFileRef
 import com.avago.core.data.domain.MeterReading
+import com.avago.core.data.domain.NoMeterException
 import com.avago.core.data.domain.RecordNotFoundException
+import com.avago.core.data.domain.ToolDetailsDraft
+import com.avago.core.data.domain.VehicleDetailsDraft
 import com.avago.core.data.v2.V2CommandService
 import com.avago.core.data.v2.V2Connection
 import com.avago.core.data.v2.V2FileStager
@@ -89,49 +91,13 @@ class V2AssetRepository @Inject constructor(
         }
 
     override fun observeVehicleDetails(assetId: String): Flow<AssetVehicleDetails?> =
-        store.observe(setOf("asset_vehicle_details"), null) { conn ->
-            conn.query("SELECT * FROM asset_vehicle_details WHERE asset_id = ?", listOf(assetId)).firstOrNull()?.let { r ->
-                AssetVehicleDetails(
-                    assetId = r.str("asset_id"),
-                    bodyClass = r.strOrNull("body_class"),
-                    fuelType = r.strOrNull("fuel_type"),
-                    gvwr = r.strOrNull("gvwr"),
-                    registrationNumber = r.strOrNull("registration_number"),
-                    registrationExpiresOn = r.strOrNull("registration_expires_on"),
-                    registrationFileId = r.strOrNull("registration_file_id"),
-                    insurancePolicyNumber = r.strOrNull("insurance_policy_number"),
-                    insuranceExpiresOn = r.strOrNull("insurance_expires_on"),
-                    insuranceFileId = r.strOrNull("insurance_file_id"),
-                )
-            }
-        }
+        store.observe(setOf("asset_vehicle_details"), null) { conn -> vehicleDetails(conn, assetId) }
 
     override fun observeToolDetails(assetId: String): Flow<AssetToolDetails?> =
-        store.observe(setOf("asset_tool_details"), null) { conn ->
-            conn.query("SELECT * FROM asset_tool_details WHERE asset_id = ?", listOf(assetId)).firstOrNull()?.let { r ->
-                val currency = r.strOrNull("currency")
-                AssetToolDetails(
-                    assetId = r.str("asset_id"),
-                    calibrationFileId = r.strOrNull("calibration_file_id"),
-                    calibratedOn = r.strOrNull("calibrated_on"),
-                    calibrationIntervalDays = r.longOrNull("calibration_interval_days")?.toInt(),
-                    calibrationDueOn = r.strOrNull("calibration_due_on"),
-                    usageUnit = r.strOrNull("usage_unit"),
-                    usageValue = r.longOrNull("usage_value_micros")?.let { BigDecimal.valueOf(it, 6).stripTrailingZeros() },
-                    replacementValue = r.longOrNull("replacement_value_minor")?.let { V2Money.toMajor(it, currency) },
-                    currency = currency,
-                    trackerTagId = r.strOrNull("tracker_tag_id"),
-                    trackerKind = r.strOrNull("tracker_kind"),
-                )
-            }
-        }
+        store.observe(setOf("asset_tool_details"), null) { conn -> toolDetails(conn, assetId) }
 
     override fun observeAttachments(target: AttachmentTarget): Flow<List<Attachment>> {
-        val (column, id) = when (target) {
-            is AttachmentTarget.ToAsset -> "asset_id" to target.assetId
-            is AttachmentTarget.ToActivity -> "activity_id" to target.activityId
-            is AttachmentTarget.ToWorkOrder -> "work_order_id" to target.workOrderId
-        }
+        val (column, id) = target.column()
         return store.observe(setOf("attachments", "files"), emptyList()) { conn ->
             V2MaintRows.attachments(conn, "$column = ?", listOf(id), { it[column] == id }, stager::localFile)
         }
@@ -208,6 +174,36 @@ class V2AssetRepository @Inject constructor(
         commands.submit(MaintCommands.detach(attachmentId, version))
     }
 
+    override suspend fun setPrimaryAttachment(target: AttachmentTarget, attachmentId: String) {
+        val (column, id) = target.column()
+        val ordered = store.read(emptyList()) { conn ->
+            V2MaintRows.attachments(conn, "$column = ?", listOf(id), { it[column] == id }, stager::localFile)
+        }
+        if (ordered.none { it.id == attachmentId }) throw RecordNotFoundException("attachment", attachmentId)
+        MaintCommands.reorderAttachments(ordered, attachmentId, System.currentTimeMillis()).forEach { commands.submit(it) }
+    }
+
+    override suspend fun updateToolDetails(assetId: String, draft: ToolDetailsDraft) {
+        val stored = store.read(null) { conn -> toolDetails(conn, assetId) }
+        MaintCommands.updateToolDetails(assetId, stored, draft, System.currentTimeMillis(), commands.currentUserId())
+            ?.let { commands.submit(it) }
+    }
+
+    override suspend fun updateVehicleDetails(assetId: String, draft: VehicleDetailsDraft) {
+        val stored = store.read(null) { conn -> vehicleDetails(conn, assetId) }
+        MaintCommands.updateVehicleDetails(assetId, stored, draft, System.currentTimeMillis(), commands.currentUserId())
+            ?.let { commands.submit(it) }
+    }
+
+    override suspend fun createMeter(assetId: String, kind: String, unit: String): String {
+        val existing = store.read(emptyList()) { conn -> meters(conn, assetId) }
+        require(existing.none { it.kind == kind }) { "the asset already has a $kind meter" }
+        val now = System.currentTimeMillis()
+        val id = V2Uuid.v7(now)
+        commands.submit(MaintCommands.createMeter(id, assetId, kind, unit, existing.isEmpty(), now, commands.currentUserId()))
+        return id
+    }
+
     private companion object {
         val ASSET_TABLES = setOf("assets", "locations", "work_orders", "work_order_assets", "attachments", "files")
 
@@ -258,6 +254,48 @@ class V2AssetRepository @Inject constructor(
                     )
                 }
                 .sortedWith(compareByDescending<AssetMeter> { it.isDefault }.thenBy { it.kind })
+        }
+
+        fun vehicleDetails(conn: V2Connection, assetId: String): AssetVehicleDetails? =
+            V2OverlayMerge.query(conn, "asset_vehicle_details", "asset_id = ?", listOf(assetId)) { it["asset_id"] == assetId }
+                .firstOrNull()?.let { r ->
+                    AssetVehicleDetails(
+                        assetId = r.str("asset_id"),
+                        bodyClass = r.strOrNull("body_class"),
+                        fuelType = r.strOrNull("fuel_type"),
+                        gvwr = r.strOrNull("gvwr"),
+                        registrationNumber = r.strOrNull("registration_number"),
+                        registrationExpiresOn = r.strOrNull("registration_expires_on"),
+                        registrationFileId = r.strOrNull("registration_file_id"),
+                        insurancePolicyNumber = r.strOrNull("insurance_policy_number"),
+                        insuranceExpiresOn = r.strOrNull("insurance_expires_on"),
+                        insuranceFileId = r.strOrNull("insurance_file_id"),
+                    )
+                }
+
+        fun toolDetails(conn: V2Connection, assetId: String): AssetToolDetails? =
+            V2OverlayMerge.query(conn, "asset_tool_details", "asset_id = ?", listOf(assetId)) { it["asset_id"] == assetId }
+                .firstOrNull()?.let { r ->
+                    val currency = r.strOrNull("currency")
+                    AssetToolDetails(
+                        assetId = r.str("asset_id"),
+                        calibrationFileId = r.strOrNull("calibration_file_id"),
+                        calibratedOn = r.strOrNull("calibrated_on"),
+                        calibrationIntervalDays = r.longOrNull("calibration_interval_days")?.toInt(),
+                        calibrationDueOn = r.strOrNull("calibration_due_on"),
+                        usageUnit = r.strOrNull("usage_unit"),
+                        usageValue = r.longOrNull("usage_value_micros")?.let { BigDecimal.valueOf(it, 6).stripTrailingZeros() },
+                        replacementValue = r.longOrNull("replacement_value_minor")?.let { V2Money.toMajor(it, currency) },
+                        currency = currency,
+                        trackerTagId = r.strOrNull("tracker_tag_id"),
+                        trackerKind = r.strOrNull("tracker_kind"),
+                    )
+                }
+
+        fun AttachmentTarget.column(): Pair<String, String> = when (this) {
+            is AttachmentTarget.ToAsset -> "asset_id" to assetId
+            is AttachmentTarget.ToActivity -> "activity_id" to activityId
+            is AttachmentTarget.ToWorkOrder -> "work_order_id" to workOrderId
         }
 
         fun reading(r: V2Row) = MeterReading(

@@ -3,6 +3,12 @@ package com.avago.feature.assets.ui
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -12,42 +18,46 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AccountTree
-import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.automirrored.filled.Article
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PictureAsPdf
-import androidx.compose.material.icons.automirrored.filled.Chat
-import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -57,23 +67,15 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -84,48 +86,49 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
-import org.json.JSONObject
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
-import com.avago.core.data.domain.CustomFieldEntity
 import com.avago.core.data.domain.Activity
 import com.avago.core.data.domain.Asset
 import com.avago.core.data.domain.AssetMeter
 import com.avago.core.data.domain.Attachment
-import com.avago.core.ui.CustomFieldsCard
-import com.avago.core.ui.components.StoredFileImage
+import com.avago.core.data.domain.CustomFieldEntity
 import com.avago.core.ui.CategoryBadge
 import com.avago.core.ui.CategoryItem
+import com.avago.core.ui.CustomFieldsCard
+import com.avago.core.ui.EmptyState
 import com.avago.core.ui.GlobalCategoryPickerScreen
 import com.avago.core.ui.categoryBadgeColor
 import com.avago.core.ui.categoryGroup
 import com.avago.core.ui.categoryIconName
-import com.avago.core.ui.EmptyState
+import com.avago.core.ui.components.StoredFileImage
 import com.avago.feature.assets.R
 import com.avago.feature.assets.model.AssetTypes
 import com.avago.feature.assets.viewmodel.AssetDetailViewModel
 import com.avago.feature.assets.viewmodel.LogsByYear
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -174,6 +177,8 @@ fun AssetDetailScreen(
     val showMeterDialog by viewModel.showMeterDialog.collectAsStateWithLifecycle()
     val isSavingMeter by viewModel.isSavingMeter.collectAsStateWithLifecycle()
     val canEditAsset by viewModel.canEditAsset.collectAsStateWithLifecycle()
+    val canAddMeter by viewModel.canAddMeter.collectAsStateWithLifecycle()
+    val distanceUnit by viewModel.distanceUnit.collectAsStateWithLifecycle()
 
     var showOverflowMenu by remember { mutableStateOf(false) }
     var showAddLogCategoryPicker by remember { mutableStateOf(false) }
@@ -478,6 +483,9 @@ fun AssetDetailScreen(
                         onAddMeterReading = { viewModel.onAddMeterReadingTapped() },
                         onDismissMeterDialog = { viewModel.onDismissMeterDialog() },
                         onSaveMeterReading = { viewModel.saveMeterReading(it) },
+                        canAddMeter = canAddMeter,
+                        distanceUnit = distanceUnit,
+                        onAddMeter = { kind, unit -> viewModel.addMeter(kind, unit) },
                         onOpenWheelConfig = onOpenWheelConfig,
                         onOpenWheelDataInput = onOpenWheelDataInput,
                         onLogEntryClick = onLogEntryClick,
@@ -549,6 +557,9 @@ private fun LogTab(
     onAddMeterReading: () -> Unit,
     onDismissMeterDialog: () -> Unit,
     onSaveMeterReading: (Double) -> Unit,
+    canAddMeter: Boolean,
+    distanceUnit: String,
+    onAddMeter: (kind: String, unit: String) -> Unit,
     onOpenWheelConfig: () -> Unit,
     onOpenWheelDataInput: () -> Unit,
     onLogEntryClick: (entryId: String) -> Unit,
@@ -568,6 +579,15 @@ private fun LogTab(
                     meter = meter,
                     latestMeterReading = latestMeterReading,
                     onAddReading = onAddMeterReading,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+        } else if (canAddMeter) {
+            item(key = "meter_add") {
+                AddMeterCard(
+                    isSaving = isSavingMeter,
+                    distanceUnit = distanceUnit,
+                    onAdd = onAddMeter,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             }
@@ -1002,6 +1022,79 @@ private fun MeterCard(
                 Text("Add Reading")
             }
         }
+    }
+}
+
+/** Meter kinds offered when an asset tracks none yet, with the unit each is recorded in. */
+private fun meterUnitFor(kind: String, distanceUnit: String): String = when (kind) {
+    "odometer" -> distanceUnit
+    "hours" -> "hours"
+    else -> "cycles"
+}
+
+private val NEW_METER_KINDS = listOf(
+    "odometer" to R.string.asset_meter_kind_odometer,
+    "hours" to R.string.asset_meter_kind_hours,
+    "cycles" to R.string.asset_meter_kind_cycles,
+)
+
+@Composable
+private fun AddMeterCard(
+    isSaving: Boolean,
+    distanceUnit: String,
+    onAdd: (kind: String, unit: String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var choosing by rememberSaveable { mutableStateOf(false) }
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.asset_meter_none),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+            )
+            OutlinedButton(onClick = { choosing = true }, enabled = !isSaving) {
+                Text(stringResource(R.string.asset_meter_add))
+            }
+        }
+    }
+    if (choosing) {
+        var kind by rememberSaveable { mutableStateOf("odometer") }
+        AlertDialog(
+            onDismissRequest = { choosing = false },
+            title = { Text(stringResource(R.string.asset_meter_add)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    NEW_METER_KINDS.forEach { (k, label) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .selectable(selected = kind == k, role = Role.RadioButton, onClick = { kind = k }),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(selected = kind == k, onClick = null)
+                            Text(
+                                stringResource(label, meterUnitFor(k, distanceUnit)),
+                                modifier = Modifier.padding(start = 8.dp),
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onAdd(kind, meterUnitFor(kind, distanceUnit))
+                    choosing = false
+                }) { Text(stringResource(R.string.asset_meter_add)) }
+            },
+            dismissButton = { TextButton(onClick = { choosing = false }) { Text(stringResource(R.string.asset_cancel)) } },
+        )
     }
 }
 

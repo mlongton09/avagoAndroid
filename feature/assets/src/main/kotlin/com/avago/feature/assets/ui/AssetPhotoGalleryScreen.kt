@@ -17,14 +17,18 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,19 +43,26 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
 import com.avago.core.data.domain.AssetRepository
 import com.avago.core.data.domain.Attachment
 import com.avago.core.data.domain.AttachmentTarget
+import com.avago.core.permissions.Permissions
+import com.avago.core.permissions.PermissionsManager
 import com.avago.core.ui.components.StoredFileImage
 import com.avago.feature.assets.R
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
 
@@ -62,7 +73,8 @@ import javax.inject.Inject
 @HiltViewModel
 class AssetPhotoGalleryViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    assets: AssetRepository,
+    private val assets: AssetRepository,
+    permissionsManager: PermissionsManager,
 ) : ViewModel() {
 
     private val assetId: String = checkNotNull(savedStateHandle["assetId"]) {
@@ -76,6 +88,32 @@ class AssetPhotoGalleryViewModel @Inject constructor(
             emit(emptyList())
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val canSetCover: StateFlow<Boolean> = permissionsManager.observeCan(Permissions.ASSETS_MANAGE_PHOTOS)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), permissionsManager.can(Permissions.ASSETS_MANAGE_PHOTOS))
+
+    /** true: the cover moved (the list now starts with it); false: it could not be queued. */
+    private val _coverResults = MutableSharedFlow<Boolean>(extraBufferCapacity = 2)
+    val coverResults: SharedFlow<Boolean> = _coverResults.asSharedFlow()
+
+    /** Makes [attachmentId] the asset's cover photo: it moves to the front of the photo order. */
+    fun setCover(attachmentId: String) {
+        viewModelScope.launch {
+            val ok = try {
+                assets.setPrimaryAttachment(AttachmentTarget.ToAsset(assetId), attachmentId)
+                true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: IllegalStateException) {
+                Timber.e(e, "[AssetPhotoGalleryViewModel] cover photo not queued")
+                false
+            } catch (e: NoSuchElementException) {
+                Timber.w(e, "[AssetPhotoGalleryViewModel] cover photo is gone")
+                false
+            }
+            _coverResults.emit(ok)
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -90,6 +128,9 @@ fun AssetPhotoGalleryScreen(
     viewModel: AssetPhotoGalleryViewModel = hiltViewModel(),
 ) {
     val photoUrls by viewModel.photos.collectAsStateWithLifecycle()
+    val canSetCover by viewModel.canSetCover.collectAsStateWithLifecycle()
+    val snackbar = remember { SnackbarHostState() }
+    val coverFailed = stringResource(R.string.gallery_cover_failed)
 
     var chromeVisible by remember { mutableStateOf(true) }
 
@@ -98,6 +139,11 @@ fun AssetPhotoGalleryScreen(
         initialPage = initialIndex.coerceIn(0, pageCount - 1),
         pageCount = { pageCount },
     )
+    LaunchedEffect(viewModel) {
+        viewModel.coverResults.collect { ok ->
+            if (ok) pagerState.animateScrollToPage(0) else snackbar.showSnackbar(coverFailed)
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -172,13 +218,23 @@ fun AssetPhotoGalleryScreen(
                         )
                     }
                 },
+                actions = {
+                    val page = pagerState.currentPage
+                    if (canSetCover && page > 0 && page < photoUrls.size) {
+                        TextButton(onClick = { viewModel.setCover(photoUrls[page].id) }) {
+                            Text(stringResource(R.string.gallery_set_cover), color = Color.White)
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Black.copy(alpha = 0.55f),
                     titleContentColor = Color.White,
                     navigationIconContentColor = Color.White,
+                    actionIconContentColor = Color.White,
                 ),
             )
         }
+        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 48.dp))
     }
 }
 

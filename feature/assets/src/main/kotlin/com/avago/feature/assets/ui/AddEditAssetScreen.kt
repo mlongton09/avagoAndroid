@@ -391,7 +391,7 @@ fun AddEditAssetScreen(
             }
 
             // Current mileage (road vehicles with a distance meter)
-            if (form.hasMeter && AssetScope.tracksMileage(form.assetType)) item {
+            if (AssetScope.tracksMileage(form.assetType)) item {
                 OutlinedTextField(
                     value = form.mileage,
                     onValueChange = { viewModel.onMileageChanged(it) },

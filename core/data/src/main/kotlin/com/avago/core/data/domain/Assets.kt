@@ -140,6 +140,33 @@ data class AssetToolDetails(
     val trackerKind: String?,
 )
 
+/**
+ * Edited tool details (`maint.asset_tool_details.update`). A null [calibrationDueOn] lets the server
+ * derive the due date from [calibratedOn] + [calibrationIntervalDays].
+ */
+data class ToolDetailsDraft(
+    val calibratedOn: java.time.LocalDate? = null,
+    val calibrationIntervalDays: Int? = null,
+    val calibrationDueOn: java.time.LocalDate? = null,
+    val usageUnit: String = "days",
+    val usageValue: BigDecimal? = null,
+    val replacementValue: BigDecimal? = null,
+    val currency: String? = null,
+    val trackerTagId: String? = null,
+    val trackerKind: String? = null,
+)
+
+/** Edited vehicle details (`maint.asset_vehicle_details.update`). */
+data class VehicleDetailsDraft(
+    val bodyClass: String? = null,
+    val fuelType: String? = null,
+    val gvwr: String? = null,
+    val registrationNumber: String? = null,
+    val registrationExpiresOn: java.time.LocalDate? = null,
+    val insurancePolicyNumber: String? = null,
+    val insuranceExpiresOn: java.time.LocalDate? = null,
+)
+
 /** One stretch of an asset's status history (`asset_status_intervals`). */
 data class AssetStatusInterval(
     val id: String,
@@ -217,10 +244,10 @@ interface AssetRepository {
 
     fun observeStatusHistory(assetId: String): Flow<List<AssetStatusInterval>>
 
-    /** Vehicle registration/insurance details; null when the asset has none. Read-only in catalog v1. */
+    /** Vehicle registration/insurance details; null when the asset has none. */
     fun observeVehicleDetails(assetId: String): Flow<AssetVehicleDetails?>
 
-    /** Tool calibration / usage / tracker details; null when the asset has none. Read-only in catalog v1. */
+    /** Tool calibration / usage / tracker details; null when the asset has none. */
     fun observeToolDetails(assetId: String): Flow<AssetToolDetails?>
 
     fun observeAttachments(target: AttachmentTarget): Flow<List<Attachment>>
@@ -250,6 +277,21 @@ interface AssetRepository {
     suspend fun attach(target: AttachmentTarget, file: LocalFileRef): String
 
     suspend fun detach(attachmentId: String)
+
+    /** Makes [attachmentId] the first (cover) attachment of [target], keeping the others in order. */
+    suspend fun setPrimaryAttachment(target: AttachmentTarget, attachmentId: String)
+
+    /** Sets the asset's tool details (the row is created on first use). */
+    suspend fun updateToolDetails(assetId: String, draft: ToolDetailsDraft)
+
+    /** Sets the asset's vehicle details (the row is created on first use). */
+    suspend fun updateVehicleDetails(assetId: String, draft: VehicleDetailsDraft)
+
+    /**
+     * Adds a meter of [kind] (one per kind and asset) measured in [unit]; the asset's first meter
+     * becomes its default. Returns the meter id.
+     */
+    suspend fun createMeter(assetId: String, kind: String, unit: String): String
 }
 
 /** A person who can be assigned work (`workers`). */

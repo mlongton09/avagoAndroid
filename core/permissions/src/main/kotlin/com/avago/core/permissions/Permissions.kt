@@ -6,6 +6,8 @@ object Permissions {
     const val ASSETS_CREATE = "assets.create"
     const val ASSETS_EDIT = "assets.edit"
     const val ASSETS_DELETE = "assets.delete"
+    const val ASSETS_LOG_METER_READING = "assets.log_meter_reading"
+    const val ASSETS_MANAGE_PHOTOS = "assets.manage_photos"
 
     // Log entries
     const val LOG_VIEW = "log.view"

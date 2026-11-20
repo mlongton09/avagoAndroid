@@ -5,6 +5,9 @@ import com.avago.core.data.domain.ActivityDraft
 import com.avago.core.data.domain.Asset
 import com.avago.core.data.domain.AssetDraft
 import com.avago.core.data.domain.AssetStatusCode
+import com.avago.core.data.domain.AssetToolDetails
+import com.avago.core.data.domain.AssetVehicleDetails
+import com.avago.core.data.domain.Attachment
 import com.avago.core.data.domain.AttachmentTarget
 import com.avago.core.data.domain.Certification
 import com.avago.core.data.domain.CostLine
@@ -14,9 +17,12 @@ import com.avago.core.data.domain.DowntimeKind
 import com.avago.core.data.domain.InspectionDefect
 import com.avago.core.data.domain.MeterReading
 import com.avago.core.data.domain.PmOccurrence
+import com.avago.core.data.domain.ToolDetailsDraft
+import com.avago.core.data.domain.VehicleDetailsDraft
 import com.avago.core.data.domain.Worker
 import com.avago.core.data.domain.WorkerDraft
 import com.avago.core.data.v2.V2Micros
+import com.avago.core.data.v2.V2Money
 import com.avago.core.data.v2.V2NewCommand
 import com.avago.core.data.v2.V2OverlayPatch
 import com.avago.core.data.v2.V2RowOp
@@ -157,7 +163,129 @@ object MaintCommands {
             ),
         )
 
+    // ------------------------------------------------------------------ asset subtypes
+
+    /** The calibration due date the server derives when none is given explicitly. */
+    fun derivedCalibrationDue(calibratedOn: LocalDate?, intervalDays: Int?): LocalDate? =
+        if (calibratedOn != null && intervalDays != null) calibratedOn.plusDays(intervalDays.toLong()) else null
+
+    /**
+     * `maint.asset_tool_details.update` for [draft] over [stored] (null when the asset has no tool
+     * row yet). The due date is always sent as the value the form shows: the explicit date, else
+     * calibrated-on + interval (what the server derives), so the overlay matches the server result.
+     * Null when nothing changed.
+     */
+    fun updateToolDetails(
+        assetId: String,
+        stored: AssetToolDetails?,
+        draft: ToolDetailsDraft,
+        nowMillis: Long,
+        userId: String?,
+    ): V2NewCommand? {
+        draft.calibrationIntervalDays?.let { require(it in 1..3650) { "a calibration interval is 1 to 3650 days" } }
+        require(draft.usageUnit in TOOL_USAGE_UNITS) { "unknown usage unit ${draft.usageUnit}" }
+        draft.usageValue?.let { require(it.signum() >= 0) { "usage cannot be negative" } }
+        draft.replacementValue?.let { require(it.signum() >= 0) { "a replacement value cannot be negative" } }
+        draft.trackerKind?.let { require(it in TRACKER_KINDS) { "unknown tracker kind $it" } }
+        val currency = draft.currency.clean()?.uppercase()
+            ?.also { require(it.length == 3 && it.all { c -> c in 'A'..'Z' }) { "a currency is a 3-letter ISO code" } }
+        require(draft.replacementValue == null || currency != null) { "a replacement value needs a currency" }
+        val d = V2UpdateDiff(MaintAssetToolDetailsUpdate.Clear.entries)
+        val calibratedOn = d.field("calibrated_on", stored?.calibratedOn?.let(LocalDate::parse), draft.calibratedOn, toColumn = LocalDate::toString)
+        val interval = d.field("calibration_interval_days", stored?.calibrationIntervalDays, draft.calibrationIntervalDays)
+        val due = d.field(
+            "calibration_due_on", stored?.calibrationDueOn?.let(LocalDate::parse),
+            draft.calibrationDueOn ?: derivedCalibrationDue(draft.calibratedOn, draft.calibrationIntervalDays),
+            toColumn = LocalDate::toString,
+        )
+        val unit = d.text("usage_unit", stored?.usageUnit ?: TOOL_USAGE_UNITS.first(), draft.usageUnit)
+        val usage = d.decimal("usage_value", stored?.usageValue, draft.usageValue, column = "usage_value_micros", toColumn = V2Micros::fromDecimal)
+        val storedCurrency = stored?.currency
+        val newCurrency = d.text("currency", storedCurrency, currency)
+        val storedMinor = stored?.replacementValue?.let { V2Money.toMinor(it, storedCurrency) }
+        val minor = d.field(
+            "replacement_value_minor", storedMinor, draft.replacementValue?.let { V2Money.toMinor(it, currency) },
+        )
+        val tag = d.text("tracker_tag_id", stored?.trackerTagId, draft.trackerTagId)
+        val kind = d.text("tracker_kind", stored?.trackerKind, draft.trackerKind)
+        d.check()
+        if (d.isEmpty) return null
+        val payload = MaintAssetToolDetailsUpdate(
+            id = assetId, calibratedOn = calibratedOn, calibrationIntervalDays = interval, calibrationDueOn = due,
+            usageUnit = unit, usageValue = usage, replacementValueMinor = minor, currency = newCurrency,
+            trackerTagId = tag, trackerKind = kind, clear = d.clear,
+        )
+        val base = if (stored == null) {
+            mapOf("usage_unit" to draft.usageUnit) + created(nowMillis, userId)
+        } else {
+            updated(nowMillis)
+        }
+        return payload.toNewCommand(
+            overlay = V2OverlayPatch.of(V2RowOp.upsert("asset_tool_details", mapOf("asset_id" to assetId), base + d.overlay)),
+        )
+    }
+
+    /** `maint.asset_vehicle_details.update` for [draft] over [stored]; null when nothing changed. */
+    fun updateVehicleDetails(
+        assetId: String,
+        stored: AssetVehicleDetails?,
+        draft: VehicleDetailsDraft,
+        nowMillis: Long,
+        userId: String?,
+    ): V2NewCommand? {
+        val d = V2UpdateDiff(MaintAssetVehicleDetailsUpdate.Clear.entries)
+        val body = d.text("body_class", stored?.bodyClass, draft.bodyClass)
+        val fuel = d.text("fuel_type", stored?.fuelType, draft.fuelType)
+        val gvwr = d.text("gvwr", stored?.gvwr, draft.gvwr)
+        val registration = d.text("registration_number", stored?.registrationNumber, draft.registrationNumber)
+        val registrationExpires = d.field(
+            "registration_expires_on", stored?.registrationExpiresOn?.let(LocalDate::parse), draft.registrationExpiresOn,
+            toColumn = LocalDate::toString,
+        )
+        val policy = d.text("insurance_policy_number", stored?.insurancePolicyNumber, draft.insurancePolicyNumber)
+        val insuranceExpires = d.field(
+            "insurance_expires_on", stored?.insuranceExpiresOn?.let(LocalDate::parse), draft.insuranceExpiresOn,
+            toColumn = LocalDate::toString,
+        )
+        d.check()
+        if (d.isEmpty) return null
+        val payload = MaintAssetVehicleDetailsUpdate(
+            id = assetId, bodyClass = body, fuelType = fuel, gvwr = gvwr, registrationNumber = registration,
+            registrationExpiresOn = registrationExpires, insurancePolicyNumber = policy,
+            insuranceExpiresOn = insuranceExpires, clear = d.clear,
+        )
+        val base = if (stored == null) created(nowMillis, userId) else updated(nowMillis)
+        return payload.toNewCommand(
+            overlay = V2OverlayPatch.of(V2RowOp.upsert("asset_vehicle_details", mapOf("asset_id" to assetId), base + d.overlay)),
+        )
+    }
+
+    /** `usage_unit` values; the first is the server default. */
+    val TOOL_USAGE_UNITS = listOf("days", "cycles")
+
+    val TRACKER_KINDS = listOf("gps", "bluetooth", "uwb", "other")
+
     // ------------------------------------------------------------------ meters
+
+    /**
+     * Adds a meter to an asset. [kind] and [unit] are lowercase codes (`odometer`/`mi`); the asset's
+     * first meter becomes its default ([isFirst]).
+     */
+    fun createMeter(id: String, assetId: String, kind: String, unit: String, isFirst: Boolean, nowMillis: Long, userId: String?): V2NewCommand {
+        require(METER_CODE.matches(kind)) { "a meter kind is a lowercase code" }
+        require(METER_CODE.matches(unit)) { "a meter unit is a lowercase code" }
+        val payload = MaintAssetMetersCreate(id = id, assetId = assetId, meterKind = kind, unit = unit, isDefault = isFirst.takeIf { it })
+        return payload.toNewCommand(
+            overlay = V2OverlayPatch.of(
+                V2RowOp.upsert(
+                    "asset_meters", id,
+                    mapOf("asset_id" to assetId, "meter_kind" to kind, "unit" to unit, "is_default" to isFirst) + created(nowMillis, userId),
+                ),
+            ),
+        )
+    }
+
+    private val METER_CODE = Regex("[a-z][a-z0-9_]{0,62}")
 
     /** A reading on one of the asset's meters; the server evaluates its meter-based PM triggers. */
     fun recordReading(
@@ -240,6 +368,21 @@ object MaintCommands {
             ),
         )
         return payload.toNewCommand(overlay = V2OverlayPatch(ops), dependsOn = dependsOn, uploads = listOf(file.toUpload()))
+    }
+
+    /**
+     * Moves [primaryId] to the front of [ordered] (one subject's attachments in display order) and
+     * renumbers them 0..n; one `maint.attachments.update` per attachment whose position changes.
+     */
+    fun reorderAttachments(ordered: List<Attachment>, primaryId: String, nowMillis: Long): List<V2NewCommand> {
+        val primary = requireNotNull(ordered.firstOrNull { it.id == primaryId }) { "attachment $primaryId is not in the list" }
+        val target = listOf(primary) + ordered.filter { it.id != primaryId }
+        return target.mapIndexedNotNull { index, a ->
+            if (a.sortOrder == index) return@mapIndexedNotNull null
+            MaintAttachmentsUpdate(id = a.id, sortOrder = index).toNewCommand(
+                overlay = V2OverlayPatch.of(V2RowOp.upsert("attachments", a.id, mapOf("sort_order" to index) + updated(nowMillis))),
+            )
+        }
     }
 
     fun detach(id: String, version: Long): V2NewCommand =
