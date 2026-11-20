@@ -18,6 +18,8 @@ import com.avago.core.data.domain.StockMovement
 import com.avago.core.data.domain.StockMovementLine
 import com.avago.core.data.domain.StockPosition
 import com.avago.core.data.domain.StockingPolicy
+import com.avago.core.data.domain.StockingPolicyDraft
+import com.avago.core.data.domain.TransferRequestDraft
 import com.avago.core.data.domain.TrackingMode
 import com.avago.core.data.v2.V2CommandService
 import com.avago.core.data.v2.V2Connection
@@ -131,7 +133,9 @@ class V2InventoryRepository @Inject constructor(
 
     override fun observeReorderSuggestions(): Flow<List<ReorderSuggestion>> =
         store.observe(setOf("reorder_suggestions"), emptyList()) { conn ->
-            conn.query("SELECT * FROM reorder_suggestions ORDER BY generated_at DESC, id").map { r ->
+            V2OverlayMerge.query(conn, "reorder_suggestions").sortedWith(
+                compareByDescending<V2Row> { it.long("generated_at") }.thenBy { it.str("id") },
+            ).map { r ->
                 ReorderSuggestion(
                     id = r.str("id"),
                     productId = r.str("product_id"),
@@ -148,6 +152,46 @@ class V2InventoryRepository @Inject constructor(
                 )
             }
         }
+
+    override suspend fun dismissReorderSuggestion(id: String) {
+        submit(StockCommands.dismissReorderSuggestion(id))
+    }
+
+    override suspend fun setStockingPolicy(draft: StockingPolicyDraft) {
+        val existing = store.read(null) { conn ->
+            policies(conn, draft.productId).firstOrNull { it.locationId == draft.locationId }
+        }
+        submit(StockCommands.setStockingPolicy(draft, existing, System.currentTimeMillis(), commands.currentUserId()))
+    }
+
+    override suspend fun deleteStockingPolicy(id: String) {
+        val stored = store.read(null) { conn -> policies(conn, null).firstOrNull { it.id == id } }
+            ?: throw RecordNotFoundException("stocking level", id)
+        submit(StockCommands.deleteStockingPolicy(stored))
+    }
+
+    override suspend fun requestTransfer(draft: TransferRequestDraft): String {
+        val now = System.currentTimeMillis()
+        val id = V2Uuid.v7(now)
+        submit(StockCommands.requestTransfer(id, V2Uuid.v7(now), draft, now, commands.currentUserId()))
+        return id
+    }
+
+    override suspend fun decideTransferRequest(id: String, status: MovementStatus, note: String?) {
+        val (request, known) = store.read(null) { conn ->
+            movementById(conn, id)?.let { m ->
+                m to m.lines.map { it.productId }.toSet().flatMap { positions(conn, it, null, null) }.associate { p ->
+                    PositionKey(p.productId, p.locationId, p.binId, p.lotId, p.condition.wire) to
+                        KnownPosition(p.id, V2Micros.fromDecimal(p.onHand))
+                }
+            }
+        } ?: throw RecordNotFoundException("transfer request", id)
+        submit(
+            StockCommands.decideTransferRequest(
+                request, status, note, known::get, System.currentTimeMillis(), commands.currentUserId(),
+            ),
+        )
+    }
 
     override fun observeCategories(kind: String): Flow<List<Category>> =
         store.observe(setOf("categories"), emptyList()) { conn -> categories(conn, kind) }
@@ -327,6 +371,8 @@ class V2InventoryRepository @Inject constructor(
             trackingMode = TrackingMode.fromWire(r.strOrNull("tracking_mode")),
             manufacturer = r.strOrNull("manufacturer_name"),
             modelNumber = r.strOrNull("model_number"),
+            revision = r.strOrNull("revision"),
+            originCountryCode = r.strOrNull("origin_country_code"),
             gtin = r.strOrNull("gtin"),
             standardUnitCost = r.decimalOrNull("standard_unit_cost"),
             costCurrency = r.strOrNull("standard_cost_currency"),
@@ -382,6 +428,7 @@ class V2InventoryRepository @Inject constructor(
                     reorderQty = r.microsOrNull("reorder_qty_micros"),
                     economicOrderQty = r.microsOrNull("economic_order_qty_micros"),
                     safetyQty = r.microsOrNull("safety_qty_micros"),
+                    consumptionWindowDays = r.intOrNull("consumption_window_days"),
                     version = r.longOrNull("version") ?: 0L,
                 )
             }

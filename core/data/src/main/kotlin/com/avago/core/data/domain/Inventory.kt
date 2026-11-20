@@ -14,6 +14,9 @@ data class Product(
     val trackingMode: TrackingMode,
     val manufacturer: String?,
     val modelNumber: String?,
+    val revision: String?,
+    /** ISO 3166-1 alpha-2 country of origin. */
+    val originCountryCode: String?,
     val gtin: String?,
     val standardUnitCost: BigDecimal?,
     val costCurrency: String?,
@@ -64,6 +67,7 @@ data class StockingPolicy(
     val reorderQty: BigDecimal?,
     val economicOrderQty: BigDecimal?,
     val safetyQty: BigDecimal?,
+    val consumptionWindowDays: Int?,
     val version: Long,
 ) {
     /** The level at or below which the product needs reordering (min + safety). */
@@ -277,6 +281,29 @@ interface InventoryRepository {
 
     fun observeReorderSuggestions(): Flow<List<ReorderSuggestion>>
 
+    /** Hides a reorder suggestion (`stock.reorder_suggestions.dismiss`). */
+    suspend fun dismissReorderSuggestion(id: String)
+
+    /**
+     * Sets the stocking levels of a product at a location (`stock.stocking_policies.set`), creating
+     * the policy when there is none. Empty levels are cleared.
+     */
+    suspend fun setStockingPolicy(draft: StockingPolicyDraft)
+
+    suspend fun deleteStockingPolicy(id: String)
+
+    /**
+     * Requests a transfer of one product between locations (`stock.transfer_requests.create`); it
+     * moves no stock until it is approved and posted. Returns the request (movement) id.
+     */
+    suspend fun requestTransfer(draft: TransferRequestDraft): String
+
+    /**
+     * Decides a transfer request: [MovementStatus.APPROVED], [MovementStatus.DECLINED],
+     * [MovementStatus.CANCELLED], or [MovementStatus.POSTED] (moves the stock).
+     */
+    suspend fun decideTransferRequest(id: String, status: MovementStatus, note: String? = null)
+
     fun observeCategories(kind: String): Flow<List<Category>>
 
     /**
@@ -331,6 +358,10 @@ data class ProductDraft(
     val name: String,
     val sku: String? = null,
     val manufacturer: String? = null,
+    /** Model number, revision and origin are set by editing an existing part (not on create). */
+    val modelNumber: String? = null,
+    val revision: String? = null,
+    val originCountryCode: String? = null,
     /** Category name; the server creates unknown categories. */
     val category: String? = null,
     val uomCode: String? = null,
@@ -346,6 +377,9 @@ fun Product.toDraft() = ProductDraft(
     name = name,
     sku = sku,
     manufacturer = manufacturer,
+    modelNumber = modelNumber,
+    revision = revision,
+    originCountryCode = originCountryCode,
     category = categoryName,
     uomCode = uomCode,
     standardUnitCost = standardUnitCost,
@@ -354,6 +388,26 @@ fun Product.toDraft() = ProductDraft(
     abcClass = abcClass,
     gtin = gtin,
     notes = notes,
+)
+
+/** Stocking levels of a product at a location; null levels are unset. */
+data class StockingPolicyDraft(
+    val productId: String,
+    val locationId: String,
+    val minQty: BigDecimal? = null,
+    val maxQty: BigDecimal? = null,
+    val reorderQty: BigDecimal? = null,
+    val economicOrderQty: BigDecimal? = null,
+    val safetyQty: BigDecimal? = null,
+    val consumptionWindowDays: Int? = null,
+)
+
+data class TransferRequestDraft(
+    val productId: String,
+    val quantity: BigDecimal,
+    val fromLocationId: String,
+    val toLocationId: String,
+    val notes: String? = null,
 )
 
 data class CycleCountDraft(

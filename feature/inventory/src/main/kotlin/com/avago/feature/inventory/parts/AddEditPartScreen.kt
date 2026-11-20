@@ -127,6 +127,34 @@ fun AddEditPartScreen(
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
             )
 
+            if (state.isEdit) {
+                OutlinedTextField(
+                    value = state.modelNumber,
+                    onValueChange = viewModel::setModelNumber,
+                    label = { Text(stringResource(R.string.part_model_number_label)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = state.revision,
+                        onValueChange = viewModel::setRevision,
+                        label = { Text(stringResource(R.string.part_revision_label)) },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                    )
+                    OutlinedTextField(
+                        value = state.originCountryCode,
+                        onValueChange = viewModel::setOriginCountryCode,
+                        label = { Text(stringResource(R.string.part_origin_country_label)) },
+                        supportingText = { Text(stringResource(R.string.part_origin_country_hint)) },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+                    )
+                }
+            }
+
             OutlinedTextField(
                 value = state.sku,
                 onValueChange = viewModel::setSku,

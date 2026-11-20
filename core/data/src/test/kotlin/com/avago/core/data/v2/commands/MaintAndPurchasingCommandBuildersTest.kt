@@ -4,6 +4,9 @@ import com.avago.core.data.domain.Asset
 import com.avago.core.data.domain.AssetDraft
 import com.avago.core.data.domain.AssetStatusCode
 import com.avago.core.data.domain.FieldNotClearableException
+import com.avago.core.data.domain.PurchaseOrder
+import com.avago.core.data.domain.PurchaseOrderStatus
+import com.avago.core.data.domain.toEdit
 import com.avago.core.data.v2.V2OverlayPatch
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -66,5 +69,45 @@ class MaintAndPurchasingCommandBuildersTest {
         val jpy = PurchasingCommands.lineAmounts(BigDecimal("2"), BigDecimal("150.4"), null, "JPY")
         assertEquals(301L, jpy.subtotalMinor)
         assertEquals(0L, jpy.taxMinor)
+    }
+
+    private fun po(status: PurchaseOrderStatus) = PurchaseOrder(
+        id = "po-1", number = "PO-1", supplierPartyId = "sup", supplierName = null, status = status, currency = "USD",
+        subtotal = BigDecimal("100"), taxTotal = BigDecimal.ZERO, shipping = BigDecimal("5"), discount = BigDecimal.ZERO,
+        grandTotal = BigDecimal("105"), expectedOn = null, shipToLocationId = null, workOrderId = null, assetId = null,
+        requestedBy = null, approvedBy = null, approvedAt = null, orderedAt = null, closedAt = null, notes = null,
+        supplierInvoiceRef = null, createdAt = 0, version = 4, lines = emptyList(),
+    )
+
+    @Test
+    fun `purchase order shipping and discount are sent in minor units and move the grand total`() {
+        val stored = po(PurchaseOrderStatus.DRAFT)
+        val command = PurchasingCommands.updatePurchaseOrder(
+            stored, stored.toEdit().copy(shipping = BigDecimal("7.5"), discount = BigDecimal("2")), 1,
+        )!!
+        val set = command.payload.jsonObject["set"]!!.jsonObject
+        assertEquals(750L, set["shipping_minor"]!!.jsonPrimitive.content.toLong())
+        assertEquals(200L, set["discount_minor"]!!.jsonPrimitive.content.toLong())
+        assertEquals(4L, command.baseVersion)
+        val add = V2OverlayPatch.parse(command.overlayPatch!!)!!.ops.first { it.add.isNotEmpty() }.add
+        assertEquals(250L, add["shipping_minor"])
+        assertEquals(200L, add["discount_minor"])
+        assertEquals(50L, add["grand_total_minor"])
+        assertNull(PurchasingCommands.updatePurchaseOrder(stored, stored.toEdit(), 1))
+        assertThrows(IllegalArgumentException::class.java) {
+            PurchasingCommands.updatePurchaseOrder(stored, stored.toEdit().copy(discount = BigDecimal("-1")), 1)
+        }
+    }
+
+    @Test
+    fun `rejecting a purchase order carries the reason`() {
+        val command = PurchasingCommands.transition(
+            po(PurchaseOrderStatus.PENDING_APPROVAL), PurchasingCommands.Transition.REJECT, 1, "u", reason = " too dear ",
+        )
+        assertEquals("stock.purchase_orders.reject", command.operation)
+        assertEquals("too dear", command.payload.jsonObject["reason"]!!.jsonPrimitive.content)
+        assertThrows(IllegalArgumentException::class.java) {
+            PurchasingCommands.transition(po(PurchaseOrderStatus.DRAFT), PurchasingCommands.Transition.REJECT, 1, "u")
+        }
     }
 }

@@ -33,6 +33,9 @@ object InventoryCommands {
         userId: String?,
     ): V2NewCommand {
         val name = requireNotNull(draft.name.trim().ifEmpty { null }) { "a part needs a name" }
+        require(draft.modelNumber.clean() == null && draft.revision.clean() == null && draft.originCountryCode.clean() == null) {
+            "model number, revision and origin are set by editing the part after it is created"
+        }
         val payload = StockProductsCreate(
             id = id,
             name = name,
@@ -70,6 +73,9 @@ object InventoryCommands {
         val name = d.text("name", stored.name, draft.name)
         val sku = d.text("sku", stored.sku, draft.sku)
         val manufacturer = d.text("manufacturer_name", stored.manufacturer, draft.manufacturer)
+        val model = d.text("model_number", stored.modelNumber, draft.modelNumber)
+        val revision = d.text("revision", stored.revision, draft.revision)
+        val origin = d.text("origin_country_code", stored.originCountryCode, draft.originCountryCode?.trim()?.uppercase())
         val category = d.text("category", stored.categoryName, draft.category, column = null)
         if (category != null) d.overlay["category_id"] = categoryId
         val uom = d.text("uom_code", stored.uomCode, draft.uomCode)
@@ -85,7 +91,8 @@ object InventoryCommands {
         d.check()
         if (d.isEmpty) return null
         val payload = StockProductsUpdate(
-            id = stored.id, name = name, sku = sku, manufacturerName = manufacturer, category = category,
+            id = stored.id, name = name, sku = sku, manufacturerName = manufacturer, modelNumber = model,
+            revision = revision, originCountryCode = origin, category = category,
             uomCode = uom, standardUnitCost = cost, standardCostCurrency = currency, defaultReorderQty = reorder,
             abcClass = abc, gtin = gtin, notes = notes, clear = d.clear,
         )

@@ -282,7 +282,7 @@ class V2PurchaseOrderRepository @Inject constructor(
 
     override suspend fun approve(id: String) = transition(id, Transition.APPROVE)
 
-    override suspend fun reject(id: String) = transition(id, Transition.REJECT)
+    override suspend fun reject(id: String, reason: String?) = transition(id, Transition.REJECT, reason)
 
     override suspend fun markOrdered(id: String) = transition(id, Transition.MARK_ORDERED)
 
@@ -320,8 +320,8 @@ class V2PurchaseOrderRepository @Inject constructor(
         return id
     }
 
-    private suspend fun transition(id: String, transition: Transition) {
-        commands.submit(PurchasingCommands.transition(order(id), transition, System.currentTimeMillis(), commands.currentUserId()))
+    private suspend fun transition(id: String, transition: Transition, reason: String? = null) {
+        commands.submit(PurchasingCommands.transition(order(id), transition, System.currentTimeMillis(), commands.currentUserId(), reason))
     }
 
     private suspend fun order(id: String): PurchaseOrder =

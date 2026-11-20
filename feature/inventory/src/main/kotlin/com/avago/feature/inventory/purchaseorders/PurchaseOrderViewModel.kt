@@ -74,12 +74,13 @@ class PurchaseOrderViewModel @Inject constructor(
     fun requestConfirm(action: PoConfirmAction) = ui.update { it.copy(confirmAction = action) }
     fun dismissConfirm() = ui.update { it.copy(confirmAction = null) }
 
-    fun confirm() {
+    /** [reason] applies to a rejection: it is kept as a comment on the order. */
+    fun confirm(reason: String? = null) {
         val action = ui.value.confirmAction ?: return
         ui.update { it.copy(confirmAction = null) }
         act {
             when (action) {
-                PoConfirmAction.REJECT -> orders.reject(poId)
+                PoConfirmAction.REJECT -> orders.reject(poId, reason)
                 PoConfirmAction.CANCEL -> orders.cancel(poId)
             }
         }
@@ -132,6 +133,9 @@ data class CreatePoUiState(
     val notes: String = "",
     val internalNotes: String = "",
     val supplierInvoiceRef: String = "",
+    /** Order-level shipping and discount (edit only; a new order starts at zero). */
+    val shipping: String = "",
+    val discount: String = "",
     val currency: String = "USD",
     /** Vendor, currency and lines can only change while the order is a draft. */
     val isDraft: Boolean = true,
@@ -185,6 +189,8 @@ class PurchaseOrderCreateViewModel @Inject constructor(
                     notes = po.notes.orEmpty(),
                     internalNotes = po.internalNotes.orEmpty(),
                     supplierInvoiceRef = po.supplierInvoiceRef.orEmpty(),
+                    shipping = po.shipping.amountText(),
+                    discount = po.discount.amountText(),
                     isDraft = po.isEditable,
                     lines = po.lines.map { line ->
                         PoLineForm(
@@ -253,6 +259,8 @@ class PurchaseOrderCreateViewModel @Inject constructor(
     fun setNotes(v: String) = _state.update { it.copy(notes = v) }
     fun setInternalNotes(v: String) = _state.update { it.copy(internalNotes = v) }
     fun setSupplierInvoiceRef(v: String) = _state.update { it.copy(supplierInvoiceRef = v) }
+    fun setShipping(v: String) = _state.update { it.copy(shipping = v) }
+    fun setDiscount(v: String) = _state.update { it.copy(discount = v) }
 
     fun save() {
         val s = _state.value
@@ -266,6 +274,8 @@ class PurchaseOrderCreateViewModel @Inject constructor(
             _state.update { it.copy(error = e.message) }
             return
         }
+        val shipping = s.shipping.amountOrNull() ?: return fail("Enter a valid shipping amount")
+        val discount = s.discount.amountOrNull() ?: return fail("Enter a valid discount")
         val expectedOn = s.expectedDeliveryMs?.let { Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate().toString() }
         viewModelScope.launch {
             _state.update { it.copy(isSaving = true, error = null) }
@@ -294,6 +304,8 @@ class PurchaseOrderCreateViewModel @Inject constructor(
                             notes = s.notes,
                             internalNotes = s.internalNotes,
                             supplierInvoiceRef = s.supplierInvoiceRef,
+                            shipping = shipping,
+                            discount = discount,
                         ),
                     )
                     if (current.isEditable) saveLines(current, s.lines.zip(lines))
@@ -329,6 +341,14 @@ class PurchaseOrderCreateViewModel @Inject constructor(
             }
         }
     }
+
+    private fun fail(message: String) = _state.update { it.copy(error = message) }
+
+    /** Blank is zero; null when the text is not a non-negative amount. */
+    private fun String.amountOrNull(): BigDecimal? =
+        trim().ifEmpty { "0" }.toBigDecimalOrNull()?.takeIf { it.signum() >= 0 }
+
+    private fun BigDecimal.amountText(): String = if (signum() == 0) "" else stripTrailingZeros().toPlainString()
 
     private fun PoLineForm.toDraft(): PurchaseOrderLineDraft {
         val label = description.ifBlank { productName.orEmpty() }

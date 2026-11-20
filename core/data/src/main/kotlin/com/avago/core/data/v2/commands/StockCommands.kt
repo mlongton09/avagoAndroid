@@ -1,8 +1,13 @@
 package com.avago.core.data.v2.commands
 
 import com.avago.core.data.domain.MovementKind
+import com.avago.core.data.domain.MovementStatus
 import com.avago.core.data.domain.StockDocumentDraft
 import com.avago.core.data.domain.StockLineDraft
+import com.avago.core.data.domain.StockMovement
+import com.avago.core.data.domain.StockingPolicy
+import com.avago.core.data.domain.StockingPolicyDraft
+import com.avago.core.data.domain.TransferRequestDraft
 import com.avago.core.data.v2.V2Micros
 import com.avago.core.data.v2.V2NewCommand
 import com.avago.core.data.v2.V2OverlayPatch
@@ -110,23 +115,199 @@ object StockCommands {
             for ((key, delta) in effects(draft, line, positions)) deltas[key] = (deltas[key] ?: 0L) + delta
         }
         for ((key, delta) in deltas) {
-            if (delta == 0L) continue
-            val known = positions(key)
-            ops += if (known != null) {
-                V2RowOp.upsert("stock_positions", mapOf("id" to known.id), emptyMap(), mapOf("on_hand_qty_micros" to delta))
-            } else {
-                V2RowOp.upsert(
-                    "stock_positions",
-                    mapOf(
-                        "product_id" to key.productId, "location_id" to key.locationId, "bin_id" to key.binId,
-                        "lot_id" to key.lotId, "stock_unit_id" to null, "condition_code" to key.condition,
-                    ),
-                    mapOf("id" to newId(), "version" to 1L, "created_at" to nowMillis, "updated_at" to nowMillis),
-                    mapOf("on_hand_qty_micros" to delta),
-                )
-            }
+            if (delta != 0L) ops += positionDelta(key, delta, positions, nowMillis, newId)
         }
         return payload.toNewCommand(overlay = V2OverlayPatch(ops))
+    }
+
+    // ------------------------------------------------------------------ stocking policies
+
+    /**
+     * `stock.stocking_policies.set`: replaces every level of the (product, location) policy, so
+     * levels left null are cleared. [existing] is the current policy there, if any.
+     */
+    fun setStockingPolicy(
+        draft: StockingPolicyDraft,
+        existing: StockingPolicy?,
+        nowMillis: Long,
+        userId: String?,
+        newId: () -> String = { V2Uuid.v7(nowMillis) },
+    ): V2NewCommand {
+        val levels = listOf(draft.minQty, draft.maxQty, draft.reorderQty, draft.economicOrderQty, draft.safetyQty)
+        require(levels.all { it == null || it.signum() >= 0 }) { "stocking levels cannot be negative" }
+        if (draft.minQty != null && draft.maxQty != null) {
+            require(draft.maxQty >= draft.minQty) { "max must not be below min" }
+        }
+        require(draft.consumptionWindowDays == null || draft.consumptionWindowDays > 0) {
+            "the consumption window must be at least one day"
+        }
+        val payload = StockStockingPoliciesSet(
+            productId = draft.productId,
+            locationId = draft.locationId,
+            minQty = draft.minQty,
+            maxQty = draft.maxQty,
+            reorderQty = draft.reorderQty,
+            economicOrderQty = draft.economicOrderQty,
+            safetyQty = draft.safetyQty,
+            consumptionWindowDays = draft.consumptionWindowDays,
+        )
+        val levelsRow = mapOf(
+            "min_qty_micros" to draft.minQty?.let(V2Micros::fromDecimal),
+            "max_qty_micros" to draft.maxQty?.let(V2Micros::fromDecimal),
+            "reorder_qty_micros" to draft.reorderQty?.let(V2Micros::fromDecimal),
+            "economic_order_qty_micros" to draft.economicOrderQty?.let(V2Micros::fromDecimal),
+            "safety_qty_micros" to draft.safetyQty?.let(V2Micros::fromDecimal),
+            "consumption_window_days" to draft.consumptionWindowDays?.toLong(),
+        )
+        val op = if (existing != null) {
+            V2RowOp.upsert("stocking_policies", existing.id, levelsRow + updated(nowMillis))
+        } else {
+            V2RowOp.upsert(
+                "stocking_policies",
+                mapOf("product_id" to draft.productId, "location_id" to draft.locationId),
+                levelsRow + mapOf("id" to newId()) + created(nowMillis, userId),
+            )
+        }
+        return payload.toNewCommand(overlay = V2OverlayPatch(listOf(op)))
+    }
+
+    fun deleteStockingPolicy(stored: StockingPolicy): V2NewCommand =
+        StockStockingPoliciesDelete(id = stored.id).toNewCommand(
+            baseVersion = stored.version,
+            overlay = V2OverlayPatch(listOf(V2RowOp.delete("stocking_policies", stored.id))),
+        )
+
+    /** `stock.reorder_suggestions.dismiss`: the suggestion leaves the list at once. */
+    fun dismissReorderSuggestion(id: String): V2NewCommand =
+        StockReorderSuggestionsDismiss(id = id).toNewCommand(
+            overlay = V2OverlayPatch(listOf(V2RowOp.delete("reorder_suggestions", id))),
+        )
+
+    // ------------------------------------------------------------------ transfer requests
+
+    /** `stock.transfer_requests.create`: a one-line transfer document in status requested. */
+    fun requestTransfer(
+        id: String,
+        lineId: String,
+        draft: TransferRequestDraft,
+        nowMillis: Long,
+        userId: String?,
+    ): V2NewCommand {
+        require(draft.quantity.signum() > 0) { "quantity must be positive" }
+        require(draft.fromLocationId != draft.toLocationId) { "the locations must differ" }
+        val notes = draft.notes.clean()
+        val payload = StockTransferRequestsCreate(
+            id = id,
+            productId = draft.productId,
+            quantity = draft.quantity,
+            fromLocationId = draft.fromLocationId,
+            toLocationId = draft.toLocationId,
+            notes = notes,
+        )
+        val qty = V2Micros.fromDecimal(draft.quantity)
+        val ops = listOf(
+            V2RowOp.upsert(
+                "stock_movements", id,
+                mapOf(
+                    "kind" to MovementKind.TRANSFER.wire,
+                    "status" to MovementStatus.REQUESTED.wire,
+                    "location_id" to draft.fromLocationId,
+                    "to_location_id" to draft.toLocationId,
+                    "requested_by" to userId,
+                    "blind_count" to 0L,
+                    "notes" to notes,
+                ) + created(nowMillis, userId),
+            ),
+            V2RowOp.upsert(
+                "stock_movement_lines", lineId,
+                mapOf(
+                    "movement_id" to id,
+                    "line_no" to 1L,
+                    "product_id" to draft.productId,
+                    "location_id" to draft.fromLocationId,
+                    "condition_code" to "good",
+                    "requested_qty_micros" to qty,
+                    "quantity_micros" to qty,
+                    "recount_required" to 0L,
+                    "created_at" to nowMillis,
+                    "updated_at" to nowMillis,
+                    "version" to 1L,
+                ),
+            ),
+        )
+        return payload.toNewCommand(overlay = V2OverlayPatch(ops))
+    }
+
+    /**
+     * `stock.transfer_requests.decide`. Posting moves the requested quantity of good stock from
+     * the source to the destination location (unbinned), optimistically as position deltas.
+     */
+    fun decideTransferRequest(
+        request: StockMovement,
+        status: MovementStatus,
+        note: String?,
+        positions: (PositionKey) -> KnownPosition?,
+        nowMillis: Long,
+        userId: String?,
+        newId: () -> String = { V2Uuid.v7(nowMillis) },
+    ): V2NewCommand {
+        require(request.kind == MovementKind.TRANSFER) { "not a transfer request" }
+        require(status in DECISIONS) { "a transfer request can be approved, declined, cancelled or posted" }
+        val open = setOf(MovementStatus.DRAFT, MovementStatus.REQUESTED, MovementStatus.APPROVED)
+        require(request.status in open) { "a ${request.status.wire} request cannot change" }
+        val cleanNote = note.clean()
+        val head = mapOf("status" to status.wire) + updated(nowMillis)
+        val decided = when (status) {
+            MovementStatus.APPROVED, MovementStatus.DECLINED ->
+                mapOf("approved_by" to userId, "approved_at" to nowMillis, "decision_note" to cleanNote)
+            MovementStatus.POSTED -> mapOf("posted_at" to nowMillis, "posted_by" to userId, "effective_at" to nowMillis)
+            else -> mapOf("decision_note" to cleanNote)
+        }
+        val ops = mutableListOf<V2RowOp>(V2RowOp.upsert("stock_movements", request.id, head + decided))
+        if (status == MovementStatus.POSTED) {
+            val toLocation = requireNotNull(request.toLocationId) { "the request has no destination" }
+            val deltas = LinkedHashMap<PositionKey, Long>()
+            for (line in request.lines) {
+                val qty = V2Micros.fromDecimal(line.requestedQty ?: line.quantity ?: BigDecimal.ZERO)
+                val from = PositionKey(line.productId, line.locationId ?: request.locationId, null, null, "good")
+                deltas[from] = (deltas[from] ?: 0L) - qty
+                val to = from.copy(locationId = toLocation)
+                deltas[to] = (deltas[to] ?: 0L) + qty
+            }
+            for ((key, delta) in deltas) if (delta != 0L) ops += positionDelta(key, delta, positions, nowMillis, newId)
+        }
+        return StockTransferRequestsDecide(
+            id = request.id,
+            status = StockMovementStatus.entries.first { it.wire == status.wire },
+            note = cleanNote,
+        ).toNewCommand(overlay = V2OverlayPatch(ops))
+    }
+
+    private val DECISIONS = setOf(
+        MovementStatus.APPROVED, MovementStatus.DECLINED, MovementStatus.CANCELLED, MovementStatus.POSTED,
+    )
+
+    private fun positionDelta(
+        key: PositionKey,
+        delta: Long,
+        positions: (PositionKey) -> KnownPosition?,
+        nowMillis: Long,
+        newId: () -> String,
+    ): V2RowOp {
+        val known = positions(key)
+        return if (known != null) {
+            V2RowOp.upsert("stock_positions", mapOf("id" to known.id), emptyMap(), mapOf("on_hand_qty_micros" to delta))
+        } else {
+            V2RowOp.upsert(
+                "stock_positions",
+                mapOf(
+                    "product_id" to key.productId, "location_id" to key.locationId, "bin_id" to key.binId,
+                    "lot_id" to key.lotId, "stock_unit_id" to null, "condition_code" to key.condition,
+                ),
+                mapOf("id" to newId(), "version" to 1L, "created_at" to nowMillis, "updated_at" to nowMillis),
+                mapOf("on_hand_qty_micros" to delta),
+            )
+        }
     }
 
     private fun validate(draft: StockDocumentDraft) {

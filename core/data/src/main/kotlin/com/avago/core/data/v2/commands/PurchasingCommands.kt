@@ -407,21 +407,47 @@ object PurchasingCommands {
         val notes = d.text("notes", stored.notes, edit.notes)
         val internal = d.text("internal_notes", stored.internalNotes, edit.internalNotes)
         val invoice = d.text("supplier_invoice_ref", stored.supplierInvoiceRef, edit.supplierInvoiceRef)
+        val orderCurrency = currency ?: stored.currency
+        val shippingMinor = minorOrNull("shipping", stored.shipping, edit.shipping, orderCurrency)
+        val discountMinor = minorOrNull("discount", stored.discount, edit.discount, orderCurrency)
         d.check()
-        if (d.isEmpty) return null
+        if (d.isEmpty && shippingMinor == null && discountMinor == null) return null
+        val ops = mutableListOf(V2RowOp.upsert("purchase_orders", stored.id, d.overlay + updated(nowMillis)))
+        if (shippingMinor != null || discountMinor != null) {
+            val shippingDelta = shippingMinor?.let { it - V2Money.toMinor(stored.shipping, orderCurrency) } ?: 0L
+            val discountDelta = discountMinor?.let { it - V2Money.toMinor(stored.discount, orderCurrency) } ?: 0L
+            ops += V2RowOp.upsert(
+                "purchase_orders", mapOf("id" to stored.id), emptyMap(),
+                mapOf(
+                    "shipping_minor" to shippingDelta, "discount_minor" to discountDelta,
+                    "grand_total_minor" to shippingDelta - discountDelta,
+                ),
+            )
+        }
         return StockPurchaseOrdersUpdate(
             id = stored.id, supplierPartyId = supplier, currency = currency, shipToLocationId = shipTo, workOrderId = wo,
             assetId = asset, expectedOn = expected?.let(LocalDate::parse), notes = notes, internalNotes = internal,
-            supplierInvoiceRef = invoice, clear = d.clear,
-        ).toNewCommand(
-            baseVersion = stored.version,
-            overlay = V2OverlayPatch(listOf(V2RowOp.upsert("purchase_orders", stored.id, d.overlay + updated(nowMillis)))),
-        )
+            supplierInvoiceRef = invoice, shippingMinor = shippingMinor, discountMinor = discountMinor, clear = d.clear,
+        ).toNewCommand(baseVersion = stored.version, overlay = V2OverlayPatch(ops))
+    }
+
+    /** The new amount in minor units when it changed (an empty amount is zero); null when unchanged. */
+    private fun minorOrNull(what: String, old: BigDecimal, new: BigDecimal?, currency: String): Long? {
+        val value = new ?: BigDecimal.ZERO
+        require(value.signum() >= 0) { "The $what cannot be negative" }
+        return if (value.compareTo(old) == 0) null else V2Money.toMinor(value, currency)
     }
 
     enum class Transition { SUBMIT, APPROVE, REJECT, MARK_ORDERED, CANCEL, CLOSE }
 
-    fun transition(stored: PurchaseOrder, transition: Transition, nowMillis: Long, userId: String?): V2NewCommand {
+    /** [reason] is kept as a comment on the order. */
+    fun transition(
+        stored: PurchaseOrder,
+        transition: Transition,
+        nowMillis: Long,
+        userId: String?,
+        reason: String? = null,
+    ): V2NewCommand {
         val (payload, set) = when (transition) {
             Transition.SUBMIT -> {
                 require(stored.canSubmit) { "Only a draft with lines can be submitted" }
@@ -434,7 +460,7 @@ object PurchasingCommands {
             }
             Transition.REJECT -> {
                 require(stored.canApprove) { "Only an order pending approval can be rejected" }
-                StockPurchaseOrdersReject(stored.id) to mapOf("status" to PurchaseOrderStatus.DRAFT.wire)
+                StockPurchaseOrdersReject(stored.id, reason.clean()) to mapOf("status" to PurchaseOrderStatus.DRAFT.wire)
             }
             Transition.MARK_ORDERED -> {
                 require(stored.canMarkOrdered) { "Only an approved order can be marked as ordered" }

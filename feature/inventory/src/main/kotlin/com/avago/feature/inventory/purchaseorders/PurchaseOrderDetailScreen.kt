@@ -294,7 +294,8 @@ private fun PoActions(
 }
 
 @Composable
-private fun PoConfirmDialog(action: PoConfirmAction, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+private fun PoConfirmDialog(action: PoConfirmAction, onConfirm: (String?) -> Unit, onDismiss: () -> Unit) {
+    var reason by rememberSaveable { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -308,16 +309,30 @@ private fun PoConfirmDialog(action: PoConfirmAction, onConfirm: () -> Unit, onDi
             )
         },
         text = {
-            Text(
-                stringResource(
-                    when (action) {
-                        PoConfirmAction.REJECT -> R.string.po_confirm_reject_message
-                        PoConfirmAction.CANCEL -> R.string.po_confirm_cancel_message
-                    },
-                ),
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    stringResource(
+                        when (action) {
+                            PoConfirmAction.REJECT -> R.string.po_confirm_reject_message
+                            PoConfirmAction.CANCEL -> R.string.po_confirm_cancel_message
+                        },
+                    ),
+                )
+                if (action == PoConfirmAction.REJECT) {
+                    OutlinedTextField(
+                        value = reason,
+                        onValueChange = { reason = it },
+                        label = { Text(stringResource(R.string.po_reject_reason_label)) },
+                        supportingText = { Text(stringResource(R.string.po_reject_reason_hint)) },
+                        minLines = 2,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
         },
-        confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(R.string.common_confirm)) } },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(reason.trim().ifEmpty { null }) }) { Text(stringResource(R.string.common_confirm)) }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_dismiss)) } },
     )
 }

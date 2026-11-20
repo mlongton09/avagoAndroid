@@ -28,6 +28,11 @@ data class AddEditPartUiState(
     val sku: String = "",
     val category: String = "",
     val manufacturer: String = "",
+    /** Editing only (the create command does not take them). */
+    val modelNumber: String = "",
+    val revision: String = "",
+    val originCountryCode: String = "",
+    val isEdit: Boolean = false,
     val unitCost: String = "",
     val currency: String = "USD",
     val uom: String = "each",
@@ -112,6 +117,10 @@ class AddEditPartViewModel @Inject constructor(
                     sku = product.sku,
                     category = product.categoryName.orEmpty(),
                     manufacturer = product.manufacturer.orEmpty(),
+                    modelNumber = product.modelNumber.orEmpty(),
+                    revision = product.revision.orEmpty(),
+                    originCountryCode = product.originCountryCode.orEmpty(),
+                    isEdit = true,
                     unitCost = product.standardUnitCost?.toPlainString().orEmpty(),
                     currency = product.costCurrency ?: it.currency,
                     uom = product.uomCode,
@@ -130,6 +139,10 @@ class AddEditPartViewModel @Inject constructor(
     fun setSku(v: String) = _state.update { it.copy(sku = v) }
     fun setCategory(v: String) = _state.update { it.copy(category = v) }
     fun setManufacturer(v: String) = _state.update { it.copy(manufacturer = v) }
+    fun setModelNumber(v: String) = _state.update { it.copy(modelNumber = v) }
+    fun setRevision(v: String) = _state.update { it.copy(revision = v) }
+    fun setOriginCountryCode(v: String) =
+        _state.update { it.copy(originCountryCode = v.filter(Char::isLetter).uppercase().take(2)) }
     fun setUnitCost(v: String) = _state.update { it.copy(unitCost = v) }
     fun setCurrency(v: String) = _state.update { it.copy(currency = v.uppercase().take(3)) }
     fun setUom(v: String) = _state.update { it.copy(uom = v) }
@@ -157,11 +170,17 @@ class AddEditPartViewModel @Inject constructor(
             it.toBigDecimalOrNull()?.takeIf { q -> q.signum() >= 0 } ?: return fail("Enter a valid initial quantity")
         }?.takeIf { it.signum() > 0 }
         if (initialQty != null && s.locationId == null) return fail("Choose the location that holds the initial stock")
+        if (s.originCountryCode.isNotEmpty() && s.originCountryCode.length != 2) {
+            return fail("Enter the two-letter country of origin")
+        }
 
         val draft = ProductDraft(
             name = s.name.trim(),
             sku = s.sku,
             manufacturer = s.manufacturer,
+            modelNumber = s.modelNumber.takeIf { s.isEdit },
+            revision = s.revision.takeIf { s.isEdit },
+            originCountryCode = s.originCountryCode.takeIf { s.isEdit },
             category = s.category,
             uomCode = s.uom,
             standardUnitCost = unitCost,

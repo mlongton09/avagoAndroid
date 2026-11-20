@@ -218,8 +218,8 @@ interface PurchaseOrderRepository {
 
     suspend fun approve(id: String)
 
-    /** Sends an order pending approval back to draft. */
-    suspend fun reject(id: String)
+    /** Sends an order pending approval back to draft; a [reason] is kept as a comment on the order. */
+    suspend fun reject(id: String, reason: String? = null)
 
     suspend fun markOrdered(id: String)
 
@@ -254,6 +254,10 @@ data class PurchaseOrderEdit(
     val notes: String?,
     val internalNotes: String?,
     val supplierInvoiceRef: String?,
+    /** Order-level shipping charge in major units; null or empty is zero. */
+    val shipping: BigDecimal? = null,
+    /** Order-level discount in major units; null or empty is zero. */
+    val discount: BigDecimal? = null,
 )
 
 fun PurchaseOrder.toEdit() = PurchaseOrderEdit(
@@ -266,6 +270,8 @@ fun PurchaseOrder.toEdit() = PurchaseOrderEdit(
     notes = notes,
     internalNotes = internalNotes,
     supplierInvoiceRef = supplierInvoiceRef,
+    shipping = shipping,
+    discount = discount,
 )
 
 data class PurchaseOrderLineDraft(

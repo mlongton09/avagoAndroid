@@ -262,6 +262,27 @@ fun PurchaseOrderCreateScreen(
                 }
             }
 
+            if (poId != null) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = state.shipping,
+                        onValueChange = viewModel::setShipping,
+                        label = { Text(stringResource(R.string.po_shipping_cost_label)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    OutlinedTextField(
+                        value = state.discount,
+                        onValueChange = viewModel::setDiscount,
+                        label = { Text(stringResource(R.string.po_discount_label)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+
             // Line items
             Text(stringResource(R.string.po_line_items), style = MaterialTheme.typography.titleSmall)
             state.lines.forEachIndexed { lineIndex, line ->
