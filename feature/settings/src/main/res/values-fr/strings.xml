@@ -239,4 +239,6 @@
     <string name="tech_profile_rate_hint">Un nouveau taux s\'applique ? partir d\'aujourd\'hui. Videz le taux pour y mettre fin aujourd\'hui.</string>
     <string name="tech_profile_rate_invalid">Saisissez un taux horaire valide et un code devise à 3 lettres.</string>
     <string name="tech_profile_no_worker">Vous n\'êtes pas encore configuré comme technicien dans ce compte. Demandez à un administrateur de vous ajouter.</string>
+    <string name="failed_changes_unsupported_media_type">Ce type de fichier ne peut pas être envoyé. Joignez plutôt une photo ou un PDF.</string>
+    <string name="failed_changes_media_type_mismatch">Le contenu du fichier ne correspond pas à son type, il n\'a donc pas été envoyé. Joignez à nouveau le fichier.</string>
 </resources>

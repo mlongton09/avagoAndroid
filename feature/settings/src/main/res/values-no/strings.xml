@@ -235,4 +235,6 @@
     <string name="tech_profile_rate_hint">En ny sats gjelder fra i dag. T?m satsen for ? avslutte den i dag.</string>
     <string name="tech_profile_rate_invalid">Angi en gyldig timesats og en valutakode på 3 bokstaver.</string>
     <string name="tech_profile_no_worker">Du er ikke satt opp som tekniker i denne kontoen ennå. Be en administrator om å legge deg til.</string>
+    <string name="failed_changes_unsupported_media_type">Denne filtypen kan ikke lastes opp. Legg ved et bilde eller en PDF i stedet.</string>
+    <string name="failed_changes_media_type_mismatch">Innholdet i filen samsvarer ikke med filtypen, så den ble ikke lastet opp. Legg ved filen på nytt.</string>
 </resources>

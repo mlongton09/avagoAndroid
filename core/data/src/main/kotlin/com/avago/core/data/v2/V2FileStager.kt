@@ -57,10 +57,17 @@ class V2FileStager @Inject constructor(
     /** The local copy of [fileId], if this device staged it. */
     fun localFile(fileId: String): File? = File(root, fileId).takeIf { it.isFile }
 
-    private fun copy(input: InputStream, mediaType: String, name: String?): V2StagedFile {
+    /**
+     * Copies [input] into app storage. The registered type is the sniffed kind of the bytes (the
+     * server refuses a body that is not what was declared); [declaredType] is kept only for bytes
+     * of no known kind, which the server will refuse with a clear `unsupported_media_type`.
+     */
+    private fun copy(input: InputStream, declaredType: String, name: String?): V2StagedFile {
         val fileId = V2Uuid.v7()
         val target = File(root, fileId)
         val digest = MessageDigest.getInstance("SHA-256")
+        val head = ByteArray(V2MediaType.SNIFF_BYTES)
+        var headSize = 0
         var size = 0L
         target.outputStream().use { out ->
             val buffer = ByteArray(BUFFER)
@@ -69,10 +76,16 @@ class V2FileStager @Inject constructor(
                 if (n < 0) break
                 digest.update(buffer, 0, n)
                 out.write(buffer, 0, n)
+                if (headSize < head.size) {
+                    val take = minOf(n, head.size - headSize)
+                    System.arraycopy(buffer, 0, head, headSize, take)
+                    headSize += take
+                }
                 size += n
             }
         }
         val sha = digest.digest().joinToString("") { "%02x".format(it) }
+        val mediaType = V2MediaType.sniff(head.copyOf(headSize)) ?: declaredType
         return V2StagedFile(fileId, target, sha, size, mediaType, name)
     }
 

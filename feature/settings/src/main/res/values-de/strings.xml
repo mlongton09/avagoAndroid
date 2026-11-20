@@ -235,4 +235,6 @@
     <string name="tech_profile_rate_hint">Ein neuer Satz gilt ab heute. Leeren Sie den Satz, um ihn heute zu beenden.</string>
     <string name="tech_profile_rate_invalid">Geben Sie einen gültigen Stundensatz und einen 3-stelligen Währungscode ein.</string>
     <string name="tech_profile_no_worker">Sie sind in diesem Konto noch nicht als Techniker eingerichtet. Bitten Sie einen Administrator, Sie hinzuzufügen.</string>
+    <string name="failed_changes_unsupported_media_type">Dieser Dateityp kann nicht hochgeladen werden. Hängen Sie stattdessen ein Foto oder ein PDF an.</string>
+    <string name="failed_changes_media_type_mismatch">Der Inhalt der Datei passt nicht zu ihrem Typ, daher wurde sie nicht hochgeladen. Hängen Sie die Datei erneut an.</string>
 </resources>

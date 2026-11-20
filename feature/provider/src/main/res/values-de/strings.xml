@@ -157,4 +157,5 @@
     <string name="provider_st_converted">Umgewandelt</string>
     <string name="provider_st_paid">Bezahlt</string>
     <string name="provider_st_void">Storniert</string>
+    <string name="provider_err_photo_type">Das Foto konnte nicht hochgeladen werden, weil sein Dateityp nicht akzeptiert wurde. Nehmen Sie es erneut auf.</string>
 </resources>

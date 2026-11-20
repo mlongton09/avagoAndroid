@@ -257,4 +257,5 @@
         <item quantity="one">%d photo</item>
         <item quantity="other">%d photos</item>
     </plurals>
+    <string name="crew_err_photo_type">The photo couldn\'t be uploaded because its file type wasn\'t accepted. Try taking it again.</string>
 </resources>

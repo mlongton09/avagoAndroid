@@ -101,19 +101,22 @@ class JsonApi @Inject constructor(
         ApiResult.Err(ApiError(if (e is java.io.IOException) 0 else -1, null, e.message ?: e.javaClass.simpleName))
     }
 
-    /** PUT raw bytes to a presigned upload URL with a client that sends no auth header. */
-    suspend fun upload(url: String, bytes: ByteArray, contentType: String = "image/jpeg"): ApiResult<Unit> {
+    /**
+     * PUT raw bytes to a presigned upload URL with a client that sends no auth header. [contentType]
+     * must be the type the upload was registered with: storage refuses other bytes (`415`).
+     */
+    suspend fun upload(url: String, bytes: ByteArray, contentType: String): ApiResult<Unit> {
         val uploader = AvagoHttpClient.createUnauthenticatedClient()
         return try {
             val r = uploader.request(url) {
                 method = HttpMethod.Put
                 setBody(ByteArrayContent(bytes, ContentType.parse(contentType)))
             }
-            if (r.status.isSuccess()) ApiResult.Ok(Unit) else ApiResult.Err(ApiError(r.status.value, "upload_failed", r.status.description))
+            if (r.status.isSuccess()) ApiResult.Ok(Unit) else ApiResult.Err(parseError(r.status.value, runCatching { r.bodyAsText() }.getOrDefault("")))
         } catch (e: CancellationException) {
             throw e
         } catch (e: ResponseException) {
-            ApiResult.Err(ApiError(e.response.status.value, "upload_failed", e.response.status.description))
+            ApiResult.Err(parseError(e.response.status.value, runCatching { e.response.bodyAsText() }.getOrDefault("")))
         } catch (e: Exception) {
             ApiResult.Err(ApiError(0, null, e.message ?: e.javaClass.simpleName))
         } finally {

@@ -41,6 +41,7 @@ import com.avago.core.data.domain.RecordNotFoundException
 import com.avago.core.data.domain.StoreNotReadyException
 import com.avago.core.data.domain.SyncConflict
 import com.avago.core.data.domain.fieldDiffs
+import com.avago.core.data.v2.V2ApiUploader
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -277,7 +278,8 @@ private fun FailedChangeItem(
                         }
                     }
                 } else {
-                    Text(change.message ?: change.code, color = MaterialTheme.colorScheme.error)
+                    val reason = rejectionRes(change.code)?.let { stringResource(it) } ?: change.message ?: change.code
+                    Text(reason, color = MaterialTheme.colorScheme.error)
                 }
                 change.entityType?.let { type ->
                     Text(
@@ -291,6 +293,13 @@ private fun FailedChangeItem(
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.failed_changes_dismiss)) }
         },
     )
+}
+
+/** Localized text for upload refusals (unsupported or mismatched file type); other codes show the server message. */
+private fun rejectionRes(code: String): Int? = when (code) {
+    V2ApiUploader.UNSUPPORTED_MEDIA_TYPE -> R.string.failed_changes_unsupported_media_type
+    V2ApiUploader.MEDIA_TYPE_MISMATCH -> R.string.failed_changes_media_type_mismatch
+    else -> null
 }
 
 @Composable

@@ -235,4 +235,6 @@
     <string name="tech_profile_rate_hint">Een nieuw tarief geldt vanaf vandaag. Maak het tarief leeg om het vandaag te be?indigen.</string>
     <string name="tech_profile_rate_invalid">Voer een geldig uurtarief en een valutacode van 3 letters in.</string>
     <string name="tech_profile_no_worker">Je bent in dit account nog niet ingesteld als monteur. Vraag een beheerder om je toe te voegen.</string>
+    <string name="failed_changes_unsupported_media_type">Dit bestandstype kan niet worden geüpload. Voeg in plaats daarvan een foto of een pdf toe.</string>
+    <string name="failed_changes_media_type_mismatch">De inhoud van het bestand komt niet overeen met het type, dus het is niet geüpload. Voeg het bestand opnieuw toe.</string>
 </resources>

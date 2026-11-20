@@ -239,4 +239,6 @@
     <string name="tech_profile_rate_hint">Uma nova tarifa vale a partir de hoje. Deixe a tarifa vazia para encerrá-la hoje.</string>
     <string name="tech_profile_rate_invalid">Introduza uma tarifa horária válida e um código de moeda de 3 letras.</string>
     <string name="tech_profile_no_worker">Você ainda não está configurado como técnico nesta conta. Peça a um administrador para adicionar você.</string>
+    <string name="failed_changes_unsupported_media_type">Este tipo de arquivo não pode ser enviado. Anexe uma foto ou um PDF.</string>
+    <string name="failed_changes_media_type_mismatch">O conteúdo do arquivo não corresponde ao tipo, então ele não foi enviado. Anexe o arquivo novamente.</string>
 </resources>

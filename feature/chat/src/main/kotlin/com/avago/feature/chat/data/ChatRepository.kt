@@ -11,6 +11,7 @@ import com.avago.core.data.db.entity.ChatThreadLastReadEntity
 import com.avago.core.data.db.entity.ChatThreadMemberEntity
 import com.avago.core.data.db.entity.ChatMessageEntity
 import com.avago.core.data.db.entity.ChatThreadEntity
+import com.avago.core.data.v2.V2MediaType
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
 import com.avago.core.network.model.ChatMemberResponse
@@ -789,7 +790,9 @@ class ChatRepository @Inject constructor(
         val accountId = identity.activeAccountId.value
             ?: return Result.failure(Exception("No active account"))
         val db = chatDbFactory.get(accountId)
-        val safeContentType = contentType.ifBlank { "application/octet-stream" }
+        // Storage checks the bytes against the registered type (P3-20), so register what they are.
+        val safeContentType = V2MediaType.sniff(bytes)
+            ?: contentType.ifBlank { "application/octet-stream" }
         val resolvedFileName = fileName?.takeIf { it.isNotBlank() } ?: defaultUploadFileName(safeContentType)
 
         val presignedMedia = when (val presign = client.presignChatMedia(safeContentType, bytes.size.toLong())) {

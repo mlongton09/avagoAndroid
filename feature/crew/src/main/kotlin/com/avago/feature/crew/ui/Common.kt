@@ -131,6 +131,7 @@ internal fun <T> LoadBox(state: Load<T>, onRetry: () -> Unit, padding: PaddingVa
 /** User-facing text for a server or network error. */
 internal fun errorText(ctx: Context, e: ApiError): String = when {
     e.offline -> ctx.getString(R.string.crew_err_offline)
+    e.code == "unsupported_media_type" || e.code == "media_type_mismatch" -> ctx.getString(R.string.crew_err_photo_type)
     e.status == 403 -> ctx.getString(R.string.crew_err_forbidden)
     e.status == 404 -> ctx.getString(R.string.crew_err_not_found)
     e.status == 429 -> ctx.getString(R.string.crew_err_rate_limited)

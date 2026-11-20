@@ -12,7 +12,6 @@ import com.avago.core.network.model.DocOcrReextractResponse
 import com.avago.core.network.model.DocOcrResponse
 import com.avago.core.network.model.GeocodeRequest
 import com.avago.core.network.model.GeocodeResponse
-import com.avago.core.network.model.PhotoUploadUrlResponse
 import com.avago.core.network.model.RolePermissionsSyncData
 import com.avago.core.network.model.RolePermissionsSyncEnvelope
 import com.avago.core.network.model.VinDecodeResponse
@@ -975,60 +974,6 @@ class AvagoServiceClient @Inject constructor(
     /** GET /chat/me/roster */
     suspend fun getChatRoster(): NetworkResult<List<ChatRosterEntry>> =
         safeNetworkCall { client.get("$baseUrl/chat/me/roster").body<ChatRosterEnvelope>().members }
-
-    // ---------------------------------------------------------------------------
-    // Photos — presigned upload
-    // ---------------------------------------------------------------------------
-
-    /**
-     * POST /accounts/:accountId/photos
-     *
-     * Reserves a server-side row and returns a presigned S3 upload URL.
-     */
-    suspend fun getPhotoUploadUrl(
-        accountId: String,
-        photoId: String,
-        entityId: String,
-        entityType: String,
-    ): NetworkResult<PhotoUploadUrlResponse> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/photos") {
-                setBody(
-                    mapOf(
-                        "photo_id" to photoId,
-                        "entity_id" to entityId,
-                        "entity_type" to entityType,
-                    )
-                )
-            }.body()
-        }
-
-    /**
-     * PUT [uploadUrl]
-     *
-     * Uploads raw image bytes to a presigned URL obtained from [getPhotoUploadUrl].
-     * Uses an unauthenticated client because presigned S3 URLs are self-authenticating —
-     * including an Authorization header would cause S3 to reject the request.
-     */
-    suspend fun uploadPhotoBinary(uploadUrl: String, bytes: ByteArray): NetworkResult<Unit> {
-        if (isForceOffline()) return NetworkResult.Error(OFFLINE_MODE_CODE, OFFLINE_MODE_MESSAGE)
-        val uploadClient = AvagoHttpClient.createUnauthenticatedClient()
-        return try {
-            val response: HttpResponse = uploadClient.put(uploadUrl) {
-                setBody(ByteArrayContent(bytes, ContentType.Image.JPEG))
-            }
-            if (response.status.isSuccess()) {
-                NetworkResult.Success(Unit)
-            } else {
-                NetworkResult.Error(response.status.value, response.status.description)
-            }
-        } catch (e: Exception) {
-            Timber.e(e, "uploadPhotoBinary failed")
-            NetworkResult.Error(-1, e.message ?: "Unknown error")
-        } finally {
-            uploadClient.close()
-        }
-    }
 
     // ---------------------------------------------------------------------------
     // Internal helpers

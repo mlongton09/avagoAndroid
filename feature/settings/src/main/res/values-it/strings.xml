@@ -239,4 +239,6 @@
     <string name="tech_profile_rate_hint">Una nuova tariffa vale da oggi. Svuota la tariffa per terminarla oggi.</string>
     <string name="tech_profile_rate_invalid">Inserisci una tariffa oraria valida e un codice valuta di 3 lettere.</string>
     <string name="tech_profile_no_worker">Non sei ancora configurato come tecnico in questo account. Chiedi a un amministratore di aggiungerti.</string>
+    <string name="failed_changes_unsupported_media_type">Questo tipo di file non può essere caricato. Allega invece una foto o un PDF.</string>
+    <string name="failed_changes_media_type_mismatch">Il contenuto del file non corrisponde al suo tipo, quindi non è stato caricato. Allega di nuovo il file.</string>
 </resources>

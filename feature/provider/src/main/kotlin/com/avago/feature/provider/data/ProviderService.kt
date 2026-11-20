@@ -118,14 +118,14 @@ class KtorProviderService @Inject constructor(
 
     override suspend fun uploadJobPhoto(id: String, jpeg: ByteArray): ApiResult<String> {
         val a = acc() ?: return noAccount()
-        val reserve = api.post("/accounts/$a/photos", jsonBody("entity_id" to id, "entity_type" to "provider_job"))
+        val reserve = api.post("/accounts/$a/photos", jsonBody("entity_id" to id, "entity_type" to "provider_job", "content_type" to JPEG))
         val slot = when (reserve) {
             is ApiResult.Err -> return reserve
             is ApiResult.Ok -> reserve.value
         }
         val photoId = photoIdFrom(slot) ?: return parseError("photo")
         val url = (slot["upload_url"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: return ApiResult.Ok(photoId)
-        return when (val put = api.upload(url, jpeg)) {
+        return when (val put = api.upload(url, jpeg, JPEG)) {
             is ApiResult.Ok -> ApiResult.Ok(photoId)
             is ApiResult.Err -> put
         }
@@ -176,3 +176,6 @@ class KtorProviderService @Inject constructor(
         return one(api.post(p(a, "/invoices/$id/mark-paid"), jsonBody("reference" to reference?.trim()?.ifBlank { null })), "invoice", Invoice::from)
     }
 }
+
+/** Photos are JPEG-encoded before upload (ui/Common.kt); registered and PUT with this type. */
+private const val JPEG = "image/jpeg"

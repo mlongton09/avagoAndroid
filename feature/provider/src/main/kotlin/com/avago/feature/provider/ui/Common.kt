@@ -177,6 +177,7 @@ internal fun errorRes(e: ApiError): Int? = when {
     e.code == "invoice_total_zero" -> R.string.provider_err_invoice_zero
     e.code == "invoice_already_paid" -> R.string.provider_err_invoice_paid
     e.code == "invalid_quote_transition" || e.code == "invalid_invoice_transition" -> R.string.provider_err_doc_state
+    e.code == "unsupported_media_type" || e.code == "media_type_mismatch" -> R.string.provider_err_photo_type
     e.status == 403 -> R.string.provider_err_forbidden
     e.status == 404 -> R.string.provider_err_not_found
     e.status == 429 -> R.string.provider_err_rate_limited

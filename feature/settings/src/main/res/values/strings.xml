@@ -235,4 +235,6 @@
     <string name="tech_profile_rate_currency">Currency</string>
     <string name="tech_profile_rate_hint">A new rate applies from today. Empty the rate to end it today.</string>
     <string name="tech_profile_rate_invalid">Enter a valid hourly rate and a 3-letter currency code.</string>
+    <string name="failed_changes_unsupported_media_type">This file type can\'t be uploaded. Attach a photo or a PDF instead.</string>
+    <string name="failed_changes_media_type_mismatch">The file\'s contents don\'t match its type, so it wasn\'t uploaded. Attach the file again.</string>
 </resources>

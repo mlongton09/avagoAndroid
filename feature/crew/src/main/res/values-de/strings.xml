@@ -257,4 +257,5 @@
         <item quantity="one">%d Foto</item>
         <item quantity="other">%d Fotos</item>
     </plurals>
+    <string name="crew_err_photo_type">Das Foto konnte nicht hochgeladen werden, weil sein Dateityp nicht akzeptiert wurde. Nehmen Sie es erneut auf.</string>
 </resources>

@@ -235,4 +235,6 @@
     <string name="tech_profile_rate_hint">En ny taxa g?ller fr?n i dag. T?m taxan f?r att avsluta den i dag.</string>
     <string name="tech_profile_rate_invalid">Ange en giltig timtaxa och en valutakod med 3 bokstäver.</string>
     <string name="tech_profile_no_worker">Du är inte konfigurerad som tekniker i det här kontot ännu. Be en administratör att lägga till dig.</string>
+    <string name="failed_changes_unsupported_media_type">Den här filtypen kan inte laddas upp. Bifoga ett foto eller en PDF i stället.</string>
+    <string name="failed_changes_media_type_mismatch">Filens innehåll matchar inte filtypen, så den laddades inte upp. Bifoga filen igen.</string>
 </resources>

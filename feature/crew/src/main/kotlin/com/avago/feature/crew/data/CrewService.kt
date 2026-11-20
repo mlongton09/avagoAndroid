@@ -71,7 +71,7 @@ class KtorCrewService @Inject constructor(
 
     override suspend fun uploadPhoto(assetId: String, jpeg: ByteArray): ApiResult<String> {
         val a = acc() ?: return noAccount()
-        return reserveAndPut(api.post(crew(a, "/photos"), jsonBody("asset_id" to assetId)), jpeg)
+        return reserveAndPut(api.post(crew(a, "/photos"), jsonBody("asset_id" to assetId, "content_type" to JPEG)), jpeg)
     }
 
     private suspend fun reserveAndPut(reserve: ApiResult<JsonObject>, jpeg: ByteArray): ApiResult<String> {
@@ -80,7 +80,7 @@ class KtorCrewService @Inject constructor(
             is ApiResult.Ok -> PhotoSlot.from(reserve.value) ?: return ApiResult.Err(ApiError(-1, "parse_error", "no photo_id"))
         }
         val url = slot.uploadUrl ?: return ApiResult.Ok(slot.photoId)
-        return when (val put = api.upload(url, jpeg)) {
+        return when (val put = api.upload(url, jpeg, JPEG)) {
             is ApiResult.Ok -> ApiResult.Ok(slot.photoId)
             is ApiResult.Err -> put
         }
@@ -157,7 +157,7 @@ class KtorCrewService @Inject constructor(
         api.post("/loans/$id/$action").map { Loan.from(it.loanBody()) }
 
     override suspend fun uploadLoanPhoto(id: String, jpeg: ByteArray): ApiResult<String> =
-        reserveAndPut(api.post("/loans/$id/photos"), jpeg)
+        reserveAndPut(api.post("/loans/$id/photos", jsonBody("content_type" to JPEG)), jpeg)
 
     override suspend fun handover(id: String, input: HandoverInput, isReturn: Boolean): ApiResult<Loan?> =
         api.post("/loans/$id/${if (isReturn) "return" else "handover-out"}", handoverBody(input, isReturn)).map { Loan.from(it.loanBody()) }
@@ -206,3 +206,6 @@ class KtorCrewService @Inject constructor(
         private fun JsonObject.loanBody(): JsonObject = (this["loan"] as? JsonObject) ?: this
     }
 }
+
+/** Photos are JPEG-encoded before upload (ui/Common.kt); registered and PUT with this type. */
+private const val JPEG = "image/jpeg"
