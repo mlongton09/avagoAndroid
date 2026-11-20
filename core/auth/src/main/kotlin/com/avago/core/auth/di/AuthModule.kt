@@ -1,8 +1,10 @@
 package com.avago.core.auth.di
 
 import android.content.Context
+import com.avago.core.auth.AccessDenialMonitor
 import com.avago.core.auth.IdentityManager
 import com.avago.core.auth.SecureTokenStore
+import com.avago.core.network.AccessDenialReporter
 import com.avago.core.network.RefreshFailedHandler
 import com.avago.core.network.TokenProvider
 import com.avago.core.network.TokenStorage
@@ -31,6 +33,10 @@ abstract class AuthModule {
     @Binds
     @Singleton
     abstract fun bindRefreshFailedHandler(identityManager: IdentityManager): RefreshFailedHandler
+
+    @Binds
+    @Singleton
+    abstract fun bindAccessDenialReporter(monitor: AccessDenialMonitor): AccessDenialReporter
 
     companion object {
 

@@ -32,4 +32,14 @@ dependencies {
     implementation(libs.work.runtime)
     api(project(":core:network"))
     implementation(project(":core:data"))
+
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit5)
+    testImplementation(libs.coroutines.test)
+    testRuntimeOnly(libs.junit5.engine)
+    testRuntimeOnly(libs.junit.platform.launcher)
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
 }

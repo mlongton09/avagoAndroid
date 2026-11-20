@@ -87,6 +87,7 @@ import com.avago.core.sync.SyncState
 import com.avago.core.ui.AvagoToast
 import com.avago.core.ui.AvagoToastHost
 import com.avago.core.ui.OfflineBanner
+import com.avago.feature.auth.AccessDeniedDialog
 import com.avago.feature.auth.nav.AuthRoute
 import com.avago.feature.inventory.nav.InventoryRoute
 import com.avago.feature.settings.AccountSwitcherViewModel
@@ -356,6 +357,10 @@ fun MainScaffold(
     }
 
     if (!isAuthDestination) {
+        AccessDeniedDialog(
+            onSwitchWorkspace = { navController.navigate(AuthRoute.AccountSwitcher) { launchSingleTop = true } },
+        )
+
         ScoutPaletteSheet(
             visible = scoutPaletteVisible,
             onDismiss = { scoutPaletteVisible = false },

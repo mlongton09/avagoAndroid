@@ -39,5 +39,19 @@
     <string name="auth_error_wrong_password">Incorrect password</string>
     <string name="auth_error_user_not_found">No account found for this email</string>
     <string name="auth_error_network">Unable to reach the server. Please check your connection and try again.</string>
-    <string name="auth_error_too_many_requests">Too many requests. Please wait %1$d minute(s) and try again.</string>
+    <plurals name="auth_error_too_many_requests">
+        <item quantity="one">Too many requests. Please wait %1$d minute and try again.</item>
+        <item quantity="other">Too many requests. Please wait %1$d minutes and try again.</item>
+    </plurals>
+
+    <!-- Access denied (typed 403) -->
+    <string name="access_denied_workspace_title">Workspace unavailable</string>
+    <string name="access_denied_user_title">Account unavailable</string>
+    <string name="access_denied_membership_suspended">Your access to this workspace has been suspended. Ask a workspace admin to restore it.</string>
+    <string name="access_denied_membership_inactive">You are no longer an active member of this workspace.</string>
+    <string name="access_denied_user_suspended">Your Avago account has been suspended. Contact support to restore it.</string>
+    <string name="access_denied_user_deactivated">Your Avago account has been deactivated.</string>
+    <string name="access_denied_changes_kept">Changes you have not sent yet stay on this device.</string>
+    <string name="access_denied_switch_workspace">Switch workspace</string>
+    <string name="access_denied_try_again">Try again</string>
 </resources>

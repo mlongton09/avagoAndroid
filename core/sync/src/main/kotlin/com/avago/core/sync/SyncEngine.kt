@@ -21,7 +21,8 @@ import javax.inject.Singleton
  * is a no-op.
  *
  * Retryable outcomes (offline, 5xx, `Retry-After`) map to [SyncResult.Failed] so the worker backs
- * off; terminal ones (426, 403, revoked device) to [SyncResult.Partial] so it does not retry.
+ * off; terminal ones (426, revoked device, a typed 403 recorded on
+ * [com.avago.core.auth.AccessDenialMonitor]) to [SyncResult.Partial] so it does not retry.
  */
 @Singleton
 class SyncEngine @Inject constructor(
@@ -33,7 +34,7 @@ class SyncEngine @Inject constructor(
 
     private val _accountGoneEvents = MutableSharedFlow<String>(extraBufferCapacity = 1)
 
-    /** Account ids the server no longer lets this user/device sync (403, revoked device). */
+    /** Account ids whose device the server revoked (`401 device_revoked`): sign out and wipe. */
     val accountGoneEvents: SharedFlow<String> = _accountGoneEvents.asSharedFlow()
 
     @Volatile private var retryNotBefore = 0L
@@ -85,11 +86,12 @@ class SyncEngine @Inject constructor(
                 _state.value = SyncState.Error(result.error.message ?: result.error.javaClass.simpleName)
                 SyncResult.Failed(result.error)
             }
-            V2SyncResult.Forbidden, V2SyncResult.DeviceRevoked -> {
+            V2SyncResult.DeviceRevoked -> {
                 identity.getActiveAccountId()?.let { _accountGoneEvents.tryEmit(it) }
                 SyncResult.Partial(0, 0)
             }
-            V2SyncResult.UpgradeRequired, V2SyncResult.DeviceIdRejected -> SyncResult.Partial(0, 0)
+            // The coordinator recorded the denial; the app asks the user to switch or sign out.
+            is V2SyncResult.AccessDenied, V2SyncResult.UpgradeRequired, V2SyncResult.DeviceIdRejected -> SyncResult.Partial(0, 0)
         }
     }
 }

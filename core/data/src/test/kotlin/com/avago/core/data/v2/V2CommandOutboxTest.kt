@@ -288,6 +288,41 @@ class V2CommandOutboxTest {
     }
 
     @Test
+    fun `a typed 403 stops the flush and keeps the command unsent without counting an attempt`() = runTest {
+        val id = outbox.enqueue(update("A"))
+        server.commands += { error(403, V2AccessDenial.MEMBERSHIP_SUSPENDED) }
+
+        val e = assertThrows(V2OutboxException.AccessDenied::class.java) { kotlinx.coroutines.runBlocking { outbox.flush() } }
+        assertEquals(V2AccessDenial.MEMBERSHIP_SUSPENDED, e.code)
+        assertEquals("queued", row(id)!!["state"])
+        assertEquals(0L, row(id)!!["attempts"])
+        assertTrue(outbox.failures().isEmpty())
+    }
+
+    @Test
+    fun `a generic 403 is still a final rejection`() = runTest {
+        val id = outbox.enqueue(update("A"))
+        server.commands += { error(403, "forbidden") }
+
+        assertEquals(listOf(id), outbox.flush().rejected)
+        assertEquals("forbidden", outbox.failures().single().code)
+    }
+
+    @Test
+    fun `an upload the server refuses rejects its command with the refusal code`() = runTest {
+        val upload = V2NewUpload(V2Uuid.v7(), "/files/p.bin", "a".repeat(64), 10, "application/octet-stream")
+        val id = outbox.enqueue(update("A", uploads = listOf(upload)))
+        val refusing = V2CommandOutbox(store, api, V2Fixtures.identity, clock = { now }, uploader = { _, _, _, _, _ ->
+            throw V2UploadRefusedException(V2ApiUploader.UNSUPPORTED_MEDIA_TYPE, "not an allowed type")
+        })
+
+        assertEquals(listOf(id), refusing.flush().rejected)
+        assertEquals(V2ApiUploader.UNSUPPORTED_MEDIA_TYPE, outbox.failures().single().code)
+        assertEquals("failed", store.read { it.scalarText("SELECT state FROM upload_jobs") })
+        assertTrue(sent().isEmpty())
+    }
+
+    @Test
     fun `operations the server does not support are refused at enqueue`() = runTest {
         outbox.supportedOperations = setOf("stock.documents.create_and_post")
         assertThrows(V2OutboxException.UnsupportedOperation::class.java) { kotlinx.coroutines.runBlocking { outbox.enqueue(update("A")) } }

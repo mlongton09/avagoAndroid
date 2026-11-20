@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.AnonymousMigrationCandidate
 import com.avago.core.auth.AccountMigrationService
 import com.avago.core.auth.IdentityManager
+import com.avago.core.network.AccessDenial
 import com.avago.core.network.NetworkException
 import com.avago.feature.auth.R
 import com.google.firebase.FirebaseNetworkException
@@ -80,13 +81,7 @@ class SignInViewModel @Inject constructor(
                 _state.value = SignInState.Error(appContext.getString(R.string.auth_error_network))
             } catch (e: NetworkException) {
                 Timber.e(e, "Sign-in error")
-                val msg = if (e.code == 429) {
-                    appContext.getString(R.string.auth_error_too_many_requests)
-                } else {
-                    e.message?.takeIf { it.isNotBlank() }
-                        ?: appContext.getString(R.string.auth_error_sign_in_failed)
-                }
-                _state.value = SignInState.Error(msg)
+                _state.value = SignInState.Error(errorMessage(e))
             } catch (e: Exception) {
                 Timber.e(e, "Sign-in error")
                 _state.value = SignInState.Error(e.message ?: appContext.getString(R.string.auth_error_sign_in_failed))
@@ -130,13 +125,7 @@ class SignInViewModel @Inject constructor(
                 _state.value = SignInState.Error(appContext.getString(R.string.auth_error_user_not_found))
             } catch (e: NetworkException) {
                 Timber.e(e, "Email sign-in error")
-                val msg = if (e.code == 429) {
-                    appContext.getString(R.string.auth_error_too_many_requests)
-                } else {
-                    e.message?.takeIf { it.isNotBlank() }
-                        ?: appContext.getString(R.string.auth_error_sign_in_failed)
-                }
-                _state.value = SignInState.Error(msg)
+                _state.value = SignInState.Error(errorMessage(e))
             } catch (e: Exception) {
                 Timber.e(e, "Email sign-in error")
                 _state.value = SignInState.Error(e.message ?: appContext.getString(R.string.auth_error_sign_in_failed))
@@ -180,13 +169,7 @@ class SignInViewModel @Inject constructor(
                 _state.value = SignInState.Error(appContext.getString(R.string.auth_error_user_not_found))
             } catch (e: NetworkException) {
                 Timber.e(e, "Email create-account error")
-                val msg = if (e.code == 429) {
-                    appContext.getString(R.string.auth_error_too_many_requests)
-                } else {
-                    e.message?.takeIf { it.isNotBlank() }
-                        ?: appContext.getString(R.string.auth_error_sign_in_failed)
-                }
-                _state.value = SignInState.Error(msg)
+                _state.value = SignInState.Error(errorMessage(e))
             } catch (e: Exception) {
                 Timber.e(e, "Email create-account error")
                 _state.value = SignInState.Error(e.message ?: appContext.getString(R.string.auth_error_sign_in_failed))
@@ -243,6 +226,17 @@ class SignInViewModel @Inject constructor(
 
     fun clearError() { _state.value = SignInState.Idle }
 
+    /** A suspended or inactive user or membership (P4-01b typed 403) is named; other errors as sent. */
+    private fun errorMessage(e: NetworkException): String {
+        val denial = if (e.code == 403) AccessDenial.fromBody(e.message) else null
+        return when {
+            denial != null -> appContext.getString(denial.messageRes)
+            e.code == 429 -> retryMinutes(e.retryAfterSeconds).let { appContext.resources.getQuantityString(R.plurals.auth_error_too_many_requests, it, it) }
+            else -> e.message.takeIf { it.isNotBlank() } ?: appContext.getString(R.string.auth_error_sign_in_failed)
+        }
+    }
+
+    private fun retryMinutes(seconds: Long?): Int = seconds?.let { ((it + 59) / 60).toInt().coerceAtLeast(1) } ?: 1
 }
 
 // Extension to convert a Firebase Task to a suspend function with cancellation support.

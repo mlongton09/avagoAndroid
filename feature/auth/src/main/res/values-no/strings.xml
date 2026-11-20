@@ -32,5 +32,19 @@
     <string name="auth_error_wrong_password">Feil passord</string>
     <string name="auth_error_user_not_found">Fant ingen konto for denne e-postadressen</string>
     <string name="auth_error_network">Får ikke kontakt med serveren. Sjekk tilkoblingen og prøv igjen.</string>
-    <string name="auth_error_too_many_requests">For mange forespørsler. Vent %1$d minutt(er) og prøv igjen.</string>
+    <plurals name="auth_error_too_many_requests">
+        <item quantity="one">For mange forespørsler. Vent %1$d minutt og prøv igjen.</item>
+        <item quantity="other">For mange forespørsler. Vent %1$d minutter og prøv igjen.</item>
+    </plurals>
+
+    <!-- Access denied (typed 403) -->
+    <string name="access_denied_workspace_title">Arbeidsområdet er utilgjengelig</string>
+    <string name="access_denied_user_title">Kontoen er utilgjengelig</string>
+    <string name="access_denied_membership_suspended">Tilgangen din til dette arbeidsområdet er suspendert. Be en administrator for arbeidsområdet om å gjenopprette den.</string>
+    <string name="access_denied_membership_inactive">Du er ikke lenger et aktivt medlem av dette arbeidsområdet.</string>
+    <string name="access_denied_user_suspended">Avago-kontoen din er suspendert. Kontakt kundestøtte for å gjenopprette den.</string>
+    <string name="access_denied_user_deactivated">Avago-kontoen din er deaktivert.</string>
+    <string name="access_denied_changes_kept">Endringer du ikke har sendt ennå, blir værende på denne enheten.</string>
+    <string name="access_denied_switch_workspace">Bytt arbeidsområde</string>
+    <string name="access_denied_try_again">Prøv igjen</string>
 </resources>

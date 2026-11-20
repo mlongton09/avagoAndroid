@@ -238,6 +238,18 @@ class V2SyncEngineTest {
     }
 
     @Test
+    fun `a typed 403 on open stops with its access denial`() = runTest {
+        server.opens += error(403, V2AccessDenial.USER_SUSPENDED)
+        assertEquals(V2SyncResult.AccessDenied(V2AccessDenial.USER_SUSPENDED), engine.sync())
+    }
+
+    @Test
+    fun `a generic 403 on a sync route reads as an inactive membership`() = runTest {
+        server.opens += error(403, "forbidden")
+        assertEquals(V2SyncResult.AccessDenied(V2AccessDenial.MEMBERSHIP_INACTIVE), engine.sync())
+    }
+
+    @Test
     fun `bootstrap_required on an incremental open wipes and re-bootstraps`() = runTest {
         scriptBootstrap()
         engine.sync()

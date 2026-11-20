@@ -32,5 +32,19 @@
     <string name="auth_error_wrong_password">Onjuist wachtwoord</string>
     <string name="auth_error_user_not_found">Geen account gevonden voor dit e-mailadres</string>
     <string name="auth_error_network">Kan de server niet bereiken. Controleer je verbinding en probeer het opnieuw.</string>
-    <string name="auth_error_too_many_requests">Te veel verzoeken. Wacht %1$d minuut/minuten en probeer het opnieuw.</string>
+    <plurals name="auth_error_too_many_requests">
+        <item quantity="one">Te veel verzoeken. Wacht %1$d minuut en probeer het opnieuw.</item>
+        <item quantity="other">Te veel verzoeken. Wacht %1$d minuten en probeer het opnieuw.</item>
+    </plurals>
+
+    <!-- Access denied (typed 403) -->
+    <string name="access_denied_workspace_title">Werkruimte niet beschikbaar</string>
+    <string name="access_denied_user_title">Account niet beschikbaar</string>
+    <string name="access_denied_membership_suspended">Je toegang tot deze werkruimte is opgeschort. Vraag een beheerder van de werkruimte om deze te herstellen.</string>
+    <string name="access_denied_membership_inactive">Je bent geen actief lid meer van deze werkruimte.</string>
+    <string name="access_denied_user_suspended">Je Avago-account is opgeschort. Neem contact op met support om het te herstellen.</string>
+    <string name="access_denied_user_deactivated">Je Avago-account is gedeactiveerd.</string>
+    <string name="access_denied_changes_kept">Wijzigingen die je nog niet hebt verzonden blijven op dit apparaat.</string>
+    <string name="access_denied_switch_workspace">Andere werkruimte</string>
+    <string name="access_denied_try_again">Opnieuw proberen</string>
 </resources>

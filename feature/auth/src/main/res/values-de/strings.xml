@@ -28,7 +28,10 @@
     <string name="auth_error_wrong_password">Falsches Passwort</string>
     <string name="auth_error_user_not_found">Kein Konto für diese E-Mail-Adresse gefunden</string>
     <string name="auth_error_network">Netzwerkfehler. Bitte überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.</string>
-    <string name="auth_error_too_many_requests">Zu viele Versuche. Bitte warten Sie einen Moment und versuchen Sie es erneut.</string>
+    <plurals name="auth_error_too_many_requests">
+        <item quantity="one">Zu viele Anfragen. Bitte warten Sie %1$d Minute und versuchen Sie es erneut.</item>
+        <item quantity="other">Zu viele Anfragen. Bitte warten Sie %1$d Minuten und versuchen Sie es erneut.</item>
+    </plurals>
     <string name="sign_in_email">Weiter mit E-Mail</string>
     <string name="spinner_preparing">Ihr Konto wird vorbereitet…</string>
     <string name="spinner_creating">Ihr Konto wird erstellt…</string>
@@ -39,4 +42,15 @@
     <string name="email_signin_display_name">Anzeigename</string>
     <string name="email_signin_have_account">Sie haben bereits ein Konto? Anmelden</string>
     <string name="account_switcher_sign_out">Abmelden</string>
+
+    <!-- Access denied (typed 403) -->
+    <string name="access_denied_workspace_title">Arbeitsbereich nicht verfügbar</string>
+    <string name="access_denied_user_title">Konto nicht verfügbar</string>
+    <string name="access_denied_membership_suspended">Ihr Zugriff auf diesen Arbeitsbereich wurde gesperrt. Bitten Sie einen Administrator des Arbeitsbereichs, ihn wiederherzustellen.</string>
+    <string name="access_denied_membership_inactive">Sie sind kein aktives Mitglied dieses Arbeitsbereichs mehr.</string>
+    <string name="access_denied_user_suspended">Ihr Avago-Konto wurde gesperrt. Wenden Sie sich an den Support, um es wiederherzustellen.</string>
+    <string name="access_denied_user_deactivated">Ihr Avago-Konto wurde deaktiviert.</string>
+    <string name="access_denied_changes_kept">Noch nicht gesendete Änderungen bleiben auf diesem Gerät.</string>
+    <string name="access_denied_switch_workspace">Arbeitsbereich wechseln</string>
+    <string name="access_denied_try_again">Erneut versuchen</string>
 </resources>

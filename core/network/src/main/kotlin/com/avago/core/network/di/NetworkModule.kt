@@ -1,5 +1,6 @@
 package com.avago.core.network.di
 
+import com.avago.core.network.AccessDenialReporter
 import com.avago.core.network.AvagoHttpClient
 import com.avago.core.network.BuildConfig
 import com.avago.core.network.RefreshFailedHandler
@@ -32,6 +33,7 @@ object NetworkModule {
         @Named("baseUrl") baseUrl: String,
         refreshFailedHandler: RefreshFailedHandler,
         rateLimitBackoffStore: RateLimitBackoffStore,
+        accessDenialReporter: AccessDenialReporter,
     ): HttpClient = AvagoHttpClient.create(
         baseUrl = baseUrl,
         tokenProvider = tokenProvider,
@@ -39,5 +41,6 @@ object NetworkModule {
         isDebug = BuildConfig.DEBUG,
         refreshFailedHandler = refreshFailedHandler,
         rateLimitBackoffStore = rateLimitBackoffStore,
+        accessDenialReporter = accessDenialReporter,
     )
 }

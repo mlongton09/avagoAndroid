@@ -20,6 +20,7 @@ import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.svg.SvgDecoder
 import com.avago.core.ai.ScoutRepository
+import com.avago.core.auth.AccessDenialMonitor
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.CrashDiagnostics
 import com.avago.core.data.ExchangeRateService
@@ -50,6 +51,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -134,6 +136,7 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
     @Inject lateinit var legacyStoreResetLazy: Lazy<LegacyStoreReset>
     @Inject lateinit var v2CapabilitiesClientLazy: Lazy<V2CapabilitiesClient>
     @Inject lateinit var v2SyncCoordinatorLazy: Lazy<V2SyncCoordinator>
+    @Inject lateinit var accessDenialMonitorLazy: Lazy<AccessDenialMonitor>
     private val identityManager get() = identityManagerLazy.get()
     private val crashDiagnostics get() = crashDiagnosticsLazy.get()
     private val serviceClient get() = serviceClientLazy.get()
@@ -144,6 +147,7 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
     private val chatBackgroundSync get() = chatBackgroundSyncLazy.get()
     private val chatRealtime get() = chatRealtimeLazy.get()
     private val scoutRepository get() = scoutRepositoryLazy.get()
+    private val accessDenialMonitor get() = accessDenialMonitorLazy.get()
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     @Volatile private var lastFileCacheTrimMs = 0L
@@ -192,6 +196,7 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
         observeSignInForRateLimitClear()
         observePermissionsStaleness()
         observeAccountGone()
+        observeIdentityForAccessDenial()
         observeAppForeground()
         Trace.endSection() // AvagoApplication.initCoroutines
         Trace.endSection() // AvagoApplication.onCreate
@@ -318,13 +323,28 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
 
     private fun observeAccountGone() {
         appScope.launch {
-            // Mirrors iOS forceReprovision(): when sync gets a non-stale 403 the account
-            // is permanently inaccessible. Sign out so the user is returned to sign-in.
+            // The server revoked this device: the account is permanently inaccessible here, so
+            // sign out and return the user to sign-in. (A typed 403 keeps the account; see
+            // observeIdentityForAccessDenial.)
             syncEngine.accountGoneEvents.collect { accountId ->
-                Timber.w("AvagoApplication: account $accountId gone (non-stale 403) — signing out")
+                Timber.w("AvagoApplication: device revoked for account $accountId — signing out")
                 runCatching { identityManager.signOut(accountId) }
-                    .onFailure { Timber.e(it, "AvagoApplication: sign-out after 403 failed") }
+                    .onFailure { Timber.e(it, "AvagoApplication: sign-out after device revocation failed") }
             }
+        }
+    }
+
+    /**
+     * A typed 403 (P4-01b) holds sync until the user acts: switching workspace, signing in or
+     * signing out gives the server a new chance to answer, so the recorded denial is dropped.
+     */
+    private fun observeIdentityForAccessDenial() {
+        appScope.launch {
+            merge(
+                identityManager.signInEvents,
+                identityManager.accountSwitchEvents,
+                identityManager.signOutEvents,
+            ).collect { accessDenialMonitor.clear() }
         }
     }
 

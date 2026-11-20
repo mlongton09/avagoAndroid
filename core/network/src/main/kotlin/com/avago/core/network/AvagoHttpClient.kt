@@ -55,6 +55,21 @@ private fun retryAfterSeconds(value: String?): Long? {
 private fun parseWaitForSeconds(value: String): Long? =
     Regex("""Wait for (\d+)s""").find(value)?.groupValues?.getOrNull(1)?.toLongOrNull()
 
+private const val ACCESS_DENIAL_PEEK_BYTES = 4_096L
+
+/**
+ * Hands a typed `403` ([AccessDenial]) to [reporter]. Answers from `/auth/` routes are left to the sign-in,
+ * refresh and switch flows that made them.
+ */
+private fun reportAccessDenial(response: Response, reporter: AccessDenialReporter) {
+    if (response.code != 403) return
+    val path = response.request.url.encodedPath
+    if (path.startsWith("/auth/")) return
+    val denial = AccessDenial.fromBody(runCatching { response.peekBody(ACCESS_DENIAL_PEEK_BYTES).string() }.getOrNull())
+        ?: return
+    reporter.onAccessDenied(denial, AccessDenial.accountOf(path))
+}
+
 interface TokenStorage {
     suspend fun storeTokens(accessToken: String, refreshToken: String)
     suspend fun clearTokens()
@@ -88,6 +103,7 @@ object AvagoHttpClient {
         isDebug: Boolean = false,
         refreshFailedHandler: RefreshFailedHandler? = null,
         rateLimitBackoffStore: RateLimitBackoffStore? = null,
+        accessDenialReporter: AccessDenialReporter? = null,
     ): HttpClient = HttpClient(OkHttp) {
         // One auth-free client for /auth/refresh, created on first use and kept for the life of
         // this client, so a refresh reuses its connection pool and TLS session instead of
@@ -134,6 +150,16 @@ object AvagoHttpClient {
                             )
                         }
                     }
+                    response
+                }
+            }
+        }
+
+        accessDenialReporter?.let { reporter ->
+            engine {
+                addInterceptor { chain ->
+                    val response = chain.proceed(chain.request())
+                    reportAccessDenial(response, reporter)
                     response
                 }
             }

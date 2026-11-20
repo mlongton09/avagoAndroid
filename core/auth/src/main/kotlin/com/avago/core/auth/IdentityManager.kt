@@ -626,6 +626,17 @@ class IdentityManager @Inject constructor(
      */
     suspend fun signOut(accountId: String) = signOut(appContext, accountId)
 
+    /**
+     * Signs out of [accountId] and every other account of its user on this device: a suspended or
+     * deactivated user (P4-01b `user_*`) can use none of them.
+     */
+    suspend fun signOutUserOf(accountId: String) {
+        val accounts = AccountManifest.load(appContext)
+        val userId = accounts.firstOrNull { it.accountId == accountId }?.userId
+        accounts.filter { it.accountId == accountId || (userId != null && it.userId == userId) }
+            .forEach { signOut(appContext, it.accountId) }
+    }
+
     /** Sign out of all accounts, clearing all cached tokens and local databases. */
     suspend fun signOutAll() = withContext(Dispatchers.IO) {
         val accounts = AccountManifest.load(appContext)

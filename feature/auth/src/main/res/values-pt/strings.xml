@@ -32,5 +32,20 @@
     <string name="auth_error_wrong_password">Senha incorreta</string>
     <string name="auth_error_user_not_found">Nenhuma conta encontrada para este e-mail</string>
     <string name="auth_error_network">Não foi possível acessar o servidor. Verifique sua conexão e tente novamente.</string>
-    <string name="auth_error_too_many_requests">Muitas solicitações. Aguarde %1$d minuto(s) e tente novamente.</string>
+    <plurals name="auth_error_too_many_requests">
+        <item quantity="one">Muitas solicitações. Aguarde %1$d minuto e tente novamente.</item>
+        <item quantity="many">Muitas solicitações. Aguarde %1$d minutos e tente novamente.</item>
+        <item quantity="other">Muitas solicitações. Aguarde %1$d minutos e tente novamente.</item>
+    </plurals>
+
+    <!-- Access denied (typed 403) -->
+    <string name="access_denied_workspace_title">Espaço de trabalho indisponível</string>
+    <string name="access_denied_user_title">Conta indisponível</string>
+    <string name="access_denied_membership_suspended">O seu acesso a este espaço de trabalho foi suspenso. Peça a um administrador do espaço para o restaurar.</string>
+    <string name="access_denied_membership_inactive">Já não é um membro ativo deste espaço de trabalho.</string>
+    <string name="access_denied_user_suspended">A sua conta Avago foi suspensa. Contacte o suporte para a restaurar.</string>
+    <string name="access_denied_user_deactivated">A sua conta Avago foi desativada.</string>
+    <string name="access_denied_changes_kept">As alterações ainda não enviadas ficam neste dispositivo.</string>
+    <string name="access_denied_switch_workspace">Mudar de espaço de trabalho</string>
+    <string name="access_denied_try_again">Tentar novamente</string>
 </resources>

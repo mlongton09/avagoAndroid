@@ -85,6 +85,9 @@ sealed class V2OutboxException(message: String) : Exception(message) {
     class InvalidCommand(message: String) : V2OutboxException(message)
     class UpgradeRequired : V2OutboxException("426 upgrade_required")
     class DeviceRevoked : V2OutboxException("401 device_revoked")
+
+    /** A typed `403` ([V2AccessDenial]): the command is kept for when access returns. */
+    class AccessDenied(val code: String) : V2OutboxException("403 $code")
 }
 
 /** Upload seam for commands with `upload_jobs` ([V2ApiUploader] in the app). */
@@ -166,6 +169,7 @@ class V2CommandOutbox(
         data object Ready : Gate
         data object Waiting : Gate
         data class Rejected(val dependencyId: String) : Gate
+        data class UploadRefused(val code: String, val message: String?) : Gate
     }
 
     /**
@@ -188,6 +192,11 @@ class V2CommandOutbox(
                 when (val gate = gate(row.id)) {
                     is Gate.Rejected -> {
                         reject(row, "dependency_rejected", "Command ${gate.dependencyId} was rejected", null)
+                        result.rejected += row.id
+                        continue
+                    }
+                    is Gate.UploadRefused -> {
+                        reject(row, gate.code, gate.message, null)
                         result.rejected += row.id
                         continue
                     }
@@ -240,19 +249,27 @@ class V2CommandOutbox(
                 up.process(jobId, job["local_path"] as String, job["sha256"] as String, (job["byte_size"] as Number).toLong(), job["media_type"] as String)
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: V2UploadRefusedException) {
+                // The server will never take these bytes: the command cannot be sent.
+                recordUploadFailure(jobId, e)
+                return Gate.UploadRefused(e.code, e.message)
             } catch (e: Exception) {
-                store.write { tx ->
-                    tx.execute(
-                        "UPDATE upload_jobs SET attempts = attempts + 1, last_error = ? WHERE id = ?",
-                        listOf(e.message ?: e.toString(), jobId),
-                    )
-                }
+                val code = (e as? V2ApiException.Status)?.takeIf { it.status == 403 }?.code
+                if (code != null && code in V2AccessDenial.CODES) throw V2OutboxException.AccessDenied(code)
+                recordUploadFailure(jobId, e)
                 "failed"
             }
             if (state != "finalized") allFinal = false
             store.write { tx -> tx.execute("UPDATE upload_jobs SET state = ? WHERE id = ?", listOf(state, jobId)) }
         }
         return if (allFinal) Gate.Ready else Gate.Waiting
+    }
+
+    private suspend fun recordUploadFailure(jobId: String, e: Exception) = store.write { tx ->
+        tx.execute(
+            "UPDATE upload_jobs SET attempts = attempts + 1, last_error = ?, state = 'failed' WHERE id = ?",
+            listOf(e.message ?: e.toString(), jobId),
+        )
     }
 
     private suspend fun send(row: Row, result: V2FlushResult): Step {
@@ -369,6 +386,11 @@ class V2CommandOutbox(
                         reschedule(row, unsent, null, null, countAttempt = false)
                         Step.OFFLINE
                     }
+                    e.status == 403 && code != null && code in V2AccessDenial.CODES -> {
+                        // Not the command's fault: keep it, unsent, for when access returns.
+                        reschedule(row, unsent, null, null, countAttempt = false)
+                        throw V2OutboxException.AccessDenied(code)
+                    }
                     e.status == 409 && code == "dependency_pending" -> {
                         reschedule(row, unsent, e.retryAfterMs ?: 1_000, code)
                         Step.DEFERRED
@@ -393,7 +415,7 @@ class V2CommandOutbox(
                         Step.DEFERRED
                     }
                     else -> {
-                        // 409 idempotency_conflict, 400 validation_failed, 403, 404, 422…: final client bugs.
+                        // 409 idempotency_conflict, 400 validation_failed, 403 forbidden, 404, 422…: final client bugs.
                         reject(row, code ?: "http_${e.status}", e.body?.message, null)
                         result.rejected += row.id
                         Step.DONE

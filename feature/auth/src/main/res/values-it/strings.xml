@@ -32,5 +32,20 @@
     <string name="auth_error_wrong_password">Password errata</string>
     <string name="auth_error_user_not_found">Nessun account trovato per questa email</string>
     <string name="auth_error_network">Impossibile raggiungere il server. Controlla la connessione e riprova.</string>
-    <string name="auth_error_too_many_requests">Troppe richieste. Attendi %1$d minuto/i e riprova.</string>
+    <plurals name="auth_error_too_many_requests">
+        <item quantity="one">Troppe richieste. Attendi %1$d minuto e riprova.</item>
+        <item quantity="many">Troppe richieste. Attendi %1$d minuti e riprova.</item>
+        <item quantity="other">Troppe richieste. Attendi %1$d minuti e riprova.</item>
+    </plurals>
+
+    <!-- Access denied (typed 403) -->
+    <string name="access_denied_workspace_title">Area di lavoro non disponibile</string>
+    <string name="access_denied_user_title">Account non disponibile</string>
+    <string name="access_denied_membership_suspended">Il tuo accesso a questa area di lavoro è stato sospeso. Chiedi a un amministratore dell\'area di ripristinarlo.</string>
+    <string name="access_denied_membership_inactive">Non sei più un membro attivo di questa area di lavoro.</string>
+    <string name="access_denied_user_suspended">Il tuo account Avago è stato sospeso. Contatta l\'assistenza per ripristinarlo.</string>
+    <string name="access_denied_user_deactivated">Il tuo account Avago è stato disattivato.</string>
+    <string name="access_denied_changes_kept">Le modifiche non ancora inviate restano su questo dispositivo.</string>
+    <string name="access_denied_switch_workspace">Cambia area di lavoro</string>
+    <string name="access_denied_try_again">Riprova</string>
 </resources>

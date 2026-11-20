@@ -8,6 +8,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import com.avago.core.auth.AccessDenialMonitor
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.DatabaseFactory
 import com.avago.core.data.db.entity.ScoutHistoryEntity
@@ -30,6 +31,7 @@ class ScoutRepository @Inject constructor(
     private val databaseFactory: DatabaseFactory,
     private val identityManager: IdentityManager,
     private val serviceClient: AvagoServiceClient,
+    private val accessDenial: AccessDenialMonitor,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -112,8 +114,13 @@ class ScoutRepository @Inject constructor(
             .enqueueUniqueWork("scout-pending-drain", ExistingWorkPolicy.KEEP, request)
     }
 
+    /**
+     * Sends the queued queries. False asks for a retry; true when done or when retrying cannot
+     * help yet: the active account is denied (P4-01b), so the rows wait for the user to act.
+     */
     suspend fun drainPending(): Boolean {
         val accountId = identityManager.activeAccountId.value ?: return true
+        if (accessDenial.deniedFor(accountId) != null) return true
         val db = databaseFactory.get(accountId)
         val pending = db.scoutPendingDao().pendingList()
         for (row in pending) {
@@ -144,7 +151,7 @@ class ScoutRepository @Inject constructor(
                 is NetworkResult.Error -> {
                     db.scoutPendingDao().markError(row.id, result.message, System.currentTimeMillis())
                     Timber.w("Scout drain failed: HTTP ${result.code} ${result.message}")
-                    return false
+                    return accessDenial.deniedFor(accountId) != null
                 }
             }
         }

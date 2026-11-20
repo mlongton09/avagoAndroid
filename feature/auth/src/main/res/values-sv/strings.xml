@@ -32,5 +32,19 @@
     <string name="auth_error_wrong_password">Fel lösenord</string>
     <string name="auth_error_user_not_found">Inget konto hittades för den här e-postadressen</string>
     <string name="auth_error_network">Det går inte att nå servern. Kontrollera anslutningen och försök igen.</string>
-    <string name="auth_error_too_many_requests">För många förfrågningar. Vänta %1$d minut(er) och försök igen.</string>
+    <plurals name="auth_error_too_many_requests">
+        <item quantity="one">För många förfrågningar. Vänta %1$d minut och försök igen.</item>
+        <item quantity="other">För många förfrågningar. Vänta %1$d minuter och försök igen.</item>
+    </plurals>
+
+    <!-- Access denied (typed 403) -->
+    <string name="access_denied_workspace_title">Arbetsytan är inte tillgänglig</string>
+    <string name="access_denied_user_title">Kontot är inte tillgängligt</string>
+    <string name="access_denied_membership_suspended">Din åtkomst till den här arbetsytan har stängts av. Be en administratör för arbetsytan att återställa den.</string>
+    <string name="access_denied_membership_inactive">Du är inte längre en aktiv medlem i den här arbetsytan.</string>
+    <string name="access_denied_user_suspended">Ditt Avago-konto har stängts av. Kontakta supporten för att återställa det.</string>
+    <string name="access_denied_user_deactivated">Ditt Avago-konto har inaktiverats.</string>
+    <string name="access_denied_changes_kept">Ändringar som du inte har skickat än finns kvar på den här enheten.</string>
+    <string name="access_denied_switch_workspace">Byt arbetsyta</string>
+    <string name="access_denied_try_again">Försök igen</string>
 </resources>

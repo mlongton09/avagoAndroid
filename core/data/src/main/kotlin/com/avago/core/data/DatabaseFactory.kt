@@ -54,7 +54,7 @@ class DatabaseFactory(
 
     fun deleteDatabase(accountId: String) {
         // Multiple concurrent signOut() invocations can race on the same accountId
-        // (each non-stale 403 from in-flight sync requests emits accountGoneEvents,
+        // (each in-flight sync request that sees a revoked device emits accountGoneEvents,
         // so a single failing account can produce a burst of signOuts). Closing an
         // already-closed Room database throws IllegalStateException; swallow it so
         // the second signOut still reaches the file-delete step below.

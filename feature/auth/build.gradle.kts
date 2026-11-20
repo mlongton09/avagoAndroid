@@ -35,4 +35,5 @@ dependencies {
     implementation(libs.firebase.auth)
     implementation(project(":core:auth"))
     implementation(project(":core:network"))
+    implementation(project(":core:data"))
 }

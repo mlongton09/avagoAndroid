@@ -1,6 +1,7 @@
 package com.avago.core.sync.v2
 
 import android.content.Context
+import com.avago.core.auth.AccessDenialMonitor
 import com.avago.core.auth.IdentityManager
 import com.avago.core.data.v2.ServerV2Capability
 import com.avago.core.data.v2.SharedPreferencesV2FlagStorage
@@ -18,6 +19,7 @@ import com.avago.core.data.v2.V2SyncEngine
 import com.avago.core.data.v2.V2SyncHints
 import com.avago.core.data.v2.V2SyncResult
 import com.avago.core.data.v2.V2Uuid
+import com.avago.core.network.AccessDenial
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
@@ -33,7 +35,9 @@ import javax.inject.Singleton
  * and the legacy reset complete), so the default build never touches it.
  *
  * A `426` from either side records [ServerV2Capability.INCOMPATIBLE], which raises the M-02
- * update-required screen through [V2Flag.updateRequired].
+ * update-required screen through [V2Flag.updateRequired]. A typed `403` (P4-01b) from either side
+ * is recorded on [AccessDenialMonitor]; while the active account is denied, cycles and flushes
+ * stand down without calling the server until the user acts.
  */
 @Singleton
 class V2SyncCoordinator @Inject constructor(
@@ -47,6 +51,7 @@ class V2SyncCoordinator @Inject constructor(
     private val transport: V2HttpTransport,
     private val pullListeners: Set<@JvmSuppressWildcards V2PullListener>,
     private val metrics: V2ClientMetrics,
+    private val accessDenial: AccessDenialMonitor,
 ) {
     private val mutex = Mutex()
     @Volatile private var session: Session? = null
@@ -76,6 +81,7 @@ class V2SyncCoordinator @Inject constructor(
     /** One pull + flush. Returns null when v2 is gated off or nobody is signed in. */
     suspend fun runOnce(): V2SyncResult? = mutex.withLock {
         if (!gate.isOpen()) return@withLock null
+        accessDenial.deniedFor(identityManager.getActiveAccountId())?.let { return@withLock V2SyncResult.AccessDenied(it.wire) }
         val current = try {
             sessionFor() ?: return@withLock null
         } catch (e: CancellationException) {
@@ -92,6 +98,7 @@ class V2SyncCoordinator @Inject constructor(
         }
         when (result) {
             V2SyncResult.UpgradeRequired -> flag.recordServerCapability(ServerV2Capability.INCOMPATIBLE)
+            is V2SyncResult.AccessDenied -> reportDenied(current, result.code)
             is V2SyncResult.Failed -> Timber.e(result.error, "V2SyncCoordinator: sync failed")
             else -> Timber.d("V2SyncCoordinator: sync → $result")
         }
@@ -120,7 +127,7 @@ class V2SyncCoordinator @Inject constructor(
         is V2SyncResult.RetryLater -> "retry_later"
         is V2SyncResult.Failed -> "failed"
         V2SyncResult.UpgradeRequired -> "upgrade_required"
-        V2SyncResult.Forbidden -> "forbidden"
+        is V2SyncResult.AccessDenied -> "access_denied"
         V2SyncResult.DeviceRevoked -> "device_revoked"
         V2SyncResult.DeviceIdRejected -> "device_id_rejected"
     }
@@ -151,6 +158,7 @@ class V2SyncCoordinator @Inject constructor(
     /** Sends queued commands now (no pull); used right after a local write. */
     suspend fun flushNow() = mutex.withLock {
         if (!gate.isOpen()) return@withLock
+        if (accessDenial.deniedFor(identityManager.getActiveAccountId()) != null) return@withLock
         val current = try {
             sessionFor() ?: return@withLock
         } catch (e: CancellationException) {
@@ -173,7 +181,16 @@ class V2SyncCoordinator @Inject constructor(
             flag.recordServerCapability(ServerV2Capability.INCOMPATIBLE)
         } catch (e: V2OutboxException.DeviceRevoked) {
             Timber.w("V2SyncCoordinator: device revoked during flush")
+        } catch (e: V2OutboxException.AccessDenied) {
+            reportDenied(current, e.code)
         }
+    }
+
+    /** [code] is one of the typed `V2AccessDenial.CODES`, all of which [AccessDenial] knows. */
+    private fun reportDenied(current: Session, code: String) {
+        val denial = AccessDenial.fromCode(code) ?: AccessDenial.MEMBERSHIP_INACTIVE
+        Timber.w("V2SyncCoordinator: access denied ($code); sync stands down")
+        accessDenial.onAccessDenied(denial, current.stores.identity.accountId)
     }
 
     private suspend fun sessionFor(): Session? {

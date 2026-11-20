@@ -39,8 +39,13 @@ sealed interface V2SyncResult {
     /** `503 overloaded` / 5xx: try again after [retryAfterMs] (null: use the caller's backoff). */
     data class RetryLater(val retryAfterMs: Long?, val reason: String) : V2SyncResult
 
-    /** `403 forbidden`: the user is no longer an active member. Drop the account locally. */
-    data object Forbidden : V2SyncResult
+    /**
+     * A typed `403` (P4-01b): the user or the membership is not active ([code] is
+     * `membership_suspended`, `membership_inactive`, `user_suspended` or `user_deactivated`; a
+     * plain `forbidden` on a sync route means the membership is inactive). Local data and queued
+     * commands are kept; sync stops until the user switches workspace or signs in again.
+     */
+    data class AccessDenied(val code: String) : V2SyncResult
 
     /** `401 device_revoked`: sign out and wipe local data. */
     data object DeviceRevoked : V2SyncResult
@@ -397,7 +402,7 @@ class V2SyncEngine(
 
     private fun statusStep(e: V2ApiException.Status): Step = Step.Done(
         when {
-            e.code == "forbidden" || e.status == 403 -> V2SyncResult.Forbidden
+            e.status == 403 -> V2SyncResult.AccessDenied(e.code?.takeIf { it in V2AccessDenial.CODES } ?: V2AccessDenial.MEMBERSHIP_INACTIVE)
             e.code == "device_revoked" -> V2SyncResult.DeviceRevoked
             e.code == "device_owned_elsewhere" -> V2SyncResult.DeviceIdRejected
             else -> V2SyncResult.Failed(e)
