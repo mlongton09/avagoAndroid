@@ -3,6 +3,7 @@ package com.avago.feature.log.ui
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +28,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Delete
@@ -68,6 +70,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.avago.core.data.domain.Document
+import com.avago.core.data.domain.DocumentKind
 import com.avago.core.data.domain.Activity
 import com.avago.core.data.domain.ActivityType
 import com.avago.core.data.domain.CostLine
@@ -76,6 +80,7 @@ import com.avago.core.ui.categoryBadgeColor
 import com.avago.core.ui.categoryIconName
 import com.avago.core.ui.components.StoredFileImage
 import com.avago.feature.log.R
+import com.avago.feature.assets.R as AssetsR
 import com.avago.feature.log.model.InspectionV2
 import com.avago.feature.log.model.LogPacks
 import com.avago.feature.log.model.PackDisplay
@@ -84,6 +89,8 @@ import com.avago.feature.log.viewmodel.LogAudit
 import com.avago.feature.log.viewmodel.LogDetailUiState
 import com.avago.feature.log.viewmodel.LogDetailViewModel
 import kotlinx.serialization.json.JsonPrimitive
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import java.math.BigDecimal
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
@@ -99,6 +106,8 @@ fun LogDetailScreen(
     onDeleted: () -> Unit,
     peerEntryIds: List<String> = emptyList(),
     onNavigateToEntry: ((String) -> Unit)? = null,
+    onAddDocument: ((activityId: String) -> Unit)? = null,
+    onOpenDocument: (documentId: String) -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: LogDetailViewModel = hiltViewModel(),
 ) {
@@ -111,6 +120,7 @@ fun LogDetailScreen(
     val distanceUnit by viewModel.distanceUnit.collectAsStateWithLifecycle()
     val inspectionStrings by viewModel.inspectionStrings.collectAsStateWithLifecycle()
     val assetType by viewModel.assetType.collectAsStateWithLifecycle()
+    val canAddDocument by viewModel.canAddDocument.collectAsStateWithLifecycle()
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -592,6 +602,28 @@ fun LogDetailScreen(
                         }
                     }
 
+                    // ── 7. Documents filed on the record ──────────────────────────
+                    val addDocument = onAddDocument?.takeIf { canAddDocument }
+                    if (state.documents.isNotEmpty() || addDocument != null) {
+                        Spacer(Modifier.height(16.dp))
+                        DetailCard(modifier = Modifier.padding(horizontal = 16.dp)) {
+                            SectionHeader(stringResource(R.string.log_detail_section_documents))
+                            state.documents.forEach { doc ->
+                                DocumentRow(doc = doc, onClick = { onOpenDocument(doc.id) })
+                            }
+                            if (addDocument != null) {
+                                TextButton(
+                                    onClick = { addDocument(log.id) },
+                                    modifier = Modifier.padding(horizontal = 8.dp),
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(stringResource(R.string.log_detail_add_document))
+                                }
+                            }
+                        }
+                    }
+
                     // ── 9. Inspection card ────────────────────────────────────────
                     if (isInspection && hasInspectionContent) {
                         Spacer(Modifier.height(16.dp))
@@ -704,6 +736,33 @@ private fun AuditFooter(audit: LogAudit, modifier: Modifier = Modifier) {
             )
         }
     }
+}
+
+/** One document: its title, then kind, issue date and issuer. */
+@Composable
+private fun DocumentRow(doc: Document, onClick: () -> Unit) {
+    val details = listOfNotNull(
+        stringResource(documentKindLabel(doc.kind)),
+        doc.issuedOn?.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)),
+        doc.issuerName,
+    ).joinToString(" \u00b7 ")
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+    ) {
+        Text(doc.displayTitle ?: stringResource(AssetsR.string.asset_detail_document_untitled), style = MaterialTheme.typography.bodyMedium)
+        Text(details, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+private fun documentKindLabel(kind: DocumentKind): Int = when (kind) {
+    DocumentKind.RECEIPT -> AssetsR.string.asset_document_kind_receipt
+    DocumentKind.INVOICE -> AssetsR.string.asset_document_kind_invoice
+    DocumentKind.WARRANTY -> AssetsR.string.asset_document_kind_warranty
+    DocumentKind.HOWTO -> AssetsR.string.asset_document_kind_howto
+    DocumentKind.OTHER -> AssetsR.string.asset_document_kind_other
 }
 
 /** Uppercase, letter-spaced section header row + hairline divider (iOS section style). */

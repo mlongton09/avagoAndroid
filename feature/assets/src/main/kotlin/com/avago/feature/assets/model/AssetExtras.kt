@@ -61,7 +61,8 @@ data class ToolForm(
     val calibratedOn: String = "",
     val intervalDays: String = "",
     val dueOn: String = "",
-    val usageUnit: String = "days",
+    /** `days`, `cycles`, or empty for the asset type's usage meter. */
+    val usageUnit: String = "",
     val usageValue: String = "",
     val replacementValue: String = "",
     val currency: String = "",
@@ -99,7 +100,7 @@ data class ToolForm(
         calibratedOn = AssetForms.parseDate(calibratedOn),
         calibrationIntervalDays = intervalDays.trim().toIntOrNull(),
         calibrationDueOn = AssetForms.parseDate(dueOn),
-        usageUnit = usageUnit,
+        usageUnit = usageUnit.ifEmpty { null },
         usageValue = AssetForms.parseDecimal(usageValue),
         replacementValue = AssetForms.parseDecimal(replacementValue),
         currency = currency.trim().uppercase().ifEmpty { null },
@@ -113,7 +114,7 @@ data class ToolForm(
             val form = ToolForm(
                 calibratedOn = t.calibratedOn.orEmpty(),
                 intervalDays = t.calibrationIntervalDays?.toString().orEmpty(),
-                usageUnit = t.usageUnit ?: "days",
+                usageUnit = t.usageUnit.orEmpty(),
                 usageValue = t.usageValue?.stripTrailingZeros()?.toPlainString().orEmpty(),
                 replacementValue = t.replacementValue?.toPlainString().orEmpty(),
                 currency = t.currency ?: defaultCurrency,

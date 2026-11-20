@@ -44,11 +44,13 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.avago.core.data.domain.GlAccount
+import com.avago.core.ui.components.PartIdentityFields
 import com.avago.feature.log.R
 import com.avago.feature.log.model.LogCostLineDraft
 import com.avago.feature.log.model.LogPacks
 import com.avago.feature.log.model.LogPersonOption
 import java.util.UUID
+import com.avago.core.ui.R as UiR
 
 /**
  * ModalBottomSheet for managing a list of cost line drafts.
@@ -261,6 +263,15 @@ private fun CostLineDraftRow(
                     accounts = glAccounts,
                     onSelect = { onUpdate(draft.copy(glAccountId = it)) },
                 )
+            }
+            if (draft.kind == "part") {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = stringResource(UiR.string.part_identity_title),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                Spacer(Modifier.height(4.dp))
+                PartIdentityFields(identity = draft.identity, onChange = { onUpdate(draft.copy(identity = it)) })
             }
         }
     }

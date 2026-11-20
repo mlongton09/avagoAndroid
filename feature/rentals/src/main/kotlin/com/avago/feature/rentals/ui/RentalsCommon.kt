@@ -42,6 +42,7 @@ import com.avago.core.ui.components.toneColors
 import com.avago.feature.rentals.R
 import com.avago.feature.rentals.domain.HandoverGates
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -230,6 +231,8 @@ internal fun formatTime(t: Instant, zone: ZoneId): String =
 
 internal fun formatDate(t: Instant, zone: ZoneId): String =
     DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withZone(zone).format(t)
+
+internal fun formatLocalDate(d: LocalDate): String = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(d)
 
 internal fun zoneOf(id: String?): ZoneId =
     id?.let { runCatching { ZoneId.of(it) }.getOrNull() } ?: ZoneId.systemDefault()

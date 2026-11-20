@@ -1,5 +1,6 @@
 package com.avago.feature.log.model
 
+import com.avago.core.data.domain.PartIdentity
 import java.util.UUID
 
 /** A cost line being edited on the log form (`activity_cost_lines`). */
@@ -18,6 +19,8 @@ data class LogCostLineDraft(
     /** General-ledger account the cost is booked to (`gl_accounts`). */
     val glAccountId: String? = null,
     val displayOrder: Int = 0,
+    /** Identity of the fitted part (serial, lot, GTIN, origin, ...). */
+    val identity: PartIdentity = PartIdentity(),
 ) {
     val lineTotal: Double get() = quantity * unitCost + (taxAmount ?: 0.0)
 }

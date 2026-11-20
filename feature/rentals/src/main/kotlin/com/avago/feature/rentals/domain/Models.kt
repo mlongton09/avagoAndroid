@@ -9,6 +9,7 @@ import com.avago.core.data.domain.RentalOrderStatus
 import com.avago.core.data.rental.Money
 import java.math.BigDecimal
 import java.time.Instant
+import java.time.LocalDate
 
 /** Order lifecycle (server `rental_orders.status`). */
 object OrderStatus {
@@ -64,6 +65,8 @@ data class OrderView(
     val version: Long,
     val sync: RecordSyncState,
     val source: String? = null,
+    /** Last day covered by cycle billing (null before the first cycle). */
+    val billedThrough: LocalDate? = null,
 ) {
     val isLegacy: Boolean get() = source == "legacy"
     val actions: List<String> get() = if (isLegacy) emptyList() else OrderStatus.actions(status)
@@ -90,6 +93,7 @@ data class OrderView(
                 version = o.version,
                 sync = o.sync,
                 source = o.source,
+                billedThrough = o.billedThrough,
             )
         }
     }

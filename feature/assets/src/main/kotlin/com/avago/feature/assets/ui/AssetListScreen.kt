@@ -31,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -58,8 +59,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -99,8 +100,14 @@ fun AssetListScreen(
     val openWoCounts by viewModel.openWoCounts.collectAsStateWithLifecycle()
     val rentalStatuses by viewModel.rentalStatuses.collectAsStateWithLifecycle()
     val rentalFilter by viewModel.rentalFilter.collectAsStateWithLifecycle()
+    val canPrintQrLabels by viewModel.canPrintQrLabels.collectAsStateWithLifecycle()
 
     var showFilterMenu by remember { mutableStateOf(false) }
+    var showQrLabels by remember { mutableStateOf(false) }
+
+    if (showQrLabels) {
+        QrLabelSheetDialog(assetIds = assets.map { it.id }, onDismiss = { showQrLabels = false })
+    }
 
     val scrollAwareState = rememberScrollAwareHeaderState()
     val headerVisible by scrollAwareState.headerVisible
@@ -311,6 +318,16 @@ fun AssetListScreen(
                             .padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
                     )
 
+                    if (canPrintQrLabels && assets.isNotEmpty()) {
+                        IconButton(onClick = { showQrLabels = true }) {
+                            Icon(
+                                imageVector = Icons.Default.QrCode2,
+                                contentDescription = stringResource(R.string.asset_qr_labels_title),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+
                     // Filter button — icon when inactive, pill with × when active
                     Box {
                         if (filterType != null || rentalFilter != null) {
@@ -420,7 +437,6 @@ private fun FreWelcomeOverlay(
     sampleState: SampleDataState,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
     Surface(
         modifier = modifier
             .padding(24.dp)
@@ -475,7 +491,7 @@ private fun FreWelcomeOverlay(
                 }
                 (sampleState as? SampleDataState.Failed)?.let {
                     Text(
-                        text = scopeErrorText(context, it.error),
+                        text = scopeErrorText(LocalResources.current, it.error),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
                     )

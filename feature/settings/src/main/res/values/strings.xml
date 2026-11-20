@@ -233,6 +233,6 @@
     <string name="tech_profile_cert_remove">Remove certification</string>
     <string name="tech_profile_cert_clear_expiry">Clear</string>
     <string name="tech_profile_rate_currency">Currency</string>
-    <string name="tech_profile_rate_hint">A new rate applies from today.</string>
+    <string name="tech_profile_rate_hint">A new rate applies from today. Empty the rate to end it today.</string>
     <string name="tech_profile_rate_invalid">Enter a valid hourly rate and a 3-letter currency code.</string>
 </resources>

@@ -55,4 +55,14 @@ class AssetQrTest {
         assertTrue(page.hasMore)
         assertFalse(page.copy(page = 2).hasMore)
     }
+
+    @Test
+    fun `a label job downloads only once completed with an output file`() {
+        val done = AssetQr.labelJob(json("""{"data":{"id":"j1","status":"completed","page_size":"avery_5160","asset_count":12,"output_file_id":"f1"}}"""))!!
+        assertEquals(12, done.assetCount)
+        assertEquals("avery_5160", done.pageSize)
+        assertTrue(done.completed)
+        assertFalse(AssetQr.labelJob(json("""{"id":"j2","status":"pending","asset_count":3}"""))!!.completed)
+        assertNull(AssetQr.labelJob(json("""{"status":"completed"}""")))
+    }
 }

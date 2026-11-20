@@ -959,6 +959,7 @@ private fun OrderSummaryCard(o: OrderView, zone: ZoneId, onOpenCustomer: (String
             LabelValue(stringResource(R.string.rentals_from), formatDateTime(o.startAt, zone))
             LabelValue(stringResource(R.string.rentals_to), formatDateTime(o.endAt, zone))
             o.holdExpiresAt?.let { LabelValue(stringResource(R.string.rentals_hold_expires), formatDateTime(it, zone)) }
+            o.billedThrough?.let { LabelValue(stringResource(R.string.rentals_billed_through), formatLocalDate(it)) }
         }
         CardDivider()
         // The one place money is shown on this screen: Total · Paid · Balance (+ deposit).

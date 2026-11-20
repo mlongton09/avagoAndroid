@@ -5,14 +5,20 @@ import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.avago.core.auth.IdentityManager
 import com.avago.core.data.domain.Document
 import com.avago.core.data.domain.DocumentEdit
+import com.avago.core.data.domain.DocumentKind
 import com.avago.core.data.domain.DocumentRepository
 import com.avago.core.data.domain.DocumentRevision
 import com.avago.core.data.domain.FileRepository
 import com.avago.core.data.domain.FileUnavailableException
 import com.avago.core.data.domain.LocalFileRef
 import com.avago.core.data.domain.StoredFile
+import com.avago.core.network.AvagoServiceClient
+import com.avago.core.network.NetworkResult
+import com.avago.core.network.model.DocOcrResponse
+import com.avago.core.ocr.AvagoTextRecognizer
 import com.avago.core.permissions.Permissions
 import com.avago.core.permissions.PermissionsManager
 import com.avago.feature.docs.R
@@ -31,6 +37,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.io.File
+import java.util.Locale
 import javax.inject.Inject
 
 /**
@@ -43,6 +50,9 @@ class DocDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val documents: DocumentRepository,
     private val files: FileRepository,
+    private val identity: IdentityManager,
+    private val serviceClient: AvagoServiceClient,
+    private val textRecognizer: AvagoTextRecognizer,
     permissions: PermissionsManager,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
@@ -59,6 +69,9 @@ class DocDetailViewModel @Inject constructor(
         data class Open(val file: File, val mimeType: String) : Event
         data class Failed(val messageRes: Int) : Event
         data object Deleted : Event
+
+        /** Freshly extracted fields merged over the stored ones, for review before saving. */
+        data class Extracted(val edit: DocumentEdit) : Event
     }
 
     val state: StateFlow<State> = documents.observeDocument(docId)
@@ -111,6 +124,33 @@ class DocDetailViewModel @Inject constructor(
         run(R.string.doc_detail_save_failed) { documents.replaceFile(stored, LocalFileRef(uri.toString(), mediaType)) }
     }
 
+    /**
+     * Re-runs field extraction on the server (online action). An image file is read again on the
+     * device so the server gets fresh text; for a PDF the server re-uses the text of the last run.
+     */
+    fun reextract() {
+        val stored = current ?: return
+        val type = stored.kind.extractionType ?: return
+        val file = stored.file ?: return
+        val accountId = identity.getActiveAccountId() ?: return
+        run(R.string.doc_detail_reextract_failed) {
+            val text = if (file.mimeType?.startsWith("image/") == true) recognizeText(file) else null
+            when (val r = serviceClient.reextractDocOcr(accountId, stored.id, text, type, Locale.getDefault().toLanguageTag())) {
+                is NetworkResult.Success -> _events.emit(Event.Extracted(stored.withExtraction(r.data.extraction)))
+                is NetworkResult.Error -> _events.emit(Event.Failed(reextractFailure(r.code)))
+                NetworkResult.Unauthorized -> _events.emit(Event.Failed(R.string.doc_detail_reextract_failed))
+            }
+        }
+    }
+
+    private suspend fun recognizeText(file: StoredFile): String? {
+        val local = file.localFile?.takeIf { it.exists() } ?: files.fetch(file.id)
+        return textRecognizer.recognize(Uri.fromFile(local), context)
+            .onFailure { e -> Timber.w(e, "[DocDetailViewModel] on-device OCR failed; the server re-uses its stored text") }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
+    }
+
     fun delete() {
         val stored = current ?: return
         run(R.string.doc_detail_delete_failed) {
@@ -139,7 +179,43 @@ class DocDetailViewModel @Inject constructor(
         }
     }
 
-    private companion object {
-        const val GENERIC_TYPE = "application/octet-stream"
+    internal companion object {
+        private const val GENERIC_TYPE = "application/octet-stream"
+
+        /** The extractor's document type; documents of other kinds cannot be re-extracted. */
+        val DocumentKind.extractionType: String?
+            get() = when (this) {
+                DocumentKind.RECEIPT -> "receipt"
+                DocumentKind.INVOICE -> "invoice"
+                DocumentKind.WARRANTY -> "warranty"
+                DocumentKind.HOWTO -> "how_to"
+                DocumentKind.OTHER -> null
+            }
+
+        /** The stored metadata with every field the extractor found replaced. */
+        fun Document.withExtraction(ex: DocOcrResponse): DocumentEdit {
+            val total = ex.totalAmount()
+            return DocumentEdit(
+                kind = kind,
+                title = ex.title?.takeIf { it.isNotBlank() } ?: title,
+                issuedOn = ex.documentDate() ?: issuedOn,
+                issuerName = ex.vendor?.takeIf { it.isNotBlank() } ?: issuerName,
+                total = total ?: this.total,
+                currency = ex.currency?.trim()?.uppercase()?.takeIf { it.length == 3 } ?: currency,
+                warrantyEndsOn = ex.warrantyEndDate() ?: warrantyEndsOn,
+                notes = notes,
+            )
+        }
+
+        fun reextractFailure(status: Int): Int = when (status) {
+            HTTP_BAD_REQUEST -> R.string.doc_detail_reextract_no_text
+            HTTP_CONFLICT -> R.string.doc_detail_reextract_no_file
+            HTTP_UNAVAILABLE -> R.string.doc_detail_reextract_unavailable
+            else -> R.string.doc_detail_reextract_failed
+        }
+
+        private const val HTTP_BAD_REQUEST = 400
+        private const val HTTP_CONFLICT = 409
+        private const val HTTP_UNAVAILABLE = 503
     }
 }

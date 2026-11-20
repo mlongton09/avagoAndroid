@@ -60,6 +60,10 @@ class AssetListViewModel @Inject constructor(
         initialValue = permissionsManager.isRoot.value || permissionsManager.permissions.value.contains(Permissions.ASSETS_CREATE),
     )
 
+    /** Bulk QR label sheets (online action). */
+    val canPrintQrLabels: StateFlow<Boolean> = permissionsManager.observeCan(Permissions.ASSET_QR_BULK_GENERATE)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, permissionsManager.can(Permissions.ASSET_QR_BULK_GENERATE))
+
     private val _filterType = MutableStateFlow<String?>(null)
     val filterType: StateFlow<String?> = _filterType.asStateFlow()
 

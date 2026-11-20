@@ -80,6 +80,7 @@ import com.avago.core.ui.components.SectionCard
 import com.avago.core.ui.components.StatusPill
 import com.avago.core.ui.components.StatusTone
 import com.avago.core.ui.components.cardListItemColors
+import com.avago.core.ui.openPdfFile
 import com.avago.feature.rentals.R
 import com.avago.feature.rentals.data.RentalsOnline
 import com.avago.feature.rentals.domain.BuyoutQuote
@@ -762,7 +763,7 @@ private fun LedgerRow(e: LedgerEntry, zone: ZoneId) {
             Column(verticalArrangement = Arrangement.spacedBy(AvagoSpacing.xs)) {
                 val details = listOfNotNull(
                     stateText,
-                    e.cardBrand?.let { brand -> e.cardExpiry?.let { stringResource(R.string.rentals_ledger_card, brand, it) } ?: brand },
+                    ledgerCardText(e)?.let { card -> e.cardExpiry?.let { stringResource(R.string.rentals_ledger_card, card, it) } ?: card },
                     e.payerName?.let { stringResource(R.string.rentals_ledger_payer, it) } ?: e.payerEmail?.let { stringResource(R.string.rentals_ledger_payer, it) },
                     e.receiptNumber?.let { stringResource(R.string.rentals_ledger_receipt, it) },
                     e.reference,
@@ -1027,3 +1028,6 @@ internal fun SubrentalsCard(subrentals: List<Subrental>, zone: ZoneId) {
         }
     }
 }
+
+private fun ledgerCardText(e: LedgerEntry): String? =
+    listOfNotNull(e.cardBrand, e.cardLast4?.let { "\u2022\u2022\u2022\u2022 $it" }).joinToString(" ").ifBlank { null }

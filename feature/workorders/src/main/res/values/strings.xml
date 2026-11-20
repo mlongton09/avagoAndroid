@@ -11,7 +11,6 @@
     <string name="wo_log_complete">Complete &amp; Close</string>
     <string name="wo_log_section_details">Details</string>
     <string name="wo_log_section_work_order">Work Order</string>
-    <string name="wo_log_section_history">History</string>
     <string name="wo_log_timer_start">Start</string>
     <string name="wo_log_timer_pause">Pause</string>
     <string name="wo_log_timer_resume">Resume</string>
@@ -157,7 +156,6 @@
     <string name="cost_lines_back">Back</string>
 
     <!-- GL Account Picker -->
-    <string name="gl_account_back">Back</string>
 
     <!-- Reschedule Sheet -->
     <string name="reschedule_title">Reschedule</string>
@@ -170,7 +168,6 @@
     <string name="asset_group_picker_empty">No asset groups found</string>
 
     <!-- Job Picker -->
-    <string name="job_picker_back">Back</string>
 
     <!-- WO List — retry banner -->
     <string name="wo_list_retry">Retry</string>
@@ -223,9 +220,6 @@
     <string name="dispatch_rebalance_coming_soon">Auto-rebalance coming soon</string>
 
 <!-- Budget Pill -->
-    <string name="wo_budget_labor">Labor</string>
-    <string name="wo_budget_parts">Parts</string>
-    <string name="wo_budget_total">Total</string>
 
     <!-- PDF Export -->
     <string name="wo_export_pdf">Export PDF</string>
@@ -302,7 +296,6 @@
     <string name="wo_approve">Approve</string>
     <string name="wo_reject">Reject</string>
     <string name="wo_calendar_today">Today</string>
-    <string name="wo_create_remove_job">Remove job</string>
     <string name="wo_create_effort_hint">Typical: %1$s min · fast: %2$s · slow: %3$s · %4$s jobs</string>
     <string name="wo_detail_edit_header">Edit title and description</string>
     <string name="wo_detail_location">Location</string>

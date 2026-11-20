@@ -96,11 +96,13 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -114,10 +116,13 @@ import coil3.compose.AsyncImage
 import com.avago.core.data.domain.Activity
 import com.avago.core.data.domain.Asset
 import com.avago.core.data.domain.AssetMeter
+import com.avago.core.data.domain.AssetStatusCode
+import com.avago.core.data.domain.AssetStatusInterval
 import com.avago.core.data.domain.Attachment
 import com.avago.core.data.domain.CustomFieldEntity
 import com.avago.core.data.domain.Document
 import com.avago.core.data.domain.DocumentKind
+import com.avago.core.data.domain.DowntimeKind
 import com.avago.core.data.domain.Location
 import com.avago.core.ui.CategoryBadge
 import com.avago.core.ui.CategoryItem
@@ -179,6 +184,7 @@ fun AssetDetailScreen(
     val recentCategories by viewModel.recentCategories.collectAsStateWithLifecycle()
     val categoryFilter by viewModel.categoryFilter.collectAsStateWithLifecycle()
     val photos by viewModel.photos.collectAsStateWithLifecycle()
+    val statusHistory by viewModel.statusHistory.collectAsStateWithLifecycle()
     val documents by viewModel.documents.collectAsStateWithLifecycle()
     val otherFiles by viewModel.otherFiles.collectAsStateWithLifecycle()
     val canAddDocument by viewModel.canAddDocument.collectAsStateWithLifecycle()
@@ -530,6 +536,7 @@ fun AssetDetailScreen(
                         asset = safeAsset,
                         location = location,
                         photos = photos,
+                        statusHistory = statusHistory,
                         onOpenPhotoGallery = onOpenPhotoGallery,
                         onOpenNotes = onOpenNotes,
                         onOpenWheelConfig = onOpenWheelConfig,
@@ -548,7 +555,7 @@ fun AssetDetailScreen(
             recents = recentCategories.map { it.toAssetCategoryItem(context) },
             enableMultiple = true,
             showMeterInput = meter != null,
-            meterUnitLabel = meter?.unit?.takeIf { it.isNotBlank() }?.uppercase(Locale.getDefault()),
+            meterUnitLabel = meter?.unit?.takeIf { it.isNotBlank() }?.uppercase(LocalConfiguration.current.locales[0]),
             onMultipleCreate = { items, meterValue ->
                 showAddLogCategoryPicker = false
                 viewModel.addBatchLogEntries(items.map { it.key }, meterValue)
@@ -696,6 +703,7 @@ private fun InfoTab(
     asset: Asset,
     location: Location?,
     photos: List<Attachment>,
+    statusHistory: List<AssetStatusInterval>,
     onOpenPhotoGallery: (Int) -> Unit,
     onOpenNotes: (String) -> Unit,
     onOpenWheelConfig: () -> Unit,
@@ -747,6 +755,15 @@ private fun InfoTab(
                 asset = asset,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
+        }
+
+        if (statusHistory.isNotEmpty()) {
+            item(key = "status_history_card") {
+                StatusHistoryCard(
+                    intervals = statusHistory,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
         }
 
         item(key = "qr_code_card") {
@@ -822,7 +839,7 @@ private fun DocumentsTab(
                 Text(file.file?.name ?: stringResource(R.string.asset_detail_document_untitled), style = MaterialTheme.typography.bodyMedium)
                 file.file?.mimeType?.takeIf { it.isNotBlank() }?.let { type ->
                     Text(
-                        text = type.substringAfter('/').uppercase(Locale.getDefault()),
+                        text = type.substringAfter('/').uppercase(LocalConfiguration.current.locales[0]),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1010,6 +1027,52 @@ private fun WorkOrdersCard(
             )
         }
     }
+}
+
+@Composable
+private fun StatusHistoryCard(intervals: List<AssetStatusInterval>, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                text = stringResource(R.string.asset_status_history),
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+            )
+            intervals.forEach { interval ->
+                Column(Modifier.semantics(mergeDescendants = true) {}) {
+                    val status = stringResource(statusLabel(interval.status))
+                    Text(
+                        text = interval.downtimeKind?.let { stringResource(R.string.asset_status_with_downtime, status, stringResource(downtimeLabel(it))) }
+                            ?: status,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Text(
+                        text = interval.end?.let { stringResource(R.string.asset_status_range, formatDate(interval.start), formatDate(it)) }
+                            ?: stringResource(R.string.asset_status_since, formatDate(interval.start)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    interval.reason?.takeIf { it.isNotBlank() }?.let {
+                        Text(text = it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun statusLabel(status: AssetStatusCode): Int = when (status) {
+    AssetStatusCode.ONLINE -> R.string.asset_status_online
+    AssetStatusCode.OFFLINE -> R.string.asset_status_offline
+    AssetStatusCode.IGNORED -> R.string.asset_status_ignored
+    AssetStatusCode.CUSTOM -> R.string.asset_status_custom
+}
+
+private fun downtimeLabel(kind: DowntimeKind): Int = when (kind) {
+    DowntimeKind.PLANNED -> R.string.asset_downtime_planned
+    DowntimeKind.UNPLANNED -> R.string.asset_downtime_unplanned
 }
 
 @Composable

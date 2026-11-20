@@ -111,6 +111,7 @@ fun WorkOrderCreateScreen(
     var showProjectMenu by remember { mutableStateOf(false) }
     val priority by viewModel.priority.collectAsStateWithLifecycle()
     val estimatedHours by viewModel.estimatedHours.collectAsStateWithLifecycle()
+    val effortHint by viewModel.effortHint.collectAsStateWithLifecycle()
     val assignedTechIds by viewModel.assignedTechIds.collectAsStateWithLifecycle()
     val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
     val titleError by viewModel.titleError.collectAsStateWithLifecycle()
@@ -390,6 +391,19 @@ fun WorkOrderCreateScreen(
                     placeholder = { Text(stringResource(R.string.wo_effort_placeholder)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
+                    supportingText = effortHint?.let { hint ->
+                        @Composable {
+                            Text(
+                                stringResource(
+                                    R.string.wo_create_effort_hint,
+                                    hint.typicalMinutes.toString(),
+                                    hint.fastMinutes.toString(),
+                                    hint.slowMinutes.toString(),
+                                    hint.sampleCount.toString(),
+                                ),
+                            )
+                        }
+                    },
                 )
             }
 

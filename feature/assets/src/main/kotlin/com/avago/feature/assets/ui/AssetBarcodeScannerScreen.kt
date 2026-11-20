@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -55,14 +56,17 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.avago.core.data.domain.AssetRepository
+import com.avago.core.sync.ApplicationScope
 import com.avago.feature.assets.R
 import com.avago.feature.assets.data.AssetQrService
 import com.avago.feature.assets.model.AssetQr
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.common.InputImage
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.time.Instant
 import javax.inject.Inject
 
 // ---------------------------------------------------------------------------
@@ -73,23 +77,34 @@ import javax.inject.Inject
 class AssetBarcodeScannerViewModel @Inject constructor(
     private val assets: AssetRepository,
     private val qr: AssetQrService,
+    @ApplicationScope private val appScope: CoroutineScope,
 ) : ViewModel() {
 
     /**
      * Looks up an asset by the scanned value: a public QR label (resolved online through the
      * account's active tokens), QR global id, asset id, serial number or VIN (as scanned, then
-     * normalised). Returns the asset id, or null when nothing matches.
+     * normalised). Returns the asset id, or null when nothing matches. A resolved label scan is
+     * reported to the asset's scan history in the background, so navigation does not wait on it.
      */
     suspend fun lookupByBarcode(barcode: String): String? = try {
         val token = AssetQr.tokenFromScan(barcode)
         if (token != null) {
-            qr.tokenAssets().valueOrNull()?.get(token)
+            val scannedAt = Instant.now()
+            qr.tokenAssets().valueOrNull()?.get(token)?.also { assetId -> recordScan(assetId, scannedAt) }
         } else {
             assets.findByCode(barcode)?.id ?: normalizeVin(barcode)?.let { assets.findByCode(it)?.id }
         }
     } catch (e: Exception) {
         Timber.e(e, "[AssetBarcodeScannerViewModel] Error looking up barcode: $barcode")
         null
+    }
+
+    private fun recordScan(assetId: String, scannedAt: Instant) {
+        appScope.launch {
+            qr.recordScan(assetId, scannedAt).errorOrNull()?.let { e ->
+                Timber.w("[AssetBarcodeScannerViewModel] QR scan not recorded for $assetId: ${e.message}")
+            }
+        }
     }
 
     internal companion object {
@@ -113,6 +128,7 @@ fun AssetBarcodeScannerScreen(
     viewModel: AssetBarcodeScannerViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -194,7 +210,7 @@ fun AssetBarcodeScannerScreen(
                                 onAssetFound(assetId)
                             } else {
                                 snackbarHostState.showSnackbar(
-                                    context.getString(R.string.barcode_scanner_not_found),
+                                    resources.getString(R.string.barcode_scanner_not_found),
                                 )
                                 // Resume scanning after showing the snackbar
                                 scanningActive = true

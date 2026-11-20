@@ -856,12 +856,12 @@ class AddEditLogViewModel @Inject constructor(
                                 n = n.copy(vendorName = match?.name ?: v.trim(), vendorId = match?.vendorId)
                                 applied = true
                             }
-                            ocr.total?.takeIf { it > 0 && s.costMode == CostMode.TOTAL && s.totalCost.isBlank() }?.let {
-                                n = n.copy(totalCost = LogPacks.formatNumber(it))
+                            ocr.totalAmount()?.takeIf { it.signum() > 0 && s.costMode == CostMode.TOTAL && s.totalCost.isBlank() }?.let {
+                                n = n.copy(totalCost = LogPacks.formatNumber(it.toDouble()))
                                 applied = true
                             }
-                            ocr.date?.let { parseOcrDate(it) }?.let {
-                                n = n.copy(entryDate = it)
+                            ocr.documentDate()?.let {
+                                n = n.copy(entryDate = it.atTime(12, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli())
                                 applied = true
                             }
                             n
@@ -876,9 +876,6 @@ class AddEditLogViewModel @Inject constructor(
         }
     }
 
-    private fun parseOcrDate(s: String): Long? = runCatching {
-        java.time.LocalDate.parse(s.take(10)).atTime(12, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-    }.getOrNull()
 
     private fun loadVendors() {
         viewModelScope.launch {
@@ -1904,6 +1901,7 @@ class AddEditLogViewModel @Inject constructor(
                 taxAmount = line.taxAmountMinor?.let { minorToMajor(it, currency).toDouble() },
                 glAccountId = line.glAccountId,
                 displayOrder = idx,
+                identity = line.identity,
             )
         }
     }
@@ -1932,6 +1930,7 @@ class AddEditLogViewModel @Inject constructor(
                 unitCost = BigDecimal.valueOf(line.unitCost),
                 taxAmountMinor = line.taxAmount?.takeIf { it != 0.0 }?.let { majorToMinor(BigDecimal.valueOf(it), currency) },
                 glAccountId = line.glAccountId,
+                identity = line.identity.normalized(),
             )
         }
 

@@ -11,10 +11,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -55,14 +59,20 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.avago.core.data.Formatters
+import com.avago.core.data.domain.Attachment
 import com.avago.core.data.domain.CostLine
 import com.avago.core.data.domain.CostLineDraft
 import com.avago.core.data.domain.CostLineType
 import com.avago.core.data.domain.GlAccount
+import com.avago.core.data.domain.PartIdentity
+import com.avago.core.ui.components.AttachmentStrip
+import com.avago.core.ui.components.PartIdentityFields
 import com.avago.feature.workorders.R
 import com.avago.feature.workorders.ui.sheets.TechPickerSheet
 import com.avago.feature.workorders.viewmodel.CostLinesEditorViewModel
+import kotlinx.coroutines.flow.flowOf
 import java.math.BigDecimal
+import com.avago.core.ui.R as UiR
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,8 +101,14 @@ fun CostLinesEditorScreen(
     var editingLine by remember { mutableStateOf<CostLine?>(null) }
 
     if (showAddDialog || editingLine != null) {
+        val editingId = editingLine?.id
+        val photos by remember(editingId) { editingId?.let(viewModel::photos) ?: flowOf(emptyList()) }
+            .collectAsStateWithLifecycle(emptyList())
         CostLineDialog(
             initial = editingLine,
+            photos = photos,
+            onAddPhoto = { uri -> editingId?.let { viewModel.addPhoto(it, uri) } },
+            onRemovePhoto = viewModel::removePhoto,
             initialPerformerUserId = editingLine?.performerWorkerId?.let(workerUserIds::get),
             workerNameByUserId = workerUserIds.entries.associate { (workerId, userId) -> userId to (workerNames[workerId] ?: userId) },
             glAccounts = glAccounts,
@@ -268,6 +284,9 @@ private fun CostLineCard(
 @Composable
 private fun CostLineDialog(
     initial: CostLine?,
+    photos: List<Attachment>,
+    onAddPhoto: (String) -> Unit,
+    onRemovePhoto: (String) -> Unit,
     initialPerformerUserId: String?,
     workerNameByUserId: Map<String, String>,
     glAccounts: List<GlAccount>,
@@ -283,6 +302,9 @@ private fun CostLineDialog(
     var glAccountId by rememberSaveable { mutableStateOf(initial?.glAccountId) }
     var glMenuExpanded by remember { mutableStateOf(false) }
     var showTechPicker by remember { mutableStateOf(false) }
+    var identity by remember(initial?.id) { mutableStateOf(initial?.identity ?: PartIdentity()) }
+    var identityExpanded by rememberSaveable { mutableStateOf(initial?.identity?.isEmpty == false) }
+    val identityInvalid = identity.invalidFields().isNotEmpty()
     val quantity = quantityText.trim().replace(',', '.').toBigDecimalOrNull()
     val unitCost = unitCostText.trim().replace(',', '.').takeIf { it.isNotEmpty() }?.toBigDecimalOrNull()
     val unitCostInvalid = unitCostText.isNotBlank() && unitCost == null
@@ -303,7 +325,10 @@ private fun CostLineDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(if (initial == null) R.string.cost_lines_dialog_add_title else R.string.cost_lines_dialog_edit_title)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
@@ -408,11 +433,31 @@ private fun CostLineDialog(
                         },
                     )
                 }
+                if (kind == CostLineType.PART || !identity.isEmpty) {
+                    TextButton(onClick = { identityExpanded = !identityExpanded }, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(UiR.string.part_identity_title), modifier = Modifier.weight(1f))
+                        Icon(if (identityExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, contentDescription = null)
+                    }
+                    if (identityExpanded) PartIdentityFields(identity = identity, onChange = { identity = it })
+                    Text(
+                        text = stringResource(UiR.string.part_photos_title),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                    if (initial == null) {
+                        Text(
+                            text = stringResource(UiR.string.part_photos_after_save),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        AttachmentStrip(attachments = photos, onAdd = onAddPhoto, onRemove = onRemovePhoto)
+                    }
+                }
             }
         },
         confirmButton = {
             TextButton(
-                enabled = quantity != null && quantity.signum() > 0 && !unitCostInvalid,
+                enabled = quantity != null && quantity.signum() > 0 && !unitCostInvalid && !identityInvalid,
                 onClick = {
                     onConfirm(
                         // Fields this dialog does not edit keep their stored values.
@@ -427,6 +472,7 @@ private fun CostLineDialog(
                             glAccountId = glAccountId,
                             estimate = initial?.isEstimate == true,
                             notes = initial?.notes,
+                            identity = identity.normalized(),
                         ),
                     )
                 },

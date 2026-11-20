@@ -63,6 +63,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -82,6 +83,7 @@ import com.avago.feature.docs.model.DocTypes
 import com.avago.feature.docs.model.formatAmount
 import com.avago.feature.docs.model.formatSize
 import com.avago.feature.docs.viewmodel.DocDetailViewModel
+import com.avago.feature.docs.viewmodel.DocDetailViewModel.Companion.extractionType
 import timber.log.Timber
 import java.io.File
 import java.text.DateFormat
@@ -97,19 +99,27 @@ fun DocDetailScreen(onBack: () -> Unit, viewModel: DocDetailViewModel = hiltView
     val canDelete by viewModel.canDelete.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val resources = LocalResources.current
     val snackbar = remember { SnackbarHostState() }
     val noViewer = stringResource(R.string.doc_detail_no_viewer)
 
     var menu by remember { mutableStateOf(false) }
     var editing by rememberSaveable { mutableStateOf(false) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
+    var extracted by remember { mutableStateOf<DocumentEdit?>(null) }
+    val reviewExtracted = stringResource(R.string.doc_detail_reextract_review)
 
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
                 is DocDetailViewModel.Event.Open -> if (!context.view(event.file, event.mimeType)) snackbar.showSnackbar(noViewer)
-                is DocDetailViewModel.Event.Failed -> snackbar.showSnackbar(context.getString(event.messageRes))
+                is DocDetailViewModel.Event.Failed -> snackbar.showSnackbar(resources.getString(event.messageRes))
                 DocDetailViewModel.Event.Deleted -> onBack()
+                is DocDetailViewModel.Event.Extracted -> {
+                    extracted = event.edit
+                    editing = true
+                    snackbar.showSnackbar(reviewExtracted)
+                }
             }
         }
     }
@@ -162,6 +172,16 @@ fun DocDetailScreen(onBack: () -> Unit, viewModel: DocDetailViewModel = hiltView
                                             importLauncher.launch(arrayOf("image/*", "application/pdf"))
                                         },
                                     )
+                                    if (document.kind.extractionType != null && document.file?.isDownloadable == true) {
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.doc_detail_reextract)) },
+                                            enabled = !busy,
+                                            onClick = {
+                                                menu = false
+                                                viewModel.reextract()
+                                            },
+                                        )
+                                    }
                                 }
                                 if (canDelete) {
                                     DropdownMenuItem(
@@ -192,10 +212,15 @@ fun DocDetailScreen(onBack: () -> Unit, viewModel: DocDetailViewModel = hiltView
 
     if (editing && document != null) {
         ModalBottomSheet(
-            onDismissRequest = { editing = false },
+            onDismissRequest = { editing = false; extracted = null },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         ) {
-            DocEditForm(document, busy) { edit -> viewModel.save(edit) { editing = false } }
+            DocEditForm(document, extracted, busy) { edit ->
+                viewModel.save(edit) {
+                    editing = false
+                    extracted = null
+                }
+            }
         }
     }
 
@@ -305,17 +330,21 @@ private fun Field(label: String, value: String, isError: Boolean = false) {
     }
 }
 
-/** The metadata form of an existing document; emptied fields are cleared. */
+/**
+ * The metadata form of an existing document, started from [initial] (re-extracted fields) or the
+ * stored values; emptied fields are cleared.
+ */
 @Composable
-private fun DocEditForm(doc: Document, busy: Boolean, onSave: (DocumentEdit) -> Unit) {
-    var kind by rememberSaveable { mutableStateOf(doc.kind) }
-    var title by rememberSaveable { mutableStateOf(doc.title.orEmpty()) }
-    var issuer by rememberSaveable { mutableStateOf(doc.issuerName.orEmpty()) }
-    var amount by rememberSaveable { mutableStateOf(doc.total?.toPlainString().orEmpty()) }
-    var currency by rememberSaveable { mutableStateOf(doc.currency.orEmpty()) }
-    var issuedOnDay by rememberSaveable { mutableStateOf(doc.issuedOn?.toEpochDay()) }
-    var warrantyDay by rememberSaveable { mutableStateOf(doc.warrantyEndsOn?.toEpochDay()) }
-    var notes by rememberSaveable { mutableStateOf(doc.notes.orEmpty()) }
+private fun DocEditForm(doc: Document, initial: DocumentEdit?, busy: Boolean, onSave: (DocumentEdit) -> Unit) {
+    val start = initial ?: DocumentEdit(doc.kind, doc.title, doc.issuedOn, doc.issuerName, doc.total, doc.currency, doc.warrantyEndsOn, doc.notes)
+    var kind by rememberSaveable { mutableStateOf(start.kind) }
+    var title by rememberSaveable { mutableStateOf(start.title.orEmpty()) }
+    var issuer by rememberSaveable { mutableStateOf(start.issuerName.orEmpty()) }
+    var amount by rememberSaveable { mutableStateOf(start.total?.toPlainString().orEmpty()) }
+    var currency by rememberSaveable { mutableStateOf(start.currency.orEmpty()) }
+    var issuedOnDay by rememberSaveable { mutableStateOf(start.issuedOn?.toEpochDay()) }
+    var warrantyDay by rememberSaveable { mutableStateOf(start.warrantyEndsOn?.toEpochDay()) }
+    var notes by rememberSaveable { mutableStateOf(start.notes.orEmpty()) }
     var picking by rememberSaveable { mutableStateOf<String?>(null) }
     val issuedOn = issuedOnDay?.let(LocalDate::ofEpochDay)
     val warrantyEndsOn = warrantyDay?.let(LocalDate::ofEpochDay)

@@ -154,8 +154,8 @@ fun AvagoNavHost(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     )
                 },
-                onNavigateToAddDocument = { assetId -> navController.navigate(DocsRoute.add(assetId)) },
-            onOpenDocument = { documentId -> navController.navigate(DocsRoute.detail(documentId)) },
+                onNavigateToAddDocument = { assetId -> navController.navigate(DocsRoute.addForAsset(assetId)) },
+                onOpenDocument = { documentId -> navController.navigate(DocsRoute.detail(documentId)) },
                 onOpenAssetRentals = { assetId ->
                     navController.navigate(RentalsRoute.asset(assetId))
                 },
@@ -190,6 +190,8 @@ fun AvagoNavHost(
                 onCreateWorkOrderFromDefect = { req ->
                     navController.navigate(workOrderFromDefectRoute(req))
                 },
+                onAddDocument = { activityId -> navController.navigate(DocsRoute.addForActivity(activityId)) },
+                onOpenDocument = { documentId -> navController.navigate(DocsRoute.detail(documentId)) },
             )
 
             // ── Work Orders ───────────────────────────────────────────────────────

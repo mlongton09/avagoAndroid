@@ -10,8 +10,13 @@ import com.avago.core.data.domain.AttachmentTarget
 import com.avago.core.data.domain.ConfigDocuments
 import com.avago.core.data.domain.ConfigRepository
 import com.avago.core.data.domain.CostLine
+import com.avago.core.data.domain.Document
+import com.avago.core.data.domain.DocumentOwner
+import com.avago.core.data.domain.DocumentRepository
 import com.avago.core.data.domain.WorkerRepository
 import com.avago.core.data.repository.UserPreferencesRepository
+import com.avago.core.permissions.Permissions
+import com.avago.core.permissions.PermissionsManager
 import com.avago.feature.log.model.parseInspectionLocaleStrings
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -63,6 +68,8 @@ data class LogDetailUiState(
     val log: Activity? = null,
     val costLines: List<CostLine> = emptyList(),
     val photos: List<Attachment> = emptyList(),
+    /** Documents (receipts, invoices, ...) filed on the service record. */
+    val documents: List<Document> = emptyList(),
     val audit: LogAudit? = null,
     val isLoading: Boolean = true,
     val error: String? = null,
@@ -88,6 +95,8 @@ class LogDetailViewModel @Inject constructor(
     private val config: ConfigRepository,
     workers: WorkerRepository,
     userPrefsRepository: UserPreferencesRepository,
+    documents: DocumentRepository,
+    permissionsManager: PermissionsManager,
 ) : ViewModel() {
 
     private val _entryId = MutableStateFlow<String?>(null)
@@ -104,12 +113,14 @@ class LogDetailViewModel @Inject constructor(
                 activities.observeCostLines(id),
                 assets.observeAttachments(AttachmentTarget.ToActivity(id)),
                 workers.observeWorkers(),
-            ) { log, lines, files, people ->
+                documents.observeDocuments(DocumentOwner.Activity(id)),
+            ) { log, lines, files, people, docs ->
                 val names = people.mapNotNull { w -> w.userId?.let { it to w.displayName } }.toMap()
                 LogDetailUiState(
                     log = log,
                     costLines = lines,
-                    photos = files.filter { it.file?.isImage != false },
+                    photos = files.filter { it.documentId == null && it.file?.isImage != false },
+                    documents = docs,
                     audit = log?.let { LogAudit.of(it, names) },
                     isLoading = false,
                 )
@@ -120,6 +131,9 @@ class LogDetailViewModel @Inject constructor(
             emit(LogDetailUiState(isLoading = false, error = e.message))
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LogDetailUiState())
+
+    val canAddDocument: StateFlow<Boolean> = permissionsManager.observeCan(Permissions.DOCUMENTS_CREATE)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), permissionsManager.can(Permissions.DOCUMENTS_CREATE))
 
     /** Money is shown in the record's own currency; the preference applies when the record has none. */
     val currencyCode: StateFlow<String> = combine(uiState, preferredCurrency) { state, pref -> state.log?.currency ?: pref }

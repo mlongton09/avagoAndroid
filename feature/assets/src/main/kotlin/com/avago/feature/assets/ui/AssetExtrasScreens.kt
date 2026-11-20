@@ -1,5 +1,6 @@
 package com.avago.feature.assets.ui
 
+import android.content.res.Resources
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,7 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -92,28 +93,28 @@ private fun ExtrasScaffold(
 
 @Composable
 private fun ExtrasNoticeEffect(notices: Flow<ExtrasNotice>, snackbar: SnackbarHostState) {
-    val ctx = LocalContext.current
+    val resources = LocalResources.current
     LaunchedEffect(notices) {
         notices.collect { n ->
             snackbar.showSnackbar(
                 when (n) {
-                    is ExtrasNotice.Failed -> scopeErrorText(ctx, n.error)
-                    ExtrasNotice.Saved -> ctx.getString(R.string.asset_scope_saved)
-                    ExtrasNotice.NotSaved -> ctx.getString(R.string.asset_scope_not_saved)
+                    is ExtrasNotice.Failed -> scopeErrorText(resources, n.error)
+                    ExtrasNotice.Saved -> resources.getString(R.string.asset_scope_saved)
+                    ExtrasNotice.NotSaved -> resources.getString(R.string.asset_scope_not_saved)
                 },
             )
         }
     }
 }
 
-internal fun scopeErrorText(ctx: android.content.Context, e: ApiError): String = when {
-    e.offline -> ctx.getString(R.string.asset_scope_err_offline)
-    e.code == "rate_limited" || e.status == 429 -> ctx.getString(R.string.asset_scope_err_rate_limited)
-    e.code == "vin_decode_unavailable" -> ctx.getString(R.string.asset_scope_err_vin_unavailable)
-    e.status == 403 -> ctx.getString(R.string.asset_scope_err_forbidden)
-    e.status == 404 -> ctx.getString(R.string.asset_scope_err_not_found)
+internal fun scopeErrorText(res: Resources, e: ApiError): String = when {
+    e.offline -> res.getString(R.string.asset_scope_err_offline)
+    e.code == "rate_limited" || e.status == 429 -> res.getString(R.string.asset_scope_err_rate_limited)
+    e.code == "vin_decode_unavailable" -> res.getString(R.string.asset_scope_err_vin_unavailable)
+    e.status == 403 -> res.getString(R.string.asset_scope_err_forbidden)
+    e.status == 404 -> res.getString(R.string.asset_scope_err_not_found)
     e.message.isNotBlank() -> e.message
-    else -> ctx.getString(R.string.rental_error_unknown)
+    else -> res.getString(R.string.rental_error_unknown)
 }
 
 @Composable
@@ -124,7 +125,7 @@ private fun <T> ExtrasLoadBox(state: ExtrasLoad<T>, onRetry: () -> Unit, padding
         }
         is ExtrasLoad.Failed -> Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
             ErrorBanner(
-                message = scopeErrorText(LocalContext.current, state.error),
+                message = scopeErrorText(LocalResources.current, state.error),
                 onRetry = onRetry,
                 retryLabel = stringResource(R.string.asset_scope_retry),
             )
@@ -244,7 +245,11 @@ fun ToolDetailsScreen(onBack: () -> Unit, viewModel: ToolDetailsViewModel = hilt
             item {
                 SectionCard(title = stringResource(R.string.asset_scope_usage), contentPadding = true) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("days" to R.string.asset_scope_usage_days, "cycles" to R.string.asset_scope_usage_cycles).forEach { (unit, res) ->
+                        listOf(
+                            "" to R.string.asset_scope_usage_default,
+                            "days" to R.string.asset_scope_usage_days,
+                            "cycles" to R.string.asset_scope_usage_cycles,
+                        ).forEach { (unit, res) ->
                             FilterChip(
                                 selected = form.usageUnit == unit,
                                 onClick = { viewModel.update(form.copy(usageUnit = unit)) },
@@ -253,7 +258,8 @@ fun ToolDetailsScreen(onBack: () -> Unit, viewModel: ToolDetailsViewModel = hilt
                         }
                     }
                     FormField(form.usageValue, { viewModel.update(form.copy(usageValue = it)) },
-                        stringResource(R.string.asset_scope_usage_value), fieldError(errors["usage_value"]), keyboard = decimalKeys)
+                        stringResource(R.string.asset_scope_usage_value), fieldError(errors["usage_value"]),
+                        stringResource(R.string.asset_scope_usage_value_hint), keyboard = decimalKeys)
                 }
             }
             item {

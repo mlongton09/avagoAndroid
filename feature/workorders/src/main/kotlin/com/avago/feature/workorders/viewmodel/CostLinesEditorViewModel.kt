@@ -4,12 +4,17 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.data.domain.ActivityRepository
+import com.avago.core.data.domain.AssetRepository
+import com.avago.core.data.domain.Attachment
+import com.avago.core.data.domain.AttachmentTarget
 import com.avago.core.data.domain.CostLine
 import com.avago.core.data.domain.CostLineDraft
 import com.avago.core.data.domain.GlAccount
+import com.avago.core.data.domain.LocalFileRef
 import com.avago.core.data.domain.WorkOrderRepository
 import com.avago.core.data.domain.WorkerRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +33,7 @@ class CostLinesEditorViewModel @Inject constructor(
     private val repository: WorkOrderRepository,
     workers: WorkerRepository,
     activities: ActivityRepository,
+    private val assets: AssetRepository,
 ) : ViewModel() {
 
     private val woId: String = requireNotNull(savedStateHandle["woId"]) {
@@ -71,6 +77,15 @@ class CostLinesEditorViewModel @Inject constructor(
     fun updateLine(lineId: String, draft: CostLineDraft) = save { repository.updateCostLine(lineId, draft) }
 
     fun removeLine(lineId: String) = save { repository.deleteCostLine(lineId) }
+
+    /** Photos of the fitted part on a saved line. */
+    fun photos(lineId: String): Flow<List<Attachment>> = assets.observeAttachments(AttachmentTarget.ToCostLine(lineId))
+        .catch { e -> Timber.e(e, "[CostLinesVM] photos flow error"); emit(emptyList()) }
+
+    fun addPhoto(lineId: String, uri: String) =
+        save { assets.attach(AttachmentTarget.ToCostLine(lineId), LocalFileRef(uri, "image/jpeg")) }
+
+    fun removePhoto(attachmentId: String) = save { assets.detach(attachmentId) }
 
     fun clearError() { _error.value = null }
 

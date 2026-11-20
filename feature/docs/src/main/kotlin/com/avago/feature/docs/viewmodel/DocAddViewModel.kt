@@ -14,6 +14,7 @@ import com.avago.core.data.domain.LocalFileRef
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
 import com.avago.core.ocr.AvagoTextRecognizer
+import com.avago.feature.docs.nav.DocsRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
@@ -22,15 +23,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import timber.log.Timber
-import java.math.BigDecimal
 import java.time.LocalDate
-import java.time.format.DateTimeParseException
 import java.util.Currency
 import java.util.Locale
 import javax.inject.Inject
 
 /**
- * Adds a scanned or imported document to an asset: on-device OCR, optional server-side field
+ * Adds a scanned or imported document to an asset or a service record: on-device OCR, optional server-side field
  * extraction (a compute endpoint that degrades to an empty form), then `core.documents.create`
  * with the file uploaded through E12.
  */
@@ -44,7 +43,14 @@ class DocAddViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
-    private val assetId: String = requireNotNull(savedStateHandle.get<String>("assetId"))
+    private val owner: DocumentOwner = run {
+        val id = requireNotNull(savedStateHandle.get<String>("ownerId"))
+        when (val type = savedStateHandle.get<String>("ownerType")) {
+            DocsRoute.OWNER_ASSET -> DocumentOwner.Asset(id)
+            DocsRoute.OWNER_ACTIVITY -> DocumentOwner.Activity(id)
+            else -> error("unknown document owner type: $type")
+        }
+    }
 
     data class Form(
         val file: Uri,
@@ -108,9 +114,10 @@ class DocAddViewModel @Inject constructor(
                     mediaType = mediaType,
                     rawText = rawText,
                     issuerName = extracted?.vendor.orEmpty(),
-                    amount = extracted?.total?.let { BigDecimal.valueOf(it).stripTrailingZeros().toPlainString() }.orEmpty(),
-                    issuedOn = extracted?.date.toLocalDateOrNull(),
-                    warrantyEndsOn = extracted?.end_date.toLocalDateOrNull(),
+                    amount = extracted?.totalAmount()?.stripTrailingZeros()?.toPlainString().orEmpty(),
+                    currency = extracted?.currency?.trim()?.uppercase()?.takeIf { it.length == 3 } ?: defaultCurrency(),
+                    issuedOn = extracted?.documentDate(),
+                    warrantyEndsOn = extracted?.warrantyEndDate(),
                 ),
             )
         }
@@ -119,7 +126,7 @@ class DocAddViewModel @Inject constructor(
     private suspend fun extract(rawText: String) = identity.activeAccountId.value
         ?.takeIf { rawText.isNotBlank() }
         ?.let { accountId ->
-            when (val result = serviceClient.extractDocOcr(accountId = accountId, ocrRawText = rawText, documentType = "unknown")) {
+            when (val result = serviceClient.extractDocOcr(accountId = accountId, ocrRawText = rawText, documentType = DocumentKind.RECEIPT.wire)) {
                 is NetworkResult.Success -> result.data
                 else -> null
             }
@@ -133,7 +140,7 @@ class DocAddViewModel @Inject constructor(
             }
         }
         val draft = DocumentDraft(
-            owner = DocumentOwner.Asset(assetId),
+            owner = owner,
             kind = form.kind,
             file = LocalFileRef(form.file.toString(), form.mediaType),
             title = title,
@@ -170,13 +177,5 @@ class DocAddViewModel @Inject constructor(
 
         fun defaultCurrency(): String =
             runCatching { Currency.getInstance(Locale.getDefault()).currencyCode }.getOrNull() ?: "USD"
-
-        fun String?.toLocalDateOrNull(): LocalDate? = this?.let {
-            try {
-                LocalDate.parse(it.take(10))
-            } catch (_: DateTimeParseException) {
-                null
-            }
-        }
     }
 }

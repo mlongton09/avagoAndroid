@@ -386,4 +386,5 @@
     <string name="rentals_pc_err_payments_disabled">Online payments aren\'t enabled for this account.</string>
     <string name="rentals_pc_err_forbidden">You don\'t have permission to do this.</string>
     <string name="rentals_pc_err_generic">Something went wrong. Try again.</string>
+    <string name="rentals_billed_through">Billed through</string>
 </resources>

@@ -175,24 +175,6 @@
     <string name="date_picker_ok">OK</string>
 
     <!-- Rentals -->
-    <string name="rental_list_title">Rentals</string>
-    <string name="rental_empty">No rentals yet</string>
-    <string name="rental_create_title">New Rental</string>
-    <string name="rental_customer_label">Customer Name</string>
-    <string name="rental_rate_label">Rate</string>
-    <string name="rental_rate_unit_label">Rate Unit</string>
-    <string name="rental_rate_unit_hourly">Hourly</string>
-    <string name="rental_rate_unit_daily">Daily</string>
-    <string name="rental_rate_unit_weekly">Weekly</string>
-    <string name="rental_rate_unit_monthly">Monthly</string>
-    <string name="rental_notes_label">Notes</string>
-    <string name="rental_start_date_label">Start Date</string>
-    <string name="rental_status_active">Active</string>
-    <string name="rental_status_ended">Ended</string>
-    <string name="rental_end_button">End Rental</string>
-    <string name="rental_total_label">Total</string>
-    <string name="rental_create_button">Create Rental</string>
-    <string name="rental_end_confirm_title">End Rental</string>
 
     <!-- Onboarding / FRE -->
     <string name="onboarding_welcome_title">Welcome to Avago</string>
@@ -215,114 +197,19 @@
     <string name="onboarding_skip">Skip</string>
 
     <!-- Rental Customers -->
-    <string name="rental_customers_title">Rental Customers</string>
-    <string name="rental_customers_empty">No customers yet\nTap + to add your first customer</string>
-    <string name="rental_customer_add_title">New Customer</string>
-    <string name="rental_customer_edit_title">Edit Customer</string>
-    <string name="rental_customer_name_label">Name *</string>
-    <string name="rental_customer_email_label">Email</string>
-    <string name="rental_customer_phone_label">Phone</string>
-    <string name="rental_customer_company_label">Company</string>
-    <string name="rental_customer_address_label">Address</string>
-    <string name="rental_customer_name_required">Name is required</string>
-    <string name="rental_customer_delete">Delete Customer</string>
-    <string name="rental_customer_delete_title">Delete customer?</string>
-    <string name="rental_customer_delete_message">This permanently removes the customer record.</string>
-    <string name="rental_customer_delete_confirm">Delete</string>
 
     <!-- Rental Booking -->
-    <string name="rental_booking_step_customer">Customer</string>
-    <string name="rental_booking_step_dates">Dates</string>
-    <string name="rental_booking_step_confirm">Confirm</string>
-    <string name="rental_booking_new_customer">+ New Customer</string>
-    <string name="rental_booking_end_date_label">End Date (Optional)</string>
-    <string name="rental_booking_duration_label">Duration</string>
-    <string name="rental_booking_no_customer">No customer (internal)</string>
-    <string name="rental_booking_confirm">Confirm Booking</string>
-    <string name="rental_booking_next">Next</string>
-    <string name="rental_booking_back">Back</string>
-    <string name="rental_booking_summary_customer">Customer</string>
-    <string name="rental_booking_summary_dates">Dates</string>
 
     <!-- Rental Reservations -->
-    <string name="rental_reservations_section">Reservations</string>
-    <string name="rental_reservation_tentative">Tentative</string>
-    <string name="rental_reservation_confirmed">Confirmed</string>
-    <string name="rental_reservation_cancelled">Cancelled</string>
-    <string name="rental_reservation_start">Start Rental</string>
 
     <!-- Rental Invoice -->
-    <string name="rental_invoice_title">Invoice</string>
-    <string name="rental_invoice_status_draft">Draft</string>
-    <string name="rental_invoice_status_sent">Sent</string>
-    <string name="rental_invoice_status_paid">Paid</string>
-    <string name="rental_invoice_status_void">Void</string>
-    <string name="rental_invoice_send">Send Invoice</string>
-    <string name="rental_invoice_mark_paid">Mark Paid</string>
-    <string name="rental_invoice_void">Void Invoice</string>
-    <string name="rental_invoice_payment_method">Payment Method</string>
-    <string name="rental_invoice_payment_notes_label">Payment Notes</string>
-    <string name="rental_invoice_confirm_pay">Confirm Payment</string>
-    <string name="rental_invoice_subtotal">Subtotal</string>
-    <string name="rental_invoice_tax">Tax (%1$.1f%%)</string>
-    <string name="rental_invoice_total">Total</string>
-    <string name="rental_invoice_line_items">Line Items</string>
-    <string name="rental_invoice_due_date">Due %1$s</string>
-    <string name="rental_invoice_create">Create Invoice</string>
-    <string name="rental_invoiced_chip">Invoiced</string>
-    <string name="rental_paid_chip">Paid</string>
 
     <!-- Rental — additional strings -->
-    <string name="rental_overdue_section">Overdue (%1$d)</string>
-    <string name="rental_section_active">Rentals</string>
-    <string name="rental_condition_notes_label">Condition notes (optional)</string>
-    <string name="rental_condition_notes_placeholder">e.g. scratch on rear bumper</string>
-    <string name="rental_meter_final_label">Final meter reading (optional)</string>
-    <string name="rental_meter_invalid">Enter a valid number</string>
-    <string name="rental_search_customers">Search customers</string>
-    <string name="rental_search_customers_clear">Clear search</string>
 
     <!-- Report parity -->
     <string name="reports_empty_state">No results</string>
     <!-- Legacy rental screens: labels, hints, errors -->
-    <string name="rental_condition_label">Condition *</string>
-    <string name="rental_condition_return_label">Condition at return *</string>
-    <string name="rental_condition_excellent">Excellent</string>
-    <string name="rental_condition_good">Good</string>
-    <string name="rental_condition_fair">Fair</string>
-    <string name="rental_condition_poor">Poor</string>
-    <string name="rental_condition_start_line">Start condition: %1$s</string>
-    <string name="rental_condition_return_line">Return condition: %1$s</string>
-    <string name="rental_meter_unit_label">Unit</string>
-    <string name="rental_meter_unit_hours">Hours</string>
-    <string name="rental_meter_unit_miles">Miles</string>
-    <string name="rental_meter_unit_km">km</string>
-    <string name="rental_meter_start_label">Starting meter reading (optional)</string>
-    <string name="rental_meter_usage_line">Meter: %1$s → %2$s = %3$s %4$s</string>
-    <string name="rental_meter_start_line">Start meter: %1$s %2$s</string>
-    <string name="rental_hint_select_condition">Select a condition to continue</string>
-    <string name="rental_hint_enter_rate">Enter a rate to continue</string>
-    <string name="rental_hint_enter_rate_and_condition">Enter a rate and select a condition to continue</string>
-    <string name="rental_customer_internal">Internal</string>
-    <string name="rental_overdue_badge">OVERDUE</string>
-    <string name="rental_rate_per_hour">%1$s / hour</string>
-    <string name="rental_rate_per_day">%1$s / day</string>
-    <string name="rental_rate_per_week">%1$s / week</string>
-    <string name="rental_rate_per_month">%1$s / month</string>
-    <string name="rental_field_required">%1$s is required</string>
-    <string name="rental_invoice_period">Period</string>
-    <string name="rental_payment_method_cash">Cash</string>
-    <string name="rental_payment_method_credit_card">Credit card</string>
-    <string name="rental_payment_method_bank_transfer">Bank transfer</string>
-    <string name="rental_payment_method_check">Check</string>
-    <string name="rental_payment_method_other">Other</string>
-    <string name="rental_error_unauthorized">You are not signed in or your session has expired. Please sign in again.</string>
     <string name="rental_error_unknown">Something went wrong. Please try again.</string>
-    <string name="rental_error_no_account">No active account. Please sign in again.</string>
-    <plurals name="rental_booking_duration_days">
-        <item quantity="one">%d day</item>
-        <item quantity="other">%d days</item>
-    </plurals>
     <string name="asset_type_car">Car</string>
     <string name="asset_type_group_tools">Tools</string>
     <string name="asset_type_survey_layout">Survey &amp; Layout</string>
@@ -436,4 +323,30 @@
     <string name="asset_document_kind_warranty">Warranty</string>
     <string name="asset_document_kind_howto">How-to</string>
     <string name="asset_document_kind_other">Other</string>
+    <string name="asset_scope_usage_default">Asset type meter</string>
+    <string name="asset_scope_usage_value_hint">Empty resets the counter to 0.</string>
+    <string name="asset_qr_labels_title">Print QR labels</string>
+    <string name="asset_qr_labels_count">Assets in the current list: %1$d</string>
+    <string name="asset_qr_labels_capped">Only the first %1$d assets are included.</string>
+    <string name="asset_qr_labels_layout">Sheet layout</string>
+    <string name="asset_qr_layout_letter">US Letter sheet</string>
+    <string name="asset_qr_layout_a4">A4 sheet</string>
+    <string name="asset_qr_layout_avery">Avery %1$s labels</string>
+    <string name="asset_qr_layout_thermal">Thermal label %1$s</string>
+    <string name="asset_qr_labels_generate">Generate PDF</string>
+    <string name="asset_qr_labels_open">Open PDF</string>
+    <string name="asset_qr_labels_rendering">Rendering labels…</string>
+    <string name="asset_qr_labels_ready">Labels generated: %1$d</string>
+    <string name="asset_qr_labels_no_viewer">No app on this device can open PDF files.</string>
+    <string name="asset_qr_labels_failed">Labels could not be generated: %1$s</string>
+    <string name="asset_downtime_unplanned">unplanned downtime</string>
+    <string name="asset_status_offline">Offline</string>
+    <string name="asset_status_custom">Custom status</string>
+    <string name="asset_status_with_downtime">%1$s · %2$s</string>
+    <string name="asset_status_since">Since %1$s</string>
+    <string name="asset_status_ignored">Ignored</string>
+    <string name="asset_status_online">Online</string>
+    <string name="asset_downtime_planned">planned downtime</string>
+    <string name="asset_status_range">%1$s – %2$s</string>
+    <string name="asset_status_history">Status history</string>
 </resources>

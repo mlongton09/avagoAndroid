@@ -3,6 +3,7 @@ package com.avago.feature.workorders.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.avago.core.auth.IdentityManager
 import com.avago.core.data.FormFillRouter
 import com.avago.core.data.domain.Asset
 import com.avago.core.data.domain.AssetRepository
@@ -14,8 +15,11 @@ import com.avago.core.data.domain.WorkOrderFilter
 import com.avago.core.data.domain.WorkOrderPriority
 import com.avago.core.data.domain.WorkOrderRepository
 import com.avago.core.data.domain.WorkOrderTemplate
+import com.avago.core.data.domain.WorkOrderComplexity
 import com.avago.core.data.domain.Worker
 import com.avago.core.data.domain.WorkerRepository
+import com.avago.core.network.AvagoServiceClient
+import com.avago.core.network.NetworkResult
 import com.avago.feature.workorders.model.WO_KEY_SOURCE
 import com.avago.feature.workorders.model.WoPriority
 import com.avago.feature.workorders.model.woSourceJson
@@ -24,7 +28,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -45,6 +51,14 @@ data class ChecklistDraft(
     val existingId: String? = null,
 )
 
+/** The server's effort benchmark for the work order's asset type and category, in minutes. */
+data class EffortHint(
+    val typicalMinutes: Int,
+    val fastMinutes: Int,
+    val slowMinutes: Int,
+    val sampleCount: Long,
+)
+
 /** Create / edit form for a work order, saved as `maint.work_orders.*` commands. */
 @HiltViewModel
 class WorkOrderCreateViewModel @Inject constructor(
@@ -55,6 +69,8 @@ class WorkOrderCreateViewModel @Inject constructor(
     private val workers: WorkerRepository,
     references: ReferenceRepository,
     private val formFillRouter: FormFillRouter,
+    private val identityManager: IdentityManager,
+    private val serviceClient: AvagoServiceClient,
 ) : ViewModel() {
 
     /** null = create mode; non-null = edit mode. */
@@ -127,6 +143,13 @@ class WorkOrderCreateViewModel @Inject constructor(
     private val _savedSuccessfully = MutableStateFlow(false)
     val savedSuccessfully: StateFlow<Boolean> = _savedSuccessfully.asStateFlow()
 
+    /** Complexity of the edited work order; the benchmark is per complexity. */
+    private var complexity: WorkOrderComplexity? = null
+
+    private val _effortHint = MutableStateFlow<EffortHint?>(null)
+    /** Effort benchmark (online read); the route needs a saved work order, so it shows in edit mode. */
+    val effortHint: StateFlow<EffortHint?> = _effortHint.asStateFlow()
+
     private val screenId = if (editingWoId == null) "add_wo" else "edit_wo"
 
     init {
@@ -139,7 +162,10 @@ class WorkOrderCreateViewModel @Inject constructor(
             savedStateHandle.get<String>("priority")?.takeIf { it.isNotBlank() }?.let { priority.value = WoPriority.fromKey(it) }
             savedStateHandle.get<String>("assetId")?.takeIf { it.isNotBlank() }?.let { onAssetSelected(it) }
         } else {
-            viewModelScope.launch { loadForEdit(editingWoId) }
+            viewModelScope.launch {
+                loadForEdit(editingWoId)
+                observeEffortHint(editingWoId)
+            }
         }
         // Scout can pre-fill this form when the user's HITL setting is on.
         formFillRouter.register(screenId) { fields -> applyScoutFields(fields) }
@@ -165,6 +191,7 @@ class WorkOrderCreateViewModel @Inject constructor(
         dueDateMs.value = wo.dueAt
         priority.value = WoPriority.fromKey(wo.priority.wire)
         estimatedHours.value = wo.estimatedEffortMinutes?.let(::minutesToHoursText).orEmpty()
+        complexity = wo.complexity
         requiredSkills.value = wo.requiredSkills
         val active = detail.assignments.filter { it.acceptanceStatus != "declined" }
         assignmentIdByUserId = active.mapNotNull { a -> a.workerUserId?.let { it to a.id } }.toMap()
@@ -174,6 +201,23 @@ class WorkOrderCreateViewModel @Inject constructor(
         storedChecklistIds = detail.checklist.map { it.id }.toSet()
         checklistDrafts.value = detail.checklist.sortedBy { it.sortOrder }
             .map { ChecklistDraft(key = nextChecklistKey++, title = it.label, existingId = it.id) }
+    }
+
+    private suspend fun observeEffortHint(woId: String) {
+        combine(category, assetType) { c, t -> c to t }
+            .distinctUntilChanged()
+            .collectLatest { (cat, type) ->
+                _effortHint.value = null
+                if (cat.isNullOrBlank() || type.isNullOrBlank()) return@collectLatest
+                val accountId = identityManager.getActiveAccountId() ?: return@collectLatest
+                val wire = (complexity ?: WorkOrderComplexity.STANDARD).wire
+                when (val r = serviceClient.getEffortStats(accountId, woId, cat, type, wire)) {
+                    is NetworkResult.Success -> _effortHint.value = r.data?.let {
+                        EffortHint(it.p50_minutes, it.p10_minutes, it.p90_minutes, it.real_sample_count)
+                    }
+                    else -> Timber.w("[WoCreateVM] effort stats unavailable: %s", r)
+                }
+            }
     }
 
     // ---------------------------------------------------------------- Scout form-fill

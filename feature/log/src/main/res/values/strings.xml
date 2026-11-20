@@ -509,4 +509,6 @@
     <string name="log_edit_conflict_field_provider">Vendor</string>
     <string name="log_edit_conflict_field_notes">Notes</string>
     <string name="log_open_defects_pending_sync">Waiting to sync</string>
+    <string name="log_detail_section_documents">DOCUMENTS</string>
+    <string name="log_detail_add_document">Add document</string>
 </resources>

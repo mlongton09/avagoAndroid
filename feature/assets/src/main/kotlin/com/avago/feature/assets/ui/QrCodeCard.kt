@@ -44,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -88,10 +89,11 @@ fun AssetQrCard(
     val canManage by viewModel.canManage.collectAsStateWithLifecycle()
     val canViewScans by viewModel.canViewScans.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val resources = LocalResources.current
     var failure by remember { mutableStateOf<String?>(null) }
     var confirm by remember { mutableStateOf<QrConfirm?>(null) }
     var showScans by remember { mutableStateOf(false) }
-    LaunchedEffect(viewModel) { viewModel.failures.collect { failure = scopeErrorText(context, it) } }
+    LaunchedEffect(viewModel) { viewModel.failures.collect { failure = scopeErrorText(resources, it) } }
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -130,7 +132,7 @@ fun AssetQrCard(
                     )
                 }
                 state.error != null -> Text(
-                    text = scopeErrorText(context, state.error!!),
+                    text = scopeErrorText(resources, state.error!!),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                     textAlign = TextAlign.Center,
@@ -216,7 +218,7 @@ private enum class QrConfirm { REPLACE, REVOKE }
 private fun QrScanHistory(viewModel: AssetQrViewModel) {
     val scans by viewModel.scans.collectAsStateWithLifecycle()
     val names by viewModel.namesByUserId.collectAsStateWithLifecycle()
-    val context = LocalContext.current
+    val resources = LocalResources.current
     Column(modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
         Text(
             stringResource(R.string.asset_qr_scan_history),
@@ -244,7 +246,7 @@ private fun QrScanHistory(viewModel: AssetQrViewModel) {
                     when {
                         scans.loading -> CircularProgressIndicator(modifier = Modifier.size(24.dp))
                         scans.error != null -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(scopeErrorText(context, scans.error!!), color = MaterialTheme.colorScheme.error)
+                            Text(scopeErrorText(resources, scans.error!!), color = MaterialTheme.colorScheme.error)
                             TextButton(onClick = { viewModel.loadScans() }) { Text(stringResource(R.string.asset_qr_retry)) }
                         }
                         scans.hasMore -> TextButton(onClick = { viewModel.loadScans() }) {

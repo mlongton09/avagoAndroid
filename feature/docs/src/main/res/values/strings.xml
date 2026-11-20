@@ -55,4 +55,10 @@
     <string name="doc_detail_added">Added %1$s</string>
     <string name="doc_detail_warranty_expired">expired</string>
     <string name="doc_edit_title">Edit document</string>
+    <string name="doc_detail_reextract">Re-extract fields</string>
+    <string name="doc_detail_reextract_review">Review the extracted fields, then save.</string>
+    <string name="doc_detail_reextract_failed">Fields could not be extracted. Check your connection and try again.</string>
+    <string name="doc_detail_reextract_no_text">No text was found to extract fields from.</string>
+    <string name="doc_detail_reextract_no_file">The file has not finished uploading yet.</string>
+    <string name="doc_detail_reextract_unavailable">Field extraction is not available right now.</string>
 </resources>

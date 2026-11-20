@@ -57,11 +57,14 @@ data class DefectWorkOrderRequest(
  * [onOpenAssetPicker] — caller opens the global asset picker
  * and writes "selected_asset_id" to the AddEdit entry's SavedStateHandle.
  * [onCreateWorkOrderFromDefect] — caller opens WO create prefilled from an open defect.
+ * [onAddDocument] / [onOpenDocument] — caller opens the docs flow for an activity's documents.
  */
 fun NavGraphBuilder.logNavGraph(
     navController: NavHostController,
     onOpenAssetPicker: () -> Unit = {},
     onCreateWorkOrderFromDefect: ((DefectWorkOrderRequest) -> Unit)? = null,
+    onAddDocument: ((activityId: String) -> Unit)? = null,
+    onOpenDocument: (documentId: String) -> Unit = {},
 ) {
     navigation(
         startDestination = LogRoute.LIST,
@@ -106,6 +109,8 @@ fun NavGraphBuilder.logNavGraph(
                 onBack = { navController.popBackStack() },
                 onEdit = { id -> navController.navigate(LogRoute.addEdit(entryId = id)) },
                 onDeleted = { navController.popBackStack() },
+                onAddDocument = onAddDocument,
+                onOpenDocument = onOpenDocument,
             )
         }
 

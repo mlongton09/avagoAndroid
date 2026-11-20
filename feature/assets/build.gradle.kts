@@ -45,6 +45,7 @@ dependencies {
     implementation(project(":core:network"))
     implementation(project(":core:auth"))
     implementation(project(":core:permissions"))
+    implementation(project(":core:sync"))
     testImplementation(libs.junit5)
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.coroutines.test)

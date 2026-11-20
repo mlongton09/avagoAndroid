@@ -1,9 +1,6 @@
 package com.avago.feature.rentals.ui
 
 import androidx.compose.runtime.getValue
-import android.content.ActivityNotFoundException
-import android.content.Context
-import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -42,7 +39,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.core.content.FileProvider
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -57,6 +53,7 @@ import com.avago.core.ui.components.ErrorBanner
 import com.avago.core.ui.components.SectionCard
 import com.avago.core.ui.components.StatusPill
 import com.avago.core.ui.components.StatusTone
+import com.avago.core.ui.openPdfFile
 import com.avago.feature.log.ui.SignaturePad
 import com.avago.feature.rentals.R
 import com.avago.feature.rentals.data.RentalsOnline
@@ -208,20 +205,6 @@ class SignAgreementViewModel @Inject constructor(
             busy.value = false
         }
     }
-}
-
-/** Opens a cached PDF with the system viewer (FileProvider `cache-path`). */
-internal fun openPdfFile(context: Context, file: File): Boolean = try {
-    val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
-    context.startActivity(
-        Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/pdf")
-            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK),
-    )
-    true
-} catch (e: ActivityNotFoundException) {
-    false
-} catch (e: IllegalArgumentException) {
-    false
 }
 
 @Composable

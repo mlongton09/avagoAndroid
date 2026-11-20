@@ -26,8 +26,46 @@ data class QrScanPage(val scans: List<QrScan>, val total: Int, val page: Int, va
     val hasMore: Boolean get() = page * pageSize < total
 }
 
+/** Sheet layouts the bulk label job renders (`page_size` of `POST .../qr-tokens/batch`). */
+enum class QrLabelLayout(val wire: String) {
+    LETTER("letter"),
+    A4("a4"),
+    AVERY_5160("avery_5160"),
+    AVERY_5163("avery_5163"),
+    AVERY_L7160("avery_l7160"),
+    AVERY_L7163("avery_l7163"),
+    THERMAL_2X1IN("thermal_2x1in"),
+    THERMAL_50X25MM("thermal_50x25mm"),
+}
+
+/** A bulk QR label job (`masters.asset_qr_batch_jobs`); the PDF downloads once [completed]. */
+data class QrLabelJob(
+    val id: String,
+    val status: String,
+    val pageSize: String?,
+    val assetCount: Int,
+    val outputFileId: String?,
+) {
+    val completed: Boolean get() = status == "completed" && outputFileId != null
+}
+
 /** Wire shapes of the asset QR REST endpoints (`/accounts/{a}/assets/.../qr-token(s)`, `qr-scans`). */
 object AssetQr {
+    /** Most assets one label job accepts. */
+    const val MAX_BATCH_ASSETS = 2000
+
+    /** `POST .../qr-tokens/batch` and `GET .../qr-tokens/batch/{id}`. */
+    fun labelJob(root: JsonObject): QrLabelJob? {
+        val o = root.data()
+        return QrLabelJob(
+            id = o.str("id") ?: return null,
+            status = o.str("status") ?: return null,
+            pageSize = o.str("page_size"),
+            assetCount = o.int("asset_count") ?: 0,
+            outputFileId = o.str("output_file_id"),
+        )
+    }
+
     /** Public report link the server mints tokens under. */
     const val URL_BASE = "https://www.avagomate.com/a/"
     private const val HOST = "avagomate.com"

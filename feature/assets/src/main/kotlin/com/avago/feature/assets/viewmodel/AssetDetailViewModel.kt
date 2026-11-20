@@ -17,6 +17,7 @@ import com.avago.core.data.domain.ActivityType
 import com.avago.core.data.domain.Asset
 import com.avago.core.data.domain.AssetMeter
 import com.avago.core.data.domain.AssetRepository
+import com.avago.core.data.domain.AssetStatusInterval
 import com.avago.core.data.domain.Attachment
 import com.avago.core.data.domain.AttachmentTarget
 import com.avago.core.data.domain.Document
@@ -166,6 +167,11 @@ class AssetDetailViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** The asset's default meter (or its only one); null when the asset tracks no meter. */
+    /** Status changes of the last year, newest first (synced `asset_status_intervals`). */
+    val statusHistory: StateFlow<List<AssetStatusInterval>> = assets.observeStatusHistory(assetId)
+        .catch { e -> Timber.e(e, "[AssetDetailViewModel] status history flow error"); emit(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     val meter: StateFlow<AssetMeter?> = assets.observeMeters(assetId)
         .map { meters -> meters.firstOrNull { it.isDefault } ?: meters.firstOrNull() }
         .catch { e -> Timber.e(e, "[AssetDetailViewModel] meter flow error"); emit(null) }
