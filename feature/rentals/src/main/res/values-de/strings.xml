@@ -386,4 +386,5 @@
     <string name="rentals_pc_err_payments_disabled">Onlinezahlungen sind für dieses Konto nicht aktiviert.</string>
     <string name="rentals_pc_err_forbidden">Dafür fehlt Ihnen die Berechtigung.</string>
     <string name="rentals_pc_err_generic">Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.</string>
+    <string name="rentals_billed_through">Abgerechnet bis</string>
 </resources>

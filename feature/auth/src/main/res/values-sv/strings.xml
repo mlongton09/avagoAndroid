@@ -2,4 +2,35 @@
 <resources>
     <!-- Account Switcher -->
     <string name="account_switcher_title">Dina konton</string>
+    <string name="sign_in_subtitle">Underhåll av fordonsflottor, utrustning och fastigheter</string>
+    <string name="sign_in_google">Fortsätt med Google</string>
+    <string name="sign_in_email">Fortsätt med e-post</string>
+    <string name="sign_in_continue_anonymous">Fortsätt utan konto</string>
+    <string name="sign_in_find_rentals">Hitta uthyrning nära dig</string>
+    <string name="email_sign_in_title">Logga in</string>
+    <string name="email_sign_in_back">Tillbaka</string>
+    <string name="email_sign_in_email_label">E-post</string>
+    <string name="email_sign_in_password_label">Lösenord</string>
+    <string name="email_sign_in_hide_password">Dölj lösenord</string>
+    <string name="email_sign_in_show_password">Visa lösenord</string>
+    <string name="email_sign_in_button">Logga in</string>
+    <string name="spinner_preparing">Förbereder ditt konto…</string>
+    <string name="spinner_creating">Skapar ditt konto…</string>
+    <string name="alert_move_data_title">Flytta dina data till det här kontot?</string>
+    <string name="alert_move_data_action">Flytta data</string>
+    <string name="alert_move_data_fresh">Börja om</string>
+    <string name="email_signin_create_account">Skapa konto</string>
+    <string name="email_signin_display_name">Visningsnamn</string>
+    <string name="email_signin_have_account">Har du redan ett konto? Logga in</string>
+    <string name="account_switcher_active_account">Aktivt konto</string>
+    <string name="account_switcher_add_account">Skapa nytt konto</string>
+    <string name="account_switcher_sign_out">Logga ut</string>
+    <string name="auth_error_email_password_required">E-post och lösenord krävs</string>
+    <string name="auth_error_sign_in_failed">Inloggningen misslyckades.</string>
+    <string name="auth_error_token_unavailable">Kunde inte hämta Firebase-ID-token</string>
+    <string name="auth_error_anonymous_failed">Kunde inte fortsätta utan konto</string>
+    <string name="auth_error_wrong_password">Fel lösenord</string>
+    <string name="auth_error_user_not_found">Inget konto hittades för den här e-postadressen</string>
+    <string name="auth_error_network">Det går inte att nå servern. Kontrollera anslutningen och försök igen.</string>
+    <string name="auth_error_too_many_requests">För många förfrågningar. Vänta %1$d minut(er) och försök igen.</string>
 </resources>

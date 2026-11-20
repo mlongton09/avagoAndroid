@@ -232,6 +232,7 @@
     <string name="tech_profile_cert_remove">Fjern sertifisering</string>
     <string name="tech_profile_cert_clear_expiry">Tøm</string>
     <string name="tech_profile_rate_currency">Valuta</string>
-    <string name="tech_profile_rate_hint">En ny sats gjelder fra i dag.</string>
+    <string name="tech_profile_rate_hint">En ny sats gjelder fra i dag. T?m satsen for ? avslutte den i dag.</string>
     <string name="tech_profile_rate_invalid">Angi en gyldig timesats og en valutakode på 3 bokstaver.</string>
+    <string name="tech_profile_no_worker">Du er ikke satt opp som tekniker i denne kontoen ennå. Be en administrator om å legge deg til.</string>
 </resources>

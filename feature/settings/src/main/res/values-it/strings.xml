@@ -236,6 +236,7 @@
     <string name="tech_profile_cert_remove">Rimuovi certificazione</string>
     <string name="tech_profile_cert_clear_expiry">Cancella</string>
     <string name="tech_profile_rate_currency">Valuta</string>
-    <string name="tech_profile_rate_hint">Una nuova tariffa vale da oggi.</string>
+    <string name="tech_profile_rate_hint">Una nuova tariffa vale da oggi. Svuota la tariffa per terminarla oggi.</string>
     <string name="tech_profile_rate_invalid">Inserisci una tariffa oraria valida e un codice valuta di 3 lettere.</string>
+    <string name="tech_profile_no_worker">Non sei ancora configurato come tecnico in questo account. Chiedi a un amministratore di aggiungerti.</string>
 </resources>

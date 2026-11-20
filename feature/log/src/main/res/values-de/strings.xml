@@ -492,4 +492,8 @@
     <string name="log_edit_conflict_field_provider">Werkstatt</string>
     <string name="log_edit_conflict_field_notes">Notizen</string>
     <string name="log_open_defects_pending_sync">Wartet auf Synchronisierung</string>
+    <string name="log_cost_lines_no_technician">Kein Techniker</string>
+    <string name="log_sync_failed">Synchronisierung fehlgeschlagen – siehe Fehlgeschlagene Änderungen</string>
+    <string name="log_detail_section_documents">DOKUMENTE</string>
+    <string name="log_detail_add_document">Dokument hinzufügen</string>
 </resources>

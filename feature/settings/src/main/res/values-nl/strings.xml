@@ -232,6 +232,7 @@
     <string name="tech_profile_cert_remove">Certificering verwijderen</string>
     <string name="tech_profile_cert_clear_expiry">Wissen</string>
     <string name="tech_profile_rate_currency">Valuta</string>
-    <string name="tech_profile_rate_hint">Een nieuw tarief geldt vanaf vandaag.</string>
+    <string name="tech_profile_rate_hint">Een nieuw tarief geldt vanaf vandaag. Maak het tarief leeg om het vandaag te be?indigen.</string>
     <string name="tech_profile_rate_invalid">Voer een geldig uurtarief en een valutacode van 3 letters in.</string>
+    <string name="tech_profile_no_worker">Je bent in dit account nog niet ingesteld als monteur. Vraag een beheerder om je toe te voegen.</string>
 </resources>

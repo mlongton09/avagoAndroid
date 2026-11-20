@@ -2,4 +2,35 @@
 <resources>
     <!-- Account Switcher -->
     <string name="account_switcher_title">Suas contas</string>
+    <string name="sign_in_subtitle">Manutenção de frotas, equipamentos e imóveis</string>
+    <string name="sign_in_google">Continuar com o Google</string>
+    <string name="sign_in_email">Continuar com e-mail</string>
+    <string name="sign_in_continue_anonymous">Continuar sem conta</string>
+    <string name="sign_in_find_rentals">Encontre aluguéis perto de você</string>
+    <string name="email_sign_in_title">Entrar</string>
+    <string name="email_sign_in_back">Voltar</string>
+    <string name="email_sign_in_email_label">E-mail</string>
+    <string name="email_sign_in_password_label">Senha</string>
+    <string name="email_sign_in_hide_password">Ocultar senha</string>
+    <string name="email_sign_in_show_password">Mostrar senha</string>
+    <string name="email_sign_in_button">Entrar</string>
+    <string name="spinner_preparing">Preparando sua conta…</string>
+    <string name="spinner_creating">Criando sua conta…</string>
+    <string name="alert_move_data_title">Mover seus dados para esta conta?</string>
+    <string name="alert_move_data_action">Mover dados</string>
+    <string name="alert_move_data_fresh">Começar do zero</string>
+    <string name="email_signin_create_account">Criar conta</string>
+    <string name="email_signin_display_name">Nome de exibição</string>
+    <string name="email_signin_have_account">Já tem uma conta? Entrar</string>
+    <string name="account_switcher_active_account">Conta ativa</string>
+    <string name="account_switcher_add_account">Criar nova conta</string>
+    <string name="account_switcher_sign_out">Sair</string>
+    <string name="auth_error_email_password_required">E-mail e senha são obrigatórios</string>
+    <string name="auth_error_sign_in_failed">Falha ao entrar.</string>
+    <string name="auth_error_token_unavailable">Não foi possível obter o token de ID do Firebase</string>
+    <string name="auth_error_anonymous_failed">Não foi possível continuar sem conta</string>
+    <string name="auth_error_wrong_password">Senha incorreta</string>
+    <string name="auth_error_user_not_found">Nenhuma conta encontrada para este e-mail</string>
+    <string name="auth_error_network">Não foi possível acessar o servidor. Verifique sua conexão e tente novamente.</string>
+    <string name="auth_error_too_many_requests">Muitas solicitações. Aguarde %1$d minuto(s) e tente novamente.</string>
 </resources>

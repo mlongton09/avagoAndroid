@@ -232,6 +232,7 @@
     <string name="tech_profile_cert_remove">Zertifizierung entfernen</string>
     <string name="tech_profile_cert_clear_expiry">Leeren</string>
     <string name="tech_profile_rate_currency">Währung</string>
-    <string name="tech_profile_rate_hint">Ein neuer Satz gilt ab heute.</string>
+    <string name="tech_profile_rate_hint">Ein neuer Satz gilt ab heute. Leeren Sie den Satz, um ihn heute zu beenden.</string>
     <string name="tech_profile_rate_invalid">Geben Sie einen gültigen Stundensatz und einen 3-stelligen Währungscode ein.</string>
+    <string name="tech_profile_no_worker">Sie sind in diesem Konto noch nicht als Techniker eingerichtet. Bitten Sie einen Administrator, Sie hinzuzufügen.</string>
 </resources>

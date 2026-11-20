@@ -2,4 +2,35 @@
 <resources>
     <!-- Account Switcher -->
     <string name="account_switcher_title">I tuoi account</string>
+    <string name="sign_in_subtitle">Manutenzione di flotte, attrezzature e immobili</string>
+    <string name="sign_in_google">Continua con Google</string>
+    <string name="sign_in_email">Continua con l\'email</string>
+    <string name="sign_in_continue_anonymous">Continua senza account</string>
+    <string name="sign_in_find_rentals">Trova noleggi vicino a te</string>
+    <string name="email_sign_in_title">Accedi</string>
+    <string name="email_sign_in_back">Indietro</string>
+    <string name="email_sign_in_email_label">Email</string>
+    <string name="email_sign_in_password_label">Password</string>
+    <string name="email_sign_in_hide_password">Nascondi password</string>
+    <string name="email_sign_in_show_password">Mostra password</string>
+    <string name="email_sign_in_button">Accedi</string>
+    <string name="spinner_preparing">Preparazione del tuo account…</string>
+    <string name="spinner_creating">Creazione del tuo account…</string>
+    <string name="alert_move_data_title">Spostare i tuoi dati in questo account?</string>
+    <string name="alert_move_data_action">Sposta dati</string>
+    <string name="alert_move_data_fresh">Ricomincia da zero</string>
+    <string name="email_signin_create_account">Crea account</string>
+    <string name="email_signin_display_name">Nome visualizzato</string>
+    <string name="email_signin_have_account">Hai già un account? Accedi</string>
+    <string name="account_switcher_active_account">Account attivo</string>
+    <string name="account_switcher_add_account">Crea nuovo account</string>
+    <string name="account_switcher_sign_out">Esci</string>
+    <string name="auth_error_email_password_required">Email e password sono obbligatorie</string>
+    <string name="auth_error_sign_in_failed">Accesso non riuscito.</string>
+    <string name="auth_error_token_unavailable">Impossibile ottenere il token ID di Firebase</string>
+    <string name="auth_error_anonymous_failed">Impossibile continuare senza account</string>
+    <string name="auth_error_wrong_password">Password errata</string>
+    <string name="auth_error_user_not_found">Nessun account trovato per questa email</string>
+    <string name="auth_error_network">Impossibile raggiungere il server. Controlla la connessione e riprova.</string>
+    <string name="auth_error_too_many_requests">Troppe richieste. Attendi %1$d minuto/i e riprova.</string>
 </resources>

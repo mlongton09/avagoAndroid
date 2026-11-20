@@ -236,6 +236,7 @@
     <string name="tech_profile_cert_remove">Retirer la certification</string>
     <string name="tech_profile_cert_clear_expiry">Effacer</string>
     <string name="tech_profile_rate_currency">Devise</string>
-    <string name="tech_profile_rate_hint">Un nouveau taux s\'applique à partir d\'aujourd\'hui.</string>
+    <string name="tech_profile_rate_hint">Un nouveau taux s\'applique ? partir d\'aujourd\'hui. Videz le taux pour y mettre fin aujourd\'hui.</string>
     <string name="tech_profile_rate_invalid">Saisissez un taux horaire valide et un code devise à 3 lettres.</string>
+    <string name="tech_profile_no_worker">Vous n\'êtes pas encore configuré comme technicien dans ce compte. Demandez à un administrateur de vous ajouter.</string>
 </resources>

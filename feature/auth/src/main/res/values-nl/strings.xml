@@ -2,4 +2,35 @@
 <resources>
     <!-- Account Switcher -->
     <string name="account_switcher_title">Uw accounts</string>
+    <string name="sign_in_subtitle">Onderhoud van wagenparken, materieel en vastgoed</string>
+    <string name="sign_in_google">Doorgaan met Google</string>
+    <string name="sign_in_email">Doorgaan met e-mail</string>
+    <string name="sign_in_continue_anonymous">Doorgaan zonder account</string>
+    <string name="sign_in_find_rentals">Vind verhuur bij jou in de buurt</string>
+    <string name="email_sign_in_title">Inloggen</string>
+    <string name="email_sign_in_back">Terug</string>
+    <string name="email_sign_in_email_label">E-mail</string>
+    <string name="email_sign_in_password_label">Wachtwoord</string>
+    <string name="email_sign_in_hide_password">Wachtwoord verbergen</string>
+    <string name="email_sign_in_show_password">Wachtwoord tonen</string>
+    <string name="email_sign_in_button">Inloggen</string>
+    <string name="spinner_preparing">Je account wordt voorbereid…</string>
+    <string name="spinner_creating">Je account wordt aangemaakt…</string>
+    <string name="alert_move_data_title">Je gegevens naar dit account verplaatsen?</string>
+    <string name="alert_move_data_action">Gegevens verplaatsen</string>
+    <string name="alert_move_data_fresh">Opnieuw beginnen</string>
+    <string name="email_signin_create_account">Account aanmaken</string>
+    <string name="email_signin_display_name">Weergavenaam</string>
+    <string name="email_signin_have_account">Heb je al een account? Inloggen</string>
+    <string name="account_switcher_active_account">Actief account</string>
+    <string name="account_switcher_add_account">Nieuw account aanmaken</string>
+    <string name="account_switcher_sign_out">Afmelden</string>
+    <string name="auth_error_email_password_required">E-mail en wachtwoord zijn verplicht</string>
+    <string name="auth_error_sign_in_failed">Inloggen mislukt.</string>
+    <string name="auth_error_token_unavailable">Kan Firebase-ID-token niet ophalen</string>
+    <string name="auth_error_anonymous_failed">Doorgaan zonder account is mislukt</string>
+    <string name="auth_error_wrong_password">Onjuist wachtwoord</string>
+    <string name="auth_error_user_not_found">Geen account gevonden voor dit e-mailadres</string>
+    <string name="auth_error_network">Kan de server niet bereiken. Controleer je verbinding en probeer het opnieuw.</string>
+    <string name="auth_error_too_many_requests">Te veel verzoeken. Wacht %1$d minuut/minuten en probeer het opnieuw.</string>
 </resources>

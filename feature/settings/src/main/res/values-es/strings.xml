@@ -236,6 +236,7 @@
     <string name="tech_profile_cert_remove">Quitar certificación</string>
     <string name="tech_profile_cert_clear_expiry">Borrar</string>
     <string name="tech_profile_rate_currency">Moneda</string>
-    <string name="tech_profile_rate_hint">Una tarifa nueva se aplica desde hoy.</string>
+    <string name="tech_profile_rate_hint">Una tarifa nueva se aplica desde hoy. Vac?e la tarifa para finalizarla hoy.</string>
     <string name="tech_profile_rate_invalid">Introduce una tarifa por hora válida y un código de moneda de 3 letras.</string>
+    <string name="tech_profile_no_worker">Todavía no estás configurado como técnico en esta cuenta. Pide a un administrador que te añada.</string>
 </resources>

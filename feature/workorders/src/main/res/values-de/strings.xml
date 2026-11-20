@@ -75,7 +75,6 @@
     <string name="wo_approve">Genehmigen</string>
     <string name="wo_reject">Ablehnen</string>
     <string name="wo_calendar_today">Heute</string>
-    <string name="wo_create_remove_job">Job entfernen</string>
     <string name="wo_create_effort_hint">Typisch: %1$s Min. · schnell: %2$s · langsam: %3$s · %4$s Aufträge</string>
     <string name="wo_detail_edit_header">Titel und Beschreibung bearbeiten</string>
     <string name="wo_detail_location">Standort</string>
@@ -121,7 +120,6 @@
     <string name="wo_log_complete">Abschließen &amp; schließen</string>
     <string name="wo_log_section_details">Details</string>
     <string name="wo_log_section_work_order">Arbeitsauftrag</string>
-    <string name="wo_log_section_history">Verlauf</string>
     <string name="wo_log_timer_start">Start</string>
     <string name="wo_log_timer_pause">Pause</string>
     <string name="wo_log_timer_resume">Fortsetzen</string>
@@ -219,14 +217,12 @@
     <string name="cost_lines_save">Speichern</string>
     <string name="cost_lines_cancel">Abbrechen</string>
     <string name="cost_lines_back">Zurück</string>
-    <string name="gl_account_back">Zurück</string>
     <string name="reschedule_title">Verschieben</string>
     <string name="reschedule_confirm">Verschieben</string>
     <string name="reschedule_cancel">Abbrechen</string>
     <string name="asset_group_picker_title">Objektgruppe</string>
     <string name="asset_group_picker_search">Suchen</string>
     <string name="asset_group_picker_empty">Keine Objektgruppen gefunden</string>
-    <string name="job_picker_back">Zurück</string>
     <string name="wo_list_retry">Erneut versuchen</string>
     <string name="wo_filter_clear">Filter zurücksetzen</string>
     <string name="wo_detail_reschedule">Verschieben</string>
@@ -267,9 +263,6 @@
     <string name="tech_profile_assigned_wos_header">Zugewiesene Arbeitsaufträge</string>
     <string name="tech_profile_no_wos">Keine Arbeitsaufträge zugewiesen</string>
     <string name="dispatch_rebalance_coming_soon">Automatische Neuverteilung folgt in Kürze</string>
-    <string name="wo_budget_labor">Arbeit</string>
-    <string name="wo_budget_parts">Teile</string>
-    <string name="wo_budget_total">Gesamt</string>
     <string name="wo_export_pdf">PDF exportieren</string>
     <string name="wo_pdf_share_chooser">Arbeitsauftrag teilen</string>
     <string name="wo_templates_title">Vorlagen</string>
@@ -363,4 +356,36 @@
     <string name="tech_profile_certifications_header">Zertifizierungen</string>
     <string name="tech_profile_cert_expires_on">Läuft ab am %1$s</string>
     <string name="tech_profile_cert_expired_on">Abgelaufen am %1$s</string>
+    <string name="wo_status_pending_approval">Genehmigung ausstehend</string>
+    <string name="wo_status_scheduled">Geplant</string>
+    <string name="wo_status_closed">Geschlossen</string>
+    <string name="wo_status_skipped">Übersprungen</string>
+    <string name="cost_lines_kind_labor">Arbeit</string>
+    <string name="cost_lines_kind_part">Teil</string>
+    <string name="cost_lines_kind_misc">Sonstiges</string>
+    <string name="wo_pdf_status">Status</string>
+    <string name="wo_pdf_priority">Priorität</string>
+    <string name="wo_pdf_due_date">Fälligkeitsdatum</string>
+    <string name="wo_pdf_total_cost">Gesamtkosten</string>
+    <string name="wo_pdf_assignments">Zuweisungen</string>
+    <string name="wo_pdf_unassigned">Nicht zugewiesen</string>
+    <string name="wo_detail_assignment_pending">Ihnen wurde dieser Arbeitsauftrag zugewiesen.</string>
+    <string name="wo_detail_assignment_accept">Annehmen</string>
+    <string name="wo_detail_assignment_decline">Ablehnen</string>
+    <string name="wo_create_section_checklist">Checkliste</string>
+    <string name="wo_create_remove_checklist_item">Checklistenpunkt entfernen</string>
+    <string name="wo_create_add_checklist_item">Checklistenpunkt hinzufügen</string>
+    <string name="wo_create_clear_extra_assets">Zusätzliche Objekte entfernen</string>
+    <string name="wo_create_from_template">Vorlage</string>
+    <string name="wo_create_no_template">Mit einer Vorlage beginnen</string>
+    <string name="wo_create_save_failed">Speichern nicht möglich: %1$s</string>
+    <string name="wo_log_cost_line">Kosten des Protokolleintrags</string>
+    <plurals name="asset_group_picker_count">
+        <item quantity="one">%d Objekt</item>
+        <item quantity="other">%d Objekte</item>
+    </plurals>
+    <plurals name="wo_create_extra_assets">
+        <item quantity="one">Umfasst auch %d weiteres Objekt</item>
+        <item quantity="other">Umfasst auch %d weitere Objekte</item>
+    </plurals>
 </resources>

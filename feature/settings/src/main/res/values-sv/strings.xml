@@ -232,6 +232,7 @@
     <string name="tech_profile_cert_remove">Ta bort certifiering</string>
     <string name="tech_profile_cert_clear_expiry">Rensa</string>
     <string name="tech_profile_rate_currency">Valuta</string>
-    <string name="tech_profile_rate_hint">En ny taxa gäller från i dag.</string>
+    <string name="tech_profile_rate_hint">En ny taxa g?ller fr?n i dag. T?m taxan f?r att avsluta den i dag.</string>
     <string name="tech_profile_rate_invalid">Ange en giltig timtaxa och en valutakod med 3 bokstäver.</string>
+    <string name="tech_profile_no_worker">Du är inte konfigurerad som tekniker i det här kontot ännu. Be en administratör att lägga till dig.</string>
 </resources>

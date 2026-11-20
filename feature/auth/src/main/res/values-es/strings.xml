@@ -2,4 +2,35 @@
 <resources>
     <!-- Account Switcher -->
     <string name="account_switcher_title">Sus cuentas</string>
+    <string name="sign_in_subtitle">Mantenimiento de flotas, equipos e inmuebles</string>
+    <string name="sign_in_google">Continuar con Google</string>
+    <string name="sign_in_email">Continuar con correo electrónico</string>
+    <string name="sign_in_continue_anonymous">Continuar sin cuenta</string>
+    <string name="sign_in_find_rentals">Encuentra alquileres cerca de ti</string>
+    <string name="email_sign_in_title">Iniciar sesión</string>
+    <string name="email_sign_in_back">Atrás</string>
+    <string name="email_sign_in_email_label">Correo electrónico</string>
+    <string name="email_sign_in_password_label">Contraseña</string>
+    <string name="email_sign_in_hide_password">Ocultar contraseña</string>
+    <string name="email_sign_in_show_password">Mostrar contraseña</string>
+    <string name="email_sign_in_button">Iniciar sesión</string>
+    <string name="spinner_preparing">Preparando tu cuenta…</string>
+    <string name="spinner_creating">Creando tu cuenta…</string>
+    <string name="alert_move_data_title">¿Mover tus datos a esta cuenta?</string>
+    <string name="alert_move_data_action">Mover datos</string>
+    <string name="alert_move_data_fresh">Empezar de cero</string>
+    <string name="email_signin_create_account">Crear cuenta</string>
+    <string name="email_signin_display_name">Nombre visible</string>
+    <string name="email_signin_have_account">¿Ya tienes cuenta? Inicia sesión</string>
+    <string name="account_switcher_active_account">Cuenta activa</string>
+    <string name="account_switcher_add_account">Crear cuenta nueva</string>
+    <string name="account_switcher_sign_out">Cerrar sesión</string>
+    <string name="auth_error_email_password_required">Se requieren correo y contraseña</string>
+    <string name="auth_error_sign_in_failed">Error al iniciar sesión.</string>
+    <string name="auth_error_token_unavailable">No se pudo obtener el token de ID de Firebase</string>
+    <string name="auth_error_anonymous_failed">No se pudo continuar sin cuenta</string>
+    <string name="auth_error_wrong_password">Contraseña incorrecta</string>
+    <string name="auth_error_user_not_found">No hay ninguna cuenta con este correo</string>
+    <string name="auth_error_network">No se puede conectar con el servidor. Comprueba tu conexión e inténtalo de nuevo.</string>
+    <string name="auth_error_too_many_requests">Demasiadas solicitudes. Espera %1$d minuto(s) e inténtalo de nuevo.</string>
 </resources>
