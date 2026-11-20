@@ -1,4 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Priority labels -->
+    <string name="wo_views_title">Sparade vyer</string>
+    <string name="wo_view_save_current">Spara aktuella filter…</string>
+    <string name="wo_view_save_title">Spara vy</string>
+    <string name="wo_view_edit_title">Redigera vy</string>
+    <string name="wo_view_name">Namn</string>
+    <string name="wo_view_shared">Delad med kontot</string>
+    <string name="wo_view_shared_managers">Endast chefer kan dela vyer.</string>
+    <string name="wo_view_use_current">Ersätt filtren med de aktuella</string>
+    <string name="wo_view_save">Spara</string>
+    <string name="wo_view_cancel">Avbryt</string>
+    <string name="wo_view_delete">Ta bort vy</string>
+    <string name="wo_view_delete_title">Ta bort %1$s?</string>
+    <string name="wo_view_unreadable">Vyn sparades i ett format som appen inte kan läsa.</string>
+    <string name="wo_view_not_ready">Appen läser fortfarande in dina data. Försök igen om en stund.</string>
+    <string name="wo_view_gone">Vyn finns inte längre.</string>
+    <string name="wo_view_invalid">Ge vyn ett namn.</string>
+    <string name="wo_view_save_failed">Vyn kunde inte sparas.</string>
 </resources>

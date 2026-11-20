@@ -20,6 +20,16 @@
 
     <!-- Schema v2: API version incompatible (ServiceUnavailableUpdateScreen) -->
     <string name="v2_update_required_title">Tjenesten er utilgjengelig</string>
-    <string name="v2_update_required_message">Denne versjonen av Avago kan ikke lenger koble til tjenesten. Oppdater appen for ? fortsette.</string>
+    <string name="v2_update_required_message">Denne versjonen av Avago kan ikke lenger koble til tjenesten. Oppdater appen for å fortsette.</string>
     <string name="v2_update_required_action">Oppdater appen</string>
+    <string name="custom_fields_title">Egendefinerte felt</string>
+    <string name="custom_fields_unset">Ikke angitt</string>
+    <string name="custom_fields_required_label">%1$s *</string>
+    <string name="custom_fields_save">Lagre</string>
+    <string name="custom_fields_cancel">Avbryt</string>
+    <string name="custom_fields_clear">Tøm</string>
+    <string name="custom_fields_not_ready">Appen laster fortsatt inn dataene dine. Prøv igjen om litt.</string>
+    <string name="custom_fields_gone">Dette feltet finnes ikke lenger.</string>
+    <string name="custom_fields_invalid">Verdien er ikke gyldig for dette feltet.</string>
+    <string name="custom_fields_save_failed">Verdien kunne ikke lagres.</string>
 </resources>

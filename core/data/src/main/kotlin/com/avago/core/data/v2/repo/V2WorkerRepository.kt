@@ -8,11 +8,8 @@ import com.avago.core.data.domain.Worker
 import com.avago.core.data.domain.WorkerDraft
 import com.avago.core.data.domain.WorkerRepository
 import com.avago.core.data.v2.V2CommandService
-import com.avago.core.data.v2.V2OverlayMerge
 import com.avago.core.data.v2.V2StoreAccess
 import com.avago.core.data.v2.commands.MaintCommands
-import com.avago.core.data.v2.str
-import com.avago.core.data.v2.strOrNull
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -46,20 +43,5 @@ class V2ReferenceRepository @Inject constructor(private val store: V2StoreAccess
         store.observe(setOf("reference_values"), emptyList()) { conn -> V2MaintRows.referenceValues(conn, kind) }
 
     override fun observeCategories(kind: String): Flow<List<Category>> =
-        store.observe(setOf("categories"), emptyList()) { conn ->
-            V2OverlayMerge.query(conn, "categories", "kind = ?", listOf(kind)) { it["kind"] == kind }
-                .map { r ->
-                    Category(
-                        id = r.str("id"),
-                        kind = r.str("kind"),
-                        name = r.str("name"),
-                        parentId = r.strOrNull("parent_id"),
-                        color = r.strOrNull("color"),
-                        icon = r.strOrNull("icon"),
-                        defaultPriority = r.strOrNull("default_priority"),
-                        systemCode = r.strOrNull("system_code"),
-                    )
-                }
-                .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER, Category::name))
-        }
+        store.observe(setOf("categories"), emptyList()) { conn -> V2InventoryRepository.categories(conn, kind) }
 }

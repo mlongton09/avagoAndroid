@@ -240,12 +240,15 @@ data class ReorderSuggestion(
 
 data class Category(
     val id: String,
+    val version: Long,
     val kind: String,
     val name: String,
     val parentId: String?,
     val color: String?,
     val icon: String?,
     val defaultPriority: String?,
+    val defaultSlaHours: Int?,
+    /** Set on system categories, which cannot be renamed. */
     val systemCode: String?,
 )
 

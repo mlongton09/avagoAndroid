@@ -1,6 +1,7 @@
 package com.avago.core.data.di
 
 import com.avago.core.data.domain.AccountPreferencesRepository
+import com.avago.core.data.domain.AdminRepository
 import com.avago.core.data.domain.ActivityRepository
 import com.avago.core.data.domain.AssetRepository
 import com.avago.core.data.domain.ChangeQueueRepository
@@ -18,6 +19,7 @@ import com.avago.core.data.domain.WorkOrderRepository
 import com.avago.core.data.domain.WorkerRepository
 import com.avago.core.data.v2.V2ChangeQueueRepository
 import com.avago.core.data.v2.repo.V2AccountPreferencesRepository
+import com.avago.core.data.v2.repo.V2AdminRepository
 import com.avago.core.data.v2.repo.V2ActivityRepository
 import com.avago.core.data.v2.repo.V2AssetRepository
 import com.avago.core.data.v2.repo.V2ConfigRepository
@@ -72,4 +74,6 @@ abstract class RepositoryModule {
     @Binds abstract fun documents(impl: V2DocumentRepository): DocumentRepository
 
     @Binds abstract fun accountPreferences(impl: V2AccountPreferencesRepository): AccountPreferencesRepository
+
+    @Binds abstract fun admin(impl: V2AdminRepository): AdminRepository
 }

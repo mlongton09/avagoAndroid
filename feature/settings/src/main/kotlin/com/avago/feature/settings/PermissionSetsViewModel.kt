@@ -1,69 +1,49 @@
 package com.avago.feature.settings
 
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.avago.core.auth.IdentityManager
-import com.avago.core.network.AvagoServiceClient
-import com.avago.core.network.NetworkResult
-import com.avago.core.network.model.PermissionSet
+import com.avago.core.data.domain.AccountMember
+import com.avago.core.data.domain.AdminRepository
+import com.avago.core.data.domain.PermissionSet
+import com.avago.core.data.domain.PermissionSetDraft
+import com.avago.core.data.v2.V2GeneratedPermissions
+import com.avago.core.data.v2.V2PermissionKey
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
-import timber.log.Timber
+import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
 @HiltViewModel
 class PermissionSetsViewModel @Inject constructor(
-    private val client: AvagoServiceClient,
-    private val identity: IdentityManager,
-) : ViewModel() {
+    private val admin: AdminRepository,
+) : AdminViewModel() {
 
-    private val _permissionSets = MutableStateFlow<List<PermissionSet>>(emptyList())
-    val permissionSets: StateFlow<List<PermissionSet>> = _permissionSets
+    val sets: StateFlow<List<PermissionSet>?> = admin.observePermissionSets()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading
+    val members: StateFlow<List<AccountMember>> = admin.observeMembers()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun load() {
-        val accountId = identity.getActiveAccountId() ?: return
-        viewModelScope.launch {
-            _isLoading.value = true
-            try {
-                val result = client.listPermissionSets(accountId)
-                if (result is NetworkResult.Success) {
-                    _permissionSets.value = result.data
-                }
-            } catch (e: Exception) {
-                Timber.e(e, "loadPermissionSets failed")
-            } finally {
-                _isLoading.value = false
-            }
-        }
+    val canManage: StateFlow<Boolean> = admin.observeAllowed(MANAGE)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val canAssign: StateFlow<Boolean> = admin.observeAllowed(ASSIGN)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /** The permission keys a set can hold, by area. */
+    val keysByArea: Map<String, List<V2PermissionKey>> = V2GeneratedPermissions.keys.groupBy { it.area }.toSortedMap()
+
+    /** Creates a set when [id] is null, otherwise updates it. */
+    fun save(id: String?, draft: PermissionSetDraft) = submit {
+        if (id == null) admin.createPermissionSet(draft) else admin.updatePermissionSet(id, draft)
     }
 
-    fun create(name: String, permissions: List<String>) {
-        val accountId = identity.getActiveAccountId() ?: return
-        viewModelScope.launch {
-            try {
-                val body = mapOf("name" to name, "permissions" to permissions)
-                client.createPermissionSet(accountId, body)
-                load()
-            } catch (e: Exception) {
-                Timber.e(e, "createPermissionSet failed")
-            }
-        }
-    }
+    fun delete(id: String) = submit { admin.deletePermissionSet(id) }
 
-    fun delete(setId: String) {
-        val accountId = identity.getActiveAccountId() ?: return
-        viewModelScope.launch {
-            try {
-                client.deletePermissionSet(accountId, setId)
-                _permissionSets.value = _permissionSets.value.filter { it.id != setId }
-            } catch (e: Exception) {
-                Timber.e(e, "deletePermissionSet failed")
-            }
-        }
+    fun assign(userId: String, permissionSetId: String?) = submit { admin.assignPermissionSet(userId, permissionSetId) }
+
+    private companion object {
+        const val MANAGE = "admin.manage_permission_sets"
+        const val ASSIGN = "member.assign_permission_set"
     }
 }

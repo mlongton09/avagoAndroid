@@ -107,10 +107,12 @@ import org.json.JSONObject
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import com.avago.core.data.domain.CustomFieldEntity
 import com.avago.core.data.domain.Activity
 import com.avago.core.data.domain.Asset
 import com.avago.core.data.domain.AssetMeter
 import com.avago.core.data.domain.Attachment
+import com.avago.core.ui.CustomFieldsCard
 import com.avago.core.ui.components.StoredFileImage
 import com.avago.core.ui.CategoryBadge
 import com.avago.core.ui.CategoryItem
@@ -569,6 +571,13 @@ private fun LogTab(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             }
+        }
+        item(key = "custom_fields") {
+            CustomFieldsCard(
+                entity = CustomFieldEntity.ASSET,
+                entityId = asset.id,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
         }
 
         if (logsByYear.isEmpty()) {

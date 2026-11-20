@@ -1,7 +1,11 @@
 package com.avago.feature.workorders.viewmodel
 
-import com.avago.core.data.domain.SyncRepository
 import android.content.Context
+import com.avago.core.data.domain.AdminRepository
+import com.avago.core.data.domain.RecordNotFoundException
+import com.avago.core.data.domain.SavedView
+import com.avago.core.data.domain.StoreNotReadyException
+import com.avago.core.data.domain.SyncRepository
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.data.domain.WorkOrder
@@ -10,9 +14,11 @@ import com.avago.core.data.domain.WorkerRepository
 import com.avago.core.permissions.Permissions
 import com.avago.core.permissions.PermissionsManager
 import com.avago.feature.workorders.R
+import com.avago.feature.workorders.model.WoSavedViewSpec
 import com.avago.feature.workorders.model.WoSearch
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -45,6 +51,7 @@ class WorkOrderListViewModel @Inject constructor(
     workers: WorkerRepository,
     private val sync: SyncRepository,
     private val permissionsManager: PermissionsManager,
+    private val admin: AdminRepository,
     @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
@@ -239,6 +246,87 @@ class WorkOrderListViewModel @Inject constructor(
                 _syncError.value = appContext.getString(R.string.wo_list_sync_failed)
             } finally {
                 _isRefreshing.value = false
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ saved views
+
+    /** The member's own and the account's saved work-order views. */
+    val savedViews: StateFlow<List<SavedView>> = admin.observeSavedViews(WoSavedViewSpec.DATASET)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Managers may share views with the whole account and change shared ones. */
+    val isManager: StateFlow<Boolean> = admin.observeIsManager()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    private val _activeViewId = MutableStateFlow<String?>(null)
+
+    /** The applied view while the filters still match it; changing a filter leaves the view. */
+    val activeView: StateFlow<SavedView?> = combine(
+        savedViews, _activeViewId, combine(_searchQuery, _statusFilter, _scopeFilter, _horizon, WoSavedViewSpec::of),
+    ) { views, id, current ->
+        views.firstOrNull { it.id == id }?.takeIf { WoSavedViewSpec.parse(it.spec) == current }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    private val _viewMessage = MutableStateFlow<Int?>(null)
+
+    /** A string resource about the last saved-view action, shown once. */
+    val viewMessage: StateFlow<Int?> = _viewMessage.asStateFlow()
+
+    fun viewMessageShown() {
+        _viewMessage.value = null
+    }
+
+    fun applyView(view: SavedView) {
+        val spec = WoSavedViewSpec.parse(view.spec)
+        if (spec == null) {
+            _viewMessage.value = R.string.wo_view_unreadable
+            return
+        }
+        _searchQuery.value = spec.query
+        _statusFilter.value = spec.statuses.toSet()
+        _scopeFilter.value = spec.scopeFilter
+        _horizon.value = spec.horizonFilter
+        _activeViewId.value = view.id
+    }
+
+    private fun currentSpec() = WoSavedViewSpec.of(_searchQuery.value, _statusFilter.value, _scopeFilter.value, _horizon.value)
+
+    /** Saves the current filters as a new view. */
+    fun saveView(name: String, shared: Boolean) = viewAction {
+        _activeViewId.value = admin.createSavedView(WoSavedViewSpec.DATASET, name, currentSpec().toJson(), shared)
+    }
+
+    /** Renames [view], changes its sharing, and when [withCurrentFilters] replaces its filters with the current ones. */
+    fun updateView(view: SavedView, name: String, shared: Boolean, withCurrentFilters: Boolean) = viewAction {
+        admin.updateSavedView(view.id, name, if (withCurrentFilters) currentSpec().toJson() else view.spec, shared)
+        if (withCurrentFilters) _activeViewId.value = view.id
+    }
+
+    fun deleteView(view: SavedView) = viewAction {
+        admin.deleteSavedView(view.id)
+        if (_activeViewId.value == view.id) _activeViewId.value = null
+    }
+
+    private fun viewAction(block: suspend () -> Unit) {
+        viewModelScope.launch {
+            try {
+                block()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: StoreNotReadyException) {
+                Timber.w(e, "[WoListVM] saved view change before the store opened")
+                _viewMessage.value = R.string.wo_view_not_ready
+            } catch (e: RecordNotFoundException) {
+                Timber.w(e, "[WoListVM] saved view is gone")
+                _viewMessage.value = R.string.wo_view_gone
+            } catch (e: IllegalArgumentException) {
+                Timber.w(e, "[WoListVM] saved view rejected locally")
+                _viewMessage.value = R.string.wo_view_invalid
+            } catch (e: IllegalStateException) {
+                Timber.e(e, "[WoListVM] saved view change could not be queued")
+                _viewMessage.value = R.string.wo_view_save_failed
             }
         }
     }

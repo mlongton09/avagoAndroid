@@ -14,6 +14,7 @@ import com.avago.feature.settings.LegalTextScreen
 import com.avago.feature.settings.LegalTextType
 import com.avago.feature.settings.InviteUsersScreen
 import com.avago.feature.settings.MyTechProfileScreen
+import com.avago.feature.settings.CategoriesScreen
 import com.avago.feature.settings.CustomFieldDefsScreen
 import com.avago.feature.settings.PermissionSetsScreen
 import com.avago.feature.settings.SettingsScreen
@@ -35,6 +36,7 @@ object SettingsRoute {
     const val TermsOfService = "settings/legal/terms"
     const val PermissionSets = "settings/permission_sets"
     const val CustomFields = "settings/custom_fields"
+    const val Categories = "settings/categories"
 }
 
 /**
@@ -59,6 +61,7 @@ fun NavGraphBuilder.settingsNavGraph(navController: NavController) {
                 onNavigateToFailedChanges = { navController.navigate(SettingsRoute.FailedChanges) },
                 onNavigateToPermissionSets = { navController.navigate(SettingsRoute.PermissionSets) },
                 onNavigateToCustomFields  = { navController.navigate(SettingsRoute.CustomFields) },
+                onNavigateToCategories    = { navController.navigate(SettingsRoute.Categories) },
             )
         }
 
@@ -137,6 +140,10 @@ fun NavGraphBuilder.settingsNavGraph(navController: NavController) {
 
         composable(SettingsRoute.CustomFields) {
             CustomFieldDefsScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(SettingsRoute.Categories) {
+            CategoriesScreen(onBack = { navController.popBackStack() })
         }
     }
 }

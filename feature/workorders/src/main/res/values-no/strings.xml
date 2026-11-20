@@ -1,4 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Priority labels -->
+    <string name="wo_views_title">Lagrede visninger</string>
+    <string name="wo_view_save_current">Lagre gjeldende filtre…</string>
+    <string name="wo_view_save_title">Lagre visning</string>
+    <string name="wo_view_edit_title">Rediger visning</string>
+    <string name="wo_view_name">Navn</string>
+    <string name="wo_view_shared">Delt med kontoen</string>
+    <string name="wo_view_shared_managers">Bare ledere kan dele visninger.</string>
+    <string name="wo_view_use_current">Erstatt filtrene med de gjeldende</string>
+    <string name="wo_view_save">Lagre</string>
+    <string name="wo_view_cancel">Avbryt</string>
+    <string name="wo_view_delete">Slett visning</string>
+    <string name="wo_view_delete_title">Slette %1$s?</string>
+    <string name="wo_view_unreadable">Denne visningen er lagret i et format appen ikke kan lese.</string>
+    <string name="wo_view_not_ready">Appen laster fortsatt inn dataene dine. Prøv igjen om litt.</string>
+    <string name="wo_view_gone">Denne visningen finnes ikke lenger.</string>
+    <string name="wo_view_invalid">Gi visningen et navn.</string>
+    <string name="wo_view_save_failed">Visningen kunne ikke lagres.</string>
 </resources>

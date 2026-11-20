@@ -1,5 +1,15 @@
 package com.avago.feature.workorders
 
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -108,6 +118,14 @@ fun WorkOrderListScreen(
     val canCreateWo by viewModel.canCreateWo.collectAsStateWithLifecycle()
     val canOpenDispatch by viewModel.canOpenDispatch.collectAsStateWithLifecycle()
     val isFilteredEmpty by viewModel.isFilteredEmpty.collectAsStateWithLifecycle()
+    val savedViews by viewModel.savedViews.collectAsStateWithLifecycle()
+    val activeView by viewModel.activeView.collectAsStateWithLifecycle()
+    val isManager by viewModel.isManager.collectAsStateWithLifecycle()
+    val viewMessage by viewModel.viewMessage.collectAsStateWithLifecycle()
+    val snackbar = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    // "" opens the dialog for a new view, otherwise the id of the view being edited.
+    var viewDialog by rememberSaveable { mutableStateOf<String?>(null) }
     val haptic = LocalHapticFeedback.current
 
     val horizonOptions = listOf(
@@ -123,6 +141,32 @@ fun WorkOrderListScreen(
 
     var showSearchBar by remember { mutableStateOf(false) }
     var showFilterMenu by remember { mutableStateOf(false) }
+
+    LaunchedEffect(viewMessage) {
+        viewMessage?.let {
+            snackbar.showSnackbar(context.getString(it))
+            viewModel.viewMessageShown()
+        }
+    }
+
+    viewDialog?.let { id ->
+        val editing = savedViews.firstOrNull { it.id == id }
+        if (id.isEmpty() || editing != null) {
+            WoSavedViewDialog(
+                view = editing,
+                canShare = isManager,
+                onSave = { name, shared, withCurrentFilters ->
+                    if (editing == null) viewModel.saveView(name, shared) else viewModel.updateView(editing, name, shared, withCurrentFilters)
+                    viewDialog = null
+                },
+                onDelete = {
+                    editing?.let(viewModel::deleteView)
+                    viewDialog = null
+                },
+                onDismiss = { viewDialog = null },
+            )
+        }
+    }
 
     val scrollAwareState = rememberScrollAwareHeaderState()
     val headerVisible by scrollAwareState.headerVisible
@@ -142,6 +186,7 @@ fun WorkOrderListScreen(
     Scaffold(
         modifier = modifier,
         contentWindowInsets = WindowInsets(0),
+        snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
             if (canCreateWo) {
                 FloatingActionButton(
@@ -421,6 +466,52 @@ fun WorkOrderListScreen(
                                         onClick = { viewModel.toggleStatusFilter(status.key) },
                                     )
                                 }
+                                HorizontalDivider()
+                                Text(
+                                    text = stringResource(R.string.wo_views_title),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                )
+                                savedViews.forEach { view ->
+                                    DropdownMenuItem(
+                                        text = { Text(view.name) },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = when {
+                                                    view.id == activeView?.id -> Icons.Default.Check
+                                                    view.shared -> Icons.Default.Group
+                                                    else -> Icons.Default.BookmarkBorder
+                                                },
+                                                contentDescription = if (view.shared) stringResource(R.string.wo_view_shared) else null,
+                                            )
+                                        },
+                                        trailingIcon = if (view.mine || isManager) {
+                                            {
+                                                IconButton(onClick = {
+                                                    showFilterMenu = false
+                                                    viewDialog = view.id
+                                                }) {
+                                                    Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.wo_view_edit_title))
+                                                }
+                                            }
+                                        } else {
+                                            null
+                                        },
+                                        onClick = {
+                                            viewModel.applyView(view)
+                                            showFilterMenu = false
+                                        },
+                                    )
+                                }
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.wo_view_save_current)) },
+                                    leadingIcon = { Icon(Icons.Default.BookmarkAdd, contentDescription = null) },
+                                    onClick = {
+                                        showFilterMenu = false
+                                        viewDialog = ""
+                                    },
+                                )
                             }
                         }
                         // Search icon — toggles search bar

@@ -36,12 +36,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.avago.core.data.domain.CustomFieldEntity
 import com.avago.core.data.domain.ProductSupplier
 import com.avago.core.data.domain.StockCondition
 import com.avago.core.data.domain.StockPosition
 import com.avago.core.data.domain.StockingPolicy
 import com.avago.core.data.domain.formatMoney
 import com.avago.core.data.domain.formatQty
+import com.avago.core.ui.CustomFieldsCard
 import com.avago.core.ui.EmptyState
 import com.avago.feature.inventory.R
 
@@ -156,6 +158,8 @@ fun PartDetailScreen(
             item { TransactionHistoryCard(transactions = state.history) }
 
             item { SuppliersCard(state.suppliers) }
+
+            item { CustomFieldsCard(entity = CustomFieldEntity.PRODUCT, entityId = product.id) }
         }
     }
 }

@@ -59,8 +59,6 @@ import com.avago.core.network.model.UpgradeRequest
 import com.avago.core.network.model.UserResponse
 import com.avago.core.network.model.SkipOccurrenceRequest
 import com.avago.core.network.model.KpiSummaryResponse
-import com.avago.core.network.model.CustomFieldDef
-import com.avago.core.network.model.PermissionSet
 import com.avago.core.network.model.SampleWorkspaceJson
 import com.avago.core.network.model.SampleWorkspacesResponse
 import com.avago.core.network.model.SwitchSampleWorkspaceRequest
@@ -1330,66 +1328,6 @@ class AvagoServiceClient @Inject constructor(
             @Suppress("UNCHECKED_CAST")
             client.post("$baseUrl/chat/threads/$threadId/summary")
                 .body<Map<String, Any>>()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Custom Fields (new)
-    // ---------------------------------------------------------------------------
-
-    /** GET /accounts/:accountId/custom-fields?entity_type=... */
-    suspend fun listCustomFieldDefs(
-        accountId: String,
-        entityType: String,
-    ): NetworkResult<List<CustomFieldDef>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/custom-fields") {
-                parameter("entity_type", entityType)
-            }.body<Map<String, List<CustomFieldDef>>>()["field_defs"] ?: emptyList()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Permission Sets (new)
-    // ---------------------------------------------------------------------------
-
-    /** GET /accounts/:accountId/permission-sets */
-    suspend fun listPermissionSets(accountId: String): NetworkResult<List<PermissionSet>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/permission-sets")
-                .body<Map<String, List<PermissionSet>>>()["permission_sets"] ?: emptyList()
-        }
-
-    /** POST /accounts/:accountId/permission-sets */
-    suspend fun createPermissionSet(accountId: String, body: Map<String, Any>): NetworkResult<PermissionSet> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/permission-sets") { setBody(body) }.body()
-        }
-
-    /** DELETE /accounts/:accountId/permission-sets/:setId */
-    suspend fun deletePermissionSet(accountId: String, setId: String): NetworkResult<Unit> =
-        safeNetworkCall {
-            client.delete("$baseUrl/accounts/$accountId/permission-sets/$setId").body()
-        }
-
-    // ---------------------------------------------------------------------------
-    // Custom Field Defs
-    // ---------------------------------------------------------------------------
-
-    /** GET /accounts/:accountId/custom-field-defs */
-    suspend fun listCustomFieldDefs(accountId: String): NetworkResult<Map<String, Any>> =
-        safeNetworkCall {
-            client.get("$baseUrl/accounts/$accountId/custom-field-defs").body()
-        }
-
-    /** POST /accounts/:accountId/custom-field-defs */
-    suspend fun createCustomFieldDef(accountId: String, body: Map<String, Any>): NetworkResult<Map<String, Any>> =
-        safeNetworkCall {
-            client.post("$baseUrl/accounts/$accountId/custom-field-defs") { setBody(body) }.body()
-        }
-
-    /** DELETE /accounts/:accountId/custom-field-defs/:fieldId */
-    suspend fun deleteCustomFieldDef(accountId: String, fieldId: String): NetworkResult<Unit> =
-        safeNetworkCall {
-            client.delete("$baseUrl/accounts/$accountId/custom-field-defs/$fieldId").body()
         }
 
     // ---------------------------------------------------------------------------

@@ -1,4 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Priority labels -->
+    <string name="wo_views_title">Visualizações salvas</string>
+    <string name="wo_view_save_current">Salvar filtros atuais…</string>
+    <string name="wo_view_save_title">Salvar visualização</string>
+    <string name="wo_view_edit_title">Editar visualização</string>
+    <string name="wo_view_name">Nome</string>
+    <string name="wo_view_shared">Compartilhada com a conta</string>
+    <string name="wo_view_shared_managers">Apenas gerentes podem compartilhar visualizações.</string>
+    <string name="wo_view_use_current">Substituir os filtros pelos atuais</string>
+    <string name="wo_view_save">Salvar</string>
+    <string name="wo_view_cancel">Cancelar</string>
+    <string name="wo_view_delete">Excluir visualização</string>
+    <string name="wo_view_delete_title">Excluir %1$s?</string>
+    <string name="wo_view_unreadable">Esta visualização foi salva em um formato que o app não consegue ler.</string>
+    <string name="wo_view_not_ready">O app ainda está carregando seus dados. Tente novamente em instantes.</string>
+    <string name="wo_view_gone">Esta visualização não existe mais.</string>
+    <string name="wo_view_invalid">Dê um nome à visualização.</string>
+    <string name="wo_view_save_failed">Não foi possível salvar a visualização.</string>
 </resources>

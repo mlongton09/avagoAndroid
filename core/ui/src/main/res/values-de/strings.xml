@@ -26,7 +26,17 @@
     <string name="core_step_current">Aktueller Schritt</string>
 
     <!-- Schema v2: API version incompatible (ServiceUnavailableUpdateScreen) -->
-    <string name="v2_update_required_title">Dienst nicht verf?gbar</string>
+    <string name="v2_update_required_title">Dienst nicht verfügbar</string>
     <string name="v2_update_required_message">Diese Version von Avago kann keine Verbindung mehr zum Dienst herstellen. Bitte aktualisiere die App, um fortzufahren.</string>
     <string name="v2_update_required_action">App aktualisieren</string>
+    <string name="custom_fields_title">Benutzerdefinierte Felder</string>
+    <string name="custom_fields_unset">Nicht festgelegt</string>
+    <string name="custom_fields_required_label">%1$s *</string>
+    <string name="custom_fields_save">Speichern</string>
+    <string name="custom_fields_cancel">Abbrechen</string>
+    <string name="custom_fields_clear">Leeren</string>
+    <string name="custom_fields_not_ready">Die App lädt noch Ihre Daten. Bitte gleich erneut versuchen.</string>
+    <string name="custom_fields_gone">Dieses Feld existiert nicht mehr.</string>
+    <string name="custom_fields_invalid">Dieser Wert ist für dieses Feld ungültig.</string>
+    <string name="custom_fields_save_failed">Der Wert konnte nicht gespeichert werden.</string>
 </resources>

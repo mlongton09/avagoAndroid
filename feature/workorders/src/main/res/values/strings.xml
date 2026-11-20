@@ -371,4 +371,21 @@
     <string name="wo_create_no_template">Start from a template</string>
     <string name="wo_create_save_failed">Could not save: %1$s</string>
     <string name="wo_log_cost_line">Log entry cost</string>
+    <string name="wo_views_title">Saved views</string>
+    <string name="wo_view_save_current">Save current filters…</string>
+    <string name="wo_view_save_title">Save view</string>
+    <string name="wo_view_edit_title">Edit view</string>
+    <string name="wo_view_name">Name</string>
+    <string name="wo_view_shared">Shared with the account</string>
+    <string name="wo_view_shared_managers">Only managers can share views.</string>
+    <string name="wo_view_use_current">Replace its filters with the current ones</string>
+    <string name="wo_view_save">Save</string>
+    <string name="wo_view_cancel">Cancel</string>
+    <string name="wo_view_delete">Delete view</string>
+    <string name="wo_view_delete_title">Delete %1$s?</string>
+    <string name="wo_view_unreadable">This view was saved in a format this app can\'t read.</string>
+    <string name="wo_view_not_ready">The app is still loading your data. Try again in a moment.</string>
+    <string name="wo_view_gone">This view no longer exists.</string>
+    <string name="wo_view_invalid">Give the view a name.</string>
+    <string name="wo_view_save_failed">The view couldn\'t be saved.</string>
 </resources>

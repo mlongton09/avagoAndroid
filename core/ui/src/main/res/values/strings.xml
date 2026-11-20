@@ -67,4 +67,14 @@
     <string name="v2_update_required_title">Service unavailable</string>
     <string name="v2_update_required_message">This version of Avago can no longer connect to the service. Please update the app to continue.</string>
     <string name="v2_update_required_action">Update the app</string>
+    <string name="custom_fields_title">Custom fields</string>
+    <string name="custom_fields_unset">Not set</string>
+    <string name="custom_fields_required_label">%1$s *</string>
+    <string name="custom_fields_save">Save</string>
+    <string name="custom_fields_cancel">Cancel</string>
+    <string name="custom_fields_clear">Clear</string>
+    <string name="custom_fields_not_ready">The app is still loading your data. Try again in a moment.</string>
+    <string name="custom_fields_gone">This field no longer exists.</string>
+    <string name="custom_fields_invalid">That value isn\'t valid for this field.</string>
+    <string name="custom_fields_save_failed">The value couldn\'t be saved.</string>
 </resources>

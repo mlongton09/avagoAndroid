@@ -1,4 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Priority labels -->
+    <string name="wo_views_title">Opgeslagen weergaven</string>
+    <string name="wo_view_save_current">Huidige filters opslaan…</string>
+    <string name="wo_view_save_title">Weergave opslaan</string>
+    <string name="wo_view_edit_title">Weergave bewerken</string>
+    <string name="wo_view_name">Naam</string>
+    <string name="wo_view_shared">Gedeeld met het account</string>
+    <string name="wo_view_shared_managers">Alleen managers kunnen weergaven delen.</string>
+    <string name="wo_view_use_current">Filters vervangen door de huidige</string>
+    <string name="wo_view_save">Opslaan</string>
+    <string name="wo_view_cancel">Annuleren</string>
+    <string name="wo_view_delete">Weergave verwijderen</string>
+    <string name="wo_view_delete_title">%1$s verwijderen?</string>
+    <string name="wo_view_unreadable">Deze weergave is opgeslagen in een indeling die de app niet kan lezen.</string>
+    <string name="wo_view_not_ready">De app laadt je gegevens nog. Probeer het zo opnieuw.</string>
+    <string name="wo_view_gone">Deze weergave bestaat niet meer.</string>
+    <string name="wo_view_invalid">Geef de weergave een naam.</string>
+    <string name="wo_view_save_failed">De weergave kon niet worden opgeslagen.</string>
 </resources>

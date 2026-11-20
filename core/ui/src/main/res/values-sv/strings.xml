@@ -19,7 +19,17 @@
     <string name="rentals_invoice_status_void">Makulerad</string>
 
     <!-- Schema v2: API version incompatible (ServiceUnavailableUpdateScreen) -->
-    <string name="v2_update_required_title">Tj?nsten ?r inte tillg?nglig</string>
-    <string name="v2_update_required_message">Den h?r versionen av Avago kan inte l?ngre ansluta till tj?nsten. Uppdatera appen f?r att forts?tta.</string>
+    <string name="v2_update_required_title">Tjänsten är inte tillgänglig</string>
+    <string name="v2_update_required_message">Den här versionen av Avago kan inte längre ansluta till tjänsten. Uppdatera appen för att fortsätta.</string>
     <string name="v2_update_required_action">Uppdatera appen</string>
+    <string name="custom_fields_title">Anpassade fält</string>
+    <string name="custom_fields_unset">Inte angivet</string>
+    <string name="custom_fields_required_label">%1$s *</string>
+    <string name="custom_fields_save">Spara</string>
+    <string name="custom_fields_cancel">Avbryt</string>
+    <string name="custom_fields_clear">Rensa</string>
+    <string name="custom_fields_not_ready">Appen läser fortfarande in dina data. Försök igen om en stund.</string>
+    <string name="custom_fields_gone">Det här fältet finns inte längre.</string>
+    <string name="custom_fields_invalid">Värdet är inte giltigt för det här fältet.</string>
+    <string name="custom_fields_save_failed">Värdet kunde inte sparas.</string>
 </resources>

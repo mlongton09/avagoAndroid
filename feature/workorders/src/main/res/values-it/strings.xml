@@ -1,4 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Priority labels -->
+    <string name="wo_views_title">Viste salvate</string>
+    <string name="wo_view_save_current">Salva filtri correnti…</string>
+    <string name="wo_view_save_title">Salva vista</string>
+    <string name="wo_view_edit_title">Modifica vista</string>
+    <string name="wo_view_name">Nome</string>
+    <string name="wo_view_shared">Condivisa con l\'account</string>
+    <string name="wo_view_shared_managers">Solo i manager possono condividere le viste.</string>
+    <string name="wo_view_use_current">Sostituisci i filtri con quelli correnti</string>
+    <string name="wo_view_save">Salva</string>
+    <string name="wo_view_cancel">Annulla</string>
+    <string name="wo_view_delete">Elimina vista</string>
+    <string name="wo_view_delete_title">Eliminare %1$s?</string>
+    <string name="wo_view_unreadable">Questa vista è stata salvata in un formato non leggibile dall\'app.</string>
+    <string name="wo_view_not_ready">L\'app sta ancora caricando i dati. Riprova tra un momento.</string>
+    <string name="wo_view_gone">Questa vista non esiste più.</string>
+    <string name="wo_view_invalid">Assegna un nome alla vista.</string>
+    <string name="wo_view_save_failed">Impossibile salvare la vista.</string>
 </resources>

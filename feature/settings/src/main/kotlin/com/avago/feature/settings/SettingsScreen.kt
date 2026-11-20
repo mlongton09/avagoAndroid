@@ -70,6 +70,7 @@ fun SettingsScreen(
     onNavigateToFailedChanges: () -> Unit = {},
     onNavigateToPermissionSets: () -> Unit = {},
     onNavigateToCustomFields: () -> Unit = {},
+    onNavigateToCategories: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val versionName = remember(context) {
@@ -226,11 +227,11 @@ fun SettingsScreen(
 
         // ── Workspace ────────────────────────────────────────────────────────
         item {
-            SectionHeader(text = "Workspace")
+            SectionHeader(text = stringResource(R.string.admin_workspace))
         }
         item {
             NavigationRow(
-                label = "Permission Sets",
+                label = stringResource(R.string.admin_permission_sets_title),
                 leadingIcon = { Icon(Icons.Default.Group, contentDescription = null) },
                 onClick = onNavigateToPermissionSets,
             )
@@ -238,9 +239,17 @@ fun SettingsScreen(
         item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
         item {
             NavigationRow(
-                label = "Custom Fields",
+                label = stringResource(R.string.admin_custom_fields_title),
                 leadingIcon = { Icon(Icons.Default.ChevronRight, contentDescription = null) },
                 onClick = onNavigateToCustomFields,
+            )
+        }
+        item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
+        item {
+            NavigationRow(
+                label = stringResource(R.string.admin_categories_title),
+                leadingIcon = { Icon(Icons.Default.ChevronRight, contentDescription = null) },
+                onClick = onNavigateToCategories,
             )
         }
         item { SectionDivider() }
@@ -661,7 +670,7 @@ private fun SwitchRow(
 
 // ---------------------------------------------------------------------------
 @Composable
-private fun roleDisplayName(role: String): String = when (role.lowercase()) {
+internal fun roleDisplayName(role: String): String = when (role.lowercase()) {
     "root" -> stringResource(R.string.role_root)
     "admin" -> stringResource(R.string.role_admin)
     "manager" -> stringResource(R.string.role_manager)

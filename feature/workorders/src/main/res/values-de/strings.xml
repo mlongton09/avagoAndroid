@@ -280,4 +280,21 @@
     <string name="wo_templates_save">Speichern</string>
     <string name="wo_templates_cancel">Abbrechen</string>
     <string name="wo_templates_delete">Löschen</string>
+    <string name="wo_views_title">Gespeicherte Ansichten</string>
+    <string name="wo_view_save_current">Aktuelle Filter speichern…</string>
+    <string name="wo_view_save_title">Ansicht speichern</string>
+    <string name="wo_view_edit_title">Ansicht bearbeiten</string>
+    <string name="wo_view_name">Name</string>
+    <string name="wo_view_shared">Für das Konto freigegeben</string>
+    <string name="wo_view_shared_managers">Nur Manager können Ansichten freigeben.</string>
+    <string name="wo_view_use_current">Filter durch die aktuellen ersetzen</string>
+    <string name="wo_view_save">Speichern</string>
+    <string name="wo_view_cancel">Abbrechen</string>
+    <string name="wo_view_delete">Ansicht löschen</string>
+    <string name="wo_view_delete_title">%1$s löschen?</string>
+    <string name="wo_view_unreadable">Diese Ansicht wurde in einem Format gespeichert, das die App nicht lesen kann.</string>
+    <string name="wo_view_not_ready">Die App lädt noch Ihre Daten. Bitte gleich erneut versuchen.</string>
+    <string name="wo_view_gone">Diese Ansicht existiert nicht mehr.</string>
+    <string name="wo_view_invalid">Geben Sie der Ansicht einen Namen.</string>
+    <string name="wo_view_save_failed">Die Ansicht konnte nicht gespeichert werden.</string>
 </resources>

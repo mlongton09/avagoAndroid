@@ -71,6 +71,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material.icons.filled.AutoAwesome
 import com.avago.core.ai.ui.ScoutPaletteSheet
+import com.avago.core.ui.CustomFieldsCard
 import com.avago.core.ui.CategoryBadge
 import com.avago.feature.workorders.R
 import com.avago.feature.workorders.model.WoPriority
@@ -95,6 +96,7 @@ import com.avago.feature.workorders.ui.components.priorityBarColor
 import com.avago.feature.workorders.ui.sheets.RescheduleSheet
 import com.avago.feature.workorders.ui.sheets.TechPickerSheet
 import com.avago.core.data.Formatters
+import com.avago.core.data.domain.CustomFieldEntity
 import com.avago.core.data.domain.CostLineType
 import com.avago.core.data.domain.WorkOrderStatus
 import com.avago.feature.workorders.viewmodel.WorkOrderDetailViewModel
@@ -558,6 +560,12 @@ fun WorkOrderDetailScreen(
                             )
                         }
                     }
+
+                    CustomFieldsCard(
+                        entity = CustomFieldEntity.WORK_ORDER,
+                        entityId = currentWo.id,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
 
                     Spacer(modifier = Modifier.height(12.dp))
 

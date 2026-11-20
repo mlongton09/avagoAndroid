@@ -289,12 +289,14 @@ class V2InventoryRepository @Inject constructor(
                 .map { r ->
                     Category(
                         id = r.str("id"),
+                        version = r.long("version"),
                         kind = r.str("kind"),
                         name = r.str("name"),
                         parentId = r.strOrNull("parent_id"),
                         color = r.strOrNull("color"),
                         icon = r.strOrNull("icon"),
                         defaultPriority = r.strOrNull("default_priority"),
+                        defaultSlaHours = r.longOrNull("default_sla_hours")?.toInt(),
                         systemCode = r.strOrNull("system_code"),
                     )
                 }
