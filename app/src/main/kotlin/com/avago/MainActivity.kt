@@ -16,6 +16,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -189,11 +190,11 @@ class MainActivity : ComponentActivity() {
     private fun openStoreListing() {
         val market = android.content.Intent(
             android.content.Intent.ACTION_VIEW,
-            android.net.Uri.parse("market://details?id=$packageName"),
+            "market://details?id=$packageName".toUri(),
         )
         val web = android.content.Intent(
             android.content.Intent.ACTION_VIEW,
-            android.net.Uri.parse("https://play.google.com/store/apps/details?id=$packageName"),
+            "https://play.google.com/store/apps/details?id=$packageName".toUri(),
         )
         runCatching { startActivity(market) }
             .recoverCatching { startActivity(web) }

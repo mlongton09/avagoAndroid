@@ -90,7 +90,8 @@ class CostReportBuilderTest {
     private fun stock(id: String, category: String?, onHand: String, cost: String?) = ProductStock(
         product = Product(
             id = id, sku = id, name = id, categoryId = category, categoryName = category, uomCode = "ea",
-            trackingMode = TrackingMode.NONE, manufacturer = null, modelNumber = null, gtin = null,
+            trackingMode = TrackingMode.NONE, manufacturer = null, modelNumber = null, revision = null,
+            originCountryCode = null, gtin = null,
             standardUnitCost = cost?.let(::BigDecimal), costCurrency = null, defaultReorderQty = null,
             abcClass = null, notes = null, archived = false, version = 1,
         ),
