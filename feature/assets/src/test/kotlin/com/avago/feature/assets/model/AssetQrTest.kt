@@ -81,14 +81,18 @@ class AssetQrTest {
     }
 
     @Test
-    fun `the batch body names a chosen template and omits it for the account default`() {
+    fun `the batch body names a chosen template, forces the built-in sheet, and omits it for the account default`() {
         assertEquals(
             json("""{"asset_ids":["a1","a2"],"format":"pdf","page_size":"thermal","label_template":{"template_id":"t1"}}"""),
-            AssetQr.labelSheetBody(listOf("a1", "a2"), QrLabelLayout.THERMAL, "t1"),
+            AssetQr.labelSheetBody(listOf("a1", "a2"), QrLabelLayout.THERMAL, QrLabelTemplateChoice.Saved("t1")),
+        )
+        assertEquals(
+            json("""{"asset_ids":["a1"],"format":"pdf","page_size":"avery_5160","label_template":{"builtin":true}}"""),
+            AssetQr.labelSheetBody(listOf("a1"), QrLabelLayout.AVERY_5160, QrLabelTemplateChoice.BuiltIn),
         )
         assertEquals(
             json("""{"asset_ids":["a1"],"format":"pdf","page_size":"letter"}"""),
-            AssetQr.labelSheetBody(listOf("a1"), QrLabelLayout.LETTER, null),
+            AssetQr.labelSheetBody(listOf("a1"), QrLabelLayout.LETTER, QrLabelTemplateChoice.AccountDefault),
         )
     }
 
@@ -112,13 +116,14 @@ class AssetQrTest {
     }
 
     @Test
-    fun `a chosen template wins over the account default`() {
+    fun `a chosen template wins over the account default and the built-in sheet overrides both`() {
         val default = template("d", 50.0, 25.0, isDefault = true)
         val other = template("o", 60.0, 30.0)
-        assertEquals(other, effectiveLabelTemplate(listOf(default, other), "o"))
-        assertEquals(default, effectiveLabelTemplate(listOf(default, other), null))
-        assertEquals(default, effectiveLabelTemplate(listOf(default, other), "gone"))
-        assertNull(effectiveLabelTemplate(listOf(other), null))
+        assertEquals(other, effectiveLabelTemplate(listOf(default, other), QrLabelTemplateChoice.Saved("o")))
+        assertEquals(default, effectiveLabelTemplate(listOf(default, other), QrLabelTemplateChoice.AccountDefault))
+        assertEquals(default, effectiveLabelTemplate(listOf(default, other), QrLabelTemplateChoice.Saved("gone")))
+        assertNull(effectiveLabelTemplate(listOf(default, other), QrLabelTemplateChoice.BuiltIn))
+        assertNull(effectiveLabelTemplate(listOf(other), QrLabelTemplateChoice.AccountDefault))
     }
 
     private fun template(id: String, w: Double, h: Double, isDefault: Boolean = false) =

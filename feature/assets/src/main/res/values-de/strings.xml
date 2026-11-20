@@ -144,6 +144,7 @@
     <string name="asset_qr_labels_template">Etikettenvorlage</string>
     <string name="asset_qr_template_default">Kontostandard: %1$s</string>
     <string name="asset_qr_template_builtin">Kontostandard (integrierter Bogen)</string>
+    <string name="asset_qr_template_builtin_sheet">Integrierter Bogen (ohne Vorlage)</string>
     <string name="asset_qr_template_option">%1$s (%2$s × %3$s mm)</string>
     <string name="asset_qr_layout_thermal_roll">Thermodrucker (ein Etikett pro Seite)</string>
     <string name="asset_qr_labels_template_used">Vorlage: %1$s</string>

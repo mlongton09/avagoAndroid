@@ -15,6 +15,7 @@
     <string name="asset_qr_labels_template">Etikettmall</string>
     <string name="asset_qr_template_default">Kontostandard: %1$s</string>
     <string name="asset_qr_template_builtin">Kontostandard (inbyggt ark)</string>
+    <string name="asset_qr_template_builtin_sheet">Inbyggt ark (utan mall)</string>
     <string name="asset_qr_template_option">%1$s (%2$s × %3$s mm)</string>
     <string name="asset_qr_layout_thermal_roll">Termoskrivare (en etikett per sida)</string>
     <string name="asset_qr_labels_template_used">Mall: %1$s</string>

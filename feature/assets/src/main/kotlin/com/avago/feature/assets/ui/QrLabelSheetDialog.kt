@@ -36,12 +36,13 @@ import com.avago.core.ui.openPdfFile
 import com.avago.feature.assets.R
 import com.avago.feature.assets.model.AssetQr
 import com.avago.feature.assets.model.QrLabelLayout
+import com.avago.feature.assets.model.QrLabelTemplateChoice
 import com.avago.feature.assets.viewmodel.QrLabelSheetViewModel
 
 /**
  * Prints the public QR labels of [assetIds] (the assets the list currently shows) as one PDF
- * sheet with the chosen label template (the account default unless another saved template is picked)
- * in a layout the template prints on, then opens it in the system viewer.
+ * sheet with the chosen label template (the account default unless the built-in sheet or another
+ * saved template is picked) in a layout the template prints on, then opens it in the system viewer.
  */
 @Composable
 fun QrLabelSheetDialog(
@@ -79,21 +80,29 @@ fun QrLabelSheetDialog(
                     Column(Modifier.selectableGroup()) {
                         val default = state.accountDefault
                         ChoiceRow(
-                            selected = state.templateId == null,
+                            selected = state.choice == QrLabelTemplateChoice.AccountDefault,
                             enabled = !state.busy,
                             label = if (default != null) {
                                 stringResource(R.string.asset_qr_template_default, templateLabel(default))
                             } else {
                                 stringResource(R.string.asset_qr_template_builtin)
                             },
-                            onClick = { viewModel.selectTemplate(null) },
+                            onClick = { viewModel.selectTemplate(QrLabelTemplateChoice.AccountDefault) },
                         )
+                        if (default != null) {
+                            ChoiceRow(
+                                selected = state.choice == QrLabelTemplateChoice.BuiltIn,
+                                enabled = !state.busy,
+                                label = stringResource(R.string.asset_qr_template_builtin_sheet),
+                                onClick = { viewModel.selectTemplate(QrLabelTemplateChoice.BuiltIn) },
+                            )
+                        }
                         state.templates.filterNot { it.isDefault }.forEach { template ->
                             ChoiceRow(
-                                selected = state.templateId == template.id,
+                                selected = state.choice == QrLabelTemplateChoice.Saved(template.id),
                                 enabled = !state.busy,
                                 label = templateLabel(template),
-                                onClick = { viewModel.selectTemplate(template.id) },
+                                onClick = { viewModel.selectTemplate(QrLabelTemplateChoice.Saved(template.id)) },
                             )
                         }
                     }

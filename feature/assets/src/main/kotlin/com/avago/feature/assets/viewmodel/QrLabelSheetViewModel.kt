@@ -11,6 +11,7 @@ import com.avago.feature.assets.data.AssetQrService
 import com.avago.feature.assets.model.AssetQr
 import com.avago.feature.assets.model.QrLabelJob
 import com.avago.feature.assets.model.QrLabelLayout
+import com.avago.feature.assets.model.QrLabelTemplateChoice
 import com.avago.feature.assets.model.effectiveLabelTemplate
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -30,8 +31,8 @@ import javax.inject.Inject
 data class QrLabelSheetState(
     /** Synced asset label templates, the account default first. */
     val templates: List<AssetLabelTemplate> = emptyList(),
-    /** The chosen saved template; null prints with the account default. */
-    val templateId: String? = null,
+    /** What the job prints with: the account default unless a saved template or the built-in sheet is chosen. */
+    val choice: QrLabelTemplateChoice = QrLabelTemplateChoice.AccountDefault,
     val layout: QrLabelLayout = QrLabelLayout.LETTER,
     val busy: Boolean = false,
     val job: QrLabelJob? = null,
@@ -40,24 +41,35 @@ data class QrLabelSheetState(
     val error: ApiError? = null,
 ) {
     /** The template the job prints with; null prints the built-in sheet. */
-    val template: AssetLabelTemplate? get() = effectiveLabelTemplate(templates, templateId)
+    val template: AssetLabelTemplate? get() = effectiveLabelTemplate(templates, choice)
 
     val accountDefault: AssetLabelTemplate? get() = templates.firstOrNull { it.isDefault }
 
     /** Layouts the labels of [template] print on. */
     val layouts: List<QrLabelLayout> get() = QrLabelLayout.entries.filter { it.accepts(template) }
 
-    /** Drops a chosen template that is gone and keeps [layout] one the template prints on. */
+    /**
+     * Drops a chosen template that is gone (or is now the account default), folds the built-in
+     * choice into the account default when the account has no default template (both print the
+     * built-in sheet), and keeps [layout] one the template prints on.
+     */
     fun normalized(): QrLabelSheetState {
-        val id = templateId?.takeIf { id -> templates.any { it.id == id && !it.isDefault } }
-        val next = copy(templateId = id)
+        val next = copy(
+            choice = when (val c = choice) {
+                is QrLabelTemplateChoice.Saved ->
+                    c.takeIf { templates.any { it.id == c.templateId && !it.isDefault } } ?: QrLabelTemplateChoice.AccountDefault
+                QrLabelTemplateChoice.BuiltIn -> c.takeIf { accountDefault != null } ?: QrLabelTemplateChoice.AccountDefault
+                QrLabelTemplateChoice.AccountDefault -> c
+            },
+        )
         return if (next.layout in next.layouts) next else next.copy(layout = next.layouts.first())
     }
 }
 
 /**
  * Bulk QR labels (online action, L38): renders one PDF label sheet for many assets through the
- * label job endpoints with a saved label template (or the account default), then downloads it into the cache for the system PDF viewer.
+ * label job endpoints with a saved label template, the account default or the built-in sheet,
+ * then downloads it into the cache for the system PDF viewer.
  */
 @HiltViewModel
 class QrLabelSheetViewModel @Inject constructor(
@@ -81,8 +93,7 @@ class QrLabelSheetViewModel @Inject constructor(
     /** Downloaded label sheets, ready to open. */
     val sheets: SharedFlow<File> = _sheets
 
-    /** [templateId] null: the account default (or the built-in sheet when there is none). */
-    fun selectTemplate(templateId: String?) = _state.update { it.copy(templateId = templateId).normalized() }
+    fun selectTemplate(choice: QrLabelTemplateChoice) = _state.update { it.copy(choice = choice).normalized() }
 
     fun selectLayout(layout: QrLabelLayout) = _state.update { if (layout in it.layouts) it.copy(layout = layout) else it }
 
@@ -92,7 +103,7 @@ class QrLabelSheetViewModel @Inject constructor(
         _state.update { it.copy(busy = true, job = null, file = null, error = null) }
         viewModelScope.launch {
             try {
-                val job = when (val r = service.createLabelSheet(assetIds.take(AssetQr.MAX_BATCH_ASSETS), _state.value.layout, _state.value.templateId)) {
+                val job = when (val r = service.createLabelSheet(assetIds.take(AssetQr.MAX_BATCH_ASSETS), _state.value.layout, _state.value.choice)) {
                     is ApiResult.Ok -> awaitCompletion(r.value)
                     is ApiResult.Err -> return@launch _state.update { it.copy(error = r.error) }
                 } ?: return@launch

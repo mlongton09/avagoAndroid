@@ -75,12 +75,29 @@ enum class QrLabelLayout(
     }
 }
 
+/** What a bulk label job prints with (`label_template` of `POST .../qr-tokens/batch`). */
+sealed interface QrLabelTemplateChoice {
+    /** The account default template, or the built-in sheet when the account has none. */
+    data object AccountDefault : QrLabelTemplateChoice
+
+    /** The built-in sheet even when the account has a default template. */
+    data object BuiltIn : QrLabelTemplateChoice
+
+    /** A saved, non-default template. */
+    data class Saved(val templateId: String) : QrLabelTemplateChoice
+}
+
 /**
- * The label template a bulk job prints with: the chosen saved template [templateId], else the
- * account default; null when neither exists (the built-in sheet).
+ * The label template a bulk job prints with for [choice]: the chosen saved template, else the
+ * account default; null prints the built-in sheet (chosen, or no template applies).
  */
-fun effectiveLabelTemplate(templates: List<AssetLabelTemplate>, templateId: String?): AssetLabelTemplate? =
-    templateId?.let { id -> templates.firstOrNull { it.id == id } } ?: templates.firstOrNull { it.isDefault }
+fun effectiveLabelTemplate(templates: List<AssetLabelTemplate>, choice: QrLabelTemplateChoice): AssetLabelTemplate? =
+    when (choice) {
+        QrLabelTemplateChoice.BuiltIn -> null
+        QrLabelTemplateChoice.AccountDefault -> templates.firstOrNull { it.isDefault }
+        is QrLabelTemplateChoice.Saved ->
+            templates.firstOrNull { it.id == choice.templateId } ?: templates.firstOrNull { it.isDefault }
+    }
 
 /** A bulk QR label job (`masters.asset_qr_batch_jobs`); the PDF downloads once [completed]. */
 data class QrLabelJob(
@@ -114,15 +131,20 @@ object AssetQr {
     }
 
     /**
-     * `POST .../qr-tokens/batch` body. A chosen [templateId] is sent as `{"template_id"}`; without
-     * one `label_template` is omitted, so the server applies the account default (or the built-in
-     * sheet when there is none).
+     * `POST .../qr-tokens/batch` body. A saved template is sent as `{"template_id"}` and the
+     * built-in sheet as `{"builtin": true}` (the server picks the sheet from `page_size`); for the
+     * account default `label_template` is omitted, so the server applies the default template (or
+     * the built-in sheet when there is none).
      */
-    fun labelSheetBody(assetIds: List<String>, layout: QrLabelLayout, templateId: String?): JsonObject = jsonBody(
+    fun labelSheetBody(assetIds: List<String>, layout: QrLabelLayout, choice: QrLabelTemplateChoice): JsonObject = jsonBody(
         "asset_ids" to assetIds,
         "format" to "pdf",
         "page_size" to layout.wire,
-        "label_template" to templateId?.let { jsonBody("template_id" to it) },
+        "label_template" to when (choice) {
+            QrLabelTemplateChoice.AccountDefault -> null
+            QrLabelTemplateChoice.BuiltIn -> jsonBody("builtin" to true)
+            is QrLabelTemplateChoice.Saved -> jsonBody("template_id" to choice.templateId)
+        },
     )
 
     /** Public report link the server mints tokens under. */

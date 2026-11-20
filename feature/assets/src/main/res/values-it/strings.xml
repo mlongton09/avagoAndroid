@@ -15,6 +15,7 @@
     <string name="asset_qr_labels_template">Modello di etichetta</string>
     <string name="asset_qr_template_default">Predefinito dell’account: %1$s</string>
     <string name="asset_qr_template_builtin">Predefinito dell’account (foglio integrato)</string>
+    <string name="asset_qr_template_builtin_sheet">Foglio integrato (senza modello)</string>
     <string name="asset_qr_template_option">%1$s (%2$s × %3$s mm)</string>
     <string name="asset_qr_layout_thermal_roll">Stampante termica (un’etichetta per pagina)</string>
     <string name="asset_qr_labels_template_used">Modello: %1$s</string>

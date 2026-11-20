@@ -15,6 +15,7 @@
     <string name="asset_qr_labels_template">Etikettmal</string>
     <string name="asset_qr_template_default">Kontostandard: %1$s</string>
     <string name="asset_qr_template_builtin">Kontostandard (innebygd ark)</string>
+    <string name="asset_qr_template_builtin_sheet">Innebygd ark (uten mal)</string>
     <string name="asset_qr_template_option">%1$s (%2$s × %3$s mm)</string>
     <string name="asset_qr_layout_thermal_roll">Termoskriver (én etikett per side)</string>
     <string name="asset_qr_labels_template_used">Mal: %1$s</string>

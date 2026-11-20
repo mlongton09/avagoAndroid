@@ -13,6 +13,7 @@ import com.avago.core.network.json.str
 import com.avago.feature.assets.model.AssetQr
 import com.avago.feature.assets.model.QrLabelJob
 import com.avago.feature.assets.model.QrLabelLayout
+import com.avago.feature.assets.model.QrLabelTemplateChoice
 import com.avago.feature.assets.model.QrScanPage
 import com.avago.feature.assets.model.QrToken
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -40,9 +41,9 @@ interface AssetQrService {
 
     /**
      * Renders one PDF label sheet for [assetIds] (rendered synchronously: the job comes back completed)
-     * with the saved template [templateId], or the account default when null.
+     * with the template [choice] names: a saved template, the account default or the built-in sheet.
      */
-    suspend fun createLabelSheet(assetIds: List<String>, layout: QrLabelLayout, templateId: String?): ApiResult<QrLabelJob>
+    suspend fun createLabelSheet(assetIds: List<String>, layout: QrLabelLayout, choice: QrLabelTemplateChoice): ApiResult<QrLabelJob>
 
     suspend fun labelJob(jobId: String): ApiResult<QrLabelJob>
 
@@ -99,9 +100,9 @@ class KtorAssetQrService @Inject constructor(
         }
     }
 
-    override suspend fun createLabelSheet(assetIds: List<String>, layout: QrLabelLayout, templateId: String?): ApiResult<QrLabelJob> =
+    override suspend fun createLabelSheet(assetIds: List<String>, layout: QrLabelLayout, choice: QrLabelTemplateChoice): ApiResult<QrLabelJob> =
         withAccount { a ->
-            val body = AssetQr.labelSheetBody(assetIds, layout, templateId)
+            val body = AssetQr.labelSheetBody(assetIds, layout, choice)
             api.post("/accounts/$a/assets/qr-tokens/batch", body, timeoutMs = LABEL_TIMEOUT_MS).job()
         }
 

@@ -15,6 +15,7 @@
     <string name="asset_qr_labels_template">Plantilla de etiqueta</string>
     <string name="asset_qr_template_default">Predeterminada de la cuenta: %1$s</string>
     <string name="asset_qr_template_builtin">Predeterminada de la cuenta (hoja integrada)</string>
+    <string name="asset_qr_template_builtin_sheet">Hoja integrada (sin plantilla)</string>
     <string name="asset_qr_template_option">%1$s (%2$s × %3$s mm)</string>
     <string name="asset_qr_layout_thermal_roll">Impresora térmica (una etiqueta por página)</string>
     <string name="asset_qr_labels_template_used">Plantilla: %1$s</string>
