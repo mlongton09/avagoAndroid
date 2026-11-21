@@ -1,6 +1,6 @@
 package com.avago.nav
 
-import com.avago.feature.rentalsops.nav.rentalOpsNavGraph
+import com.avago.feature.rentals.ops.nav.rentalOpsNavGraph
 import com.avago.feature.crew.nav.crewNavGraph
 import com.avago.feature.growth.nav.growthNavGraph
 import com.avago.feature.provider.nav.providerNavGraph
@@ -178,7 +178,7 @@ fun AvagoNavHost(
                     navController.navigate(LogRoute.addEdit(assetId = assetId, category = "inspection"))
                 },
                 // P2 "My deliveries" / "Operations" entries on the rentals home (permission-gated).
-                operationsEntries = { navigate -> com.avago.feature.rentalsops.nav.RentalOpsHomeEntries(onNavigate = navigate) },
+                operationsEntries = { navigate -> com.avago.feature.rentals.ops.nav.RentalOpsHomeEntries(onNavigate = navigate) },
             )
 
             // ── Log ───────────────────────────────────────────────────────────────

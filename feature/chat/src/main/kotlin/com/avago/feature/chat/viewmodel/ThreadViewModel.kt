@@ -130,7 +130,7 @@ class ThreadViewModel @Inject constructor(
             repository.syncMessages(threadId)
             val lastMessage = repository.getLastMessage(threadId)
             if (lastMessage != null) {
-                repository.markThreadRead(threadId, lastMessage.messageId)
+                repository.markThreadRead(threadId)
                 repository.markAllMentionsReadForThread(threadId)
             }
         }

@@ -28,9 +28,11 @@ class V2Stores(val identity: V2StoreIdentity, val business: V2Database, val chat
 
 /**
  * Opens the per-user/account v2 stores ([V2StorePaths]) on the bundled SQLite driver (STRICT
- * tables need SQLite ≥ 3.37; minSdk 26 ships older). A file owned by another user/account (or
- * with another store layout version) is a disposable cache (L12): it is deleted and rebuilt, then
- * re-bootstraps. A file built from an older contract DDL migrates in place and keeps its outbox.
+ * tables need SQLite ≥ 3.37; minSdk 26 ships older). A store at an older released version is
+ * upgraded in place (plan 6.4, L43). Only a file owned by another user/account is a disposable
+ * cache (L12): it is deleted and rebuilt, then re-bootstraps. A store from a newer build
+ * ([V2StoreTooNewException]) or a failed upgrade ([V2MigrationException]) is never deleted: the
+ * open fails and the file is kept for a later build.
  */
 @Singleton
 class V2StoreFactory @Inject constructor(
@@ -46,11 +48,12 @@ class V2StoreFactory @Inject constructor(
         instances[key]?.takeIf { it.identity == identity }?.let { return@withLock it }
         instances.remove(key)?.close()
         val dir = V2StorePaths.v2Directory(context.filesDir, identity.accountId, identity.userId)
-        val stores = V2Stores(
-            identity,
-            openOrRebuild(File(dir, V2StorePaths.V2_BUSINESS_DB), V2StoreKind.BUSINESS, identity),
-            openOrRebuild(File(dir, V2StorePaths.V2_CHAT_DB), V2StoreKind.CHAT, identity),
-        )
+        val chatFile = V2StorePaths.prepareStoreFiles(context.filesDir, identity.accountId, identity.userId)
+        val business = openOrRebuild(File(dir, V2StorePaths.V2_BUSINESS_DB), V2StoreKind.BUSINESS, identity)
+        val chat = runCatching { openOrRebuild(chatFile, V2StoreKind.CHAT, identity) }
+            .onFailure { business.close() }
+            .getOrThrow()
+        val stores = V2Stores(identity, business, chat)
         instances[key] = stores
         stores
     }

@@ -27,7 +27,9 @@ data class V2StagedFile(
 /**
  * Stages user-picked or captured content for upload. The staged copy is the device's own copy of
  * the file (it outlives the upload), so [localFile] resolves pictures the user added on this
- * device without a network round trip.
+ * device without a network round trip. Copies live in credential-encrypted app storage
+ * (`filesDir/v2files`, excluded from backup and device transfer); a copy is evictable only after
+ * its upload is finalized ([markUploaded], [sweep]).
  */
 @Singleton
 class V2FileStager @Inject constructor(
@@ -56,6 +58,12 @@ class V2FileStager @Inject constructor(
 
     /** The local copy of [fileId], if this device staged it. */
     fun localFile(fileId: String): File? = File(root, fileId).takeIf { it.isFile }
+
+    /** The server holds the bytes at [localPath]: the copy becomes evictable (see [V2StagedMedia]). */
+    fun markUploaded(localPath: String) = V2StagedMedia(root).markUploaded(localPath)
+
+    /** Evicts uploaded copies down to [maxBytes]; unsent copies are always kept. Returns the bytes freed. */
+    fun sweep(maxBytes: Long): Long = V2StagedMedia(root).sweep(maxBytes)
 
     /**
      * Copies [input] into app storage. The registered type is the sniffed kind of the bytes (the

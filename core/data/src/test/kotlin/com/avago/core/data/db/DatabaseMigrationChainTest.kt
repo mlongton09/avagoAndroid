@@ -19,13 +19,8 @@ class DatabaseMigrationChainTest {
     }
 
     @Test
-    fun `ChatDatabase has one migration per step up to the current version`() {
-        assertContiguousChain(CHAT_MIGRATIONS, CHAT_DESTRUCTIVE_FROM_VERSIONS, CHAT_DB_VERSION)
-    }
-
-    @Test
     fun `exported schemas exist for the current and previous versions`() {
-        for ((db, version) in listOf("AvagoDatabase" to AVAGO_DB_VERSION, "ChatDatabase" to CHAT_DB_VERSION)) {
+        for ((db, version) in listOf("AvagoDatabase" to AVAGO_DB_VERSION)) {
             for (v in listOf(version - 1, version)) {
                 val schema = File("schemas/com.avago.core.data.db.$db/$v.json")
                 assertTrue(schema.isFile, "missing exported schema ${schema.path}")

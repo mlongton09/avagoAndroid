@@ -217,7 +217,7 @@ fun MainScaffold(
         currentRoute != com.avago.feature.rentals.nav.RentalsRoute.HOME
     val rentalsEnabled by navFlagsViewModel.rentalsEnabled.collectAsStateWithLifecycle()
     // Rental-ops screens draw their own top bar with back navigation.
-    val isRentalOpsDestination = currentRoute?.startsWith(com.avago.feature.rentalsops.push.RentalOpsRoutes.PREFIX) == true ||
+    val isRentalOpsDestination = currentRoute?.startsWith(com.avago.feature.rentals.ops.push.RentalOpsRoutes.PREFIX) == true ||
         currentRoute?.startsWith(com.avago.feature.crew.nav.CrewRoutes.PREFIX) == true ||
         currentRoute?.startsWith(com.avago.feature.growth.nav.GrowthRoutes.PREFIX) == true ||
         currentRoute?.startsWith(com.avago.feature.provider.nav.ProviderRoutes.PREFIX) == true
@@ -399,9 +399,9 @@ fun BottomNavBar(
     rentalsEnabled: Boolean = false,
 ) {
     // Rentals tab (accounts with rentals): counter staff land on the rentals home, drivers
-    // without counter access on their deliveries (feature/rentalsops decides).
+    // without counter access on their deliveries (feature/rentals ops decides).
     val rentalsRoute = if (rentalsEnabled) {
-        com.avago.feature.rentalsops.nav.rentalsLandingRoute(com.avago.feature.rentals.nav.RentalsRoute.HOME)
+        com.avago.feature.rentals.ops.nav.rentalsLandingRoute(com.avago.feature.rentals.nav.RentalsRoute.HOME)
     } else {
         null
     }
@@ -609,7 +609,7 @@ fun SideMenuContent(
 
         if (rentalsEnabled) {
             // ── RENTALS (feature/rentals) ────────────────────────────────────
-            val rentalsLanding = com.avago.feature.rentalsops.nav.rentalsLandingRoute(com.avago.feature.rentals.nav.RentalsRoute.HOME)
+            val rentalsLanding = com.avago.feature.rentals.ops.nav.rentalsLandingRoute(com.avago.feature.rentals.nav.RentalsRoute.HOME)
             NavigationDrawerItem(
                 label = { Text(stringResource(com.avago.feature.rentals.R.string.rentals_title)) },
                 selected = currentRoute?.startsWith("rentals/") == true &&
@@ -620,7 +620,7 @@ fun SideMenuContent(
             )
             // Rental operations (P2: deliveries, transfers, unit assignment, AR). Hides itself
             // when the user holds none of the matching rental.* permissions.
-            com.avago.feature.rentalsops.nav.RentalOpsDrawerItem(
+            com.avago.feature.rentals.ops.nav.RentalOpsDrawerItem(
                 currentRoute = currentRoute,
                 onNavigate = onNavigate,
                 modifier = Modifier.padding(horizontal = 8.dp),

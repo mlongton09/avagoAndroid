@@ -1,6 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Driver location sharing (operations RouteTrackingService). Background location is
+         optional: it only lets Android restart sharing after it stopped the app mid-route.
+         CAMERA and POST_NOTIFICATIONS are declared by :app. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
     <application>
         <!-- Home-screen fleet counts (spec §11.1). -->
         <receiver
@@ -14,5 +23,9 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/rental_fleet_widget_info" />
         </receiver>
+        <service
+            android:name=".ops.tracking.RouteTrackingService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
     </application>
 </manifest>

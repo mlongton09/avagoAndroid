@@ -9,6 +9,7 @@ import com.avago.core.data.v2.V2ActiveStores
 import com.avago.core.data.v2.V2Api
 import com.avago.core.data.v2.V2ApiUploader
 import com.avago.core.data.v2.V2CommandOutbox
+import com.avago.core.data.v2.V2FileStager
 import com.avago.core.data.v2.V2Flag
 import com.avago.core.data.v2.V2OutboxException
 import com.avago.core.data.v2.V2StoreFactory
@@ -48,6 +49,7 @@ class V2SyncCoordinator @Inject constructor(
     private val active: V2ActiveStores,
     private val identityManager: IdentityManager,
     private val blobs: V2HttpBlobTransport,
+    private val stager: V2FileStager,
     private val transport: V2HttpTransport,
     private val pullListeners: Set<@JvmSuppressWildcards V2PullListener>,
     private val metrics: V2ClientMetrics,
@@ -205,7 +207,12 @@ class V2SyncCoordinator @Inject constructor(
             stores = stores,
             api = api,
             engine = V2SyncEngine(api, stores.business, stores.chat, appVersion = appVersion()),
-            outbox = V2CommandOutbox(stores.business, api, stores.identity, uploader = V2ApiUploader(api, blobs)),
+            outbox = V2CommandOutbox(
+                stores.business,
+                api,
+                stores.identity,
+                uploader = V2ApiUploader(api, blobs, stager::markUploaded),
+            ),
         )
         session = next
         active.publish(stores)

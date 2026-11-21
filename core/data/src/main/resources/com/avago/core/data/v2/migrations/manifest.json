@@ -1,0 +1,130 @@
+{
+ "version": 2,
+ "released": [
+  1
+ ],
+ "databases": {
+  "business": {
+   "steps": [
+    {
+     "from": 1,
+     "to": 2,
+     "dropped": [
+      "party_document_files",
+      "customer_groups",
+      "owner_profiles",
+      "asset_product_links",
+      "account_asset_model_parts",
+      "comment_reactions",
+      "rental_fees",
+      "rental_terms_templates",
+      "rental_line_meter_readings",
+      "rental_delivery_task_files",
+      "rental_route_checkins",
+      "tax_profiles",
+      "tax_rates",
+      "tax_profile_rates",
+      "listing_profiles",
+      "listing_profile_photos",
+      "storefronts",
+      "storefront_locations",
+      "change_requests",
+      "instant_book_rules",
+      "reviews",
+      "review_subjects",
+      "review_photos",
+      "trust_cases",
+      "trust_case_events",
+      "notifications"
+     ],
+     "created": [],
+     "rebuilt": [
+      "location_roles",
+      "customer_profiles",
+      "product_rental_profiles",
+      "rental_classes",
+      "rental_orders",
+      "rental_order_lines",
+      "rental_contracts",
+      "invoice_lines"
+     ],
+     "indexes_dropped": [],
+     "indexes_created": [
+      "ux_rental_classes__name",
+      "ux_rental_orders__number",
+      "ux_rental_order_lines__order_id_id",
+      "ux_rental_order_lines__order_id_line_no",
+      "ux_rental_contracts__number",
+      "ux_invoice_lines__invoice_id_id",
+      "ux_invoice_lines__invoice_id_line_no"
+     ],
+     "file": "schema/contract/out/sqlite/migrations/business/v001_to_v002.sql",
+     "sha256": "be1ee27c53065db9a09c5f455385ff9e0b6d448823eacc638c4969e85d9184a5"
+    }
+   ],
+   "retired_tables": [
+    "account_asset_model_parts",
+    "asset_product_links",
+    "change_requests",
+    "comment_reactions",
+    "customer_groups",
+    "instant_book_rules",
+    "listing_profile_photos",
+    "listing_profiles",
+    "notifications",
+    "owner_profiles",
+    "party_document_files",
+    "rental_delivery_task_files",
+    "rental_fees",
+    "rental_line_meter_readings",
+    "rental_route_checkins",
+    "rental_terms_templates",
+    "review_photos",
+    "review_subjects",
+    "reviews",
+    "storefront_locations",
+    "storefronts",
+    "tax_profile_rates",
+    "tax_profiles",
+    "tax_rates",
+    "trust_case_events",
+    "trust_cases"
+   ],
+   "durable_tables": [
+    "database_identity",
+    "pending_commands",
+    "command_dependencies",
+    "local_overlays",
+    "upload_jobs",
+    "sync_conflicts",
+    "calendar_links",
+    "sync_state"
+   ]
+  },
+  "chat": {
+   "steps": [
+    {
+     "from": 1,
+     "to": 2,
+     "dropped": [],
+     "created": [
+      "outbox"
+     ],
+     "rebuilt": [],
+     "indexes_dropped": [],
+     "indexes_created": [
+      "ux_outbox__causal_order",
+      "ix_outbox__state_next_attempt_at_causal_order",
+      "ix_outbox__thread_id"
+     ],
+     "file": "schema/contract/out/sqlite/migrations/chat/v001_to_v002.sql",
+     "sha256": "ebb178229fc4eae393eeac91c721b87628d77d0381578ba8fb3f5b9f83b69b0a"
+    }
+   ],
+   "retired_tables": [],
+   "durable_tables": [
+    "database_identity"
+   ]
+  }
+ }
+}

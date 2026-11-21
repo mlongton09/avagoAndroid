@@ -19,7 +19,8 @@ import java.io.File
  * Upgrades real previous-version databases (schemas exported from the commits that shipped
  * them) and asserts pending outbox rows survive: both the exact migrated schema
  * ([MigrationTestHelper.runMigrationsAndValidate]) and the production builders, whose
- * destructive fallback is restricted to pre-release versions and downgrades.
+ * destructive fallback is restricted to pre-release versions and downgrades. (The Room chat
+ * database is retired; chat lives in the per-user/account v2 chat file.)
  */
 @RunWith(AndroidJUnit4::class)
 class DatabaseMigrationTest {
@@ -31,9 +32,6 @@ class DatabaseMigrationTest {
 
     @get:Rule
     val avagoHelper = MigrationTestHelper(instrumentation, AvagoDatabase::class.java)
-
-    @get:Rule
-    val chatHelper = MigrationTestHelper(instrumentation, ChatDatabase::class.java)
 
     @After
     fun tearDown() {
@@ -61,16 +59,6 @@ class DatabaseMigrationTest {
     }
 
     @Test
-    fun chat_previousVersion_migratesToCurrent_keepingUnsentMessages() {
-        val name = "chat-migration-prev.db"
-        chatHelper.createDatabase(name, CHAT_DB_VERSION - 1).use { insertChatOutbox(it) }
-
-        val db = chatHelper.runMigrationsAndValidate(name, CHAT_DB_VERSION, true, *CHAT_MIGRATIONS)
-
-        db.use { assertChatOutbox(it) }
-    }
-
-    @Test
     fun productionDatabaseFactory_upgradesPreviousVersion_withoutWipingOutbox() {
         val path = File(accountDir.apply { mkdirs() }, "avago.db").absolutePath
         avagoHelper.createDatabase(path, AVAGO_DB_VERSION - 1).use { insertOutbox(it) }
@@ -81,20 +69,6 @@ class DatabaseMigrationTest {
             assertOutbox(db.openHelper.readableDatabase)
         } finally {
             factory.closeAll()
-        }
-    }
-
-    @Test
-    fun productionChatDatabaseFactory_upgradesPreviousVersion_withoutWipingUnsentMessages() {
-        val path = File(accountDir.apply { mkdirs() }, "chat.db").absolutePath
-        chatHelper.createDatabase(path, CHAT_DB_VERSION - 1).use { insertChatOutbox(it) }
-
-        val factory = ChatDatabaseFactory(context)
-        try {
-            val db = runBlocking { factory.get(accountId) }
-            assertChatOutbox(db.openHelper.readableDatabase)
-        } finally {
-            runBlocking { factory.close(accountId) }
         }
     }
 
@@ -128,38 +102,7 @@ class DatabaseMigrationTest {
         }
     }
 
-    private fun insertChatOutbox(db: SupportSQLiteDatabase) {
-        for ((id, status) in CHAT_OUTBOX_ROWS) {
-            db.insert(
-                "outbox",
-                SQLiteDatabase.CONFLICT_FAIL,
-                ContentValues().apply {
-                    put("local_id", id)
-                    put("thread_id", "thread-1")
-                    put("account_id", "acct-1")
-                    put("sender_id", "user-1")
-                    put("body_md", "unsent $id")
-                    put("client_ref", "ref-$id")
-                    put("status", status)
-                    put("created_at", 1_700_000_000_000L)
-                    put("updated_at", 1_700_000_000_001L)
-                },
-            )
-        }
-    }
-
-    private fun assertChatOutbox(db: SupportSQLiteDatabase) {
-        db.query("SELECT local_id, status, body_md, client_ref FROM outbox ORDER BY local_id").use { c ->
-            val rows = buildList { while (c.moveToNext()) add(c.getString(0) to c.getString(1)) }
-            assertEquals(CHAT_OUTBOX_ROWS, rows)
-            c.moveToFirst()
-            assertEquals("unsent ${CHAT_OUTBOX_ROWS[0].first}", c.getString(2))
-            assertEquals("ref-${CHAT_OUTBOX_ROWS[0].first}", c.getString(3))
-        }
-    }
-
     private companion object {
         val OUTBOX_ROWS = listOf("q-1" to "pending", "q-2" to "failed")
-        val CHAT_OUTBOX_ROWS = listOf("m-1" to "pending", "m-2" to "failed")
     }
 }

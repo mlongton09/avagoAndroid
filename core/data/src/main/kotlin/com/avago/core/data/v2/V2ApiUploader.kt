@@ -23,11 +23,13 @@ class V2UploadRefusedException(val code: String, message: String?) : Exception(m
  * E12 upload handshake for one `upload_jobs` row (sync-protocol §9): register → PUT → finalize.
  * Each step is idempotent per `file_id`, so a retry after any failure simply starts over; the
  * outbox records the error and retries on the next flush. A refused file throws
- * [V2UploadRefusedException].
+ * [V2UploadRefusedException]. [onFinalized] receives the local path once the server holds the bytes
+ * (the staged copy becomes evictable, [V2FileStager.markUploaded]).
  */
 class V2ApiUploader(
     private val api: V2Api,
     private val blobs: V2BlobTransport,
+    private val onFinalized: (localPath: String) -> Unit = {},
 ) : V2Uploader {
 
     override suspend fun process(jobId: String, localPath: String, sha256: String, byteSize: Long, mediaType: String): String {
@@ -37,12 +39,17 @@ class V2ApiUploader(
         } catch (e: V2ApiException.Status) {
             if (e.status == 400 && e.code == UNSUPPORTED_MEDIA_TYPE) throw V2UploadRefusedException(UNSUPPORTED_MEDIA_TYPE, e.body?.message)
             throw e
-        } ?: return FINALIZED
+        } ?: return finalized(localPath)
         check(file.isFile) { "upload source missing: $localPath" }
         val put = blobs.put(url, file, mediaType)
         if (put.status == 415) throw V2UploadRefusedException(put.code ?: UNSUPPORTED_MEDIA_TYPE, put.message)
         check(put.isSuccess) { "upload PUT failed with HTTP ${put.status}" }
         api.finalizeUpload(jobId, sha256, byteSize)
+        return finalized(localPath)
+    }
+
+    private fun finalized(localPath: String): String {
+        onFinalized(localPath)
         return FINALIZED
     }
 

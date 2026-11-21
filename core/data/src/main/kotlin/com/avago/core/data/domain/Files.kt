@@ -23,7 +23,11 @@ interface FileRepository {
      */
     suspend fun fetch(fileId: String, variant: FileVariant = FileVariant.ORIGINAL): File
 
-    /** Trims the download cache to [maxBytes], least recently used first; returns the bytes freed. */
+    /**
+     * Trims the download cache to [maxBytes] (least recently used first) and the staged copies of
+     * uploaded files to [maxBytes] (oldest first); returns the bytes freed. Unsent photos, signatures
+     * and documents are never evicted (plan 4.3).
+     */
     suspend fun trimCache(maxBytes: Long): Long
 }
 

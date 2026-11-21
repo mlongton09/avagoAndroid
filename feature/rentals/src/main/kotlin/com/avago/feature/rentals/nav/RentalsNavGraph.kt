@@ -72,7 +72,7 @@ private fun reqString(name: String) = navArgument(name) { type = NavType.StringT
 /**
  * Registers the rentals screens. [onOpenAsset] opens the asset detail owned by feature/assets;
  * [onStartInspection] opens an inspection-v2 log entry for the asset (feature/log).
- * [operationsEntries] renders the permission-gated operations links (feature/rentalsops) on the
+ * [operationsEntries] renders the permission-gated operations links (`ops` package) on the
  * rentals home; it receives a navigate callback.
  */
 fun NavGraphBuilder.rentalsNavGraph(

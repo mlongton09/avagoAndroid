@@ -422,7 +422,7 @@ fun TransferClaimScreen(onBack: () -> Unit, onClaimed: (String?) -> Unit, viewMo
     }
 }
 
-/** CameraX + ML Kit QR scanner (same pattern as feature/rentalsops UnitScanner). */
+/** CameraX + ML Kit QR scanner (same pattern as feature/rentals ops UnitScanner). */
 @Composable
 internal fun QrScanner(active: Boolean, onCode: (String) -> Unit, modifier: Modifier = Modifier) {
     val ctx = LocalContext.current

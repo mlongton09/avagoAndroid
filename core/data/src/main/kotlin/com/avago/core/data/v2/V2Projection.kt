@@ -15,6 +15,21 @@ enum class V2Stream(val wire: String) {
 enum class V2StoreKind { BUSINESS, CHAT }
 
 /**
+ * One in-place upgrade step of a store (`out/sqlite/migrations/manifest.json`, plan 6.4, L43):
+ * the embedded SQL [resource] moves a store from `user_version` [from] to [to]; [dropped] are the
+ * retired tables the step removes.
+ */
+data class V2MigrationStep(
+    val store: V2StoreKind,
+    val from: Int,
+    val to: Int,
+    val resource: String,
+    /** SHA-256 of the LF-normalised resource; [V2Database] refuses a mismatching copy. */
+    val sha256: String,
+    val dropped: List<String>,
+)
+
+/**
  * One row of `platform.sync_projections` (generated into [V2GeneratedSchema.projections]; the
  * server also returns it from `/v2/capabilities`).
  */

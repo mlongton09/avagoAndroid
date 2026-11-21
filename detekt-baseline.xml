@@ -2467,12 +2467,6 @@
     <ID>MagicNumber:ChartTheme.kt$ChartTheme$0xFFFACC15</ID>
     <ID>MagicNumber:ChartTheme.kt$ChartTheme$0xFFFB923C</ID>
     <ID>MagicNumber:ChartTheme.kt$ChartTheme$0xFFFBBF24</ID>
-    <ID>MagicNumber:ChatDatabaseFactory.kt$&lt;no name provided&gt;$3</ID>
-    <ID>MagicNumber:ChatDatabaseFactory.kt$&lt;no name provided&gt;$4</ID>
-    <ID>MagicNumber:ChatDatabaseFactory.kt$&lt;no name provided&gt;$5</ID>
-    <ID>MagicNumber:ChatDatabaseFactory.kt$&lt;no name provided&gt;$6</ID>
-    <ID>MagicNumber:ChatDatabaseFactory.kt$&lt;no name provided&gt;$7</ID>
-    <ID>MagicNumber:ChatDatabaseFactory.kt$&lt;no name provided&gt;$8</ID>
     <ID>MagicNumber:ChatListViewModel.kt$ChatListViewModel$3_600_000L</ID>
     <ID>MagicNumber:ChatListViewModel.kt$ChatListViewModel$5_000</ID>
     <ID>MagicNumber:ChatListViewModel.kt$ChatListViewModel$99</ID>
@@ -3838,7 +3832,7 @@
     <ID>MaxLineLength:AvagoApplication.kt$AvagoApplication.&lt;no name provided&gt;$.</ID>
     <ID>MaxLineLength:AvagoHttpClient.kt$AvagoHttpClient$setBody(RefreshRequest(refresh_token = tokenProvider.refreshToken(), device_id = tokenProvider.deviceId()))</ID>
     <ID>MaxLineLength:AvagoNavHost.kt$onOpenAsset = { id: String -&gt; navController.navigate(com.avago.feature.assets.nav.AssetsRoute.detail(id)) }</ID>
-    <ID>MaxLineLength:AvagoNavHost.kt$operationsEntries = { navigate -&gt; com.avago.feature.rentalsops.nav.RentalOpsHomeEntries(onNavigate = navigate) }</ID>
+    <ID>MaxLineLength:AvagoNavHost.kt$operationsEntries = { navigate -&gt; com.avago.feature.rentals.ops.nav.RentalOpsHomeEntries(onNavigate = navigate) }</ID>
     <ID>MaxLineLength:AvagoServiceClient.kt$AvagoServiceClient$setBody(EndRentalRequest(end_at = endAt, meter_end = meterEnd, condition = condition, condition_notes = conditionNotes))</ID>
     <ID>MaxLineLength:AvagoServiceClient.kt$AvagoServiceClient$setBody(com.avago.core.network.model.StartReservationRequest(rate = rate, rate_unit = rateUnit, meter_start = meterStart, meter_unit = meterUnit, condition = condition, condition_notes = conditionNotes))</ID>
     <ID>MaxLineLength:AvagoServiceClient.kt$AvagoServiceClient$suspend</ID>
@@ -3865,12 +3859,7 @@
     <ID>MaxLineLength:CategoryIcons.kt$@Deprecated("Use com.avago.core.ui.categoryGroup", ReplaceWith("categoryGroup(categoryId)", "com.avago.core.ui.categoryGroup"))</ID>
     <ID>MaxLineLength:CategoryIcons.kt$@Deprecated("Use com.avago.core.ui.categoryIconName", ReplaceWith("categoryIconName(categoryId)", "com.avago.core.ui.categoryIconName"))</ID>
     <ID>MaxLineLength:CategoryPickerScreen.kt$Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.category_picker_back))</ID>
-    <ID>MaxLineLength:ChatDatabaseFactory.kt$&lt;no name provided&gt;$database.execSQL("CREATE INDEX IF NOT EXISTS `index_chat_messages_needs_reply` ON `chat_messages`(`needs_reply`)")</ID>
-    <ID>MaxLineLength:ChatDatabaseFactory.kt$&lt;no name provided&gt;$database.execSQL("CREATE INDEX IF NOT EXISTS `index_chat_messages_thread_id_created_at` ON `chat_messages`(`thread_id`, `created_at`)")</ID>
-    <ID>MaxLineLength:ChatDatabaseFactory.kt$&lt;no name provided&gt;$database.execSQL("CREATE INDEX IF NOT EXISTS `index_chat_messages_thread_id_parent_message_id` ON `chat_messages`(`thread_id`, `parent_message_id`)")</ID>
-    <ID>MaxLineLength:ChatDatabaseFactory.kt$&lt;no name provided&gt;$database.execSQL("CREATE INDEX IF NOT EXISTS index_chat_messages_thread_id_parent_message_id ON chat_messages(thread_id, parent_message_id)")</ID>
     <ID>MaxLineLength:ChatListViewModel.kt$ChatListViewModel$combine</ID>
-    <ID>MaxLineLength:ChatOutboxDao.kt$ChatOutboxDao$@Query("UPDATE outbox SET status = :status, attempts = attempts + 1, last_error = :error, updated_at = :updatedAt WHERE local_id = :localId")</ID>
     <ID>MaxLineLength:ChatRepository.kt$ChatRepository$db.chatMessageDao().upsert(msg.copy(reactionCounts = newCountsJson, myReactions = newMyReactions, updatedAt = now))</ID>
     <ID>MaxLineLength:ChatSettingsScreen.kt$Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.chat_settings_back))</ID>
     <ID>MaxLineLength:ChatSettingsScreen.kt$TextButton(onClick = { showClearCacheDialog = false }) { Text(stringResource(R.string.chat_settings_cancel)) }</ID>
@@ -4553,7 +4542,7 @@
     <ID>MaxLineLength:MainScaffold.kt$val</ID>
     <ID>MaxLineLength:MainScaffold.kt$val isGuestMarketplace = !signedIn &amp;&amp; com.avago.feature.rentals.marketplace.nav.MarketplaceRoutes.isPublic(currentRoute)</ID>
     <ID>MaxLineLength:MainScaffold.kt$val rentals = BottomNavItem(com.avago.feature.rentals.R.string.rentals_title, Icons.Default.CarRental, rentalsRoute)</ID>
-    <ID>MaxLineLength:MainScaffold.kt$val rentalsLanding = com.avago.feature.rentalsops.nav.rentalsLandingRoute(com.avago.feature.rentals.nav.RentalsRoute.HOME)</ID>
+    <ID>MaxLineLength:MainScaffold.kt$val rentalsLanding = com.avago.feature.rentals.ops.nav.rentalsLandingRoute(com.avago.feature.rentals.nav.RentalsRoute.HOME)</ID>
     <ID>MaxLineLength:MaintenanceScannerScreen.kt$drawLine(accentColor, Offset(left + boxSize - cornerLen, top + boxSize), Offset(left + boxSize, top + boxSize), strokeWidth)</ID>
     <ID>MaxLineLength:MaintenanceScannerScreen.kt$drawLine(accentColor, Offset(left + boxSize, top + boxSize - cornerLen), Offset(left + boxSize, top + boxSize), strokeWidth)</ID>
     <ID>MaxLineLength:MarketplaceModule.kt$FusedMktLocator$.</ID>
@@ -5691,7 +5680,7 @@
     <ID>MaxLineLength:RentalOpsPushHandler.kt$RentalOpsPushHandler$text.bodyRes != null &amp;&amp; text.bodyTakesNumber &amp;&amp; spec.orderNumber != null -&gt; ctx.getString(text.bodyRes, spec.orderNumber)</ID>
     <ID>MaxLineLength:RentalOpsPushHandler.kt$RentalOpsPushHandler$val title = text.titleRes?.let(ctx::getString) ?: spec.title ?: ctx.getString(R.string.rentalops_push_fallback_title)</ID>
     <ID>MaxLineLength:RentalOpsPushPrefs.kt$RentalOpsPushPrefs.Companion$NotificationPref(event, o.str("description"), (o["push_enabled"] as? JsonPrimitive)?.booleanOrNull ?: true)</ID>
-    <ID>MaxLineLength:RentalOpsRepository.kt$PendingAction$val parked: Boolean get() = status == "error" &amp;&amp; attempts &gt;= com.avago.feature.rentalsops.sync.DrainOutcome.MAX_ATTEMPTS</ID>
+    <ID>MaxLineLength:RentalOpsRepository.kt$PendingAction$val parked: Boolean get() = status == "error" &amp;&amp; attempts &gt;= com.avago.feature.rentals.ops.sync.DrainOutcome.MAX_ATTEMPTS</ID>
     <ID>MaxLineLength:RentalOpsRepository.kt$RentalOpsRepository$/** Local candidates (P1 fleet + allocation cache), upgraded with the server's availability search when reachable. */</ID>
     <ID>MaxLineLength:RentalOpsRepository.kt$RentalOpsRepository$CandidateResult</ID>
     <ID>MaxLineLength:RentalOpsRepository.kt$RentalOpsRepository$CandidateResult(UnitAssignment.mergeServer(ul, local, server, units.associateBy { it.assetId }), true, null)</ID>
@@ -5711,9 +5700,9 @@
     <ID>MaxLineLength:RentalOpsRepository.kt$RentalOpsRepository$suspend</ID>
     <ID>MaxLineLength:RentalOpsRepository.kt$RentalOpsRepository$suspend fun statement(customerId: String): Fetch</ID>
     <ID>MaxLineLength:RentalOpsRepository.kt$RentalOpsRepository$val</ID>
-    <ID>MaxLineLength:RentalOpsRepository.kt$RentalOpsRepository$val a = identity.getActiveAccountId() ?: return TransitionResult.Rejected(com.avago.feature.rentalsops.domain.TransitionError.Invalid(view.localStatus, action))</ID>
+    <ID>MaxLineLength:RentalOpsRepository.kt$RentalOpsRepository$val a = identity.getActiveAccountId() ?: return TransitionResult.Rejected(com.avago.feature.rentals.ops.domain.TransitionError.Invalid(view.localStatus, action))</ID>
     <ID>MaxLineLength:RentalOpsRepository.kt$RentalOpsRepository$val allocs = rental.all(LocalFleet.ENTITY_ALLOCATION).mapNotNull(LocalFleet::allocOf).map { it.toAssignmentAllocation() }</ID>
-    <ID>MaxLineLength:RentalOpsRepository.kt$RentalOpsRepository$val arrive = (arriveBy ?: Instant.now().plus(com.avago.feature.rentalsops.sync.RentalOpsOutbox.DEFAULT_TRANSIT)).toString()</ID>
+    <ID>MaxLineLength:RentalOpsRepository.kt$RentalOpsRepository$val arrive = (arriveBy ?: Instant.now().plus(com.avago.feature.rentals.ops.sync.RentalOpsOutbox.DEFAULT_TRANSIT)).toString()</ID>
     <ID>MaxLineLength:RentalOpsRepository.kt$RentalOpsRepository$val cached = dao.get(entity, key)?.let { r -&gt; parse(r.json)?.let { CachedJson(it, r.updatedAt, fresh = false) } }</ID>
     <ID>MaxLineLength:RentalOpsRepository.kt$RentalOpsRepository$val create = TransferPayload("create", id, asset.assetId, asset.name, asset.locationId, toLocationId, arrive, reason, now)</ID>
     <ID>MaxLineLength:RentalOpsRepository.kt$RentalOpsRepository$val p = row.payload?.let { runCatching { outboxJson.decodeFromString(TaskEventPayload.serializer(), it) }.getOrNull() }</ID>
@@ -6399,20 +6388,20 @@
     <ID>NewLineAtEndOfFile:AddEditAssetViewModel.kt$.AddEditAssetViewModel.kt</ID>
     <ID>NewLineAtEndOfFile:AssetScope.kt$com.avago.feature.assets.model.AssetScope.kt</ID>
     <ID>NewLineAtEndOfFile:Common.kt$com.avago.feature.crew.ui.Common.kt</ID>
-    <ID>NewLineAtEndOfFile:DriverRouteScreen.kt$com.avago.feature.rentalsops.ui.DriverRouteScreen.kt</ID>
+    <ID>NewLineAtEndOfFile:DriverRouteScreen.kt$com.avago.feature.rentals.ops.ui.DriverRouteScreen.kt</ID>
     <ID>NewLineAtEndOfFile:GrowthModels.kt$com.avago.feature.growth.data.GrowthModels.kt</ID>
     <ID>NewLineAtEndOfFile:HandoverScreen.kt$com.avago.feature.rentals.ui.HandoverScreen.kt</ID>
     <ID>NewLineAtEndOfFile:Models.kt$com.avago.feature.rentals.domain.Models.kt</ID>
-    <ID>NewLineAtEndOfFile:Models.kt$com.avago.feature.rentalsops.domain.Models.kt</ID>
+    <ID>NewLineAtEndOfFile:Models.kt$com.avago.feature.rentals.ops.domain.Models.kt</ID>
     <ID>NewLineAtEndOfFile:OpenDefectsTest.kt$com.avago.feature.log.model.OpenDefectsTest.kt</ID>
     <ID>NewLineAtEndOfFile:PostCharges.kt$com.avago.feature.rentals.domain.PostCharges.kt</ID>
     <ID>NewLineAtEndOfFile:RentalFleetScreen.kt$com.avago.feature.rentals.ui.RentalFleetScreen.kt</ID>
-    <ID>NewLineAtEndOfFile:RentalOpsApi.kt$com.avago.feature.rentalsops.data.RentalOpsApi.kt</ID>
-    <ID>NewLineAtEndOfFile:RentalOpsNavGraph.kt$com.avago.feature.rentalsops.nav.RentalOpsNavGraph.kt</ID>
-    <ID>NewLineAtEndOfFile:RentalPushRouterTest.kt$com.avago.feature.rentalsops.push.RentalPushRouterTest.kt</ID>
+    <ID>NewLineAtEndOfFile:RentalOpsApi.kt$com.avago.feature.rentals.ops.data.RentalOpsApi.kt</ID>
+    <ID>NewLineAtEndOfFile:RentalOpsNavGraph.kt$com.avago.feature.rentals.ops.nav.RentalOpsNavGraph.kt</ID>
+    <ID>NewLineAtEndOfFile:RentalPushRouterTest.kt$com.avago.feature.rentals.ops.push.RentalPushRouterTest.kt</ID>
     <ID>NewLineAtEndOfFile:RentalsChrome.kt$com.avago.feature.rentals.ui.RentalsChrome.kt</ID>
     <ID>NewLineAtEndOfFile:RentalsPreviews.kt$com.avago.feature.rentals.ui.RentalsPreviews.kt</ID>
-    <ID>NewLineAtEndOfFile:SettingsScreen.kt$com.avago.feature.rentalsops.ui.SettingsScreen.kt</ID>
+    <ID>NewLineAtEndOfFile:SettingsScreen.kt$com.avago.feature.rentals.ops.ui.SettingsScreen.kt</ID>
     <ID>NewLineAtEndOfFile:SignAgreementScreen.kt$com.avago.feature.rentals.ui.SignAgreementScreen.kt</ID>
     <ID>NewLineAtEndOfFile:Wave2GatesTest.kt$com.avago.feature.rentals.domain.Wave2GatesTest.kt</ID>
     <ID>ReturnCount:Aamva.kt$Aamva$fun parse(raw: String): License?</ID>
@@ -6614,8 +6603,6 @@
     <ID>ReturnCount:WorkOrderLogViewModel.kt$WorkOrderLogViewModel$private fun parseCategoryIdsSeeded(json: String, assetType: String): List&lt;String&gt;</ID>
     <ID>ReturnCount:WorkOrderNotificationService.kt$WorkOrderNotificationService$suspend fun processNewEntities(entityIds: List&lt;String&gt;, entityType: String)</ID>
     <ID>ReturnCount:WorkOrderRepository.kt$WorkOrderRepository$suspend fun assetLabelFor(assetId: String?, accountId: String): String?</ID>
-    <ID>SpreadOperator:ChatDatabaseFactory.kt$ChatDatabaseFactory$(*CHAT_MIGRATIONS)</ID>
-    <ID>SpreadOperator:ChatDatabaseFactory.kt$ChatDatabaseFactory$(true, *CHAT_DESTRUCTIVE_FROM_VERSIONS)</ID>
     <ID>SpreadOperator:DatabaseFactory.kt$DatabaseFactory$(*AVAGO_MIGRATIONS)</ID>
     <ID>SpreadOperator:DatabaseFactory.kt$DatabaseFactory$(true, *AVAGO_DESTRUCTIVE_FROM_VERSIONS)</ID>
     <ID>SpreadOperator:InspectionFormRenderer.kt$(ctx.jump, *keys.toTypedArray())</ID>
@@ -6777,7 +6764,6 @@
     <ID>TooManyFunctions:AvagoServiceClient.kt$AvagoServiceClient</ID>
     <ID>TooManyFunctions:BarcodeParser.kt$BarcodeParser</ID>
     <ID>TooManyFunctions:ChatListViewModel.kt$ChatListViewModel : ViewModel</ID>
-    <ID>TooManyFunctions:ChatMessageDao.kt$ChatMessageDao</ID>
     <ID>TooManyFunctions:ChatRepository.kt$ChatRepository</ID>
     <ID>TooManyFunctions:ChatSettingsScreen.kt$ChatSettingsViewModel : ViewModel</ID>
     <ID>TooManyFunctions:Common.kt$com.avago.feature.crew.ui.Common.kt</ID>
@@ -6790,7 +6776,7 @@
     <ID>TooManyFunctions:DefectOutbox.kt$DefectOutbox</ID>
     <ID>TooManyFunctions:DefectRegisterSync.kt$DefectRegisterSync</ID>
     <ID>TooManyFunctions:FeatureFlags.kt$FeatureFlags</ID>
-    <ID>TooManyFunctions:FinanceScreens.kt$com.avago.feature.rentalsops.ui.FinanceScreens.kt</ID>
+    <ID>TooManyFunctions:FinanceScreens.kt$com.avago.feature.rentals.ops.ui.FinanceScreens.kt</ID>
     <ID>TooManyFunctions:GrowthService.kt$GrowthService</ID>
     <ID>TooManyFunctions:GrowthService.kt$KtorGrowthService : GrowthService</ID>
     <ID>TooManyFunctions:HandoverWave2.kt$com.avago.feature.rentals.ui.HandoverWave2.kt</ID>
@@ -6817,7 +6803,7 @@
     <ID>TooManyFunctions:MktSearchScreen.kt$com.avago.feature.rentals.marketplace.renter.MktSearchScreen.kt</ID>
     <ID>TooManyFunctions:MktSearchViewModel.kt$MktSearchViewModel : ViewModel</ID>
     <ID>TooManyFunctions:MktUi.kt$com.avago.feature.rentals.marketplace.ui.MktUi.kt</ID>
-    <ID>TooManyFunctions:Models.kt$com.avago.feature.rentalsops.domain.Models.kt</ID>
+    <ID>TooManyFunctions:Models.kt$com.avago.feature.rentals.ops.domain.Models.kt</ID>
     <ID>TooManyFunctions:MoneyScreens.kt$com.avago.feature.growth.ui.MoneyScreens.kt</ID>
     <ID>TooManyFunctions:OpenDefects.kt$OpenDefects</ID>
     <ID>TooManyFunctions:OperatorJobScreens.kt$OperatorJobViewModel : NoticeViewModel</ID>

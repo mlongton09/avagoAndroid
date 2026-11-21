@@ -5,6 +5,7 @@ import com.avago.core.data.domain.FileRepository
 import com.avago.core.data.domain.FileVariant
 import com.avago.core.data.domain.StoreNotReadyException
 import com.avago.core.data.v2.V2FileDownloads
+import com.avago.core.data.v2.V2FileStager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -12,12 +13,16 @@ import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** [FileRepository] for the signed-in account: [V2FileDownloads] under `cacheDir/v2files`. */
+/**
+ * [FileRepository] for the signed-in account: [V2FileDownloads] under `cacheDir/v2files`; trims also
+ * sweep the uploaded staged copies of [V2FileStager] (never unsent ones).
+ */
 @Singleton
 class V2FileCache @Inject constructor(
     @ApplicationContext context: Context,
     private val coordinator: V2SyncCoordinator,
     blobs: V2HttpBlobTransport,
+    private val stager: V2FileStager,
 ) : FileRepository {
     private val downloads = V2FileDownloads(File(context.cacheDir, "v2files"), blobs)
 
@@ -26,5 +31,7 @@ class V2FileCache @Inject constructor(
         downloads.fetch(api, fileId, variant)
     }
 
-    override suspend fun trimCache(maxBytes: Long): Long = withContext(Dispatchers.IO) { downloads.trim(maxBytes) }
+    override suspend fun trimCache(maxBytes: Long): Long = withContext(Dispatchers.IO) {
+        downloads.trim(maxBytes) + stager.sweep(maxBytes)
+    }
 }

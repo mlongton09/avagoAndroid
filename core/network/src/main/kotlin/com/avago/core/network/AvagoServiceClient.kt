@@ -563,6 +563,7 @@ class AvagoServiceClient @Inject constructor(
         photoUrl: String? = null,
         imageUrls: List<String> = emptyList(),
         needsReply: Boolean? = null,
+        clientRef: String? = null,
     ): NetworkResult<ChatMessageResponse> =
         safeNetworkCall {
             client.post("$baseUrl/chat/threads/$threadId/messages") {
@@ -572,6 +573,7 @@ class AvagoServiceClient @Inject constructor(
                         photo_url = photoUrl,
                         image_urls = imageUrls,
                         needs_reply = needsReply,
+                        client_ref = clientRef,
                     )
                 )
             }.body<SendMessageEnvelope>().message
@@ -628,10 +630,11 @@ class AvagoServiceClient @Inject constructor(
         threadId: String,
         messageId: String,
         body: String,
+        clientRef: String? = null,
     ): NetworkResult<ChatMessageResponse> =
         safeNetworkCall {
             client.post("$baseUrl/chat/threads/$threadId/messages/$messageId/replies") {
-                setBody(SendMessageRequest(body_md = body))
+                setBody(SendMessageRequest(body_md = body, client_ref = clientRef))
             }.body<SendMessageEnvelope>().message
         }
 

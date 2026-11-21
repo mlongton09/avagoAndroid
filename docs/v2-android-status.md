@@ -1,4 +1,4 @@
-# Android schema-v2 status (P3-12, P3-12b, P3-12c, P3-12d, P3-19, P3-21)
+# Android schema-v2 status (P3-12, P3-12b, P3-12c, P3-12d, P3-19, P3-21, P5-06)
 
 This doc describes the native v2 Android app: the screens read the bundled v2 SQLite store through
 domain repositories, and every write is a typed P3-14 catalog command sent through the command
@@ -214,6 +214,71 @@ The sync-engine details are unchanged from P3-12 (see git history of this file).
 - **REST parity items of P3-20** (cost-line part identity, tech-profile clears) do not apply: the
   app writes both through v2 commands (§3, "Added in P3-19").
 
+### Added in P5-06 (plan 4.1, 4.2, 4.3, 6.4, 13.6)
+
+The generated contract now follows AvagoSvc `origin/schema-v2` `73502d2` (P5-04,
+`V2GeneratedSchema.SOURCE_REVISION`), following the adoption steps in `schema/v2/notes/p5-04.md`.
+
+- **In-place v1 → v2 upgrade (plan 6.4, L43).**
+  - `migrations/{business,chat}/v001_to_v002.sql` and `migrations/manifest.json` are embedded as
+    core:data resources. The generator checks their SHA-256 against the manifest.
+  - `V2Database.open` runs every step from the file's `user_version` up to
+    `V2_DB_SCHEMA_VERSION` (2), with foreign keys off, in one transaction. It requires an empty
+    `PRAGMA foreign_key_check` and `user_version` = 2, then writes the new DDL hash and projection
+    versions to `v2_client_meta`. There is no rebuild and no re-bootstrap: the cursor, the outbox
+    and the device registration are kept.
+  - A store from a newer build (`V2StoreTooNewException`) and a failed upgrade
+    (`V2MigrationException`) are never deleted; the open fails and the file is kept. Only a file
+    owned by another user or account is still rebuilt (L12).
+  - The 26 manifest `retired_tables` have no mobile table (`mobileTable = null`); their
+    projections stay wire entities.
+- **SQLite with the WAL-reset fix (plan 4.2).** `androidx.sqlite:sqlite-bundled` 2.8.0-alpha04
+  bundles SQLite 3.53.4 on every ABI and API level; the framework SQLite is never used. On every
+  open, `V2SqliteRuntime.check` requires at least 3.51.3, or one of the upstream backports 3.50.7
+  or 3.44.6, and refuses any other runtime. JVM tests use `sqlite-jdbc` 3.53.4.0.
+- **Chat file per user and account (plan 4.1, L42).**
+  - Chat now lives in `accounts/<account>/<user>/v2/chat-<user>-<account>.sqlite`: the contract chat
+    tables, the contract `outbox` (carried across rebuilds) and the client-only `chat_client_cache`
+    (`ChatCache`: one JSON document per thread, message, mention, roster entry and member, refilled
+    from REST). The Room `ChatDatabase` (`chat.db`) is removed. The retired device-wide
+    `chat.db` and `rentalops.db`, with their sidecars, are deleted when the stores open
+    (`V2StorePaths.prepareStoreFiles`). Unsent rows of the old Room outbox are not migrated (the
+    plan's reset rule); the cache resyncs from REST.
+  - Sends, replies, edits and deletes go through `ChatOutboxQueue` in causal order:
+    - the head row is leased;
+    - a send carries its outbox id as `client_ref`, so an ambiguous failure is re-sent without
+      creating a duplicate;
+    - transport, 5xx, 408 and 429 errors retry the head with backoff (2 s doubling, up to 30 s);
+      after 5 attempts the message shows as failed but stays queued;
+    - a 401 or another 4xx is rejected, which undoes the optimistic edit or delete or marks the
+      send failed;
+    - an edit or delete of a send that has not gone out yet rewrites or drops the queued send;
+    - the server echo replaces the optimistic message.
+
+    `OutboxRetryCoordinator` drains each account under a mutex, and the work is woken on
+    connectivity, a periodic flush and the next due attempt.
+  - Chat projections are applied to the chat store before the business page and its cursor
+    commit (unchanged; plan 12).
+- **Rental field operations folded into `:feature:rentals` (plan 4.1).**
+  - The `:feature:rentalsops` module is now `com.avago.feature.rentals.ops`
+    (`feature/rentals/OPERATIONS.md`) and keeps every screen, route, push event and
+    permission gate.
+  - Its data already lived in the typed business tables (`rental_delivery_tasks`,
+    `rental_transfers`, …). Its own `rentalops.db` is deleted.
+  - Route pings queue in `accounts/<account>/route_pings.json`.
+- **Pending-media eviction (plan 4.3).**
+  - `V2StagedMedia`: a staged copy is the only copy of an unsent photo, signature or document,
+    so it is never evicted.
+  - `V2OnlineUploads` and `V2ApiUploader` mark a copy as uploaded once it is finalized
+    (`.uploaded/<file id>`). `trimCache` (`V2FileCache`) then deletes uploaded copies, oldest
+    first, down to the budget. Those files stay readable through `files/{id}/download`.
+- **At-rest protection (plan 13.6).**
+  - Account stores, staged uploads (`v2files/`), captured rental photos and generated PDF reports
+    stay in credential-encrypted internal storage.
+  - `data_extraction_rules.xml` excludes them, and the encrypted credentials, from cloud backup
+    and device transfer. `backup_rules.xml` stays an allow-list of plain preferences.
+  - No component is direct-boot aware. `StoreAtRestConfigTest` checks all three rules.
+
 ## 3. Features converted (P3-12c)
 
 | Feature | Screens | Commands used |
@@ -284,7 +349,8 @@ commands (L35), online actions are L38 REST, and nothing is dropped.
 ### Intentionally still REST
 
 These are not synced business-data writes (L38 online actions or reads):
-- **Chat** (p3-08).
+- **Chat** (p3-08): REST endpoints and realtime; cached in the per-user/account chat file, with
+  sends, edits and deletes in its ordered outbox (§2, "Added in P5-06").
 - **L38 online actions:** card/gateway payments, pay links, post-charge charging, buy-out,
   statement e-mail, recall remedy, QR tokens and label sheets, OCR re-extract, inspection drafts,
   sample data, marketplace owner and onboarding, uploads (E12). Their results arrive through sync.
@@ -304,8 +370,8 @@ These are not synced business-data writes (L38 online actions or reads):
 - **Account:** account and content deletion, invites, sample workspaces.
 - **Crew/growth/provider/marketplace.**
 
-Legacy Room (`AvagoDatabase`) remains only for device-local or REST-backed data: chat and scout
-history. The rental tables (`rental_records`, `rental_sync_state`) are dropped by `MIGRATION_20_21`
+Legacy Room (`AvagoDatabase`) remains only for device-local or REST-backed data such as scout
+history. Chat left Room in P5-06 (its own `ChatDatabase` is removed; §2). The rental tables (`rental_records`, `rental_sync_state`) are dropped by `MIGRATION_20_21`
 (schema 21); the other legacy entities were not pruned, so the Room schema and migrations stay
 consistent.
 
@@ -333,6 +399,8 @@ nothing is removed without a replacement.
 | Rentals | legacy REST/Room stack (`RentalRepository`, `RentalOutbox`, `RentalSync*`, `RentalPhotoUploader`, `PostChargeService`, `GatewayPayments`, `PostCharges`, `legacy/`, `onboarding/`, marketplace owner screens) | `V2RentalRepository`, `V2RentalAccountsRepository`, `V2RentalSettingsRepository`, `FileUploads`; new `GatewayPayments` (L38), post-charges UI, owner screens and onboarding on L38 REST |
 | Rental ops | `RentalOpsDatabase` outbox, `RentalOpsOutbox`, `OutboxPayloads`, `DrainOutcome`; server push-preference sync; statement e-mail | `V2RentalDispatchRepository`; `specialist.notification_preferences.set`; L38 statement e-mail |
 | Room (core:data) | `RentalDao`, `RentalEntities` (`MIGRATION_20_21`) | v2 store |
+| Chat (P5-06) | Room `ChatDatabase`, `ChatDatabaseFactory`, chat DAOs and the Room chat outbox (`chat.db`) | `ChatLocalStore` / `ChatCache` / `ChatOutboxQueue` in `chat-<user>-<account>.sqlite` |
+| Rental ops (P5-06) | `:feature:rentalsops` module and its `rentalops.db` | `com.avago.feature.rentals.ops` in `:feature:rentals`; typed business tables |
 | core/network (P3-19) | uncalled legacy rental/reservation/invoice/customer REST methods, `getPresignedUploadUrl`, `finalizeFileUpload`, their DTOs (`RentalModels.kt`, `AssetModelsModels.kt`), unread OCR/effort DTO fields | v2 rental repositories; E12 uploads (`V2ApiUploader`) |
 
 Dropped features and where they came back (details in §3, "Restored in P3-12d"):
@@ -388,8 +456,33 @@ Resolved since P3-18:
 ## 6. Tests and build
 
 - **Unit tests:** `gradlew testDebugUnitTest -Pv2Default=true --no-daemon --max-workers=3
-  "-Dorg.gradle.jvmargs=-Xmx2g"` passed **919 tests, 0 failures, 0 skipped** across all modules
-  (P3-19: 895; P3-19 before label templates: 886; P3-12d: 872; P3-12c: 679).
+  "-Dorg.gradle.jvmargs=-Xmx2g"` passed **942 tests, 0 failures, 0 skipped** across all modules
+  (P3-21: 919; P3-19: 895; P3-19 before label templates: 886; P3-12d: 872; P3-12c: 679).
+  `:app:assembleDebug` builds.
+- **New P5-06 tests (JVM, sqlite-jdbc 3.53.4):**
+  - `V2StoreUpgradeTest` (7): the frozen v1 business and chat fixtures from AvagoSvc
+    `schema/contract/mobile/v1` upgrade in place to the fresh v2 tables and columns, keeping every
+    row and gaining the chat outbox. The DDL hash and projection versions are stored, and the store
+    reopens without re-bootstrapping. An upgrade that would leave a dangling reference rolls back. A
+    newer store is refused and left untouched. The earlier v2 chat file is renamed to
+    `chat-<user>-<account>.sqlite`, and the device-wide `chat.db` and `rentalops.db` are deleted.
+  - `V2SqliteRuntimeTest` (2): the WAL-reset floor and its backports; an older runtime is refused.
+  - `ChatStoreTest` (8):
+    - the cache round trip;
+    - delivery in causal order;
+    - a retried head blocking later rows, with backoff;
+    - rejection;
+    - an edit retargeted to the acknowledged server id;
+    - edits and deletes folded into an unsent send;
+    - rejected edits and deletes undone;
+    - reopening after DDL drift.
+  - `V2StagedMediaTest` (4): unsent copies are never evicted; uploaded copies go oldest first.
+  - `StoreAtRestConfigTest` (3): backup and device-transfer exclusions; no direct boot.
+  - The Room chat tests were removed with the Room chat stack.
+- **detekt:** `gradlew detekt` already fails on `origin/schema-v2` `7c977d4` (2255 weighted
+  issues; the baseline is stale). P5-06 adds no new line-length or magic-number findings. What
+  remains, 2268, comes from structural rules on the new chat store classes (`TooManyFunctions`,
+  `LongParameterList`) and the upgrade runner (`ThrowsCount`, `NestedBlockDepth`).
 - **New or extended P3-21 tests:** `AccessDenialTest` (3, new: REST and `/v2` bodies, account
   paths), `AccessDenialMonitorTest` (5, new; core:auth now runs unit tests), `V2SyncEngineTest`
   (16: typed and generic `403`), `V2CommandOutboxTest` (16: typed `403` kept unsent, generic `403`
@@ -443,7 +536,8 @@ Resolved since P3-18:
 | Baseline `4c17671` (pre-P3-12c) | 4 | 32 |
 | P3-12c | 4 | 31 |
 | P3-12d | 0 | 30 |
-| P3-19 HEAD | **0** | **34** |
+| P3-19 | 0 | 34 |
+| P5-06 HEAD | **0** | **36** |
 
 - The 4 pre-existing errors are fixed properly:
   - 3 × `FullBackupContent`: `backup_rules.xml` is now an include-only allow-list
@@ -459,7 +553,7 @@ Resolved since P3-18:
   | Module | P3-12c | P3-12d | P3-19 |
   |---|---|---|---|
   | feature:rentals | 30 errors, 26 warnings | 30 errors, 25 warnings | 0 errors, 25 warnings |
-  | feature:rentalsops | 0 errors, 11 warnings | 0 errors, 11 warnings | 0 errors, 11 warnings |
+  | feature:rentalsops (folded into feature:rentals in P5-06) | 0 errors, 11 warnings | 0 errors, 11 warnings | 0 errors, 11 warnings |
   | core:data | 0 errors, 11 warnings | 0 errors, 4 warnings | 0 errors, 4 warnings |
 
   Every other module also reports 0 errors (`gradlew lintDebug`).
@@ -474,7 +568,8 @@ Resolved since P3-18:
 ## 8. Open questions (from P3-12, still open)
 
 1. Chat projections are applied to the chat store in their own transaction, before the business
-   page. Plan §12 describes a separate chat stream.
+   page and its cursor commit. This is the order P5-04 asks for (`notes/p5-04.md`); a separate chat
+   stream (plan §12) is still not used.
 2. `effective_permissions` keys drop the leading user part locally, because the store is per user.
 3. Canonical JSON golden vectors from the server (P1-10) are needed to confirm the request hash and
    page checksums byte for byte. Until then a checksum mismatch is only logged.

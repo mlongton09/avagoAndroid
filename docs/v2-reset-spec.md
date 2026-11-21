@@ -82,7 +82,7 @@ finishes the reset. The app runs in one process, so this process-local gate is t
 | 6 | User settings (theme, language, units, currency, notifications, FRE state, and so on) | `files/datastore/user_prefs.preferences_pb` | Device settings. Only drafts are removed (cleared item 19). |
 | 7 | v2 flag state | `shared_prefs/avago_v2_flags.xml` | Holds the debug override, the last server capability and the v2 device id (`v2_device_id`). |
 | 8 | v2 reset marker | `no_backup/avago_v2_reset.marker` | Makes the reset idempotent. |
-| 9 | v2 stores | `files/accounts/<account>/<user>/v2/` (`avago_v2.db` business store, `chat_v2.db` chat store) | Generation directory; never touched. |
+| 9 | v2 stores | `files/accounts/<account>/<user>/v2/` (`avago_v2.db` business store, `chat-<user>-<account>.sqlite` chat store; a pre-P5-06 `chat_v2.db` is renamed to it and upgraded in place) | Generation directory; never touched. |
 | 10 | Third-party SDK state (Firebase, Google Play services, WorkManager's own DB) | various | Not app business data. |
 | 11 | Unknown files | anywhere | The reset deletes only the enumerated items above. |
 

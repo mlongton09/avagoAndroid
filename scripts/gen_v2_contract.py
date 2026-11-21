@@ -57,6 +57,9 @@ CMD_OUT = os.path.join(
 CATALOG_PATH = "schema/contract/out/commands/catalog.json"
 LOADERS_PATH = "src/v2/contract/loaders.rs"
 PERMISSIONS_PATH = "schema/fixtures/reference/permission_keys.csv"
+MIGRATIONS_MANIFEST = "schema/contract/out/sqlite/migrations/manifest.json"
+MOBILE_FROZEN = "schema/contract/mobile"
+TEST_RES_DIR = os.path.join("core", "data", "src", "test", "resources", "com", "avago", "core", "data", "v2", "frozen")
 PERM_OUT = os.path.join(PKG_DIR, "kotlin", "com", "avago", "core", "data", "v2", "V2GeneratedPermissions.kt")
 
 # Catalog scalar type -> (Kotlin type, wire note). Decimals are BigDecimal (sent as plain strings),
@@ -423,6 +426,47 @@ def main() -> None:
     business_tables = set(tables_in(business))
     chat_tables = set(tables_in(chat))
     rows = parse_manifest(seed)
+
+    # In-place upgrades (plan 6.4, L43): the step SQL is embedded verbatim and run by V2Database.
+    import json
+
+    migrations_raw = git_show(args.svc, args.ref, MIGRATIONS_MANIFEST).replace(b"\r\n", b"\n")
+    migrations = json.loads(migrations_raw.decode("utf-8"))
+    write_bytes(os.path.join(RES_DIR, "migrations", "manifest.json"), migrations_raw)
+    retired = set(migrations["databases"]["business"]["retired_tables"]) | set(
+        migrations["databases"]["chat"]["retired_tables"]
+    )
+    for r in rows:
+        # A retired table stays a wire entity (the server still serves it) with no mobile table.
+        if r["mobile"] in retired:
+            r["mobile"] = None
+    step_lines = []
+    for db_name, kind in (("business", "V2StoreKind.BUSINESS"), ("chat", "V2StoreKind.CHAT")):
+        for step in migrations["databases"][db_name]["steps"]:
+            step_raw = git_show(args.svc, args.ref, step["file"]).replace(b"\r\n", b"\n")
+            if body_sha(step_raw.decode("utf-8")) != step["sha256"]:
+                sys.exit(f"{step['file']}: body sha256 does not match manifest {step['sha256']}")
+            got = hashlib.sha256(step_raw).hexdigest()
+            name = f"v{step['from']:03d}_to_v{step['to']:03d}.sql"
+            write_bytes(os.path.join(RES_DIR, "migrations", db_name, name), step_raw)
+            dropped = ", ".join(f'"{t}"' for t in step["dropped"])
+            step_lines.append(
+                f'        V2MigrationStep({kind}, from = {step["from"]}, to = {step["to"]}, '
+                f'resource = "/com/avago/core/data/v2/migrations/{db_name}/{name}", '
+                f'sha256 = "{got}", dropped = listOf({dropped})),'
+            )
+    # Frozen released stores and their fixtures, for the JVM upgrade tests (V2StoreUpgradeTest).
+    for released in migrations["released"]:
+        for rel in (f"{db}.sql" for db in ("business", "chat")):
+            for src, dst in (
+                (f"{MOBILE_FROZEN}/v{released}/{rel}", os.path.join(TEST_RES_DIR, f"v{released}", rel)),
+                (f"{MOBILE_FROZEN}/v{released}/fixtures/{rel}", os.path.join(TEST_RES_DIR, f"v{released}", "fixtures", rel)),
+            ):
+                write_bytes(dst, git_show(args.svc, args.ref, src).replace(b"\r\n", b"\n"))
+    durable = {
+        db_name: ", ".join(f'"{t}"' for t in migrations["databases"][db_name]["durable_tables"])
+        for db_name in ("business", "chat")
+    }
     windows = parse_windows(git_show(args.svc, args.ref, LOADERS_PATH).decode("utf-8"), business)
 
     lines = []
@@ -473,6 +517,24 @@ object V2GeneratedSchema {{
     const val BUSINESS_SQL_RESOURCE = "/com/avago/core/data/v2/business.sql"
     const val CHAT_SQL_RESOURCE = "/com/avago/core/data/v2/chat.sql"
 
+    /** Mobile schema version of the generated DDL (`PRAGMA user_version`; L43). */
+    const val MOBILE_SCHEMA_VERSION = {migrations["version"]}
+
+    /** Released versions a store on a device can be at; each has upgrade steps to the current one. */
+    val releasedVersions: List<Int> = listOf({", ".join(str(v) for v in migrations["released"])})
+
+    /** out/sqlite/migrations/manifest.json steps, embedded verbatim (plan 6.4). */
+    val migrationSteps: List<V2MigrationStep> = listOf(
+{chr(10).join(step_lines)}
+    )
+
+    /** Client-durable tables a migration step must keep (manifest `durable_tables`). */
+    val businessDurableTables: List<String> = listOf({durable["business"]})
+    val chatDurableTables: List<String> = listOf({durable["chat"]})
+
+    /** Mobile tables retired by the manifest; their projections stay wire entities (mobileTable = null). */
+    val retiredTables: List<String> = listOf({", ".join(f'"{t}"' for t in sorted(retired))})
+
     /** platform.sync_projections, ordered by (apply_rank, entity_type). */
     val projections: List<V2Projection> = listOf(
 {chr(10).join(lines)}
@@ -484,8 +546,6 @@ object V2GeneratedSchema {{
     write_bytes(os.path.join(RES_DIR, "business.sql"), business_raw)
     write_bytes(os.path.join(RES_DIR, "chat.sql"), chat_raw)
     write_bytes(KT_OUT, out.encode("utf-8"))
-
-    import json
 
     cat_ref = args.catalog_ref or args.ref
     cat_rev = subprocess.check_output(["git", "-C", args.svc, "rev-parse", cat_ref]).decode().strip()

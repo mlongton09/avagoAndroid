@@ -235,7 +235,7 @@ class MktViewModelsTest {
         assertTrue(!MarketplaceRoutes.isPublic(MarketplaceRoutes.OWNER_MEETUP))
         assertTrue(!MarketplaceRoutes.isPublic("rentals/home"))
         assertTrue(MarketplaceRoutes.isOwner(MarketplaceRoutes.OWNER_SETTINGS))
-        // feature:rentalsops push routing builds these as literals (RentalOpsRoutes.mktMeetup / MKT_MEETUPS).
+        // The operations push routing builds these as literals (RentalOpsRoutes.mktMeetup / MKT_MEETUPS).
         assertEquals("rentals/mkt/owner/meetup/m-1", MarketplaceRoutes.ownerMeetup("m-1"))
         assertEquals("rentals/mkt/owner/meetups", MarketplaceRoutes.OWNER_MEETUPS)
     }

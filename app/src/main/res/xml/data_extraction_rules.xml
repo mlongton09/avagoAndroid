@@ -1,13 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android 12+ (API 31) backup and device transfer. Account stores (accounts/: the v2 business and
+    chat SQLite files), staged uploads (v2files/: unsent and uploaded photos, signatures and
+    documents), captured rental photos, generated PDF reports and the credentials never leave the
+    device (plan 13.6). They live in credential-encrypted internal storage (filesDir; nothing is
+    directBootAware), unreadable until the user first unlocks the device after boot.
+-->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="file" path="accounts/"/>
+        <exclude domain="file" path="v2files/"/>
+        <exclude domain="file" path="rental_photos/"/>
+        <exclude domain="file" path="pdf_reports/"/>
         <exclude domain="sharedpref" path="encrypted_prefs.xml"/>
         <exclude domain="sharedpref" path="avago_marketplace_session.xml"/>
         <exclude domain="file" path="accounts_manifest.json"/>
     </cloud-backup>
     <device-transfer>
         <exclude domain="file" path="accounts/"/>
+        <exclude domain="file" path="v2files/"/>
+        <exclude domain="file" path="rental_photos/"/>
+        <exclude domain="file" path="pdf_reports/"/>
         <exclude domain="sharedpref" path="encrypted_prefs.xml"/>
         <exclude domain="sharedpref" path="avago_marketplace_session.xml"/>
     </device-transfer>

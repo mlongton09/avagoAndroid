@@ -40,7 +40,7 @@ class V2ApiUploaderTest {
     fun `registers with the media type, PUTs and finalizes`() = runTest {
         routeRegister(V2Response(200, """{"upload_url":"https://blob/put"}"""))
         val puts = mutableListOf<Pair<String, String>>()
-        val uploader = V2ApiUploader(api) { url, _, type -> puts += url to type; V2BlobPutResult(200) }
+        val uploader = V2ApiUploader(api, { url, _, type -> puts += url to type; V2BlobPutResult(200) })
 
         assertEquals("finalized", uploader.process(jobId, file().path, sha, 4, "image/jpeg"))
         val registered = Json.parseToJsonElement(transport.matching("POST", "/uploads").single().body!!).jsonObject
@@ -52,7 +52,7 @@ class V2ApiUploaderTest {
     @Test
     fun `a type the route does not allow is refused at register`() {
         routeRegister(V2Fixtures.error(400, V2ApiUploader.UNSUPPORTED_MEDIA_TYPE))
-        val uploader = V2ApiUploader(api) { _, _, _ -> error("no PUT expected") }
+        val uploader = V2ApiUploader(api, { _, _, _ -> error("no PUT expected") })
 
         val e = assertThrows(V2UploadRefusedException::class.java) { process(uploader, file().path) }
         assertEquals(V2ApiUploader.UNSUPPORTED_MEDIA_TYPE, e.code)
@@ -61,7 +61,7 @@ class V2ApiUploaderTest {
     @Test
     fun `a 415 PUT is refused with the storage code and not finalized`() {
         routeRegister(V2Response(200, """{"upload_url":"https://blob/put"}"""))
-        val uploader = V2ApiUploader(api) { _, _, _ -> V2BlobPutResult(415, V2ApiUploader.MEDIA_TYPE_MISMATCH, "bytes are not image/jpeg") }
+        val uploader = V2ApiUploader(api, { _, _, _ -> V2BlobPutResult(415, V2ApiUploader.MEDIA_TYPE_MISMATCH, "bytes are not image/jpeg") })
 
         val e = assertThrows(V2UploadRefusedException::class.java) { process(uploader, file().path) }
         assertEquals(V2ApiUploader.MEDIA_TYPE_MISMATCH, e.code)
@@ -72,7 +72,7 @@ class V2ApiUploaderTest {
     @Test
     fun `any other PUT failure stays retryable`() {
         routeRegister(V2Response(200, """{"upload_url":"https://blob/put"}"""))
-        val uploader = V2ApiUploader(api) { _, _, _ -> V2BlobPutResult(503) }
+        val uploader = V2ApiUploader(api, { _, _, _ -> V2BlobPutResult(503) })
 
         assertThrows(IllegalStateException::class.java) { process(uploader, file().path) }
     }

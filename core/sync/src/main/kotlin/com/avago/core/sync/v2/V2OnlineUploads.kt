@@ -20,7 +20,7 @@ class V2OnlineUploads @Inject constructor(
     override suspend fun upload(file: LocalFileRef): String {
         val api = coordinator.api() ?: throw StoreNotReadyException()
         val staged = stager.stage(Uri.parse(file.uri), file.fallbackMediaType)
-        V2ApiUploader(api, blobs).process(staged.fileId, staged.file.absolutePath, staged.sha256, staged.byteSize, staged.mediaType)
+        V2ApiUploader(api, blobs, stager::markUploaded).process(staged.fileId, staged.file.absolutePath, staged.sha256, staged.byteSize, staged.mediaType)
         return staged.fileId
     }
 }

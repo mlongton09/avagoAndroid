@@ -34,7 +34,7 @@ class AvagoFcmService : FirebaseMessagingService() {
 
     @Inject lateinit var identity: IdentityManager
     @Inject lateinit var syncCoordinator: V2SyncCoordinator
-    @Inject lateinit var rentalOpsPush: com.avago.feature.rentalsops.push.RentalOpsPushHandler
+    @Inject lateinit var rentalOpsPush: com.avago.feature.rentals.ops.push.RentalOpsPushHandler
 
     // Service-scoped coroutine scope; cancelled in onDestroy.
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)

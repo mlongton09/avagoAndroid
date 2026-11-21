@@ -37,7 +37,7 @@ dependencies {
     implementation(libs.coroutines.android)
     implementation(libs.timber)
     implementation(libs.serialization.json)
-    // QR passport scan (already used by feature/assets and feature/rentalsops).
+    // QR passport scan (already used by feature/assets and feature/rentals).
     implementation(libs.mlkit.barcode)
     implementation(libs.camera.core)
     implementation(libs.camera.camera2)

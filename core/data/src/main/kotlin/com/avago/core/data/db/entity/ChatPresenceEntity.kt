@@ -1,34 +1,16 @@
 package com.avago.core.data.db.entity
 
-import androidx.room.ColumnInfo
-import androidx.room.Entity
-import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
 
-@Entity(tableName = "presence")
+@Serializable
 data class ChatPresenceEntity(
-    @PrimaryKey
-    @ColumnInfo(name = "user_id")
     val userId: String,
-
-    @ColumnInfo(name = "account_id")
     val accountId: String,
-
-    @ColumnInfo(name = "status")
     val status: String,
-
-    @ColumnInfo(name = "last_seen_at")
     val lastSeenAt: Long?,
-
-    @ColumnInfo(name = "updated_at")
     val updatedAt: Long,
-
     // Change 68: rich custom status fields
-    @ColumnInfo(name = "status_emoji")
     val statusEmoji: String? = null,
-
-    @ColumnInfo(name = "status_text")
     val statusText: String? = null,
-
-    @ColumnInfo(name = "status_expires_at")
     val statusExpiresAt: Long? = null,
 )

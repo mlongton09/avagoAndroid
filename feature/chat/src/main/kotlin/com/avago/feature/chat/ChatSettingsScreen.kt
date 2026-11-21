@@ -40,7 +40,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.avago.core.auth.IdentityManager
-import com.avago.core.data.db.ChatDatabaseFactory
+import com.avago.core.data.chat.ChatLocalStore
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
 import com.avago.core.network.model.ChatPrefsRequest
@@ -82,7 +82,7 @@ data class ChatPrefsUiState(
 class ChatSettingsViewModel @Inject constructor(
     private val serviceClient: AvagoServiceClient,
     private val identity: IdentityManager,
-    private val chatDbFactory: ChatDatabaseFactory,
+    private val chatStores: ChatLocalStore,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ChatPrefsUiState())
@@ -163,7 +163,7 @@ class ChatSettingsViewModel @Inject constructor(
     fun clearCache() {
         viewModelScope.launch {
             val accountId = identity.activeAccountId.value ?: return@launch
-            chatDbFactory.close(accountId)
+            chatStores.forAccount(accountId)?.cache?.clear()
             _state.update { it.copy(cacheCleared = true) }
         }
     }

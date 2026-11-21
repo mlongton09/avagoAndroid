@@ -6,7 +6,7 @@ import androidx.compose.ui.res.stringResource
 
 /**
  * Localised rental invoice status (web `rental_invoices.status`). Shared by the rentals (P1)
- * order screens and the rentalsops (P2) statements so both show the same label.
+ * order screens and the rentals operations (P2) statements so both show the same label.
  */
 @StringRes
 fun invoiceStatusLabel(status: String): Int? = when (status) {

@@ -52,7 +52,7 @@ dependencies {
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.serialization.json)
     testImplementation(libs.coroutines.test)
-    // v2 store/sync tests run the generated DDL on a real SQLite (>= 3.45) through JDBC.
+    // v2 store/sync tests run the generated DDL on a real SQLite (3.53.4, as bundled on the device) through JDBC.
     testImplementation(libs.sqlite.jdbc)
     testRuntimeOnly(libs.junit5.engine)
     testRuntimeOnly(libs.junit.platform.launcher)

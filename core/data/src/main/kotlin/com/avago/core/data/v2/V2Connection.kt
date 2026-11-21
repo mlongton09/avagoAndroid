@@ -19,9 +19,9 @@ typealias V2Row = Map<String, Any?>
 
 /**
  * Minimal synchronous SQLite seam for the v2 store. Production uses [BundledV2Connection]
- * (`androidx.sqlite:sqlite-bundled`, SQLite ≥ 3.45 on every API level, L16); JVM unit tests use a
- * JDBC adapter over the same generated DDL. Bind values: `null`, Long/Int, Double, String,
- * Boolean (0/1), ByteArray. Every failure is a [V2SqlException].
+ * (`androidx.sqlite:sqlite-bundled`, SQLite 3.53.4 on every API level, [V2SqliteRuntime]); JVM unit
+ * tests use a JDBC adapter over the same generated DDL. Bind values: `null`, Long/Int, Double,
+ * String, Boolean (0/1), ByteArray. Every failure is a [V2SqlException].
  */
 interface V2Connection : Closeable {
     /** Runs one statement; returns `changes()`. */
@@ -76,6 +76,41 @@ object V2SqlScript {
     }
 
     fun quote(identifier: String): String = "\"" + identifier.replace("\"", "\"\"") + "\""
+}
+
+/**
+ * The SQLite runtime floor of the v2 stores (plan 4.2, L16): STRICT tables need 3.37, and the
+ * [WAL-reset fix](https://www.sqlite.org/wal.html#the_wal_reset_bug) ships in 3.51.3 with upstream
+ * backports in 3.50.7 and 3.44.6. The app pins `androidx.sqlite:sqlite-bundled` (SQLite 3.53.4 on
+ * every ABI and API level, never the framework build), and [check] refuses any other runtime.
+ */
+object V2SqliteRuntime {
+    const val MIN_VERSION = "3.51.3"
+
+    /** Upstream releases carrying the WAL-reset fix below [MIN_VERSION]: (first fixed, next minor). */
+    private const val VERSION_PARTS = 3
+
+    private val BACKPORTS = listOf("3.50.7" to "3.51.0", "3.44.6" to "3.45.0")
+
+    fun hasWalResetFix(version: String): Boolean {
+        val v = parse(version) ?: return false
+        return compare(v, parse(MIN_VERSION)!!) >= 0 ||
+            BACKPORTS.any { (fixed, next) -> compare(v, parse(fixed)!!) >= 0 && compare(v, parse(next)!!) < 0 }
+    }
+
+    /** Throws [V2SqlException] unless [connection] runs a SQLite with the WAL-reset fix. */
+    fun check(connection: V2Connection) {
+        val version = connection.scalarText("SELECT sqlite_version()").orEmpty()
+        if (!hasWalResetFix(version)) {
+            throw V2SqlException("SQLite $version lacks the WAL-reset fix (need >= $MIN_VERSION)")
+        }
+    }
+
+    private fun parse(version: String): List<Int>? =
+        version.split('.').takeIf { it.size == VERSION_PARTS }?.map { it.toIntOrNull() ?: return null }
+
+    private fun compare(a: List<Int>, b: List<Int>): Int =
+        a.zip(b).map { (x, y) -> x.compareTo(y) }.firstOrNull { it != 0 } ?: 0
 }
 
 /** [V2Connection] over the bundled SQLite driver. Callers serialise access ([V2Database]). */

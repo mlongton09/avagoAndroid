@@ -1,20 +1,17 @@
 package com.avago.feature.chat.data
 
-import android.webkit.MimeTypeMap
 import com.avago.core.auth.IdentityManager
-import com.avago.core.data.db.ChatDatabaseFactory
+import com.avago.core.data.chat.ChatLocalStore
+import com.avago.core.data.chat.ChatStore
 import com.avago.core.data.db.entity.ChatAccountRosterEntity
 import com.avago.core.data.db.entity.ChatMentionEntity
-import com.avago.core.data.db.entity.ChatOutboxEntity
-import com.avago.core.data.db.entity.ChatPresenceEntity
-import com.avago.core.data.db.entity.ChatThreadLastReadEntity
-import com.avago.core.data.db.entity.ChatThreadMemberEntity
 import com.avago.core.data.db.entity.ChatMessageEntity
+import com.avago.core.data.db.entity.ChatPresenceEntity
 import com.avago.core.data.db.entity.ChatThreadEntity
+import com.avago.core.data.db.entity.ChatThreadMemberEntity
 import com.avago.core.data.v2.V2MediaType
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
-import com.avago.core.network.model.ChatMemberResponse
 import com.avago.core.network.model.ChatMessageResponse
 import com.avago.core.network.model.ChatPrefsRequest
 import com.avago.core.network.model.ChatPrefsResponse
@@ -22,12 +19,18 @@ import com.avago.core.network.model.ChatRosterEntry
 import com.avago.core.network.model.ChatThreadResponse
 import com.avago.core.network.model.LinkPreviewResponse
 import com.avago.core.network.model.UserResponse
+import com.avago.feature.chat.data.ChatMessageMapping.buildJsonStringArray
+import com.avago.feature.chat.data.ChatMessageMapping.buildReactionCountsJson
+import com.avago.feature.chat.data.ChatMessageMapping.epochMillisOrNull
+import com.avago.feature.chat.data.ChatMessageMapping.toEntity
+import com.avago.feature.chat.realtime.OutboxRetryCoordinator
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.update
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.int
@@ -35,47 +38,54 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import timber.log.Timber
-import java.net.URLDecoder
-import java.nio.charset.StandardCharsets
-import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Chat for the active account: REST and realtime results are cached in the account's chat file
+ * (`chat-<user>-<account>.sqlite`, through [ChatLocalStore]) and writes go through the ordered
+ * outbox of [OutboxRetryCoordinator]. Every observation follows account switches and is empty
+ * while the account's stores are not open.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
 @Singleton
 class ChatRepository @Inject constructor(
-    private val chatDbFactory: ChatDatabaseFactory,
+    private val chatStores: ChatLocalStore,
+    private val outbox: OutboxRetryCoordinator,
     private val client: AvagoServiceClient,
     private val identity: IdentityManager,
 ) {
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
+    private val _presence = MutableStateFlow<Map<String, ChatPresenceEntity>>(emptyMap())
+
+    /** Last realtime presence per user id (online/offline), for the active session only. */
+    val presence: StateFlow<Map<String, ChatPresenceEntity>> = _presence.asStateFlow()
+
+    private suspend fun store(accountId: String? = identity.activeAccountId.value): ChatStore? =
+        accountId?.let { chatStores.forAccount(it) }
+
+    private fun <T> observeActive(empty: T, query: (ChatStore) -> Flow<T>): Flow<T> =
+        identity.activeAccountId.flatMapLatest { accountId -> chatStores.observeWith(accountId, empty, query) }
+
     // ---------------------------------------------------------------------------
     // Thread list
     // ---------------------------------------------------------------------------
 
-    suspend fun observeThreads(): Flow<List<ChatThreadEntity>> {
-        val accountId = identity.activeAccountId.value ?: return emptyFlow()
-        return chatDbFactory.get(accountId).chatThreadDao().observeAll(accountId)
-    }
+    fun observeThreads(): Flow<List<ChatThreadEntity>> = observeActive(emptyList()) { it.cache.observeThreads() }
 
-    fun observeThread(threadId: String): Flow<ChatThreadEntity?> {
-        val accountId = identity.activeAccountId.value ?: return emptyFlow()
-        return flow {
-            emitAll(chatDbFactory.get(accountId).chatThreadDao().observeById(threadId))
-        }
-    }
+    fun observeThread(threadId: String): Flow<ChatThreadEntity?> =
+        observeActive(null) { it.cache.observeThread(threadId) }
 
-    /** Pull threads from server and upsert into local DB. */
+    /** Pull threads from server and upsert into the chat cache. */
     suspend fun syncThreads(): Result<Unit> {
-        val accountId = identity.activeAccountId.value
-            ?: return Result.failure(Exception("No active account"))
+        val store = store() ?: return Result.failure(Exception("No active account"))
         return when (val result = client.getThreads()) {
             is NetworkResult.Success -> {
-                val db = chatDbFactory.get(accountId)
                 result.data.forEach { remote ->
-                    val existing = db.chatThreadDao().getById(remote.thread_id)
-                    db.chatThreadDao().upsert(
+                    val existing = store.cache.thread(remote.thread_id)
+                    store.cache.putThread(
                         remote.toEntity().copy(
                             // Preserve local-only fields that the list endpoint doesn't return.
                             notificationPref = existing?.notificationPref,
@@ -107,8 +117,7 @@ class ChatRepository @Inject constructor(
         displayName: String?,
         memberIds: List<String>,
     ): Result<String> {
-        val accountId = identity.activeAccountId.value
-            ?: return Result.failure(Exception("No active account"))
+        val store = store() ?: return Result.failure(Exception("No active account"))
         val result = if (type == "direct") {
             val otherId = memberIds.firstOrNull()
                 ?: return Result.failure(Exception("No member specified for direct thread"))
@@ -118,8 +127,7 @@ class ChatRepository @Inject constructor(
         }
         return when (result) {
             is NetworkResult.Success -> {
-                val db = chatDbFactory.get(accountId)
-                db.chatThreadDao().upsert(result.data.toEntity())
+                store.cache.putThread(result.data.toEntity())
                 Result.success(result.data.thread_id)
             }
             is NetworkResult.Error -> {
@@ -142,24 +150,20 @@ class ChatRepository @Inject constructor(
     // Messages
     // ---------------------------------------------------------------------------
 
-    suspend fun observeMessages(threadId: String): Flow<List<ChatMessageEntity>> {
-        val accountId = identity.activeAccountId.value ?: return emptyFlow()
-        return chatDbFactory.get(accountId).chatMessageDao().observeByThread(threadId)
-    }
+    fun observeMessages(threadId: String): Flow<List<ChatMessageEntity>> =
+        observeActive(emptyList()) { it.cache.observeMessages(threadId) }
 
     /**
      * Fetch a page of older messages (cursor-based pagination).
      * [beforeCreatedAt] is the epoch-ms timestamp of the oldest message currently loaded.
+     * Returns true if there are more pages to load (server returned a full page).
      */
-    /** Returns true if there are more pages to load (server returned a full page). */
     suspend fun loadMoreMessages(threadId: String, beforeCreatedAt: Long, limit: Int = 50): Boolean {
-        val accountId = identity.activeAccountId.value ?: return false
+        val store = store() ?: return false
         val beforeIso = java.time.Instant.ofEpochMilli(beforeCreatedAt).toString()
         return when (val result = client.getMessages(threadId = threadId, before = beforeIso, limit = limit)) {
             is NetworkResult.Success -> {
-                val db = chatDbFactory.get(accountId)
-                db.chatMessageDao().upsertAll(result.data.messages.map { it.toEntity(accountId) })
-                writeMentionsIfPresent(accountId, result.data.messages)
+                cacheMessages(store, result.data.messages)
                 result.data.messages.size >= limit
             }
             is NetworkResult.Error -> {
@@ -173,71 +177,33 @@ class ChatRepository @Inject constructor(
         }
     }
 
-    /** Returns the most recent non-deleted message in a thread from local DB (no network). */
-    suspend fun getLastMessage(threadId: String): com.avago.core.data.db.entity.ChatMessageEntity? {
-        val accountId = identity.activeAccountId.value ?: return null
-        return chatDbFactory.get(accountId).chatMessageDao().getLastMessage(threadId)
-    }
+    /** Returns the most recent non-deleted message in a thread from the chat cache (no network). */
+    suspend fun getLastMessage(threadId: String): ChatMessageEntity? = store()?.cache?.lastMessage(threadId)
 
     /** Initial sync of a thread's messages (most-recent page). */
     suspend fun syncMessages(threadId: String) {
-        val accountId = identity.activeAccountId.value ?: return
+        val store = store() ?: return
         when (val result = client.getMessages(threadId = threadId, limit = 50)) {
-            is NetworkResult.Success -> {
-                val db = chatDbFactory.get(accountId)
-                db.chatMessageDao().upsertAll(result.data.messages.map { it.toEntity(accountId) })
-                writeMentionsIfPresent(accountId, result.data.messages)
-            }
+            is NetworkResult.Success -> cacheMessages(store, result.data.messages)
             is NetworkResult.Error -> Timber.w("syncMessages failed: ${result.message}")
             is NetworkResult.Unauthorized -> Timber.w("syncMessages: unauthorized")
         }
     }
 
+    /** Edits a message through the outbox: shown at once, delivered after every earlier write. */
     suspend fun editMessage(threadId: String, messageId: String, newBody: String): Result<Unit> {
         val accountId = identity.activeAccountId.value
             ?: return Result.failure(Exception("No active account"))
-        return when (val result = client.editMessage(threadId, messageId, newBody)) {
-            is NetworkResult.Success -> {
-                val db = chatDbFactory.get(accountId)
-                val edited = result.data
-                val editedAt = edited.edited_at?.let {
-                    runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull()
-                } ?: System.currentTimeMillis()
-                db.chatMessageDao().updateEdited(messageId, edited.body_md, editedAt)
-                Result.success(Unit)
-            }
-            is NetworkResult.Error -> {
-                Timber.w("editMessage failed: ${result.message}")
-                Result.failure(Exception(result.message))
-            }
-            is NetworkResult.Unauthorized -> {
-                Timber.w("editMessage: unauthorized")
-                Result.failure(Exception("Unauthorized"))
-            }
-        }
+        return runCatching { outbox.edit(accountId, threadId, messageId, newBody) }
+            .onFailure { Timber.w(it, "editMessage failed") }
     }
 
+    /** Deletes a message through the outbox: hidden at once, delivered after every earlier write. */
     suspend fun deleteMessage(threadId: String, messageId: String): Result<Unit> {
         val accountId = identity.activeAccountId.value
             ?: return Result.failure(Exception("No active account"))
-        return when (val outcome = client.deleteMessage(threadId, messageId)) {
-            is NetworkResult.Success -> {
-                val db = chatDbFactory.get(accountId)
-                val now = System.currentTimeMillis()
-                db.chatMessageDao().getById(messageId)?.let { entity ->
-                    db.chatMessageDao().upsert(entity.copy(deletedAt = now, updatedAt = now))
-                }
-                Result.success(Unit)
-            }
-            is NetworkResult.Error -> {
-                Timber.w("deleteMessage failed: ${outcome.message}")
-                Result.failure(Exception(outcome.message))
-            }
-            is NetworkResult.Unauthorized -> {
-                Timber.w("deleteMessage: unauthorized")
-                Result.failure(Exception("Unauthorized"))
-            }
-        }
+        return runCatching { outbox.delete(accountId, threadId, messageId) }
+            .onFailure { Timber.w(it, "deleteMessage failed") }
     }
 
     suspend fun reactToMessage(threadId: String, messageId: String, emoji: String): Boolean {
@@ -251,55 +217,38 @@ class ChatRepository @Inject constructor(
     // Subthread replies
     // ---------------------------------------------------------------------------
 
-    fun observeReplies(threadId: String, parentMessageId: String): Flow<List<ChatMessageEntity>> {
-        val accountId = identity.activeAccountId.value ?: return emptyFlow()
-        return flow {
-            emitAll(chatDbFactory.get(accountId).chatMessageDao()
-                .observeByThreadAndParent(threadId, parentMessageId))
-        }
-    }
+    fun observeReplies(threadId: String, parentMessageId: String): Flow<List<ChatMessageEntity>> =
+        observeActive(emptyList()) { it.cache.observeReplies(threadId, parentMessageId) }
 
     suspend fun syncReplies(threadId: String, parentMessageId: String) {
-        val accountId = identity.activeAccountId.value ?: return
+        val store = store() ?: return
         when (val result = client.getReplies(threadId, parentMessageId)) {
-            is NetworkResult.Success -> {
-                val db = chatDbFactory.get(accountId)
-                db.chatMessageDao().upsertAll(result.data.messages.map { it.toEntity(accountId) })
-                writeMentionsIfPresent(accountId, result.data.messages)
-            }
+            is NetworkResult.Success -> cacheMessages(store, result.data.messages)
             is NetworkResult.Error -> Timber.w("syncReplies failed: ${result.message}")
             is NetworkResult.Unauthorized -> Timber.w("syncReplies: unauthorized")
         }
     }
 
+    /** Queues a subthread reply through the outbox; false when the chat store is not open. */
     suspend fun sendReply(threadId: String, parentMessageId: String, body: String): Boolean {
         val accountId = identity.activeAccountId.value ?: return false
-        return when (val result = client.sendReply(threadId, parentMessageId, body)) {
-            is NetworkResult.Success -> {
-                chatDbFactory.get(accountId).chatMessageDao().upsert(result.data.toEntity(accountId))
-                writeMentionsIfPresent(accountId, listOf(result.data))
-                true
-            }
-            else -> false
-        }
+        return runCatching { outbox.sendReply(accountId, threadId, parentMessageId, body) }
+            .onFailure { Timber.w(it, "sendReply failed") }
+            .isSuccess
     }
 
     // ---------------------------------------------------------------------------
     // Pin / unpin
     // ---------------------------------------------------------------------------
 
-    fun observePinnedMessage(threadId: String): Flow<ChatMessageEntity?> {
-        val accountId = identity.activeAccountId.value ?: return emptyFlow()
-        return flow {
-            emitAll(chatDbFactory.get(accountId).chatMessageDao().observePinnedMessage(threadId))
-        }
-    }
+    fun observePinnedMessage(threadId: String): Flow<ChatMessageEntity?> =
+        observeActive(null) { it.cache.observePinnedMessage(threadId) }
 
     suspend fun pinMessage(threadId: String, messageId: String): Boolean {
-        val accountId = identity.activeAccountId.value ?: return false
+        val store = store() ?: return false
         return when (client.pinMessage(threadId, messageId)) {
             is NetworkResult.Success -> {
-                chatDbFactory.get(accountId).chatMessageDao().updatePinned(messageId, true)
+                store.cache.updateMessage(messageId) { it.copy(isPinned = true) }
                 true
             }
             else -> false
@@ -307,131 +256,97 @@ class ChatRepository @Inject constructor(
     }
 
     suspend fun unpinMessage(threadId: String, messageId: String): Boolean {
-        val accountId = identity.activeAccountId.value ?: return false
+        val store = store() ?: return false
         return when (client.unpinMessage(threadId, messageId)) {
             is NetworkResult.Success -> {
-                chatDbFactory.get(accountId).chatMessageDao().updatePinned(messageId, false)
+                store.cache.updateMessage(messageId) { it.copy(isPinned = false) }
                 true
             }
             else -> false
         }
     }
 
-    suspend fun observeMentions(username: String): Flow<List<ChatMessageEntity>> {
-        val accountId = identity.activeAccountId.value ?: return emptyFlow()
-        return chatDbFactory.get(accountId).chatMessageDao().observeMentions(username)
-    }
+    fun observeMentions(username: String): Flow<List<ChatMessageEntity>> =
+        observeActive(emptyList()) { it.cache.observeMessagesMentioning(username) }
 
     /** Upsert a message received via WebSocket realtime event or delta sync. */
     suspend fun handleRealtimeMessage(msg: ChatMessageResponse) {
-        val accountId = identity.activeAccountId.value ?: return
-        val db = chatDbFactory.get(accountId)
+        val store = store() ?: return
+        cacheRealtimeMessage(store, msg)
+    }
+
+    private suspend fun cacheRealtimeMessage(store: ChatStore, msg: ChatMessageResponse) {
         val now = System.currentTimeMillis()
-        db.chatMessageDao().upsert(msg.toEntity(accountId))
-        writeMentionsIfPresent(accountId, listOf(msg))
-        db.chatThreadDao().getById(msg.thread_id)?.let { thread ->
-            db.chatThreadDao().upsert(
-                thread.copy(
-                    lastMessagePreview = msg.body_md.take(120),
-                    lastMessageAt = runCatching {
-                        java.time.Instant.parse(msg.created_at).toEpochMilli()
-                    }.getOrDefault(now),
-                    updatedAt = now,
-                )
+        cacheMessages(store, listOf(msg))
+        store.cache.updateThread(msg.thread_id) { thread ->
+            thread.copy(
+                lastMessagePreview = msg.body_md.take(120),
+                lastMessageAt = epochMillisOrNull(msg.created_at) ?: now,
+                updatedAt = now,
             )
         }
     }
 
     /**
-     * Writes a `mentions_of_me` row for any message in [messages] where the
-     * current user appears in `mentioned_user_ids` and is not the author.
+     * Caches [messages] and writes a `mentions_of_me` row for any message where the current user
+     * appears in `mentioned_user_ids` and is not the author.
      *
-     * Mirrors iOS [ChatStore.upsertMessage] (Data/Chat/ChatStore.swift lines
-     * 54-69) which performs this side-effect on EVERY message upsert path
-     * (REST pull, delta sync, WebSocket realtime). Without this, the chat-tab
-     * unread @-mention badge stays at 0 until the user happens to be online
-     * with the WebSocket connected when a mention arrives — REST-pulled
-     * mentions (the common case for a freshly-launched app or after a
-     * background-sync delta) never reach `mentions_of_me`, so the pill
-     * silently fails to appear.
-     *
-     * Use this from ANY code path that upserts a [ChatMessageResponse] into
-     * the local DB. Idempotent — the mention row uses messageId as the
-     * primary key with `OnConflictStrategy.REPLACE`, so calling it for
-     * messages that already have a mention row is safe (and preserves
-     * `isRead` only via the REPLACE → consumer must call markRead before
-     * re-syncing if they care about preserving read state; in practice the
-     * server's authoritative read state is delivered via separate APIs).
+     * Mirrors iOS ChatStore.upsertMessage, which performs this side-effect on EVERY message upsert
+     * path (REST pull, delta sync, WebSocket realtime). Without it, the chat-tab unread @-mention
+     * badge stays at 0 until the user happens to be online with the WebSocket connected when a
+     * mention arrives. The mention row is keyed by messageId, so re-caching is idempotent.
      */
-    private suspend fun writeMentionsIfPresent(accountId: String, messages: List<ChatMessageResponse>) {
+    private suspend fun cacheMessages(store: ChatStore, messages: List<ChatMessageResponse>) {
+        store.cache.putMessages(messages.map { it.toEntity(store.accountId) })
         val myUserId = identity.getActiveUserId() ?: return
-        val db = chatDbFactory.get(accountId)
         val now = System.currentTimeMillis()
-        messages.forEach { msg ->
-            val isMentioned = msg.mentioned_user_ids.contains(myUserId)
+        val mentions = messages.filter { msg ->
             val isOwnMessage = msg.author_id == myUserId || msg.author?.id == myUserId
-            if (isMentioned && !isOwnMessage) {
-                db.chatMentionDao().upsert(
-                    ChatMentionEntity(
-                        mentionId = msg.message_id,
-                        threadId = msg.thread_id,
-                        messageId = msg.message_id,
-                        accountId = accountId,
-                        mentionedBy = msg.author_id ?: msg.author?.id,
-                        isRead = false,
-                        createdAt = runCatching {
-                            java.time.Instant.parse(msg.created_at).toEpochMilli()
-                        }.getOrDefault(now),
-                    )
-                )
-            }
+            msg.mentioned_user_ids.contains(myUserId) && !isOwnMessage
+        }.map { msg ->
+            ChatMentionEntity(
+                mentionId = msg.message_id,
+                threadId = msg.thread_id,
+                messageId = msg.message_id,
+                accountId = store.accountId,
+                mentionedBy = msg.author_id ?: msg.author?.id,
+                isRead = false,
+                createdAt = epochMillisOrNull(msg.created_at) ?: now,
+            )
         }
+        if (mentions.isNotEmpty()) store.cache.putMentions(mentions)
     }
 
-    /** Mark a message as deleted in local DB when a `message.deleted` WS event arrives. */
+    /** Mark a message as deleted in the chat cache when a `message.deleted` WS event arrives. */
     suspend fun handleRealtimeMessageDeleted(messageId: String) {
-        val accountId = identity.activeAccountId.value ?: return
-        val db = chatDbFactory.get(accountId)
-        val now = System.currentTimeMillis()
-        db.chatMessageDao().getById(messageId)?.let { entity ->
-            db.chatMessageDao().upsert(entity.copy(deletedAt = now, updatedAt = now))
-        }
+        val store = store() ?: return
+        markMessageDeleted(store, messageId)
     }
 
-    /** Update pinned state in local DB when a `message.pinned/unpinned` WS event arrives. */
+    private suspend fun markMessageDeleted(store: ChatStore, messageId: String) {
+        val now = System.currentTimeMillis()
+        store.cache.updateMessage(messageId) { it.copy(deletedAt = now, updatedAt = now) }
+    }
+
+    /** Update pinned state in the chat cache when a `message.pinned/unpinned` WS event arrives. */
     suspend fun handleRealtimeMessagePinned(messageId: String, pinned: Boolean) {
-        val accountId = identity.activeAccountId.value ?: return
-        chatDbFactory.get(accountId).chatMessageDao().updatePinned(messageId, pinned)
+        store()?.cache?.updateMessage(messageId) { it.copy(isPinned = pinned) }
     }
 
     /** Update the unread count on a thread when a `thread.unread_increment` WS event arrives. */
     suspend fun handleThreadUnreadIncrement(threadId: String, unreadCount: Long) {
-        val accountId = identity.activeAccountId.value ?: return
-        val db = chatDbFactory.get(accountId)
         val now = System.currentTimeMillis()
-        db.chatThreadDao().getById(threadId)?.let { thread ->
-            db.chatThreadDao().upsert(thread.copy(unreadCount = unreadCount.toInt(), updatedAt = now))
-        }
+        store()?.cache?.updateThread(threadId) { it.copy(unreadCount = unreadCount.toInt(), updatedAt = now) }
     }
 
     // ---------------------------------------------------------------------------
     // Delta sync — cursor persistence
     // ---------------------------------------------------------------------------
 
-    suspend fun getChatSyncCursor(accountId: String): String? {
-        return chatDbFactory.get(accountId).chatSyncStateDao()
-            .getValue("chat_sync_cursor_$accountId")
-    }
+    suspend fun getChatSyncCursor(accountId: String): String? = store(accountId)?.cache?.restSyncCursor()
 
     suspend fun saveChatSyncCursor(accountId: String, cursor: String) {
-        val now = System.currentTimeMillis()
-        chatDbFactory.get(accountId).chatSyncStateDao().setValue(
-            com.avago.core.data.db.entity.ChatSyncStateEntity(
-                key = "chat_sync_cursor_$accountId",
-                value = cursor,
-                updatedAt = now,
-            )
-        )
+        store(accountId)?.cache?.putRestSyncCursor(cursor)
     }
 
     // ---------------------------------------------------------------------------
@@ -441,15 +356,13 @@ class ChatRepository @Inject constructor(
     // Server op shape: {"kind": "thread.upserted"|"message.created"|"message.updated"|"message.deleted", ...}
     suspend fun applyChatSyncOp(accountId: String, op: com.avago.core.network.model.ChatSyncOp) {
         try {
+            val store = store(accountId) ?: return
             when (op.kind) {
                 "thread.upserted" -> {
-                    val thread = op.thread?.let {
-                        json.decodeFromJsonElement<com.avago.core.network.model.ChatThreadResponse>(it)
-                    } ?: return
-                    val db = chatDbFactory.get(accountId)
-                    val existing = db.chatThreadDao().getById(thread.thread_id)
+                    val thread = op.thread?.let { json.decodeFromJsonElement<ChatThreadResponse>(it) } ?: return
+                    val existing = store.cache.thread(thread.thread_id)
                     val newEntity = thread.toEntity()
-                    db.chatThreadDao().upsert(
+                    store.cache.putThread(
                         newEntity.copy(
                             notificationPref = existing?.notificationPref,
                             // Bootstrap payload includes is_archived; preserve if already set locally.
@@ -461,17 +374,14 @@ class ChatRepository @Inject constructor(
                     )
                 }
                 "message.created", "message.updated" -> {
-                    val msg = op.message?.let {
-                        json.decodeFromJsonElement<com.avago.core.network.model.ChatMessageResponse>(it)
-                    } ?: return
-                    handleRealtimeMessage(msg)
+                    val msg = op.message?.let { json.decodeFromJsonElement<ChatMessageResponse>(it) } ?: return
+                    cacheRealtimeMessage(store, msg)
                 }
-                "message.deleted" -> {
-                    val msgId = op.message_id ?: return
-                    handleRealtimeMessageDeleted(msgId)
-                }
+                "message.deleted" -> markMessageDeleted(store, op.message_id ?: return)
                 else -> Timber.d("[ChatSync] unhandled kind=${op.kind}")
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Timber.e(e, "[ChatSync] applyChatSyncOp failed for kind=${op.kind}")
         }
@@ -482,27 +392,32 @@ class ChatRepository @Inject constructor(
     // ---------------------------------------------------------------------------
 
     suspend fun handleRealtimeReaction(messageId: String, emoji: String, userId: String, added: Boolean) {
-        val accountId = identity.activeAccountId.value ?: return
-        val db = chatDbFactory.get(accountId)
-        val msg = db.chatMessageDao().getById(messageId) ?: return
-        val now = System.currentTimeMillis()
+        val store = store() ?: return
         val myUserId = identity.getActiveUserId()
-
-        val counts = parseReactionCounts(msg.reactionCounts).toMutableMap()
-        val current = counts[emoji] ?: 0
-        if (added) counts[emoji] = current + 1
-        else if (current > 1) counts[emoji] = current - 1
-        else counts.remove(emoji)
-        val newCountsJson = buildReactionCountsJson(counts)
-
-        val newMyReactions = if (userId == myUserId) {
-            val mine = parseJsonStringArray(msg.myReactions).toMutableList()
-            if (added) { if (!mine.contains(emoji)) mine.add(emoji) }
-            else mine.remove(emoji)
-            buildJsonStringArray(mine)
-        } else msg.myReactions
-
-        db.chatMessageDao().upsert(msg.copy(reactionCounts = newCountsJson, myReactions = newMyReactions, updatedAt = now))
+        val now = System.currentTimeMillis()
+        store.cache.updateMessage(messageId) { msg ->
+            val counts = parseReactionCounts(msg.reactionCounts).toMutableMap()
+            val current = counts[emoji] ?: 0
+            if (added) {
+                counts[emoji] = current + 1
+            } else if (current > 1) {
+                counts[emoji] = current - 1
+            } else {
+                counts.remove(emoji)
+            }
+            val newMyReactions = if (userId == myUserId) {
+                val mine = parseJsonStringArray(msg.myReactions).toMutableList()
+                if (added) {
+                    if (!mine.contains(emoji)) mine.add(emoji)
+                } else {
+                    mine.remove(emoji)
+                }
+                buildJsonStringArray(mine)
+            } else {
+                msg.myReactions
+            }
+            msg.copy(reactionCounts = buildReactionCountsJson(counts), myReactions = newMyReactions, updatedAt = now)
+        }
     }
 
     private fun parseReactionCounts(raw: String?): Map<String, Int> {
@@ -513,11 +428,6 @@ class ChatRepository @Inject constructor(
         } catch (_: Exception) { emptyMap() }
     }
 
-    private fun buildReactionCountsJson(counts: Map<String, Int>): String? {
-        if (counts.isEmpty()) return null
-        return counts.entries.joinToString(",", "{", "}") { (k, v) -> "\"$k\":$v" }
-    }
-
     private fun parseJsonStringArray(raw: String?): List<String> {
         if (raw.isNullOrBlank()) return emptyList()
         return try {
@@ -525,41 +435,31 @@ class ChatRepository @Inject constructor(
         } catch (_: Exception) { emptyList() }
     }
 
-    private fun buildJsonStringArray(items: List<String>): String? {
-        if (items.isEmpty()) return null
-        return items.joinToString(",", "[", "]") { "\"$it\"" }
-    }
-
     // ---------------------------------------------------------------------------
     // Thread event handlers
     // ---------------------------------------------------------------------------
 
     suspend fun handleRealtimeThreadCreated(threadId: String) {
-        val accountId = identity.activeAccountId.value ?: return
+        val store = store() ?: return
         when (val result = client.getThread(threadId)) {
-            is NetworkResult.Success -> {
-                chatDbFactory.get(accountId).chatThreadDao().upsert(result.data.toEntity())
-            }
+            is NetworkResult.Success -> store.cache.putThread(result.data.toEntity())
             else -> Timber.w("handleRealtimeThreadCreated: failed to fetch thread $threadId")
         }
     }
 
     suspend fun handleRealtimeThreadArchived(threadId: String) {
-        val accountId = identity.activeAccountId.value ?: return
-        chatDbFactory.get(accountId).chatThreadDao()
-            .updateArchived(threadId, true, System.currentTimeMillis())
+        val now = System.currentTimeMillis()
+        store()?.cache?.updateThread(threadId) { it.copy(isArchived = true, updatedAt = now) }
     }
 
     suspend fun handleRealtimeThreadRenamed(threadId: String, newName: String) {
-        val accountId = identity.activeAccountId.value ?: return
-        chatDbFactory.get(accountId).chatThreadDao()
-            .updateDisplayName(threadId, newName, System.currentTimeMillis())
+        val now = System.currentTimeMillis()
+        store()?.cache?.updateThread(threadId) { it.copy(displayName = newName, updatedAt = now) }
     }
 
     suspend fun handleRealtimeNotifPrefChanged(threadId: String, pref: String) {
-        val accountId = identity.activeAccountId.value ?: return
-        chatDbFactory.get(accountId).chatThreadDao()
-            .updateNotificationPref(threadId, pref, System.currentTimeMillis())
+        val now = System.currentTimeMillis()
+        store()?.cache?.updateThread(threadId) { it.copy(notificationPref = pref, updatedAt = now) }
     }
 
     suspend fun markDelivered(messageIds: List<String>) {
@@ -589,16 +489,14 @@ class ChatRepository @Inject constructor(
             threadType = thread_type,
             displayName = resolvedDisplayName,
             lastMessagePreview = last_message_preview,
-            lastMessageAt = last_activity_at?.let {
-                runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull()
-            },
+            lastMessageAt = last_activity_at?.let(::epochMillisOrNull),
             unreadCount = unread_count,
             subjectSummary = subject_summary?.toString(),
             serverVersion = 0,
             deletedAt = null,
             isFavorite = is_favorite,
             isArchived = false, // server doesn't send is_archived in list endpoint
-            createdAt = runCatching { java.time.Instant.parse(created_at).toEpochMilli() }.getOrDefault(now),
+            createdAt = epochMillisOrNull(created_at) ?: now,
             updatedAt = now,
         )
     }
@@ -607,21 +505,15 @@ class ChatRepository @Inject constructor(
     // Account roster (for @mention autocomplete)
     // ---------------------------------------------------------------------------
 
-    fun observeRoster(accountId: String): Flow<List<ChatAccountRosterEntity>> = flow {
-        emitAll(chatDbFactory.get(accountId).chatAccountRosterDao().observeAll(accountId))
-    }
+    fun observeRoster(accountId: String): Flow<List<ChatAccountRosterEntity>> =
+        chatStores.observeWith(accountId, emptyList()) { it.cache.observeRoster() }
 
     suspend fun syncRoster() {
-        val accountId = identity.activeAccountId.value ?: return
+        val store = store() ?: return
         when (val result = client.getChatRoster()) {
-            is NetworkResult.Success -> {
-                val db = chatDbFactory.get(accountId)
-                val entities = result.data.map { it.toRosterEntity(accountId) }
-                db.chatAccountRosterDao().upsertAll(entities)
-            }
+            is NetworkResult.Success -> store.cache.putRoster(result.data.map { it.toRosterEntity(store.accountId) })
             is NetworkResult.Error -> Timber.w("syncRoster failed: ${result.message}")
             is NetworkResult.Unauthorized -> Timber.w("syncRoster: unauthorized")
-            else -> {}
         }
     }
 
@@ -629,23 +521,18 @@ class ChatRepository @Inject constructor(
     // Thread members
     // ---------------------------------------------------------------------------
 
-    fun observeThreadMembers(threadId: String): Flow<List<ChatThreadMemberEntity>> {
-        val accountId = identity.activeAccountId.value ?: return emptyFlow()
-        return flow {
-            emitAll(chatDbFactory.get(accountId).chatThreadMemberDao().observeByThread(threadId))
-        }
-    }
+    fun observeThreadMembers(threadId: String): Flow<List<ChatThreadMemberEntity>> =
+        observeActive(emptyList()) { it.cache.observeThreadMembers(threadId) }
 
     suspend fun syncThreadMembers(threadId: String) {
-        val accountId = identity.activeAccountId.value ?: return
+        val store = store() ?: return
         when (val result = client.getThreadMembers(threadId)) {
             is NetworkResult.Success -> {
-                val db = chatDbFactory.get(accountId)
                 val entities = result.data.map { member ->
                     ChatThreadMemberEntity(
                         threadId = threadId,
                         userId = member.user_id,
-                        accountId = accountId,
+                        accountId = store.accountId,
                         displayName = member.display_name,
                         role = member.role,
                         joinedAt = null,
@@ -653,11 +540,10 @@ class ChatRepository @Inject constructor(
                         isMuted = false,
                     )
                 }
-                db.chatThreadMemberDao().upsertAll(entities)
+                store.cache.putThreadMembers(entities)
             }
             is NetworkResult.Error -> Timber.w("syncThreadMembers failed: ${result.message}")
             is NetworkResult.Unauthorized -> Timber.w("syncThreadMembers: unauthorized")
-            else -> {}
         }
     }
 
@@ -666,69 +552,32 @@ class ChatRepository @Inject constructor(
     // ---------------------------------------------------------------------------
 
     /**
-     * Observes the count of unread @-mentions for the *currently active*
-     * account, reacting to account switches.
-     *
-     * Implementation note: we reactively `flatMapLatest` over
-     * `identity.activeAccountId` rather than capturing `.value` at call
-     * time. If you capture `.value`, the returned Flow is bound to the
-     * account that was active *when this function was called* — switching
-     * accounts will leave the badge stuck on the wrong account's count
-     * forever, because the cold flow is re-subscribed only when the UI is
-     * recomposed (which the account switch alone won't trigger).
-     *
-     * General rule for this repo: always derive per-account Flows by
-     * flatMapping over `identity.activeAccountId`, never by reading
-     * `.value` once.
+     * Observes the count of unread @-mentions for the *currently active* account, reacting to
+     * account switches: per-account flows are always derived by flatMapping over
+     * `identity.activeAccountId`, never by reading `.value` once, or an account switch would
+     * leave the badge stuck on the previous account's count.
      */
-    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    fun observeUnreadMentionCount(): Flow<Int> {
-        return identity.activeAccountId.flatMapLatest { accountId ->
-            if (accountId == null) flowOf(0)
-            else chatDbFactory.get(accountId).chatMentionDao().observeUnreadCount(accountId)
-        }
-    }
+    fun observeUnreadMentionCount(): Flow<Int> = observeActive(0) { it.cache.observeUnreadMentionCount() }
 
-    fun observeUnreadMentions(): Flow<List<ChatMentionEntity>> {
-        val accountId = identity.activeAccountId.value ?: return emptyFlow()
-        return flow {
-            emitAll(chatDbFactory.get(accountId).chatMentionDao().observeUnread(accountId))
-        }
-    }
+    fun observeUnreadMentions(): Flow<List<ChatMentionEntity>> =
+        observeActive(emptyList()) { it.cache.observeUnreadMentions() }
 
     suspend fun markMentionRead(mentionId: String) {
-        val accountId = identity.activeAccountId.value ?: return
-        chatDbFactory.get(accountId).chatMentionDao().markRead(mentionId)
+        store()?.cache?.markMentionRead(mentionId)
     }
 
     suspend fun markAllMentionsReadForThread(threadId: String) {
-        val accountId = identity.activeAccountId.value ?: return
-        chatDbFactory.get(accountId).chatMentionDao().markAllReadForThread(threadId)
+        store()?.cache?.markAllMentionsReadForThread(threadId)
     }
 
     // ---------------------------------------------------------------------------
-    // Thread last-read tracking
+    // Thread read state
     // ---------------------------------------------------------------------------
 
-    suspend fun markThreadRead(threadId: String, lastMessageId: String) {
-        val accountId = identity.activeAccountId.value ?: return
-        val userId = identity.getActiveUserId() ?: return
+    /** Zeroes the thread's local unread count once its latest message has been seen. */
+    suspend fun markThreadRead(threadId: String) {
         val now = System.currentTimeMillis()
-        val db = chatDbFactory.get(accountId)
-        db.chatThreadLastReadDao().upsert(
-            ChatThreadLastReadEntity(
-                threadId = threadId,
-                userId = userId,
-                accountId = accountId,
-                lastReadMessageId = lastMessageId,
-                lastReadAt = now,
-                updatedAt = now,
-            )
-        )
-        // Zero out the local unread count on the thread entity
-        db.chatThreadDao().getById(threadId)?.let { thread ->
-            db.chatThreadDao().upsert(thread.copy(unreadCount = 0, updatedAt = now))
-        }
+        store()?.cache?.updateThread(threadId) { it.copy(unreadCount = 0, updatedAt = now) }
     }
 
     suspend fun getTeamThread(accountId: String): Result<ChatThreadResponse> {
@@ -746,7 +595,7 @@ class ChatRepository @Inject constructor(
     suspend fun resolveAssetThread(accountId: String, assetId: String): Result<ChatThreadResponse> {
         return when (val r = client.resolveAssetThread(accountId, assetId)) {
             is NetworkResult.Success -> {
-                chatDbFactory.get(accountId).chatThreadDao().upsert(r.data.toEntity())
+                store(accountId)?.cache?.putThread(r.data.toEntity())
                 Result.success(r.data)
             }
             is NetworkResult.Error -> Result.failure(Exception(r.message))
@@ -755,31 +604,13 @@ class ChatRepository @Inject constructor(
     }
 
     // ---------------------------------------------------------------------------
-    // Outbox — persistent send queue
+    // Media
     // ---------------------------------------------------------------------------
 
-    suspend fun enqueueOutbox(accountId: String, threadId: String, senderId: String, body: String): String {
-        val localId = UUID.randomUUID().toString()
-        val now = System.currentTimeMillis()
-        chatDbFactory.get(accountId).chatOutboxDao().upsert(
-            ChatOutboxEntity(
-                localId = localId,
-                threadId = threadId,
-                accountId = accountId,
-                senderId = senderId,
-                bodyMd = body,
-                photoLocalPath = null,
-                parentMessageId = null,
-                status = "pending",
-                attempts = 0,
-                lastError = null,
-                createdAt = now,
-                updatedAt = now,
-            )
-        )
-        return localId
-    }
-
+    /**
+     * Uploads [bytes] (presign + PUT, online) and then queues the message carrying the media URL
+     * through the ordered outbox, so it is delivered after anything the user sent before it.
+     */
     suspend fun uploadAndSendMedia(
         threadId: String,
         bytes: ByteArray,
@@ -789,11 +620,11 @@ class ChatRepository @Inject constructor(
     ): Result<Unit> {
         val accountId = identity.activeAccountId.value
             ?: return Result.failure(Exception("No active account"))
-        val db = chatDbFactory.get(accountId)
         // Storage checks the bytes against the registered type (P3-20), so register what they are.
         val safeContentType = V2MediaType.sniff(bytes)
             ?: contentType.ifBlank { "application/octet-stream" }
-        val resolvedFileName = fileName?.takeIf { it.isNotBlank() } ?: defaultUploadFileName(safeContentType)
+        val resolvedFileName = fileName?.takeIf { it.isNotBlank() }
+            ?: ChatMessageMapping.defaultUploadFileName(safeContentType)
 
         val presignedMedia = when (val presign = client.presignChatMedia(safeContentType, bytes.size.toLong())) {
             is NetworkResult.Success -> presign.data
@@ -807,66 +638,44 @@ class ChatRepository @Inject constructor(
             is NetworkResult.Unauthorized -> return Result.failure(Exception("Unauthorized"))
         }
 
-        return when (
-            val sendResult = client.sendMessage(
-                threadId = threadId,
-                body = "",
-                imageUrls = listOf(presignedMedia.media_url),
-                needsReply = needsReply.takeIf { it },
-            )
-        ) {
-            is NetworkResult.Success -> {
-                val entity = sendResult.data.toEntity(accountId).withUploadedMedia(
-                    mediaUrl = presignedMedia.media_url,
-                    contentType = safeContentType,
-                    fileName = resolvedFileName,
-                    size = bytes.size.toLong(),
+        val mediaUrl = presignedMedia.media_url
+        return runCatching {
+            when {
+                ChatMessageMapping.isAudioMedia(mediaUrl, safeContentType, resolvedFileName) ->
+                    outbox.send(accountId, threadId, body = "", needsReply = needsReply, audioUrl = mediaUrl)
+                ChatMessageMapping.isImageMedia(mediaUrl, safeContentType, resolvedFileName) ->
+                    outbox.send(accountId, threadId, body = "", imageUrls = listOf(mediaUrl), needsReply = needsReply)
+                else -> outbox.send(
+                    accountId,
+                    threadId,
+                    body = "",
+                    needsReply = needsReply,
+                    attachmentUrl = mediaUrl,
+                    attachmentName = resolvedFileName,
+                    attachmentSize = bytes.size.toLong(),
                 )
-                db.chatMessageDao().upsert(entity)
-                writeMentionsIfPresent(accountId, listOf(sendResult.data))
-                Result.success(Unit)
             }
-            is NetworkResult.Error -> Result.failure(Exception(sendResult.message))
-            is NetworkResult.Unauthorized -> Result.failure(Exception("Unauthorized"))
+            Unit
         }
-    }
-
-    suspend fun markOutboxSent(localId: String) {
-        val accountId = identity.activeAccountId.value ?: return
-        chatDbFactory.get(accountId).chatOutboxDao().delete(localId)
-    }
-
-    suspend fun markOutboxFailed(localId: String, error: String) {
-        val accountId = identity.activeAccountId.value ?: return
-        chatDbFactory.get(accountId).chatOutboxDao().updateStatus(
-            localId = localId,
-            status = "failed",
-            error = error,
-            updatedAt = System.currentTimeMillis(),
-        )
-    }
-
-    suspend fun getPendingOutbox(): List<ChatOutboxEntity> {
-        val accountId = identity.activeAccountId.value ?: return emptyList()
-        return chatDbFactory.get(accountId).chatOutboxDao().getPendingAndFailed()
     }
 
     // ---------------------------------------------------------------------------
     // Presence
     // ---------------------------------------------------------------------------
 
-    suspend fun updatePresence(userId: String, status: String) {
+    fun updatePresence(userId: String, status: String) {
         val accountId = identity.activeAccountId.value ?: return
         val now = System.currentTimeMillis()
-        chatDbFactory.get(accountId).chatPresenceDao().upsert(
-            ChatPresenceEntity(
+        _presence.update { current ->
+            val presence = ChatPresenceEntity(
                 userId = userId,
                 accountId = accountId,
                 status = status,
                 lastSeenAt = now,
                 updatedAt = now,
             )
-        )
+            current + (userId to presence)
+        }
     }
 
     suspend fun fetchLinkPreview(url: String): LinkPreviewResponse? =
@@ -880,12 +689,11 @@ class ChatRepository @Inject constructor(
     // ---------------------------------------------------------------------------
 
     suspend fun setFavorite(threadId: String, favorite: Boolean): Result<Unit> {
-        val accountId = identity.activeAccountId.value
-            ?: return Result.failure(Exception("No active account"))
+        val store = store() ?: return Result.failure(Exception("No active account"))
         return when (val r = client.setThreadFavorite(threadId, favorite)) {
             is NetworkResult.Success -> {
-                chatDbFactory.get(accountId).chatThreadDao()
-                    .updateFavorite(threadId, favorite, System.currentTimeMillis())
+                val now = System.currentTimeMillis()
+                store.cache.updateThread(threadId) { it.copy(isFavorite = favorite, updatedAt = now) }
                 Result.success(Unit)
             }
             is NetworkResult.Error -> Result.failure(Exception(r.message))
@@ -918,11 +726,10 @@ class ChatRepository @Inject constructor(
         }
 
     suspend fun removeMember(threadId: String, userId: String): Result<Unit> {
-        val accountId = identity.activeAccountId.value
-            ?: return Result.failure(Exception("No active account"))
+        val store = store() ?: return Result.failure(Exception("No active account"))
         return when (val r = client.removeThreadMember(threadId, userId)) {
             is NetworkResult.Success -> {
-                chatDbFactory.get(accountId).chatThreadMemberDao().delete(threadId, userId)
+                store.cache.deleteThreadMember(threadId, userId)
                 Result.success(Unit)
             }
             is NetworkResult.Error -> Result.failure(Exception(r.message))
@@ -931,12 +738,11 @@ class ChatRepository @Inject constructor(
     }
 
     suspend fun renameGroup(threadId: String, name: String): Result<Unit> {
-        val accountId = identity.activeAccountId.value
-            ?: return Result.failure(Exception("No active account"))
+        val store = store() ?: return Result.failure(Exception("No active account"))
         return when (val r = client.renameGroupThread(threadId, name)) {
             is NetworkResult.Success -> {
-                chatDbFactory.get(accountId).chatThreadDao()
-                    .updateDisplayName(threadId, name, System.currentTimeMillis())
+                val now = System.currentTimeMillis()
+                store.cache.updateThread(threadId) { it.copy(displayName = name, updatedAt = now) }
                 Result.success(Unit)
             }
             is NetworkResult.Error -> Result.failure(Exception(r.message))
@@ -945,12 +751,11 @@ class ChatRepository @Inject constructor(
     }
 
     suspend fun setNotificationPref(threadId: String, pref: String): Result<Unit> {
-        val accountId = identity.activeAccountId.value
-            ?: return Result.failure(Exception("No active account"))
+        val store = store() ?: return Result.failure(Exception("No active account"))
         return when (val r = client.setThreadNotificationPref(threadId, pref)) {
             is NetworkResult.Success -> {
-                chatDbFactory.get(accountId).chatThreadDao()
-                    .updateNotificationPref(threadId, pref, System.currentTimeMillis())
+                val now = System.currentTimeMillis()
+                store.cache.updateThread(threadId) { it.copy(notificationPref = pref, updatedAt = now) }
                 Result.success(Unit)
             }
             is NetworkResult.Error -> Result.failure(Exception(r.message))
@@ -973,32 +778,35 @@ class ChatRepository @Inject constructor(
         }
 
     suspend fun toggleReaction(threadId: String, messageId: String, emoji: String) {
-        val accountId = identity.activeAccountId.value ?: return
-        val db = chatDbFactory.get(accountId)
-        val msg = db.chatMessageDao().getById(messageId) ?: return
-        val mine = parseJsonStringArray(msg.myReactions)
-        val alreadyReacted = mine.contains(emoji)
-        if (alreadyReacted) {
+        val store = store() ?: return
+        val msg = store.cache.message(messageId) ?: return
+        val me = identity.getActiveUserId() ?: ""
+        if (parseJsonStringArray(msg.myReactions).contains(emoji)) {
             // Optimistic remove
-            handleRealtimeReaction(messageId, emoji, identity.getActiveUserId() ?: "", added = false)
+            handleRealtimeReaction(messageId, emoji, me, added = false)
             when (val r = client.removeReaction(messageId, emoji)) {
                 is NetworkResult.Error -> {
                     Timber.w("removeReaction failed: ${r.message}")
-                    handleRealtimeReaction(messageId, emoji, identity.getActiveUserId() ?: "", added = true)
+                    handleRealtimeReaction(messageId, emoji, me, added = true)
                 }
                 else -> {}
             }
         } else {
             // Optimistic add
-            handleRealtimeReaction(messageId, emoji, identity.getActiveUserId() ?: "", added = true)
+            handleRealtimeReaction(messageId, emoji, me, added = true)
             when (val r = client.reactToMessage(threadId, messageId, emoji)) {
                 is NetworkResult.Error -> {
                     Timber.w("reactToMessage failed: ${r.message}")
-                    handleRealtimeReaction(messageId, emoji, identity.getActiveUserId() ?: "", added = false)
+                    handleRealtimeReaction(messageId, emoji, me, added = false)
                 }
                 else -> {}
             }
         }
+    }
+
+    suspend fun getThreadSummary(threadId: String): Map<String, Any>? {
+        val result = client.getThreadSummary(threadId)
+        return if (result is NetworkResult.Success) result.data else null
     }
 
     // ---------------------------------------------------------------------------
@@ -1016,170 +824,4 @@ class ChatRepository @Inject constructor(
         isActive = presence != "offline",
         updatedAt = System.currentTimeMillis(),
     )
-
-    private fun ChatMessageResponse.toEntity(accountId: String): ChatMessageEntity {
-        val now = System.currentTimeMillis()
-        val discoveredMedia = extractMediaFields(
-            imageUrls = image_urls,
-            responseAudioUrl = audio_url,
-            responseAttachmentUrl = attachment_url,
-            responseAttachmentName = attachment_name,
-            responseAttachmentSize = attachment_size,
-        )
-        return ChatMessageEntity(
-            messageId = message_id,
-            threadId = thread_id,
-            accountId = accountId,
-            senderId = author_id ?: author?.id ?: "",
-            senderName = author?.display_name,
-            senderAvatarUrl = author?.avatar_url,
-            bodyMd = body_md,
-            bodyPreview = body_md.take(120),
-            editedAt = edited_at?.let {
-                runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull()
-            },
-            linkPreviewTitle = link_preview?.title,
-            linkPreviewDescription = link_preview?.description,
-            linkPreviewImageUrl = link_preview?.image_url,
-            linkPreviewUrl = link_preview?.url,
-            linkPreviewSiteName = link_preview?.site_name,
-            photoUrl = photo_url,
-            imageUrls = buildJsonStringArray(discoveredMedia.imageUrls),
-            audioUrl = discoveredMedia.audioUrl,
-            attachmentUrl = discoveredMedia.attachmentUrl,
-            attachmentName = discoveredMedia.attachmentName,
-            attachmentSize = discoveredMedia.attachmentSize,
-            mentionedUserIds = buildJsonStringArray(mentioned_user_ids),
-            mentionKinds = buildJsonStringArray(mention_kinds),
-            isSystem = is_system,
-            systemKind = system_kind,
-            systemPayload = system_payload?.toString(),
-            replyCount = reply_count,
-            latestReplyAt = latest_reply_at?.let {
-                runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull()
-            },
-            deliveredByCount = delivered_by_count,
-            readByCount = read_by_count,
-            readByTotal = read_by_total,
-            reactionCounts = buildReactionCountsJson(reaction_counts),
-            myReactions = buildJsonStringArray(my_reactions),
-            needsReply = needs_reply,
-            clientRef = client_ref,
-            outboxStatus = null,
-            serverVersion = server_version,
-            deletedAt = null,
-            createdAt = runCatching { java.time.Instant.parse(created_at).toEpochMilli() }.getOrDefault(now),
-            updatedAt = runCatching { java.time.Instant.parse(updated_at).toEpochMilli() }.getOrDefault(now),
-            parentMessageId = parent_message_id,
-            isPinned = is_pinned,
-        )
-    }
-
-    private data class MediaFields(
-        val imageUrls: List<String>,
-        val audioUrl: String?,
-        val attachmentUrl: String?,
-        val attachmentName: String?,
-        val attachmentSize: Long?,
-    )
-
-    private fun extractMediaFields(
-        imageUrls: List<String>,
-        responseAudioUrl: String?,
-        responseAttachmentUrl: String?,
-        responseAttachmentName: String?,
-        responseAttachmentSize: Long?,
-    ): MediaFields {
-        var audioUrl = responseAudioUrl?.takeIf { it.isNotBlank() }
-        var attachmentUrl = responseAttachmentUrl?.takeIf { it.isNotBlank() }
-        var attachmentName = responseAttachmentName?.takeIf { it.isNotBlank() }
-        var attachmentSize = responseAttachmentSize
-        val normalizedImages = mutableListOf<String>()
-
-        imageUrls.filter { it.isNotBlank() }.forEach { url ->
-            val extension = urlExtension(url)
-            when {
-                audioUrl == null && extension in AUDIO_EXTENSIONS -> audioUrl = url
-                attachmentUrl == null && extension !in IMAGE_EXTENSIONS && extension !in AUDIO_EXTENSIONS -> {
-                    attachmentUrl = url
-                    if (attachmentName == null) attachmentName = fileNameFromUrl(url)
-                }
-                else -> normalizedImages += url
-            }
-        }
-
-        if (attachmentUrl != null && attachmentName == null) {
-            attachmentName = fileNameFromUrl(attachmentUrl!!)
-        }
-
-        return MediaFields(
-            imageUrls = normalizedImages,
-            audioUrl = audioUrl,
-            attachmentUrl = attachmentUrl,
-            attachmentName = attachmentName,
-            attachmentSize = attachmentSize,
-        )
-    }
-
-    private fun ChatMessageEntity.withUploadedMedia(
-        mediaUrl: String,
-        contentType: String,
-        fileName: String,
-        size: Long,
-    ): ChatMessageEntity {
-        return when {
-            isAudioMedia(mediaUrl, contentType, fileName) -> copy(
-                audioUrl = audioUrl ?: mediaUrl,
-                imageUrls = null,
-            )
-            isImageMedia(mediaUrl, contentType, fileName) -> copy(
-                imageUrls = buildJsonStringArray(listOf(mediaUrl)),
-                audioUrl = null,
-                attachmentUrl = null,
-                attachmentName = null,
-                attachmentSize = null,
-            )
-            else -> copy(
-                imageUrls = null,
-                attachmentUrl = attachmentUrl ?: mediaUrl,
-                attachmentName = attachmentName ?: fileName,
-                attachmentSize = attachmentSize ?: size,
-            )
-        }
-    }
-
-    suspend fun getThreadSummary(threadId: String): Map<String, Any>? {
-        val result = client.getThreadSummary(threadId)
-        return if (result is com.avago.core.network.NetworkResult.Success) result.data else null
-    }
-
-    private fun defaultUploadFileName(contentType: String): String {
-        val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(contentType)
-            ?.takeIf { it.isNotBlank() }
-            ?: "bin"
-        return "chat_upload_${System.currentTimeMillis()}.$extension"
-    }
-
-    private fun isImageMedia(url: String, contentType: String, fileName: String?): Boolean =
-        contentType.startsWith("image/") || urlExtension(fileName ?: url) in IMAGE_EXTENSIONS
-
-    private fun isAudioMedia(url: String, contentType: String, fileName: String?): Boolean =
-        contentType.startsWith("audio/") || urlExtension(fileName ?: url) in AUDIO_EXTENSIONS
-
-    private fun fileNameFromUrl(url: String): String? {
-        val raw = url.substringAfterLast('/').substringBefore('?').substringBefore('#')
-        if (raw.isBlank()) return null
-        return runCatching {
-            URLDecoder.decode(raw, StandardCharsets.UTF_8.name())
-        }.getOrDefault(raw)
-    }
-
-    private fun urlExtension(url: String): String =
-        url.substringAfterLast('.').substringBefore('?').substringBefore('#').lowercase()
-
-    companion object {
-        private val AUDIO_EXTENSIONS = setOf("m4a", "mp3", "aac", "wav", "ogg", "opus", "flac")
-        private val IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "gif", "webp", "heic", "bmp")
-    }
-
 }

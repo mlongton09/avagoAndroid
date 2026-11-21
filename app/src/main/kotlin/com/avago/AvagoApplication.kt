@@ -418,7 +418,8 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
     }
 
     /**
-     * Keeps downloaded v2 files under [FILE_CACHE_CAP_BYTES]: least recently used first, at most
+     * Keeps downloaded v2 files, and staged copies of uploaded files, each under
+     * [FILE_CACHE_CAP_BYTES] (unsent ones are never evicted): least recently used first, at most
      * every [FILE_CACHE_TRIM_INTERVAL_MS], deferred past the foreground burst.
      */
     private fun trimFileCacheIfDue() {
