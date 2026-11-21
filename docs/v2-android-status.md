@@ -278,6 +278,23 @@ The generated contract now follows AvagoSvc `origin/schema-v2` `73502d2` (P5-04,
   - `data_extraction_rules.xml` excludes them, and the encrypted credentials, from cloud backup
     and device transfer. `backup_rules.xml` stays an allow-list of plain preferences.
   - No component is direct-boot aware. `StoreAtRestConfigTest` checks all three rules.
+- **Chat media follows the server contract (P5-05, AvagoSvc `a6e8a39`/`81fa0f1`).**
+  - `POST /chat/media/presign` answers `upload_url`, `storage_key`, `cdn_url`, `max_bytes` and
+    `content_type`. The client used to expect `media_url`/`expires_at`, which the server never
+    sent, so every photo, document and voice-note send failed before upload.
+  - After the PUT, a message references the upload by its storage key: an image as
+    `{api}/chat/media/{storage_key}` in `image_urls`, a voice note as `audio_key` and a document as
+    `attachment_keys` (`ChatSendPayload`, queued through the ordered outbox). An attachment-only
+    message has an empty body.
+  - Synced messages map `image_keys`, `audio_key` and `attachment_keys` to the same
+    `/chat/media/{key}` URLs, so the echo of a send shows its media once.
+  - `/chat/media/{key}` needs the bearer token and redirects to a short-lived signed URL.
+    `AvagoServiceClient.signedChatMediaUrl` reads the redirect without following it; the signed
+    URL is then fetched without the bearer. Coil loads chat images through `ChatMediaFetcher`;
+    voice notes and documents are signed (`ChatMediaAccess`) just before playback or opening.
+- **Rate card and tax rate writes:** none on Android (rate cards and tiers are read-only,
+  `tax_rates` is retired, and there is no shop-import commit), so the P5-02 `409
+  rate_period_overlap` error cannot reach the app.
 
 ## 3. Features converted (P3-12c)
 
@@ -456,8 +473,8 @@ Resolved since P3-18:
 ## 6. Tests and build
 
 - **Unit tests:** `gradlew testDebugUnitTest -Pv2Default=true --no-daemon --max-workers=3
-  "-Dorg.gradle.jvmargs=-Xmx2g"` passed **942 tests, 0 failures, 0 skipped** across all modules
-  (P3-21: 919; P3-19: 895; P3-19 before label templates: 886; P3-12d: 872; P3-12c: 679).
+  "-Dorg.gradle.jvmargs=-Xmx2g"` passed **955 tests, 0 failures, 0 skipped** across all modules
+  (P5-06 before the chat media follow-up: 942; P3-21: 919; P3-19: 895; P3-19 before label templates: 886; P3-12d: 872; P3-12c: 679).
   `:app:assembleDebug` builds.
 - **New P5-06 tests (JVM, sqlite-jdbc 3.53.4):**
   - `V2StoreUpgradeTest` (7): the frozen v1 business and chat fixtures from AvagoSvc
@@ -479,10 +496,15 @@ Resolved since P3-18:
   - `V2StagedMediaTest` (4): unsent copies are never evicted; uploaded copies go oldest first.
   - `StoreAtRestConfigTest` (3): backup and device-transfer exclusions; no direct boot.
   - The Room chat tests were removed with the Room chat stack.
+  - `ChatMediaLinksTest` (6): the presign answer and message keys decode; sends carry
+    `attachment_keys` and omit absent media; media URLs encode each key segment; the signed
+    redirect is read (absolute and relative), and a non-redirect yields nothing.
+  - `ChatSendPayloadTest` (7, feature:chat now runs unit tests): images, voice notes and documents
+    are sent as URL, `audio_key` and `attachment_keys`; the optimistic message and synced messages
+    show `/chat/media` URLs; the echo of a send shows its image once and keeps the file name.
 - **detekt:** `gradlew detekt` already fails on `origin/schema-v2` `7c977d4` (2255 weighted
-  issues; the baseline is stale). P5-06 adds no new line-length or magic-number findings. What
-  remains, 2268, comes from structural rules on the new chat store classes (`TooManyFunctions`,
-  `LongParameterList`) and the upgrade runner (`ThrowsCount`, `NestedBlockDepth`).
+  issues; the baseline is stale). P5-06 adds no new findings (2254 at `d21f5549`; the chat store,
+  outbox and upgrade runner were split so no file gains a structural finding).
 - **New or extended P3-21 tests:** `AccessDenialTest` (3, new: REST and `/v2` bodies, account
   paths), `AccessDenialMonitorTest` (5, new; core:auth now runs unit tests), `V2SyncEngineTest`
   (16: typed and generic `403`), `V2CommandOutboxTest` (16: typed `403` kept unsent, generic `403`

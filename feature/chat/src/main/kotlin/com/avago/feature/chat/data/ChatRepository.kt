@@ -23,6 +23,7 @@ import com.avago.feature.chat.data.ChatMessageMapping.buildJsonStringArray
 import com.avago.feature.chat.data.ChatMessageMapping.buildReactionCountsJson
 import com.avago.feature.chat.data.ChatMessageMapping.epochMillisOrNull
 import com.avago.feature.chat.data.ChatMessageMapping.toEntity
+import com.avago.feature.chat.realtime.ChatOutgoingMedia
 import com.avago.feature.chat.realtime.OutboxRetryCoordinator
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -298,7 +299,7 @@ class ChatRepository @Inject constructor(
      * mention arrives. The mention row is keyed by messageId, so re-caching is idempotent.
      */
     private suspend fun cacheMessages(store: ChatStore, messages: List<ChatMessageResponse>) {
-        store.cache.messages.putMessages(messages.map { it.toEntity(store.accountId) })
+        store.cache.messages.putMessages(messages.map { it.toEntity(store.accountId, client::chatMediaUrl) })
         val myUserId = identity.getActiveUserId() ?: return
         val now = System.currentTimeMillis()
         val mentions = messages.filter { msg ->
@@ -615,8 +616,8 @@ class ChatRepository @Inject constructor(
     // ---------------------------------------------------------------------------
 
     /**
-     * Uploads [bytes] (presign + PUT, online) and then queues the message carrying the media URL
-     * through the ordered outbox, so it is delivered after anything the user sent before it.
+     * Uploads [bytes] (presign + PUT, online) and then queues the message carrying the media's
+     * storage key through the ordered outbox, so it is delivered after anything the user sent before it.
      */
     suspend fun uploadAndSendMedia(
         threadId: String,
@@ -645,23 +646,16 @@ class ChatRepository @Inject constructor(
             is NetworkResult.Unauthorized -> return Result.failure(Exception("Unauthorized"))
         }
 
-        val mediaUrl = presignedMedia.media_url
+        val storageKey = presignedMedia.storageKey
+        val mediaUrl = client.chatMediaUrl(storageKey)
+        val kind = when {
+            ChatMediaFiles.isAudioMedia(storageKey, safeContentType, resolvedFileName) -> ChatOutgoingMedia.Kind.AUDIO
+            ChatMediaFiles.isImageMedia(storageKey, safeContentType, resolvedFileName) -> ChatOutgoingMedia.Kind.IMAGE
+            else -> ChatOutgoingMedia.Kind.DOCUMENT
+        }
+        val media = ChatOutgoingMedia(kind, storageKey, mediaUrl, resolvedFileName, bytes.size.toLong())
         return runCatching {
-            when {
-                ChatMediaFiles.isAudioMedia(mediaUrl, safeContentType, resolvedFileName) ->
-                    outbox.send(accountId, threadId, body = "", needsReply = needsReply, audioUrl = mediaUrl)
-                ChatMediaFiles.isImageMedia(mediaUrl, safeContentType, resolvedFileName) ->
-                    outbox.send(accountId, threadId, body = "", imageUrls = listOf(mediaUrl), needsReply = needsReply)
-                else -> outbox.send(
-                    accountId,
-                    threadId,
-                    body = "",
-                    needsReply = needsReply,
-                    attachmentUrl = mediaUrl,
-                    attachmentName = resolvedFileName,
-                    attachmentSize = bytes.size.toLong(),
-                )
-            }
+            outbox.send(accountId, threadId, body = "", needsReply = needsReply, media = media)
             Unit
         }
     }

@@ -41,6 +41,7 @@ import com.avago.core.ui.components.StoredFileKeyer
 import com.avago.feature.chat.realtime.BackgroundSyncCoordinator
 import com.avago.feature.chat.realtime.ChatRealtimeClient
 import com.avago.feature.chat.realtime.OutboxRetryCoordinator
+import com.avago.feature.chat.ui.ChatMediaFetcher
 import dagger.Lazy
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CancellationException
@@ -115,6 +116,7 @@ class AvagoApplication : Application(), Configuration.Provider, SingletonImageLo
                 add(SvgDecoder.Factory())
                 add(StoredFileKeyer())
                 add(StoredFileFetcher.Factory { fileRepositoryLazy.get() })
+                add(ChatMediaFetcher.Factory { serviceClientLazy.get() })
             }
             .build()
 

@@ -68,6 +68,7 @@ import io.ktor.client.plugins.auth.Auth
 import io.ktor.client.plugins.auth.authProviders
 import io.ktor.client.plugins.auth.providers.BearerAuthProvider
 import io.ktor.client.request.delete
+import io.ktor.client.plugins.expectSuccess
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.ktor.client.request.post
@@ -75,7 +76,9 @@ import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
+import io.ktor.client.statement.readRawBytes
 import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.ByteArrayContent
 import io.ktor.http.isSuccess
@@ -115,13 +118,20 @@ class AvagoServiceClient @Inject constructor(
      */
     fun clearBearerTokenCache() {
         try {
-            client.authProviders
+            val clients = listOfNotNull(client, redirectlessClient.takeIf { it.isInitialized() }?.value)
+            clients.flatMap { it.authProviders }
                 .filterIsInstance<BearerAuthProvider>()
                 .forEach { it.clearToken() }
         } catch (e: Exception) {
             Timber.w(e, "AvagoServiceClient: failed to clear bearer token cache")
         }
     }
+
+    /** [client] without redirect following, to read where `/chat/media/{key}` points (same engine and auth). */
+    private val redirectlessClient = lazy { client.config { followRedirects = false } }
+
+    /** Presigned storage GETs carry their own signature, so they go out without the service bearer. */
+    private val storageClient by lazy { AvagoHttpClient.createUnauthenticatedClient() }
 
     suspend fun provision(deviceId: String): AuthResponse =
         safeCall { client.post("$baseUrl/auth/provision") {
@@ -914,6 +924,28 @@ class AvagoServiceClient @Inject constructor(
             uploadClient.close()
         }
     }
+
+    /** `{api}/chat/media/{storageKey}`: how a message references uploaded chat media. */
+    fun chatMediaUrl(storageKey: String): String = ChatMediaLinks.url(baseUrl, storageKey)
+
+    /** True for chat media references on this API (they need the bearer token to load). */
+    fun isChatMediaUrl(url: String): Boolean = ChatMediaLinks.isChatMedia(baseUrl, url)
+
+    /** GET [mediaUrl] (`/chat/media/{key}`) and return the short-lived signed URL it redirects to. */
+    suspend fun signedChatMediaUrl(mediaUrl: String): NetworkResult<String> =
+        safeNetworkCall {
+            val response: HttpResponse = redirectlessClient.value.get(mediaUrl) { expectSuccess = false }
+            ChatMediaLinks.redirectTarget(mediaUrl, response.status.value, response.headers[HttpHeaders.Location])
+                ?: throw NetworkException(response.status.value, response.status.description)
+        }
+
+    /** The bytes of chat media [mediaUrl]: resolves the signed URL, then GETs it without the service bearer. */
+    suspend fun downloadChatMedia(mediaUrl: String): NetworkResult<ByteArray> =
+        when (val signed = signedChatMediaUrl(mediaUrl)) {
+            is NetworkResult.Success -> safeNetworkCall { storageClient.get(signed.data).readRawBytes() }
+            is NetworkResult.Error -> signed
+            is NetworkResult.Unauthorized -> signed
+        }
 
     // ---------------------------------------------------------------------------
     // Chat Sync

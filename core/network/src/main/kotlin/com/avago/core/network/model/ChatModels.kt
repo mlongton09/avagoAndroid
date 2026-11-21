@@ -73,8 +73,10 @@ data class ChatMessageResponse(
     // Reaction counts {"👍": 3} and viewer's own reactions ["👍"]
     val reaction_counts: Map<String, Int> = emptyMap(),
     val my_reactions: List<String> = emptyList(),
-    // Needs-reply flag and idempotency key
+    // Storage keys of the message's images and documents; shown through `/chat/media/{key}`.
+    @SerialName("image_keys") val imageKeys: List<String> = emptyList(),
     val attachment_keys: List<String> = emptyList(),
+    // Needs-reply flag and idempotency key
     val needs_reply: Boolean = false,
     val client_ref: String? = null,
     val server_version: Long = 0,
@@ -161,6 +163,8 @@ data class SendMessageRequest(
     // Change 137 — voice notes
     val audio_key: String? = null,
     val audio_duration_s: Int? = null,
+    // Document storage keys (from chat media presign).
+    @SerialName("attachment_keys") val attachmentKeys: List<String>? = null,
 )
 
 @Serializable
@@ -193,8 +197,12 @@ data class LinkPreviewResponse(
 @Serializable
 data class ChatMediaPresignResponse(
     val upload_url: String,
-    val media_url: String,
-    val expires_at: Long,
+    /** `accounts/{account}/chat/{uuid}.{ext}`; messages reference it as `/chat/media/{storage_key}`. */
+    @SerialName("storage_key") val storageKey: String,
+    /** `{api}/chat/media/{storage_key}` (P5-05); null from servers before that fix. */
+    @SerialName("cdn_url") val cdnUrl: String? = null,
+    @SerialName("max_bytes") val maxBytes: Long? = null,
+    @SerialName("content_type") val contentType: String? = null,
 )
 
 @Serializable

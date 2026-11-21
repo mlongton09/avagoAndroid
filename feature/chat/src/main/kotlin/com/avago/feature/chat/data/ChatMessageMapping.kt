@@ -11,7 +11,11 @@ import com.avago.feature.chat.data.ChatMediaFiles.urlExtension
 internal object ChatMessageMapping {
     private const val PREVIEW_LENGTH = 120
 
-    fun ChatMessageResponse.toEntity(accountId: String): ChatMessageEntity {
+    /**
+     * The cached row of this message; [mediaUrl] turns the storage keys the server sends
+     * (`image_keys`, `audio_key`, `attachment_keys`) into the `/chat/media/{key}` URLs the UI loads.
+     */
+    fun ChatMessageResponse.toEntity(accountId: String, mediaUrl: (String) -> String): ChatMessageEntity {
         val now = System.currentTimeMillis()
         val discoveredMedia = extractMediaFields(
             imageUrls = image_urls,
@@ -19,7 +23,7 @@ internal object ChatMessageMapping {
             responseAttachmentUrl = attachment_url,
             responseAttachmentName = attachment_name,
             responseAttachmentSize = attachment_size,
-        )
+        ).withStoredMedia(this, mediaUrl)
         return ChatMessageEntity(
             messageId = message_id,
             threadId = thread_id,
@@ -103,6 +107,18 @@ internal object ChatMessageMapping {
         val attachmentName: String?,
         val attachmentSize: Long?,
     )
+
+    /** Adds the media referenced by storage key; a URL already present (e.g. a send's own echo) is kept once. */
+    private fun MediaFields.withStoredMedia(message: ChatMessageResponse, mediaUrl: (String) -> String): MediaFields {
+        val attachment = attachmentUrl
+            ?: message.attachment_keys.firstOrNull { it.isNotBlank() }?.let(mediaUrl)
+        return copy(
+            imageUrls = (imageUrls + message.imageKeys.filter { it.isNotBlank() }.map(mediaUrl)).distinct(),
+            audioUrl = audioUrl ?: message.audio_key?.takeIf { it.isNotBlank() }?.let(mediaUrl),
+            attachmentUrl = attachment,
+            attachmentName = attachmentName ?: attachment?.let(::fileNameFromUrl),
+        )
+    }
 
     private fun extractMediaFields(
         imageUrls: List<String>,

@@ -11,12 +11,9 @@ import com.avago.core.data.chat.ChatStore
 import com.avago.core.data.db.entity.ChatMessageEntity
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
-import com.avago.core.network.model.ChatMessageResponse
-import com.avago.core.network.model.SendMessageRequest
 import com.avago.core.sync.ApplicationScope
-import com.avago.feature.chat.data.ChatMessageMapping
 import com.avago.feature.chat.data.ChatMessageMapping.toEntity
-import com.avago.feature.chat.data.ChatMessageMapping.withFallbackMedia
+import com.avago.feature.chat.realtime.ChatSendPayload.withPayloadMedia
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,13 +24,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import timber.log.Timber
 import java.util.concurrent.ConcurrentHashMap
@@ -115,35 +106,14 @@ class OutboxRetryCoordinator @Inject constructor(
         accountId: String,
         threadId: String,
         body: String,
-        imageUrls: List<String>? = null,
         needsReply: Boolean = false,
-        audioUrl: String? = null,
-        attachmentUrl: String? = null,
-        attachmentName: String? = null,
-        attachmentSize: Long? = null,
+        media: ChatOutgoingMedia? = null,
     ): String {
         val store = requireStore(accountId)
         val now = System.currentTimeMillis()
-        val localImages = imageUrls.orEmpty().filter { it.isNotBlank() }
-        val optimistic = optimisticMessage(store, threadId, body, now).copy(
-            imageUrls = ChatMessageMapping.buildJsonStringArray(localImages),
-            audioUrl = audioUrl,
-            attachmentUrl = attachmentUrl,
-            attachmentName = attachmentName,
-            attachmentSize = attachmentSize,
-            needsReply = needsReply,
-        )
-        val payload = buildJsonObject {
-            put(ChatOutboxQueue.KEY_BODY, body)
-            val imageUrls = serverImageUrls(localImages, audioUrl, attachmentUrl)
-            put(ChatOutboxQueue.KEY_IMAGE_URLS, JsonArray(imageUrls.map(::JsonPrimitive)))
-            put(ChatOutboxQueue.KEY_NEEDS_REPLY, needsReply)
-            put(KEY_LOCAL_IMAGE_URLS, JsonArray(localImages.map(::JsonPrimitive)))
-            audioUrl?.let { put(KEY_AUDIO_URL, it) }
-            attachmentUrl?.let { put(KEY_ATTACHMENT_URL, it) }
-            attachmentName?.let { put(KEY_ATTACHMENT_NAME, it) }
-            attachmentSize?.let { put(KEY_ATTACHMENT_SIZE, it) }
-        }
+        val payload = ChatSendPayload.payload(body, needsReply, media)
+        val optimistic = ChatSendPayload.showing(optimisticMessage(store, threadId, body, now), payload)
+            .copy(needsReply = needsReply)
         store.outbox.enqueueSend(ChatOutboxOperation.SEND, optimistic, payload, now)
         kick(accountId)
         return optimistic.messageId
@@ -203,24 +173,17 @@ class OutboxRetryCoordinator @Inject constructor(
     private suspend fun deliver(accountId: String, entry: ChatOutboxEntry): ChatOutboxOutcome {
         val body = entry.text(ChatOutboxQueue.KEY_BODY).orEmpty()
         return when (entry.operation) {
-            ChatOutboxOperation.SEND -> client.sendMessage(
-                entry.threadId,
-                SendMessageRequest(
-                    body_md = body,
-                    image_urls = entry.strings(ChatOutboxQueue.KEY_IMAGE_URLS),
-                    needs_reply = entry.payload[ChatOutboxQueue.KEY_NEEDS_REPLY]
-                        ?.jsonPrimitive?.booleanOrNull?.takeIf { it },
-                    client_ref = entry.id,
-                ),
-            ).outcome(entry) { it.withPayloadMedia(entry).toEntity(accountId) }
+            ChatOutboxOperation.SEND ->
+                client.sendMessage(entry.threadId, ChatSendPayload.request(entry.payload, entry.id))
+                .outcome(entry) { it.withPayloadMedia(entry.payload).toEntity(accountId, client::chatMediaUrl) }
             ChatOutboxOperation.REPLY -> client.sendReply(
                 threadId = entry.threadId,
                 messageId = entry.text(ChatOutboxQueue.KEY_PARENT_MESSAGE_ID).orEmpty(),
                 body = body,
                 clientRef = entry.id,
-            ).outcome(entry) { it.toEntity(accountId) }
+            ).outcome(entry) { it.toEntity(accountId, client::chatMediaUrl) }
             ChatOutboxOperation.EDIT -> client.editMessage(entry.threadId, entry.targetMessageId.orEmpty(), body)
-                .outcome(entry) { it.toEntity(accountId) }
+                .outcome(entry) { it.toEntity(accountId, client::chatMediaUrl) }
             ChatOutboxOperation.DELETE -> {
                 val result = client.deleteMessage(entry.threadId, entry.targetMessageId.orEmpty())
                 // Already gone on the server: the delete has nothing left to do.
@@ -253,17 +216,6 @@ class OutboxRetryCoordinator @Inject constructor(
             }
         }
 
-    private fun ChatMessageResponse.withPayloadMedia(entry: ChatOutboxEntry): ChatMessageResponse = withFallbackMedia(
-        imageUrls = entry.strings(KEY_LOCAL_IMAGE_URLS),
-        audioUrl = entry.text(KEY_AUDIO_URL),
-        attachmentUrl = entry.text(KEY_ATTACHMENT_URL),
-        attachmentName = entry.text(KEY_ATTACHMENT_NAME),
-        attachmentSize = entry.payload[KEY_ATTACHMENT_SIZE]?.jsonPrimitive?.longOrNull,
-    )
-
-    private fun ChatOutboxEntry.strings(key: String): List<String> =
-        (payload[key] as? JsonArray)?.mapNotNull { it.jsonPrimitive.contentOrNull }.orEmpty()
-
     /** A new message by the store's user, shown as "sending"; its fresh id is also its `client_ref`. */
     private fun optimisticMessage(store: ChatStore, threadId: String, body: String, now: Long): ChatMessageEntity {
         val messageId = ChatOutboxQueue.newId()
@@ -288,26 +240,11 @@ class OutboxRetryCoordinator @Inject constructor(
         )
     }
 
-    private fun serverImageUrls(
-        imageUrls: List<String>,
-        audioUrl: String?,
-        attachmentUrl: String?,
-    ): List<String> = buildList {
-        addAll(imageUrls)
-        audioUrl?.takeIf { it.isNotBlank() }?.let(::add)
-        attachmentUrl?.takeIf { it.isNotBlank() }?.let(::add)
-    }
-
     private companion object {
         const val PERIODIC_FLUSH_MS = 30_000L
         const val PREVIEW_LENGTH = 120
         const val HTTP_NOT_FOUND = 404
         const val HTTP_TIMEOUT = 408
         const val HTTP_TOO_MANY = 429
-        const val KEY_LOCAL_IMAGE_URLS = "local_image_urls"
-        const val KEY_AUDIO_URL = "audio_url"
-        const val KEY_ATTACHMENT_URL = "attachment_url"
-        const val KEY_ATTACHMENT_NAME = "attachment_name"
-        const val KEY_ATTACHMENT_SIZE = "attachment_size"
     }
 }

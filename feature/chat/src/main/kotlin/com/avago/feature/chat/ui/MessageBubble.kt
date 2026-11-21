@@ -50,6 +50,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -81,6 +82,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import timber.log.Timber
 import kotlin.math.roundToInt
 
@@ -410,6 +412,8 @@ private fun AudioBubble(audioUrl: String, isOwn: Boolean) {
         var isPrepared by remember(audioUrl) { mutableStateOf(false) }
         var elapsed by remember(audioUrl) { mutableIntStateOf(0) }
         val mediaPlayer = remember(audioUrl) { MediaPlayer() }
+        val context = LocalContext.current
+        val scope = rememberCoroutineScope()
         val contentColor = if (isOwn) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
 
         DisposableEffect(mediaPlayer) {
@@ -452,14 +456,10 @@ private fun AudioBubble(audioUrl: String, isOwn: Boolean) {
                                 mediaPlayer.start()
                                 isPlaying = true
                             } else {
-                                mediaPlayer.reset()
-                                mediaPlayer.setDataSource(audioUrl)
-                                mediaPlayer.setOnPreparedListener {
+                                scope.launch { prepareAndPlay(context, mediaPlayer, audioUrl) {
                                     isPrepared = true
-                                    it.start()
                                     isPlaying = true
-                                }
-                                mediaPlayer.prepareAsync()
+                                } }
                             }
                         }.onFailure { Timber.w(it, "AudioBubble: failed to toggle playback") }
                     },
@@ -472,22 +472,41 @@ private fun AudioBubble(audioUrl: String, isOwn: Boolean) {
         }
 }
 
+/** Streams [audioUrl] (signed first when it is chat media) and starts playback once prepared. */
+private suspend fun prepareAndPlay(context: Context, player: MediaPlayer, audioUrl: String, onStarted: () -> Unit) {
+    val source = ChatMediaAccess.from(context).openableUrl(audioUrl) ?: return
+    runCatching {
+        player.reset()
+        player.setDataSource(source)
+        player.setOnPreparedListener {
+            it.start()
+            onStarted()
+        }
+        player.prepareAsync()
+    }.onFailure { Timber.w(it, "AudioBubble: failed to start playback") }
+}
+
+/** Opens [url] (signed first when it is chat media) in the app that handles its type. */
+private suspend fun openAttachment(context: Context, url: String) {
+    val target = ChatMediaAccess.from(context).openableUrl(url) ?: return
+    runCatching {
+        context.startActivity(
+            Intent(Intent.ACTION_VIEW, Uri.parse(target)).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            },
+        )
+    }.onFailure {
+        Timber.w(it, "FileBubble: failed to open attachment")
+    }
+}
+
 @Composable
 private fun FileBubble(url: String, name: String?, size: Long?, context: Context) {
+    val scope = rememberCoroutineScope()
     Row(
         modifier = Modifier
             .clip(MaterialTheme.shapes.medium)
-            .clickable {
-                runCatching {
-                    context.startActivity(
-                        Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        },
-                    )
-                }.onFailure {
-                    Timber.w(it, "FileBubble: failed to open attachment")
-                }
-            }
+            .clickable { scope.launch { openAttachment(context, url) } }
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.16f))
             .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,

@@ -47,4 +47,13 @@ dependencies {
     implementation(libs.ktor.core)
     implementation(libs.coroutines.android)
     implementation(libs.timber)
+
+    testImplementation(libs.junit5)
+    testImplementation(platform(libs.junit.bom))
+    testRuntimeOnly(libs.junit5.engine)
+    testRuntimeOnly(libs.junit.platform.launcher)
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
 }
