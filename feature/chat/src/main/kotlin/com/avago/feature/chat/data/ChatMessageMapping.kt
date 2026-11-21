@@ -1,17 +1,15 @@
 package com.avago.feature.chat.data
 
-import android.webkit.MimeTypeMap
 import com.avago.core.data.db.entity.ChatMessageEntity
 import com.avago.core.network.model.ChatMessageResponse
-import java.net.URLDecoder
-import java.nio.charset.StandardCharsets
+import com.avago.feature.chat.data.ChatMediaFiles.AUDIO_EXTENSIONS
+import com.avago.feature.chat.data.ChatMediaFiles.IMAGE_EXTENSIONS
+import com.avago.feature.chat.data.ChatMediaFiles.fileNameFromUrl
+import com.avago.feature.chat.data.ChatMediaFiles.urlExtension
 
 /** Maps chat REST payloads to the cached [ChatMessageEntity] (shared by the repository and the outbox worker). */
 internal object ChatMessageMapping {
     private const val PREVIEW_LENGTH = 120
-
-    val AUDIO_EXTENSIONS = setOf("m4a", "mp3", "aac", "wav", "ogg", "opus", "flac")
-    val IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "gif", "webp", "heic", "bmp")
 
     fun ChatMessageResponse.toEntity(accountId: String): ChatMessageEntity {
         val now = System.currentTimeMillis()
@@ -98,22 +96,6 @@ internal object ChatMessageMapping {
         return items.joinToString(",", "[", "]") { "\"$it\"" }
     }
 
-    fun defaultUploadFileName(contentType: String): String {
-        val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(contentType)
-            ?.takeIf { it.isNotBlank() }
-            ?: "bin"
-        return "chat_upload_${System.currentTimeMillis()}.$extension"
-    }
-
-    fun isImageMedia(url: String, contentType: String, fileName: String?): Boolean =
-        contentType.startsWith("image/") || urlExtension(fileName ?: url) in IMAGE_EXTENSIONS
-
-    fun isAudioMedia(url: String, contentType: String, fileName: String?): Boolean =
-        contentType.startsWith("audio/") || urlExtension(fileName ?: url) in AUDIO_EXTENSIONS
-
-    fun urlExtension(url: String): String =
-        url.substringAfterLast('.').substringBefore('?').substringBefore('#').lowercase()
-
     private data class MediaFields(
         val imageUrls: List<String>,
         val audioUrl: String?,
@@ -158,13 +140,5 @@ internal object ChatMessageMapping {
             attachmentName = attachmentName,
             attachmentSize = responseAttachmentSize,
         )
-    }
-
-    private fun fileNameFromUrl(url: String): String? {
-        val raw = url.substringAfterLast('/').substringBefore('?').substringBefore('#')
-        if (raw.isBlank()) return null
-        return runCatching {
-            URLDecoder.decode(raw, StandardCharsets.UTF_8.name())
-        }.getOrDefault(raw)
     }
 }

@@ -557,25 +557,10 @@ class AvagoServiceClient @Inject constructor(
             }.body()
         }
 
-    suspend fun sendMessage(
-        threadId: String,
-        body: String,
-        photoUrl: String? = null,
-        imageUrls: List<String> = emptyList(),
-        needsReply: Boolean? = null,
-        clientRef: String? = null,
-    ): NetworkResult<ChatMessageResponse> =
+    suspend fun sendMessage(threadId: String, request: SendMessageRequest): NetworkResult<ChatMessageResponse> =
         safeNetworkCall {
             client.post("$baseUrl/chat/threads/$threadId/messages") {
-                setBody(
-                    SendMessageRequest(
-                        body_md = body,
-                        photo_url = photoUrl,
-                        image_urls = imageUrls,
-                        needs_reply = needsReply,
-                        client_ref = clientRef,
-                    )
-                )
+                setBody(request)
             }.body<SendMessageEnvelope>().message
         }
 

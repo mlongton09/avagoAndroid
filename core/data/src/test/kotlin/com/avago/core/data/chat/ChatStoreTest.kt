@@ -66,16 +66,19 @@ class ChatStoreTest {
             lastMessagePreview = null, lastMessageAt = 5, unreadCount = 2, subjectSummary = null,
             createdAt = 1, updatedAt = 1,
         )
-        store.cache.putThread(thread)
-        store.cache.putThread(thread.copy(threadId = serverId(9), isArchived = true))
-        store.cache.putMessages(listOf(message(serverId(2), "second", at = 20), message(serverId(1), "first", at = 10)))
+        store.cache.threads.putThread(thread)
+        store.cache.threads.putThread(thread.copy(threadId = serverId(9), isArchived = true))
+        store.cache.messages.putMessages(
+            listOf(message(serverId(2), "second", at = 20), message(serverId(1), "first", at = 10)),
+        )
 
-        assertEquals(listOf(threadId), store.cache.observeThreads().first().map { it.threadId })
-        assertEquals(listOf("first", "second"), store.cache.observeMessages(threadId).first().map { it.bodyMd })
-        assertEquals("second", store.cache.lastMessage(threadId)?.bodyMd)
+        assertEquals(listOf(threadId), store.cache.threads.observeThreads().first().map { it.threadId })
+        val bodies = store.cache.messages.observeMessages(threadId).first().map { it.bodyMd }
+        assertEquals(listOf("first", "second"), bodies)
+        assertEquals("second", store.cache.messages.lastMessage(threadId)?.bodyMd)
 
         store.cache.clear()
-        assertTrue(store.cache.observeMessages(threadId).first().isEmpty())
+        assertTrue(store.cache.messages.observeMessages(threadId).first().isEmpty())
     }
 
     @Test
@@ -83,7 +86,7 @@ class ChatStoreTest {
         val store = store()
         val first = store.send("one")
         val second = store.send("two")
-        assertEquals("sending", store.cache.message(first)?.outboxStatus)
+        assertEquals("sending", store.cache.messages.message(first)?.outboxStatus)
 
         val delivered = mutableListOf<String>()
         var n = 0
@@ -97,9 +100,9 @@ class ChatStoreTest {
         assertEquals(ChatOutboxDrain.Idle, result)
         assertEquals(listOf("one", "two"), delivered)
         assertTrue(store.outbox.all().isEmpty())
-        assertNull(store.cache.message(first))
-        assertNull(store.cache.message(second))
-        val cached = store.cache.observeMessages(threadId).first()
+        assertNull(store.cache.messages.message(first))
+        assertNull(store.cache.messages.message(second))
+        val cached = store.cache.messages.observeMessages(threadId).first()
         assertEquals(listOf(serverId(1), serverId(2)), cached.map { it.messageId })
         assertEquals(listOf(first, second), cached.map { it.clientRef })
         assertTrue(cached.all { it.outboxStatus == null })
@@ -122,13 +125,13 @@ class ChatStoreTest {
         val head = store.outbox.pending().first()
         assertEquals("sent_unknown", head.state)
         assertEquals(1, head.attempts)
-        assertEquals("sending", store.cache.message(first)?.outboxStatus)
+        assertEquals("sending", store.cache.messages.message(first)?.outboxStatus)
 
         repeat(ChatOutboxQueue.FAILED_AFTER_ATTEMPTS - 1) {
             clock = store.outbox.pending().first().nextAttemptAt!!
             store.outbox.drain({ clock }) { ChatOutboxOutcome.Retry("timeout") }
         }
-        assertEquals("failed", store.cache.message(first)?.outboxStatus)
+        assertEquals("failed", store.cache.messages.message(first)?.outboxStatus)
         assertEquals(30_000, ChatOutboxQueue.backoffMillis(ChatOutboxQueue.FAILED_AFTER_ATTEMPTS))
         assertEquals(2, store.outbox.pending().size)
     }
@@ -149,8 +152,8 @@ class ChatStoreTest {
 
         assertEquals(ChatOutboxDrain.Idle, result)
         assertEquals(listOf("rejected"), store.outbox.all().map { it.state })
-        assertEquals("failed", store.cache.message(first)?.outboxStatus)
-        assertEquals("good", store.cache.message(serverId(1))?.bodyMd)
+        assertEquals("failed", store.cache.messages.message(first)?.outboxStatus)
+        assertEquals("good", store.cache.messages.message(serverId(1))?.bodyMd)
     }
 
     @Test
@@ -163,7 +166,7 @@ class ChatStoreTest {
             listOf(ChatOutboxOperation.SEND, ChatOutboxOperation.EDIT),
             store.outbox.pending().map { it.operation },
         )
-        assertEquals("hello!", store.cache.message(local)?.bodyMd)
+        assertEquals("hello!", store.cache.messages.message(local)?.bodyMd)
 
         clock += 60_000
         val targets = mutableListOf<String?>()
@@ -178,7 +181,7 @@ class ChatStoreTest {
         }
 
         assertEquals(listOf(serverId(1)), targets)
-        val cached = store.cache.message(serverId(1))!!
+        val cached = store.cache.messages.message(serverId(1))!!
         assertEquals("hello!", cached.bodyMd)
         assertEquals(clock, cached.editedAt)
         assertTrue(store.outbox.all().isEmpty())
@@ -195,48 +198,48 @@ class ChatStoreTest {
         val pending = store.outbox.pending()
         assertEquals(listOf(edited), pending.map { it.id })
         assertEquals(JsonPrimitive("final"), pending.single().payload[ChatOutboxQueue.KEY_BODY])
-        assertEquals("final", store.cache.message(edited)?.bodyMd)
-        assertNull(store.cache.message(deleted))
+        assertEquals("final", store.cache.messages.message(edited)?.bodyMd)
+        assertNull(store.cache.messages.message(deleted))
     }
 
     @Test
     fun `rejected edits and deletes undo their optimistic effect`() = runBlocking {
         val store = store()
-        store.cache.putMessages(listOf(message(serverId(1), "original"), message(serverId(2), "keep me")))
+        store.cache.messages.putMessages(listOf(message(serverId(1), "original"), message(serverId(2), "keep me")))
         store.outbox.enqueueEdit(threadId, serverId(1), "changed", clock)
         store.outbox.enqueueDelete(threadId, serverId(2), clock)
-        assertEquals("changed", store.cache.message(serverId(1))?.bodyMd)
-        assertEquals(clock, store.cache.message(serverId(2))?.deletedAt)
+        assertEquals("changed", store.cache.messages.message(serverId(1))?.bodyMd)
+        assertEquals(clock, store.cache.messages.message(serverId(2))?.deletedAt)
 
         store.outbox.drain({ clock }) { ChatOutboxOutcome.Rejected("403") }
 
-        val edited = store.cache.message(serverId(1))!!
+        val edited = store.cache.messages.message(serverId(1))!!
         assertEquals("original", edited.bodyMd)
         assertNull(edited.editedAt)
         assertNull(edited.outboxStatus)
-        assertNull(store.cache.message(serverId(2))?.deletedAt)
+        assertNull(store.cache.messages.message(serverId(2))?.deletedAt)
     }
 
     @Test
     fun `cache and outbox survive reopening and the cache table is recreated after drift`() = runBlocking {
         val path = "jdbc:sqlite:${File(root, "chat.sqlite").path}"
         store(openDb(JdbcV2Connection(path))).apply {
-            cache.putMessages(listOf(message(serverId(1), "kept")))
+            cache.messages.putMessages(listOf(message(serverId(1), "kept")))
             send("queued")
             database.close()
         }
 
         store(openDb(JdbcV2Connection(path))).apply {
-            assertEquals("kept", cache.message(serverId(1))?.bodyMd)
+            assertEquals("kept", cache.messages.message(serverId(1))?.bodyMd)
             assertEquals(1, outbox.pending().size)
             database.write { tx -> V2Database.metaPut(tx.connection, "ddl_sha256", "drifted") }
             database.close()
         }
 
         store(openDb(JdbcV2Connection(path))).apply {
-            assertNull(cache.message(serverId(1)))
-            cache.putMessages(listOf(message(serverId(2), "after rebuild")))
-            assertEquals("after rebuild", cache.message(serverId(2))?.bodyMd)
+            assertNull(cache.messages.message(serverId(1)))
+            cache.messages.putMessages(listOf(message(serverId(2), "after rebuild")))
+            assertEquals("after rebuild", cache.messages.message(serverId(2))?.bodyMd)
             database.close()
         }
         Unit

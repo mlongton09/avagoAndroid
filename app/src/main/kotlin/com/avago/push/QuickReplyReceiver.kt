@@ -9,6 +9,7 @@ import androidx.core.app.Person
 import androidx.core.app.RemoteInput
 import com.avago.core.auth.IdentityManager
 import com.avago.core.network.AvagoServiceClient
+import com.avago.core.network.model.SendMessageRequest
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -37,7 +38,7 @@ class QuickReplyReceiver : BroadcastReceiver() {
         scope.launch {
             try {
                 // Send the reply via the injected service client.
-                serviceClient.sendMessage(threadId = threadId, body = replyText)
+                serviceClient.sendMessage(threadId, SendMessageRequest(body_md = replyText))
 
                 // Update the notification to show the sent reply immediately,
                 // so the user gets visual confirmation before the next sync pull.

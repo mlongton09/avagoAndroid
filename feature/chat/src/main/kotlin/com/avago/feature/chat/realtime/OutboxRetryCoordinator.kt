@@ -7,10 +7,12 @@ import com.avago.core.data.chat.ChatOutboxEntry
 import com.avago.core.data.chat.ChatOutboxOperation
 import com.avago.core.data.chat.ChatOutboxOutcome
 import com.avago.core.data.chat.ChatOutboxQueue
+import com.avago.core.data.chat.ChatStore
 import com.avago.core.data.db.entity.ChatMessageEntity
 import com.avago.core.network.AvagoServiceClient
 import com.avago.core.network.NetworkResult
 import com.avago.core.network.model.ChatMessageResponse
+import com.avago.core.network.model.SendMessageRequest
 import com.avago.core.sync.ApplicationScope
 import com.avago.feature.chat.data.ChatMessageMapping
 import com.avago.feature.chat.data.ChatMessageMapping.toEntity
@@ -123,8 +125,7 @@ class OutboxRetryCoordinator @Inject constructor(
         val store = requireStore(accountId)
         val now = System.currentTimeMillis()
         val localImages = imageUrls.orEmpty().filter { it.isNotBlank() }
-        val messageId = ChatOutboxQueue.newId()
-        val optimistic = optimisticMessage(messageId, threadId, accountId, store.userId, body, now).copy(
+        val optimistic = optimisticMessage(store, threadId, body, now).copy(
             imageUrls = ChatMessageMapping.buildJsonStringArray(localImages),
             audioUrl = audioUrl,
             attachmentUrl = attachmentUrl,
@@ -145,15 +146,14 @@ class OutboxRetryCoordinator @Inject constructor(
         }
         store.outbox.enqueueSend(ChatOutboxOperation.SEND, optimistic, payload, now)
         kick(accountId)
-        return messageId
+        return optimistic.messageId
     }
 
     /** Queues a subthread reply to [parentMessageId] and returns its client id. */
     suspend fun sendReply(accountId: String, threadId: String, parentMessageId: String, body: String): String {
         val store = requireStore(accountId)
         val now = System.currentTimeMillis()
-        val messageId = ChatOutboxQueue.newId()
-        val optimistic = optimisticMessage(messageId, threadId, accountId, store.userId, body, now)
+        val optimistic = optimisticMessage(store, threadId, body, now)
             .copy(parentMessageId = parentMessageId)
         val payload = buildJsonObject {
             put(ChatOutboxQueue.KEY_BODY, body)
@@ -161,7 +161,7 @@ class OutboxRetryCoordinator @Inject constructor(
         }
         store.outbox.enqueueSend(ChatOutboxOperation.REPLY, optimistic, payload, now)
         kick(accountId)
-        return messageId
+        return optimistic.messageId
     }
 
     /** Queues an edit of [messageId]; it is applied after every write queued before it. */
@@ -204,12 +204,14 @@ class OutboxRetryCoordinator @Inject constructor(
         val body = entry.text(ChatOutboxQueue.KEY_BODY).orEmpty()
         return when (entry.operation) {
             ChatOutboxOperation.SEND -> client.sendMessage(
-                threadId = entry.threadId,
-                body = body,
-                imageUrls = entry.strings(ChatOutboxQueue.KEY_IMAGE_URLS),
-                needsReply = entry.payload[ChatOutboxQueue.KEY_NEEDS_REPLY]
-                    ?.jsonPrimitive?.booleanOrNull?.takeIf { it },
-                clientRef = entry.id,
+                entry.threadId,
+                SendMessageRequest(
+                    body_md = body,
+                    image_urls = entry.strings(ChatOutboxQueue.KEY_IMAGE_URLS),
+                    needs_reply = entry.payload[ChatOutboxQueue.KEY_NEEDS_REPLY]
+                        ?.jsonPrimitive?.booleanOrNull?.takeIf { it },
+                    client_ref = entry.id,
+                ),
             ).outcome(entry) { it.withPayloadMedia(entry).toEntity(accountId) }
             ChatOutboxOperation.REPLY -> client.sendReply(
                 threadId = entry.threadId,
@@ -262,32 +264,29 @@ class OutboxRetryCoordinator @Inject constructor(
     private fun ChatOutboxEntry.strings(key: String): List<String> =
         (payload[key] as? JsonArray)?.mapNotNull { it.jsonPrimitive.contentOrNull }.orEmpty()
 
-    private fun optimisticMessage(
-        messageId: String,
-        threadId: String,
-        accountId: String,
-        senderId: String,
-        body: String,
-        now: Long,
-    ) = ChatMessageEntity(
-        messageId = messageId,
-        threadId = threadId,
-        accountId = accountId,
-        senderId = senderId,
-        senderName = null,
-        bodyMd = body,
-        bodyPreview = body.take(PREVIEW_LENGTH),
-        editedAt = null,
-        linkPreviewTitle = null,
-        linkPreviewDescription = null,
-        linkPreviewImageUrl = null,
-        linkPreviewUrl = null,
-        photoUrl = null,
-        clientRef = messageId,
-        outboxStatus = ChatOutboxQueue.STATUS_SENDING,
-        createdAt = now,
-        updatedAt = now,
-    )
+    /** A new message by the store's user, shown as "sending"; its fresh id is also its `client_ref`. */
+    private fun optimisticMessage(store: ChatStore, threadId: String, body: String, now: Long): ChatMessageEntity {
+        val messageId = ChatOutboxQueue.newId()
+        return ChatMessageEntity(
+            messageId = messageId,
+            threadId = threadId,
+            accountId = store.accountId,
+            senderId = store.userId,
+            senderName = null,
+            bodyMd = body,
+            bodyPreview = body.take(PREVIEW_LENGTH),
+            editedAt = null,
+            linkPreviewTitle = null,
+            linkPreviewDescription = null,
+            linkPreviewImageUrl = null,
+            linkPreviewUrl = null,
+            photoUrl = null,
+            clientRef = messageId,
+            outboxStatus = ChatOutboxQueue.STATUS_SENDING,
+            createdAt = now,
+            updatedAt = now,
+        )
+    }
 
     private fun serverImageUrls(
         imageUrls: List<String>,

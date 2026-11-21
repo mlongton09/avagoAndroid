@@ -5,6 +5,7 @@ import com.avago.core.data.v2.V2Database
 import com.avago.core.data.v2.V2Row
 import com.avago.core.data.v2.V2Transaction
 import com.avago.core.data.v2.scalarLong
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -12,6 +13,7 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import java.io.IOException
 import java.util.UUID
 
 /** What a chat outbox row asks the server to do (`outbox.operation`). */
@@ -89,8 +91,8 @@ class ChatOutboxQueue internal constructor(private val db: V2Database, private v
     ): String {
         require(operation == ChatOutboxOperation.SEND || operation == ChatOutboxOperation.REPLY)
         db.write { tx ->
-            insert(tx, optimistic.messageId, optimistic.threadId, operation, null, payload, now)
-            ChatCache.putMessage(tx, optimistic.copy(outboxStatus = STATUS_SENDING))
+            insert(tx, NewRow(optimistic.messageId, optimistic.threadId, operation, null, payload), now)
+            ChatMessageCache.putMessage(tx, optimistic.copy(outboxStatus = STATUS_SENDING))
         }
         return optimistic.messageId
     }
@@ -104,11 +106,11 @@ class ChatOutboxQueue internal constructor(private val db: V2Database, private v
         if (pendingSend != null) {
             val payload = JsonObject(pendingSend.payload + (KEY_BODY to JsonPrimitive(body)))
             tx.execute("UPDATE outbox SET payload = ? WHERE id = ?", listOf(payload.toString(), messageId))
-            ChatCache.updateMessage(tx, messageId) {
+            ChatMessageCache.updateMessage(tx, messageId) {
                 it.copy(bodyMd = body, bodyPreview = body.take(PREVIEW_LENGTH), updatedAt = now)
             }
         } else {
-            val previous = ChatCache.updateMessageReturningPrevious(tx, messageId) {
+            val previous = ChatMessageCache.updateMessageReturningPrevious(tx, messageId) {
                 it.copy(
                     bodyMd = body,
                     bodyPreview = body.take(PREVIEW_LENGTH),
@@ -122,7 +124,7 @@ class ChatOutboxQueue internal constructor(private val db: V2Database, private v
                 previous?.let { put(KEY_PREVIOUS_BODY, it.bodyMd) }
                 previous?.editedAt?.let { put(KEY_PREVIOUS_EDITED_AT, it) }
             }
-            insert(tx, newId(), threadId, ChatOutboxOperation.EDIT, messageId, payload, now)
+            insert(tx, NewRow(newId(), threadId, ChatOutboxOperation.EDIT, messageId, payload), now)
         }
     }
 
@@ -133,10 +135,11 @@ class ChatOutboxQueue internal constructor(private val db: V2Database, private v
     suspend fun enqueueDelete(threadId: String, messageId: String, now: Long) = db.write { tx ->
         if (untransmittedSend(tx, messageId) != null) {
             tx.execute("DELETE FROM outbox WHERE id = ?", listOf(messageId))
-            ChatCache.deleteMessage(tx, messageId)
+            ChatMessageCache.deleteMessage(tx, messageId)
         } else {
-            ChatCache.updateMessage(tx, messageId) { it.copy(deletedAt = now, updatedAt = now) }
-            insert(tx, newId(), threadId, ChatOutboxOperation.DELETE, messageId, JsonObject(emptyMap()), now)
+            ChatMessageCache.updateMessage(tx, messageId) { it.copy(deletedAt = now, updatedAt = now) }
+            val row = NewRow(newId(), threadId, ChatOutboxOperation.DELETE, messageId, JsonObject(emptyMap()))
+            insert(tx, row, now)
         }
     }
 
@@ -152,7 +155,9 @@ class ChatOutboxQueue internal constructor(private val db: V2Database, private v
     /**
      * Delivers queued rows strictly in `causal_order` through [transport] until the queue is empty
      * or the head row must back off. Callers serialise drains per store; a row left `leased` by a
-     * crashed process is simply delivered again (`client_ref` makes that safe).
+     * crashed process is simply delivered again (`client_ref` makes that safe). A transport that
+     * throws an I/O or state/argument error counts as a retry; any other exception propagates and
+     * leaves the head `leased`, to be delivered again by the next drain.
      */
     suspend fun drain(now: () -> Long, transport: suspend (ChatOutboxEntry) -> ChatOutboxOutcome): ChatOutboxDrain {
         while (true) {
@@ -163,22 +168,8 @@ class ChatOutboxQueue internal constructor(private val db: V2Database, private v
             val due = head.nextAttemptAt ?: 0
             if (due > now()) return ChatOutboxDrain.WaitUntil(due)
 
-            db.write { tx ->
-                tx.execute("UPDATE outbox SET state = 'leased' WHERE id = ?", listOf(head.id))
-                statusTarget(head)?.let { target ->
-                    if (head.attempts < FAILED_AFTER_ATTEMPTS) {
-                        ChatCache.updateMessage(tx, target) { it.copy(outboxStatus = STATUS_SENDING) }
-                    }
-                }
-            }
-            val outcome = try {
-                transport(head)
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                ChatOutboxOutcome.Retry(e.message ?: e.javaClass.simpleName)
-            }
-            when (outcome) {
+            db.write { tx -> lease(tx, head) }
+            when (val outcome = deliver(head, transport)) {
                 is ChatOutboxOutcome.Acknowledged -> db.write { tx -> acknowledge(tx, head, outcome.message) }
                 is ChatOutboxOutcome.Rejected -> db.write { tx -> reject(tx, head, outcome.error) }
                 is ChatOutboxOutcome.Retry -> {
@@ -189,119 +180,45 @@ class ChatOutboxQueue internal constructor(private val db: V2Database, private v
         }
     }
 
-    private fun acknowledge(tx: V2Transaction, row: ChatOutboxEntry, echo: ChatMessageEntity?) {
-        tx.execute("DELETE FROM outbox WHERE id = ?", listOf(row.id))
-        when (row.operation) {
-            ChatOutboxOperation.SEND, ChatOutboxOperation.REPLY -> {
-                if (echo != null) {
-                    if (echo.messageId != row.id) {
-                        ChatCache.deleteMessage(tx, row.id)
-                        tx.execute(
-                            "UPDATE outbox SET target_message_id = ? WHERE target_message_id = ?",
-                            listOf(echo.messageId, row.id),
-                        )
-                    }
-                    ChatCache.putMessage(tx, echo.copy(outboxStatus = null, clientRef = echo.clientRef ?: row.id))
-                } else {
-                    ChatCache.updateMessage(tx, row.id) { it.copy(outboxStatus = null) }
-                }
-            }
-            ChatOutboxOperation.EDIT -> ChatCache.updateMessage(tx, row.targetMessageId ?: return) { current ->
-                current.copy(
-                    bodyMd = echo?.bodyMd ?: current.bodyMd,
-                    bodyPreview = (echo?.bodyMd ?: current.bodyMd).take(PREVIEW_LENGTH),
-                    editedAt = echo?.editedAt ?: current.editedAt,
-                    updatedAt = echo?.updatedAt ?: current.updatedAt,
-                    outboxStatus = null,
-                )
-            }
-            ChatOutboxOperation.DELETE ->
-                ChatCache.updateMessage(tx, row.targetMessageId ?: return) { it.copy(outboxStatus = null) }
-        }
+    /**
+     * Runs [transport] for [head]; I/O and state/argument errors become a retry, cancellation and
+     * any other exception propagate.
+     */
+    private suspend fun deliver(
+        head: ChatOutboxEntry,
+        transport: suspend (ChatOutboxEntry) -> ChatOutboxOutcome,
+    ): ChatOutboxOutcome = try {
+        transport(head)
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: IOException) {
+        ChatOutboxOutcome.Retry(e.message ?: e.javaClass.simpleName)
+    } catch (e: IllegalStateException) {
+        ChatOutboxOutcome.Retry(e.message ?: e.javaClass.simpleName)
+    } catch (e: IllegalArgumentException) {
+        ChatOutboxOutcome.Retry(e.message ?: e.javaClass.simpleName)
     }
 
-    private fun reject(tx: V2Transaction, row: ChatOutboxEntry, error: String) {
-        tx.execute(
-            "UPDATE outbox SET state = 'rejected', attempts = attempts + 1, last_error = ?, next_attempt_at = NULL " +
-                "WHERE id = ?",
-            listOf(error, row.id),
-        )
-        when (row.operation) {
-            ChatOutboxOperation.SEND, ChatOutboxOperation.REPLY ->
-                ChatCache.updateMessage(tx, row.id) { it.copy(outboxStatus = STATUS_FAILED) }
-            // An edit the server refuses is undone: the cache shows the server's text again.
-            ChatOutboxOperation.EDIT -> ChatCache.updateMessage(tx, row.targetMessageId ?: return) { current ->
-                val previous = row.text(KEY_PREVIOUS_BODY) ?: current.bodyMd
-                current.copy(
-                    bodyMd = previous,
-                    bodyPreview = previous.take(PREVIEW_LENGTH),
-                    editedAt = row.payload[KEY_PREVIOUS_EDITED_AT]?.jsonPrimitive?.contentOrNull?.toLongOrNull(),
-                    outboxStatus = null,
-                )
-            }
-            // A delete the server refuses is undone: the message shows again.
-            ChatOutboxOperation.DELETE -> ChatCache.updateMessage(tx, row.targetMessageId ?: return) {
-                it.copy(deletedAt = null, outboxStatus = null)
-            }
-        }
-    }
-
-    private fun retryLater(tx: V2Transaction, row: ChatOutboxEntry, error: String, now: Long) {
-        val attempts = row.attempts + 1
-        tx.execute(
-            "UPDATE outbox SET state = 'sent_unknown', attempts = ?, last_error = ?, next_attempt_at = ? WHERE id = ?",
-            listOf(attempts, error, now + backoffMillis(attempts), row.id),
-        )
-        if (attempts >= FAILED_AFTER_ATTEMPTS) {
-            statusTarget(row)?.let { target ->
-                ChatCache.updateMessage(tx, target) { it.copy(outboxStatus = STATUS_FAILED) }
-            }
-        }
-    }
-
-    /** The cached message whose "sending"/"failed" badge reflects [row] (a delete hides its message). */
-    private fun statusTarget(row: ChatOutboxEntry): String? = when (row.operation) {
-        ChatOutboxOperation.SEND, ChatOutboxOperation.REPLY -> row.id
-        ChatOutboxOperation.EDIT -> row.targetMessageId
-        ChatOutboxOperation.DELETE -> null
-    }
-
-    private fun untransmittedSend(tx: V2Transaction, messageId: String): ChatOutboxEntry? =
-        tx.query(
-            "SELECT * FROM outbox WHERE id = ? AND state = 'queued' AND attempts = 0 " +
-                "AND operation IN ('send', 'reply')",
-            listOf(messageId),
-        ).firstOrNull()?.let(::entry)
-
-    private fun insert(
-        tx: V2Transaction,
-        id: String,
-        threadId: String,
-        operation: ChatOutboxOperation,
-        targetMessageId: String?,
-        payload: JsonObject,
-        now: Long,
-    ) {
+    private fun insert(tx: V2Transaction, row: NewRow, now: Long) {
         val order = (tx.connection.scalarLong("SELECT coalesce(max(causal_order), 0) FROM outbox") ?: 0L) + 1
         tx.execute(
             "INSERT INTO outbox (id, user_id, thread_id, operation, target_message_id, payload, causal_order, state, " +
                 "attempts, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', 0, ?)",
-            listOf(id, userId, threadId, operation.wire, targetMessageId, payload.toString(), order, now),
+            listOf(
+                row.id, userId, row.threadId, row.operation.wire, row.targetMessageId, row.payload.toString(),
+                order, now,
+            ),
         )
         tx.markChanged(OUTBOX)
     }
 
-    private fun entry(row: V2Row) = ChatOutboxEntry(
-        id = row.getValue("id") as String,
-        threadId = row.getValue("thread_id") as String,
-        operation = ChatOutboxOperation.fromWire(row.getValue("operation") as String),
-        targetMessageId = row["target_message_id"] as String?,
-        payload = kotlinx.serialization.json.Json.parseToJsonElement(row.getValue("payload") as String).jsonObject,
-        causalOrder = (row.getValue("causal_order") as Number).toLong(),
-        state = row.getValue("state") as String,
-        attempts = (row.getValue("attempts") as Number).toInt(),
-        nextAttemptAt = (row["next_attempt_at"] as Number?)?.toLong(),
-        lastError = row["last_error"] as String?,
+    /** A row about to be queued (see [ChatOutboxEntry] for the fields). */
+    private class NewRow(
+        val id: String,
+        val threadId: String,
+        val operation: ChatOutboxOperation,
+        val targetMessageId: String?,
+        val payload: JsonObject,
     )
 
     companion object {
@@ -330,5 +247,121 @@ class ChatOutboxQueue internal constructor(private val db: V2Database, private v
             minOf(BACKOFF_BASE_MILLIS shl (attempts - 1).coerceIn(0, BACKOFF_MAX_DOUBLINGS), BACKOFF_CAP_MILLIS)
 
         fun newId(): String = UUID.randomUUID().toString()
+
+        /** Marks [head] in flight and, before it counts as failed, shows its message as sending. */
+        private fun lease(tx: V2Transaction, head: ChatOutboxEntry) {
+            tx.execute("UPDATE outbox SET state = 'leased' WHERE id = ?", listOf(head.id))
+            statusTarget(head)?.let { target ->
+                if (head.attempts < FAILED_AFTER_ATTEMPTS) {
+                    ChatMessageCache.updateMessage(tx, target) { it.copy(outboxStatus = STATUS_SENDING) }
+                }
+            }
+        }
+
+        private fun acknowledge(tx: V2Transaction, row: ChatOutboxEntry, echo: ChatMessageEntity?) {
+            tx.execute("DELETE FROM outbox WHERE id = ?", listOf(row.id))
+            when (row.operation) {
+                ChatOutboxOperation.SEND, ChatOutboxOperation.REPLY -> {
+                    if (echo != null) {
+                        if (echo.messageId != row.id) {
+                            ChatMessageCache.deleteMessage(tx, row.id)
+                            tx.execute(
+                                "UPDATE outbox SET target_message_id = ? WHERE target_message_id = ?",
+                                listOf(echo.messageId, row.id),
+                            )
+                        }
+                        val reconciled = echo.copy(outboxStatus = null, clientRef = echo.clientRef ?: row.id)
+                        ChatMessageCache.putMessage(tx, reconciled)
+                    } else {
+                        ChatMessageCache.updateMessage(tx, row.id) { it.copy(outboxStatus = null) }
+                    }
+                }
+                ChatOutboxOperation.EDIT -> {
+                    val target = row.targetMessageId ?: return
+                    ChatMessageCache.updateMessage(tx, target) { current ->
+                        current.copy(
+                            bodyMd = echo?.bodyMd ?: current.bodyMd,
+                            bodyPreview = (echo?.bodyMd ?: current.bodyMd).take(PREVIEW_LENGTH),
+                            editedAt = echo?.editedAt ?: current.editedAt,
+                            updatedAt = echo?.updatedAt ?: current.updatedAt,
+                            outboxStatus = null,
+                        )
+                    }
+                }
+                ChatOutboxOperation.DELETE ->
+                    ChatMessageCache.updateMessage(tx, row.targetMessageId ?: return) { it.copy(outboxStatus = null) }
+            }
+        }
+
+        private fun reject(tx: V2Transaction, row: ChatOutboxEntry, error: String) {
+            tx.execute(
+                "UPDATE outbox SET state = 'rejected', attempts = attempts + 1, last_error = ?, " +
+                    "next_attempt_at = NULL WHERE id = ?",
+                listOf(error, row.id),
+            )
+            when (row.operation) {
+                ChatOutboxOperation.SEND, ChatOutboxOperation.REPLY ->
+                    ChatMessageCache.updateMessage(tx, row.id) { it.copy(outboxStatus = STATUS_FAILED) }
+                // An edit the server refuses is undone: the cache shows the server's text again.
+                ChatOutboxOperation.EDIT -> {
+                    val target = row.targetMessageId ?: return
+                    ChatMessageCache.updateMessage(tx, target) { current ->
+                        val previous = row.text(KEY_PREVIOUS_BODY) ?: current.bodyMd
+                        current.copy(
+                            bodyMd = previous,
+                            bodyPreview = previous.take(PREVIEW_LENGTH),
+                            editedAt = row.payload[KEY_PREVIOUS_EDITED_AT]
+                                ?.jsonPrimitive?.contentOrNull?.toLongOrNull(),
+                            outboxStatus = null,
+                        )
+                    }
+                }
+                // A delete the server refuses is undone: the message shows again.
+                ChatOutboxOperation.DELETE -> ChatMessageCache.updateMessage(tx, row.targetMessageId ?: return) {
+                    it.copy(deletedAt = null, outboxStatus = null)
+                }
+            }
+        }
+
+        private fun retryLater(tx: V2Transaction, row: ChatOutboxEntry, error: String, now: Long) {
+            val attempts = row.attempts + 1
+            tx.execute(
+                "UPDATE outbox SET state = 'sent_unknown', attempts = ?, last_error = ?, next_attempt_at = ? " +
+                    "WHERE id = ?",
+                listOf(attempts, error, now + backoffMillis(attempts), row.id),
+            )
+            if (attempts >= FAILED_AFTER_ATTEMPTS) {
+                statusTarget(row)?.let { target ->
+                    ChatMessageCache.updateMessage(tx, target) { it.copy(outboxStatus = STATUS_FAILED) }
+                }
+            }
+        }
+
+        /** The cached message whose "sending"/"failed" badge reflects [row] (a delete hides its message). */
+        private fun statusTarget(row: ChatOutboxEntry): String? = when (row.operation) {
+            ChatOutboxOperation.SEND, ChatOutboxOperation.REPLY -> row.id
+            ChatOutboxOperation.EDIT -> row.targetMessageId
+            ChatOutboxOperation.DELETE -> null
+        }
+
+        private fun untransmittedSend(tx: V2Transaction, messageId: String): ChatOutboxEntry? =
+            tx.query(
+                "SELECT * FROM outbox WHERE id = ? AND state = 'queued' AND attempts = 0 " +
+                    "AND operation IN ('send', 'reply')",
+                listOf(messageId),
+            ).firstOrNull()?.let(::entry)
     }
 }
+
+private fun entry(row: V2Row) = ChatOutboxEntry(
+    id = row.getValue("id") as String,
+    threadId = row.getValue("thread_id") as String,
+    operation = ChatOutboxOperation.fromWire(row.getValue("operation") as String),
+    targetMessageId = row["target_message_id"] as String?,
+    payload = Json.parseToJsonElement(row.getValue("payload") as String).jsonObject,
+    causalOrder = (row.getValue("causal_order") as Number).toLong(),
+    state = row.getValue("state") as String,
+    attempts = (row.getValue("attempts") as Number).toInt(),
+    nextAttemptAt = (row["next_attempt_at"] as Number?)?.toLong(),
+    lastError = row["last_error"] as String?,
+)

@@ -12,8 +12,6 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 
 /** Who owns a v2 store file (`database_identity`, plan §14.4). */
 data class V2StoreIdentity(val accountId: String, val userId: String, val deviceId: String) {
@@ -153,7 +151,7 @@ class V2Database private constructor(
 
         /**
          * Opens (creating on first use) a store on [connection]. A store at an older released
-         * `user_version` is upgraded in place ([upgrade]); a same-version DDL drift is rebuilt
+         * `user_version` is upgraded in place ([V2StoreUpgrade]); a same-version DDL drift is rebuilt
          * ([migrate]). Throws [V2SchemaMismatchException] when the file belongs to another
          * user/account, [V2StoreTooNewException] for a newer store and [V2MigrationException] when
          * an upgrade fails (rolled back).
@@ -175,7 +173,6 @@ class V2Database private constructor(
                 connection.query("PRAGMA journal_mode = WAL")
                 connection.query("PRAGMA busy_timeout = 5000")
                 val userVersion = connection.scalarLong("PRAGMA user_version") ?: 0L
-                val current = V2Contract.V2_DB_SCHEMA_VERSION.toLong()
                 if (userVersion == 0L) {
                     val script = ddl(kind)
                     transaction(connection) {
@@ -186,19 +183,7 @@ class V2Database private constructor(
                     }
                     connection.execute("PRAGMA user_version = ${V2Contract.V2_DB_SCHEMA_VERSION}")
                 } else {
-                    if (userVersion > current) {
-                        throw V2StoreTooNewException("v2 $kind store has user_version $userVersion > $current")
-                    }
-                    val row = connection.query("SELECT user_id, account_id FROM database_identity").firstOrNull()
-                    if (row == null || row["user_id"] != identity.userId || row["account_id"] != identity.accountId) {
-                        throw V2SchemaMismatchException("v2 $kind store belongs to another user/account")
-                    }
-                    if (userVersion < current) {
-                        upgrade(connection, kind, userVersion.toInt(), expectedSha)
-                    } else {
-                        val stored = runCatching { metaGet(connection, META_DDL_SHA) }.getOrNull()
-                        if (stored != expectedSha) migrate(connection, kind, expectedSha)
-                    }
+                    openExisting(connection, kind, identity, userVersion, expectedSha)
                 }
             } catch (e: Exception) {
                 connection.close()
@@ -208,73 +193,30 @@ class V2Database private constructor(
         }
 
         /**
-         * In-place upgrade of a store at the released version [from] (plan 6.4, L43): with
-         * `foreign_keys=OFF`, one `BEGIN IMMEDIATE` transaction runs every embedded step up to the
-         * current version, then `PRAGMA foreign_key_check` must be empty (else ROLLBACK). Synced rows,
-         * the outbox and every durable table are kept. The new DDL hash and the projection versions
-         * minus the retired projections are written to meta, so neither [migrate] nor a
-         * re-bootstrap follows.
+         * Checks a store that already has a schema ([userVersion] > 0) against [identity], then
+         * upgrades it in place ([V2StoreUpgrade]) or rebuilds a same-version DDL drift ([migrate]).
          */
-        private fun upgrade(conn: V2Connection, kind: V2StoreKind, from: Int, expectedSha: String) {
-            val target = V2Contract.V2_DB_SCHEMA_VERSION
-            val scripts = mutableListOf<String>()
-            var version = from
-            while (version < target) {
-                val step = V2GeneratedSchema.migrationSteps.firstOrNull { it.store == kind && it.from == version }
-                    ?: throw V2MigrationException("v2 $kind store: no upgrade step from user_version $version")
-                scripts += migrationScript(step)
-                version = step.to
+        private fun openExisting(
+            connection: V2Connection,
+            kind: V2StoreKind,
+            identity: V2StoreIdentity,
+            userVersion: Long,
+            expectedSha: String,
+        ) {
+            val current = V2Contract.V2_DB_SCHEMA_VERSION.toLong()
+            if (userVersion > current) {
+                throw V2StoreTooNewException("v2 $kind store has user_version $userVersion > $current")
             }
-            conn.execute("PRAGMA foreign_keys = OFF")
-            try {
-                transaction(conn) {
-                    try {
-                        scripts.forEach { conn.executeScript(it) }
-                    } catch (e: V2SqlException) {
-                        throw V2MigrationException("v2 $kind store upgrade from $from failed: ${e.message}", e)
-                    }
-                    val violations = conn.query("PRAGMA foreign_key_check")
-                    if (violations.isNotEmpty()) {
-                        throw V2MigrationException(
-                            "v2 $kind store upgrade from $from left ${violations.size} dangling references",
-                        )
-                    }
-                    val reached = conn.scalarLong("PRAGMA user_version")
-                    if (reached != target.toLong()) {
-                        throw V2MigrationException("v2 $kind store upgrade from $from ended at user_version $reached")
-                    }
-                    conn.execute(META_DDL)
-                    metaPut(conn, META_DDL_SHA, expectedSha)
-                    if (kind == V2StoreKind.BUSINESS) {
-                        metaGet(conn, V2SyncEngine.META_PROJECTION_VERSIONS)?.let { stored ->
-                            metaPut(conn, V2SyncEngine.META_PROJECTION_VERSIONS, keptProjectionVersions(stored))
-                        }
-                    }
-                }
-            } finally {
-                conn.execute("PRAGMA foreign_keys = ON")
+            val row = connection.query("SELECT user_id, account_id FROM database_identity").firstOrNull()
+            if (row == null || row["user_id"] != identity.userId || row["account_id"] != identity.accountId) {
+                throw V2SchemaMismatchException("v2 $kind store belongs to another user/account")
             }
-        }
-
-        /**
-         * The stored projection versions without the projections that no longer have a mobile
-         * table, i.e. what [V2SyncEngine] computes as its desired versions after the upgrade.
-         */
-        internal fun keptProjectionVersions(stored: String): String {
-            val kept = V2SyncEngine.parseVersions(stored).filterKeys { name ->
-                V2GeneratedSchema.projectionsByType[name]?.mobileTable != null
-            }.toSortedMap()
-            return JsonObject(kept.mapValues { JsonPrimitive(it.value) }).toString()
-        }
-
-        private fun migrationScript(step: V2MigrationStep): String {
-            val bytes = V2Database::class.java.getResourceAsStream(step.resource)?.use { it.readBytes() }
-                ?: error("missing migration resource ${step.resource}")
-            check(V2Canonical.sha256Hex(bytes) == step.sha256) {
-                "migration resource ${step.resource} does not match V2GeneratedSchema " +
-                    "(rerun scripts/gen_v2_contract.py)"
+            if (userVersion < current) {
+                V2StoreUpgrade.upgrade(connection, kind, userVersion.toInt(), expectedSha)
+            } else {
+                val stored = runCatching { metaGet(connection, META_DDL_SHA) }.getOrNull()
+                if (stored != expectedSha) migrate(connection, kind, expectedSha)
             }
-            return bytes.toString(Charsets.UTF_8)
         }
 
         /**
